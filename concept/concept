@@ -916,7 +916,13 @@ if [ "${test}" != "${test_unspecified}" ]; then
     get_param(){
         "${concept}"                                                \
             -c="${command_line_param}"                              \
-            -m="from commons import *; print('param_var =', ${1})"  \
+            -m="
+from commons import *
+try:
+    print('param_var =', ${1})
+except NameError:
+    print('param_var =', user_params['''${1}'''])
+"                                                                   \
             -n=1                                                    \
             -p="${this_dir}/params"                                 \
             --local                                                 \
@@ -931,49 +937,50 @@ if [ "${test}" != "${test_unspecified}" ]; then
 from glob import glob
 # List tests in order of required execution.
 # Tests not included here will be run last.
-order = (# Test whether the code is able to compile and run
-         'basic',
-         # Test of the GADGET installation
-         'gadget',
-         # Tests of the CLASS installation,
-         # the Friedmann equation and the realizations.
-         'friedmann',
-         'realize',
-         # Tests of the particle implementation
-         'drift_noHubble',
-         'drift',
-         'kick_PP_without_Ewald',
-         'kick_PP_with_Ewald',
-         # Tests of the PP implementation
-         'pure_python_PP',
-         'concept_vs_gadget_PP',
-         'nprocs_PP',
-         # Tests of the PM implementation
-         'pure_python_PM',
-         'concept_vs_gadget_PM',
-         'nprocs_PM',
-         # Tests of the P³M implementation
-         'pure_python_P3M',
-         'concept_vs_gadget_P3M',
-         'nprocs_P3M',
-         # Test of the power spectrum functionality
-         'powerspec',
-         # Tests of the fluid implementation
-         'fluid_drift_rigid_noHubble',
-         'fluid_drift_rigid',
-         'fluid_gravity_noHubble',
-         'fluid_gravity',
-         'fluid_vacuum',
-         'fluid_vs_particles',
-         'fluid_pressure',
-         # To test the fluid implementation on a real life scenario,
-         # we test linear and non-linear neutrino simulations.
-         'neutrino',
-         # Test whether the optimizations introduces bugs
-         'optimizations',
-         # Tests of other functionality
-         'render',
-         )
+order = (
+    # Test whether the code is able to compile and run
+    'basic',
+    # Test of the GADGET installation
+    'gadget',
+    # Tests of the CLASS installation,
+    # the Friedmann equation, realizations
+    # and the power spectrum functionality.
+    'friedmann',
+    'realize',
+    'powerspec',
+    # Tests of the particle implementation
+    'drift_nohubble',
+    'drift',
+    'kick_pp_without_ewald',
+    'kick_pp_with_ewald',
+    # Tests of the PP implementation
+    'nprocs_pp',
+    'pure_python_pp',
+    'concept_vs_gadget_pp',
+    # Tests of the PM implementation
+    'nprocs_pm',
+    'pure_python_pm',
+    'concept_vs_class_pm',
+    # Tests of the P³M implementation
+    'nprocs_p3m',
+    'pure_python_p3m',
+    'concept_vs_gadget_p3m',
+    # Tests of the fluid implementation
+    'fluid_drift_rigid_nohubble',
+    'fluid_drift_rigid',
+    'fluid_gravity_nohubble',
+    'fluid_gravity',
+    'fluid_vacuum',
+    'fluid_vs_particles',
+    'fluid_pressure',
+    # To test the fluid implementation on a real life scenario,
+    # we test linear and non-linear neutrino simulations.
+    'neutrino',
+    # Test whether the optimizations introduces bugs
+    'optimizations',
+    # Tests of other functionality
+    'render',
+)
 # Find all tests (directories in ${tests_dir}).
 # Skip test if its (directory) name has a leading underscore.
 tests = (dir[:-1] for dir in glob('*/') if not dir.startswith('_'))
@@ -1173,6 +1180,7 @@ fi
 # at the bottom of the copied parameter file.
 "${python}" -B -c "
 lines = [
+    '',
     '# The above is a copy of the CO𝘕CEPT parameter file \"${params}\".',
     '# Below we apply any additional command-line parameters.',
 ]
@@ -1289,7 +1297,7 @@ print('\n'.join(lines))
     else
         memory_display=""
     fi
-    # The executing command for the MPI computation when run remotely.
+    # The MPI executor command when run remotely.
     # When using Slurm, it is best to use the srun command rather than
     # calling mpiexec directly.
     # If the mpi_executor variable is already defined, we use this.
@@ -1300,6 +1308,13 @@ print('\n'.join(lines))
                 # Use the Slurm srun command as the MPI executor.
                 # We further disable process binding/affinity in Slurm.
                 mpi_executor="srun --cpu_bind=none"
+                # When using OpenMPI with Slurm, it's often necessary to
+                # additionally pass the --mpi=openmpi to srun. Here we
+                # add this option if it is supported by srun.
+                if [ "${mpi_implementation}" == "openmpi" ] \
+                    && srun --mpi=list 2>&1 | grep "openmpi" >/dev/null; then
+                    mpi_executor="${mpi_executor} --mpi=openmpi"
+                fi
             else
                 colorprint "Warning: Using Slurm but cannot find the srun command. \
 Using mpiexec instead." "red"

@@ -25,7 +25,7 @@
 from commons import *
 
 # Cython imports
-cimport('from mesh import CIC_vectorgrid2coordinates, tabulate_vectorfield')
+cimport('from mesh import interpolate_in_vectorgrid, tabulate_vectorgrid')
 
 
 
@@ -55,7 +55,7 @@ cimport('from mesh import CIC_vectorgrid2coordinates, tabulate_vectorfield')
     returns='double*',
 )
 def summation(x, y, z):
-    """ This function performs the Ewald summation given the distance
+    """This function performs the Ewald summation given the distance
     x, y, z between two particles, normalized so that
     0 <= |x|, |y|, |z| < 1 (corresponding to boxsize = 1). The equation
     being solved corresponds to (8) in Ralf Klessen's 'GRAPESPH with
@@ -71,10 +71,10 @@ def summation(x, y, z):
     force_x = force_y = force_z = 0
     # The image is on top of the particle: No force
     if x == 0 and y == 0 and z == 0:
-        force[0] = 0
-        force[1] = 0
-        force[2] = 0
-        return force
+        ewald_force[0] = 0
+        ewald_force[1] = 0
+        ewald_force[2] = 0
+        return ewald_force
     # Remove the direct force, as we
     # are interested in the correction only
     r3 = x**2 + y**2 + z**2
@@ -114,29 +114,29 @@ def summation(x, y, z):
                 force_y += ky*scalarpart
                 force_z += kz*scalarpart
     # Pack and return Ewald force
-    force[0] = force_x
-    force[1] = force_y
-    force[2] = force_z
-    return force
+    ewald_force[0] = force_x
+    ewald_force[1] = force_y
+    ewald_force[2] = force_z
+    return ewald_force
 # Vector used as the return value
 # of the summation function.
-cython.declare(force='double*')
-force = malloc(3*sizeof('double'))
+cython.declare(ewald_force='double*')
+ewald_force = malloc(3*sizeof('double'))
 
 # Master function of this module. Returns the Ewald force correction.
-@cython.header(# Arguments
-               x='double',
-               y='double',
-               z='double',
-               # Locals
-               dim='int',
-               force='double*',
-               grid='double[:, :, :, ::1]',
-               isnegative_x='bint',
-               isnegative_y='bint',
-               isnegative_z='bint',
-               returns='double*',
-               )
+@cython.header(
+    # Arguments
+    x='double',
+    y='double',
+    z='double',
+    # Locals
+    dim='int',
+    force='double*',
+    isnegative_x='bint',
+    isnegative_y='bint',
+    isnegative_z='bint',
+    returns='double*',
+)
 def ewald(x, y, z):
     """This function performs a look up of the Ewald correction to the
     fully periodic gravitational force (corresponding to 1/r²) on a
@@ -148,7 +148,6 @@ def ewald(x, y, z):
     arising on the first particle due to all periodic images of the
     second particle, except for the nearest one.
     """
-    grid = get_grid()
     # Only the positive octant of the box is tabulated. Flip the sign of
     # the coordinates so that they reside inside this octant.
     if x > 0:
@@ -168,11 +167,17 @@ def ewald(x, y, z):
         isnegative_z = True
     # Look up Ewald force and do a CIC interpolation. Since the
     # coordinates are to the nearest image, they must be scaled by
-    # 2/boxsize to reside in the range 0 <= x, y, z < 1.
-    force = CIC_vectorgrid2coordinates(grid, x*ℝ[2/boxsize],
-                                             y*ℝ[2/boxsize],
-                                             z*ℝ[2/boxsize],
-                                       )
+    # 2/boxsize to reside in the range 0 <= x, y, z < 1. Furthermore, a
+    # scaling of (ewald_gridsize - 1) is applied to achieve
+    # 0 <= x, y, z < grid.shape - 1, as required by
+    # interpolate_in_vectorgrid().
+    force = interpolate_in_vectorgrid(
+        grid,
+        x*ℝ[2/boxsize*(ewald_gridsize - 1)*(1 - machine_ϵ)],
+        y*ℝ[2/boxsize*(ewald_gridsize - 1)*(1 - machine_ϵ)],
+        z*ℝ[2/boxsize*(ewald_gridsize - 1)*(1 - machine_ϵ)],
+        2,  # CIC interpolation
+    )
     # Put the sign back in for negative input
     if isnegative_x:
         force[0] *= -1
@@ -180,7 +185,7 @@ def ewald(x, y, z):
         force[1] *= -1
     if isnegative_z:
         force[2] *= -1
-    # The tabulated force is for a unit box. Do rescaling
+    # The tabulated force is for a unit box. Do rescaling.
     for dim in range(3):
         force[dim] *= ℝ[1/boxsize**2]
     return force
@@ -188,14 +193,15 @@ def ewald(x, y, z):
 # Function for loading the Ewald grid from disk.
 # The result is stored as the global variable 'grid',
 # which will be fetched when called repeatedly.
-@cython.header(found_on_disk='bint',
-               shape=tuple,
-               returns='double[:, :, :, ::1]',
-               )
-def get_grid():
+@cython.header(
+    found_on_disk='bint',
+    shape=tuple,
+    returns='double[:, :, :, ::1]',
+)
+def get_ewald_grid():
     global grid
     # If the Ewald grid already exist in memory, return it
-    if grid.shape[0] != 1:
+    if grid is not None:
         return grid
     # Let the master process read in the Ewald grid from disk,
     # if it exists.
@@ -212,26 +218,28 @@ def get_grid():
         # Ewald grid loaded by the master process.
         # Broadcast it to all slave processes.
         if not master:
-            grid = np.empty(shape, dtype=C2np['double'])
+            grid = empty(shape, dtype=C2np['double'])
         Bcast(grid)
     else:
         # No tabulated Ewald grid found. Compute it. The factor 0.5
         # ensures that only the first octant of the box is tabulated.
         grid = tabulate()
     return grid
-cython.declare(grid='double[:, :, :, ::1]', filename=str)
-grid = np.empty((1, 1, 1, 1), dtype=C2np['double'])
-filename = f'{paths["reusables_dir"]}/ewald/ewald_gridsize={ewald_gridsize}.hdf5'
 
 # Function for tabulation of the Ewald grid
-@cython.pheader(returns='double[:, :, :, ::1]')
+@cython.pheader(grid='double[:, :, :, ::1]', returns='double[:, :, :, ::1]')
 def tabulate():
-    global grid
     masterprint('Tabulating Ewald grid of linear size {} ...'.format(ewald_gridsize))
-    grid = tabulate_vectorfield(ewald_gridsize, summation, 0.5/(ewald_gridsize - 1), filename)
+    grid = tabulate_vectorgrid(ewald_gridsize, summation, 0.5/(ewald_gridsize - 1), filename)
     masterprint('done')
     return grid
 
+
+
+# The global Ewald grid and its path on disk
+cython.declare(grid='double[:, :, :, ::1]', filename=str)
+grid = None
+filename = f'{paths["reusables_dir"]}/ewald/ewald_gridsize={ewald_gridsize}.hdf5'
 
 # Set parameters for the Ewald summation at import time
 cython.declare(h_lower='int',

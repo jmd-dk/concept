@@ -520,8 +520,13 @@ def inline_iterators(lines, no_optimization):
         iterator_lines = iterator_lines[i+1:]
         # Remove yield line, which has to be only on the last line.
         # We could generalise this to work for any number of yields,
-        # if we needed to.
-        iterator_lines = iterator_lines[:-1]
+        # if we needed to. Just removing it however may screw up the
+        # indentation. Instead, we replace it with a pass statement.
+        yield_statement = iterator_lines[-1]
+        yield_indentation = ' '*(len(yield_statement) - len(yield_statement.lstrip()))
+        iterator_lines[-1] = (
+            f'{yield_indentation}pass  # Before inlining iterator: {yield_statement.strip()}\n'
+        )
         # Find indentation level
         for iterator_line in iterator_lines:
             iterator_line_stripped = iterator_line.strip()
@@ -678,70 +683,78 @@ def constant_expressions(lines, no_optimization, first_call=True):
     # Edit all nested occurrences of constant expressions so that only
     # the inner most expression survived, while the outer ones will
     # be assigned a nesting number, e.g.
-    # ℝ[2 + ℝ[3*4]] -> ℝ1[2 + ℝ[3*4]].
-    new_lines = []
+    # ℝ[2 + ℝ[3*4]] -> ℝ0[2 + ℝ1[3*4]].
     if first_call:
-        for i, line in enumerate(lines):
-            line = line.rstrip('\n')
-            search = re.search(r'[{}]\[.+\]'.format(''.join(sets.keys())), line)
-            if not search or line.replace(' ', '').startswith('#'):
+        find_nested = True
+        while find_nested:
+            find_nested = False
+            new_lines = []
+            for i, line in enumerate(lines):
+                line = line.rstrip('\n')
+                search = re.search(r'[{}]\[.+\]'.format(''.join(sets.keys())), line)
+                if not search or line.replace(' ', '').startswith('#'):
+                    new_lines.append(line + '\n')
+                    continue
+                # Blackboard bold symbol found on this line
+                find_nested = True
+                R_statement_fullmatch = search.group(0)
+                R_statement = R_statement_fullmatch[:2]
+                for c in R_statement_fullmatch[2:]:
+                    R_statement += c
+                    if R_statement.count('[') == R_statement.count(']'):
+                        break
+                expression = re.sub(' +', ' ', R_statement[2:-1].strip())
+                edited_line = []
+                for blackboard_bold_symbol_i in sets:
+                    if blackboard_bold_symbol_i in expression:
+                        # Nested blackboard bold expression found
+                        lvl_indices = []
+                        lvl = -1
+                        bracket_types = []
+                        c_before = ''
+                        for c in line:
+                            write_lvl = False
+                            if c == '[':
+                                if c_before in sets:
+                                    lvl += 1
+                                    bracket_types.append('constant expression')
+                                    write_lvl = True
+                                else:
+                                    bracket_types.append('other')
+                            elif c == ']':
+                                bracket_type = bracket_types.pop()
+                                if bracket_type == 'constant expression':
+                                    lvl -= 1
+                                elif bracket_type == 'other':
+                                    pass
+                            edited_line.append(c)
+                            if write_lvl:
+                                edited_line.pop()
+                                lvl_indices.append(len(edited_line))
+                                edited_line.append(str(lvl))
+                                edited_line.append('[')
+                            c_before = c
+                        break
+                if edited_line:
+                    # Invert the lvl's so that the inner expressions have
+                    # the largest lvl.
+                    lvls = [int(edited_line[lvl_index]) for lvl_index in lvl_indices]
+                    if max(lvls) > 0:
+                        j = 0
+                        for i in range(1, len(lvls)):
+                            if lvls[i] == 0:
+                                max_lvl = max(lvls[j:i])
+                                lvls[j:i] = [max_lvl - lvls[j] for j in range(j, i)]
+                                j = i
+                    for lvl, lvl_index in zip(lvls, lvl_indices):
+                        edited_line[lvl_index] = str(lvl)
+                    line = ''.join(edited_line)
+                else:
+                    # At least the first constant expression on this line
+                    # is not nested. Place a nesting number of 0.
+                    line = re.sub('(' + '|'.join(sets) + r')\[', r'\g<1>0[', line, 1)
                 new_lines.append(line + '\n')
-                continue
-            # Blackboard bold symbol found on this line
-            R_statement_fullmatch = search.group(0)
-            R_statement = R_statement_fullmatch[:2]
-            for c in R_statement_fullmatch[2:]:
-                R_statement += c
-                if R_statement.count('[') == R_statement.count(']'):
-                    break
-            expression = re.sub(' +', ' ', R_statement[2:-1].strip())
-            edited_line = []
-            for blackboard_bold_symbol_i in sets:
-                if blackboard_bold_symbol_i in expression:
-                    # Nested blackboard bold expression found
-                    lvl_indices = []
-                    lvl = -1
-                    bracket_types = []
-                    c_before = ''
-                    for c in line:
-                        write_lvl = False
-                        if c == '[':
-                            if c_before in sets:
-                                lvl += 1
-                                bracket_types.append('constant expression')
-                                write_lvl = True
-                            else:
-                                bracket_types.append('other')
-                        elif c == ']':
-                            bracket_type = bracket_types.pop()
-                            if bracket_type == 'constant expression':
-                                lvl -= 1
-                            elif bracket_type == 'other':
-                                pass
-                        edited_line.append(c)
-                        if write_lvl:
-                            edited_line.pop()
-                            lvl_indices.append(len(edited_line))
-                            edited_line.append(str(lvl))
-                            edited_line.append('[')
-                        c_before = c
-                    break
-            if edited_line:
-                # Invert the lvl's so that the inner expressions have
-                # the largest lvl.
-                lvls = [int(edited_line[lvl_index]) for lvl_index in lvl_indices]
-                if max(lvls) > 0:
-                    j = 0
-                    for i in range(1, len(lvls)):
-                        if lvls[i] == 0:
-                            max_lvl = max(lvls[j:i])
-                            lvls[j:i] = [max_lvl - lvls[j] for j in range(j, i)]
-                            j = i
-                for lvl, lvl_index in zip(lvls, lvl_indices):
-                    edited_line[lvl_index] = str(lvl)
-                line = ''.join(edited_line)
-            new_lines.append(line + '\n')
-        lines = new_lines
+            lines = new_lines
     # Remove the nest lvl on constant expressions at lvl 0
     # and decrease all other lvls by 1.
     all_lvls = set()
@@ -2012,6 +2025,7 @@ def remove_duplicate_declarations(lines, no_optimization):
         if line.startswith('def '):
             in_function = True
             declarations_inner = {}
+            first_linenr_of_function = len(new_lines) + 1
         elif line and line[0] not in ' #\n':
             in_function = False
         declarations = declarations_inner if in_function else declarations_outer
@@ -2038,8 +2052,13 @@ def remove_duplicate_declarations(lines, no_optimization):
                               .format(varname, vartype_prev, vartype),
                               file=sys.stderr)
                 else:
-                    new_lines.append('{}cython.declare({}={})\n'
-                                     .format(indentation, varname, vartype))
+                    if in_function and first_linenr_of_function < len(new_lines):
+                        # Move declaration to top of function
+                        new_line = f'    cython.declare({varname}={vartype})\n'
+                        new_lines.insert(first_linenr_of_function, new_line)
+                    else:
+                        new_line = f'{indentation}cython.declare({varname}={vartype})\n'
+                        new_lines.append(new_line)
                     declarations[varname] = vartype
         else:
             new_lines.append(line)
@@ -2288,10 +2307,12 @@ def power2product(lines, no_optimization):
             # Test whether this exponent is an integer
             exponent_is_int = False
             try:
-                exponent_value = eval(exponent, {}, {})
-                if int(exponent_value) == float(exponent_value):
-                    exponent_is_int = True
-                    exponent_value = int(exponent_value)
+                with warnings.catch_warnings():
+                    warnings.simplefilter('ignore')
+                    exponent_value = eval(exponent, {}, {})
+                    if int(exponent_value) == float(exponent_value):
+                        exponent_is_int = True
+                        exponent_value = int(exponent_value)
             except:
                 ...
             if not exponent_is_int or abs(exponent_value) > maxint:

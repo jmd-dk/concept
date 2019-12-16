@@ -1,0 +1,52 @@
+# Directory of this parameter file (non-parameter variable)
+_this_dir = os.path.dirname(paths['params'])
+
+# Input/output
+_size = 64
+initial_conditions = [
+    {
+        'name'   : 'matter component',
+        'species': 'matter particles',
+        'N'      : _size**3,
+    },
+]
+output_dirs  = {'powerspec': _this_dir + '/output'}
+output_bases = {'powerspec': 'powerspec'}
+output_times = {'powerspec': (a_begin, 1)}
+powerspec_select = {
+    'all': {'data': True, 'plot': True},
+}
+powerspec_include_linear = True
+
+# Numerical parameters
+boxsize = 1024*Mpc
+powerspec_gridsizes = _size
+powerspec_interpolation = 'CIC'
+force_interpolations = {
+    'gravity': {
+        'pm': 'PCS',
+    },
+}
+force_differentiations = {
+    'gravity': {
+        'pm': 4,
+    },
+}
+modes_per_decade = 30
+
+# Simulation options
+primordial_amplitude_fixed = True
+
+# Cosmology
+H0      = 67*km/s/Mpc
+Ωcdm    = 0.27
+Ωb      = 0.049
+a_begin = 0.1
+
+# Physics
+select_forces = {
+    'matter particles': {
+        'gravity': ('pm', _size),
+    },
+}
+

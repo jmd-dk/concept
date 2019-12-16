@@ -1040,7 +1040,7 @@ def load(filename, compare_params=True,
         for component in snapshot.components:
             out_of_bounds_check(component, snapshot.params['boxsize'])
     # Scatter particles to the correct domain-specific process.
-    # Also communicate pseudo and ghost points of fluid variables.
+    # Also communicate ghost points of fluid variables.
     if not only_params and do_exchange:
         # Do exchanges for all components. Reset the communication
         # buffers after the last exchange, as these initial exchanges
@@ -1048,10 +1048,10 @@ def load(filename, compare_params=True,
         # actual simulation.
         for i, component in enumerate(snapshot.components):
             exchange(component, reset_buffers=(i == len(snapshot.components) - 1))
-        # Communicate the pseudo and ghost points
-        # of all fluid variables in fluid components.
+        # Communicate the ghost points of all fluid variables
+        # in fluid components.
         for component in snapshot.components:
-            component.communicate_fluid_grids(mode='populate')
+            component.communicate_fluid_grids('=')
     # If the caller is interested in the components only,
     # return the list of components.
     if only_components:
@@ -1293,6 +1293,7 @@ def get_initial_conditions(do_realization=True):
                 f'but the N_ncdm CLASS parameter is 0'
             )
         # Instantiate
+        specifications = {key.replace(' ', '_'): value for key, value in specifications.items()}
         component = Component(name, species, N_or_gridsize, **specifications)
         components.append(component)
     # Populate universals_dict['species_present']

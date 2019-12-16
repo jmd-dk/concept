@@ -4,10 +4,18 @@ _this_dir = os.path.dirname(paths['params'])
 # Input/output
 _size = 64
 initial_conditions = [
+    # Matter
     {
         'name'   : 'matter',
         'species': 'matter particles',
         'N'      : _size**3,
+    },
+    # Neutrino
+    {
+        'name'             : 'neutrino',
+        'species'          : 'neutrino fluid',
+        'gridsize'         : _size,
+        'boltzmann_closure': 'class',
     },
 ]
 output_dirs  = {
@@ -25,12 +33,33 @@ powerspec_select = {
 render2D_select = {
     'all': False,
     'all combinations': False,
-    'neutrino' : {'image': True, 'terminal image': True},
+    'neutrino': {'image': True, 'terminal image': True},
 }
+powerspec_include_linear = True
 
 # Numerical parameters
-boxsize = 1*Gpc
-φ_gridsize = _size
+boxsize = 512*Mpc
+powerspec_gridsizes = {'particles': 2*_size}
+powerspec_interpolation = 'PCS'
+force_interpolations = {
+    'gravity': {
+        'pm' : 'CIC',
+        'p3m': 'CIC',
+    },
+}
+force_differentiations = {
+    'gravity': {
+        'pm' : 2,
+        'p3m': 4,
+    },
+}
+shortrange_params = {
+    'gravity': {
+        'scale'    : '1.25*boxsize/gridsize',
+        'cutoff'   : '4.5*scale',
+        'subtiling': 'automatic',
+    },
+}
 modes_per_decade = 30
 
 # Cosmology
@@ -45,25 +74,26 @@ primordial_spectrum = {
     'pivot': 0.05/Mpc,
 }
 class_params = {
-    # Neutrino parameters
     'N_ur'                    : 0,
     'N_ncdm'                  : 1,
     'deg_ncdm'                : 3,
     'm_ncdm'                  : 0.3/3,
-    'l_max_ncdm'              : 60,
-    'Number of momentum bins' : 60,
+    'l_max_ncdm'              : 50,
+    'Number of momentum bins' : 25,
     'Maximum q'               : 18,
     'Quadrature strategy'     : 3,
     'ncdm_fluid_approximation': 3,
-    # General precision parameters
-    'evolver'                 : 0,
 }
 
 # Physics
-select_forces = {'all': {'gravity': 'pm'}}
+select_forces = {
+    'particles': {'gravity': ('p3m', 2*_size)},
+    'fluid'    : {'gravity': ('pm',    _size)},
+}
 
 # Simulation options
 random_seed = 1
+primordial_amplitude_fixed = True
 fluid_scheme_select = {'all': 'maccormack'}
 class_reuse = True
 

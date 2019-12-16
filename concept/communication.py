@@ -435,169 +435,129 @@ def exchange(component, reset_buffers=False):
         if component.use_rungs:
             rung_indices_arr.resize(1, refcheck=False)
 
-# Function for communicating boundary values of a
-# domain grid between processes.
-@cython.header(# Arguments
-               domain_grid='double[:, :, ::1]',
-               mode=str,
-               # Locals
-               i='int',
-               index_recv_end_i='Py_ssize_t',
-               index_recv_end_j='Py_ssize_t',
-               index_recv_end_k='Py_ssize_t',
-               index_recv_start_i='Py_ssize_t',
-               index_recv_start_j='Py_ssize_t',
-               index_recv_start_k='Py_ssize_t',
-               index_send_end_i='Py_ssize_t',
-               index_send_end_j='Py_ssize_t',
-               index_send_end_k='Py_ssize_t',
-               index_send_start_i='Py_ssize_t',
-               index_send_start_j='Py_ssize_t',
-               index_send_start_k='Py_ssize_t',
-               j='int',
-               k='int',
-               operation=str,
-               reverse='bint',
-               )
-def communicate_domain(domain_grid, mode=''):
-    """This function can operate in two different modes,
-    'add contributions' and 'populate'. The comments in the function
-    body describe the case of mode == 'add contributions'.
-
-    Mode 'add contributions':
-    This corresponds to local boundaries += nonlocal pseudos and ghosts.
-    The pseudo and ghost elements get send to the corresponding
-    neighbouring process, where these values are added to the existing
-    local values.
-
-    Mode 'populate':
-    This corresponds to local pseudos and ghosts = nonlocal boundaries.
-    The values of the local boundary elements get send to the
-    corresponding neighbouring process, where these values replace the
-    existing values of the pseudo and ghost elements.
-
-    A domain_grid consists of 27 parts; the local bulk,
-    6 faces (2 kinds), 12 edges (4 kinds) and 8 corners (8 kinds),
-    each with the following dimensions:
-    shape[0]*shape[1]*shape[2]  # Bulk
-    2*shape[1]*shape[2]         # Lower face
-    shape[0]*2*shape[2]         # Lower face
-    shape[0]*shape[1]*2         # Lower face
-    3*shape[1]*shape[2]         # Upper face
-    shape[0]*3*shape[2]         # Upper face
-    shape[0]*shape[1]*3         # Upper face
-    2*2*shape[2]                # Lower, lower edge
-    2*shape[1]*2                # Lower, lower edge
-    shape[0]*2*2                # Lower, lower edge
-    2*3*shape[2]                # Lower, upper edge
-    2*shape[1]*3                # Lower, upper edge
-    shape[0]*2*3                # Lower, upper edge
-    3*2*shape[2]                # Upper, lower edge
-    3*shape[1]*2                # Upper, lower edge
-    shape[0]*3*2                # Upper, lower edge
-    3*3*shape[2]                # Upper, upper edge
-    3*shape[1]*3                # Upper, upper edge
-    shape[0]*3*3                # Upper, upper edge
-    2*2*2                       # Lower, lower, lower corner
-    2*2*3                       # Lower, lower, upper corner
-    2*3*2                       # Lower, upper, lower corner
-    3*2*2                       # Upper, lower, lower corner
-    2*3*3                       # Lower, upper, upper corner
-    3*2*3                       # Upper, lower, upper corner
-    3*3*2                       # Upper, upper, lower corner
-    3*3*3                       # Upper, upper, upper corner
-    In the above, shape is the shape of the local grid.
-    That is, the total grid has
-    (shape[0] + 5)*(shape[2] + 5)*(shape[2] + 5) elements.
+# Function for communicating ghost values
+# of domain grids between processes.
+@cython.header(
+    # Arguments
+    grid='double[:, :, ::1]',
+    operation=str,
+    # Locals
+    i='int',
+    index_recv_bgn_i='Py_ssize_t',
+    index_recv_end_i='Py_ssize_t',
+    index_send_bgn_i='Py_ssize_t',
+    index_send_end_i='Py_ssize_t',
+    index_recv_bgn_j='Py_ssize_t',
+    index_recv_end_j='Py_ssize_t',
+    index_send_bgn_j='Py_ssize_t',
+    index_send_end_j='Py_ssize_t',
+    index_recv_bgn_k='Py_ssize_t',
+    index_recv_end_k='Py_ssize_t',
+    index_send_bgn_k='Py_ssize_t',
+    index_send_end_k='Py_ssize_t',
+    j='int',
+    k='int',
+    reverse='bint',
+    returns='void',
+)
+def communicate_ghosts(grid, operation):
+    """This function can operate in two different modes depending on the
+    operation argument:
+    - operation == '+=':
+        Current values in the ghost points will be send to their
+        designated neighbour processes, where they will be added to the
+        current values of the outer (non-ghost) layer of points.
+    - operation == "=":
+        All local ghost points will be assigned values based on the
+        values stored at the corresponding points on neighbour
+        processes. Current ghost point values will be ignored.
     """
-    # Dependent on the mode, set the operation to be performed on the
-    # received data, and the direction of communication.
-    if mode == 'add contributions':
-        operation = '+='
-        reverse = False
-    elif mode == 'populate':
-        operation = '='
-        reverse = True
-    elif not mode:
-        abort('communicate_domain called with no mode.\n'
-              'Call with mode=\'add contributions\' or mode=\'populate\'.')
-    else:
-        abort('Mode "{}" not implemented'.format(mode))
+    if grid is None:
+        return
+    # Set the direction of communication dependeing on the operation
+    reverse = (operation == '=')
+    # Loop over all 26 neighbour domains
     for i in range(-1, 2):
         if i == -1:
             # Send left, receive right
-            index_send_start_i = 0
-            index_send_end_i   = 2
-            index_recv_start_i = ℤ[domain_grid.shape[0]] - 5
-            index_recv_end_i   = ℤ[domain_grid.shape[0] - 3]
+            index_send_bgn_i = 0
+            index_send_end_i = ℤ[1*nghosts]
+            index_recv_bgn_i = ℤ[grid.shape[0] - 2*nghosts]
+            index_recv_end_i = ℤ[grid.shape[0] - 1*nghosts]
         elif i == 0:
             # Do not send to or receive from this direction.
             # Include the entire i-dimension of the local bulk.
-            index_send_start_i = 2
-            index_send_end_i   = ℤ[domain_grid.shape[0] - 3]
-            index_recv_start_i = 2
-            index_recv_end_i   = ℤ[domain_grid.shape[0] - 3]
+            index_send_bgn_i = ℤ[1*nghosts]
+            index_send_end_i = ℤ[grid.shape[0] - 1*nghosts]
+            index_recv_bgn_i = ℤ[1*nghosts]
+            index_recv_end_i = ℤ[grid.shape[0] - 1*nghosts]
         else:  # i == -1
             # Send right, receive left
-            index_send_start_i = ℤ[domain_grid.shape[0] - 3]
-            index_send_end_i   = ℤ[domain_grid.shape[0]]
-            index_recv_start_i = 2
-            index_recv_end_i   = 5
+            index_send_bgn_i = ℤ[grid.shape[0] - 1*nghosts]
+            index_send_end_i = ℤ[grid.shape[0]]
+            index_recv_bgn_i = ℤ[1*nghosts]
+            index_recv_end_i = ℤ[2*nghosts]
         for j in range(-1, 2):
             if j == -1:
                 # Send backward, receive forward
-                index_send_start_j = 0
-                index_send_end_j   = 2
-                index_recv_start_j = ℤ[domain_grid.shape[1] - 5]
-                index_recv_end_j   = ℤ[domain_grid.shape[1] - 3]
+                index_send_bgn_j = 0
+                index_send_end_j = ℤ[1*nghosts]
+                index_recv_bgn_j = ℤ[grid.shape[1] - 2*nghosts]
+                index_recv_end_j = ℤ[grid.shape[1] - 1*nghosts]
             elif j == 0:
                 # Do not send to or receive from this direction.
                 # Include the entire j-dimension of the local bulk.
-                index_send_start_j = 2
-                index_send_end_j   = ℤ[domain_grid.shape[1] - 3]
-                index_recv_start_j = 2
-                index_recv_end_j   = ℤ[domain_grid.shape[1] - 3]
+                index_send_bgn_j = ℤ[1*nghosts]
+                index_send_end_j = ℤ[grid.shape[1] - 1*nghosts]
+                index_recv_bgn_j = ℤ[1*nghosts]
+                index_recv_end_j = ℤ[grid.shape[1] - 1*nghosts]
             else:  # j == -1
                 # Send forward, receive backward
-                index_send_start_j = ℤ[domain_grid.shape[1] - 3]
-                index_send_end_j   = ℤ[domain_grid.shape[1]]
-                index_recv_start_j = 2
-                index_recv_end_j   = 5
+                index_send_bgn_j = ℤ[grid.shape[1] - 1*nghosts]
+                index_send_end_j = ℤ[grid.shape[1]]
+                index_recv_bgn_j = ℤ[1*nghosts]
+                index_recv_end_j = ℤ[2*nghosts]
             for k in range(-1, 2):
-                # Do not communicate the local bulk
                 if i == j == k == 0:
+                    # Do not communicate the local bulk
                     continue
                 if k == -1:
                     # Send downward, receive upward
-                    index_send_start_k = 0
-                    index_send_end_k   = 2
-                    index_recv_start_k = ℤ[domain_grid.shape[2] - 5]
-                    index_recv_end_k   = ℤ[domain_grid.shape[2] - 3]
+                    index_send_bgn_k = 0
+                    index_send_end_k = ℤ[1*nghosts]
+                    index_recv_bgn_k = ℤ[grid.shape[2] - 2*nghosts]
+                    index_recv_end_k = ℤ[grid.shape[2] - 1*nghosts]
                 elif k == 0:
                     # Do not send to or receive from this direction.
                     # Include the entire k-dimension of the local bulk.
-                    index_send_start_k = 2
-                    index_send_end_k   = ℤ[domain_grid.shape[2] - 3]
-                    index_recv_start_k = 2
-                    index_recv_end_k   = ℤ[domain_grid.shape[2] - 3]
+                    index_send_bgn_k = ℤ[1*nghosts]
+                    index_send_end_k = ℤ[grid.shape[2] - 1*nghosts]
+                    index_recv_bgn_k = ℤ[1*nghosts]
+                    index_recv_end_k = ℤ[grid.shape[2] - 1*nghosts]
                 else:  # k == -1
                     # Send upward, receive downward
-                    index_send_start_k = ℤ[domain_grid.shape[2] - 3]
-                    index_send_end_k   = ℤ[domain_grid.shape[2]]
-                    index_recv_start_k = 2
-                    index_recv_end_k   = 5
-                # Communicate this part
-                smart_mpi(domain_grid[index_send_start_i:index_send_end_i,
-                                      index_send_start_j:index_send_end_j,
-                                      index_send_start_k:index_send_end_k],
-                          domain_grid[index_recv_start_i:index_recv_end_i,
-                                      index_recv_start_j:index_recv_end_j,
-                                      index_recv_start_k:index_recv_end_k],
-                          dest  =rank_neighbouring_domain(+i, +j, +k),
-                          source=rank_neighbouring_domain(-i, -j, -k),
-                          reverse=reverse,
-                          mpifun='Sendrecv',
-                          operation=operation)
+                    index_send_bgn_k = ℤ[grid.shape[2] - 1*nghosts]
+                    index_send_end_k = ℤ[grid.shape[2]]
+                    index_recv_bgn_k = ℤ[1*nghosts]
+                    index_recv_end_k = ℤ[2*nghosts]
+                # Communicate this face/edge/corner
+                smart_mpi(
+                    grid[
+                        index_send_bgn_i:index_send_end_i,
+                        index_send_bgn_j:index_send_end_j,
+                        index_send_bgn_k:index_send_end_k,
+                    ],
+                    grid[
+                        index_recv_bgn_i:index_recv_end_i,
+                        index_recv_bgn_j:index_recv_end_j,
+                        index_recv_bgn_k:index_recv_end_k,
+                    ],
+                    dest  =rank_neighbouring_domain(+i, +j, +k),
+                    source=rank_neighbouring_domain(-i, -j, -k),
+                    reverse=reverse,
+                    mpifun='Sendrecv',
+                    operation=operation,
+                )
 
 # Function for cutting out domains as rectangular boxes in the best
 # possible way. The return value is an array of 3 elements; the number
@@ -1132,8 +1092,8 @@ def smart_mpi(block_send=(), block_recv=(), dest=-1, source=-1, root=master_rank
     block_send from dist.
     """
     # Sanity check on operation argument
-    if operation not in ('=', '+=') and master:
-        abort('Operation "{}" is not implemented'.format(operation))
+    if master and operation not in {'=', '+='}:
+        abort(f'smart_mpi() got operation = "{operation}" ∉ {{"=", "+="}}')
     # Determine whether we are sending and/or receiving
     mpifun = mpifun.lower()
     sending = False

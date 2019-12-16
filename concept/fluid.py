@@ -26,7 +26,7 @@ from commons import *
 
 # Cython imports
 cimport('from integration import cosmic_time, scale_factor')
-cimport('from mesh import diff_domain')
+cimport('from mesh import diff_domaingrid')
 
 # Function pointer types used in this module
 pxd("""
@@ -118,9 +118,9 @@ def kurganov_tadmor(component, ᔑdt, a=-1, rk_order=2, rk_step=0):
     grids, completing the time step.
 
     It is assumed that all fluid variable grids have correctly
-    populated pseudo and ghost points. Also, it is assumed that the
-    unstarred 𝒫 grid contains correctly realized 𝒫 data, regardless of
-    whether or not 𝒫 is an actual non-linear variable (that is, whether
+    populated ghost points. Also, it is assumed that the unstarred 𝒫
+    grid contains correctly realized 𝒫 data, regardless of whether or
+    not 𝒫 is an actual non-linear variable (that is, whether
     or not the approximation P=wρ is enabled does not matter).
 
     When estimating the largest local comoving propagation speed,
@@ -193,11 +193,9 @@ def kurganov_tadmor(component, ᔑdt, a=-1, rk_order=2, rk_step=0):
     else:
         soundspeed = 0
     # Arrays of start and end indices for the local part of the
-    # fluid grids, meaning disregarding pseudo points and ghost points.
-    # We have 2 ghost points in the beginning and 1 pseudo point and
-    # 2 ghost points in the end.
-    indices_local_start = asarray((2, 2, 2), dtype=C2np['Py_ssize_t'])
-    indices_local_end   = asarray(shape    , dtype=C2np['Py_ssize_t']) - 2 - 1
+    # fluid grids, meaning disregarding ghost points.
+    indices_local_start = asarray([nghosts]*3, dtype=C2np['Py_ssize_t'])
+    indices_local_end   = asarray(shape      , dtype=C2np['Py_ssize_t']) - nghosts
     # Get the flux limiter function for this component
     flux_limiter_name = is_selected(
         component,
@@ -567,10 +565,10 @@ def finalize_rk_step(component, ᔑdt, a, rk_order, rk_step):
     if rk_step == 0:
         # After the first (0) Runge-Kutta step, the starred non-linear
         # grids contain the updates to the unstarred non-linear grids.
-        # Communicate these updates to the pseudo and ghost points,
-        # and then add to them the original values.
-        component.communicate_nonlinear_fluid_gridsˣ(mode='populate')
-        component.copy_nonlinear_fluid_grids_to_gridsˣ(operation='+=')
+        # Communicate these updates to the ghost points and then add to
+        # them the original values.
+        component.communicate_nonlinear_fluid_gridsˣ('=')
+        component.copy_nonlinear_fluid_grids_to_gridsˣ('+=')
         if rk_order == 1:
             # If doing Euler integration, the time integration is
             # now finished, but the updated fluid grids are the
@@ -582,9 +580,9 @@ def finalize_rk_step(component, ᔑdt, a, rk_order, rk_step):
     elif rk_step == 1:
         # After the second (1) Runge-Kutta step,
         # the unstarred non-linear grids have been updated.
-        # Communicate these updates to the pseudo and ghost points.
+        # Communicate these updates to the ghost points.
         # Note that rk_order == 2 is required to reach this line.
-        component.communicate_nonlinear_fluid_grids(mode='populate')
+        component.communicate_nonlinear_fluid_grids('=')
 
 # The minmod flux limiter function
 @cython.header(r='double', returns='double')
@@ -782,7 +780,7 @@ def maccormack(component, ᔑdt, a_next=-1):
     # The two MacCormack steps leave all values of all fluid variables
     # with double their actual values. All grid values thus need
     # to be halved. Note that no further communication is needed as we
-    # also halve the pseudo and ghost points.
+    # also halve the ghost points.
     component.scale_nonlinear_fluid_grids(0.5)
     # Nullify the starred grid buffers and the Δ buffers,
     # leaving these with no leftover junk.
@@ -836,7 +834,7 @@ maccormack_steps = generate_maccormack_steps()
                )
 def maccormack_step(component, ᔑdt, steps, mc_step, a_next=-1):
     """It is assumed that the unstarred and starred grids have
-    correctly populated pseudo and ghost points.
+    correctly populated ghost points.
     """
     # There is nothing to be done by this function
     # if no J variable exist.
@@ -847,11 +845,9 @@ def maccormack_step(component, ᔑdt, steps, mc_step, a_next=-1):
     # Comoving grid spacing
     Δx = boxsize/component.gridsize
     # Arrays of start and end indices for the local part of the
-    # fluid grids, meaning disregarding pseudo points and ghost points.
-    # We have 2 ghost points in the beginning and 1 pseudo point and
-    # 2 ghost points in the end.
-    indices_local_start = asarray((2, 2, 2)      , dtype=C2np['Py_ssize_t'])
-    indices_local_end   = asarray(component.shape, dtype=C2np['Py_ssize_t']) - 2 - 1
+    # fluid grids, meaning disregarding ghost points.
+    indices_local_start = asarray([nghosts]*3    , dtype=C2np['Py_ssize_t'])
+    indices_local_end   = asarray(component.shape, dtype=C2np['Py_ssize_t']) - nghosts
     # At the beginning of the first MacCormack step, the starred buffers
     # should contain a copy of the actual (unstarred) data.
     # At the beginning of the second MacCormack step, the unstarred
@@ -943,19 +939,19 @@ def maccormack_step(component, ᔑdt, steps, mc_step, a_next=-1):
     # No further non-linear fluid equations implemented. Stop here.
     finalize_maccormack_step(component, mc_step)
 
-# Function for doing communication of pseudo and ghost points of
-# fluid grids after each MacCormack step.
+# Function for doing communication of ghost points of fluid grids
+# after each MacCormack step.
 @cython.header(component='Component', mc_step='int')
 def finalize_maccormack_step(component, mc_step):
-    # Populate the pseudo and ghost points of all fluid variable grids
-    # with the updated values. Depedendent on whether we are in the end
-    # of the first or the second MacCormack step (mc_step), the updated
-    # grids are really the starred grids (first MacCormack step) or the
+    # Populate the ghost points of all fluid variable grids with the
+    # updated values. Depedendent on whether we are in the end of the
+    # first or the second MacCormack step (mc_step), the updated grids
+    # are really the starred grids (first MacCormack step) or the
     # unstarred grids (second MacCormack step).
     if mc_step == 0:
-        component.communicate_nonlinear_fluid_gridsˣ(mode='populate')
+        component.communicate_nonlinear_fluid_gridsˣ('=')
     else:  # mc_step == 1
-        component.communicate_nonlinear_fluid_grids (mode='populate')
+        component.communicate_nonlinear_fluid_grids ('=')
 
 # Function which evolve the fluid variables of a component
 # due to internal source terms. This function should be used together
@@ -1034,7 +1030,7 @@ def maccormack_internal_sources(component, ᔑdt, a_next=-1):
                 multi_index_list.remove(i)
                 j = multi_index_list[0]
                 # Differentiate the potential and apply the source term
-                source = diff_domain(potential, j, Δx, order=2, noghosts=False)
+                source = diff_domaingrid(potential, j, 2, Δx)
                 source_ptr = cython.address(source[:, :, :])
                 for n in range(component.size):
                     Jᵢ_ptr[n] += source_ptr[n]
@@ -1049,7 +1045,7 @@ def maccormack_internal_sources(component, ᔑdt, a_next=-1):
         for i in range(3):
             Jᵢ = component.J[i]
             Jᵢ_ptr = Jᵢ.grid
-            source = diff_domain(𝒫, i, Δx, order=2, noghosts=False)
+            source = diff_domaingrid(𝒫, i, 2, Δx)
             source_ptr = cython.address(source[:, :, :])
             for n in range(component.size):
                 Jᵢ_ptr[n] += ℝ[-ᔑdt['a**(-3*w_eff)', component.name]]*source_ptr[n]
@@ -1192,11 +1188,9 @@ def correct_vacuum(component, mc_step):
         fluid_options['maccormack']['smoothing_select'],
     )
     # Arrays of start and end indices for the local part of the
-    # fluid grids, meaning disregarding pseudo points and ghost points.
-    # We have 2 ghost points in the beginning and 1 pseudo point and
-    # 2 ghost points in the end.
-    indices_local_start = asarray([2, 2, 2]      , dtype=C2np['Py_ssize_t'])
-    indices_local_end   = asarray(component.shape, dtype=C2np['Py_ssize_t']) - 2 - 1
+    # fluid grids, meaning disregarding ghost points.
+    indices_local_start = asarray([nghosts]*3    , dtype=C2np['Py_ssize_t'])
+    indices_local_end   = asarray(component.shape, dtype=C2np['Py_ssize_t']) - nghosts
     # Extract memory views and pointers to the fluid variables
     ϱ       = component.ϱ .grid_mv
     ϱ_ptr   = component.ϱ .grid
@@ -1321,13 +1315,13 @@ def correct_vacuum(component, mc_step):
     if vacuum_imminent:
         # Communicate contributions to local vacuum corrections
         # residing on other processes.
-        component.communicate_fluid_Δ(mode='add contributions')
-        # Local Δ buffers now store final values. Populate pseudo
-        # and ghost points of Δ buffers.
-        component.communicate_fluid_Δ(mode='populate')
-        # Apply vacuum corrections. Note that no further communication
-        # is needed as we also apply vacuum corrections to the
-        # pseudo and ghost points.
+        component.communicate_fluid_Δ('+=')
+        # Local Δ buffers now store final values.
+        # Populate ghost points of Δ buffers.
+        component.communicate_fluid_Δ('=')
+        # Apply vacuum corrections.
+        # Note that no further communication is needed as we also apply
+        # vacuum corrections to the ghost points.
         for i in range(component.size):
             ϱ_ptr [i] += Δϱ_ptr [i]
         for i in range(component.size):

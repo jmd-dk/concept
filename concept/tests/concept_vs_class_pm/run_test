@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+
+# This script performs a comparison test between the CO𝘕CEPT code's
+# PM implementation and CLASS.
+
+# Absolute path and name of the directory of this file
+this_dir="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
+this_test="$(basename "${this_dir}")"
+
+# Set up error trapping
+ctrl_c(){
+    trap : 0
+    exit 2
+}
+abort(){
+    exit_code=$?
+    colorprint "An error occurred during ${this_test} test!" "red"
+    exit ${exit_code}
+}
+trap 'ctrl_c' SIGINT
+trap 'abort' EXIT
+set -e
+
+# Cleanup from last test run
+"${this_dir}/clean"
+
+# Run the CO𝘕CEPT code
+"${concept}" -n 4 -p "${this_dir}/params" --local
+
+# Analyze the output power spectra
+"${concept}" -n 1 -p "${this_dir}/params" -m "${this_dir}/analyze.py" --pure-python --local
+
+# Test ran successfully. Deactivate traps.
+trap : 0

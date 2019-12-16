@@ -645,15 +645,16 @@ class CosmoResults:
                         for index in self.k_indices]
                 else:
                     # Receive the global perturbation indices
-                    self.k_indices = np.empty(
-                        recv(source=master_rank), dtype=C2np['Py_ssize_t'])
+                    self.k_indices = empty(recv(source=master_rank), dtype=C2np['Py_ssize_t'])
                     Recv(self.k_indices, source=master_rank)
                     # Receive the perturbation data
                     self._perturbations = [{} for _ in range(self.k_indices.size)]
                     for perturbation in self._perturbations:
                         for key in keys:
-                            perturbation[key] = np.empty(
-                                recv(source=master_rank), dtype=C2np['double'])
+                            perturbation[key] = empty(
+                                recv(source=master_rank),
+                                dtype=C2np['double'],
+                            )
                             Recv(perturbation[key], source=master_rank)
                 Barrier()
                 # All processes should be aware of the k indices of all
@@ -665,8 +666,9 @@ class CosmoResults:
                 if master:
                     self.k_indices_all = np.argsort(np.concatenate(indices_procs))
                 else:
-                    self.k_indices_all = np.empty(
-                        self.k_magnitudes.shape[0], dtype=C2np['Py_ssize_t'],
+                    self.k_indices_all = empty(
+                        self.k_magnitudes.shape[0],
+                        dtype=C2np['Py_ssize_t'],
                     )
                 Bcast(self.k_indices_all)
             elif n_modes == 0:
@@ -2730,6 +2732,36 @@ def get_default_k_parameters(gridsize):
         k_gridsize = k_gridsize_max
     return k_min, k_max, k_gridsize
 
+# Like get_default_k_parameters(), but effectively changes gridsize
+# if such a result is already stored in cosmoresults_archive.
+@cython.header(
+    # Arguments
+    gridsize='Py_ssize_t',
+    allow_decrease='bint',
+    # Locals
+    cosmoresults=object,  # CosmoResults
+    k_gridsize='Py_ssize_t',
+    k_gridsize_archive='Py_ssize_t',
+    k_max='double',
+    k_max_archive='double',
+    k_max_default='double',
+    k_min='double',
+    k_min_archive='double',
+    returns=tuple,
+)
+def get_archived_k_parameters(gridsize, allow_decrease=False):
+    k_min, k_max_default, k_gridsize = get_default_k_parameters(gridsize)
+    k_max = -1
+    for k_min_archive, k_max_archive, k_gridsize_archive, cosmoresults in cosmoresults_archive:
+        if k_min_archive != k_min:
+            continue
+        if k_max_archive > k_max:
+            k_max = k_max_archive
+            k_gridsize = k_gridsize_archive
+    if k_max == -1 or (not allow_decrease and k_max < k_max_default):
+        k_min, k_max, k_gridsize = get_default_k_parameters(gridsize)
+    return k_min, k_max, k_gridsize
+
 # Function which realises a given variable on a component
 # from a supplied transfer function.
 @cython.pheader(
@@ -2750,9 +2782,6 @@ def get_default_k_parameters(gridsize):
     cosmoresults_δ=object,  # CosmoResults
     dim='int',
     displacement='double',
-    domain_size_i='Py_ssize_t',
-    domain_size_j='Py_ssize_t',
-    domain_size_k='Py_ssize_t',
     domain_start_i='Py_ssize_t',
     domain_start_j='Py_ssize_t',
     domain_start_k='Py_ssize_t',
@@ -2763,17 +2792,14 @@ def get_default_k_parameters(gridsize):
     fluidvar_name=str,
     gridsize='Py_ssize_t',
     i='Py_ssize_t',
-    i_global='Py_ssize_t',
     index='Py_ssize_t',
     index0='Py_ssize_t',
     index1='Py_ssize_t',
     j='Py_ssize_t',
     j_global='Py_ssize_t',
     k='Py_ssize_t',
-    k_global='Py_ssize_t',
     ki='Py_ssize_t',
     kj='Py_ssize_t',
-    kj2='Py_ssize_t',
     kk='Py_ssize_t',
     k_factor='double',
     k_gridsize='Py_ssize_t',
@@ -2791,8 +2817,9 @@ def get_default_k_parameters(gridsize):
     option_key=str,
     options_linear=dict,
     option_val=object,  # str or bool
-    particle_component_index='int',
     particle_components=list,
+    particle_shift='double',
+    particle_shifts='double[::1]',
     pariclevar_name=str,
     pivot='double',
     posⁱ='double*',
@@ -3065,7 +3092,7 @@ def realize(component, variable, transfer_spline, cosmoresults,
         # When using the non-linear structure of δϱ to do
         # the realizations, we need the transfer function of δϱ,
         # which is just ϱ_bar times the transfer function of δ.
-        k_min, k_max, k_gridsize = get_default_k_parameters(gridsize)
+        k_min, k_max, k_gridsize = get_archived_k_parameters(gridsize)
         transfer_spline_δ, cosmoresults_δ = compute_transfer(
             component, 0, k_min, k_max, k_gridsize, a=a,
         )
@@ -3086,11 +3113,9 @@ def realize(component, variable, transfer_spline, cosmoresults,
                     # T(k)
                     transfer
                     # ζ(k)
-                    *ℝ[π*sqrt(2*A_s)*pivot**(0.5 - 0.5*n_s)
-                        # Fourier normalization
-                        *boxsize**(-1.5)
-                    ]*k_magnitude**ℝ[0.5*n_s - 2]
-                    *exp(ℝ[0.25*α_s]*log(k_magnitude*ℝ[1/pivot])**2)
+                    *ζ(k_magnitude)
+                    # Fourier normalization
+                    *ℝ[boxsize**(-1.5)]
                 )
             elif options['structure'] == 'nonlinear':
                 # Realize using ℱₓ⁻¹[T(k)/T_δϱ(k) K(k⃗) ℱₓ[δϱ(x⃗)]],
@@ -3160,17 +3185,30 @@ def realize(component, variable, transfer_spline, cosmoresults,
     # Initialize index0 and index1.
     # The actual values are not important.
     index0 = index1 = 0
-    # Get the index at which this component appears
-    # in the list of instantiated particle components.
+
+    # When miltiple particle components are to be realized, it is
+    # preferable to not do so "on top of each other", as this leads to
+    # large early gravitational forces. Below we define particle_shift
+    # to be the fraction of a grid cell the current particle component
+    # should be shifted relative to the default realization grid, in all
+    # directions. For a total of 1 particle components, this will be 0.
+    # For a total of 2 particle components, this will be -1/4 and +1/4,
+    # for the first and second particle component, respectively. For 3
+    # particle components, this will be -1/3, 0, 1/3, and so on, but
+    # note that this shifting trick leads to anisotropies for 3 particle
+    # components and aboe.
     if component.representation == 'particles':
         particle_components = [
             other_component for other_component in component.components_all
             if other_component.representation == 'particles'
         ]
-        particle_component_index = particle_components.index(component)
+        particle_shift = 1.0/len(particle_components)
+        particle_shifts = (
+            linspace(particle_shift/2, 1 - particle_shift/2, len(particle_components)) -  0.5
+        )
+        particle_shift = particle_shifts[particle_components.index(component)]
     else:
-        particle_components = [None]
-        particle_component_index = -1
+        particle_shift = 0
     # Loop over all fluid scalars of the fluid variable
     fluidvar = component.fluidvars[fluid_index]
     for multi_index in (
@@ -3200,7 +3238,6 @@ def realize(component, variable, transfer_spline, cosmoresults,
             j_global = ℤ[slab.shape[0]*rank] + j
             kj = j_global - gridsize if j_global > ℤ[gridsize//2] else j_global
             k_gridvec[1] = kj
-            kj2 = kj**2
             # Loop through the complete i-dimension
             for i in range(gridsize):
                 # The i-component of the wave vector (grid units)
@@ -3214,7 +3251,7 @@ def realize(component, variable, transfer_spline, cosmoresults,
                     k_gridvec[2] = kk
                     # The squared magnitude of the wave vector
                     # (grid units).
-                    k2 = ℤ[ki**2 + kj2] + kk**2
+                    k2 = ℤ[ℤ[kj**2] + ki**2] + kk**2
                     # Regardless of what is being realized,
                     # the |k⃗| = 0 mode should vanish, leading to a field
                     # with zero mean.
@@ -3317,7 +3354,7 @@ def realize(component, variable, transfer_spline, cosmoresults,
         if component.representation == 'fluid':
             # Communicate the fluid realization stored in the slabs to
             # the designated fluid scalar grid. This also populates the
-            # pseudo and ghost points.
+            # ghost points.
             fluidscalar = fluidvar[multi_index]
             domain_decompose(slab, fluidscalar.gridˣ_mv if use_gridˣ else fluidscalar.grid_mv)
             # Transform the realized fluid variable to the actual
@@ -3382,9 +3419,9 @@ def realize(component, variable, transfer_spline, cosmoresults,
         # one already in used by sqrt_power_common.
         ψⁱ = domain_decompose(slab, 1)
         ψⁱ_noghosts = uⁱ_noghosts = ψⁱ[
-            2:(ψⁱ.shape[0] - 2),
-            2:(ψⁱ.shape[1] - 2),
-            2:(ψⁱ.shape[2] - 2),
+            nghosts:(ψⁱ.shape[0] - nghosts),
+            nghosts:(ψⁱ.shape[1] - nghosts),
+            nghosts:(ψⁱ.shape[2] - nghosts),
         ]
         # Determine and set the mass of the particles
         # if this is still unset.
@@ -3403,43 +3440,47 @@ def realize(component, variable, transfer_spline, cosmoresults,
         dim = multi_index[0]
         posⁱ = component.pos[dim]
         momⁱ = component.mom[dim]
-        domain_size_i = ψⁱ_noghosts.shape[0] - 1
-        domain_size_j = ψⁱ_noghosts.shape[1] - 1
-        domain_size_k = ψⁱ_noghosts.shape[2] - 1
-        domain_start_i = domain_layout_local_indices[0]*domain_size_i
-        domain_start_j = domain_layout_local_indices[1]*domain_size_j
-        domain_start_k = domain_layout_local_indices[2]*domain_size_k
+        domain_start_i = domain_layout_local_indices[0]*ψⁱ_noghosts.shape[0]
+        domain_start_j = domain_layout_local_indices[1]*ψⁱ_noghosts.shape[1]
+        domain_start_k = domain_layout_local_indices[2]*ψⁱ_noghosts.shape[2]
         index = 0
-        for         i in range(ℤ[ψⁱ_noghosts.shape[0] - 1]):
-            for     j in range(ℤ[ψⁱ_noghosts.shape[1] - 1]):
-                for k in range(ℤ[ψⁱ_noghosts.shape[2] - 1]):
+        for         i in range(ℤ[ψⁱ_noghosts.shape[0]]):
+            for     j in range(ℤ[ψⁱ_noghosts.shape[1]]):
+                for k in range(ℤ[ψⁱ_noghosts.shape[2]]):
                     with unswitch(3):
                         if pariclevar_name == 'pos':
-                            # The global x, y or z coordinate at this grid point
                             with unswitch(3):
+                                # The global position of the center of
+                                # this grid point. We choose the
+                                # (0, 0, 0) grid point to have a corner
+                                # (rather than its center) at x = 0,
+                                # y = 0, z = 0. The shifting of a half
+                                # below is exactly to go from grid
+                                # corners to thier center.
                                 if dim == 0:
-                                    i_global = domain_start_i + i
-                                    pos_gridpoint = i_global*ℝ[boxsize/gridsize]
+                                    pos_gridpoint = (
+                                        (ℝ[domain_start_i + 0.5] + i)*ℝ[boxsize/gridsize]
+                                    )
                                 elif dim == 1:
-                                    j_global = domain_start_j + j
-                                    pos_gridpoint = j_global*ℝ[boxsize/gridsize]
+                                    pos_gridpoint = (
+                                        (ℝ[domain_start_j + 0.5] + j)*ℝ[boxsize/gridsize]
+                                    )
                                 elif dim == 2:
-                                    k_global = domain_start_k + k
-                                    pos_gridpoint = k_global*ℝ[boxsize/gridsize]
-                                # Displace the position of particle
-                                # at grid point (i, j, k).
-                                displacement = ψⁱ_noghosts[i, j, k]
-                                # When running with multiple particle
-                                # components, it is preferable to not
-                                # realize these "on top of each other",
-                                # as this leads to large early
-                                # gravitational forces. Here we shift
-                                # the positions by ½ grid cell (in the
-                                # case of two particle components) for
-                                # the second particle component.
-                                displacement += ℝ[particle_component_index
-                                    *boxsize/(gridsize*len(particle_components))]
-                                posⁱ[index] = mod(pos_gridpoint + displacement, boxsize)
+                                    pos_gridpoint = (
+                                        (ℝ[domain_start_k + 0.5] + k)*ℝ[boxsize/gridsize]
+                                    )
+                            # Displace the position of particle
+                            # at grid point (i, j, k).
+                            displacement = ψⁱ_noghosts[i, j, k]
+                            # When running with multiple particle
+                            # components, it is preferable to not
+                            # realize these "on top of each other",
+                            # as this leads to large early
+                            # gravitational forces.
+                            with unswitch(3):
+                                if particle_shift != 0:
+                                    displacement += ℝ[particle_shift*boxsize/gridsize]
+                            posⁱ[index] = mod(pos_gridpoint + displacement, boxsize)
                             with unswitch(3):
                                 if options['velocitiesfromdisplacements']:
                                     # Assign momentum corresponding to the displacement
@@ -3661,6 +3702,96 @@ def generate_primordial_noise(slab):
                     slab_jik[0] = +plane_ji_conj[0]
                     slab_jik[1] = -plane_ji_conj[1]
     masterprint('done')
+
+# Function returning the linear power spectrum of a given component
+@cython.pheader(
+    # Arguments
+    component_or_components=object, # Component or list of Components
+    k_magnitudes='double[::1]',
+    a='double',
+    gauge=str,
+    power='double[::1]',
+    # Locals
+    component='Component',
+    components=list,
+    cosmoresults=object,  # CosmoResults
+    gridsize='Py_ssize_t',
+    i='Py_ssize_t',
+    k_gridsize='Py_ssize_t',
+    k_gridsize_archive='Py_ssize_t',
+    k_magnitude='double',
+    k_max='double',
+    k_max_archive='double',
+    k_min='double',
+    k_min_archive='double',
+    linear_component='Component',
+    δ='double',
+    δ_spline='Spline',
+    returns='double[::1]',
+)
+def get_linear_powerspec(component_or_components, k_magnitudes, a=-1, gauge='N-body', power=None):
+    """The linear power spectrum is only returned to the master process.
+    """
+    if isinstance(component_or_components, list):
+        components = component_or_components
+    else:
+        components = [component_or_components]
+    if a == -1:
+        a = universals.a
+    # Instantiate fake component with the CLASS species defined
+    # as the sum of all CLASS species of the passed components.
+    component = components[0]
+    linear_component = type(component)(
+        '',
+        'fluid',
+        2,
+        class_species='+'.join([component.class_species for component in components])
+    )
+    linear_component.name = 'linear power spectrum'
+    # Get k_min, k_max and k_gridsize for the transfer function spline
+    # tabulation. Here we use the correct k_min, but choose k_max and
+    # k_gridsize from the largest k_max in cosmoresults_archive. This
+    # means that we may not be able to compute the linear power for all
+    # the k's in k_magnitudes, but hopefully we do not have to
+    # rerun CLASS.
+    gridsize = np.max([component.powerspec_gridsize for component in components])
+    k_min, k_max, k_gridsize = get_archived_k_parameters(gridsize, allow_decrease=True)
+    # Get spline of δ transfer function for the fake component
+    δ_spline, cosmoresults = compute_transfer(
+        linear_component, 0, k_min, k_max, k_gridsize, a=a, gauge=gauge,
+    )
+    # Only the master process will return the linear power spectrum
+    if not master:
+        return power
+    # Compute linear power (ζ*δ)**2
+    if power is None:
+        power = empty(k_magnitudes.shape[0], dtype=C2np['double'])
+    for i in range(k_magnitudes.shape[0]):
+        k_magnitude = k_magnitudes[i]
+        δ = (δ_spline.eval(k_magnitude) if k_magnitude <= k_max else NaN)
+        power[i] = (ζ(k_magnitude)*δ)**2
+    return power
+
+# The primordial curvature perturbation, parameterised by parameters
+# in the primordial_spectrum dict.
+@cython.header(
+    # Arguments
+    k='double',
+    # Locals
+    returns='double',
+)
+def ζ(k):
+    # The parameterisation looks like
+    # ζ(k) = π*sqrt(2*A_s)*k**(-3/2)*(k/pivot)**((n_s - 1)/2)
+    #        *exp(α_s/4*log(k/pivot)**2)
+    return (
+        ℝ[
+            π*sqrt(2*primordial_spectrum['A_s'])
+            *(1/primordial_spectrum['pivot'])**((primordial_spectrum['n_s'] - 1)/2)
+        ]
+        *k**ℝ[primordial_spectrum['n_s']/2 - 2]
+        *exp(ℝ[primordial_spectrum['α_s']/4]*(log(k) - ℝ[log(primordial_spectrum['pivot'])])**2)
+    )
 
 
 

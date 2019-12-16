@@ -26,8 +26,8 @@ def binary_search(x, mass_unitless, x_lower=None, x_upper=None):
         x_upper = x_next
     return binary_search(x, mass_unitless, x_lower=x_lower, x_upper=x_upper)
 # Compute positions of particles
-Nx = φ_gridsize*10
-Ny = Nz = φ_gridsize
+Nx = user_params['_size']*10
+Ny = Nz = user_params['_size']
 N = Nx*Ny*Nz
 mass = ρ_mbar*boxsize**3/N
 mass_unitless_tot = ᔑdxϱ(0, boxsize)

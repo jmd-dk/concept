@@ -493,6 +493,7 @@ def timeloop():
     Δx_max='double',
     ρ_bar='double',
     ρ_bar_component='double',
+    φ_gridsize='Py_ssize_t',
     returns=tuple,
 )
 def get_base_timestep_size(components):
@@ -591,6 +592,7 @@ def get_base_timestep_size(components):
             if method != 'pm':
                 continue
             if force == 'gravity':
+                φ_gridsize = component.φ_gridsizes['gravity', 'pm']
                 if φ_gridsize > resolution:
                     resolution = φ_gridsize
                     extreme_force = 'gravity'
@@ -607,8 +609,10 @@ def get_base_timestep_size(components):
                             f'Failed to detect any lapse component, but the "{component.name}" '
                             f'component is assigned the lapse force.'
                         )
-                if lapse_gridsize > resolution:
-                    resolution = lapse_gridsize
+                φ_gridsize = component.φ_gridsizes['lapse', 'pm']
+                φ_gridsize = np.min([lapse_gridsize, φ_gridsize])
+                if φ_gridsize > resolution:
+                    resolution = φ_gridsize
                     extreme_force = 'lapse'
             else:
                 abort(f'Unregistered force "{force}" with method "{method}"')
@@ -696,6 +700,7 @@ def get_time_step_integrals(t_start, t_end, components):
             *[(integrand, component.name) for component, in itertools.product(*[components]*1)
                 for integrand in (
                     'a**(-3*w_eff)',
+                    'a**(-3*(1+w_eff))',
                     'a**(-3*w_eff-1)',
                     'a**(3*w_eff-2)',
                     'a**(2-3*w_eff)',
@@ -1513,7 +1518,7 @@ def print_timestep_footer(components):
                         imbalance = imbalances[other_rank]
                         imbalance_str = (
                             ('+' if imbalance >= 0 else '-')
-                            + rf'{{{{:>{{}}.{decimals}f}}}}'
+                            + rf'{{{{:>{{}}.{decimals}f}}}}%'
                                 .format(imbalance_max_str_len)
                                 .format(100*abs(imbalance))
                         )
@@ -1527,7 +1532,7 @@ def print_timestep_footer(components):
                         message.append(''.join([
                             '    Process ',
                             ' '*(ℤ[len(str(nprocs - 1))] - len(str(other_rank))),
-                            f'{other_rank}: {imbalance_str}%',
+                            f'{other_rank}: {imbalance_str}',
                         ]))
                     # Print out load imbalances
                     masterprint('\n'.join(message))
@@ -1535,12 +1540,12 @@ def print_timestep_footer(components):
                     # We want to print out only the
                     # worst case load imbalance.
                     imbalance = imbalances[rank_max_load]
-                    imbalance_str = f'{{:.{decimals}f}}'.format(100*imbalance)
+                    imbalance_str = f'{{:.{decimals}f}}%'.format(100*imbalance)
                     if imbalance >= value_miserable:
                         imbalance_str = terminal.bold_red(imbalance_str)
                     elif imbalance >= value_bad:
                         imbalance_str = terminal.bold_yellow(imbalance_str)
-                    masterprint(f'Load imbalance: {imbalance_str}% (process {rank_max_load})')
+                    masterprint(f'Load imbalance: {imbalance_str} (process {rank_max_load})')
     elif ...:
         ...
 # Arrays used by the print_timestep_footer() function

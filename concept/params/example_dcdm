@@ -3,6 +3,9 @@
 
 
 
+# Non-parameter variable used to control the size of the simulation
+_size = 64
+
 # Non-parameter variables used to control the dcdm cosmology
 _f_dcdm = 0.3
 _Ω_cdm_plus_dcdm = 0.27
@@ -10,26 +13,17 @@ _Γ_dcdm = 10*km/(s*Mpc)
 
 # Input/output
 initial_conditions = [
-    # Stable matter (baryons and cold dark matter) component
+    # Total matter (baryons, (stable) cold dark matter and decaying cold dark matter) component
     {
-        'name'         : 'stable matter component',
-        'species'      : 'particles',
-        'N'            : 64**3,
-        'class_species': 'b+cdm',
-        'w'            : 0,
-    },
-    # Decaying matter component
-    {
-        'name'   : 'decaying matter component',
-        'species': 'decaying dark matter particles',
-        'N'      : 64**3,
-        'forces' : {'gravity': 'pm', 'lapse': 'pm'},
+        'name'         : 'total matter component',
+        'species'      : 'matter particles',
+        'N'            : _size**3,
     },
     # Linear GR "component"
     {
         'name'           : 'GR component',
         'species'        : 'fluid',
-        'gridsize'       : 64,
+        'gridsize'       : _size,
         'boltzmann_order': -1,
         'class_species'  : 'g+ur+dr+metric',
     },
@@ -37,22 +31,20 @@ initial_conditions = [
     {
         'name'    : 'lapse component',
         'species' : 'lapse',
-        'gridsize': 64,
+        'gridsize': _size,
     }
 ]
-output_dirs = {'powerspec': paths['output_dir'] + '/example_dcdm'}
-output_times = {'powerspec': [a_begin, 0.2, 0.4, 0.6, 1]}
+output_dirs = {'powerspec': paths['output_dir'] + '/' + basename(paths['params'])}
+output_times = {'powerspec': [a_begin, 0.02, 0.2, 0.4, 0.6, 1]}
 powerspec_select = {
-    'particles'                                             : {'data': True},
-    ('stable matter component', 'decaying matter component'): {'data': True},
+    'particles': True,
 }
 
 # Numerical parameters
-boxsize    = 4*Gpc
-φ_gridsize = 64
+boxsize = 512*Mpc
 
 # Cosmology
-Ωcdm    = _Ω_cdm_plus_dcdm*(1 - _f_dcdm)
+Ωcdm = _Ω_cdm_plus_dcdm*(1 - _f_dcdm)
 a_begin = 0.01
 class_params = {
     # Decaying dark matter parameters
@@ -72,5 +64,16 @@ class_params = {
 }
 
 # Physics
-select_forces = {'all': {'gravity': 'pm'}}
+select_forces = {
+    'total matter component': {
+        'gravity': ('p3m', 2*_size),
+        'lapse': 'pm',
+    },
+    'GR component': {
+        'gravity': 'pm',
+    },
+}
+
+# Simulation options
+primordial_amplitude_fixed = True
 

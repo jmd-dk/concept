@@ -25,16 +25,22 @@
 from commons import *
 
 # Cython imports
-cimport('from communication import communicate_domain,                             '
-        '                          domain_layout_local_indices,                    '
-        '                          domain_size_x,  domain_size_y,  domain_size_z,  '
-        '                          domain_start_x, domain_start_y, domain_start_z, '
-        '                          domain_subdivisions,                            '
-        '                          get_buffer,                                     '
-        '                          partition,                                      '
-        '                          rank_neighbouring_domain,                       '
-        '                          smart_mpi,                                      '
-        )
+cimport(
+    'from communication import        '
+    '    communicate_ghosts,          '
+    '    domain_layout_local_indices, '
+    '    domain_size_x,               '
+    '    domain_size_y,               '
+    '    domain_size_z,               '
+    '    domain_start_x,              '
+    '    domain_start_y,              '
+    '    domain_start_z,              '
+    '    domain_subdivisions,         '
+    '    get_buffer,                  '
+    '    partition,                   '
+    '    rank_neighbouring_domain,    '
+    '    smart_mpi,                   '
+)
 
 # Function pointer types used in this module
 pxd('ctypedef double* (*func_dstar_ddd)(double, double, double)')
@@ -71,8 +77,8 @@ cdef extern from "fft.c":
 
 
 
-# Function for initializing and tabulating a cubic grid with
-# vector values of a given dimension.
+# Function for initializing and tabulating a cubic grid
+# with vector values.
 @cython.header(# Arguments
                gridsize='Py_ssize_t',
                func=func_dstar_ddd,
@@ -97,7 +103,7 @@ cdef extern from "fft.c":
                ℓ='Py_ssize_t',
                returns='double[:, :, :, ::1]',
                )
-def tabulate_vectorfield(gridsize, func, factor, filename=''):
+def tabulate_vectorgrid(gridsize, func, factor, filename=''):
     """This function tabulates a cubic grid of size
     gridsize*gridsize*gridsize with vector values computed by
     the function func, as
@@ -158,684 +164,778 @@ def tabulate_vectorfield(gridsize, func, factor, filename=''):
             grid_local[ℓ_local + dim] = vector_value[dim]
     # Gather the tabulated local grid parts into the common, global grid
     smart_mpi(grid_local, grid, mpifun='allgatherv')
-    # Return now if the grid should not be saved to disk
-    if not filename:
-        return grid
     # Save grid to disk using parallel HDF5
-    if master:
-        os.makedirs(os.path.dirname(filename), exist_ok=True)
-    with open_hdf5(filename, mode='w', driver='mpio', comm=comm) as hdf5_file:
-        dset = hdf5_file.create_dataset('data', (size, ), dtype=C2np['double'])
-        dset[start_local:(start_local + size_local)] = grid_local
+    if filename:
+        if master:
+            os.makedirs(os.path.dirname(filename), exist_ok=True)
+        Barrier()
+        with open_hdf5(filename, mode='w', driver='mpio', comm=comm) as hdf5_file:
+            dset = hdf5_file.create_dataset('data', (size, ), dtype=C2np['double'])
+            dset[start_local:(start_local + size_local)] = grid_local
     return grid
 
-# Function for doing lookup in a grid with scalar values and
-# CIC-interpolating to specified coordinates.
-@cython.header(# Argument
-               grid='double[:, :, :]',
-               x='double',
-               y='double',
-               z='double',
-               # Locals
-               Wxl='double',
-               Wxu='double',
-               Wyl='double',
-               Wyu='double',
-               Wzl='double',
-               Wzu='double',
-               x_lower='Py_ssize_t',
-               x_upper='Py_ssize_t',
-               y_lower='Py_ssize_t',
-               y_upper='Py_ssize_t',
-               z_lower='Py_ssize_t',
-               z_upper='Py_ssize_t',
-               returns='double',
-               )
-def CIC_scalargrid2coordinates(grid, x, y, z):
-    """This function looks up tabulated scalars in a grid and
-    interpolates to (x, y, z) via the cloud in cell (CIC) method. Input
-    arguments must be normalized so that 0 <= x, y, z < 1. If x, y or z
-    is exactly equal to 1, they will be corrected to 1 - ϵ. It is
-    assumed that the grid is nonperiodic (that is,
-    the grid has closed ends).
-    """
-    # Correct for extreme values in the passed coordinates.
-    # This is to catch inputs which are slighly larger than 1 due to
-    # numerical errors.
-    if x >= 1:
-        x = ℝ[1 - machine_ϵ]
-    if y >= 1:
-        y = ℝ[1 - machine_ϵ]
-    if z >= 1:
-        z = ℝ[1 - machine_ϵ]
-    # Scale the coordinates so that 0 <= x, y, z < (gridsize - 1)
-    x *= grid.shape[0] - 1
-    y *= grid.shape[1] - 1
-    z *= grid.shape[2] - 1
-    # Indices of the 8 vertices (6 faces)
-    # of the grid surrounding (x, y, z).
-    x_lower = int(x)
-    y_lower = int(y)
-    z_lower = int(z)
-    x_upper = x_lower + 1
-    y_upper = y_lower + 1
-    z_upper = z_lower + 1
-    # The linear weights according to the
-    # CIC rule W = 1 - |dist| if |dist| < 1.
-    Wxl = x_upper - x  # = 1 - (x - x_lower)
-    Wyl = y_upper - y  # = 1 - (y - y_lower)
-    Wzl = z_upper - z  # = 1 - (z - z_lower)
-    Wxu = x - x_lower  # = 1 - (x_upper - x)
-    Wyu = y - y_lower  # = 1 - (y_upper - y)
-    Wzu = z - z_lower  # = 1 - (z_upper - z)
-    # Return the sum of the weighted grid values
-    return (  grid[x_lower, y_lower, z_lower]*ℝ[Wxl*Wyl]*Wzl
-            + grid[x_lower, y_lower, z_upper]*ℝ[Wxl*Wyl]*Wzu
-            + grid[x_lower, y_upper, z_lower]*ℝ[Wxl*Wyu]*Wzl
-            + grid[x_lower, y_upper, z_upper]*ℝ[Wxl*Wyu]*Wzu
-            + grid[x_upper, y_lower, z_lower]*ℝ[Wxu*Wyl]*Wzl
-            + grid[x_upper, y_lower, z_upper]*ℝ[Wxu*Wyl]*Wzu
-            + grid[x_upper, y_upper, z_lower]*ℝ[Wxu*Wyu]*Wzl
-            + grid[x_upper, y_upper, z_upper]*ℝ[Wxu*Wyu]*Wzu)
-
-# Function for doing lookup in a grid with vector values and
-# CIC-interpolating to specified coordinates
+# Function for doing lookup in a grid with vector values
 @cython.header(
     # Argument
     grid='double[:, :, :, :]',
     x='double',
     y='double',
     z='double',
+    order='int',
     # Locals
-    Wxl='double',
-    Wxu='double',
-    Wyl='double',
-    Wyu='double',
-    Wzl='double',
-    Wzu='double',
     dim='int',
-    x_lower='Py_ssize_t',
-    x_upper='Py_ssize_t',
-    y_lower='Py_ssize_t',
-    y_upper='Py_ssize_t',
-    z_lower='Py_ssize_t',
-    z_upper='Py_ssize_t',
+    i='Py_ssize_t',
+    j='Py_ssize_t',
+    k='Py_ssize_t',
+    index_i='Py_ssize_t',
+    index_j='Py_ssize_t',
+    index_k='Py_ssize_t',
     returns='double*',
 )
-def CIC_vectorgrid2coordinates(grid, x, y, z):
+def interpolate_in_vectorgrid(grid, x, y, z, order):
     """This function looks up tabulated vectors in a grid and
-    interpolates to (x, y, z) via the cloud in cell (CIC) method.
-    Input arguments must be normalized so that 0 <= x, y, z < 1.
-    If x, y or z is exactly equal to 1, they will be corrected to 1 - ϵ.
+    interpolates to (x, y, z).
+    Input arguments must be normalized so that
+      0 <= x < grid.shape[0] - 1,
+      0 <= y < grid.shape[1] - 1,
+      0 <= z < grid.shape[2] - 1.
     It is assumed that the grid is nonperiodic (that is, the first and
-    the last gridpoint in any dimension are physical distinct and that
-    the grid has closed ends).
+    the last gridpoint in any dimension are physically distinct). The
+    grid is not (necessarily) a domain grid and has no ghost points.
+    This means that the interpolation will fail if using a high order
+    and the coordinates are close to the boundary of the grid
+    (grid.shape[dim] - 1). For coordinates within the legal range,
+    first-order (NGP) and second-order (CIC) interpolation is
+    always safe.
     """
-    # Correct for extreme values in the passed coordinates.
-    # This is to catch inputs which are slighly larger than 1 due to
-    # numerical errors.
-    if x >= 1:
-        x = ℝ[1 - machine_ϵ]
-    if y >= 1:
-        y = ℝ[1 - machine_ϵ]
-    if z >= 1:
-        z = ℝ[1 - machine_ϵ]
-    # Scale the coordinates so that 0 <= x, y, z < (gridsize - 1)
-    x *= grid.shape[0] - 1
-    y *= grid.shape[1] - 1
-    z *= grid.shape[2] - 1
-    # Indices of the 8 vertices (6 faces)
-    # of the grid surrounding (x, y, z).
-    x_lower = int(x)
-    y_lower = int(y)
-    z_lower = int(z)
-    x_upper = x_lower + 1
-    y_upper = y_lower + 1
-    z_upper = z_lower + 1
-    # The linear weights according to the
-    # CIC rule W = 1 - |dist| if |dist| < 1.
-    Wxl = x_upper - x  # = 1 - (x - x_lower)
-    Wyl = y_upper - y  # = 1 - (y - y_lower)
-    Wzl = z_upper - z  # = 1 - (z - z_lower)
-    Wxu = x - x_lower  # = 1 - (x_upper - x)
-    Wyu = y - y_lower  # = 1 - (y_upper - y)
-    Wzu = z - z_lower  # = 1 - (z_upper - z)
+    # Set interpolation weights and get grid indices
+    if order == 1:  # NGP interpolation
+        index_i = set_weights_NGP(x, weights_x)
+        index_j = set_weights_NGP(y, weights_y)
+        index_k = set_weights_NGP(z, weights_z)
+    elif order == 2:  # CIC interpolation
+        index_i = set_weights_CIC(x, weights_x)
+        index_j = set_weights_CIC(y, weights_y)
+        index_k = set_weights_CIC(z, weights_z)
+    elif order == 3:  # TSC interpolation
+        index_i = set_weights_TSC(x, weights_x)
+        index_j = set_weights_TSC(y, weights_y)
+        index_k = set_weights_TSC(z, weights_z)
+    elif order == 4:  # PCS interpolation
+        index_i = set_weights_PCS(x, weights_x)
+        index_j = set_weights_PCS(y, weights_y)
+        index_k = set_weights_PCS(z, weights_z)
+    else:
+        abort(
+            f'interpolate_in_vectorgrid() called with order = {order} '
+            f'∉ {{1 (NGP), 2 (CIC), 3 (TSC), 4 (PCS)}}'
+        )
+        index_i = index_j = index_k = 0  # To satisfy the compiler
     # Assign the weighted grid values to the vector components
     for dim in range(3):
-        vector[dim] = (  grid[x_lower, y_lower, z_lower, dim]*ℝ[Wxl*Wyl]*Wzl
-                       + grid[x_lower, y_lower, z_upper, dim]*ℝ[Wxl*Wyl]*Wzu
-                       + grid[x_lower, y_upper, z_lower, dim]*ℝ[Wxl*Wyu]*Wzl
-                       + grid[x_lower, y_upper, z_upper, dim]*ℝ[Wxl*Wyu]*Wzu
-                       + grid[x_upper, y_lower, z_lower, dim]*ℝ[Wxu*Wyl]*Wzl
-                       + grid[x_upper, y_lower, z_upper, dim]*ℝ[Wxu*Wyl]*Wzu
-                       + grid[x_upper, y_upper, z_lower, dim]*ℝ[Wxu*Wyu]*Wzl
-                       + grid[x_upper, y_upper, z_upper, dim]*ℝ[Wxu*Wyu]*Wzu)
+        vector[dim] = 0
+    for         i in range(order):
+        for     j in range(order):
+            for k in range(order):
+                for dim in range(3):
+                    vector[dim] += grid[
+                        ℤ[index_i + i],
+                        ℤ[index_j + j],
+                        ℤ[index_k + k],
+                        dim,
+                    ]*ℝ[ℝ[ℝ[weights_x[i]]*weights_y[j]]*weights_z[k]]
     return vector
-# Vector used as the return value
-# of the CIC_vectorgrid2coordinates function.
+# Vector used as the return value of the
+# interpolate_in_vectorgrid() function.
 cython.declare(vector='double*')
 vector = malloc(3*sizeof('double'))
 
-
-# Function which interpolates one grid onto another grid,
-# optionally multiplying the interpolated values by a factor.
-@cython.pheader(# Arguments
-                gridA='double[:, :, :]',
-                gridB='double[:, :, :]',
-                fac='double',
-                fac_grid='double[:, :, :]',
-                fac2='double',
-                fac_grid2='double[:, :, :]',
-                # Locals
-                Wil='double',
-                Wjl='double',
-                Wkl='double',
-                Wiu='double',
-                Wju='double',
-                Wku='double',
-                dim='int',
-                i='Py_ssize_t',
-                iA='double',
-                iA_lower='Py_ssize_t',
-                iA_upper='Py_ssize_t',
-                iB='Py_ssize_t',
-                j='Py_ssize_t',
-                jA='double',
-                jA_lower='Py_ssize_t',
-                jA_upper='Py_ssize_t',
-                jB='Py_ssize_t',
-                k='Py_ssize_t',
-                kA='double',
-                kA_lower='Py_ssize_t',
-                kA_upper='Py_ssize_t',
-                kB='Py_ssize_t',
-                scaling_i='double',
-                scaling_j='double',
-                scaling_k='double',
-                shapeA=tuple,
-                shapeB=tuple,
-                use_fac_grid='bint',
-                use_fac_grid2='bint',
-                value='double',
-                )
-def CIC_grid2grid(gridA, gridB, fac=1, fac_grid=None, fac2=1, fac_grid2=None):
-    """This function CIC-interpolates values from one grid (gridB) onto
-    another grid (gridA). The physical extent of the passed grids are
-    assumed to be the same. It is assumed that both grids are closed,
-    meaning that the upper grid points (for all three directions)
-    recide on the physical boundary of the region in which the grid
-    is placed. For domain grids, this corresponds to the inclusion
-    of pseudo points (but not ghost points) in the grids.
-    The interpolated values will be added to gridA. Therefore, if the
-    grid should contain the interpolated vales only, the grid must be
-    nullified beforehand.
-    Before adding the interpolated values to gridA, they are multiplied
-    by fac.
-    If fac_grid is passed, this should be a grid of the same shape as
-    gridA. An additional factor of fac_grid[i, j, k] will then be
-    multiplied on the [i, j, k]'th interpolated value.
+# Function for doing lookup in a grid with scalar values and
+# interpolating to specified coordinates.
+@cython.header(
+    # Argument
+    grid='double[:, :, ::1]',
+    component='Component',
+    variable=str,
+    dim='int',
+    order='int',
+    factor='double',
+    # Locals
+    cellsize='double',
+    i='Py_ssize_t',
+    index='Py_ssize_t',
+    index_i='Py_ssize_t',
+    index_j='Py_ssize_t',
+    index_k='Py_ssize_t',
+    j='Py_ssize_t',
+    k='Py_ssize_t',
+    offset_x='double',
+    offset_y='double',
+    offset_z='double',
+    posx='double*',
+    posy='double*',
+    posz='double*',
+    ptr_dim='double*',
+    value='double',
+    x='double',
+    y='double',
+    z='double',
+    returns='void',
+)
+def interpolate_domaingrid_to_particles(grid, component, variable, dim, order, factor=1):
+    """This function updates the dim'th dimension of variable ('pos' or
+    'mom') of the component, through interpolation in the grid of a
+    given order. If the grid values should be multiplied by a factor
+    prior to adding them to the variable, this may be specified.
     """
-    use_fac_grid  = (fac_grid  is not None)
-    use_fac_grid2 = (fac_grid2 is not None)
-    # If the two grids have the same shape, each grid point in gridA is
-    # simply updated based on the equivalent grid point in gridB.
-    if (    gridA.shape[0] == gridB.shape[0]
-        and gridA.shape[1] == gridB.shape[1]
-        and gridA.shape[2] == gridB.shape[2]):
-        # The two grids have equal shapes
-        for         i in range(ℤ[gridA.shape[0] - 1]):
-            for     j in range(ℤ[gridA.shape[1] - 1]):
-                for k in range(ℤ[gridA.shape[2] - 1]):
-                    value = gridB[i, j, k]
-                    with unswitch:
-                        if use_fac_grid and use_fac_grid2:
-                            value = (  fac *fac_grid [i, j, k]
-                                     + fac2*fac_grid2[i, j, k])*gridB[i, j, k]
-                        elif use_fac_grid:
-                            value = fac*fac_grid[i, j, k]*gridB[i, j, k]
-                        else:
-                            value = fac*gridB[i, j, k]
-                    gridA[i, j, k] += value
-        return
-    # The two grids have different shapes. Perform CIC-interpolation.
-    # Extract the shape of the grids (without the pseudo points).
-    shapeA = tuple([gridA.shape[dim] - 1 for dim in range(3)])
-    shapeB = tuple([gridB.shape[dim] - 1 for dim in range(3)])
-    # Factors which scales grid indices in gridB
-    # to (floating point) grid indices in gridA.
-    scaling_i = shapeA[0]/shapeB[0]
-    scaling_j = shapeA[1]/shapeB[1]
-    scaling_k = shapeA[2]/shapeB[2]
-    for iB in range(ℤ[shapeB[0]]):
-        # The i-indices in gridA around the iB-index in gridB
-        iA = iB*scaling_i
-        if iA >= ℝ[shapeA[0]]:
-            # The lower index must not be a boundary index
-            iA = ℝ[shapeA[0]*(1 - machine_ϵ)]
-        iA_lower = int(iA)
-        iA_upper = iA_lower + 1
-        for jB in range(ℤ[shapeB[1]]):
-            # The j-indices in gridA around the jB-index in gridB
-            jA = jB*scaling_j
-            if jA >= ℝ[shapeA[1]]:
-                # The lower index must not be a boundary index
-                jA = ℝ[shapeA[1]*(1 - machine_ϵ)]
-            jA_lower = int(jA)
-            jA_upper = jA_lower + 1
-            for kB in range(ℤ[shapeB[2]]):
-                # The k-indices in gridA around the kB-index in gridB
-                kA = kB*scaling_k
-                if kA >= ℝ[shapeA[2]]:
-                    # The lower index must not be a boundary index
-                    kA = ℝ[shapeA[2]*(1 - machine_ϵ)]
-                kA_lower = int(kA)
-                kA_upper = kA_lower + 1
-                # The value which should be interpolated
-                value = fac*gridB[iB, jB, kB]
-                # The linear weights according to the
-                # CIC rule W = 1 - |dist| if |dist| < 1.
-                Wil = iA_upper - iA  # = 1 - (iA - iA_lower)
-                Wjl = jA_upper - jA  # = 1 - (jA - jA_lower)
-                Wkl = kA_upper - kA  # = 1 - (kA - kA_lower)
-                Wiu = iA - iA_lower  # = 1 - (iA_upper - iA)
-                Wju = jA - jA_lower  # = 1 - (jA_upper - jA)
-                Wku = kA - kA_lower  # = 1 - (kA_upper - kA)
-                # Assign the weights to the grid points
-                with unswitch:
-                    if use_fac_grid and use_fac_grid2:
-                        value = fac*gridB[iB, jB, kB]
-                        gridA[iA_lower, jA_lower, kA_lower] += (
-                            ℝ[value*Wil*Wjl]*Wkl*(  fac *fac_grid [iA_lower, jA_lower, kA_lower]
-                                                  + fac2*fac_grid2[iA_lower, jA_lower, kA_lower]))
-                        gridA[iA_lower, jA_lower, kA_upper] += (
-                            ℝ[value*Wil*Wjl]*Wku*(  fac *fac_grid [iA_lower, jA_lower, kA_upper]
-                                                  + fac2*fac_grid2[iA_lower, jA_lower, kA_upper]))
-                        gridA[iA_lower, jA_upper, kA_lower] += (
-                            ℝ[value*Wil*Wju]*Wkl*(  fac *fac_grid [iA_lower, jA_upper, kA_lower]
-                                                  + fac2*fac_grid2[iA_lower, jA_upper, kA_lower]))
-                        gridA[iA_lower, jA_upper, kA_upper] += (
-                            ℝ[value*Wil*Wju]*Wku*(  fac *fac_grid [iA_lower, jA_upper, kA_upper]
-                                                  + fac2*fac_grid2[iA_lower, jA_upper, kA_upper]))
-                        gridA[iA_upper, jA_lower, kA_lower] += (
-                            ℝ[value*Wiu*Wjl]*Wkl*(  fac *fac_grid [iA_upper, jA_lower, kA_lower]
-                                                  + fac2*fac_grid2[iA_upper, jA_lower, kA_lower]))
-                        gridA[iA_upper, jA_lower, kA_upper] += (
-                            ℝ[value*Wiu*Wjl]*Wku*(  fac *fac_grid [iA_upper, jA_lower, kA_upper]
-                                                  + fac2*fac_grid2[iA_upper, jA_lower, kA_upper]))
-                        gridA[iA_upper, jA_upper, kA_lower] += (
-                            ℝ[value*Wiu*Wju]*Wkl*(  fac *fac_grid [iA_upper, jA_upper, kA_lower]
-                                                  + fac2*fac_grid2[iA_upper, jA_upper, kA_lower]))
-                        gridA[iA_upper, jA_upper, kA_upper] += (
-                            ℝ[value*Wiu*Wju]*Wku*(  fac *fac_grid [iA_upper, jA_upper, kA_upper]
-                                                  + fac2*fac_grid2[iA_upper, jA_upper, kA_upper]))
-                    elif use_fac_grid:
-                        value = fac*gridB[iB, jB, kB]
-                        gridA[iA_lower, jA_lower, kA_lower] += (
-                            ℝ[value*Wil*Wjl]*Wkl*fac_grid[iA_lower, jA_lower, kA_lower])
-                        gridA[iA_lower, jA_lower, kA_upper] += (
-                            ℝ[value*Wil*Wjl]*Wku*fac_grid[iA_lower, jA_lower, kA_upper])
-                        gridA[iA_lower, jA_upper, kA_lower] += (
-                            ℝ[value*Wil*Wju]*Wkl*fac_grid[iA_lower, jA_upper, kA_lower])
-                        gridA[iA_lower, jA_upper, kA_upper] += (
-                            ℝ[value*Wil*Wju]*Wku*fac_grid[iA_lower, jA_upper, kA_upper])
-                        gridA[iA_upper, jA_lower, kA_lower] += (
-                            ℝ[value*Wiu*Wjl]*Wkl*fac_grid[iA_upper, jA_lower, kA_lower])
-                        gridA[iA_upper, jA_lower, kA_upper] += (
-                            ℝ[value*Wiu*Wjl]*Wku*fac_grid[iA_upper, jA_lower, kA_upper])
-                        gridA[iA_upper, jA_upper, kA_lower] += (
-                            ℝ[value*Wiu*Wju]*Wkl*fac_grid[iA_upper, jA_upper, kA_lower])
-                        gridA[iA_upper, jA_upper, kA_upper] += (
-                            ℝ[value*Wiu*Wju]*Wku*fac_grid[iA_upper, jA_upper, kA_upper])
-                    else:
-                        value = fac*gridB[iB, jB, kB]
-                        gridA[iA_lower, jA_lower, kA_lower] += ℝ[value*Wil*Wjl]*Wkl
-                        gridA[iA_lower, jA_lower, kA_upper] += ℝ[value*Wil*Wjl]*Wku
-                        gridA[iA_lower, jA_upper, kA_lower] += ℝ[value*Wil*Wju]*Wkl
-                        gridA[iA_lower, jA_upper, kA_upper] += ℝ[value*Wil*Wju]*Wku
-                        gridA[iA_upper, jA_lower, kA_lower] += ℝ[value*Wiu*Wjl]*Wkl
-                        gridA[iA_upper, jA_lower, kA_upper] += ℝ[value*Wiu*Wjl]*Wku
-                        gridA[iA_upper, jA_upper, kA_lower] += ℝ[value*Wiu*Wju]*Wkl
-                        gridA[iA_upper, jA_upper, kA_upper] += ℝ[value*Wiu*Wju]*Wku
-
-# Function for CIC-interpolating particles/fluid elements of
-# components to a domain grid.
-@cython.pheader(# Argument
-                component_or_components=object, # Component or list of Components
-                domain_grid='double[:, :, ::1]',
-                quantities=list,
-                only_fluid_components='bint',
-                only_particle_components='bint',
-                # Locals
-                Wxl='double',
-                Wyl='double',
-                Wzl='double',
-                Wxu='double',
-                Wyu='double',
-                Wzu='double',
-                amount='double',
-                component='Component',
-                components=list,
-                domain_grid_noghosts='double[:, :, :]',
-                factor='double',
-                factors='double[::1]',
-                fluid_quantity='double[:, :, :]',
-                i='Py_ssize_t',
-                interpolations='int',
-                j='Py_ssize_t',
-                particle_quantity='double*',
-                posx='double*',
-                posy='double*',
-                posz='double*',
-                quantities_implemented=tuple,
-                quantity=str,
-                shape=tuple,
-                x='double',
-                x_lower='int',
-                x_upper='int',
-                y='double',
-                y_lower='int',
-                y_upper='int',
-                z='double',
-                z_lower='int',
-                z_upper='int',
+    if variable == 'pos':
+        ptr_dim = component.pos[dim]
+    elif variable == 'mom':
+        ptr_dim = component.mom[dim]
+    else:
+        abort(
+            f'interpolate_domaingrid_to_particles() called with variable = "{variable}" '
+            f'∉ {{"pos", "mom"}}'
+        )
+    # Offsets and scalings needed for the interpolation
+    cellsize = domain_size_x/(grid.shape[0] - ℤ[2*nghosts])  # We have cubic grid cells
+    offset_x = domain_start_x - ℝ[(1 + machine_ϵ)*(nghosts - 0.5)*cellsize]
+    offset_y = domain_start_y - ℝ[(1 + machine_ϵ)*(nghosts - 0.5)*cellsize]
+    offset_z = domain_start_z - ℝ[(1 + machine_ϵ)*(nghosts - 0.5)*cellsize]
+    # Interpolate onto each particle
+    posx = component.posx
+    posy = component.posy
+    posz = component.posz
+    for index in range(component.N_local):
+        # Get, translate and scale the coordinates so that
+        # nghosts - ½ < r < shape[r] - nghosts - ½ for r ∈ {x, y, z}.
+        x = (posx[index] - offset_x)*ℝ[1/cellsize]
+        y = (posy[index] - offset_y)*ℝ[1/cellsize]
+        z = (posz[index] - offset_z)*ℝ[1/cellsize]
+        # Set interpolation weights and get grid indices
+        with unswitch:
+            if order == 1:  # NGP interpolation
+                index_i = set_weights_NGP(x, weights_x)
+                index_j = set_weights_NGP(y, weights_y)
+                index_k = set_weights_NGP(z, weights_z)
+            elif order == 2:  # CIC interpolation
+                index_i = set_weights_CIC(x, weights_x)
+                index_j = set_weights_CIC(y, weights_y)
+                index_k = set_weights_CIC(z, weights_z)
+            elif order == 3:  # TSC interpolation
+                index_i = set_weights_TSC(x, weights_x)
+                index_j = set_weights_TSC(y, weights_y)
+                index_k = set_weights_TSC(z, weights_z)
+            elif order == 4:  # PCS interpolation
+                index_i = set_weights_PCS(x, weights_x)
+                index_j = set_weights_PCS(y, weights_y)
+                index_k = set_weights_PCS(z, weights_z)
+            else:
+                abort(
+                    f'interpolate_domaingrid_to_particles() called with order = {order} '
+                    f'∉ {{1 (NGP), 2 (CIC), 3 (TSC), 4 (PCS)}}'
                 )
-def CIC_components2domain_grid(component_or_components, domain_grid, quantities,
-                               only_fluid_components=False, only_particle_components=False):
-    """This function CIC-interpolates particle/fluid elements
-    to domain_grid storing scalar values. The physical extent of the
-    passed domain_grid should match the domain exactly. The interpolated
-    values will be added to the grid. Therefore, if the grid should
-    contain the interpolated vales only, the grid must be nullified
-    beforehand.
-    The quantities argument is a list, but its elements can be
-    structured in different ways. If quantities = [], a particle and a
-    fluid element will each contribute to the domain_grid with an amount
-    of 1. This can be scaled by supplying e.g.
-    quantities = [('particles', 2), ('fluid elements', 3)].
-    If a specific quantity of a component should be interpolated, this
-    can be specified as e.g. quantities = ['momx', 'Jx']. These can
-    similarly be scaled by quantities = [('momx', 2), ('Jx', 3)].
-    Finally, if each component should be scaled differently, this can
-    be specified as e.g.
-    quantities = [('momx', [1, 2]), ('Jx', [1, 3])].
-    As a complete example, consider interpolating the comoving density:
-    quantities = [('particles', [m₁/Vcell, ..., mₙ/Vcell]),
-                  ('ϱ', [a**(-3*w_eff₁), ..., a**(-3*w_effₙ))]],
-    where mᵢ are the i'th mass and Vcell is the (comoving) volume of a
-    single cell of the domain grid. The order of the elements in the
-    lists should match the order of components,
-    and so n = len(components) even though both
-    particle and fluid components are present.
-    If only_fluid_components or only_particle_components is True,
-    all components with the opposite representation will be skipped.
+                index_i = index_j = index_k = 0  # To satisfy the compiler
+        # Apply the update
+        value = 0
+        for         i in range(order):
+            for     j in range(order):
+                for k in range(order):
+                    value += grid[
+                        ℤ[index_i + i],
+                        ℤ[index_j + j],
+                        ℤ[index_k + k],
+                    ]*ℝ[ℝ[weights_x[i]]*weights_y[j]]*weights_z[k]
+        with unswitch:
+            if factor != 1:
+                value *= factor
+        ptr_dim[index] += value
+
+# Function for interpolating a certian quantity from components
+# (particles and fluids) onto domain grids.
+@cython.pheader(
+    # Arguments
+    component_or_components=object,  # Component or list of Components
+    quantity=str,
+    gridsize='Py_ssize_t',
+    order='int',
+    ᔑdt=dict,
+    include_shifted_particles='bint',
+    # Locals
+    components=list,
+    component='Component',
+    fluid_components=list,
+    grid='double[:, :, ::1]',
+    grids=dict,
+    gridshape_local=tuple,
+    particle_components=list,
+    returns=dict,
+)
+def interpolate_components(
+    component_or_components, quantity, gridsize, order, ᔑdt=None, include_shifted_particles=False,
+):
+    """This function interpolates specified quantities of components to
+    a domain grid. A dict of the form
+    {'particles': double[:, :, ::1], 'fluid': double[:, :, ::1]}
+    is always returned, storing separate grids for particles and fluid
+    components. If only a single representation is present among the
+    supplied components, None will be stored for the other
+    representation.
+
+    The gridsize determines the size of the grid(s). Regardless of
+    gridsize, the same persistent chunk of memory will be used, meaning
+    that you should never call this function before you are done with
+    the grids returned in the previous call.
+
+    For particle components, the interpolation scheme is determined by
+    the order argument (1 for NGP, 2 for CIC, 3 for TSC, 4 for PCS).
+    For fluid components, the interpolation is carried out using the
+    "pixel mixing" scheme.
+
+    If include_shifted_particles is True, a third entrance in the
+    returned dict will appear, 'particles_shifted', which will be yet
+    another grid of interpolated particle quantities, but with grid
+    points shifted by half a grid cell (0.5*boxsize/gridsize) in every
+    direction.
+
+    The quantity argument determines what should be interpolated onto
+    the grid(s). Valid values are:
+    - 'ρ': The returned grid(s) will hold physical densities. Note that
+           ρ = a**(-3(1 + w_eff))*ϱ. Note that this physical 'ρ' is
+           always preferable to the conserved 'ϱ' when multiple
+           components are to be interpolated together, as only 'ρ' is
+           additive across components/species.
+           Each particle will contribute with a**(-3*w_eff)*mass/V_cell,
+           a**(-3*w_eff)*mass being the current mass of the particle
+           (a**(-3*w_eff) taking decay into account) and
+           V_cell = (a*boxsize/gridsize)**3 being the physical grid cell
+           volume. In total, each particle contribute with
+           a**(-3*(1 + w_eff))*(gridsize/boxsize)**3*mass.
+           Each fluid cell will contribute with
+           a**(-3*(1 + w_eff))*ϱᵢⱼₖ*V_cell_fluid/V_cell, where
+           a**(-3*(1 + w_eff))*ϱᵢⱼₖ = ρᵢⱼₖ is the physical density of fluid
+           cell [i, j, k] and
+           V_cell_fluid = (a*boxsize/gridsize_fluid)**3 is the physical
+           cell volume of the fluid grid. In total, each fluid cell
+           contribute with
+           a**(-3*(1 + w_eff))*(gridsize/gridsize_fluid)**3*ϱᵢⱼₖ
+    - 'a²ρ': The returned grid(s) will hold physical densities times
+             the square of the scale factor. From the 'ρ' entry above,
+             we then have that each particle will contribute with
+             a**(-3*w_eff - 1)*(gridsize/boxsize)**3*mass
+             and that each fluid cell will contribute with
+             a**(-3*w_eff - 1)*(gridsize/gridsize_fluid)**3*ϱᵢⱼₖ
+    - 'ϱ': The returned grid(s) will hold the conserved densities. From
+           the 'ρ' entry above, we then have that each particle will
+           contribute with
+           ϱ = (gridsize/boxsize)**3*mass
+           and that each fluid cell will contribute with
+           (gridsize/gridsize_fluid)**3*ϱᵢⱼₖ.
+    - 'Jx': The returned grid(s) will hold the conserved momentum
+            density Jₓ = a**4*(ρ + c⁻²P)*uₓ. As this is built from
+            physical quantities, this is additive across
+            components/species. For particles we set P = 0, leaving
+            Jₓ = a**4*ρ*uₓ. The canonical momentum momₓ and peculiar
+            velocity uₓ is related by momₓ = a*(a**(-3*w_eff)*mass)*uₓ,
+            and so from the particle construction of ρ above we get that
+            each particle contribute with (gridsize/boxsize)**3*momₓ.
+            As each fluid cell already stores Jₓ, they contribute by
+            V_cell_fluid/V_cell*J = (gridsize/gridsize_fluid)**3*Jₓ
+    - 'Jy': Similar to Jx.
+    - 'Jz': Similar to Jx.
+    In all of the above, expressions involving a = a(t) will be
+    evaluated at the current universal time, unless a dict ᔑdt of time
+    step integrals is passed, in which case the expressions will be
+    integrated over the time step.
     """
-    if only_particle_components and only_fluid_components:
-        abort('Both of only_particle_components and only_fluid_components '
-              'cannot be True in CIC_components2domain_grid')
     if isinstance(component_or_components, list):
         components = component_or_components
     else:
         components = [component_or_components]
-    # Transform the supplied quantities so that it is a list of tuples
-    # of the form (str, np.ndarray), where the array is of the same
-    # length as components.
-    quantities = quantities.copy()
-    for i, quantity_raw in enumerate(quantities):
-        if isinstance(quantity_raw, str):
-            quantities[i] = (quantity_raw, ones(len(components), dtype=C2np['double']))
-        elif len(quantity_raw) == 2:
-            try:
-                quantities[i] = (quantity_raw[0],
-                                 asarray([float(quantity_raw[1])]*len(components)))
-            except:
-                quantities[i] = (quantity_raw[0], asarray(quantity_raw[1]))
-        else:
-            quantities[i] = (quantity_raw[0], asarray(quantity_raw[1:]))
-    # Memoryview of the domain grid without the ghost layers
-    domain_grid_noghosts = domain_grid[2:(domain_grid.shape[0] - 2),
-                                       2:(domain_grid.shape[1] - 2),
-                                       2:(domain_grid.shape[2] - 2)]
-    shape = tuple([domain_grid_noghosts.shape[dim] - 1 for dim in range(3)])
-    # Do the interpolation(s)
-    interpolations = 0
-    for i, component in enumerate(components):
-        if not only_fluid_components and component.representation == 'particles':
-            posx = component.posx
-            posy = component.posy
-            posz = component.posz
-            # Interpolate each particle quantity
-            for quantity, factors in quantities:
-                # Grab the quantity to be interpolated
-                if quantity == 'particles':
-                    pass  # Accept but do not assign data pointer
-                elif quantity == 'posx':
-                    particle_quantity = component.posx
-                elif quantity == 'posy':
-                    particle_quantity = component.posy
-                elif quantity == 'posz':
-                    particle_quantity = component.posz
-                elif quantity == 'momx':
-                    particle_quantity = component.momx
-                elif quantity == 'momy':
-                    particle_quantity = component.momy
-                elif quantity == 'momz':
-                    particle_quantity = component.momz
-                else:
-                    continue
-                interpolations += 1
-                factor = factors[i]
-                # For quantity == 'particles', each particle should
-                # contribute with an amount equal to factor
-                # (for quantity != 'particles', this will be overwritten
-                # in the loop below).
-                amount = factor
-                # Interpolate each particle
-                for j in range(component.N_local):
-                    # Get the amount this particle contribute
-                    # to the interpolated grid.
-                    with unswitch(1):
-                        if quantity != 'particles':
-                            amount = factor*particle_quantity[j]
-                    # Get, translate and scale the coordinates so that
-                    # 0 <= j < shape[j] for j in (x, y, z).
-                    x = (posx[j] - domain_start_x)*ℝ[shape[0]/domain_size_x]
-                    y = (posy[j] - domain_start_y)*ℝ[shape[1]/domain_size_y]
-                    z = (posz[j] - domain_start_z)*ℝ[shape[2]/domain_size_z]
-                    # Correct for coordinates which are
-                    # exactly at an upper domain boundary.
-                    if x >= ℝ[shape[0]]:
-                        x = ℝ[shape[0]*(1 - machine_ϵ)]
-                    if y >= ℝ[shape[1]]:
-                        y = ℝ[shape[1]*(1 - machine_ϵ)]
-                    if z >= ℝ[shape[2]]:
-                        z = ℝ[shape[2]*(1 - machine_ϵ)]
-                    # Indices of the 8 vertices (6 faces)
-                    # of the grid surrounding (x, y, z).
-                    x_lower = int(x)
-                    y_lower = int(y)
-                    z_lower = int(z)
-                    x_upper = x_lower + 1
-                    y_upper = y_lower + 1
-                    z_upper = z_lower + 1
-                    # The linear weights according to the
-                    # CIC rule W = 1 - |dist| if |dist| < 1.
-                    Wxl = x_upper - x  # = 1 - (x - x_lower)
-                    Wyl = y_upper - y  # = 1 - (y - y_lower)
-                    Wzl = z_upper - z  # = 1 - (z - z_lower)
-                    Wxu = x - x_lower  # = 1 - (x_upper - x)
-                    Wyu = y - y_lower  # = 1 - (y_upper - y)
-                    Wzu = z - z_lower  # = 1 - (z_upper - z)
-                    # Assign the weights to the grid points
-                    domain_grid_noghosts[x_lower, y_lower, z_lower] += ℝ[amount*Wxl*Wyl]*Wzl
-                    domain_grid_noghosts[x_lower, y_lower, z_upper] += ℝ[amount*Wxl*Wyl]*Wzu
-                    domain_grid_noghosts[x_lower, y_upper, z_lower] += ℝ[amount*Wxl*Wyu]*Wzl
-                    domain_grid_noghosts[x_lower, y_upper, z_upper] += ℝ[amount*Wxl*Wyu]*Wzu
-                    domain_grid_noghosts[x_upper, y_lower, z_lower] += ℝ[amount*Wxu*Wyl]*Wzl
-                    domain_grid_noghosts[x_upper, y_lower, z_upper] += ℝ[amount*Wxu*Wyl]*Wzu
-                    domain_grid_noghosts[x_upper, y_upper, z_lower] += ℝ[amount*Wxu*Wyu]*Wzl
-                    domain_grid_noghosts[x_upper, y_upper, z_upper] += ℝ[amount*Wxu*Wyu]*Wzu
-        elif not only_particle_components and component.representation == 'fluid':
-            # Interpolate each fluid quantity
-            for quantity, factors in quantities:
-                # Grab the quantity to be interpolated
-                if quantity == 'fluid elements':
-                    pass  # Accept but do not assign data array
-                elif quantity == 'ϱ':
-                    fluid_quantity = component.ϱ.grid_noghosts
-                elif quantity == 'Jx':
-                    fluid_quantity = component.Jx.grid_noghosts
-                elif quantity == 'Jy':
-                    fluid_quantity = component.Jy.grid_noghosts
-                elif quantity == 'Jz':
-                    fluid_quantity = component.Jz.grid_noghosts
-                elif quantity == 'ςxx':
-                    fluid_quantity = component.ςxx.grid_noghosts
-                elif quantity == 'ςxy':
-                    fluid_quantity = component.ςxy.grid_noghosts
-                elif quantity == 'ςxz':
-                    fluid_quantity = component.ςxz.grid_noghosts
-                elif quantity == 'ςyx':
-                    fluid_quantity = component.ςyx.grid_noghosts
-                elif quantity == 'ςyy':
-                    fluid_quantity = component.ςyy.grid_noghosts
-                elif quantity == 'ςyz':
-                    fluid_quantity = component.ςyz.grid_noghosts
-                elif quantity == 'ςzx':
-                    fluid_quantity = component.ςzx.grid_noghosts
-                elif quantity == 'ςzy':
-                    fluid_quantity = component.ςzy.grid_noghosts
-                elif quantity == 'ςzz':
-                    fluid_quantity = component.ςzz.grid_noghosts
-                else:
-                    continue
-                interpolations += 1
-                factor = factors[i]
-                # Do the grid to grid interpolation
-                CIC_grid2grid(domain_grid_noghosts,
-                              fluid_quantity,
-                              factor,
-                              )
-    # As a result of interpolating particles and/or fluid elements,
-    # values of local pseudo mesh points may contribute to the lower
-    # mesh points of the domain grid on other processes.
-    # Do the needed communication.
-    communicate_domain(domain_grid, mode='add contributions')
-    # Check that each quantity got interpolated
-    if interpolations != len(quantities):
-        quantities_implemented = (# Particle quantities
-                                  'particles', 'posx', 'posy', 'posz', 'momx', 'momy', 'momz',
-                                  # Fluid quantities
-                                  'fluid elements', 'ϱ', 'Jx', 'Jy', 'Jz',
-                                  'ςxx', 'ςxy', 'ςxz', 'ςyx', 'ςyy', 'ςyz', 'ςzx', 'ςzy', 'ςzz',
-                                  )
-        for quantity, factors in quantities:
-            if quantity not in quantities_implemented:
-                masterwarn('Could not interpolate component quantity "{}" onto grid '
-                           'as this quantity is not implemented.'
-                           .format(quantity))
+    # Fetch grids as needed
+    gridshape_local = get_gridshape_local(gridsize)
+    particle_components = [
+        component for component in components if component.representation == 'particles'
+    ]
+    fluid_components = [
+        component for component in components if component.representation == 'fluid'
+    ]
+    grids = {'particles': None, 'fluid': None}
+    if include_shifted_particles:
+        grids['particles_shifted'] = None
+    if particle_components:
+        grids['particles'] = get_buffer(gridshape_local, 'grid_particles', nullify=True)
+        if include_shifted_particles:
+            grids['particles_shifted'] = get_buffer(
+                gridshape_local, 'grid_particles_shifted', nullify=True,
+            )
+    if fluid_components:
+        grids['fluid'] = get_buffer(gridshape_local, 'grid_fluid', nullify=True)
+    # Interpolate particle components
+    for component in particle_components:
+        interpolate_particles(
+            component, gridsize, grids['particles'], quantity, order, ᔑdt,
+            do_ghost_communication=False,
+        )
+        with unswitch:
+            if include_shifted_particles:
+                interpolate_particles(
+                    component, gridsize, grids['particles_shifted'], quantity, order, ᔑdt,
+                    shift=0.5, do_ghost_communication=False,
+                )
+    # Add ghost point contributions from the above interpolations
+    communicate_ghosts(grids['particles'], '+=')
+    if include_shifted_particles:
+        communicate_ghosts(grids['particles_shifted'], '+=')
+    # Interpolate fluid components
+    for component in fluid_components:
+        interpolate_fluid(component, gridsize, grids['fluid'], quantity, ᔑdt)
+    # Populate ghost points of all grids with correct values
+    for grid in grids.values():
+        communicate_ghosts(grid, '=')
+    return grids
 
-# Function for CIC-interpolating particles of a particle component
-# to fluid grids.
-@cython.header(# Argument
-               component='Component',
-               # Locals
-               Jx_noghosts='double[:, :, :]',
-               Jy_noghosts='double[:, :, :]',
-               Jz_noghosts='double[:, :, :]',
-               N_vacuum='Py_ssize_t',
-               Vcell='double',
-               Wlll='double',
-               Wllu='double',
-               Wlul='double',
-               Wluu='double',
-               Wull='double',
-               Wulu='double',
-               Wuul='double',
-               Wuuu='double',
-               Wxl='double',
-               Wxu='double',
-               Wyl='double',
-               Wyu='double',
-               Wzl='double',
-               Wzu='double',
-               dim='int',
-               i='Py_ssize_t',
-               j='Py_ssize_t',
-               k='Py_ssize_t',
-               mass='double',
-               momx='double*',
-               momx_i='double',
-               momy='double*',
-               momy_i='double',
-               momz='double*',
-               momz_i='double',
-               original_representation=str,
-               posx='double*',
-               posy='double*',
-               posz='double*',
-               shape=tuple,
-               x='double',
-               x_lower='int',
-               x_upper='int',
-               y='double',
-               y_lower='int',
-               y_upper='int',
-               z='double',
-               z_lower='int',
-               z_upper='int',
-               Δϱ='double',
-               Δϱ_tot='double',
-               ϱ_noghosts='double[:, :, :]',
-               returns='Py_ssize_t',
-               )
-def CIC_particles2fluid(component):
-    """This function CIC-interpolates particle positions to fluid grids.
-    The passed component should contain particle data, but not
-    necessarily fluid data (any pre-existing fluid data will be
-    overwritten). The particle data are then used to create the fluid
-    grids (ϱ, Jx, Jy, Jz).
-    The relation between the particle data and the fluid density ϱ is
-    ϱ = (N*mass)/Vcell,
-    where N is the number of particles in the cell, mass is the mass of
-    a single particle (all particles have the same mass) and Vcell is
-    the volume of a cell (all cells have the same volume). The number of
-    particles N in the volume is not actually a whole number, but rather
-    a fraction due to the CIC interpolation:
-    N = ΣᵢWᵢ,
-    where Wᵢ is the CIC weights, which sum to 1 for a single particle.
-    We can then express the density field as
-    ϱ = mass/Vcell*ΣᵢWᵢ.
-    Note that the cell volumes (as all volumes) are comoving, meaning no
-    factors of the scale factor a are needed. Remembering that
-    ϱ = a**(3*(1 + w_eff))*ρ, where ρ is the proper density,
-    this convertion thus imply w_eff = 0, and therefore also w = 0.
-    This function does not however check that this
-    requirement is actually fulfilled.
-    The relation between particle data and fluid momentum density J is
-    J = a**4*(ρ + c⁻²P)*u
-      = a**(-3*w_eff)*a*(ϱ + c⁻²𝒫)*u
-      = a*ϱ*u,    (w = 0 ⇒ w_eff = 0 = 𝒫)
-    where u - for each fluid element - is the overall velocity of the
-    fluid element. Crucially, velocities are not added, as two particles
-    within the same cell volume does not lead to a fluid element with
-    a velocity of their sum. Rather, velocities are averaged together
-    using the same weights as above:
-    u = <u>
-      = 1/N*(ΣᵢWᵢ*uᵢ),
-    where uᵢ are the peculiar velocities of the particles.
-    The fluid momentum density then becomes
-    J = a*mass/Vcell*(ΣᵢWᵢ*uᵢ).
-    The relation between a particles velocity uᵢ
-    and its momentum momᵢ is
-    momᵢ = a*mass*uᵢ
-    The final expression for J is then
-    J = 1/Vcell*(ΣᵢWᵢ*momᵢ).
-    Importantly, the mass attribute of the passed component should be
-    the particle mass, not the average fluid element mass. The value of
-    the representation attribute does not matter and will not
-    be altered. The size of the fluid grids are determined
-    by component.gridsize. To save memory, the particle data will be
-    freed (resized to a minimum size) during the process.
+# Function for interpolating a certian quantity from a particle
+# component onto a supplied domain grid.
+@cython.pheader(
+    # Arguments
+    component='Component',
+    gridsize='Py_ssize_t',
+    grid='double[:, :, ::1]',
+    quantity=str,
+    order='int',
+    ᔑdt=dict,
+    shift='double',
+    do_ghost_communication='bint',
+    # Locals
+    a='double',
+    cellsize='double',
+    constant_contribution='bint',
+    contribution='double',
+    contribution_factor='double',
+    contribution_ptr='double*',
+    dim='int',
+    i='Py_ssize_t',
+    index='Py_ssize_t',
+    index_i='Py_ssize_t',
+    index_j='Py_ssize_t',
+    index_k='Py_ssize_t',
+    j='Py_ssize_t',
+    k='Py_ssize_t',
+    offset_x='double',
+    offset_y='double',
+    offset_z='double',
+    posx='double*',
+    posy='double*',
+    posz='double*',
+    w_eff='double',
+    x='double',
+    y='double',
+    z='double',
+    returns='void',
+)
+def interpolate_particles(component, gridsize, grid, quantity, order, ᔑdt,
+    shift=0, do_ghost_communication=True):
+    """The given quantity of the component will be added to current
+    content of the local grid with global gridsize given by gridsize.
+    For info about the quantity argument, see the
+    interpolate_components() function.
+    Time dependent factors in the quantity are evaluated at the current
+    time as defined by the universals struct. If ᔑdt is passed as a
+    dict containing time step integrals, these factors will be
+    integrated over the time step.
+    The supplied grid should contain ghost layers, as the interpolation
+    will populate these. To communicate and add the resulting values in
+    the ghost cells to their physical cells, set do_ghost_communication
+    to True. Note that even with do_ghost_communication set to True, the
+    ghost cells will not end up with copies of the boundary values.
+    """
+    # Always use the current time
+    a = universals.a
+    w_eff = component.w_eff(a=a)
+    # The shape of the local grid without ghost layers
+    # Determine the contribution of each particle based on the quantity
+    if quantity == 'ρ':
+        constant_contribution = True
+        if ᔑdt:
+            contribution = ᔑdt['a**(-3*(1+w_eff))', component.name]/ᔑdt['1']
+        else:
+            contribution = a**(-3*(1 + w_eff))
+        contribution *= (gridsize/boxsize)**3*component.mass
+    elif quantity == 'a²ρ':
+        constant_contribution = True
+        if ᔑdt:
+            contribution = ᔑdt['a**(-3*w_eff-1)', component.name]/ᔑdt['1']
+        else:
+            contribution = a**(-3*w_eff - 1)
+        contribution *= (gridsize/boxsize)**3*component.mass
+    elif quantity == 'ϱ':
+        constant_contribution = True
+        contribution = (gridsize/boxsize)**3*component.mass
+    elif quantity in {'Jx', 'Jy', 'Jz'}:
+        constant_contribution = False
+        contribution_factor = (gridsize/boxsize)**3
+        dim = 'xyz'.index(quantity[1])
+        contribution_ptr = component.mom[dim]
+    else:
+        abort(
+            f'interpolate_particles() called with '
+            f'quantity = "{quantity}" ∉ {{"ρ", "a²ρ", "ϱ", "Jx", "Jy", "Jz"}}'
+        )
+    # Offsets and scalings needed for the interpolation
+    cellsize = boxsize/gridsize
+    offset_x = domain_start_x - ℝ[(1 + machine_ϵ)*(nghosts - 0.5 + shift)*cellsize]
+    offset_y = domain_start_y - ℝ[(1 + machine_ϵ)*(nghosts - 0.5 + shift)*cellsize]
+    offset_z = domain_start_z - ℝ[(1 + machine_ϵ)*(nghosts - 0.5 + shift)*cellsize]
+    # Interpolate each particle
+    posx = component.posx
+    posy = component.posy
+    posz = component.posz
+    for index in range(component.N_local):
+        # Get the total contribution from this particle
+        with unswitch:
+            if not constant_contribution:
+                contribution = contribution_factor*contribution_ptr[index]
+        # Get, translate and scale the coordinates so that
+        # nghosts - ½ < r < shape[r] - nghosts - ½ for r ∈ {x, y, z}.
+        x = (posx[index] - offset_x)*ℝ[1/cellsize]
+        y = (posy[index] - offset_y)*ℝ[1/cellsize]
+        z = (posz[index] - offset_z)*ℝ[1/cellsize]
+        # Set interpolation weights and get grid indices
+        with unswitch:
+            if order == 1:  # NGP interpolation
+                index_i = set_weights_NGP(x, weights_x)
+                index_j = set_weights_NGP(y, weights_y)
+                index_k = set_weights_NGP(z, weights_z)
+            elif order == 2:  # CIC interpolation
+                index_i = set_weights_CIC(x, weights_x)
+                index_j = set_weights_CIC(y, weights_y)
+                index_k = set_weights_CIC(z, weights_z)
+            elif order == 3:  # TSC interpolation
+                index_i = set_weights_TSC(x, weights_x)
+                index_j = set_weights_TSC(y, weights_y)
+                index_k = set_weights_TSC(z, weights_z)
+            elif order == 4:  # PCS interpolation
+                index_i = set_weights_PCS(x, weights_x)
+                index_j = set_weights_PCS(y, weights_y)
+                index_k = set_weights_PCS(z, weights_z)
+            else:
+                abort(
+                    f'interpolate_particles() called with order = {order} '
+                    f'∉ {{1 (NGP), 2 (CIC), 3 (TSC), 4 (PCS)}}'
+                )
+                index_i = index_j = index_k = 0  # To satisfy the compiler
+        # Assign weighted contributions to grid points
+        for         i in range(order):
+            for     j in range(order):
+                for k in range(order):
+                    grid[
+                        ℤ[index_i + i],
+                        ℤ[index_j + j],
+                        ℤ[index_k + k],
+                    ] += ℝ[ℝ[contribution*weights_x[i]]*weights_y[j]]*weights_z[k]
+    # All particles interpolated. Some may have gotten interpolated
+    # partly onto ghost points, which then need to be communicated.
+    if do_ghost_communication:
+        communicate_ghosts(grid, '+=')
+
+# Function for interpolating a certian quantity from a fluid component
+# onto a supplied domain grid.
+@cython.header(
+    # Arguments
+    component='Component',
+    gridsize='Py_ssize_t',
+    grid='double[:, :, ::1]',
+    quantity=str,
+    ᔑdt=dict,
+    # Locals
+    a='double',
+    contribution_factor='double',
+    dim='int',
+    fluidscalar='FluidScalar',
+    gridsize_fluid='Py_ssize_t',
+    w_eff='double',
+    returns='void',
+)
+def interpolate_fluid(component, gridsize, grid, quantity, ᔑdt):
+    """The component has to be a fluid component, and the passed grid is
+    interpreted as having the same physical extent as that of the fluid
+    (domain) grids. The grid passed should be a full local domain grid,
+    including ghost points.
+    The given quantity of the component will be added to current
+    content of the local grid with global gridsize given by gridsize.
+    For info about the quantity argument, see the
+    interpolate_components() function.
+    Time dependent factors in the quantity are evaluated at the current
+    time as defined by the universals struct. If ᔑdt is passed as a
+    dict containing time step integrals, these factors will be
+    integrated over the time step.
+    Though ghost cells are required to exist, these are not actually
+    touched by this function, and will not be properly set either.
+    """
+    gridsize_fluid = component.gridsize
+    # Always use the current time
+    a = universals.a
+    w_eff = component.w_eff(a=a)
+    # Determine the contribution of each particle based on the quantity
+    if quantity == 'ρ':
+        if ᔑdt:
+            contribution_factor = ᔑdt['a**(-3*(1+w_eff))', component.name]/ᔑdt['1']
+        else:
+            contribution_factor = a**(-3*(1 + w_eff))
+        contribution_factor *= (float(gridsize)/gridsize_fluid)**3
+        fluidscalar = component.ϱ
+    elif quantity == 'a²ρ':
+        if ᔑdt:
+            contribution_factor = ᔑdt['a**(-3*w_eff-1)', component.name]/ᔑdt['1']
+        else:
+            contribution_factor = a**(-3*w_eff - 1)
+        contribution_factor *= (float(gridsize)/gridsize_fluid)**3
+        fluidscalar = component.ϱ
+    elif quantity == 'ϱ':
+        contribution_factor = (float(gridsize)/gridsize_fluid)**3
+        fluidscalar = component.ϱ
+    elif quantity in {'Jx', 'Jy', 'Jz'}:
+        contribution_factor = (float(gridsize)/gridsize_fluid)**3
+        dim = 'xyz'.index(quantity[1])
+        fluidscalar = component.J[dim]
+    else:
+        abort(
+            f'interpolate_fluid() called with '
+            f'quantity = "{quantity}" ∉ {{"ρ", "a²ρ", "ϱ", "Jx", "Jy", "Jz"}}'
+        )
+    # Add values of the FluidScalar grid (multiplied by the
+    # contribution_factor) to the current values of the grid,
+    # through interpolation.
+    interpolate_grid_to_grid(fluidscalar.grid_mv, grid, factor=contribution_factor)
+
+# Function for interpolating one grid onto another
+@cython.pheader(
+    # Arguments
+    grid='double[:, :, ::1]',
+    buffer_or_buffer_name=object,  # double[:, :, ::1] or int or str
+    gridsize_buffer='Py_ssize_t',
+    factor='double',
+    # Locals
+    buffer='double[:, :, ::1]',
+    buffer_ptr='double*',
+    buffer_supplied='bint',
+    factor_x='double',
+    factor_y='double',
+    factor_z='double',
+    grid_ptr='double*',
+    gridshape_buffer_local=tuple,
+    gridsize_grid='Py_ssize_t',
+    i='Py_ssize_t',
+    i_box='Py_ssize_t',
+    index_and_size='Py_ssize_t*',
+    index_i='Py_ssize_t',
+    index_j='Py_ssize_t',
+    index_k='Py_ssize_t',
+    j='Py_ssize_t',
+    j_box='Py_ssize_t',
+    k='Py_ssize_t',
+    k_box='Py_ssize_t',
+    scaling='double',
+    size_i='Py_ssize_t',
+    size_j='Py_ssize_t',
+    size_k='Py_ssize_t',
+    value='double',
+    weights_x='double*',
+    weights_y='double*',
+    weights_z='double*',
+    returns='double[:, :, ::1]',
+)
+def interpolate_grid_to_grid(grid, buffer_or_buffer_name=0, gridsize_buffer=-1, factor=1):
+    """The grid will be interpolated onto the buffer, using the
+    "pixel mixing" scheme (or "voxel mixing" as we are in 3D). Note that
+    the physical quantity on the grid should be some kind of density
+    (e.g. ρ, ϱ, J), as opposed to say mass. Otherwise, the rescaling of
+    the grid will not conserve the corresponding integrated quantity.
+    Both the grid and the buffer should contain ghost cells, though
+    ghost cells will not be touched or populated by this function. The
+    buffer may be explicitly supplied as a grid, or alternatively as a
+    buffer name/number. In the latter case, the global gridsize of the
+    buffer should be passed as well. If a buffer is supplied, the
+    interpolated values will be added to existing values in the buffer.
+    If not, the retrieved buffer will be nullified before the
+    interpolated values are added. The interpolated values will be
+    multiplied by factor before they are added. Note that if a buffer is
+    not passed and the gridsizes of the grid and the buffer are
+    identical, the supplied grid will be mutated according to factor
+    and returned.
+    """
+    # If the gridsize of the grid and the buffer are identical, no
+    # interpolation is needed and we may return the grid itself, but
+    # multiplied by the factor. If a buffer is explicitly passed
+    # however, we copy the values of the grid onto the buffer and return
+    # the buffer.
+    buffer_supplied = (not isinstance(buffer_or_buffer_name, (int, str)))
+    if buffer_supplied:
+        buffer = buffer_or_buffer_name
+        gridsize_buffer = (buffer.shape[0] - ℤ[2*nghosts])*domain_subdivisions[0]
+    gridsize_grid = (grid.shape[0] - ℤ[2*nghosts])*domain_subdivisions[0]
+    if gridsize_grid == gridsize_buffer:
+        grid_ptr = cython.address(grid[:, :, :])
+        if buffer_supplied:
+            buffer_ptr = cython.address(buffer[:, :, :])
+            for i in range(grid.shape[0]*grid.shape[1]*grid.shape[2]):
+                with unswitch:
+                    if factor != 1:
+                        buffer_ptr[i] += factor*grid_ptr[i]
+                    else:
+                        buffer_ptr[i] += grid_ptr[i]
+            return buffer
+        else:
+            if factor != 1:
+                for i in range(grid.shape[0]*grid.shape[1]*grid.shape[2]):
+                    grid_ptr[i] *= factor
+            return grid
+    # If no buffer is supplied, fetch the buffer with the name
+    # given by buffer_or_buffer_name and a global gridsize given by
+    # gridsize_buffer.
+    if not buffer_supplied:
+        gridshape_buffer_local = get_gridshape_local(gridsize_buffer)
+        buffer = get_buffer(gridshape_buffer_local, buffer_or_buffer_name, nullify=True)
+    else:
+        buffer = buffer_or_buffer_name
+    # The scaling factor between the old and new gridsize. Note that
+    # this is the same in all dimensions.
+    scaling = float(gridsize_buffer)/gridsize_grid
+    # Allocate arrays for storing cell weights. Up to int(scaling)
+    # cells in the new grid (the buffer) may reside completely within a
+    # given single cell of the original grid. In addition, it may happen
+    # that a fraction of a new cell is partly covered by the same old
+    # cell, for both directions. For each dimension then, an old cell
+    # may be distributed among at most 2 + int(scaling) new cells.
+    weights_x = malloc(ℤ[2 + int(scaling + machine_ϵ)]*sizeof('double'))
+    weights_y = malloc(ℤ[2 + int(scaling + machine_ϵ)]*sizeof('double'))
+    weights_z = malloc(ℤ[2 + int(scaling + machine_ϵ)]*sizeof('double'))
+    # For each cell in the original grid, we need to know the number of
+    # elements of the weights arrays in use (i.e. how many new cells the
+    # old cell covers), as well as the index of the first covered new
+    # grid cell. Allocate common arrays for both of these.
+    index_and_size = malloc(2*sizeof('Py_ssize_t'))
+    # Loop over the bulk (i.e. not ghosts) or the original grid
+    # and distribute the value of each cell amongst the overlapping
+    # cells in the buffer.
+    for i in range(ℤ[grid.shape[0] - ℤ[2*nghosts]]):
+        set_weights_pixelmixing(i, scaling, weights_x, index_and_size)
+        index_i = index_and_size[0]
+        size_i  = index_and_size[1]
+        for j in range(ℤ[grid.shape[1] - ℤ[2*nghosts]]):
+            set_weights_pixelmixing(j, scaling, weights_y, index_and_size)
+            index_j = index_and_size[0]
+            size_j  = index_and_size[1]
+            for k in range(ℤ[grid.shape[2] - ℤ[2*nghosts]]):
+                set_weights_pixelmixing(k, scaling, weights_z, index_and_size)
+                index_k = index_and_size[0]
+                size_k  = index_and_size[1]
+                value = grid[ℤ[nghosts + i], ℤ[nghosts + j], ℤ[nghosts + k]]
+                with unswitch:
+                    if factor != 1:
+                        value *= factor
+                # Loop over box in new grid corresponding to old cell
+                for i_box in range(size_i):
+                    factor_x = weights_x[i_box]
+                    for j_box in range(size_j):
+                        factor_y = weights_y[j_box]
+                        for k_box in range(size_k):
+                            factor_z = weights_z[k_box]
+                            buffer[
+                                ℤ[ℤ[nghosts + index_i] + i_box],
+                                ℤ[ℤ[nghosts + index_j] + j_box],
+                                ℤ[ℤ[nghosts + index_k] + k_box],
+                            ] += ℝ[ℝ[value*factor_x]*factor_y]*factor_z
+    # Cleanup and return result
+    free(weights_x)
+    free(weights_y)
+    free(weights_z)
+    free(index_and_size)
+    return buffer
+
+# Function for computing weights and indices for
+# "pixel mixing" interpolation.
+@cython.header(
+    # Arguments
+    i='Py_ssize_t',
+    scaling='double',
+    weights='double*',
+    index_and_size='Py_ssize_t*',
+    # Locals
+    i_bgn='Py_ssize_t',
+    i_end='Py_ssize_t',
+    i_new='Py_ssize_t',
+    i_new_float='double',
+    size='Py_ssize_t',
+    x='double',
+    returns='void',
+)
+def set_weights_pixelmixing(i, scaling, weights, index_and_size):
+    # Compute range of indices into the new array corresponding to
+    # index i of the old array.
+    x = (i + machine_ϵ)*scaling
+    i_bgn = int(x)
+    i_end = int(x + scaling)
+    # Set cell weights
+    size = 0
+    for i_new in range(i_bgn, i_end + 1):
+        i_new_float = float(i_new)
+        if i_new_float >= ℝ[(i + 1)*scaling]:
+            # This new cell is completely outside of the old cell,
+            # and any further new cells will be outside as well.
+            break
+        if i_new_float >= ℝ[i*scaling]:
+            if ℝ[i_new_float + 1] <= ℝ[(i + 1)*scaling]:
+                # This new cell is completely inside the old cell.
+                weights[size] = 1
+            else:
+                # This new cell sticks out of the old cell at the end
+                weights[size] = ℝ[(i + 1)*scaling] - i_new_float
+        elif ℝ[i_new_float + 1] <= ℝ[(i + 1)*scaling]:
+            # This new cell sticks out of the old cell at the beginning
+            weights[size] = 1 - (ℝ[i*scaling] - i_new_float)
+        else:
+            # This new cell contains the entire old cell
+            weights[size] = scaling
+        size += 1
+    # Store first index into the new grid and number of new cells
+    # affected by this old ell.
+    index_and_size[0] = i_bgn
+    index_and_size[1] = size
+
+# Function for converting particles of a particle component to fluid
+# grids, effectively changing the representation of the component.
+@cython.header(
+    # Arguments
+    component='Component',
+    order='int',
+    # Locals
+    J_dim='FluidScalar',
+    N_vacuum='Py_ssize_t',
+    N_vacuum_originally='Py_ssize_t',
+    dim='int',
+    gridsize='Py_ssize_t',
+    i='Py_ssize_t',
+    j='Py_ssize_t',
+    k='Py_ssize_t',
+    original_representation=str,
+    shape=tuple,
+    vacuum_sweep='Py_ssize_t',
+    Δϱ_each='double',
+    ϱ='double[:, :, ::1]',
+    ᔑdt=dict,
+    returns='Py_ssize_t',
+)
+def convert_particles_to_fluid(component, order):
+    """This function interpolates particle positions and momenta onto
+    fluid grids, effectively converting from a 'particles'
+    representation to a 'fluid' representation. The mass attribute of
+    the passed component should be the particle mass, not the average
+    fluid element mass. The value of the representation attribute does
+    not matter and will not be altered. The size of the fluid grids are
+    determined by component.gridsize. To save memory, the particle data
+    will be freed (resized to a minimum size) during the process.
     """
     # Backup of original representation
     original_representation = component.representation
@@ -843,309 +943,151 @@ def CIC_particles2fluid(component):
     # The newly allocated grids will be nullified.
     component.representation = 'fluid'
     shape = tuple([component.gridsize//ds for ds in domain_subdivisions])
-    if master and any([component.gridsize != domain_subdivisions[dim]*shape[dim]
-                       for dim in range(3)]):
-            abort('The gridsize of the {} component is {}\n'
-                  'which cannot be equally shared among {} processes'
-                  .format(component.name, component.gridsize, nprocs))
+    if any([component.gridsize != domain_subdivisions[dim]*shape[dim] for dim in range(3)]):
+        abort(
+            f'The gridsize of the "{component.name}" component is {component.gridsize} '
+            f'which cannot be equally shared among {nprocs} processes'
+        )
     component.resize(shape)  # This also nullifies all fluid grids
-    # Extract fluid data variables
-    ϱ_noghosts  = component.ϱ .grid_noghosts
-    Jx_noghosts = component.Jx.grid_noghosts
-    Jy_noghosts = component.Jy.grid_noghosts
-    Jz_noghosts = component.Jz.grid_noghosts
-    # Extract particle data variables
-    posx = component.posx
-    posy = component.posy
-    posz = component.posz
-    momx = component.momx
-    momy = component.momy
-    momz = component.momz
-    # Variables used in the convertion from particle data to fluid data
-    mass = universals.a**(-3*component.w_eff(a=universals.a))*component.mass
-    Vcell = (boxsize/component.gridsize)**3
-    # Interpolate each particle to the grids.
-    # Constant factors will be multiplied on later.
-    # Thus after the interpolation we will have
-    # ϱ: ΣᵢWᵢ
-    # J: ΣᵢWᵢ*momᵢ
-    for i in range(component.N_local):
-        # Get, translate and scale the coordinates so that
-        # 0 <= i < shape[i] for i in (x, y, z).
-        x = (posx[i] - domain_start_x)*ℝ[shape[0]/domain_size_x]
-        y = (posy[i] - domain_start_y)*ℝ[shape[1]/domain_size_y]
-        z = (posz[i] - domain_start_z)*ℝ[shape[2]/domain_size_z]
-        # Correct for coordinates which are
-        # exactly at an upper domain boundary.
-        if x >= ℝ[shape[0]]:
-            x = ℝ[shape[0]*(1 - machine_ϵ)]
-        if y >= ℝ[shape[1]]:
-            y = ℝ[shape[1]*(1 - machine_ϵ)]
-        if z >= ℝ[shape[2]]:
-            z = ℝ[shape[2]*(1 - machine_ϵ)]
-        # Indices of the 8 vertices (6 faces)
-        # of the grid surrounding (x, y, z).
-        x_lower = int(x)
-        y_lower = int(y)
-        z_lower = int(z)
-        x_upper = x_lower + 1
-        y_upper = y_lower + 1
-        z_upper = z_lower + 1
-        # The linear weights according to the
-        # CIC rule W = 1 - |dist| if |dist| < 1.
-        Wxl = x_upper - x  # = 1 - (x - x_lower)
-        Wyl = y_upper - y  # = 1 - (y - y_lower)
-        Wzl = z_upper - z  # = 1 - (z - z_lower)
-        Wxu = x - x_lower  # = 1 - (x_upper - x)
-        Wyu = y - y_lower  # = 1 - (y_upper - y)
-        Wzu = z - z_lower  # = 1 - (z_upper - z)
-        # The full weights
-        Wlll = ℝ[Wxl*Wyl]*Wzl
-        Wllu = ℝ[Wxl*Wyl]*Wzu
-        Wlul = ℝ[Wxl*Wyu]*Wzl
-        Wluu = ℝ[Wxl*Wyu]*Wzu
-        Wull = ℝ[Wxu*Wyl]*Wzl
-        Wulu = ℝ[Wxu*Wyl]*Wzu
-        Wuul = ℝ[Wxu*Wyu]*Wzl
-        Wuuu = ℝ[Wxu*Wyu]*Wzu
-        # Assign the raw weights to the ϱ grid
-        ϱ_noghosts[x_lower, y_lower, z_lower] += Wlll
-        ϱ_noghosts[x_lower, y_lower, z_upper] += Wllu
-        ϱ_noghosts[x_lower, y_upper, z_lower] += Wlul
-        ϱ_noghosts[x_lower, y_upper, z_upper] += Wluu
-        ϱ_noghosts[x_upper, y_lower, z_lower] += Wull
-        ϱ_noghosts[x_upper, y_lower, z_upper] += Wulu
-        ϱ_noghosts[x_upper, y_upper, z_lower] += Wuul
-        ϱ_noghosts[x_upper, y_upper, z_upper] += Wuuu
-        # Extract momentum of the i'th particle
-        momx_i = momx[i]
-        momy_i = momy[i]
-        momz_i = momz[i]
-        # Assign the weighted x-momentum to the Jx grid
-        Jx_noghosts[x_lower, y_lower, z_lower] += Wlll*momx_i
-        Jx_noghosts[x_lower, y_lower, z_upper] += Wllu*momx_i
-        Jx_noghosts[x_lower, y_upper, z_lower] += Wlul*momx_i
-        Jx_noghosts[x_lower, y_upper, z_upper] += Wluu*momx_i
-        Jx_noghosts[x_upper, y_lower, z_lower] += Wull*momx_i
-        Jx_noghosts[x_upper, y_lower, z_upper] += Wulu*momx_i
-        Jx_noghosts[x_upper, y_upper, z_lower] += Wuul*momx_i
-        Jx_noghosts[x_upper, y_upper, z_upper] += Wuuu*momx_i
-        # Assign the weighted y-momentum to the Jy grid
-        Jy_noghosts[x_lower, y_lower, z_lower] += Wlll*momy_i
-        Jy_noghosts[x_lower, y_lower, z_upper] += Wllu*momy_i
-        Jy_noghosts[x_lower, y_upper, z_lower] += Wlul*momy_i
-        Jy_noghosts[x_lower, y_upper, z_upper] += Wluu*momy_i
-        Jy_noghosts[x_upper, y_lower, z_lower] += Wull*momy_i
-        Jy_noghosts[x_upper, y_lower, z_upper] += Wulu*momy_i
-        Jy_noghosts[x_upper, y_upper, z_lower] += Wuul*momy_i
-        Jy_noghosts[x_upper, y_upper, z_upper] += Wuuu*momy_i
-        # Assign the weighted z-momentum to the Jz grid
-        Jz_noghosts[x_lower, y_lower, z_lower] += Wlll*momz_i
-        Jz_noghosts[x_lower, y_lower, z_upper] += Wllu*momz_i
-        Jz_noghosts[x_lower, y_upper, z_lower] += Wlul*momz_i
-        Jz_noghosts[x_lower, y_upper, z_upper] += Wluu*momz_i
-        Jz_noghosts[x_upper, y_lower, z_lower] += Wull*momz_i
-        Jz_noghosts[x_upper, y_lower, z_upper] += Wulu*momz_i
-        Jz_noghosts[x_upper, y_upper, z_lower] += Wuul*momz_i
-        Jz_noghosts[x_upper, y_upper, z_upper] += Wuuu*momz_i
+    # Do the particle -> fluid interpolation
+    ᔑdt = {}
+    gridsize = component.gridsize
+    ϱ = component.ϱ.grid_mv
+    interpolate_particles(component, gridsize, ϱ, 'ϱ', order, ᔑdt)
+    for dim in range(3):
+        J_dim = component.J[dim]
+        interpolate_particles(component, gridsize, J_dim.grid_mv, 'J' + 'xyz'[dim], order, ᔑdt)
+    # The interpolation may have left some cells empty. Count up the
+    # number of such vacuum cells and assign to them a density of
+    # ρ_vacuum, while leaving the momentum at zero. This will increase
+    # the total mass, which then has to be lowered again, which we do
+    # by subtracting a constant amount from each cell. This subtraction
+    # may itself produce vacuum cells, and so we need to repeat until
+    # no vacuum is detected.
+    for vacuum_sweep in itertools.count():
+        # Count up and assign to vacuum cells
+        N_vacuum = 0
+        for         i in range(nghosts, ℤ[ϱ.shape[0] - nghosts]):
+            for     j in range(nghosts, ℤ[ϱ.shape[1] - nghosts]):
+                for k in range(nghosts, ℤ[ϱ.shape[2] - nghosts]):
+                    if ϱ[i, j, k] < ρ_vacuum:
+                        N_vacuum += 1
+                        ϱ[i, j, k] = ρ_vacuum
+        N_vacuum = allreduce(N_vacuum, op=MPI.SUM)
+        # Remember the original number of vacuum cells
+        if vacuum_sweep == 0:
+            N_vacuum_originally = N_vacuum
+        # We are done when no vacuum is left
+        if N_vacuum == 0:
+            break
+        # Ensure mass conservation
+        Δϱ_each = N_vacuum*ℝ[ρ_vacuum/gridsize**3]
+        for         i in range(nghosts, ℤ[ϱ.shape[0] - nghosts]):
+            for     j in range(nghosts, ℤ[ϱ.shape[1] - nghosts]):
+                for k in range(nghosts, ℤ[ϱ.shape[2] - nghosts]):
+                    ϱ_noghosts[i, j, k] -= Δϱ_each
+        # Fail safe
+        if vacuum_sweep > gridsize:
+            masterwarn(
+                'The convert_particles_to_fluid() was unable to get rid of '
+                'vacuum cells in the fluid after interpolation'
+            )
+            break
+    # Populate ghost points of all fluid grids
+    component.communicate_fluid_grids('=')
     # The particle data is no longer needed. Free it to save memory.
     component.representation = 'particles'
     component.resize(1)
-    # Values of local pseudo mesh points contribute to the lower
-    # mesh points of the domain (fluid) grids on other processes.
-    # Do the needed communications.
-    component.representation = 'fluid'
-    component.communicate_fluid_grids(mode='add contributions')
-    # Multiply the missing constant factors on the
-    # interpolated grid values. Here ghosts and pseudo points
-    # are excluded. Vaccum elements (fluid elements not
-    # interpolated to) will be assigned the vacuum density ρ_vacuum.
-    N_vacuum = 0
-    for         i in range(ℤ[ϱ_noghosts.shape[0] - 1]):
-        for     j in range(ℤ[ϱ_noghosts.shape[1] - 1]):
-            for k in range(ℤ[ϱ_noghosts.shape[2] - 1]):
-                if ϱ_noghosts[i, j, k] < ρ_vacuum:
-                    # Vacuuum element detected. Assign the vacuum
-                    # density and leave the momentum at zero.
-                    N_vacuum += 1
-                    ϱ_noghosts[i, j, k] = ρ_vacuum
-                else:
-                    ϱ_noghosts [i, j, k] *= ℝ[mass/Vcell]
-                    Jx_noghosts[i, j, k] *= ℝ[1/Vcell]
-                    Jy_noghosts[i, j, k] *= ℝ[1/Vcell]
-                    Jz_noghosts[i, j, k] *= ℝ[1/Vcell]
-    # Count up number of vacuum elements from all processes
-    N_vacuum = allreduce(N_vacuum, op=MPI.SUM)
-    # If any vacuum elements exist, the fact that the assigned vacuum
-    # density is non-zero means that the total mass is not conserved.
-    # Correct this by lowering every non-vacuum element by the same
-    # amount. This act may itself produce densities lower than the
-    # vacuum density, so we have to keep doing this until no sub-vaccum
-    # densities exist.
-    Δϱ_tot = N_vacuum*ρ_vacuum
-    while Δϱ_tot != 0:
-        Δϱ_tot = 0
-        Δϱ = Δϱ_tot/component.gridsize**3
-        for         i in range(ℤ[ϱ_noghosts.shape[0] - 1]):
-            for     j in range(ℤ[ϱ_noghosts.shape[1] - 1]):
-                for k in range(ℤ[ϱ_noghosts.shape[2] - 1]):
-                    if ϱ_noghosts[i, j, k] > ρ_vacuum:
-                        ϱ_noghosts[i, j, k] -= Δϱ
-                        if ϱ_noghosts[i, j, k] < ρ_vacuum:
-                            Δϱ_tot += ρ_vacuum - ϱ_noghosts[i, j, k]
-                            ϱ_noghosts[i, j, k] = ρ_vacuum
-        Δϱ_tot = allreduce(Δϱ, op=MPI.SUM)
-    # The local bulk of all fluid grids now hold the final values.
-    # Populate pseudo and ghost points.
-    component.communicate_fluid_grids(mode='populate')
-    # Re-insert the original representation
+    # Re-insert the original representation and return
+    # the original number of vacuum cells.
     component.representation = original_representation
-    # Return the number of fluid elements not interpolated to
-    return N_vacuum
+    return N_vacuum_originally
 
-# Generic function for CIC interpolating components to φ grids.
-# Particle and fluid components will be interpolated to separate grids.
-@cython.pheader(
+# Function for getting the shape of a local grid, which is part of a
+# global, cubic grid with some gridsize.
+@cython.header(
     # Arguments
-    component_or_components=object, # Component or list of Components
-    quantities=list,
-    add_particles_and_fluids='bint',
-    ensure=str,
+    gridsize='Py_ssize_t',
     # Locals
-    any_fluid='bint',
-    any_particles='bint',
-    components=list,
-    ensure_fluid='bint',
-    ensure_particles='bint',
-    i='Py_ssize_t',
-    φ_dict=dict,
-    φ_fluid='double[:, :, ::1]',
-    φ_fluid_ptr='double*',
-    φ_particles='double[:, :, ::1]',
-    φ_particles_ptr='double*',
-    returns=object,  # dict or double[:, :, ::1]
+    dim='int',
+    gridshape_local=tuple,
+    returns=tuple,
 )
-def CIC_components2φ(
-    component_or_components, quantities, add_particles_and_fluids=False, ensure='',
-):
-    """Exactly what quantities of the components are interpolated to
-    the global φ grids are determined by the quantities argument.
-    For details on this argument,
-    see the CIC_components2domain_grid function.
-    If add_particles_and_fluids is False, a dict of seperate grids for
-    particles and fluids will be returned. If add_particles_and_fluids
-    is True, the fluid φ will be added to the particles φ,
-    and only this will be returned.
-    If ensure contains "particle" or "fluid" as a substring,
-    the returned φ dict will contain these grids even if no components
-    with such a representation is passed (in which case the grid will
-    hold only zeros).
-    """
-    # Argument processing
-    if φ_illegal:
-        abort(φ_illegal)
-    if add_particles_and_fluids and ensure:
-        abort(
-            f'CIC_components2φ() was called with both add_particles_and_fluids=True '
-            f'and ensure="{ensure}"'
-        )
-    if isinstance(component_or_components, list):
-        components = component_or_components
-    else:
-        components = [component_or_components]
-    any_particles = any([component.representation == 'particles' for component in components])
-    any_fluid     = any([component.representation == 'fluid'     for component in components])
-    ensure_particles = ('particle' in ensure) or any_particles
-    ensure_fluid     = ('fluid'    in ensure) or any_fluid
-    # Fetch the φ grids and interpolate the given quantities onto them
-    φ_dict = {}
-    if ensure_particles:
-        φ_particles = get_buffer(φ_shape, 'φ_particles', nullify=True)
-        if any_particles:
-            CIC_components2domain_grid(
-                components, φ_particles, quantities, only_particle_components=True,
+def get_gridshape_local(gridsize):
+    # Cache lookup
+    gridshape_local = gridshape_local_cache.get(gridsize)
+    if gridshape_local is not None:
+        return gridshape_local
+    # The global grid will be cut into domains according to the
+    # domain_subdivisions. The cut along each dimension has to leave
+    # the local grids with integer gridsize.
+    for dim in range(3):
+        if gridsize%domain_subdivisions[dim] != 0:
+            abort(
+                f'A grid of global gridsize {gridsize} is to be distributed '
+                f'across the processes, but {gridsize}×{gridsize}×{gridsize} '
+                f'cannot be divided according to the domain decomposition '
+                f'{domain_subdivisions[0]}×{domain_subdivisions[1]}×{domain_subdivisions[2]}.'
             )
-        φ_dict['particles'] = φ_particles
-    if ensure_fluid:
-        φ_fluid = get_buffer(φ_shape, 'φ_fluid', nullify=True)
-        if any_fluid:
-            CIC_components2domain_grid(
-                components, φ_fluid, quantities, only_fluid_components=True,
+    # We have nghosts ghost points on both sides of the local grid,
+    # for all dimensions.
+    gridshape_local = tuple([
+        gridsize//domain_subdivisions[dim] + ℤ[2*nghosts] for dim in range(3)
+    ])
+    for dim in range(3):
+        if gridshape_local[dim] < ℤ[4*nghosts]:
+            abort(
+                f'A grid of shape {gridshape_local.shape} (or '
+                f'{(asarray(gridshape_local) - 2*nghosts).shape} without ghosts) was encountered '
+                f'in gridshape_local(), but all domain grids must have at least twice as many '
+                f'grid points across each dimension as the number of ghost layers '
+                f'nghosts = {nghosts}.'
             )
-        φ_dict['fluid'] = φ_fluid
-    # Add particles and fluid φ if add_particles_and_fluids is True
-    if add_particles_and_fluids:
-        if any_particles and any_fluid:
-            φ_particles_ptr = cython.address(φ_particles[:, :, :])
-            φ_fluid_ptr     = cython.address(φ_fluid    [:, :, :])
-            for i in range(φ_particles.shape[0]*φ_particles.shape[1]*φ_particles.shape[2]):
-                φ_particles_ptr[i] += φ_fluid_ptr[i]
-            return φ_particles
-        elif any_particles:
-            return φ_particles
-        elif any_fluid:
-            return φ_fluid
-    else:
-        return φ_dict
-# Check that φ_gridsize fulfills the requirements for FFT.
-# If not, the reason why will be stored in φ_illegal.
-cython.declare(φ_illegal=str)
-φ_illegal = ''
-if φ_gridsize%nprocs != 0:
-    φ_illegal = f'A φ_gridsize = {φ_gridsize} cannot be evenly divided by {nprocs} processes.'
-else:
-    if (   φ_gridsize%domain_subdivisions[0] != 0
-        or φ_gridsize%domain_subdivisions[1] != 0
-        or φ_gridsize%domain_subdivisions[2] != 0
-        ):
-        φ_illegal = (f'As φ_gridsize = {φ_gridsize}, the global φ grid have a shape of'
-                     f'({φ_gridsize}, {φ_gridsize}, {φ_gridsize}), which cannot be divided '
-                     f'according to the domain decomposition ({domain_subdivisions[0]}, '
-                     f'{domain_subdivisions[1]}, {domain_subdivisions[2]}).'
-                     )
-if φ_gridsize%2 != 0:
-    masterwarn(f'As φ_gridsize = {φ_gridsize} is odd, some operations may not function correctly.')
-# The shape of the domain φ grid, including pseudo and ghost points
-cython.declare(φ_shape=tuple, dim='int')
-φ_shape = tuple([φ_gridsize//domain_subdivisions[dim] + 1 + 2*2 for dim in range(3)])
+    # Store result in cache and return
+    gridshape_local_cache[gridsize] = gridshape_local
+    return gridshape_local
+# Cache used by the get_local_local function
+cython.declare(gridshape_local_cache=dict)
+gridshape_local_cache = {}
 
 # Function that compute a lot of information needed by the
 # slab_decompose and domain_decompose functions.
-@cython.header(# Arguments
-               domain_grid='double[:, :, ::1]',
-               slab='double[:, :, ::1]',
-               # Locals
-               N_domain2slabs_communications='Py_ssize_t',
-               domain_end_i='Py_ssize_t',
-               domain_end_j='Py_ssize_t',
-               domain_end_k='Py_ssize_t',
-               domain_grid_noghosts='double[:, :, :]',
-               domain_grid_shape=tuple,
-               domain_sendrecv_i_end='int[::1]',
-               domain_sendrecv_i_start='int[::1]',
-               domain_size_i='Py_ssize_t',
-               domain_size_j='Py_ssize_t',
-               domain_size_k='Py_ssize_t',
-               domain_start_i='Py_ssize_t',
-               domain_start_j='Py_ssize_t',
-               domain_start_k='Py_ssize_t',
-               domain2slabs_recvsend_ranks='int[::1]',
-               index='Py_ssize_t',
-               info=tuple,
-               rank_recv='int',
-               rank_send='int',
-               recvtuple=tuple,
-               sendtuple=tuple,
-               slab_sendrecv_j_end='int[::1]',
-               slab_sendrecv_j_start='int[::1]',
-               slab_sendrecv_k_end='int[::1]',
-               slab_sendrecv_k_start='int[::1]',
-               slab_shape=tuple,
-               slab_size_i='Py_ssize_t',
-               slabs2domain_sendrecv_ranks='int[::1]',
-               ℓ='Py_ssize_t',
-               returns=tuple,
-               )
+@cython.header(
+    # Arguments
+    domain_grid='double[:, :, ::1]',
+    slab='double[:, :, ::1]',
+    # Locals
+    N_domain2slabs_communications='Py_ssize_t',
+    domain_end_i='Py_ssize_t',
+    domain_end_j='Py_ssize_t',
+    domain_end_k='Py_ssize_t',
+    domain_grid_noghosts='double[:, :, :]',
+    domain_grid_shape=tuple,
+    domain_sendrecv_i_end='int[::1]',
+    domain_sendrecv_i_start='int[::1]',
+    domain_size_i='Py_ssize_t',
+    domain_size_j='Py_ssize_t',
+    domain_size_k='Py_ssize_t',
+    domain_start_i='Py_ssize_t',
+    domain_start_j='Py_ssize_t',
+    domain_start_k='Py_ssize_t',
+    domain2slabs_recvsend_ranks='int[::1]',
+    index='Py_ssize_t',
+    info=tuple,
+    rank_recv='int',
+    rank_send='int',
+    recvtuple=tuple,
+    sendtuple=tuple,
+    slab_sendrecv_j_end='int[::1]',
+    slab_sendrecv_j_start='int[::1]',
+    slab_sendrecv_k_end='int[::1]',
+    slab_sendrecv_k_start='int[::1]',
+    slab_shape=tuple,
+    slab_size_i='Py_ssize_t',
+    slabs2domain_sendrecv_ranks='int[::1]',
+    ℓ='Py_ssize_t',
+    returns=tuple,
+)
 def prepare_decomposition(domain_grid, slab):
     # Simply look up and return the needed information
     # if previously computed.
@@ -1155,16 +1097,16 @@ def prepare_decomposition(domain_grid, slab):
     if info:
         return info
     # Memoryview of the domain grid without the ghost layers
-    domain_grid_noghosts = domain_grid[2:(domain_grid.shape[0] - 2),
-                                       2:(domain_grid.shape[1] - 2),
-                                       2:(domain_grid.shape[2] - 2),
-                                       ]
+    domain_grid_noghosts = domain_grid[
+        nghosts:(domain_grid.shape[0] - nghosts),
+        nghosts:(domain_grid.shape[1] - nghosts),
+        nghosts:(domain_grid.shape[2] - nghosts),
+    ]
     # The size (number of grid points) of the truly local part of the
-    # domain grid, excluding both ghost layers and pseudo points,
-    # for each dimension.
-    domain_size_i = domain_grid_noghosts.shape[0] - 1
-    domain_size_j = domain_grid_noghosts.shape[1] - 1
-    domain_size_k = domain_grid_noghosts.shape[2] - 1
+    # domain grid, excluding ghost layers, for each dimension.
+    domain_size_i = domain_grid_noghosts.shape[0]
+    domain_size_j = domain_grid_noghosts.shape[1]
+    domain_size_k = domain_grid_noghosts.shape[2]
     # The global start and end indices of the local domain
     # in the global grid.
     domain_start_i = domain_layout_local_indices[0]*domain_size_i
@@ -1252,36 +1194,39 @@ cython.declare(decomposition_info=dict)
 decomposition_info = {}
 
 # Function for transfering data from slabs to domain grids
-@cython.pheader(# Arguments
-                slab='double[:, :, ::1]',
-                domain_grid_or_buffer_name=object,  # double[:, :, ::1], int or str
-                # Locals
-                N_domain2slabs_communications='Py_ssize_t',
-                buffer_name=object,  # int or str
-                domain_grid='double[:, :, ::1]',
-                domain_grid_noghosts='double[:, :, :]',
-                domain_sendrecv_i_end='int[::1]',
-                domain_sendrecv_i_start='int[::1]',
-                domain2slabs_recvsend_ranks='int[::1]',
-                gridsize='Py_ssize_t',
-                request=object,  # mpi4py.MPI.Request
-                shape=tuple,
-                slab_sendrecv_j_end='int[::1]',
-                slab_sendrecv_j_start='int[::1]',
-                slab_sendrecv_k_end='int[::1]',
-                slab_sendrecv_k_start='int[::1]',
-                slabs2domain_sendrecv_ranks='int[::1]',
-                ℓ='Py_ssize_t',
-                returns='double[:, :, ::1]',
-                )
+@cython.pheader(
+    # Arguments
+    slab='double[:, :, ::1]',
+    domain_grid_or_buffer_name=object,  # double[:, :, ::1], int or str
+    # Locals
+    N_domain2slabs_communications='Py_ssize_t',
+    buffer_name=object,  # int or str
+    domain_grid='double[:, :, ::1]',
+    domain_grid_noghosts='double[:, :, :]',
+    domain_sendrecv_i_end='int[::1]',
+    domain_sendrecv_i_start='int[::1]',
+    domain2slabs_recvsend_ranks='int[::1]',
+    gridsize='Py_ssize_t',
+    request=object,  # mpi4py.MPI.Request
+    shape=tuple,
+    slab_sendrecv_j_end='int[::1]',
+    slab_sendrecv_j_start='int[::1]',
+    slab_sendrecv_k_end='int[::1]',
+    slab_sendrecv_k_start='int[::1]',
+    slabs2domain_sendrecv_ranks='int[::1]',
+    ℓ='Py_ssize_t',
+    returns='double[:, :, ::1]',
+)
 def domain_decompose(slab, domain_grid_or_buffer_name=0):
+    if slab is None:
+        return None
     if slab.shape[0] > slab.shape[1]:
         masterwarn('domain_decompose was called with a slab that appears to be transposed, '
                    'i.e. in Fourier space.')
     # Determine the correct shape of the domain grid corresponding to
     # the passed slab.
     gridsize = slab.shape[1]
-    shape = tuple([gridsize//domain_subdivisions[dim] + 1 + 2*2 for dim in range(3)])
+    shape = tuple([gridsize//domain_subdivisions[dim] + 2*nghosts for dim in range(3)])
     # If no domain grid is passed, fetch a buffer of the right shape
     if isinstance(domain_grid_or_buffer_name, (int, str)):
         buffer_name = domain_grid_or_buffer_name
@@ -1293,9 +1238,11 @@ def domain_decompose(slab, domain_grid_or_buffer_name=0):
                   'have incompatible shapes: {}, {}.'
                   .format(asarray(slab).shape, asarray(domain_grid).shape)
                   )
-    domain_grid_noghosts = domain_grid[2:(domain_grid.shape[0] - 2),
-                                       2:(domain_grid.shape[1] - 2),
-                                       2:(domain_grid.shape[2] - 2)]
+    domain_grid_noghosts = domain_grid[
+        nghosts:(domain_grid.shape[0] - nghosts),
+        nghosts:(domain_grid.shape[1] - nghosts),
+        nghosts:(domain_grid.shape[2] - nghosts),
+    ]
     # Compute needed communication variables
     (N_domain2slabs_communications,
      domain2slabs_recvsend_ranks,
@@ -1324,25 +1271,24 @@ def domain_decompose(slab, domain_grid_or_buffer_name=0):
         # The corresponding process receives the message.
         # Since the slabs extend throughout the entire yz-plane,
         # we receive into the entire yz-part of the domain grid
-        # (excluding ghost and pseudo points).
+        # (excluding ghost points).
         if ℓ < slabs2domain_sendrecv_ranks.shape[0]:
-            smart_mpi(domain_grid_noghosts[domain_sendrecv_i_start[ℓ]:domain_sendrecv_i_end[ℓ],
-                                           :ℤ[domain_grid_noghosts.shape[1] - 1],
-                                           :ℤ[domain_grid_noghosts.shape[2] - 1],
-                                           ],
-                      source=slabs2domain_sendrecv_ranks[ℓ],
-                      mpifun='Recv')
+            smart_mpi(
+                domain_grid_noghosts[
+                    domain_sendrecv_i_start[ℓ]:domain_sendrecv_i_end[ℓ],
+                    :domain_grid_noghosts.shape[1],
+                    :domain_grid_noghosts.shape[2],
+                ],
+                source=slabs2domain_sendrecv_ranks[ℓ],
+                mpifun='Recv',
+            )
         # Wait for the non-blockind send to be complete before
         # continuing. Otherwise, data in the send buffer - which is
         # still in use by the non-blocking send - might get overwritten
         # by the next (non-blocking) send.
         request.wait()
-    # The right/forward/upper boundaries (the layer of pseudo points,
-    # not the ghost layer) of the domain grid should be a copy of the
-    # left/backward/lower boundaries of the neighbouring
-    # right/forward/upper domain. Do the needed communication.
-    # Also populate the ghost layers of the domain grid.
-    communicate_domain(domain_grid, mode='populate')
+    # Populate ghost layers
+    communicate_ghosts(domain_grid, '=')
     return domain_grid
 
 # Function for transfering data from domain grids to slabs
@@ -1370,7 +1316,7 @@ def domain_decompose(slab, domain_grid_or_buffer_name=0):
     ℓ='Py_ssize_t',
     returns='double[:, :, ::1]',
 )
-def slab_decompose(domain_grid, slab_or_buffer_name=0, prepare_fft=False):
+def slab_decompose(domain_grid, slab_or_buffer_name='slab_particles', prepare_fft=False):
     """This function communicates a global domain decomposed grid into
     a global slab decomposed grid. If an existing slab grid should be
     used it can be passed as the second argument.
@@ -1379,18 +1325,30 @@ def slab_decompose(domain_grid, slab_or_buffer_name=0, prepare_fft=False):
     If FFT's are to be carried out on a slab fetched by name,
     you must specify prepare_fft=True, in which case the slab will be
     created via FFTW.
+
+    By default, the slab called 'slab_particles' is used. Often we only
+    hold a single slab in memory at a time, and so this one chunk of
+    memory is reused for lots of different purposes. The one thing that
+    we need multiple simultaneous slabs for is for doing FFT's of pairs
+    of grids containing interpolated particle and fluid data (gravity,
+    power spectra). Here, the slabs 'slab_particles' and 'slab_fluid'
+    are used, which is why one of these is used as the default.
     """
+    # We allow passing None as the domain_grid,
+    # in which case None is also returned.
+    if domain_grid is None:
+        return None
     # Determine the correct shape of the slab grid corresponding to
     # the passed domain grid.
     domain_grid_noghosts = domain_grid[
-        2:(domain_grid.shape[0] - 2),
-        2:(domain_grid.shape[1] - 2),
-        2:(domain_grid.shape[2] - 2),
+        nghosts:(domain_grid.shape[0] - nghosts),
+        nghosts:(domain_grid.shape[1] - nghosts),
+        nghosts:(domain_grid.shape[2] - nghosts),
     ]
-    gridsize = (domain_grid_noghosts.shape[0] - 1)*domain_subdivisions[0]
+    gridsize = domain_grid_noghosts.shape[0]*domain_subdivisions[0]
     if gridsize%nprocs != 0:
         abort(
-            f'A domain decomposed grid of gridsize {gridsize} was passed to the slab_decompose '
+            f'A domain decomposed grid of gridsize {gridsize} was passed to the slab_decompose() '
             f'function. This gridsize is not evenly divisible by {nprocs} processes.'
         )
     shape = (
@@ -1423,16 +1381,17 @@ def slab_decompose(domain_grid, slab_or_buffer_name=0, prepare_fft=False):
     slab_arr = asarray(slab)
     slab_arr[:, :, gridsize:] = 0
     # Compute needed communication variables
-    (N_domain2slabs_communications,
-     domain2slabs_recvsend_ranks,
-     slabs2domain_sendrecv_ranks,
-     domain_sendrecv_i_start,
-     domain_sendrecv_i_end,
-     slab_sendrecv_j_start,
-     slab_sendrecv_j_end,
-     slab_sendrecv_k_start,
-     slab_sendrecv_k_end,
-     ) = prepare_decomposition(domain_grid, slab)
+    (
+        N_domain2slabs_communications,
+        domain2slabs_recvsend_ranks,
+        slabs2domain_sendrecv_ranks,
+        domain_sendrecv_i_start,
+        domain_sendrecv_i_end,
+        slab_sendrecv_j_start,
+        slab_sendrecv_j_end,
+        slab_sendrecv_k_start,
+        slab_sendrecv_k_end,
+    ) = prepare_decomposition(domain_grid, slab)
     # Communicate the domain grid to the slabs
     for ℓ in range(N_domain2slabs_communications):
         # Send part of the local domain
@@ -1442,12 +1401,12 @@ def slab_decompose(domain_grid, slab_or_buffer_name=0, prepare_fft=False):
             # is not pairwise.
             # Since the slabs extend throughout the entire yz-plane,
             # we should send the entire yz-part of domain
-            # (excluding ghost and pseudo points).
+            # (excluding ghost points).
             request = smart_mpi(
                 domain_grid_noghosts[
                     domain_sendrecv_i_start[ℓ]:domain_sendrecv_i_end[ℓ],
-                    :ℤ[domain_grid_noghosts.shape[1] - 1],
-                    :ℤ[domain_grid_noghosts.shape[2] - 1],
+                    :domain_grid_noghosts.shape[1],
+                    :domain_grid_noghosts.shape[2],
                 ],
                 dest=slabs2domain_sendrecv_ranks[ℓ],
                 mpifun='Isend',
@@ -1474,30 +1433,40 @@ def slab_decompose(domain_grid, slab_or_buffer_name=0, prepare_fft=False):
 
 # Function that returns a slab decomposed grid,
 # allocated by FFTW.
-@cython.pheader(# Arguments
-                gridsize='Py_ssize_t',
-                buffer_name=object,  # int or str
-                nullify='bint',
-                # Locals
-                as_expected='bint',
-                fftw_plans_index='Py_ssize_t',
-                fftw_struct=fftw_return_struct,
-                plan_backward=fftw_plan,
-                plan_forward=fftw_plan,
-                rigor=str,
-                rigor_final=str,
-                shape=tuple,
-                slab='double[:, :, ::1]',
-                slab_address='Py_ssize_t',
-                slab_ptr='double*',
-                slab_size_i='Py_ssize_t',
-                slab_size_j='Py_ssize_t',
-                slab_start_i='Py_ssize_t',
-                slab_start_j='Py_ssize_t',
-                wisdom_filename=str,
-                returns='double[:, :, ::1]',
-                )
-def get_fftw_slab(gridsize, buffer_name=0, nullify=False):
+@cython.pheader(
+    # Arguments
+    gridsize='Py_ssize_t',
+    buffer_name=object,  # int or str
+    nullify='bint',
+    # Locals
+    as_expected='bint',
+    fftw_plans_index='Py_ssize_t',
+    fftw_struct=fftw_return_struct,
+    plan_backward=fftw_plan,
+    plan_forward=fftw_plan,
+    rigor=str,
+    rigor_final=str,
+    shape=tuple,
+    slab='double[:, :, ::1]',
+    slab_address='Py_ssize_t',
+    slab_ptr='double*',
+    slab_size_i='Py_ssize_t',
+    slab_size_j='Py_ssize_t',
+    slab_start_i='Py_ssize_t',
+    slab_start_j='Py_ssize_t',
+    wisdom_filename=str,
+    returns='double[:, :, ::1]',
+)
+def get_fftw_slab(gridsize, buffer_name='slab_particles', nullify=False):
+    """By default, the slab called 'slab_particles' is used. Often we
+    only hold a single slab in memory at a time, and so this one chunk
+    of memory is reused for lots of different purposes. The one thing
+    that we need multiple simultaneous slabs for is for doing FFT's of
+    pairs of grids containing interpolated particle and fluid data
+    (gravity, power spectra). Here, the slabs 'slab_particles' and
+    'slab_fluid' are used, which is why one of these is used
+    as the default.
+    """
     global fftw_plans_size, fftw_plans_forward, fftw_plans_backward
     # If this slab has already been constructed, fetch it
     slab = slabs.get((gridsize, buffer_name))
@@ -1507,13 +1476,21 @@ def get_fftw_slab(gridsize, buffer_name=0, nullify=False):
         return slab
     # Checks on the passed gridsize
     if gridsize%nprocs != 0:
-        abort('A gridsize of {} was passed to the get_fftw_slab function. '
-              'This gridsize is not evenly divisible by {} processes.'
-              .format(gridsize, nprocs))
-    shape = (int(gridsize//nprocs),    # Distributed dimension
-             int(gridsize),
-             int(2*(gridsize//2 + 1)), # Padded dimension
-             )
+        abort(
+            f'A gridsize of {gridsize} was passed to the get_fftw_slab() function. '
+            f'This gridsize is not evenly divisible by {nprocs} processes.'
+        )
+    if gridsize%2 != 0:
+        masterwarn(
+            f'An odd gridsize ({gridsize}) was passed to the get_fftw_slab() function. '
+            f'Some operations may not function correctly.'
+    )
+    shape = (
+        (gridsize//nprocs), # Distributed dimension
+        (gridsize),
+        # Explicit int cast necessary for some reason
+        int(2*(gridsize//2 + 1)), # Padded dimension
+    )
     # In pure Python mode we use NumPy, which really means that there
     # is no needed preparations. In compiled mode we use FFTW,
     # which means that the grid and its plans must be prepared.
@@ -1678,19 +1655,20 @@ def get_wisdom_filename(gridsize, rigor):
     # as well as the FFTW version and the MPI layout (the nodes and CPUs
     # in use for the current job). It is important to include the
     # MPI layout, as reusing FFTW wisdom across different nodes or even
-    # CPUs within the same node may not be optimal due to e.g.
-    # ethernet connection.
+    # CPUs within the same node may not be optimal due to e.g. different
+    # communication prototols in use.
     mpi_layout = []
     for other_node in range(nnodes):
         other_node_name = node_numbers2names[other_node]
         other_ranks = np.where(asarray(nodes) == other_node)[0]
         mpi_layout.append((other_node_name, get_integerset_strrep(other_ranks)))
+    sha_length = 10  # 10 -> 50% chance of 1 hash collision after ~10⁶ hashes
     wisdom_hash = hashlib.sha1(str((
         gridsize,
         rigor,
         fftw_version,
         mpi_layout,
-    )).encode()).hexdigest()
+    )).encode()).hexdigest()[:sha_length]
     # The full path to the wisdom file
     wisdom_filename = '/'.join([
         paths['reusables_dir'],
@@ -1703,13 +1681,15 @@ cython.declare(fftw_version=str)
 fftw_version=''
 
 # Function performing Fourier transformations of slab decomposed grids
-@cython.header(# Arguments
-               slab='double[:, :, ::1]',
-               direction=str,
-               # Locals
-               fftw_plans_index='Py_ssize_t',
-               slab_address='Py_ssize_t',
-               )
+@cython.header(
+    # Arguments
+    slab='double[:, :, ::1]',
+    direction=str,
+    # Locals
+    fftw_plans_index='Py_ssize_t',
+    slab_address='Py_ssize_t',
+    returns='void',
+)
 def fft(slab, direction):
     """Fourier transform the given slab decomposed grid.
     For a forwards transformation from real to Fourier space, supply
@@ -1725,9 +1705,13 @@ def fft(slab, direction):
     To emulate the effects of FFTW perfectly, a lot of extra steps
     are needed.
     """
+    if slab is None:
+        return
     if not direction in ('forward', 'backward'):
-        abort('fft was called with the direction "{}", which is neither "forward" nor "backward".'
-              .format(direction))
+        abort(
+            f'fft() was called with the direction "{direction}", '
+            f'which is neither "forward" nor "backward".'
+        )
     if not cython.compiled:
         # The pure Python FFT implementation is serial.
         # Every process computes the entire FFT of the temporary
@@ -1935,157 +1919,318 @@ def slabs_check_symmetry(slab, rel_tol=1e-9, abs_tol=machine_ϵ):
     masterprint('done')
 
 # Function for differentiating domain grids
-@cython.pheader(# Arguments
-                grid='double[:, :, ::1]',
-                dim='int',
-                h='double',
-                buffer_or_buffer_name=object,  # double[:, :, ::1] or int or str
-                order='int',
-                direction=str,
-                noghosts='bint',
-                # Locals
-                buffer='double[:, :, ::1]',
-                buffer_name=object,  # int or str
-                i='Py_ssize_t',
-                j='Py_ssize_t',
-                k='Py_ssize_t',
-                shape=tuple,
-                value='double',
-                returns='double[:, :, ::1]',
-                )
-def diff_domain(grid, dim, h=1, buffer_or_buffer_name=0,
-                order=4, direction='forward', noghosts=True):
-    """This function differentiates a given grid along the dim
-    dimension once. The passed grid must include psuedo and ghost
-    points. The pseudo points will be differentiated along with the
-    actual grid points. To achieve proper units, the physical grid
-    spacing may be specified as h. If not given, grid units (h == 1)
-    are used. The buffer_or_buffer_name argument can be a buffer to
-    store the results, or alternatively the name of a buffer (retrieved
-    via communication.get_buffer) as an int or str. If a buffer is
+@cython.pheader(
+    # Arguments
+    grid='double[:, :, ::1]',
+    dim='int',
+    order='int',
+    Δx='double',
+    buffer_or_buffer_name=object,  # double[:, :, ::1] or int or str
+    direction=str,
+    # Locals
+    i='Py_ssize_t',
+    indices_i_m='Py_ssize_t*',
+    indices_i_p='Py_ssize_t*',
+    indices_j_m='Py_ssize_t*',
+    indices_j_p='Py_ssize_t*',
+    indices_k_m='Py_ssize_t*',
+    indices_k_p='Py_ssize_t*',
+    j='Py_ssize_t',
+    k='Py_ssize_t',
+    step='Py_ssize_t',
+    steps_i='Py_ssize_t*',
+    steps_j='Py_ssize_t*',
+    steps_k='Py_ssize_t*',
+    value='double',
+    ᐁgrid_dim='double[:, :, ::1]',
+    returns='double[:, :, ::1]',
+)
+def diff_domaingrid(grid, dim, order, Δx=1, buffer_or_buffer_name=0, direction='forward'):
+    """This function differentiates a given domain grid along the dim'th
+    dimension once through finite differencing. The passed grid must
+    include correctly populated ghost points, and the returned grid will
+    contain correctly populated ghost points as well.
+    The order argument specifies the order of the differentiation,
+    meaning the number of neighbouring grid points used to approximate
+    the first derivative. For odd orders, the differentiation cannot be
+    symmetric, and so the direction should be specified as either
+    'forward' or 'backward'.
+    To achieve proper units, the physical grid spacing may be specified
+    as Δx. If not given, grid units (Δx == 1) are used. The
+    buffer_or_buffer_name argument can be a buffer to store the results,
+    or alternatively the name of a buffer (retrieved via
+    communication.get_buffer()) as an int or str. If a buffer is
     supplied, the result of the differentiations will be added to this
     buffer. If a buffer should be fetched automatically, this will be
     nullify before the differentiation. Note that the buffer has to be
-    contiguous. If noghosts is True, the passed buffer (if any) must not
-    contain ghost points, and the returned grid will not contain ghost
-    points either, though it will be contiguous. If the supplied buffer
-    include ghost points, or if the returned grid should contain ghost
-    points, specify noghosts=True. In this case, ghost points will be
-    populated with the correct values.
+    contiguous.
     Note that a grid cannot be differentiated in-place by passing the
-    grid as both the first and third argument, as the differentiation
+    grid as both the first and fifth argument, as the differentiation
     of each grid point requires information from the original
     (non-differentiated) grid.
-    The optional order argument specifies the order of accuracy of the
-    differentiation (the number of neighbouring grid points used to
-    approximate the derivative).
-    For odd orders, the differentiation cannot be symmetric. Set the
-    direction argument to either 'forward' or 'backward' to choose from
-    which direction one additional grid point should be used.
     """
     # Sanity checks on input
-    if master:
-        if dim not in (0, 1, 2):
-            abort('The dim argument should be ∈ {0, 1, 2}')
-        if order not in (1, 2, 4):
-            abort('The order argument should be ∈ {1, 2, 4}')
-        if direction not in ('forward', 'backward'):
-            abort('The direction argument should be ∈ {\'forward\', \'backward\'}')
+    if dim not in (0, 1, 2):
+        abort(f'diff_domaingrid() called with dim = {dim} ∉ {{0, 1, 2}}')
+    if direction not in ('forward', 'backward'):
+        abort(
+            f'diff_domaingrid() called with direction = {direction} '
+            f'∉ {{"forward", "backward"}}'
+        )
     # If no buffer is supplied, fetch the buffer with the name
     # given by buffer_or_buffer_name.
     if isinstance(buffer_or_buffer_name, (int, str)):
-        if noghosts:
-            shape = tuple([grid.shape[dim] - 2*2 for dim in range(3)])
-        else:
-            shape = asarray(grid).shape
-        buffer_name = buffer_or_buffer_name
-        buffer = get_buffer(shape, buffer_name, nullify=True)
+        ᐁgrid_dim = get_buffer(asarray(grid).shape, buffer_or_buffer_name, nullify=True)
     else:
-        buffer = buffer_or_buffer_name
-    # Do the differentiation and add the results to the buffer
-    for         i in range(2, ℤ[grid.shape[0] - 2]):
-        for     j in range(2, ℤ[grid.shape[1] - 2]):
-            for k in range(2, ℤ[grid.shape[2] - 2]):
+        ᐁgrid_dim = buffer_or_buffer_name
+        if not asarray(ᐁgrid_dim).shape == asarray(grid).shape:
+            abort(
+                f'diff_domaingrid() called with grid of shape {asarray(grid).shape}'
+                f'and buffer of different shape {asarray(ᐁgrid_dim).shape}'
+            )
+    # Reuse global arrays
+    steps_i     = diff_steps_i
+    steps_j     = diff_steps_j
+    steps_k     = diff_steps_k
+    indices_i_m = diff_indices_i_m
+    indices_i_p = diff_indices_i_p
+    indices_j_m = diff_indices_j_m
+    indices_j_p = diff_indices_j_p
+    indices_k_m = diff_indices_k_m
+    indices_k_p = diff_indices_k_p
+    # Set steps along each dimension
+    for step in range(1, ℤ[order//2 + 1]):
+        steps_i[step] = step*ℤ[dim == 0]
+        steps_j[step] = step*ℤ[dim == 1]
+        steps_k[step] = step*ℤ[dim == 2]
+    # Loop over the local bulk (i.e. not ghosts) of the grid
+    for i in range(nghosts, ℤ[grid.shape[0] - nghosts]):
+        # Set grid indices along the x direction
+        with unswitch:
+            if order == 1:
+                indices_i_p[0] = i + ℤ[ℤ[dim == 0] and ℤ[direction == 'forward' ]]
+                indices_i_m[0] = i - ℤ[ℤ[dim == 0] and ℤ[direction == 'backward']]
+            else:
+                for step in range(1, ℤ[order//2 + 1]):
+                    indices_i_p[step] = i + ℤ[steps_i[step]]
+                    indices_i_m[step] = i - ℤ[steps_i[step]]
+        for j in range(nghosts, ℤ[grid.shape[1] - nghosts]):
+            # Set grid indices along the y direction
+            with unswitch:
+                if order == 1:
+                    indices_j_p[0] = j + ℤ[ℤ[dim == 1] and ℤ[direction == 'forward' ]]
+                    indices_j_m[0] = j - ℤ[ℤ[dim == 1] and ℤ[direction == 'backward']]
+                else:
+                    for step in range(1, ℤ[order//2 + 1]):
+                        indices_j_p[step] = j + ℤ[steps_j[step]]
+                        indices_j_m[step] = j - ℤ[steps_j[step]]
+            for k in range(nghosts, ℤ[grid.shape[2] - nghosts]):
+                # Set grid indices along the z direction
                 with unswitch:
-                    # Differentiate along x
-                    if dim == 0 and order == 1 and direction == 'forward':
-                        value = ℝ[1/h]*(+ grid[ℤ[i + 1], j, k]
-                                        - grid[  i     , j, k]
-                                        )
-                    elif dim == 0 and order == 1 and direction == 'backward':
-                        value = ℝ[1/h]*(+ grid[  i     , j, k]
-                                        - grid[ℤ[i - 1], j, k]
-                                        )
-                    elif dim == 0 and order == 2:
-                        value = ℝ[1/(2*h)]*(+ grid[ℤ[i + 1], j, k]
-                                            - grid[ℤ[i - 1], j, k]
-                                            )
-                    elif dim == 0 and order == 4:
-                        value = (+ ℝ[2/(3*h)] *(+ grid[ℤ[i + 1], j, k]
-                                                - grid[ℤ[i - 1], j, k]
-                                                )
-                                 - ℝ[1/(12*h)]*(+ grid[ℤ[i + 2], j, k]
-                                                - grid[ℤ[i - 2], j, k]
-                                                )
-                                 )
-                    # Differentiate along y
-                    elif dim == 1 and order == 1 and direction == 'forward':
-                        value = ℝ[1/h]*(+ grid[i, ℤ[j + 1], k]
-                                        - grid[i,   j     , k]
-                                        )
-                    elif dim == 1 and order == 1 and direction == 'backward':
-                        value = ℝ[1/h]*(+ grid[i,   j     , k]
-                                        - grid[i, ℤ[j - 1], k]
-                                        )
-                    elif dim == 1 and order == 2:
-                        value = ℝ[1/(2*h)]*(+ grid[i, ℤ[j + 1], k]
-                                            - grid[i, ℤ[j - 1], k]
-                                            )
-                    elif dim == 1 and order == 4:
-                        value = (+ ℝ[2/(3*h)] *(+ grid[i, ℤ[j + 1], k]
-                                                - grid[i, ℤ[j - 1], k]
-                                                )
-                                 - ℝ[1/(12*h)]*(+ grid[i, ℤ[j + 2], k]
-                                                - grid[i, ℤ[j - 2], k]
-                                                )
-                                 )
-                    # Differentiate along z
-                    elif dim == 2 and order == 1 and direction == 'forward':
-                        value = ℝ[1/h]*(+ grid[i, j, k + 1]
-                                        - grid[i, j, k    ]
-                                        )
-                    elif dim == 2 and order == 1 and direction == 'backward':
-                        value = ℝ[1/h]*(+ grid[i, j, k    ]
-                                        - grid[i, j, k - 1]
-                                        )
-                    elif dim == 2 and order == 2:
-                        value = ℝ[1/(2*h)]*(+ grid[i, j, k + 1]
-                                            - grid[i, j, k - 1]
-                                            )
-                    elif dim == 2 and order == 4:
-                        value = (+ ℝ[2/(3*h)] *(+ grid[i, j, k + 1]
-                                                - grid[i, j, k - 1]
-                                                )
-                                 - ℝ[1/(12*h)]*(+ grid[i, j, k + 2]
-                                                - grid[i, j, k - 2]
-                                                )
-                                 )
+                    if order == 1:
+                        indices_k_p[0] = k + ℤ[ℤ[dim == 2] and ℤ[direction == 'forward' ]]
+                        indices_k_m[0] = k - ℤ[ℤ[dim == 2] and ℤ[direction == 'backward']]
                     else:
-                        abort('Domain differentiation with dim = {}, order = {} '
-                              'and direction = {} is not implemented'
-                              .format(dim, order, direction)
-                              )
-                        value = 0  # Just to please the compiler
+                        for step in range(1, ℤ[order//2 + 1]):
+                            indices_k_p[step] = k + ℤ[steps_k[step]]
+                            indices_k_m[step] = k - ℤ[steps_k[step]]
+                # Do the finite differencing
+                with unswitch:
+                    if order == 1:
+                        value = ℝ[1/Δx]*(
+                            + grid[indices_i_p[0], indices_j_p[0], indices_k_p[0]]
+                            - grid[indices_i_m[0], indices_j_m[0], indices_k_m[0]]
+                        )
+                    elif order == 2:
+                        value = ℝ[1/(2*Δx)]*(
+                            + grid[indices_i_p[1], indices_j_p[1], indices_k_p[1]]
+                            - grid[indices_i_m[1], indices_j_m[1], indices_k_m[1]]
+                        )
+                    elif order == 4:
+                        value = ℝ[1/(12*Δx)]*(
+                            + 8*(
+                                + grid[indices_i_p[1], indices_j_p[1], indices_k_p[1]]
+                                - grid[indices_i_m[1], indices_j_m[1], indices_k_m[1]]
+                            )
+                            - (
+                                + grid[indices_i_p[2], indices_j_p[2], indices_k_p[2]]
+                                - grid[indices_i_m[2], indices_j_m[2], indices_k_m[2]]
+                            )
+                        )
+                    elif order == 6:
+                        value = ℝ[1/(60*Δx)]*(
+                            45*(
+                                + grid[indices_i_p[1], indices_j_p[1], indices_k_p[1]]
+                                - grid[indices_i_m[1], indices_j_m[1], indices_k_m[1]]
+                            )
+                            - 9*(
+                                + grid[indices_i_p[2], indices_j_p[2], indices_k_p[2]]
+                                - grid[indices_i_m[2], indices_j_m[2], indices_k_m[2]]
+                            )
+                            + (
+                                + grid[indices_i_p[3], indices_j_p[3], indices_k_p[3]]
+                                - grid[indices_i_m[3], indices_j_m[3], indices_k_m[3]]
+                            )
+                        )
+                    elif order == 8:
+                        value = ℝ[1/(280*Δx)]*(
+                            224*(
+                                + grid[indices_i_p[1], indices_j_p[1], indices_k_p[1]]
+                                - grid[indices_i_m[1], indices_j_m[1], indices_k_m[1]]
+                            )
+                            - 56*(
+                                + grid[indices_i_p[2], indices_j_p[2], indices_k_p[2]]
+                                - grid[indices_i_m[2], indices_j_m[2], indices_k_m[2]]
+                            )
+                            + ℝ[10 + 2/3]*(
+                                + grid[indices_i_p[3], indices_j_p[3], indices_k_p[3]]
+                                - grid[indices_i_m[3], indices_j_m[3], indices_k_m[3]]
+                            )
+                            - (
+                                + grid[indices_i_p[4], indices_j_p[4], indices_k_p[4]]
+                                - grid[indices_i_m[4], indices_j_m[4], indices_k_m[4]]
+                            )
+                        )
+                    else:
+                        abort(
+                            f'diff_domaingrid() called with '
+                            f'order = {order} ∉ {{1, 2, 4, 6, 8}}'
+                        )
+                        value = 0  # To satisfy the compiler
                 # Update the buffer with the result
                 # of the differentiation.
-                with unswitch:
-                    if noghosts:
-                        buffer[ℤ[i - 2], ℤ[j - 2], k - 2] += value
-                    else:
-                        buffer[i, j, k] += value
-    # If the buffer contains ghost points, these have not themselves
-    # been replaced with differentiated values. Now populate these
-    # ghost points with copies of their corresponding actual points.
-    if not noghosts:
-        communicate_domain(buffer, mode='populate')
-    return buffer
+                ᐁgrid_dim[i, j, k] += value
+    # Populate the ghost points with copies of their
+    # corresponding actual points.
+    communicate_ghosts(ᐁgrid_dim, '=')
+    return ᐁgrid_dim
+# Allocate global arrays arrays used by the diff_domaingrid() function
+cython.declare(
+    highest_differentiation_order_implemented='int',
+    diff_steps_i='Py_ssize_t*',
+    diff_steps_j='Py_ssize_t*',
+    diff_steps_k='Py_ssize_t*',
+    diff_indices_i_m='Py_ssize_t*',
+    diff_indices_i_p='Py_ssize_t*',
+    diff_indices_j_m='Py_ssize_t*',
+    diff_indices_j_p='Py_ssize_t*',
+    diff_indices_k_m='Py_ssize_t*',
+    diff_indices_k_p='Py_ssize_t*',
+)
+highest_differentiation_order_implemented = 8
+diff_steps_i     = malloc((highest_differentiation_order_implemented//2 + 1)*sizeof('Py_ssize_t'))
+diff_steps_j     = malloc((highest_differentiation_order_implemented//2 + 1)*sizeof('Py_ssize_t'))
+diff_steps_k     = malloc((highest_differentiation_order_implemented//2 + 1)*sizeof('Py_ssize_t'))
+diff_indices_i_m = malloc((highest_differentiation_order_implemented//2 + 1)*sizeof('Py_ssize_t'))
+diff_indices_i_p = malloc((highest_differentiation_order_implemented//2 + 1)*sizeof('Py_ssize_t'))
+diff_indices_j_m = malloc((highest_differentiation_order_implemented//2 + 1)*sizeof('Py_ssize_t'))
+diff_indices_j_p = malloc((highest_differentiation_order_implemented//2 + 1)*sizeof('Py_ssize_t'))
+diff_indices_k_m = malloc((highest_differentiation_order_implemented//2 + 1)*sizeof('Py_ssize_t'))
+diff_indices_k_p = malloc((highest_differentiation_order_implemented//2 + 1)*sizeof('Py_ssize_t'))
+
+# Below we define weight functions for one-dimensional particle
+# interpolation. Each function takes in a coordinate x which must be
+# pre-scaled so that it lies in the interval
+#   nghosts - ½ < x < shape[dim] - nghosts - ½
+# where shape is the full shape (with ghost layers) of the grid taking
+# part in the interpolation. The second argument is an array for storing
+# the resulting weights.
+# The return value is an index into the grid, such that the weight
+# associated with that grid point is weights[0]. The full weighted sum
+# is then weights[0]*grid[index] + weights[1]*grid[index + 1] + ...
+#
+# Nearest grid point (NGP) interpolation (order 1)
+@cython.header(
+    # Arguments
+    x='double',
+    weights='double*',
+    # Locals
+    index='Py_ssize_t',
+    returns='Py_ssize_t',
+)
+def set_weights_NGP(x, weights):
+    index = int(x + 0.5)
+    weights[0] = 1
+    return index
+# Cloud-in-cell (CIC) interpolation (order 2)
+@cython.header(
+    # Arguments
+    x='double',
+    weights='double*',
+    # Locals
+    dist='double',
+    index='Py_ssize_t',
+    returns='Py_ssize_t',
+)
+def set_weights_CIC(x, weights):
+    index = int(x)
+    dist = x - index  # Distance between leftmost grid point and x; 0 <= dist < 1
+    weights[0] = 1 - dist
+    weights[1] = dist
+    return index
+# Triangular shaped cloud (TSC) interpolation (order 3)
+@cython.header(
+    # Arguments
+    x='double',
+    weights='double*',
+    # Locals
+    dist='double',
+    index='Py_ssize_t',
+    returns='Py_ssize_t',
+)
+def set_weights_TSC(x, weights):
+    index = int(x + 0.5)
+    dist = x - index  # Distance between center grid point and x; -0.5 <= dist < 0.5
+    index -= 1
+    weights[0] = 0.5*(0.5 - dist)**2
+    weights[1] = 0.75 - dist**2
+    weights[2] = 1 - (weights[0] + weights[1])
+    return index
+# Piecewise cubic spline (PCS) interpolation (order 4)
+@cython.header(
+    # Arguments
+    x='double',
+    weights='double*',
+    # Locals
+    dist='double',
+    index='Py_ssize_t',
+    tmp='double',
+    tmp2='double',
+    tmp3='double',
+    returns='Py_ssize_t',
+)
+def set_weights_PCS(x, weights):
+    index = int(x)
+    index -= 1
+    dist = x - index  # Distance between leftmost grid point and x; 1 <= dist < 2
+    tmp = 2 - dist
+    tmp2 = tmp**2
+    tmp3 = tmp*tmp2
+    weights[0] = ℝ[1/6]*tmp3
+    weights[2] = ℝ[2/3] - tmp2 + 0.5*tmp3
+    weights[3] = ℝ[1/6]*(dist - 1)**3
+    weights[1] = 1 - (weights[0] + weights[2] + weights[3])
+    return index
+# Allocate global weights arrays to be used with the above functions
+cython.declare(
+    highest_implemented_interpolation_order='int',
+    weights_x='double*',
+    weights_y='double*',
+    weights_z='double*',
+)
+highest_interpolation_order_implemented = 4  # PCS
+weights_x = malloc(highest_interpolation_order_implemented*sizeof('double'))
+weights_y = malloc(highest_interpolation_order_implemented*sizeof('double'))
+weights_z = malloc(highest_interpolation_order_implemented*sizeof('double'))
+
+# Function returning the Fourier-space deconvulution factor needed for
+# NGP interpolation in one dimension. The full deconvulution factor is
+# achieved through exponentiation (**2 -> CIC, **3 -> TSC, **4 -> PCS)
+# and multiplication with one-dimensional factors for other dimensions.
+# The value to pass should be kᵢ*π/gridsize, with kᵢ the i'th component
+# of the wave vector in grid units.
+@cython.header(value='double', returns='double')
+def get_deconvolution(value):
+    if value == 0:
+        return 1
+    return value/sin(value)
