@@ -44,7 +44,7 @@ __version__ = 'master'
 ############################################
 # Miscellaneous
 import ast, collections, contextlib, ctypes, cython, functools, hashlib, inspect, itertools
-import keyword, os, re, shutil, sys, textwrap, traceback, types, unicodedata, warnings
+import keyword, operator, os, re, shutil, sys, textwrap, traceback, types, unicodedata, warnings
 from copy import deepcopy
 # Math
 # (note that numpy.array is purposely not imported directly into the
@@ -771,7 +771,7 @@ if not cython.compiled:
             p.resize(size, refcheck=False)
         return p
     def free(a):
-        if isinstance(p, list):
+        if isinstance(a, list):
             # Do nothing in the case of pointer arrays
             pass
         else:
@@ -807,14 +807,15 @@ if not cython.compiled:
     # Dummy fused types
     number = number2 = integer = floating = signed_number = signed_number2 = number_mv = []
     # Mathematical functions
-    from numpy import (sin, cos, tan,
-                       arcsin, arccos, arctan, arctan2,
-                       sinh, cosh, tanh,
-                       arcsinh, arccosh, arctanh,
-                       exp, log, log2, log10,
-                       sqrt,
-                       floor, ceil, round,
-                       )
+    from numpy import (
+        sin, cos, tan,
+        arcsin, arccos, arctan, arctan2,
+        sinh, cosh, tanh,
+        arcsinh, arccosh, arctanh,
+        exp, log, log2, log10,
+        sqrt,
+        floor, ceil, round,
+    )
     cbrt = lambda x: x**(1/3)
     from math import erf, erfc
     # The closest thing to a Null pointer in pure Python
@@ -989,21 +990,22 @@ ctypedef fused signed_number2:
     cython.float
     cython.double
 # Mathematical functions
-from libc.math cimport (sin, cos, tan,
-                        asin  as arcsin,
-                        acos  as arccos,
-                        atan  as arctan,
-                        atan2 as arctan2,
-                        sinh, cosh, tanh,
-                        asinh as arcsinh,
-                        acosh as arccosh,
-                        atanh as arctanh,
-                        exp, log, log2, log10,
-                        sqrt, cbrt,
-                        erf, erfc,
-                        floor, ceil, round,
-                        fmod,
-                        )
+from libc.math cimport (
+    sin, cos, tan,
+    asin  as arcsin,
+    acos  as arccos,
+    atan  as arctan,
+    atan2 as arctan2,
+    sinh, cosh, tanh,
+    asinh as arcsinh,
+    acosh as arccosh,
+    atanh as arctanh,
+    exp, log, log2, log10,
+    sqrt, cbrt,
+    erf, erfc,
+    floor, ceil, round,
+    fmod, fabs,
+)
 """)
 # Custom extension types using @cython.cclass will be found by the
 # pyxpp preprocessor. A comment containing such types will be placed in
@@ -1287,7 +1289,8 @@ params_file_content = bcast(params_file_content)
 params_file_content += '\n'.join([
     '\n# Added by commons.py',
     'h = (H0 if "H0" in globals() else 1)/(100*km/(s*Mpc))',
-    'h = float(f"{h:g}")',
+    'h = float(f"{h:.15f}")',
+    'h = h',  # To ensure h gets flagged as used
 ])
 # All further handling of parameters defined in the parameter file
 # will be done later.
@@ -1892,12 +1895,20 @@ cython.declare(
     autosave_interval='double',
     snapshot_select=dict,
     powerspec_select=dict,
+    powerspec_include_linear='bint',
+    powerspec_significant_figures='int',
     render2D_select=dict,
     render3D_select=dict,
+    class_plot_perturbations='bint',
     # Numerical parameter
     boxsize='double',
+    powerspec_gridsizes=dict,
+    powerspec_interpolation='int',
+    powerspec_interlacing='bint',
+    force_interpolations=dict,
+    force_interlacings=dict,
+    force_differentiations=dict,
     ewald_gridsize='Py_ssize_t',
-    φ_gridsize='ptrdiff_t',
     shortrange_params=dict,
     R_tophat='double',
     modes_per_decade='double',
@@ -1932,7 +1943,6 @@ cython.declare(
     fluid_options=dict,
     class_k_max=dict,
     class_reuse='bint',
-    class_plot_perturbations='bint',
     class_extra_background=set,
     class_extra_perturbations=set,
     # Graphics
@@ -2010,6 +2020,10 @@ for key, val in powerspec_select.copy().items():
     else:
         powerspec_select[key] = {'data': bool(val), 'plot': bool(val)}
 user_params['powerspec_select'] = powerspec_select
+powerspec_include_linear = bool(user_params.get('powerspec_include_linear', True))
+user_params['powerspec_include_linear'] = powerspec_include_linear
+powerspec_significant_figures = int(user_params.get('powerspec_significant_figures', 8))
+user_params['powerspec_significant_figures'] = powerspec_significant_figures
 render2D_select = {'all': True, 'all combinations': True}
 if user_params.get('render2D_select'):
     if isinstance(user_params['render2D_select'], dict):
@@ -2040,13 +2054,121 @@ if user_params.get('render3D_select'):
     else:
         render3D_select = {'all': user_params['render3D_select']}
 user_params['render3D_select'] = render3D_select
+class_plot_perturbations = bool(user_params.get('class_plot_perturbations', False))
+user_params['class_plot_perturbations'] = class_plot_perturbations
 # Numerical parameters
 boxsize = float(user_params.get('boxsize', 512*units.Mpc))
 user_params['boxsize'] = boxsize
+if isinstance(user_params.get('powerspec_gridsizes', {}), (int, float)):
+    powerspec_gridsizes = {'all': int(round(user_params['powerspec_gridsizes']))}
+else:
+    powerspec_gridsizes = replace_ellipsis(dict(user_params.get('powerspec_gridsizes', {})))
+user_params['powerspec_gridsizes'] = powerspec_gridsizes
+interpolation_orders = {'NGP': 1, 'CIC': 2, 'TSC': 3, 'PCS': 4}
+powerspec_interpolation_str = str(user_params.get('powerspec_interpolation', 'PCS'))
+powerspec_interpolation = int(
+    interpolation_orders.get(powerspec_interpolation_str.upper(), powerspec_interpolation_str)
+)
+user_params['powerspec_interpolation'] = powerspec_interpolation
+powerspec_interlacing = bool(user_params.get('powerspec_interlacing', True))
+user_params['powerspec_interlacing'] = powerspec_interlacing
+force_interpolations = {
+    'gravity': {
+        'pm' : 'CIC',
+        'p3m': 'CIC',
+    },
+    'lapse': {
+        'pm' : 'CIC',
+    },
+}
+for key, val in replace_ellipsis(dict(user_params.get('force_interpolations', {}))).items():
+    key = key.lower()
+    if isinstance(val, dict):
+        force_interpolations[key].update({
+            subd_key.lower(): subd_val for subd_key, subd_val in replace_ellipsis(val).items()
+        })
+    elif isinstance(val, (tuple, list)):
+        force_interpolations[key][val[0].lower()] = val[1]
+    elif isinstance(val, str):
+        force_interpolations[key] = {'pm': val.lower(), 'p3m': val.lower()}
+    else:
+        abort('Could not interpret the force_interpolations parameter')
+for key, val in force_interpolations.copy().items():
+    subd = {}
+    for subd_key, subd_val in val.items():
+        subd_key = subd_key.lower()
+        subd_val = int(interpolation_orders.get(str(subd_val).upper(), subd_val))
+        for char in ' _-^()':
+            subd_key = subd_key.replace(char, '')
+        for n in range(10):
+            subd_key = subd_key.replace(unicode_superscript(str(n)), str(n))
+        subd[subd_key] = subd_val
+    force_interpolations[key] = subd
+user_params['force_interpolations'] = force_interpolations
+force_interlacings = {
+    'gravity': {
+        'pm' : False,
+        'p3m': False,
+    },
+    'lapse': {
+        'pm' : False,
+    },
+}
+for key, val in replace_ellipsis(dict(user_params.get('force_interlacings', {}))).items():
+    key = key.lower()
+    if isinstance(val, dict):
+        force_interlacings[key].update({
+            subd_key.lower(): subd_val for subd_key, subd_val in replace_ellipsis(val).items()
+        })
+    else:
+        force_interlacings[key] = {'pm': bool(val), 'p3m': bool(val)}
+for key, val in force_interlacings.copy().items():
+    subd = {}
+    for subd_key, subd_val in val.items():
+        subd_key = subd_key.lower()
+        subd_val = bool(subd_val)
+        for char in ' _-^()':
+            subd_key = subd_key.replace(char, '')
+        for n in range(10):
+            subd_key = subd_key.replace(unicode_superscript(str(n)), str(n))
+        subd[subd_key] = subd_val
+    force_interlacings[key] = subd
+user_params['force_interlacings'] = force_interlacings
+force_differentiations = {
+    'gravity': {
+        'pm' : 4,
+        'p3m': 4,
+    },
+    'lapse': {
+        'pm': 4,
+    },
+}
+for key, val in replace_ellipsis(dict(user_params.get('force_differentiations', {}))).items():
+    key = key.lower()
+    if isinstance(val, dict):
+        force_differentiations[key].update({
+            subd_key.lower(): subd_val for subd_key, subd_val in replace_ellipsis(val).items()
+        })
+    elif isinstance(val, (tuple, list)):
+        force_differentiations[key][val[0].lower()] = val[1]
+    elif isinstance(val, (int, float)):
+        force_differentiations[key] = {'pm': int(round(val)), 'p3m': int(round(val))}
+    else:
+        abort('Could not interpret the force_differentiations parameter')
+for key, val in force_differentiations.copy().items():
+    subd = {}
+    for subd_key, subd_val in val.items():
+        subd_key = subd_key.lower()
+        subd_val = int(subd_val)
+        for char in ' _-^()':
+            subd_key = subd_key.replace(char, '')
+        for n in range(10):
+            subd_key = subd_key.replace(unicode_superscript(str(n)), str(n))
+        subd[subd_key] = subd_val
+    force_differentiations[key] = subd
+user_params['force_differentiations'] = force_differentiations
 ewald_gridsize = to_int(user_params.get('ewald_gridsize', 64))
 user_params['ewald_gridsize'] = ewald_gridsize
-φ_gridsize = to_int(user_params.get('φ_gridsize', 32))
-user_params['φ_gridsize'] = φ_gridsize
 shortrange_params = dict(user_params.get('shortrange_params', {}))
 if shortrange_params and not isinstance(list(shortrange_params.values())[0], dict):
     shortrange_params = {'default': shortrange_params}
@@ -2054,10 +2176,26 @@ shortrange_params.setdefault('default', {})
 for shortrange_force in ('gravity', ):
     shortrange_params.setdefault(shortrange_force, shortrange_params['default'].copy())
 subtiling_refinement_period_default = 32
+p3m_gridsize = -1
+for d in user_params.get('select_forces', {}).values():
+    if not isinstance(d, dict):
+        continue
+    for t in d.values():
+        if isinstance(t, (tuple, list)) and len(t) == 2:
+            if isinstance(t[1], str):
+                t = (t[1], t[0])
+            if t[0].lower() == 'p3m' and t[1] > p3m_gridsize:
+                p3m_gridsize = t[1]
 for d in shortrange_params.values():
-    d.setdefault('scale', 1.25*boxsize/φ_gridsize)
-    d.setdefault('cutoff', 4.8*d['scale'])
+    d.setdefault('scale', '1.25*boxsize/gridsize')
+    d.setdefault('cutoff', '4.5*scale')
     d.setdefault('subtiling', 'automatic')
+    scale = d['scale']
+    if isinstance(scale, str):
+        d['scale'] = eval(scale
+            .replace('boxsize', str(boxsize))
+            .replace('gridsize', str(p3m_gridsize))
+        )
     cutoff = d['cutoff']
     if isinstance(cutoff, str):
         d['cutoff'] = eval(cutoff.replace('scale', str(d['scale'])))
@@ -2134,13 +2272,15 @@ default_force_method = {
     'gravity': 'pm',
     'lapse'  : 'pm',
 }
+methods_implemented = ('ppnonperiodic', 'pp', 'p3m', 'pm')
 select_forces = {}
 for key, val in replace_ellipsis(dict(user_params.get('select_forces', {}))).items():
+    key = key.lower()
     if isinstance(val, dict):
         select_forces[key] = replace_ellipsis(val)
     elif isinstance(val, str):
         select_forces[key] = {val: default_force_method[val.lower()]}
-    elif isinstance(val, tuple) or isinstance(val, list):
+    elif isinstance(val, (tuple, list)):
         if len(val) == 1:
             select_forces[key] = {val[0]: default_force_method[val[0].lower()]}
         elif len(val) == 2 and isinstance(val[0], str) and isinstance(val[1], str):
@@ -2166,16 +2306,22 @@ for key, val in replace_ellipsis(dict(user_params.get('select_forces', {}))).ite
             select_forces[key] = new_val
     subd = {}
     for subd_key, subd_val in select_forces[key].items():
-        subd_key, subd_val = subd_key.lower(), subd_val.lower()
+        if isinstance(subd_val, (tuple, list)):
+            method, gridsize = subd_val
+            if not isinstance(method, str) or method not in methods_implemented:
+                method, gridsize = gridsize, method
+        else:
+            method, gridsize = subd_val, -1
+        subd_key, method = subd_key.lower(), method.lower()
         for char in ' _-^()':
-            subd_key, subd_val = subd_key.replace(char, ''), subd_val.replace(char, '')
+            subd_key, method = subd_key.replace(char, ''), method.replace(char, '')
         for n in range(10):
             subd_key = subd_key.replace(unicode_superscript(str(n)), str(n))
-            subd_val = subd_val.replace(unicode_superscript(str(n)), str(n))
-        subd[subd_key] = subd_val
+            method   = method  .replace(unicode_superscript(str(n)), str(n))
+        subd[subd_key] = (method, gridsize)
     select_forces[key] = subd
-select_forces.setdefault('metric', {'gravity': ''})
-select_forces.setdefault('lapse', {'lapse': ''})
+select_forces.setdefault('metric', {'gravity': ('', -1)})
+select_forces.setdefault('lapse', {'lapse': ('', -1)})
 user_params['select_forces'] = select_forces
 select_class_species = {}
 if user_params.get('select_class_species'):
@@ -2359,8 +2505,6 @@ for key, val in class_k_max.copy().items():
 user_params['class_k_max'] = class_k_max
 class_reuse = bool(user_params.get('class_reuse', True))
 user_params['class_reuse'] = class_reuse
-class_plot_perturbations = bool(user_params.get('class_plot_perturbations', False))
-user_params['class_plot_perturbations'] = class_plot_perturbations
 class_extra_background = set(
     str(el) for el in any2list(user_params.get('class_extra_background', [])) if el
 )
@@ -2400,9 +2544,11 @@ suppress_output['out'] |= suppress_output['all']
 suppress_output['err'] |= suppress_output['all']
 user_params['suppress_output'] = suppress_output
 render2D_options_defaults = {
+    'gridsize'           : -1,
+    'interpolation'      : 'PCS',
     'axis'               : 'z',
     'extent'             : (0, 0.1*boxsize),
-    'terminal resolution': np.min([terminal_width, φ_gridsize]),
+    'terminal resolution': terminal_width,
     'colormap'           : 'inferno',
     'enhance'            : True,
 }
@@ -2424,6 +2570,15 @@ for key, val in render2D_options['extent'].copy().items():
         render2D_options['extent'][key] = (np.min(val), np.max(val))
 for key, val in render2D_options_defaults.items():
     render2D_options[key]['default'] = val
+for key, val in render2D_options['interpolation'].copy().items():
+    interpolation_str = str(val)
+    render2D_options['interpolation'][key] = int(
+       interpolation_orders.get(interpolation_str.upper(), interpolation_str)
+    )
+for key, val in render2D_options['gridsize'].copy().items():
+    render2D_options['gridsize'][key] = int(round(val))
+for key, val in render2D_options['terminal resolution'].copy().items():
+    render2D_options['terminal resolution'][key] = int(round(val))
 user_params['render2D_options'] = render2D_options
 render3D_colors = {}
 if 'render3D_colors' in user_params:
@@ -2439,7 +2594,7 @@ user_params['render3D_bgcolor'] = render3D_bgcolor
 render3D_resolution = to_int(user_params.get('render3D_resolution', 1080))
 user_params['render3D_resolution'] = render3D_resolution
 # Debugging options
-print_load_imbalance = user_params.get('print_load_imbalance', False)
+print_load_imbalance = user_params.get('print_load_imbalance', True)
 if isinstance(print_load_imbalance, str):
     print_load_imbalance = print_load_imbalance.lower()
 user_params['print_load_imbalance'] = print_load_imbalance
@@ -2508,6 +2663,7 @@ cython.declare(
     render3D_base=str,
     render3D_times=dict,
     autosave_dir=str,
+    nghosts='int',
     ρ_crit='double',
     Ωdcdm='double',
     Ωm='double',
@@ -2562,6 +2718,37 @@ render3D_times = {
     time_param: output_times[time_param]['render3D'] for time_param in ('a', 't')
 }
 autosave_dir = output_dirs['autosave']
+# We never include linear power spectra in power spectrum output
+# if the CLASS background is disabled.
+if not enable_class_background:
+    powerspec_include_linear = False
+# The number of ghost point layers around the domain grids (so that the
+# full shape of each grid is (nghosts + shape[0] + nghosts,
+# nghosts + shape[1] + nghosts, nghosts + shape[2] + nghosts). This is
+# determined by the interpolation orders of power spectrum and force
+# interpolations (order 1 (NGP): 0 ghost layers, 2 (CIC): 1 ghost
+# layer, order 3 (TSC): 1 ghost layer, order 4 (PCS): 2 ghost layers),
+# as well as force differentiations (order 1: 1 ghost layer, order 2:
+# 1 ghost layer, order 3: 2 ghost layers, order 4: 2 ghost layers).
+# One additional ghost layer is required for odd order interpolations
+# in the case of grid interlacing (as the particles are shifted by half
+# a grid cell). Finally, second-order differentiation is used to compute
+# fluid source terms, and so nghosts should always be at least 1.
+nghosts = powerspec_interpolation//2
+if powerspec_interlacing and powerspec_interpolation%2 != 0:
+    nghosts += 1
+for force, d in force_interpolations.items():
+    for method, force_interpolation in d.items():
+        nghosts = np.max([
+            nghosts,
+            force_interpolation//2 + (
+                force_interlacings[force][method] and force_interpolation%2 != 0
+            )
+        ])
+for force, d in force_differentiations.items():
+    nghosts = np.max([nghosts, (np.max(tuple(d.values())) + 1)//2])
+if nghosts < 1:
+    nghosts = 1
 # The average, comoing density (the critical
 # comoving density since we only study flat universes).
 ρ_crit = 3*H0**2/(8*π*G_Newton)
@@ -2594,6 +2781,25 @@ matter_class_species = '+'.join([class_species
     for class_species, Ω in {'b': Ωb, 'cdm': Ωcdm, 'dcdm': Ωdcdm}.items() if Ω > 1e-9])
 # The average, comoving matter density
 ρ_mbar = Ωm*ρ_crit
+# Modify select_forces so that the value in the sub-dicts is just the
+# method. The gridsize currently also stored will be extracted and saved
+# in the φ_gridsizes dict.
+cython.declare(φ_gridsizes=dict)
+φ_gridsizes = {}
+for key, subd in select_forces.items():
+    d = {}
+    keep = False
+    for subd_key, subd_val in subd.copy().items():
+        if isinstance(subd_val, (tuple, list)):
+            method, gridsize = subd_val
+        else:
+            method, gridsize = subd_val, -1
+        if method:
+            keep = True
+            d[subd_key, method] = gridsize
+        subd[subd_key] = method
+    if keep:
+        φ_gridsizes[key] = d
 # Handle optional values in special_params
 if 'max_a_values' in special_params:
     max_a_values = str(special_params['max_a_values'])
@@ -2608,6 +2814,7 @@ if 'max_a_values' in special_params:
             except:
                 abort(f'Could not interpret max_a_values = {max_a_values}')
     special_params['max_a_values'] = max_a_values
+
 
 
 #####################
@@ -2640,8 +2847,6 @@ units_dict.setdefault(unicode('ρ_mbar')       , ρ_mbar                )
 # Add dimensionless sizes
 units_dict.setdefault('ewald_gridsize'     , ewald_gridsize     )
 units_dict.setdefault('render3D_resolution', render3D_resolution)
-units_dict.setdefault(        'φ_gridsize' , φ_gridsize         )
-units_dict.setdefault(unicode('φ_gridsize'), φ_gridsize         )
 # Add numbers
 units_dict.setdefault(        'machine_ϵ' , machine_ϵ)
 units_dict.setdefault(unicode('machine_ϵ'), machine_ϵ)
@@ -3088,18 +3293,6 @@ else:
         return sum(a)/a.shape[0]
     """
 
-# Unnormalized sinc function (faster than gsl_sf_sinc)
-@cython.header(x='double',
-               y='double',
-               returns='double',
-               )
-def sinc(x):
-    y = sin(x)
-    if y == x:
-        return 1
-    else:
-        return y/x
-
 # Function that compares two numbers (identical to math.isclose)
 @cython.pheader(
     # Arguments
@@ -3464,6 +3657,14 @@ os.makedirs = tryexcept_wrapper(os.makedirs, 'os.makedirs() failed')
 # Abort on unrecognized snapshot_type
 if snapshot_type not in ('standard', 'gadget2'):
     abort('Does not recognize snapshot type "{}"'.format(user_params['snapshot_type']))
+# Warn about odd force differentiation
+for force, d in force_differentiations.items():
+    for method, order in d.items():
+        if order % 2:
+            masterwarn(
+                f'As force_differentiations["{force}"]["{method}"] = {order} is odd, '
+                f'this will lead to asymmetric differentiation.'
+            )
 # Check format on 'subtiling' values in shortrange_params.
 # Among other things, the refinement period used for automatic subtiling
 # refinement has to at least as big as subtiling_refinement_period_min,

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
-# This script performs a comparison test between the CO𝘕CEPT code's and the
-# GADGET code's PM implementation.
+# This script performs a comparison test between the CO𝘕CEPT code's
+# P3M implementation and the GADGET code's TreePM implementation.
 
 # Absolute path and name of the directory of this file
 this_dir="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
@@ -31,7 +31,7 @@ output_bases = {'snapshot': 'IC'}
 output_times = {'snapshot': a_begin}
 initial_conditions = {'name'   : 'GADGET halos',
                       'species': 'matter particles',
-                      'N'      : 12**3,
+                      'N'      : 8**3,
                       }
 enable_class_background = True  # Do use CLASS when creating the initial conditions
 " > "${this_dir}/ic.params"
@@ -41,7 +41,6 @@ enable_class_background = True  # Do use CLASS when creating the initial conditi
 mv "${this_dir}/IC"* "${this_dir}/IC"
 
 # Run the CO𝘕CEPT code on the generated ICs
-rm -f "${concept_dir}/.fftw_wisdom_gridsize=$(get_param 'φ_gridsize')_nprocs=1"
 "${concept}" -n 1 -p "${this_dir}/params" --local
 
 # Dump list of snapshot output times used by GADGET
@@ -70,16 +69,12 @@ path="${fftw_for_gadget_dir}/lib"
 sed -i "/^ *FFTW_LIBS= / s/ [^# ]/ \"-L${path//\//\\/}\" -Wl,\"-rpath=${path//\//\\/}\"/" \
        "${this_dir}/Makefile_gadget_edited"
 
-# Make a local copy of the files in the GADGET2 directory and copy the edited Makefile
+# Make a local copy of the files in the GADGET2 directory
+# and copy the edited Makefile.
 Gadget2_local_dir="${this_dir}/Gadget2_local"
 mkdir -p "${Gadget2_local_dir}"
 cp "${Gadget2_dir}/"* "${Gadget2_local_dir}" || :
 cp "${this_dir}/Makefile_gadget_edited" "${Gadget2_local_dir}/Makefile"
-
-# Copy the edited versions of pm_periodic.c and timestep.c to the local GADGET2 directory,
-# ensuring that only the PM part of the TreePM force is used.
-cp "${this_dir}/pm_periodic_edited.c" "${Gadget2_local_dir}/pm_periodic.c"
-cp "${this_dir}/timestep_edited.c" "${Gadget2_local_dir}/timestep.c"
 
 # Build Gadget and run simulation based on the ICs.
 # Note that it is crucial to use a relative path to the parameter file

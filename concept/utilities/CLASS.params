@@ -13,9 +13,9 @@ _mν = [0, 8.7e-3, 5.0e-2]  # Neutrino masses in eV
 output_dirs = {'powerspec': paths['output_dir'] + '/class'}
 
 # Numerical parameters
-boxsize = 10*Gpc
-φ_gridsize = 5e+3
-modes_per_decade = 50
+boxsize = 100*Gpc
+powerspec_gridsizes = {"all": 5e+3}
+modes_per_decade = 5 #50
 
 # Cosmology
 H0      = 67*km/(s*Mpc)
@@ -50,7 +50,7 @@ class_params = {
 # Simulation options
 class_k_max = {}
 class_reuse = True
-class_plot_perturbations = True
+class_plot_perturbations = False
 class_extra_background = {}
 class_extra_perturbations = {}
 

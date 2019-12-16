@@ -34,7 +34,7 @@ for n in ${nprocs_list[@]}; do
 initial_conditions = {
     'name'   : 'test particles',
     'species': 'matter particles',
-    'N'      : φ_gridsize**3,
+    'N'      : _size**3,
 }
 output_dirs  = {'powerspec': _this_dir + '/output_particles'}
 output_bases = {'powerspec': 'powerspec_nprocs=${n}'}
@@ -50,7 +50,7 @@ for n in ${nprocs_list[@]}; do
 initial_conditions = {
     'name'             : 'test fluid',
     'species'          : 'matter fluid',
-    'gridsize'         : φ_gridsize,
+    'gridsize'         : _size,
     'boltzmann_order'  : 0,
     'boltzmann_closure': 'truncate',
     'approximations'   : {'P=wρ': True},

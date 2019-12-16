@@ -6,10 +6,14 @@ powerspec_select = {
     'all'             : {'data': True, 'plot': True},
     'all combinations': {'data': True, 'plot': True},
 }
+powerspec_include_linear = False
 
 # Numerical parameters
-φ_gridsize = 64
-R_tophat   = 8*Mpc/h
+powerspec_gridsizes = {
+    'particles': '2*cbrt(N)',
+}
+powerspec_interpolation = 'PCS'
+R_tophat = 8*Mpc/h
 
 # Simulation options
 fftw_wisdom_rigor = 'measure'

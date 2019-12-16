@@ -6,17 +6,27 @@ initial_conditions = _this_dir + '/IC.hdf5'
 snapshot_type      = 'standard'
 output_dirs        = {'snapshot': _this_dir + '/output'}
 output_bases       = {'snapshot': 'snapshot'}
-output_times       = {'snapshot': (0.1, 0.5, 1)}
+output_times       = {'snapshot': (0.3, 0.5, 1)}
 
 # Numerical parameters
-boxsize    = 8*Mpc
-φ_gridsize = 64
+boxsize = 4*Mpc
+shortrange_params = {
+    'gravity': {
+        'scale'    : '1.25*boxsize/gridsize',
+        'cutoff'   : '3.1*scale',
+        'subtiling': 2,
+    },
+}
 
 # Cosmology
 H0      = 70*km/s/Mpc
 Ωcdm    = 0.25
 Ωb      = 0.05
-a_begin = 0.02
+a_begin = 0.1
 
 # Physics
-select_forces = {'matter particles': {'gravity': 'pm'}}
+select_forces = {'matter particles': {'gravity': ('p3m', 24)}}
+
+# Debugging options
+print_load_imbalance = False
+

@@ -27,7 +27,7 @@ from commons import *
 # Cython imports
 cimport('from analysis import measure')
 cimport('from communication import '
-    'communicate_domain, domain_subdivisions, exchange, smart_mpi, '
+    'communicate_ghosts, domain_subdivisions, exchange, smart_mpi, '
     'domain_size_x, domain_size_y, domain_size_z, domain_start_x, domain_start_y, domain_start_z, '
     'rung_indices_arr, '
 )
@@ -35,7 +35,7 @@ cimport('from fluid import maccormack, maccormack_internal_sources, '
     'kurganov_tadmor, kurganov_tadmor_internal_sources'
 )
 cimport('from integration import Spline, cosmic_time, scale_factor, ȧ')
-cimport('from linear import compute_cosmo, compute_transfer, get_default_k_parameters, realize')
+cimport('from linear import compute_cosmo, compute_transfer, get_archived_k_parameters, realize')
 
 
 
@@ -269,28 +269,24 @@ class FluidScalar:
         self.Δ_noghosts = self.Δ_mv[:, :, :]
 
     # Method for resizing all grids of this scalar fluid
-    @cython.header(# Arguments
-                   shape_nopseudo_noghost=tuple,
-                   )
-    def resize(self, shape_nopseudo_noghost):
+    @cython.header(shape_noghosts=tuple)
+    def resize(self, shape_noghosts):
         """After resizing the fluid scalar,
         all fluid elements will be nullified.
         """
-        # The full shape and size of the grid,
-        # with pseudo and ghost points.
-        self.shape = tuple([2 + s + 1 + 2 for s in shape_nopseudo_noghost])
+        # The full shape and size of the grid with ghost points
+        self.shape = tuple([s + 2*nghosts for s in shape_noghosts])
         self.size = np.prod(self.shape)
-        # The shape and size of the grid
-        # with no ghost points but with pseudo points.
-        self.shape_noghosts = tuple([s + 1 for s in shape_nopseudo_noghost])
+        # The shape and size of the grid with no ghost points
+        self.shape_noghosts = shape_noghosts
         self.size_noghosts = np.prod(self.shape_noghosts)
         # The data itself
         self.grid = realloc(self.grid, self.size*sizeof('double'))
         self.grid_mv = cast(self.grid, 'double[:self.shape[0], :self.shape[1], :self.shape[2]]')
         self.grid_noghosts = self.grid_mv[
-            2:(self.grid_mv.shape[0] - 2),
-            2:(self.grid_mv.shape[1] - 2),
-            2:(self.grid_mv.shape[2] - 2),
+            nghosts:(self.grid_mv.shape[0] - nghosts),
+            nghosts:(self.grid_mv.shape[1] - nghosts),
+            nghosts:(self.grid_mv.shape[2] - nghosts),
         ]
         # Nullify the newly allocated data grid
         self.nullify_grid()
@@ -305,9 +301,9 @@ class FluidScalar:
                 self.gridˣ, 'double[:self.shape[0], :self.shape[1], :self.shape[2]]',
             )
             self.gridˣ_noghosts = self.gridˣ_mv[
-                2:(self.gridˣ_mv.shape[0] - 2),
-                2:(self.gridˣ_mv.shape[1] - 2),
-                2:(self.gridˣ_mv.shape[2] - 2),
+                nghosts:(self.gridˣ_mv.shape[0] - nghosts),
+                nghosts:(self.gridˣ_mv.shape[1] - nghosts),
+                nghosts:(self.gridˣ_mv.shape[2] - nghosts),
             ]
         # Due to the Unicode NFKC normalization done by pure Python,
         # attributes with a ˣ in their name need to be set in following
@@ -323,9 +319,9 @@ class FluidScalar:
         self.Δ = realloc(self.Δ, self.size*sizeof('double'))
         self.Δ_mv = cast(self.Δ, 'double[:self.shape[0], :self.shape[1], :self.shape[2]]')
         self.Δ_noghosts = self.Δ_mv[
-            2:(self.Δ_mv.shape[0] - 2),
-            2:(self.Δ_mv.shape[1] - 2),
-            2:(self.Δ_mv.shape[2] - 2),
+            nghosts:(self.Δ_mv.shape[0] - nghosts),
+            nghosts:(self.Δ_mv.shape[1] - nghosts),
+            nghosts:(self.Δ_mv.shape[2] - nghosts),
         ]
         # Nullify the newly allocated Δ buffer
         self.nullify_Δ()
@@ -925,6 +921,7 @@ class Component:
         public str species
         public str representation
         public dict forces
+        public dict φ_gridsizes
         public str class_species
         # Particle attributes
         public Py_ssize_t N
@@ -932,6 +929,7 @@ class Component:
         public Py_ssize_t N_local
         public double mass
         public double softening_length
+        public Py_ssize_t powerspec_gridsize
         # Particle data
         double* posx
         double* posy
@@ -1069,6 +1067,58 @@ class Component:
                 force  =  force.replace(unicode_superscript(str(n)), str(n))
                 method = method.replace(unicode_superscript(str(n)), str(n))
             self.forces[force] = method
+        # Check that needed short-range parameters are set
+        for force, method in self.forces.items():
+            if (force, method) == ('gravity', 'p3m'):
+                if ℝ[shortrange_params['gravity']['scale']] < 0:
+                    abort(
+                        f'It is specified that the "{self.name}" component should use P³M '
+                        f'gravity, but the gridsize to use could not be determined. Please also '
+                        f'specify the gridsize to use in select_forces, and/or specify '
+                        f'shortrange_params["gravity"]["scale"].'
+                    )
+        # Set φ gridsize for each (force, method) pair
+        self.φ_gridsizes = is_selected(self, φ_gridsizes, accumulate=True)
+        for force, method in forces.items():
+            self.φ_gridsizes.setdefault((force, method), -1)
+        for (force, method), φ_gridsize in self.φ_gridsizes.copy().items():
+            if φ_gridsize == -1:
+                if self.representation == 'particles':
+                    # For particle components, we choose the default
+                    # φ gridsize to equal cbrt(N), except when using
+                    # P³M where having a large grid is very important
+                    # for performance.
+                    φ_gridsize_str = 'cbrt(N)'
+                    if method == 'p3m':
+                        φ_gridsize_str = '2*cbrt(N)'
+                elif self.representation == 'fluid':
+                    # Fluids should always have a φ gridsize equal to
+                    # that of the fluid grids.
+                    φ_gridsize_str = 'gridsize'
+            else:
+                φ_gridsize_str = str(φ_gridsize)
+            if self.representation == 'particles':
+                φ_gridsize_str = φ_gridsize_str.replace('N', str(self.N))
+                φ_gridsize_str = φ_gridsize_str.replace('gridsize', str(cbrt(self.N)))
+            elif self.representation == 'fluid':
+                φ_gridsize_str = φ_gridsize_str.replace('N', str(self.gridsize**3))
+                φ_gridsize_str = φ_gridsize_str.replace('gridsize', str(self.gridsize))
+            self.φ_gridsizes[force, method] = int(round(
+                eval(φ_gridsize_str, globals(), units_dict)
+            ))
+            if (
+                    self.representation == 'fluid'
+                and self.φ_gridsizes[force, method] != self.gridsize
+                and self.gridsize > 2
+            ):
+                if self.name and self.name not in internally_defined_names:
+                    masterwarn(
+                        f'A φ_gridsize of {self.φ_gridsizes[force, method]} was specified for '
+                        f'the "{force}" force and "{method}" method of the {self.name} fluid '
+                        f'component. This has been changed to {self.gridsize} in order to match '
+                        f'the grid size of the fluid grids.'
+                    )
+                self.φ_gridsizes[force, method] = self.gridsize
         # Set the CLASS species
         if class_species is None:
             class_species = is_selected(self, select_class_species)
@@ -1271,6 +1321,38 @@ class Component:
                     masterwarn(f'No softening length set for particles component "{self.name}"')
             softening_length = 0
         self.softening_length = float(softening_length)
+        # Set gridsize of powerspectrum
+        powerspec_gridsize = is_selected(self, powerspec_gridsizes)
+        if powerspec_gridsize is None:
+            if self.representation == 'fluid':
+                # Fluids should always have a power spectrum gridsize
+                # equal to that of the fluid grids.
+                powerspec_gridsize = 'gridsize'
+            elif self.representation == 'particles':
+                # For particle components, we choose the default
+                # power spectrum gridsize to equal twice the cube root
+                # of the number of particles.
+                powerspec_gridsize = '2*cbrt(N)'
+        powerspec_gridsize_str = str(powerspec_gridsize)
+        if self.representation == 'particles':
+            powerspec_gridsize_str = powerspec_gridsize_str.replace('N', str(self.N))
+            powerspec_gridsize_str = powerspec_gridsize_str.replace('gridsize', str(cbrt(self.N)))
+        elif self.representation == 'fluid':
+            powerspec_gridsize_str = powerspec_gridsize_str.replace('N', str(self.gridsize**3))
+            powerspec_gridsize_str = powerspec_gridsize_str.replace('gridsize', str(self.gridsize))
+        self.powerspec_gridsize = int(round(eval(powerspec_gridsize_str, globals(), units_dict)))
+        if (
+                self.representation == 'fluid'
+            and self.powerspec_gridsize != self.gridsize
+            and self.gridsize > 2
+        ):
+            if self.name and self.name not in internally_defined_names:
+                masterwarn(
+                    f'A powerspec_gridsize of {self.powerspec_gridsize} was specified for the '
+                    f'"{self.name}" fluid component. This has been changed to {self.gridsize} '
+                    f'in order to match the grid size of the fluid grids.'
+                )
+            self.powerspec_gridsize = self.gridsize
         # This attribute will store the conserved mean density
         # of this component. It is set by the ϱ_bar method.
         self._ϱ_bar = -1
@@ -1390,7 +1472,10 @@ class Component:
                 force: method for force, method in self.forces.items() if force == 'lapse'
             }
         # Fluid components may only receive a force using the PM method
-        if self.representation == 'fluid' and master:
+        if (
+            self.representation == 'fluid'
+            and self.name and self.name not in internally_defined_names
+        ):
             for force, method in self.forces.items():
                 if method not in {'pm', ''}:
                     abort(
@@ -1686,8 +1771,7 @@ class Component:
         mv3D='double[:, :, :]',
     )
     def populate(self, data, var, multi_index=0, buffer=False):
-        """For fluids, the data should not include pseudo
-        or ghost points.
+        """For fluids, the data should not include ghost points.
         If buffer is True, the Δ buffers will be populated
         instead of the data arrays.
         """
@@ -1774,7 +1858,7 @@ class Component:
             self.resize(asarray(mv3D).shape)
             # Populate the scalar grid given by index and multi_index
             # with the passed data. This data should not
-            # include pseudo or ghost points.
+            # include ghost points.
             fluidscalar = self.fluidvars[index][multi_index]
             if buffer:
                 fluidscalar.Δ_noghosts[
@@ -1782,29 +1866,29 @@ class Component:
             else:
                 fluidscalar.grid_noghosts[
                     :mv3D.shape[0], :mv3D.shape[1], :mv3D.shape[2]] = mv3D[...]
-            # Populate pseudo and ghost points
+            # Populate ghost points
             if buffer:
-                communicate_domain(fluidscalar.Δ_mv   , mode='populate')
+                communicate_ghosts(fluidscalar.Δ_mv, '=')
             else:
-                communicate_domain(fluidscalar.grid_mv, mode='populate')
+                communicate_ghosts(fluidscalar.grid_mv, '=')
 
     # This method will grow/shrink the data attributes.
     # Note that it will update N_allocated but not N_local.
     @cython.pheader(
         # Arguments
-        size_or_shape_nopseudo_noghosts=object,  # Py_ssize_t or tuple
+        size_or_shape_noghosts=object,  # Py_ssize_t or tuple
         # Locals
         fluidscalar='FluidScalar',
         i='Py_ssize_t',
         s='Py_ssize_t',
-        shape_nopseudo_noghosts=tuple,
+        shape_noghosts=tuple,
         size='Py_ssize_t',
         size_old='Py_ssize_t',
         s_old='Py_ssize_t',
     )
-    def resize(self, size_or_shape_nopseudo_noghosts):
+    def resize(self, size_or_shape_noghosts):
         if self.representation == 'particles':
-            size = size_or_shape_nopseudo_noghosts
+            size = size_or_shape_noghosts
             size_old = self.N_allocated
             if size != size_old:
                 self.N_allocated = size
@@ -1865,25 +1949,25 @@ class Component:
                     )
                     self.rung_jumps_mv[size_old:size] = 0
         elif self.representation == 'fluid':
-            shape_nopseudo_noghosts = size_or_shape_nopseudo_noghosts
-            # The allocated shape of the fluid grids are 5 points
-            # (one layer of pseudo points and two layers of ghost points
-            # before and after the local grid) longer than the local
-            # shape, in each direction.
-            if not any([2 + s + 1 + 2 != s_old for s, s_old in zip(shape_nopseudo_noghosts,
-                                                                   self.shape)]):
+            shape_noghosts = size_or_shape_noghosts
+            if not any([
+                s + 2*nghosts != s_old
+                for s, s_old in zip(shape_noghosts, self.shape)
+            ]):
                 return
-            if any([s < 1 for s in shape_nopseudo_noghosts]):
-                abort('Attempted to resize fluid grids of the {} component '
-                      'to a shape of {}'.format(self.name, shape_nopseudo_noghosts))
+            if any([s < 1 for s in shape_noghosts]):
+                abort(
+                    f'Attempted to resize fluid grids of the "{self.name}" component '
+                    f'to a shape of {shape_noghosts}'
+                )
             # Recalculate and reassign meta data
-            self.shape          = tuple([2 + s + 1 + 2 for s in shape_nopseudo_noghosts])
-            self.shape_noghosts = tuple([    s + 1     for s in shape_nopseudo_noghosts])
+            self.shape          = tuple([s + 2*nghosts for s in shape_noghosts])
+            self.shape_noghosts = shape_noghosts
             self.size           = np.prod(self.shape)
             self.size_noghosts  = np.prod(self.shape_noghosts)
             # Reallocate fluid data
             for fluidscalar in self.iterate_fluidscalars():
-                fluidscalar.resize(shape_nopseudo_noghosts)
+                fluidscalar.resize(shape_noghosts)
 
     # Method for 3D realisation of linear transfer functions.
     # As all arguments are optional,
@@ -2004,7 +2088,7 @@ class Component:
         # Prepare arguments to compute_transfer,
         # if no transfer_spline is passed.
         if transfer_spline is None:
-            k_min, k_max, k_gridsize = get_default_k_parameters(gridsize)
+            k_min, k_max, k_gridsize = get_archived_k_parameters(gridsize)
         # Realize each of the variables in turn
         options_passed = options.copy()
         for variable in variables:
@@ -2052,9 +2136,9 @@ class Component:
                             {'particles': 'mom', 'fluid': 'J'}[self.representation]
                         ]['backscaling']
                     elif variable == 2 and specific_multi_index == 'trace':
-                        options = self.realization_options['𝒫']['backscaling']
+                        options['backscaling'] = self.realization_options['𝒫']['backscaling']
                     elif variable == 2:
-                        options = self.realization_options['ς']['backscaling']
+                        options['backscaling'] = self.realization_options['ς']['backscaling']
                 # Get transfer function if not passed
                 if transfer_spline is None:
                     # When realizing using the primordial structure
@@ -2737,7 +2821,7 @@ class Component:
             if np.min(shape) < 3:
                 message = [
                     f'For the P³M method, the domain tiling needs a subdivision of at least 3 '
-                    f'in every direction. Try increasing φ_gridsize.'
+                    f'in every direction.'
                 ]
                 if 1 != nprocs != int(round(cbrt(nprocs)))**3:
                     message.append(
@@ -3817,77 +3901,81 @@ class Component:
                         continue
                     yield fluidscalar
 
-    # Method for communicating pseudo and ghost points
-    # of all fluid variables.
-    @cython.header(# Arguments
-                   mode=str,
-                   # Locals
-                   fluidscalar='FluidScalar',
-                   )
-    def communicate_fluid_grids(self, mode=''):
+    # Method for communicating ghost points of all fluid variables
+    @cython.header(
+        # Arguments
+        operation=str,
+        # Locals
+        fluidscalar='FluidScalar',
+    )
+    def communicate_fluid_grids(self, operation):
         if self.representation != 'fluid':
             return
         for fluidscalar in self.iterate_fluidscalars():
-            communicate_domain(fluidscalar.grid_mv, mode=mode)
+            communicate_ghosts(fluidscalar.grid_mv, operation)
 
-    # Method for communicating pseudo and ghost points
+    # Method for communicating ghost points
     # of all starred fluid variables.
-    @cython.header(# Arguments
-                   mode=str,
-                   # Locals
-                   fluidscalar='FluidScalar',
-                   )
-    def communicate_fluid_gridsˣ(self, mode=''):
+    @cython.header(
+        # Arguments
+        operation=str,
+        # Locals
+        fluidscalar='FluidScalar',
+    )
+    def communicate_fluid_gridsˣ(self, operation):
         if self.representation != 'fluid':
             return
         for fluidscalar in self.iterate_fluidscalars():
-            communicate_domain(fluidscalar.gridˣ_mv, mode=mode)
+            communicate_ghosts(fluidscalar.gridˣ_mv, operation)
 
-    # Method for communicating pseudo and ghost points
+    # Method for communicating ghost points
     # of all non-linear fluid variables.
-    @cython.header(# Arguments
-                   mode=str,
-                   # Locals
-                   fluidscalar='FluidScalar',
-                   )
-    def communicate_nonlinear_fluid_grids(self, mode=''):
+    @cython.header(
+        # Arguments
+        operation=str,
+        # Locals
+        fluidscalar='FluidScalar',
+    )
+    def communicate_nonlinear_fluid_grids(self, operation):
         if self.representation != 'fluid':
             return
         for fluidscalar in self.iterate_nonlinear_fluidscalars():
-            communicate_domain(fluidscalar.grid_mv, mode=mode)
+            communicate_ghosts(fluidscalar.grid_mv, operation)
 
-    # Method for communicating pseudo and ghost points
+    # Method for communicating ghost points
     # of all starred non-linear fluid variables.
-    @cython.header(# Arguments
-                   mode=str,
-                   # Locals
-                   fluidscalar='FluidScalar',
-                   )
-    def communicate_nonlinear_fluid_gridsˣ(self, mode=''):
+    @cython.header(
+        # Arguments
+        operation=str,
+        # Locals
+        fluidscalar='FluidScalar',
+    )
+    def communicate_nonlinear_fluid_gridsˣ(self, operation):
         if self.representation != 'fluid':
             return
         for fluidscalar in self.iterate_nonlinear_fluidscalars():
-            communicate_domain(fluidscalar.gridˣ_mv, mode=mode)
+            communicate_ghosts(fluidscalar.gridˣ_mv, operation)
 
-    # Method for communicating pseudo and ghost points
-    # of all fluid Δ buffers.
-    @cython.header(# Arguments
-                   mode=str,
-                   # Locals
-                   fluidscalar='FluidScalar',
-                   )
-    def communicate_fluid_Δ(self, mode=''):
+    # Method for communicating ghost points of all fluid Δ buffers
+    @cython.header(
+        # Arguments
+        operation=str,
+        # Locals
+        fluidscalar='FluidScalar',
+    )
+    def communicate_fluid_Δ(self, operation):
         if self.representation != 'fluid':
             return
         for fluidscalar in self.iterate_fluidscalars():
-            communicate_domain(fluidscalar.Δ_mv, mode=mode)
+            communicate_ghosts(fluidscalar.Δ_mv, operation)
 
     # Method which calls scale_grid on all non-linear fluid scalars
-    @cython.header(# Arguments
-                   a='double',
-                   # Locals
-                   fluidscalar='FluidScalar',
-                   )
+    @cython.header(
+        # Arguments
+        a='double',
+        # Locals
+        fluidscalar='FluidScalar',
+    )
     def scale_nonlinear_fluid_grids(self, a):
         if self.representation != 'fluid':
             return
@@ -4390,7 +4478,16 @@ approximations_implemented = {
 # Set of all component names used internally by the code,
 # and which the user should generally avoid.
 cython.declare(internally_defined_names=set)
-internally_defined_names = {'all', 'all combinations', 'buffer', 'default', 'tmp', 'total', 'fake'}
+internally_defined_names = {
+    'all',
+    'all combinations',
+    'buffer',
+    'default',
+    'tmp',
+    'total',
+    'fake',
+    'linear power spectrum',
+}
 # Names of all implemented fluid variables in order.
 # Note that 𝒫 is not considered a seperate fluid variable,
 # but rather a fluid scalar that lives on ς.

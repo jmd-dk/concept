@@ -9,8 +9,14 @@ output_bases       = {'snapshot': 'snapshot'}
 output_times       = {'snapshot': (0.1, 0.5, 1)}
 
 # Numerical parameters
-boxsize    = 8*Mpc
-φ_gridsize = 8
+boxsize = 8*Mpc
+shortrange_params = {
+    'gravity': {
+        'scale'    : '1.25*boxsize/gridsize',
+        'cutoff'   : '4.5*scale',
+        'subtiling': 2,
+    },
+}
 
 # Cosmology
 H0      = 70*km/s/Mpc
@@ -19,4 +25,7 @@ H0      = 70*km/s/Mpc
 a_begin = 0.02
 
 # Physics
-select_forces = {'matter particles': {'gravity': 'pm'}}
+select_forces = {'matter particles': {'gravity': ('p3m', 64)}}
+
+# Debugging options
+print_load_imbalance = False

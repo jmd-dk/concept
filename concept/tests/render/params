@@ -1,6 +1,10 @@
 # Directory of this parameter file (non-parameter variable)
 _this_dir = os.path.dirname(paths['params'])
 
+# Fake parameter used to control number of particles
+# and render2D terminal resolution.
+_size = 64
+
 # Input/output
 initial_conditions = _this_dir + '/output/snapshot.hdf5'
 snapshot_type      = 'standard'
@@ -8,8 +12,7 @@ output_times       = {'render2D': logspace(log(a_begin), log(1), 30, base=e)}
 render2D_select    = {'matter particles': {'terminal image': True}}
 
 # Numerical parameters
-boxsize    = 80*Mpc
-φ_gridsize = 64
+boxsize = 80*Mpc
 
 # Cosmology
 H0      = 70*km/s/Mpc
@@ -21,10 +24,10 @@ a_begin = 0.02
 select_forces = {'matter particles': {'gravity': 'pm'}}
 
 # Simulation options
-random_seed = 5  # A value of 5 results in nice looking 2D renders for φ_gridsize = 64
+random_seed = 5  # A value of 5 results in nice looking 2D renders for _size = 64
 
 # Graphics
 render2D_options = {
-    'terminal resolution': 64,
+    'terminal resolution': _size,
     'colormap': 'inferno',
 }

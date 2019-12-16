@@ -47,7 +47,7 @@ cosmo = Class()
 cosmo.set(class_params_specialized)
 cosmo.compute()
 power_class = asarray([cosmo.pk(k/units.Mpc**(-1), z) for k in k_values])*units.Mpc**3
-plt.loglog(k_values, power_class, 'k', linewidth=2, label='CLASS')
+plt.loglog(k_values, power_class, 'k--', label='CLASS')
 plt.xlabel(r'$k$ $\mathrm{{[{}]}}^{{-1}}$'.format(unit_length))
 plt.ylabel(r'matter power $\mathrm{{[{}^3]}}$'.format(unit_length))
 plt.legend(loc='best').get_frame().set_alpha(0.7)

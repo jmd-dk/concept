@@ -23,7 +23,7 @@
 
 
 # Non-parameter variable used to control the size of the simulation
-_size = 36
+_size = 64
 
 # Input/output
 initial_conditions = [  # Initial condition snapshot file or container of components to be generated
@@ -75,9 +75,11 @@ snapshot_select = {  # Select which components to save in snapshots
     'all': True,
 }
 powerspec_select = {  # Toggle power spectra computation for individual and sets of components
-    'all': {'data': True, 'plot': True},
+    'all'             : {'data': True, 'plot': True},
     'all combinations': {'data': True, 'plot': False},
 }
+powerspec_include_linear = True  # Include linear CLASS power spectra in output?
+powerspec_significant_figures = 8  # Number of significant figures in power spectra output
 render2D_select = {  # Toggle 2D rendering for individual and sets of components
     'matter component'  : {'data': False, 'image': True,  'terminal image': True},
     'neutrino component': {'data': False, 'image': False, 'terminal image': False},
@@ -85,51 +87,71 @@ render2D_select = {  # Toggle 2D rendering for individual and sets of components
 render3D_select = {  # Toggle rendering for each component
     'all': True,
 }
+class_plot_perturbations = False  # Plot CLASS perturbations?
 
 # Numerical parameters
-boxsize           = 128*Mpc  # Linear size of the simulation box
-ewald_gridsize    = 64       # Linear gridsize of the grid of Ewald corrections
-φ_gridsize        = _size    # Linear gridsize of the potential
-shortrange_params = {        # Short-range force parameters for each short-range force
+boxsize = 512*Mpc  # Linear size of the simulation box
+powerspec_gridsizes = {  # Linear grid sizes to use for power spectrum computation for each component
+    'particles': '2*cbrt(N)',
+}
+powerspec_interpolation = 'PCS'  # Particle interpolation order to use for power spectrum computation
+powerspec_interlacing = True  # Use interlaced grids for particle power spectra?
+force_interpolations = {  # Particle interpolation orders to use for each long-range force and method
     'gravity': {
-        'scale'    : 1.25*boxsize/φ_gridsize,  # The long/short-range force split scale
+        'pm' : 'CIC',
+        'p3m': 'CIC',
+    },
+}
+force_interlacings = {  # Use interlaced particle potential grids, for each long-range force and method?
+    'gravity': {
+        'pm' : False,
+        'p3m': False,
+    },
+}
+force_differentiations = {  # Order (number of grid points) to use for potential grid differentiation, for each long-range force and method
+    'gravity': {
+        'pm' : 4,
+        'p3m': 4,
+   },
+}
+ewald_gridsize = 64  # Linear grid size of the grid of Ewald corrections
+shortrange_params = {  # Short-range force parameters for each short-range force
+    'gravity': {
+        'scale'    : '1.25*boxsize/gridsize',  # The long/short-range force split scale
         'cutoff'   : '4.5*scale',              # Maximum reach of short-range force
         'subtiling': 'automatic',              # Subtile decomposition
     },
 }
-R_tophat         = 8*Mpc/h  # Radius of tophat used to compute σ
-modes_per_decade = 30       # Number of linear k modes per decade computed by CLASS
+R_tophat = 8*Mpc/h     # Radius of tophat used to compute the rms density variation from power spectra
+modes_per_decade = 30  # Number of linear k modes per decade computed by CLASS
 
 # Cosmology
-H0      = 67*km/(s*Mpc)  # The Hubble constant
-Ωcdm    = 0.27 - Ων      # Density parameter for cold dark matter
-Ωb      = 0.049          # Density parameter for baryonic matter
-a_begin = 0.02           # Scale factor at beginning of simulation
+H0 = 67*km/(s*Mpc)  # The Hubble constant
+Ωcdm = 0.27 - Ων    # Density parameter for cold dark matter
+Ωb = 0.049          # Density parameter for baryonic matter
+a_begin = 0.02      # Scale factor at beginning of simulation
 primordial_spectrum = {  # Parameters for the analytic primordial spectrum
     'A_s'  : 2.1e-9,    # Amplitude
     'n_s'  : 0.96,      # Tilt / spectral index
     'α_s'  : 0,         # Tilt running
     'pivot': 0.05/Mpc,  # Pivot scale
 }
-class_params = {         # CLASS parameters. See the CLASS documentation for details.
-    # Neutrino parameters
+class_params = {  # CLASS parameters. See the CLASS documentation for details.
     'N_ur'                    : 0,
     'N_ncdm'                  : 1,
     'deg_ncdm'                : 3,
     'm_ncdm'                  : 1/3,
-    'l_max_ncdm'              : 30,
-    'Number of momentum bins' : 30,
+    'l_max_ncdm'              : 100,
+    'Number of momentum bins' : 25,
     'Maximum q'               : 18,
     'Quadrature strategy'     : 3,
     'ncdm_fluid_approximation': 3,
-    # General precision parameters
-    'evolver'                 : 0,
 }
 
 # Physics
 select_forces = {  # Forces and methods which act on each component
-    'particles': {'gravity': 'p3m'},
-    'fluid'    : {'gravity': 'pm' },
+    'particles': {'gravity': ('p3m', 2*_size)},
+    'fluid'    : {'gravity': 'pm'},
 }
 select_class_species = {  # CLASS species to use for each component
     'all': 'default',
@@ -190,15 +212,15 @@ select_softening_length = {  # Gravitational softening for each component
 
 # Simulation options
 Δt_base_background_factor = 1       # This scales the 'background' time step limiters
-Δt_base_nonlinear_factor  = 1       # This scales the 'non-linear' time step limiters
-Δt_rung_factor            = 1       # This scales the rung time step size needed for a given short-range acceleration
+Δt_base_nonlinear_factor = 1        # This scales the 'non-linear' time step limiters
+Δt_rung_factor = 1                  # This scales the rung time step size needed for a given short-range acceleration
 N_rungs = 10                        # Number of available rungs for adaptive time stepping
 fftw_wisdom_rigor = 'measure'       # Rigor level when acquiring FFTW wisdom
 fftw_wisdom_reuse = True            # Reuse FFTW wisdom from earlier runs?
-random_seed                = 1      # Seed for pseudo-random numbers
-primordial_amplitude_fixed = False  # Replace Gaussian noise with noise of fixed amplitude?
-primordial_phase_shift     = 0      # Phase shift when using fixed amplitude (set to π for paired simulations)
-fluid_scheme_select = {  # Fluid evolution scheme for each component
+random_seed = 1                     # Seed for pseudo-random numbers
+primordial_amplitude_fixed = False  # Replace Gaussian noise with noise of fixed amplitude and uniform random phase?
+primordial_phase_shift = 0          # Phase shift when using fixed amplitude (set to π for paired simulations)
+fluid_scheme_select = {             # Fluid evolution scheme for each component
     'all': 'MacCormack',
 }
 fluid_options = {  # Specifications of fluid scheme parameters
@@ -225,11 +247,10 @@ fluid_options = {  # Specifications of fluid scheme parameters
         },
     },
 }
-class_k_max = {}                  # Maximum trusted k for individual perturbations
-class_reuse = True                # Reuse CLASS results from earlier runs?
-class_plot_perturbations = False  # Plot CLASS perturbations?
-class_extra_background = {}       # Extra CLASS background variables to dump
-class_extra_perturbations = {}    # Extra CLASS perturbations to dump
+class_k_max = {}                # Maximum trusted k for individual perturbations
+class_reuse = True              # Reuse CLASS results from earlier runs?
+class_extra_background = {}     # Extra CLASS background variables to dump
+class_extra_perturbations = {}  # Extra CLASS perturbations to dump
 
 # Graphics
 terminal_width = 80                # Maximum width of terminal output, in characters
@@ -240,43 +261,51 @@ suppress_output = {                # Suppress terminal output matching these reg
     'all': (),
 }
 render2D_options = {  # Specifications of 2D renders for individual and sets of components
+    'gridsize': {
+        'all'             : _size,
+        'all combinations': ...,
+    },
+    'interpolation': {
+        'all'             : 'PCS',
+        'all combinations': ...,
+    },
     'axis': {  # Projection axis
-        'all': 'z',
+        'all'             : 'z',
         'all combinations': ...,
     },
     'extent': {  # Length or interval to include along the projected axis
-        'all': 0.1*boxsize,
+        'all'             : 0.1*boxsize,
         'all combinations': ...,
     },
     'terminal resolution': {  # Resolution (in characters) of terminal images
-        'all': min(φ_gridsize, terminal_width),
+        'all'             : terminal_width,
         'all combinations': ...,
     },
     'colormap': {  # Colormap for 2D render images and terminal images
-        'all': 'inferno',
+        'all'             : 'inferno',
         'all combinations': ...,
     },
     'enhance': {  # Toggle non-linear contrast enhancement of 2D render images and terminal images
-        'all': True,
+        'all'             : True,
         'all combinations': ...,
     },
 }
 render3D_colors = {  # Color to use in 3D renders for each component
-    'matter component': 'lime',
+    'matter component'  : 'lime',
     'neutrino component': 'r',
 }
-render3D_bgcolor    = 'black'  # Background color of 3D renders
-render3D_resolution = 1080     # The height and width of 3D renders
+render3D_bgcolor = 'black'  # Background color of 3D renders
+render3D_resolution = 1080  # The height and width of 3D renders
 
 # System of units
-unit_length = 'Mpc'      # Physical length corresponding to a numerical value of 1.0
-unit_time   = 'Gyr'      # Physical time   corresponding to a numerical value of 1.0
-unit_mass   = '10¹⁰ m☉'  # Physical mass   corresponding to a numerical value of 1.0
+unit_length = 'Mpc'    # Physical length corresponding to a numerical value of 1.0
+unit_time = 'Gyr'      # Physical time   corresponding to a numerical value of 1.0
+unit_mass = '10¹⁰ m☉'  # Physical mass   corresponding to a numerical value of 1.0
 
 # Debugging options
-print_load_imbalance    = False  # Print the CPU load imbalance after each time step
-enable_Hubble           = True   # Enable Hubble expansion
-enable_class_background = True   # Use CLASS to compute the evolution of the background
-enable_debugging        = False  # Enable debugging mode
+print_load_imbalance = True     # Print the CPU load imbalance after each time step?
+enable_Hubble = True            # Enable Hubble expansion?
+enable_class_background = True  # Use CLASS to compute the evolution of the background?
+enable_debugging = False        # Enable debugging mode?
 
 

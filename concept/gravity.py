@@ -722,7 +722,7 @@ def gravity_pairwise(
     gravity_factors_ptr = cython.address(gravity_factors[:])
     # Loop over all (receiver, supplier) particle pairs (i, j)
     interaction_name = 'gravity'
-    particle_particle_t_begin = 0
+    j = -1
     for i, j, rung_index_i, rung_index_j, x_ji, y_ji, z_ji, apply_to_i, apply_to_j, particle_particle_t_begin, subtiling_r in particle_particle(
         receiver, supplier, pairing_level,
         tile_indices_receiver, tile_indices_supplier_paired, tile_indices_supplier_paired_N,
@@ -768,7 +768,7 @@ def gravity_pairwise(
                         Δmomz_s[j] -= forcez_ij*gravity_factor
     # Add computation time to the running total,
     # for use with automatic subtiling refinement.
-    if particle_particle_t_begin != 0:
+    if j != -1:
         particle_particle_t_final = time()
         subtiling_r.computation_time += particle_particle_t_final - particle_particle_t_begin
 
@@ -844,7 +844,7 @@ def gravity_pairwise_shortrange(
     gravity_factors_ptr = cython.address(gravity_factors[:])
     # Loop over all (receiver, supplier) particle pairs (i, j)
     interaction_name = 'gravity'
-    particle_particle_t_begin = 0
+    j = -1
     for i, j, rung_index_i, rung_index_j, x_ji, y_ji, z_ji, apply_to_i, apply_to_j, particle_particle_t_begin, subtiling_r in particle_particle(
         receiver, supplier, pairing_level,
         tile_indices_receiver, tile_indices_supplier_paired, tile_indices_supplier_paired_N,
@@ -895,7 +895,7 @@ def gravity_pairwise_shortrange(
                         Δmomz_s[j] -= z_ji*total_factor
     # Add computation time to the running total,
     # for use with automatic subtiling refinement.
-    if particle_particle_t_begin != 0:
+    if j != -1:
         particle_particle_t_final = time()
         subtiling_r.computation_time += particle_particle_t_final - particle_particle_t_begin
 
@@ -1022,7 +1022,7 @@ def gravity_pairwise_nonperiodic(
     gravity_factors_ptr = cython.address(gravity_factors[:])
     # Loop over all (receiver, supplier) particle pairs (i, j)
     interaction_name = 'gravity'
-    particle_particle_t_begin = 0
+    j = -1
     for i, j, rung_index_i, rung_index_j, x_ji, y_ji, z_ji, apply_to_i, apply_to_j, particle_particle_t_begin, subtiling_r in particle_particle(
         receiver, supplier, pairing_level,
         tile_indices_receiver, tile_indices_supplier_paired, tile_indices_supplier_paired_N,
@@ -1054,7 +1054,7 @@ def gravity_pairwise_nonperiodic(
                         Δmomz_s[j] -= forcez_ij*gravity_factor
     # Add computation time to the running total,
     # for use with automatic subtiling refinement.
-    if particle_particle_t_begin != 0:
+    if j != -1:
         particle_particle_t_final = time()
         subtiling_r.computation_time += particle_particle_t_final - particle_particle_t_begin
 

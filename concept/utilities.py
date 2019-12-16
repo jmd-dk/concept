@@ -33,8 +33,8 @@ cimport('from analysis import measure')
 cimport('from communication import domain_subdivisions, exchange, partition, smart_mpi')
 cimport('import graphics')
 cimport('from integration import initiate_time, remove_doppelgängers')
-cimport('from linear import compute_cosmo, compute_transfer, get_default_k_parameters')
-cimport('from mesh import CIC_particles2fluid')
+cimport('from linear import compute_cosmo, compute_transfer, get_archived_k_parameters')
+cimport('from mesh import convert_particles_to_fluid')
 cimport('from snapshot import get_snapshot_type, snapshot_extensions')
 cimport('import species')
 cimport('from species import get_representation')
@@ -245,11 +245,14 @@ def convert():
                 # of fluid elements will not be exactly equal to the
                 # number of particles. Adjust the mass accordingly.
                 component.mass *= component.N/component.gridsize**3
-            # CIC-interpolate particle data to fluid data. Temporarily
+            # Interpolate particle data to fluid data. Temporarily
             # let the mass attribute be the original particle mass.
             mass = component.mass
             component.mass = original_mass
-            N_vacuum = CIC_particles2fluid(component)
+            N_vacuum = convert_particles_to_fluid(
+                component,
+                4,  # PCS
+            )
             component.mass = mass
             # Measure the total mass and momentum of the fluid
             Σmass_fluid = measure(component, 'mass')
@@ -662,6 +665,7 @@ def info():
     filename=str,
     gauge=str,
     gauge_str=str,
+    gridsize='Py_ssize_t',
     i='Py_ssize_t',
     index='Py_ssize_t',
     k_gridsize='Py_ssize_t',
@@ -671,6 +675,7 @@ def info():
     max_a_values='Py_ssize_t',
     other_rank='int',
     perturbations=object,  # PerturbationDict
+    powerspec_gridsize='Py_ssize_t',
     size='Py_ssize_t',
     transfer='double[:, ::1]',
     transfer_of_k='double[::1]',
@@ -687,8 +692,22 @@ def CLASS():
     # Initialize components, but do not realize them
     initiate_time()
     components = get_initial_conditions(do_realization=False)
+    # Get power spectrum gridsize
+    powerspec_gridsize = -1
+    for component in components:
+        gridsize_tmp = is_selected(component, powerspec_gridsizes)
+        if gridsize_tmp is None or isinstance(gridsize_tmp, str) or gridsize_tmp <= 2:
+            continue
+        gridsize = int(gridsize_tmp)
+        if gridsize and gridsize > powerspec_gridsize:
+            powerspec_gridsize = gridsize
+    if powerspec_gridsize == -1:
+        abort(
+            'You should (further) specify powerspec_gridsizes, e.g.\n'
+            'powerspec_gridsizes = {"all": 64}'
+        )
     # Do CLASS computation
-    k_min, k_max, k_gridsize = get_default_k_parameters(φ_gridsize)
+    k_min, k_max, k_gridsize = get_archived_k_parameters(powerspec_gridsize)
     gauge = special_params['gauge'].replace('-', '').lower()
     cosmoresults = compute_cosmo(
         k_min,
@@ -868,7 +887,7 @@ def CLASS():
     if master:
         a_min = reduce(a_min, op=MPI.MAX)
         size = reduce(size, op=MPI.SUM)
-        all_a_values = np.empty(size, dtype=C2np['double'])
+        all_a_values = empty(size, dtype=C2np['double'])
         index = 0
         # The a values of the master itself
         for perturbations in cosmoresults.perturbations:
@@ -899,7 +918,7 @@ def CLASS():
         if all_a_values.shape[0] > special_params['max_a_values']:
             max_a_values = int(round(special_params['max_a_values']))
             step = float(all_a_values.shape[0])/(max_a_values - 1)
-            all_a_values_selected = np.empty(max_a_values, dtype=C2np['double'])
+            all_a_values_selected = empty(max_a_values, dtype=C2np['double'])
             for i in range(max_a_values - 1):
                 all_a_values_selected[i] = all_a_values[cast(int(i*step), 'Py_ssize_t')]
             all_a_values_selected[max_a_values - 1] = all_a_values[all_a_values.shape[0] - 1]
@@ -946,7 +965,7 @@ def CLASS():
         'nbody'    : 'N-body',
     }.get(gauge, gauge)
     if master:
-        transfer = np.empty((all_a_values.shape[0], k_gridsize), dtype=C2np['double'])
+        transfer = empty((all_a_values.shape[0], k_gridsize), dtype=C2np['double'])
     for component, variable_specifications in component_variables.items():
         if component is None:
             class_species = 'tot'

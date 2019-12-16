@@ -9,8 +9,23 @@ output_bases       = {'snapshot': 'snapshot'}
 output_times       = {'snapshot': (0.1, 0.5, 1)}
 
 # Numerical parameters
-boxsize    = 16*Mpc/h
-φ_gridsize = 32
+boxsize = 8*Mpc/h
+force_interpolations = {
+    'gravity': {
+        'p3m': 'CIC',
+    },
+}
+force_differentiations = {
+    'gravity': {
+        'p3m': 4,
+    },
+}
+shortrange_params = {
+    'gravity': {
+        'scale' : '1.25*boxsize/gridsize',
+        'cutoff': '4.5*scale',
+    },
+}
 
 # Cosmology
 H0      = 70*km/s/Mpc
@@ -19,7 +34,8 @@ H0      = 70*km/s/Mpc
 a_begin = 0.02
 
 # Physics
-select_forces = {'matter particles': {'gravity': 'pm'}}
+select_forces           = {'matter particles': {'gravity': ('p3m', 32)}}
+select_softening_length = {'matter particles': '0.03*boxsize/cbrt(N)'}
 
 # Simulation options
 class_reuse = False

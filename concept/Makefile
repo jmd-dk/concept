@@ -177,7 +177,7 @@ unwanted_warnings =            \
     strict-overflow            \
 
 python_cflags = $(filter-out $(addprefix -W,$(unwanted_warnings)) \
-                             -g -O3 -fwrapv                       \
+                             -g -O0 -O1 -O2 -O3 -fwrapv           \
                              ,                                    \
                              $(shell $(python_config) --cflags)   \
                   )
@@ -226,9 +226,11 @@ ifeq ($(CC_version),icc)
         optimizations += -inline-factor=200
     endif
     # Filter out warnings
-    other_cflags += -wd111    # Unreachable statement
-    other_cflags += -wd11074  # Inlining inhibited
-    other_cflags += -wd11076  # How to get full report
+    other_cflags += -wd111               # Unreachable statement
+    other_cflags += -wd10148             # Option not supported
+    other_cflags += -wd11074             # Inlining inhibited
+    other_cflags += -wd11076             # How to get full report
+    other_cflags += -diag-disable=10006  # Ignoring unknown option
     # Remove unrecognized flags
     python_cflags_cp := $(python_cflags)
     python_cflags = $(filter-out  \

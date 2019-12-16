@@ -752,7 +752,7 @@ def rkf45(ḟ, f_start, t_start, t_end, abs_tol, rel_tol, save_intermediate=Fals
 # Allocate t_tab, f_tab and integrand_tab at import time.
 # t_tab and f_tab are used to store intermediate values of t and f
 # in the Runge-Kutta-Fehlberg method. integrand_tab stores the
-# associated values of the integrand in ∫_t^(t + Δt) integrand dt.
+# associated values of the integrand in ᔑ_t^(t + Δt) integrand dt.
 cython.declare(alloc_tab='Py_ssize_t',
                f_tab='double*',
                f_tab_mv='double[::1]',
@@ -772,7 +772,7 @@ f_tab_mv = cast(f_tab, 'double[:alloc_tab]')
 integrand_tab_mv = cast(integrand_tab, 'double[:alloc_tab]')
 
 # Function for calculating integrals of the sort
-# ∫_t^(t + Δt) integrand(a) dt.
+# ᔑ_t^(t + Δt) integrand(a) dt.
 @cython.header(
     # Arguments
     key=object,  # str or tuple
@@ -802,7 +802,7 @@ integrand_tab_mv = cast(integrand_tab, 'double[:alloc_tab]')
 )
 def scalefactor_integral(key, t_ini, Δt, all_components):
     """This function returns the integral
-    ∫_t^(t + Δt) integrand(a) dt.
+    ᔑ_t^(t + Δt) integrand(a) dt.
     The integrand is passed as the key argument, which may be a string
     (e.g. 'a**(-1)') or a tuple in the format (string, component.name),
     (string, component_0.name, component_1.name) etc., where again the
@@ -884,9 +884,9 @@ def scalefactor_integral(key, t_ini, Δt, all_components):
                     if integrand == 'a**(-3*w_eff)':
                         w_eff = component.w_eff(t=t, a=a)
                         integrand_tab_spline[i] = a**(-3*w_eff)
-                    elif integrand == 'a**(-3*w_eff)*Γ/H':
+                    elif integrand == 'a**(-3*(1+w_eff))':
                         w_eff = component.w_eff(t=t, a=a)
-                        integrand_tab_spline[i] = a**(-3*w_eff)*component.Γ(a)/hubble(a)
+                        integrand_tab_spline[i] = a**(-3*(1 + w_eff))
                     elif integrand == 'a**(-3*w_eff-1)':
                         w_eff = component.w_eff(t=t, a=a)
                         integrand_tab_spline[i] = a**(-3*w_eff - 1)
@@ -896,6 +896,9 @@ def scalefactor_integral(key, t_ini, Δt, all_components):
                     elif integrand == 'a**(2-3*w_eff)':
                         w_eff = component.w_eff(t=t, a=a)
                         integrand_tab_spline[i] = a**(2 - 3*w_eff)
+                    elif integrand == 'a**(-3*w_eff)*Γ/H':
+                        w_eff = component.w_eff(t=t, a=a)
+                        integrand_tab_spline[i] = a**(-3*w_eff)*component.Γ(a)/hubble(a)
                     elif master:
                         abort(
                             f'The scalefactor integral with "{integrand}" as the integrand '

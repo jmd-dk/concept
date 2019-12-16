@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 
 # This script performs CO𝘕CEPT runs with matter particles
-# and a massive neutrino fluid, the latter of which is threated
+# and a massive neutrino fluid, the latter of which is treated
 # both linerly and non-linearly.
 # The absolute non-linear neutrino power spectrum is matched
 # against the linear solution at large scales, while the relative
 # total power spectrum (relative to a cosmology with a
 # massless neutrino) is matched against the behaviour
-# found in https://arxiv.org/pdf/0802.3700.pdf .
+# found in https://arxiv.org/pdf/0802.3700.pdf
 
 # Absolute path and name of the directory of this file
 this_dir="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
@@ -30,119 +30,33 @@ set -e
 # Cleanup from last test run
 "${this_dir}/clean"
 
-# Function that runs the ${sim} CO𝘕CEPT simulation
-# and also generates N-body gauge CLASS results
-# using the CLASS utility.
-run_concept(){
-    also_run_class_util="$1"
-    mkdir "${this_dir}/output"
-    # Run the ClASS utility
-    if [ "${also_run_class_util}" == "yes" ]; then
-        echo "
-# This ensures that the CLASS run will be reused afterwards
-# when running a normal simulation.
-try:
-    special_params['keep_class_extra_background'] = False
-except:
-    pass
-" >> "${this_dir}/params_${sim}"
-        "${concept}"                       \
-            -n 4                           \
-            -p "${this_dir}/params_${sim}" \
-            --local                        \
-            -u CLASS                       \
-                "cdm+b:1, ncdm[0]:1"       \
-                --max_a_values=1000        \
-                --gauge=N-body
-    fi
-    # Run CO𝘕CEPT
-    "${concept}"                       \
-        -n 4                           \
-        -p "${this_dir}/params_${sim}" \
-        --local
-    mv "${this_dir}/output" "${this_dir}/output_${sim}"
-}
-
-
-
-#################################################
-# Absolute neutrino power spectra, large scales #
-#################################################
-# Run the non-linear neutrino simulation
-sim="big_nonlinear"
+# Run the (linear) massless neutrino simulation
+sim="massless"
 cp "${this_dir}/params" "${this_dir}/params_${sim}"
 echo "
-initial_conditions.append({
-    'name'             : 'neutrino',
-    'species'          : 'neutrino fluid',
-    'gridsize'         : _size,
-    'boltzmann_order'  : 1,
-    'boltzmann_closure': 'class',
-})
-" >> "${this_dir}/params_${sim}"
-run_concept "no"
-
-# Run the linear neutrino simulation
-sim="big_linear"
-cp "${this_dir}/params" "${this_dir}/params_${sim}"
-echo "
-initial_conditions.append({
-    'name'             : 'neutrino',
-    'species'          : 'neutrino fluid',
-    'gridsize'         : _size,
-    'boltzmann_order'  : -1,
-    'boltzmann_closure': 'class',
-})
-" >> "${this_dir}/params_${sim}"
-run_concept "no"
-
-
-
-
-##############################################
-# Relative total power spectra, small scales #
-##############################################
-boxsize_small="256*Mpc"
-# Run the massless neutrino simulation
-sim="small_massless"
-cp "${this_dir}/params" "${this_dir}/params_${sim}"
-echo "
-boxsize = ${boxsize_small}
+initial_conditions[1]['boltzmann_order'] = -1
 class_params['m_ncdm'] = 1e-100
 " >> "${this_dir}/params_${sim}"
-run_concept "yes"
-
-# Run the non-linear massive neutrino simulation
-sim="small_massive_nonlinear"
-cp "${this_dir}/params" "${this_dir}/params_${sim}"
-echo "
-boxsize = ${boxsize_small}
-initial_conditions.append({
-    'name'             : 'neutrino',
-    'species'          : 'neutrino fluid',
-    'gridsize'         : _size,
-    'boltzmann_order'  : 1,
-    'boltzmann_closure': 'class',
-})
-" >> "${this_dir}/params_${sim}"
-run_concept "no"
+"${concept}" -n 4 -p "${this_dir}/params_${sim}" --local
+mv "${this_dir}/output" "${this_dir}/output_${sim}"
 
 # Run the linear massive neutrino simulation
-sim="small_massive_linear"
+sim="massive_linear"
 cp "${this_dir}/params" "${this_dir}/params_${sim}"
 echo "
-boxsize = ${boxsize_small}
-initial_conditions.append({
-    'name'             : 'neutrino',
-    'species'          : 'neutrino fluid',
-    'gridsize'         : _size,
-    'boltzmann_order'  : -1,
-    'boltzmann_closure': 'class',
-})
+initial_conditions[1]['boltzmann_order'] = -1
 " >> "${this_dir}/params_${sim}"
-run_concept "yes"
+"${concept}" -n 4 -p "${this_dir}/params_${sim}" --local
+mv "${this_dir}/output" "${this_dir}/output_${sim}"
 
-
+# Run the non-linear massive neutrino simulation
+sim="massive_nonlinear"
+cp "${this_dir}/params" "${this_dir}/params_${sim}"
+echo "
+initial_conditions[1]['boltzmann_order'] = +1
+" >> "${this_dir}/params_${sim}"
+"${concept}" -n 4 -p "${this_dir}/params_${sim}" --local
+mv "${this_dir}/output" "${this_dir}/output_${sim}"
 
 # Analyze the output snapshots
 "${concept}" -n 1 -p "${this_dir}/params" -m "${this_dir}/analyze.py" --pure-python --local

@@ -25,8 +25,8 @@ set -e
 # Cleanup from last test run
 "${this_dir}/clean"
 
-# Get the φ_gridsize parameter and store it in the variable 'gridsize'
-gridsize=$(get_param "φ_gridsize")
+# Get the fake _size parameter and store it in the variable 'gridsize'
+gridsize=$(get_param "_size")
 
 # Generate ICs
 "${concept}" -n 1 -p "${this_dir}/params" -m "${this_dir}/generate_IC.py" --pure-python --local

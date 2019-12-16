@@ -25,109 +25,106 @@
 from commons import *
 
 # Cython imports
-cimport('from communication import domain_size_x,  domain_size_y,  domain_size_z, '
-                                  'domain_start_x, domain_start_y, domain_start_z,'
-                                  'get_buffer,                                    '
+cimport(
+    'from communication import        '
+    '    domain_layout_local_indices, '
+    '    domain_size_x,               '
+    '    domain_size_y,               '
+    '    domain_size_z,               '
+    '    domain_start_x,              '
+    '    domain_start_y,              '
+    '    domain_start_z,              '
+    '    get_buffer,                  '
 )
-cimport('from mesh import CIC_components2φ')
+cimport('from mesh import interpolate_components, interpolate_grid_to_grid')
 
 # Pure Python imports
 from mpl_toolkits.mplot3d import proj3d  # Importing from mpl_toolkits.mplot3d enables 3D plotting
 
 
 
-# Function for plotting power spectra
-@cython.header(# Arguments
-               k_bin_centers='double[::1]',
-               power_dict=object,  # OrderedDict
-               filename=str,
-               powerspec_plot_select=dict,
-               # Locals
-               a_string=str,
-               component_combination=tuple,
-               component_combination_str=str,
-               filename_combination=str,
-               names_str=str,
-               power='double[::1]',
-               t_string=str,
-               )
-def plot_powerspec(k_bin_centers, power_dict, filename, powerspec_plot_select):
-    """The power spectra are given in power_dict,
-    which is an OrderedDict mapping component combinations
-    (tuples of components) to arrays with the corresponding power.
-    The matching k values are given by k_bin_centers.
+# Function for plotting an already computed power spectrum
+# and saving an image file to disk.
+@cython.header(
+    # Arguments
+    powerspec_declaration=object,  # PowerspecDeclaration
+    filename=str,
+    # Locals
+    a_str=str,
+    component='Component',
+    components=list,
+    components_str=str,
+    k_bin_centers='double[::1]',
+    power='double[::1]',
+    power_linear='double[::1]',
+    t_str=str,
+    returns='void',
+)
+def plot_powerspec(powerspec_declaration, filename):
+    """It is expected that this function
+    is called by the master process only.
     """
-    # Only the master process takes part in the power spectra plotting
-    if not master:
+    if not powerspec_declaration.do_plot:
         return
+    components    = powerspec_declaration.components
+    k_bin_centers = powerspec_declaration.k_bin_centers
+    power         = powerspec_declaration.power
+    power_linear  = powerspec_declaration.power_linear
     # Attach missing extension to filename
     if not filename.endswith('.png'):
         filename += '.png'
-    # Plot each power spectrum given in power_dict,
-    # if it has been selected for plotting in the
-    # powerspec_select parameter. A refined version of this dict is
-    # passed as powerspec_plot_select.
-    for component_combination, power in power_dict.items():
-        if not is_selected(component_combination, powerspec_plot_select):
-            continue
-        # The filename should reflect the individual
-        # components/combinations, when several components/combinations
-        # are being plotted.
-        filename_combination = filename
-        if len(power_dict) > 1:
-            names_str = '_'.join([component.name.replace(' ', '-')
-                                  for component in component_combination])
-            if '_t=' in filename_combination:
-                filename_combination = filename_combination.replace('_t=', f'_{names_str}_t=')
-            elif '_a=' in filename_combination:
-                filename_combination = filename_combination.replace('_a=', f'_{names_str}_a=')
-            else:
-                filename_combination = filename_combination.replace('.png', f'_{names_str}.png')
-        if len(component_combination) == 1:
-            component_combination_str = component_combination[0].name
-        else:
-            component_combination_str = '{{{}}}'.format(', '.join(
-                [component.name for component in component_combination]
-                                                                  )
-                                                        )
-        masterprint('Plotting power spectrum of {} and saving to "{}" ...'
-                    .format(component_combination_str, filename_combination)
-                    )
-        # Plot power spectrum
-        plt.figure()
-        if np.any(asarray(power) != 0):
-            plt.loglog(k_bin_centers, power, '-')
+    # Begin progress message
+    if len(components) == 1:
+        components_str = components[0].name
+    else:
+        components_str = '{{{}}}'.format(
+            ', '.join([component.name for component in components])
+        )
+    masterprint(
+        f'Plotting power spectrum of {components_str} and saving to "{filename}" ...'
+    )
+    # Plot power spectrum in new figure
+    fig, ax = plt.subplots()
+    if np.any(power):
+        ax.loglog(k_bin_centers, power, '-', label='simulation')
+    else:
+        # The odd case of no power at all
+        ax.semilogx(k_bin_centers, power, '-', label='simulation')
+    # Also plot linear CLASS power spectra, if specified
+    if powerspec_include_linear:
+        ylim = ax.get_ylim()
+        if np.any(power_linear):
+            ax.loglog(k_bin_centers, power_linear, 'k--', label='linear')
         else:
             # The odd case of no power at all
-            plt.semilogx(k_bin_centers, power, '-')
-        plt.xlabel(rf'$k$ $\mathrm{{[{unit_length}^{{-1}}]}}$', fontsize=14)
-        plt.ylabel(rf'power $\mathrm{{[{unit_length}^3]}}$',    fontsize=14)
-        t_string = (
-            r'$t = {}\, \mathrm{{{}}}$'
-            .format(significant_figures(universals.t, 4, fmt='tex'), unit_time)
-        )
-        a_string = ''
-        if enable_Hubble:
-            a_string = ', $a = {}$'.format(significant_figures(universals.a, 4, fmt='tex'))
-        component_combination_str = (
-            component_combination_str
-            .replace('{', r'$\{$')
-            .replace('}', r'$\}$')
-            .replace(',', ',\n')
-            )
-        plt.title(
-            f'{component_combination_str}\nat {t_string}{a_string}',
-            fontsize=16,
-            horizontalalignment='center',
-            )
-        plt.gca().tick_params(axis='both', which='major', labelsize=13)
-        plt.gca().tick_params(axis='both', which='minor', labelsize=11)
-        plt.tight_layout()
-        plt.savefig(filename_combination)
-        # Close the figure, leaving no trace in memory of the plot
-        plt.close()
-        # Finish progress message
-        masterprint('done')
+            ax.semilogx(k_bin_centers, power_linear, 'k--', label='linear')
+        # Labels are only needed when both the non-linear (simulation)
+        # and linear spectrum are plotted.
+        ax.legend(fontsize=14)
+        ax.set_ylim(ylim)
+    ax.set_xlabel(rf'$k$ $[\mathrm{{{unit_length}}}^{{-1}}]$', fontsize=14)
+    ax.set_ylabel(rf'power $[\mathrm{{{unit_length}}}^3]$',    fontsize=14)
+    t_str = (
+        rf'$t = {{}}\, \mathrm{{{{{unit_time}}}}}$'
+        .format(significant_figures(universals.t, 4, fmt='tex'))
+    )
+    a_str = ''
+    if enable_Hubble:
+        a_str = ', $a = {}$'.format(significant_figures(universals.a, 4, fmt='tex'))
+    components_str = (
+        components_str
+        .replace('{', r'$\{$')
+        .replace('}', r'$\}$')
+    )
+    ax.set_title(f'{components_str}\nat {t_str}{a_str}', fontsize=16, horizontalalignment='center')
+    ax.tick_params(axis='both', which='major', labelsize=13)
+    ax.tick_params(axis='both', which='minor', labelsize=11)
+    plt.tight_layout()
+    plt.savefig(filename)
+    # Done with this plot.
+    # Close the figure, leaving no trace in memory of the plot.
+    plt.close(fig)
+    masterprint('done')
 
 # Mappings from (pieces of) CLASS perturbation variable names
 # to the LaTeX code for typesetting of the variables and their units,
@@ -411,82 +408,52 @@ def plot_processed_perturbations(a_values, k_magnitudes, transfer, var_name, cla
     components=list,
     filename=str,
     # Locals
-    L='double',
-    N_bins='Py_ssize_t',
     N_data_outputs='Py_ssize_t',
     N_image_outputs='Py_ssize_t',
-    a='double',
     axis=str,
-    bin_edges='double[::1]',
-    bins='Py_ssize_t[::1]',
-    blurrinesses=list,
-    color_truncation_factor_lower='double',
-    color_truncation_factor_upper='double',
+    buffer_number='int',
     colormap=str,
     colornumber='int',
-    component='Component',
     component_combination=tuple,
     component_combination_str=str,
     component_combinations=object,  # generator
-    critical_blurriness_ratio='double',
-    data_coordinates='double[::1]',
-    domain_start_i='Py_ssize_t',
-    domain_start_j='Py_ssize_t',
-    domain_start_k='Py_ssize_t',
-    enhance='bint',
     exponent='double',
-    exponent_lower='double',
-    exponent_max='double',
-    exponent_min='double',
-    exponent_upper='double',
     ext=str,
     extent=tuple,
     filename_combination=str,
+    grid='double[:, :, ::1]',
+    grid_fluid='double[:, :, ::1]',
+    grid_fluid_ptr='double*',
+    grid_particles='double[:, :, ::1]',
+    grid_particles_ptr='double*',
+    grid_terminal='double[:, :, ::1]',
+    grids=dict,
+    gridsize='Py_ssize_t',
+    gridsize_component='Py_ssize_t',
+    gridsize_terminal='Py_ssize_t',
     i='Py_ssize_t',
-    i_center='Py_ssize_t',
-    i_max='Py_ssize_t',
-    i_min='Py_ssize_t',
-    index_m='Py_ssize_t',
-    index_n='Py_ssize_t',
-    interpolation_coordinates_m='double[::1]',
-    interpolation_coordinates_n='double[::1]',
-    interpolation_quantities=list,
+    interpolation_order='int',
     j='Py_ssize_t',
-    k='Py_ssize_t',
     names_str=str,
-    occupation='Py_ssize_t',
-    terminal_projection='double[:, ::1]',
-    terminal_projection_ANSI=list,
-    terminal_projection_candidates=list,
     projection='double[:, ::1]',
-    projection_enhanced='double[:, ::1]',
-    projection_max='double',
-    projection_min='double',
-    shifting_factor='double',
-    terminal_resolution='Py_ssize_t',
+    projection_terminal='double[:, ::1]',
+    row='double[::1]',
+    terminal_projection_ANSI=list,
     value='double',
-    vmin='double',
     vmax='double',
-    x='double',
-    y='double',
-    z='double',
-    Σbins='Py_ssize_t',
-    φ='double[:, :, ::1]',
+    vmin='double',
 )
 def render2D(components, filename):
     """This function will produce 2D renders of the passed components.
     A slab of the density field will be projected onto a plane.
     The details of this projection is specified in the render2D_options
-    user parameter. Before the projection, the density field within the
-    slab will be constructed using CIC interpolation.
+    user parameter.
     """
     # Remove any extension on the filename
     for ext in ('.hdf5', '.png'):
         if filename.endswith(ext):
             filename = filename[:len(filename) - len(ext)]
             break
-    # Always use the current value of the scale factor
-    a = universals.a
     # Generator yielding tuples of all possible combinations
     # of the passed components.
     component_combinations = itertools.chain.from_iterable(
@@ -511,7 +478,7 @@ def render2D(components, filename):
                 is_selected(component_combination, render2D_data_select)
             or  is_selected(component_combination, render2D_image_select)
             or  is_selected(component_combination, render2D_terminal_image_select)
-            ):
+        ):
             continue
         component_combination_str = ', '.join(
             [component.name for component in component_combination]
@@ -519,107 +486,77 @@ def render2D(components, filename):
         if len(component_combination) > 1:
             component_combination_str = f'{{{component_combination_str}}}'
         masterprint(f'Rendering 2D projection of {component_combination_str} ...')
-        # Extract some options for this component combination
-        # from the render2D_options user parameter.
+        # Get the gridsize of the interpolation grid. If none is set,
+        # choose a gridsize based on the component with the largest
+        # number of particles or fluid elements.
+        gridsize = is_selected(component_combination, render2D_options['gridsize'])
+        if gridsize is None or gridsize == -1:
+            gridsize = -1
+            for component in component_combination:
+                if component.representation == 'particles':
+                    gridsize_component = int(round(cbrt(component.N)))
+                elif component.representation == 'fluid':
+                    gridsize_component = component.gridsize
+                if gridsize_component > gridsize:
+                    gridsize = gridsize_component
+        # We now do the interpolation of the components onto grids.
+        # A separate grid will be used for particles and fluids.
+        # We choose to interpolate the physical density ρ.
+        interpolation_order = is_selected(
+            component_combination,
+            render2D_options['interpolation'],
+        )
+        grids = interpolate_components(
+            list(component_combination),
+            'ρ',
+            gridsize,
+            interpolation_order,
+        )
+        # Sum the grids into a single grid storing the total density
+        grid_particles = grids['particles']
+        grid_fluid     = grids['fluid']
+        if grid_particles is not None and grid_fluid is not None:
+            grid_particles_ptr = cython.address(grid_particles[:, :, :])
+            grid_fluid_ptr     = cython.address(grid_fluid    [:, :, :])
+            grid = grid_particles
+            for i in range(grid.shape[0]*grid.shape[1]*grid.shape[2]):
+                grid_particles_ptr[i] += grid_fluid_ptr[i]
+        elif grid_particles is not None:
+            grid = grid_particles
+        else:  # grid_fluid is not None
+            grid = grid_fluid
+        # Get projected 2D grid
         axis   = is_selected(component_combination, render2D_options['axis'])
         extent = is_selected(component_combination, render2D_options['extent'])
-        # We now do the CIC interpolation of the components onto the
-        # φ grid. We choose to interpolate the mass of each
-        # component onto the grid.
-        # Since all particles have the same mass, the mass contribution
-        # from a single particle is a**(-3*w_eff)*component.mass.
-        # For fluids, each fluid element contributes to the mass by
-        # an amount (a*L_cell)**3*ρ(x)
-        #         = (a*boxsize/component.gridsize)**3*ρ(x)
-        #         = (boxsize/component.gridsize)**3*a**(-3*w_eff)*ϱ(x).
-        interpolation_quantities = [
-            # Particle components
-            ('particles', [
-                a**(-3*component.w_eff(a=a))*component.mass
-                for component in component_combination]
-            ),
-            # Fluid components
-            ('ϱ', [(boxsize/component.gridsize)**3*a**(-3*component.w_eff(a=a))
-                   for component in component_combination]),
-            ]
-        φ = CIC_components2φ(
-            list(component_combination),
-            interpolation_quantities,
-            add_particles_and_fluids=True,
-        )
-        domain = φ[2:(φ.shape[0] - 3), 2:(φ.shape[1] - 3), 2:(φ.shape[2] - 3)]
-        # The array storing the projected render. This is allocated
-        # in full on every process.
-        projection = get_buffer((φ_gridsize, )*2, 'projection', nullify=True)
-        # Fill up the local part of the projection array.
-        # When axis is 'x' the projection will be onto the yz plane
-        # with y right and z up.
-        # When axis is 'y' the projection will be onto the xz plane
-        # with x right and z up.
-        # When axis is 'z' the projection will be onto the xy plane
-        # with x right and y up.
-        # The rightward and upward directions will be referred to as
-        # m and n, respectively. Because the 2D projection array is C
-        # contiguoues it is in row-major order, and so m should be the
-        # second dimension while n should be the first dimension.
-        # Also, since rows are counted downwards, the n dimension should
-        # be indexed backwards.
-        L = boxsize/φ_gridsize
-        domain_start_i = int(round(domain_start_x/L))
-        domain_start_j = int(round(domain_start_y/L))
-        domain_start_k = int(round(domain_start_z/L))
-        for i in range(ℤ[domain.shape[0]]):
-            x = domain_start_x + i*L
-            with unswitch(1):
-                if 𝔹[axis == 'x']:
-                    if ℝ[extent[0]] <= x:
-                        weight = (ℝ[extent[1]] - x)/L
-                        if weight > 1:
-                            weight = 1
-                    else:
-                        weight = 1 - (ℝ[extent[0]] - x)/L
-                    if weight <= 0:
-                        continue
-                else:
-                    index_m = domain_start_i + i
-            for j in range(ℤ[domain.shape[1]]):
-                y = domain_start_y + j*L
-                with unswitch(2):
-                    if 𝔹[axis == 'x']:
-                        index_m = domain_start_j + j
-                    elif 𝔹[axis == 'y']:
-                        if ℝ[extent[0]] <= y:
-                            weight = (ℝ[extent[1]] - y)/L
-                            if weight > 1:
-                                weight = 1
-                        else:
-                            weight = 1 - (ℝ[extent[0]] - y)/L
-                        if weight <= 0:
-                            continue
-                    else:
-                        index_n = ℤ[φ_gridsize - 1 - domain_start_j] - j
-                for k in range(ℤ[domain.shape[2]]):
-                    z = domain_start_z + k*L
-                    with unswitch(3):
-                        if not 𝔹[axis == 'z']:
-                            index_n = ℤ[φ_gridsize - 1 - domain_start_k] - k
-                        else:
-                            if ℝ[extent[0]] <= z:
-                                weight = (ℝ[extent[1]] - z)/L
-                                if weight > 1:
-                                    weight = 1
-                            else:
-                                weight = 1 - (ℝ[extent[0]] - z)/L
-                            if weight <= 0:
-                                continue
-                    # Include this grid cell
-                    projection[index_n, index_m] += weight*domain[i, j, k]
-        # Sum up contributions from all processes into the master,
-        # after which only the master process should carry on.
-        Reduce(sendbuf=(MPI.IN_PLACE if master else projection),
-               recvbuf=(projection   if master else None),
-               op=MPI.SUM,
-               )
+        buffer_number = 0
+        projection = project(grid, gridsize, axis, extent, buffer_number)
+        buffer_number += 1
+        # If we additionally need a terminal image, interpolate the
+        # grid onto another grid of the needed size
+        # and produce a projection.
+        projection_terminal = None
+        if is_selected(component_combination, render2D_terminal_image_select):
+            gridsize_terminal = is_selected(
+                component_combination,
+                render2D_options['terminal resolution'],
+            )
+            grid_terminal = interpolate_grid_to_grid(grid, buffer_number, gridsize_terminal)
+            buffer_number += 1
+            projection_terminal = project(
+                grid_terminal, gridsize_terminal, axis, extent, buffer_number,
+            )
+            buffer_number += 1
+            # Since each monospaced character cell in the terminal is
+            # rectangular with about double the height compared to the
+            # width, the terminal projection should only have half as
+            # many rows as it has columns.
+            for i in range(projection_terminal.shape[0]//2):
+                row = 0.5*(
+                    asarray(projection_terminal[2*i, :]) + asarray(projection_terminal[2*i + 1, :])
+                )
+                projection_terminal[i, :] = row
+            projection_terminal = projection_terminal[:projection_terminal.shape[0]//2, :]
+        # The master now holds all needed information
         if not master:
             continue
         # Store projected image as an hdf5 file
@@ -654,7 +591,7 @@ def render2D(components, filename):
                 hdf5_file.attrs['axis'                 ] = axis
                 hdf5_file.attrs['extent'               ] = extent
                 if enable_Hubble:
-                    hdf5_file.attrs['a'] = a
+                    hdf5_file.attrs['a'] = universals.a
                 hdf5_file.attrs['t'    ] = universals.t
                 # Store the 2D projection
                 dset = hdf5_file.create_dataset(
@@ -669,57 +606,310 @@ def render2D(components, filename):
         if not (
                is_selected(component_combination, render2D_image_select)
             or is_selected(component_combination, render2D_terminal_image_select)
-            ):
+        ):
             masterprint('done')
             continue
-        # Extract further options for this component combination
-        # from the render2D_options user parameter.
+        # The colormap specified for this component combination
         colormap = is_selected(component_combination, render2D_options['colormap'])
-        enhance  = is_selected(component_combination, render2D_options['enhance'])
-        # Enhance the projected image by applying a non-linear
-        # transformation of the form
-        # projection → projection**exponent.
-        # We want to find a value for the exponent which leads to a nice
-        # distribution of the values in the projection. We take this to
-        # be the case when the histogram of these values is "centered"
-        # at the value specified by the shifting_factor variable.
-        # A shifting_factor of 0.5 implies that the histogram of the
-        # pixel values is "centered" in the middle of the axis, with the
-        # same distance to the first and last bin. For Gaussian data,
-        # this require a value of the exponent tending to 0. Thus,
-        # the shifting factor should be below 0.5. A shifting_factor
-        # between 0 and 0.5 shifts the center of the histogram to be at
-        # the location of shifting_factor, measured relative to the
-        # histogram axis. Here, the center is defined to be the point
-        # which partitions the histogram into two parts which integrate
-        # to the same value.
-        if enhance:
-            masterprint(f'Enhancing image ...')
-            shifting_factor = 0.28
-            # Enforce all pixel values to be between 0 and 1
-            projection_min = np.min(projection)
-            if projection_min != 0:
-                projection = asarray(projection) - projection_min
-            projection_max = np.max(projection)
-            if projection_max not in (0, 1):
-                projection = asarray(projection)*(1/projection_max)
-            # Find a good value for the exponent using a binary search
-            exponent_min = 1e-2
-            exponent_max = 1e+2
-            exponent_lower = exponent_min
-            exponent_upper = exponent_max
-            exponent = 1
-            i_min = -4
-            i_max = -2
-            N_bins = np.max([25, φ_gridsize**2//100])
-        while enhance:
-            # Construct histogram over projection**exponent
-            projection_enhanced = asarray(projection)**exponent
-            bins, bin_edges = np.histogram(projection_enhanced, N_bins)
+        # Enhance projections if specified
+        if is_selected(component_combination, render2D_options['enhance']):
+            projection, vmin, vmax, exponent = enhance(projection)
+            if projection_terminal is not None:
+                projection_terminal, vmin_terminal, vmax_terminal, exponent = enhance(
+                    projection_terminal, exponent,
+                )
+        else:
+            vmin = np.min(projection)
+            vmax = np.max(projection)
+            if projection_terminal is not None:
+                vmin_terminal = np.min(projection_terminal)
+                vmax_terminal = np.max(projection_terminal)
+        # If vmin and vmax are exactly the same, it is because the
+        # projection is completely homogeneous, with vmin and vmax equal
+        # to the common pixel value. In this case, change vmin and vmax
+        # such that the homogeneous value sits right between
+        # vmin and vmax.
+        if vmin == vmax:
+            vmin = 0
+            vmax *= 2
+        if projection_terminal is not None:
+            if vmin_terminal == vmax_terminal:
+                vmin_terminal = 0
+                vmax_terminal *= 2
+        # Draw projected image in the terminal
+        if projection_terminal is not None:
+            # Apply the colormap
+            set_terminal_colormap(colormap)
+            # Construct list of strings, each string being a space
+            # prepended with an ANSI/VT100 control sequences which sets
+            # the background color. When printed together, these strings
+            # produce an ANSI image of the terminal projection.
+            # We need to map the values between vmin and vmax to
+            # the 238 higher integer color numbers 18–255 (the lowest 18
+            # color numbers are already occupied).
+            terminal_projection_ANSI = []
+            for     i in range(ℤ[projection_terminal.shape[0]]):
+                for j in range(ℤ[projection_terminal.shape[1]]):
+                    value = projection_terminal[i, j]
+                    if value > vmax_terminal:
+                        value = vmax_terminal
+                    elif value < vmin_terminal:
+                        value = vmin_terminal
+                    colornumber = 18 + cast(
+                        round((value - vmin_terminal)*ℝ[237/(vmax_terminal - vmin_terminal)]),
+                        'int',
+                    )
+                    # Insert a space with colored background
+                    terminal_projection_ANSI.append(f'{ANSI_ESC}[48;5;{colornumber}m ')
+                # Insert newline with no background color
+                terminal_projection_ANSI.append(f'{ANSI_ESC}[0m\n')
+            # Print the ANSI image to the terminal
+            masterprint(''.join(terminal_projection_ANSI), end='', indent=-1, wrap=False)
+        # Save colorized image to disk
+        if is_selected(component_combination, render2D_image_select):
+            # The filename should reflect the component combination
+            filename_combination = filename + '.png'
+            if N_image_outputs > 1:
+                names_str = '_'.join(
+                    [component.name.replace(' ', '-') for component in component_combination]
+                )
+                if '_t=' in filename_combination:
+                    filename_combination = filename_combination.replace('_t=', f'_{names_str}_t=')
+                elif '_a=' in filename_combination:
+                    filename_combination = filename_combination.replace('_a=', f'_{names_str}_a=')
+                else:
+                    filename_combination = filename_combination.replace(
+                        '.png', f'_{names_str}.png')
+            masterprint(f'Saving image to "{filename_combination}" ...')
+            plt.imsave(
+                filename_combination,
+                asarray(projection),
+                cmap=colormap,
+                vmin=vmin,
+                vmax=vmax,
+            )
+            masterprint('done')
+        # Done with the entire rendering process
+        # for this component combination.
+        masterprint('done')
+# Construct the render2D_data_select, render2D_image_select
+# and render2D_terminal_image_select dicts from
+# the render2D_select parameter.
+cython.declare(
+    render2D_data_select=dict,
+    render2D_image_select=dict,
+    render2D_terminal_image_select=dict,
+)
+render2D_data_select = {
+    key: val['data'] for key, val in render2D_select.items()
+}
+render2D_image_select = {
+    key: val['image'] for key, val in render2D_select.items()
+}
+render2D_terminal_image_select = {
+    key: val['terminal image'] for key, val in render2D_select.items()
+}
+
+# Function for converting distributed 3D domain grids
+# into a 2D projection grid.
+@cython.header(
+    # Arguments
+    grid='double[:, :, ::1]',
+    gridsize='Py_ssize_t',
+    axis=str,
+    extent=tuple,
+    buffer_name=object,  # str or int
+    # Locals
+    cellsize='double',
+    dim='int',
+    domain_start_indices='Py_ssize_t[::1]',
+    gridshape_local='Py_ssize_t[::1]',
+    indices_2D_bgn='Py_ssize_t[::1]',
+    indices_2D_end='Py_ssize_t[::1]',
+    indices_global_bgn='Py_ssize_t[::1]',
+    indices_global_end='Py_ssize_t[::1]',
+    indices_local_bgn='Py_ssize_t[::1]',
+    indices_local_end='Py_ssize_t[::1]',
+    participate='bint',
+    projection=object,  # np.ndarray
+    returns='double[:, ::1]',
+)
+def project(grid, gridsize, axis, extent, buffer_name=0):
+    """Note that only the master will return the full projection.
+    """
+    # Get global index range into the grids, specifying the chunk
+    # that should be used for the projection.
+    indices_global_bgn = asarray([0       ]*3, dtype=C2np['Py_ssize_t'])
+    indices_global_end = asarray([gridsize]*3, dtype=C2np['Py_ssize_t'])
+    for dim in range(3):
+        if axis == 'xyz'[dim]:
+            indices_global_bgn[dim] = int(round(extent[0]*gridsize/boxsize))
+            indices_global_end[dim] = int(round(extent[1]*gridsize/boxsize))
+            break
+    # Convert the global indices to local indices,
+    # disregarding ghost points, for now.
+    cellsize = boxsize/gridsize
+    domain_start_indices = asarray(
+        [
+            int(round(domain_start_x/cellsize)),
+            int(round(domain_start_y/cellsize)),
+            int(round(domain_start_z/cellsize)),
+        ],
+        dtype=C2np['Py_ssize_t'],
+    )
+    gridshape_local = asarray(
+        asarray(asarray(grid).shape) - ℤ[2*nghosts],
+        dtype=C2np['Py_ssize_t'],
+    )
+    participate = True
+    indices_local_bgn = asarray(indices_global_bgn) - asarray(domain_start_indices)
+    for dim in range(3):
+        if indices_local_bgn[dim] < 0:
+            indices_local_bgn[dim] = 0
+        elif indices_local_bgn[dim] > gridshape_local[dim]:
+            participate = False
+            break
+    indices_local_end = asarray(indices_global_end) - asarray(domain_start_indices)
+    for dim in range(3):
+        if indices_local_end[dim] < 0:
+            participate = False
+            break
+        elif indices_local_end[dim] > gridshape_local[dim]:
+            indices_local_end[dim] = gridshape_local[dim]
+    for dim in range(3):
+        if indices_local_bgn[dim] == indices_local_end[dim]:
+            participate = False
+            break
+    # Redefine the global indices so that they correspond to the
+    # local chunk, but indexing into a global grid.
+    indices_global_bgn = asarray(indices_local_bgn) + asarray(domain_start_indices)
+    indices_global_end = asarray(indices_local_end) + asarray(domain_start_indices)
+    # Instantiate full 2D projection array on every process
+    projection = get_buffer((gridsize, )*2, buffer_name, nullify=True)
+    # Fill in the local part of the projection on each process
+    if participate:
+        if axis == 'x':
+            # The projection will be onto the yz plane
+            # with y right and z up.
+            indices_2D_bgn = asarray([indices_global_bgn[1], indices_global_bgn[2]],
+                dtype=C2np['Py_ssize_t'])
+            indices_2D_end = asarray([indices_global_end[1], indices_global_end[2]],
+                dtype=C2np['Py_ssize_t'])
+        elif axis == 'y':
+            # The projection will be onto the xz plane
+            # with x right and z up.
+            indices_2D_bgn = asarray([indices_global_bgn[0], indices_global_bgn[2]],
+                dtype=C2np['Py_ssize_t'])
+            indices_2D_end = asarray([indices_global_end[0], indices_global_end[2]],
+                dtype=C2np['Py_ssize_t'])
+        elif axis == 'z':
+            # The projection will be onto the xy plane
+            # with x right and y up.
+            indices_2D_bgn = asarray([indices_global_bgn[0], indices_global_bgn[1]],
+                dtype=C2np['Py_ssize_t'])
+            indices_2D_end = asarray([indices_global_end[0], indices_global_end[1]],
+                dtype=C2np['Py_ssize_t'])
+        projection[
+            indices_2D_bgn[0]:indices_2D_end[0],
+            indices_2D_bgn[1]:indices_2D_end[1],
+        ] += np.sum(grid[
+            nghosts + indices_local_bgn[0]:nghosts + indices_local_end[0],
+            nghosts + indices_local_bgn[1]:nghosts + indices_local_end[1],
+            nghosts + indices_local_bgn[2]:nghosts + indices_local_end[2],
+        ], 'xyz'.index(axis))
+    # Sum up contributions from all processes into the master,
+    # after which the master process holds the full projection.
+    Reduce(
+        sendbuf=(MPI.IN_PLACE if master else projection),
+        recvbuf=(projection   if master else None),
+        op=MPI.SUM,
+    )
+    # Transform the layout of the projection such that the first
+    # dimension (rows) correspond to the upward/downward direction and
+    # the second dimension (columns) correspond to the left/right
+    # direction. Also flip the upward/downward axis by flipping the
+    # rows. Together, this put the projection into the proper state for
+    # saving it as an image.
+    if master:
+        projection = np.ascontiguousarray(projection.transpose()[::-1, :])
+    return projection
+
+# Function for enhancing the contrast of a 2D image
+@cython.header(
+    # Arguments
+    image='double[:, ::1]',
+    exponent='double',
+    # Locals
+    N_pixels='Py_ssize_t',
+    N_bins='Py_ssize_t',
+    bin_edges='double[::1]',
+    bins='Py_ssize_t[::1]',
+    color_truncation_factor_lower='double',
+    color_truncation_factor_upper='double',
+    exponent_lower='double',
+    exponent_max='double',
+    exponent_min='double',
+    exponent_upper='double',
+    i='Py_ssize_t',
+    i_center='Py_ssize_t',
+    i_max='Py_ssize_t',
+    i_min='Py_ssize_t',
+    image_enhanced='double[:, ::1]',
+    image_max='double',
+    image_min='double',
+    occupation='Py_ssize_t',
+    shifting_factor='double',
+    vmax='double',
+    vmin='double',
+    Σbins='Py_ssize_t',
+    returns=tuple,
+)
+def enhance(image, exponent=0):
+    """This function enhances an image by applying a non-linear
+    transformation of the form
+    image → image**exponent.
+    If not provided, we find a value for the exponent which leads to a
+    nice distribution of the values in the image. We take this to be the
+    case when the histogram of these values is "centered" at the value
+    specified by the shifting_factor parameter. A shifting_factor of 0.5
+    implies that the histogram of the pixel values is "centered" in the
+    middle of the axis, with the same distance to the first and last
+    bin. For Gaussian data, this require a value of the exponent tending
+    to 0. Thus, the shifting factor should be below 0.5. A
+    shifting_factor between 0 and 0.5 shifts the center of the histogram
+    to be at the location of shifting_factor, measured relative to the
+    histogram axis. Here, the center is defined to be the point which
+    partitions the histogram into two parts which integrate to the
+    same value.
+    """
+    # Enforce all pixel values to be between 0 and 1
+    image_min = np.min(image)
+    if image_min != 0:
+        image = asarray(image) - image_min
+    image_max = np.max(image)
+    if image_max not in (0, 1):
+        image = asarray(image)*(1/image_max)
+    # Find exponent if not given
+    N_pixels = np.prod(asarray(image).shape)
+    N_bins = np.max([25, N_pixels//100])
+    if exponent == 0:
+        shifting_factor = 0.28
+        # Find a good value for the exponent using a binary search
+        exponent_min = 1e-2
+        exponent_max = 1e+2
+        exponent_lower = exponent_min
+        exponent_upper = exponent_max
+        exponent = 1
+        i_min = -4
+        i_max = -2
+        while True:
+            # Construct histogram over image**exponent
+            image_enhanced = asarray(image)**exponent
+            bins, bin_edges = np.histogram(image_enhanced, N_bins)
             # Compute the sum of all bins. This is equal to the sum of
-            # values in the projection. However, we skip bins[0] since
+            # values in the image. However, we skip bins[0] since
             # sometimes empty cells results in a large spike there.
-            Σbins = ℤ[φ_gridsize**2] - bins[0]
+            Σbins = N_pixels - bins[0]
             # Find the position of the center of the histogram,
             # defined by the sums of bins being the same on both
             # sides of this center. We again skip bins[0].
@@ -730,13 +920,11 @@ def render2D(components, filename):
                     i_center = i
                     break
             else:
-                masterwarn(
-                    'Something went wrong during image enhancement. '
-                    'The image will be generated from the raw data.'
-                    )
-                enhance = False
-                masterprint('done')
-                break
+                # Something went wrong. Bail out.
+                masterwarn('Something went wrong during image enhancement')
+                vmin = np.min(image)
+                vmax = np.max(image)
+                return image, vmin, vmax, 0
             if i_center < ℤ[N_bins*shifting_factor]:
                 # The exponent should be decreased
                 exponent_upper = exponent
@@ -766,168 +954,38 @@ def render2D(components, filename):
             # Update the exponent. As the range of the exponent is
             # large, the binary step is done in logarithmic space.
             exponent = sqrt(exponent_lower*exponent_upper)
-        # Set color limits
-        if enhance:
-            # Apply the image enhancement
-            projection = projection_enhanced
-            # To further enhance the image, we set the color limits
-            # so as to truncate the color space at both ends,
-            # saturating pixels with very little or very high intensity.
-            # The color limits vmin and vmax are determined based on
-            # color_truncation_factor_lower and
-            # color_truncation_factor_upper, respectively.
-            # These specify the accumulated fraction of Σbins at which
-            # the histogram should be truncated, for the lower and
-            # upper intensity ends. For images with a lot of structure
-            # the best results are obtained by giving the lower color
-            # truncation quite a large value (this effectively removes
-            # the background), while giving the higher color truncation
-            # a small value, so that small very overdense regions
-            # appear clearly.
-            color_truncation_factor_lower = 0.001
-            color_truncation_factor_upper = 0.00002
-            occupation = 0
-            for i in range(1, N_bins):
-                occupation += bins[i]
-                if occupation >= ℝ[color_truncation_factor_lower*Σbins]:
-                    vmin = bin_edges[i - 1]
-                    break
-            occupation = 0
-            for i in range(N_bins - 1, 0, -1):
-                occupation += bins[i]
-                if occupation >= ℝ[color_truncation_factor_upper*Σbins]:
-                    vmax = bin_edges[i + 1]
-                    break
-            masterprint('done')
-        else:
-            vmin = np.min(projection)
-            vmax = np.max(projection)
-        # Draw projected image in the terminal
-        if is_selected(component_combination, render2D_terminal_image_select):
-            # Construct a version of the projection with the resolution
-            # specified as the terminal resolution for this
-            # component combination. Since each character in the
-            # terminal is rectangular with about double the height
-            # compared to the width, the terminal projection will only
-            # have half as many rows as it has columns.
-            terminal_resolution = is_selected(
-                component_combination,
-                render2D_options['terminal resolution'],
-            )
-            if terminal_resolution == φ_gridsize:
-                # When the terminal resolution matches that of the
-                # φ grid, simply use the φ grid (projection) as is.
-                terminal_projection = np.ascontiguousarray(projection[::2, :])
-            else:
-                # Coordinate mapping between the original
-                # data (projection) and the interpolated
-                # data (terminal_projection).
-                data_coordinates = linspace(
-                    0,
-                    terminal_resolution - 1,
-                    φ_gridsize,
-                )
-                interpolation_coordinates_m = linspace(
-                    0,
-                    terminal_resolution - 1,
-                    terminal_resolution,
-                )
-                interpolation_coordinates_n = linspace(
-                    0,
-                    terminal_resolution - 1,
-                    (terminal_resolution + 1)//2,
-                )
-                # Interpolate original data (projection) to the new
-                # image format. Sometimes (e.g. when φ_gridsize is
-                # larger than the cube root of the number of particles
-                # and particles are placed in close to perfect mesh
-                # alignment) the resulting interpolated image gets very
-                # blurry and few structural features remain. This can
-                # (perhaps surprisingly) be fixed by slightly smoothing
-                # the data before doing the interpolation. As this
-                # smothing does not noticeably alter the image in the
-                # normal case, we always perform this smoothing.
-                # In the end, this is a result of the fact that we are
-                # using the φ grid to generate the projected image,
-                # and so the image depends on φ_grid.
-                terminal_projection = np.ascontiguousarray(
-                    scipy.interpolate.interp2d(
-                        data_coordinates,
-                        data_coordinates,
-                        scipy.ndimage.filters.gaussian_filter(
-                            projection, sigma=1, truncate=3, mode='wrap',
-                        ),
-                        'cubic',
-                    )(interpolation_coordinates_m, interpolation_coordinates_n)
-                )
-            # Apply the colormap
-            # specified for this component combination.
-            set_terminal_colormap(colormap)
-            # Construct list of strings, each string being a space
-            # prepended with an ANSI/VT100 control sequences which sets
-            # the background color. When printed together, these strings
-            # produce an ANSI image of the terminal projection.
-            # We need to map the values between vmin and vmax to
-            # the 238 higher integer color numbers 18–255 (the lowest 18
-            # color numbers are already occupied).
-            terminal_projection_ANSI = []
-            for     i in range(ℤ[terminal_projection.shape[0]]):
-                for j in range(ℤ[terminal_projection.shape[1]]):
-                    value = terminal_projection[i, j]
-                    if value > vmax:
-                        value = vmax
-                    elif value < vmin:
-                        value = vmin
-                    colornumber = 18 + cast(round((value - vmin)*ℝ[237/(vmax - vmin)]), 'int')
-                    # Insert a space with colored background
-                    terminal_projection_ANSI.append(f'{ANSI_ESC}[48;5;{colornumber}m ')
-                # Insert newline with no background color
-                terminal_projection_ANSI.append(f'{ANSI_ESC}[0m\n')
-            # Print the ANSI image to the terminal
-            masterprint(''.join(terminal_projection_ANSI), end='', indent=-1, wrap=False)
-        # Save colorized image to disk
-        if is_selected(component_combination, render2D_image_select):
-            # The filename should reflect the component combination
-            filename_combination = filename + '.png'
-            if N_image_outputs > 1:
-                names_str = '_'.join(
-                    [component.name.replace(' ', '-') for component in component_combination]
-                )
-                if '_t=' in filename_combination:
-                    filename_combination = filename_combination.replace('_t=', f'_{names_str}_t=')
-                elif '_a=' in filename_combination:
-                    filename_combination = filename_combination.replace('_a=', f'_{names_str}_a=')
-                else:
-                    filename_combination = filename_combination.replace('.png', f'_{names_str}.png')
-            masterprint(f'Saving image to "{filename_combination}" ...')
-            plt.imsave(
-                filename_combination,
-                asarray(projection),
-                cmap=colormap,
-                vmin=vmin,
-                vmax=vmax,
-            )
-            masterprint('done')
-        # Done with the entire rendering process
-        # for this component combination.
-        masterprint('done')
-# Construct the render2D_data_select, render2D_image_select
-# and render2D_terminal_image_select dicts from
-# the render2D_data_select parameter.
-cython.declare(
-    render2D_data_select=dict,
-    render2D_image_select=dict,
-    render2D_terminal_image_select=dict,
-)
-render2D_data_select = {
-    key: val['data' ] for key, val in render2D_select.items()
-}
-render2D_image_select = {
-    key: val['image'] for key, val in render2D_select.items()
-}
-render2D_terminal_image_select = {
-    key: val['terminal image'] for key, val in render2D_select.items()
-}
+    # Apply the image enhancement
+    image_enhanced = asarray(image)**exponent
+    bins, bin_edges = np.histogram(image_enhanced, N_bins)
+    Σbins = N_pixels - bins[0]
+    # To further enhance the image, we set the color limits so as to
+    # truncate the color space at both ends, saturating pixels with very
+    # little or very high intensity. The color limits vmin and vmax are
+    # determined based on color_truncation_factor_lower and
+    # color_truncation_factor_upper, respectively. These specify the
+    # accumulated fraction of Σbins at which the histogram should be
+    # truncated, for the lower and upper intensity ends. For images with
+    # a lot of structure the best results are obtained by giving the
+    # lower color truncation quite a large value (this effectively
+    # removes the background), while giving the higher color truncation
+    # a small value, so that small very overdense regions
+    # appear clearly.
+    color_truncation_factor_lower = 0.005
+    color_truncation_factor_upper = 0.0001
+    occupation = 0
+    for i in range(1, N_bins):
+        occupation += bins[i]
+        if occupation >= ℝ[color_truncation_factor_lower*Σbins]:
+            vmin = bin_edges[i - 1]
+            break
+    occupation = 0
+    for i in range(N_bins - 1, 0, -1):
+        occupation += bins[i]
+        if occupation >= ℝ[color_truncation_factor_upper*Σbins]:
+            vmax = bin_edges[i + 1]
+            break
+    # Return the enhanced image, the color limits and the exponent
+    return image_enhanced, vmin, vmax, exponent
 
 # Function for chancing the colormap of the terminal
 def set_terminal_colormap(colormap):
@@ -955,56 +1013,61 @@ def set_terminal_colormap(colormap):
         print(statechange, end='')
 
 # Function for 3D renderings of the components
-@cython.header(# Arguments
-               components=list,
-               filename=str,
-               cleanup='bint',
-               tmp_dirname=str,
-               # Locals
-               N='Py_ssize_t',
-               N_local='Py_ssize_t',
-               a_str=str,
-               artists_text=dict,
-               color='double[::1]',
-               component='Component',
-               component_dict=dict,
-               figname=str,
-               filename_component=str,
-               filename_component_alpha=str,
-               filename_component_alpha_part=str,
-               filenames_component_alpha=list,
-               filenames_component_alpha_part=list,
-               filenames_components=list,
-               i='Py_ssize_t',
-               index='Py_ssize_t',
-               j='Py_ssize_t',
-               k='Py_ssize_t',
-               label_props=list,
-               label_spacing='double',
-               name=str,
-               names=tuple,
-               part='int',
-               posx_mv='double[::1]',
-               posy_mv='double[::1]',
-               posz_mv='double[::1]',
-               render3D_dir=str,
-               rgbα='double[:, ::1]',
-               scatter_size='double',
-               size='Py_ssize_t',
-               size_i='Py_ssize_t',
-               size_j='Py_ssize_t',
-               size_k='Py_ssize_t',
-               t_str=str,
-               xi='double',
-               yj='double',
-               zk='double',
-               α='double',
-               α_factor='double',
-               α_homogeneous='double',
-               α_min='double',
-               ϱ_noghosts='double[:, :, :]',
-               ϱbar_component='double',
-               )
+@cython.header(
+    # Arguments
+    components=list,
+    filename=str,
+    cleanup='bint',
+    tmp_dirname=str,
+    # Locals
+    N='Py_ssize_t',
+    N_local='Py_ssize_t',
+    a_str=str,
+    artists_text=dict,
+    color='double[::1]',
+    component='Component',
+    component_dict=dict,
+    domain_start_i='Py_ssize_t',
+    domain_start_j='Py_ssize_t',
+    domain_start_k='Py_ssize_t',
+    figname=str,
+    filename_component=str,
+    filename_component_alpha=str,
+    filename_component_alpha_part=str,
+    filenames_component_alpha=list,
+    filenames_component_alpha_part=list,
+    filenames_components=list,
+    gridsize='Py_ssize_t',
+    i='Py_ssize_t',
+    index='Py_ssize_t',
+    j='Py_ssize_t',
+    k='Py_ssize_t',
+    label_props=list,
+    label_spacing='double',
+    name=str,
+    names=tuple,
+    part='int',
+    posx_mv='double[::1]',
+    posy_mv='double[::1]',
+    posz_mv='double[::1]',
+    render3D_dir=str,
+    rgbα='double[:, ::1]',
+    scatter_size='double',
+    size='Py_ssize_t',
+    size_i='Py_ssize_t',
+    size_j='Py_ssize_t',
+    size_k='Py_ssize_t',
+    t_str=str,
+    xi='double',
+    yj='double',
+    zk='double',
+    α='double',
+    α_factor='double',
+    α_homogeneous='double',
+    α_min='double',
+    ϱ_noghosts='double[:, :, :]',
+    ϱbar_component='double',
+)
 def render3D(components, filename, cleanup=True, tmp_dirname='.renders3D'):
     global render3D_image
     # Do not 3D render anything if
@@ -1085,9 +1148,9 @@ def render3D(components, filename, cleanup=True, tmp_dirname='.renders3D'):
                 # To 3D render fluid elements, their explicit positions
                 # are needed. In the following, these are computed and
                 # stored in the variables posx_mv, posy_mv and posz_mv.
-                size_i = component.shape_noghosts[0] - 1
-                size_j = component.shape_noghosts[1] - 1
-                size_k = component.shape_noghosts[2] - 1
+                size_i = component.shape_noghosts[0]
+                size_j = component.shape_noghosts[1]
+                size_k = component.shape_noghosts[2]
                 # Number of local fluid elements
                 size = size_i*size_j*size_k
                 # Allocate arrays for storing grid positions
@@ -1095,13 +1158,17 @@ def render3D(components, filename, cleanup=True, tmp_dirname='.renders3D'):
                 posy_mv = empty(size, dtype='double')
                 posz_mv = empty(size, dtype='double')
                 # Fill the arrays
+                gridsize = component.gridsize
+                domain_start_i = domain_layout_local_indices[0]*size_i
+                domain_start_j = domain_layout_local_indices[1]*size_j
+                domain_start_k = domain_layout_local_indices[2]*size_k
                 index = 0
                 for i in range(size_i):
-                    xi = domain_start_x + i*ℝ[domain_size_x/size_i]
+                    xi = (ℝ[domain_start_i + 0.5] + i)*ℝ[boxsize/gridsize]
                     for j in range(size_j):
-                        yj = domain_start_y + j*ℝ[domain_size_y/size_j]
+                        yj = (ℝ[domain_start_j + 0.5] + j)*ℝ[boxsize/gridsize]
                         for k in range(size_k):
-                            zk = domain_start_z + k*ℝ[domain_size_z/size_k]
+                            zk = (ℝ[domain_start_k + 0.5] + k)*ℝ[boxsize/gridsize]
                             posx_mv[index] = xi
                             posy_mv[index] = yj
                             posz_mv[index] = zk
@@ -1110,7 +1177,7 @@ def render3D(components, filename, cleanup=True, tmp_dirname='.renders3D'):
                 # fluid element. This is the only array which will be
                 # updated for each new 3D render, and only the α column
                 # will be updated.
-                rgbα = np.empty((size, 4), dtype=C2np['double'])
+                rgbα = empty((size, 4), dtype=C2np['double'])
                 for i in range(size):
                     for dim in range(3):
                         rgbα[i, dim] = color[dim]
@@ -1118,7 +1185,7 @@ def render3D(components, filename, cleanup=True, tmp_dirname='.renders3D'):
                 # The particle (fluid element) size on the figure.
                 # The size is chosen such that the particles stand side
                 # by side in a homogeneous universe (more or less).
-                N = component.gridsize**3
+                N = gridsize**3
                 scatter_size = 1550*np.prod(fig.get_size_inches())/N**ℝ[2/3]
                 # Determine the α multiplication factor which ensures
                 # that a homogeneous column through the entire box will
@@ -1144,7 +1211,7 @@ def render3D(components, filename, cleanup=True, tmp_dirname='.renders3D'):
                                               )
                 # The set_facecolors method on the artist can be used
                 # to update the α values on the plot. This function is
-                # called internally my matplotlib with wrong arguments,
+                # called internally by matplotlib with wrong arguments,
                 # cancelling the α updates. For this reason, we
                 # replace this method with a dummy method, while
                 # keeping the original as _set_facecolors (though we
@@ -1174,6 +1241,7 @@ def render3D(components, filename, cleanup=True, tmp_dirname='.renders3D'):
                                               )
             # Configure axis options
             ax.dist = 9  # Zoom level
+            ax.set_proj_type('ortho')
             ax.set_xlim(0, boxsize)
             ax.set_ylim(0, boxsize)
             ax.set_zlim(0, boxsize)
@@ -1182,7 +1250,6 @@ def render3D(components, filename, cleanup=True, tmp_dirname='.renders3D'):
                 # Needed due to bug in matplotlib 3.0.0
                 spine.set_visible(False)
             plt.tight_layout(pad=-1)  # Extra tight layout, to prevent white frame
-            proj3d.persp_transformation = orthographic_proj  # Use orthographic 3D projection
             # Store the figure, axes and the component
             # and text artists in the render3D_dict.
             render3D_dict[component.name] = {'fig': fig,
@@ -1243,17 +1310,14 @@ def render3D(components, filename, cleanup=True, tmp_dirname='.renders3D'):
             α_factor = component_dict['α_factor']
             # Measure the mean value of the ϱ grid
             ϱ_noghosts = component.ϱ.grid_noghosts
-            ϱbar_component = allreduce(np.sum(ϱ_noghosts[:(ϱ_noghosts.shape[0] - 1),
-                                                         :(ϱ_noghosts.shape[1] - 1),
-                                                         :(ϱ_noghosts.shape[2] - 1)]),
-                                       op=MPI.SUM)/component.gridsize**3
+            ϱbar_component = allreduce(np.sum(ϱ_noghosts), op=MPI.SUM)/component.gridsize**3
             # Update the α values in rgbα array based on the values of
             # ϱ at each grid point. The rgb-values remain the same for
             # all 3D renders of this component.
             index = 0
-            for         i in range(ℤ[ϱ_noghosts.shape[0] - 1]):
-                for     j in range(ℤ[ϱ_noghosts.shape[1] - 1]):
-                    for k in range(ℤ[ϱ_noghosts.shape[2] - 1]):
+            for         i in range(ℤ[ϱ_noghosts.shape[0]]):
+                for     j in range(ℤ[ϱ_noghosts.shape[1]]):
+                    for k in range(ℤ[ϱ_noghosts.shape[2]]):
                         α = ℝ[α_factor/ϱbar_component]*ϱ_noghosts[i, j, k]
                         if α > 1:
                             α = 1
@@ -1371,23 +1435,6 @@ render3D_image = empty((render3D_resolution, render3D_resolution, 4), dtype=C2np
 # Dummy function
 def dummy_func(*args, **kwargs):
     return None
-
-# Transformation function for orthographic projection
-def orthographic_proj(zfront, zback):
-    """This function is taken from
-    http://stackoverflow.com/questions/23840756
-    To replace the default 3D persepctive projection with
-    3D orthographic perspective, simply write
-    proj3d.persp_transformation = orthographic_proj
-    where proj3d is imported from mpl_toolkits.mplot3d.
-    """
-    a = (zfront + zback)/(zfront - zback)
-    b = -2*(zfront*zback)/(zfront - zback)
-    return asarray([[1, 0,  0   , 0    ],
-                    [0, 1,  0   , 0    ],
-                    [0, 0,  a   , b    ],
-                    [0, 0, -1e-6, zback],
-                    ])
 
 # Function which takes in a list of filenames of images and blend them
 # together into the global render3D_image array.
