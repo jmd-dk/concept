@@ -1903,6 +1903,7 @@ cython.declare(
     # Numerical parameter
     boxsize='double',
     powerspec_gridsizes=dict,
+    powerspec_binsize='double',
     powerspec_interpolation='int',
     powerspec_interlacing='bint',
     force_interpolations=dict,
@@ -2064,6 +2065,8 @@ if isinstance(user_params.get('powerspec_gridsizes', {}), (int, float)):
 else:
     powerspec_gridsizes = replace_ellipsis(dict(user_params.get('powerspec_gridsizes', {})))
 user_params['powerspec_gridsizes'] = powerspec_gridsizes
+powerspec_binsize = float(user_params.get('powerspec_binsize', 2*π/boxsize))
+user_params['powerspec_binsize'] = powerspec_binsize
 interpolation_orders = {'NGP': 1, 'CIC': 2, 'TSC': 3, 'PCS': 4}
 powerspec_interpolation_str = str(user_params.get('powerspec_interpolation', 'PCS'))
 powerspec_interpolation = int(

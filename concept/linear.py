@@ -2818,6 +2818,7 @@ def get_archived_k_parameters(gridsize, allow_decrease=False):
     options_linear=dict,
     option_val=object,  # str or bool
     particle_components=list,
+    particle_index='int',
     particle_shift='double',
     particle_shifts='double[::1]',
     pariclevar_name=str,
@@ -2859,12 +2860,7 @@ def realize(component, variable, transfer_spline, cosmoresults,
     fluidscalar may be specified. If you want a realization at a time
     different from the present you may specify an a.
     If a particle component is given, the Zel'dovich approximation is
-    used to distribute the paricles and assign momenta. This is
-    done simultaneously, meaning that you cannot realize only the
-    positions or only the momenta. For the particle realization to
-    work correctly, you must pass the δ transfer function as
-    transfer_spline. For particle components, the variable argument
-    is not used.
+    used to distribute the paricles and assign momenta.
 
     Several options has to be specified to define how the realization is
     to be carried out. These options are contained in the "options"
@@ -3206,7 +3202,8 @@ def realize(component, variable, transfer_spline, cosmoresults,
         particle_shifts = (
             linspace(particle_shift/2, 1 - particle_shift/2, len(particle_components)) -  0.5
         )
-        particle_shift = particle_shifts[particle_components.index(component)]
+        particle_index = particle_components.index(component)
+        particle_shift = particle_shifts[particle_index]
     else:
         particle_shift = 0
     # Loop over all fluid scalars of the fluid variable
@@ -3539,6 +3536,7 @@ slab_structure_previous_info = {}
     plane_ji='double*',
     plane_ji_conj='double*',
     plane_nyquist='double[:, :, ::1]',
+    r='double',
     shell='Py_ssize_t',
     slab_jik='double*',
     θ='double',
@@ -3693,8 +3691,19 @@ def generate_primordial_noise(slab):
                 # points along this line.
                 if 𝔹[j_global == j_global_conj] and i == i_conj:
                     # The complex number is its own conjugate,
-                    # so it has to be purely real.
-                    slab[j, i, k + 1] = 0
+                    # so it has to be purely real. We want the magnitude
+                    # of the complex number to stay the same, and so we
+                    # rotate the number down onto the real axis.
+                    # In doing so, we retain the sign of the real
+                    # component (corresponding to the smallest rotation
+                    # which result in a real number).
+                    slab_jik = cython.address(slab[j, i, k:])
+                    r = sqrt(slab_jik[0]**2 + slab_jik[1]**2)
+                    if slab_jik[0] > 0:
+                        slab_jik[0] = +r
+                    else:
+                        slab_jik[0] = -r
+                    slab_jik[1] = 0
                 elif 𝔹[j_global != j_global_conj] or i < ℤ[gridsize//2]:
                     # Enforce conjugacy
                     slab_jik      = cython.address(slab [j            , i     , k:])

@@ -217,10 +217,10 @@ def get_powerspec_bins(gridsize):
       All processes will have a copy of this array.
     - k_bin_centers: Mapping from bin index to |k⃗|, i.e.
         k_bin_center = k_bin_centers[k_bin_index]
-      This array lives on the maste process only.
+      This array lives on the master process only.
     - n_modes: Mapping from bin index to number of modes, i.e.
         n = n_modes[bin_index]
-      This array lives on the maste process only.
+      This array lives on the master process only.
     """
     # Look up in the cache
     powerspec_bins = powerspec_bins_cache.get(gridsize)
@@ -231,13 +231,20 @@ def get_powerspec_bins(gridsize):
     # Maximum and minum k values
     k_min = ℝ[2*π/boxsize]
     k_max = ℝ[2*π/boxsize]*sqrt(k2_max)
-    # Construct linear k bins, each with a size of k_min.
-    # The k_bin_centers will be changed later according to the k² values
-    # on the 3D grid that falls inside each bin. The final placing of
-    # the bin centers are then really defined indirectly by
-    # k_bin_indices below (which depend on the initial values given to
-    # k_bin_centers).
-    k_bin_size = k_min
+    # Construct linear k bins, each with a linear size given by the
+    # powerspec_binsize parameter. The k_bin_centers will be changed
+    # later according to the k² values on the 3D grid that falls inside
+    # each bin. The final placing of the bin centers are then really
+    # defined indirectly by k_bin_indices below (which depend on the
+    # initial values given to k_bin_centers).
+    # A bin size below powerspec_binsize_min is guaranteed to never bin
+    # separate k² together in the same bin, and so powerspec_binsize_min
+    # is the smallest bin size allowed.
+    powerspec_binsize_min = (0.5 - 1e-2)*(
+          ℝ[2*π/boxsize]*sqrt(3*((gridsize + 2)//2)**2 + 1)
+        - ℝ[2*π/boxsize]*sqrt(3*((gridsize + 2)//2)**2)
+    )
+    k_bin_size = np.max((powerspec_binsize, powerspec_binsize_min))
     k_bin_centers = np.arange(
         k_min + (0.5 - 1e+1*machine_ϵ)*k_bin_size,
         k_max + k_bin_size,
@@ -284,7 +291,9 @@ def get_powerspec_bins(gridsize):
     n_modes_max = 0
     if not master:
         # The slave processes return now.
-        # Only k_bin_indices contain data.
+        # Updated values of k_bin_indice are received from the master.
+        # This is the only data known to the slaves.
+        Bcast(k_bin_indices)
         k_bin_centers = n_modes = None
         powerspec_bins_cache[gridsize] = k_bin_indices, k_bin_centers, n_modes, n_modes_max
         return k_bin_indices, k_bin_centers, n_modes, n_modes_max
@@ -309,15 +318,23 @@ def get_powerspec_bins(gridsize):
             k_bin_centers[k_bin_index] /= ℤ[n_modes[k_bin_index]]
             if ℤ[n_modes[k_bin_index]] > n_modes_max:
                 n_modes_max = ℤ[n_modes[k_bin_index]]
-    # The last couple of modes may not be populated at all.
-    # Truncate the k_bin_centers and n_modes so that they only cover
-    # the populated region.
-    for i in range(n_modes.shape[0]):
-        if n_modes[i] == 0:
-            n_modes = n_modes[:i]
-            k_bin_centers = k_bin_centers[:i]
-            break
-    # Store the data in the cache and return
+    # We wish to remove bins with a mode count of 0.
+    # Modify k_bin_indices so that consecutive bin indices
+    # correspond to non-empty bins.
+    k_bin_index_prev = k_bin_indices[0]
+    for k2 in range(1, k_bin_indices.shape[0]):
+        k_bin_index = k_bin_indices[k2]
+        if k_bin_index == k_bin_index_prev or n_modes[k_bin_index] == 0:
+            k_bin_indices[k2] = k_bin_indices[k2 - 1]
+        elif k_bin_index > k_bin_index_prev:
+            k_bin_indices[k2] = k_bin_indices[k2 - 1] + 1
+            k_bin_index_prev = k_bin_index
+    # The final values of k_bin_indices should be known to all processes
+    Bcast(k_bin_indices)
+    # Remove bins with mode count 0
+    mask = (asarray(n_modes) > 0)
+    n_modes = asarray(n_modes)[mask]
+    k_bin_centers = asarray(k_bin_centers)[mask]
     powerspec_bins_cache[gridsize] = k_bin_indices, k_bin_centers, n_modes, n_modes_max
     return k_bin_indices, k_bin_centers, n_modes, n_modes_max
 # Cache used by the get_powerspec_bins function
