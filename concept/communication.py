@@ -799,7 +799,7 @@ def sendrecv_component(
         # the component_buffer is needed, we grab the type of the passed
         # component_send (Component) and instantiate such an instance.
         if component_buffer is None:
-            component_buffer = type(component_send)('', 'dark matter particles', 1)
+            component_buffer = type(component_send)('', 'cold dark matter', N=1)
         # Adjust important meta data on the buffer component
         component_buffer.name             = component_send.name
         component_buffer.species          = component_send.species

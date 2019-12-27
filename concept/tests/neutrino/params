@@ -6,14 +6,12 @@ _size = 64
 initial_conditions = [
     # Matter
     {
-        'name'   : 'matter',
-        'species': 'matter particles',
+        'species': 'matter',
         'N'      : _size**3,
     },
-    # Neutrino
+    # Neutrinos
     {
-        'name'             : 'neutrino',
-        'species'          : 'neutrino fluid',
+        'species'          : 'neutrinos',
         'gridsize'         : _size,
         'boltzmann_closure': 'class',
     },
@@ -33,7 +31,7 @@ powerspec_select = {
 render2D_select = {
     'all': False,
     'all combinations': False,
-    'neutrino': {'image': True, 'terminal image': True},
+    'neutrinos': {'image': True, 'terminal image': True},
 }
 powerspec_include_linear = True
 

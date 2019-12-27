@@ -48,7 +48,6 @@ mv "${this_dir}/output/snapshot"* "${this_dir}/output/particles/"
 # Function for converting particle snapshots to fluid snapshots
 particles2fluid(){
     "${concept}" --local -u convert "${1}"             \
-        "control particles.species  = matter fluid"    \
         "control particles.gridsize = ${gridsize}"     \
         "control particles.name     = converted fluid"
 }

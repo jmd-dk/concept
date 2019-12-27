@@ -820,7 +820,7 @@ class Tiling:
 
     # String representation
     def __repr__(self):
-        return f'<tiling of component "{self.component.name}" with shape {tuple(self.shape)}>'
+        return f'<tiling of {self.component.name} with shape {tuple(self.shape)}>'
     def __str__(self):
         return self.__repr__()
 
@@ -838,7 +838,8 @@ class Component:
         # Arguments
         name=str,
         species=str,
-        N_or_gridsize='Py_ssize_t',
+        N='Py_ssize_t',
+        gridsize='Py_ssize_t',
         mass='double',
         boltzmann_order='Py_ssize_t',
         forces=dict,
@@ -851,7 +852,9 @@ class Component:
         # Locals
         i='Py_ssize_t',
     )
-    def __init__(self, name, species, N_or_gridsize, *,
+    def __init__(self, name, species, *,
+        N=-1,
+        gridsize=-1,
         mass=-1,
         boltzmann_order=-2,
         forces=None,
@@ -1019,7 +1022,7 @@ class Component:
         # and that the name has not already been used.
         if name in internally_defined_names:
             masterwarn(
-                f'A species by the name of "{name}" is to be created. '
+                f'A component by the name of "{name}" is to be created. '
                 f'As this name is used internally by the code, '
                 f'this may lead to erroneous behaviour.'
             )
@@ -1032,27 +1035,44 @@ class Component:
         for char in ',{}':
             if char in name:
                 masterwarn(
-                    f'A species by the name of "{name}" is to be created. '
+                    f'A component by the name of "{name}" is to be created. '
                     f'As this name contains a "{char}" character, '
                     f'this may lead to erroneous behaviour.'
                 )
         if name:
             component_names.add(name)
         # General attributes
-        self.name    = name
-        self.species = species
-        self.representation = get_representation(self.species)
-        if self.representation == 'particles':
-            self.N = N_or_gridsize
+        self.name = name
+        self.species = ''
+        for single_species in str(species).split('+'):
+            single_species = single_species.replace('[', ' ').replace(']', ' ').strip()
+            match = re.search(r'(.+?) *(\d+) *$', single_species)
+            if match:
+                single_species = match.group(1)
+            self.species += '+' + species_canonical.get(single_species.lower(), '')
+            if match:
+                self.species += ' ' + match.group(2)
+            if self.species.endswith('+'):
+                abort(
+                    f'Species "{single_species}" not supported. The supported species are:',
+                    sorted(set(species_canonical.values())),
+                )
+        self.species = self.species.strip(' +')
+        if N != -1:
+            self.N = N
             self.gridsize = 1
-        elif self.representation == 'fluid':
-            self.gridsize = N_or_gridsize
+            self.representation = 'particles'
+        elif gridsize != -1:
+            self.gridsize = gridsize
             self.N = 1
+            self.representation = 'fluid'
             if self.gridsize%2 != 0:
                 masterwarn(
-                    f'The fluid component "{self.name}" has an odd gridsize ({self.gridsize}). '
+                    f'{self.name.capitalize()} has an odd gridsize ({self.gridsize}). '
                     f'Some operations may not function correctly.'
                 )
+        else:
+            abort(f'Neither N nor gridsize set for {self.name}')
         # Set forces (and force methods)
         if forces is None:
             forces = is_selected(self, select_forces, accumulate=True)
@@ -1072,8 +1092,8 @@ class Component:
             if (force, method) == ('gravity', 'p3m'):
                 if ℝ[shortrange_params['gravity']['scale']] < 0:
                     abort(
-                        f'It is specified that the "{self.name}" component should use P³M '
-                        f'gravity, but the gridsize to use could not be determined. Please also '
+                        f'It is specified that {self.name} should use P³M gravity, '
+                        f'but the gridsize to use could not be determined. Please also '
                         f'specify the gridsize to use in select_forces, and/or specify '
                         f'shortrange_params["gravity"]["scale"].'
                     )
@@ -1125,13 +1145,18 @@ class Component:
         elif not isinstance(class_species, str):
             class_species = '+'.join(class_species)
         if class_species == 'default':
-            if self.species in default_class_species:
-                class_species = default_class_species[self.species]
-            else:
-                abort(
-                    f'Default CLASS species assignment failed because '
-                    f'the species "{self.species}" does not map to any CLASS species'
-                )
+            class_species = ''
+            if self.species == 'none':
+                abort(f'Neither "species" nor "class species" specified for {self.name} component')
+            for single_species in self.species.split('+'):
+                if single_species in default_class_species:
+                    class_species += '+' + default_class_species[single_species]
+                else:
+                    abort(
+                        f'Default CLASS species assignment failed because '
+                        f'the species "{single_species}" does not map to any CLASS species'
+                    )
+            class_species = class_species.strip('+')
         self.class_species = class_species
         # Set closure rule for the Boltzmann hierarchy
         if boltzmann_closure is None:
@@ -1141,7 +1166,7 @@ class Component:
         self.boltzmann_closure = boltzmann_closure.lower()
         if self.representation == 'fluid' and self.boltzmann_closure not in ('truncate', 'class'):
             abort(
-                f'The component "{self.name}" was initialized '
+                f'{self.name.capitalize()} was initialized '
                 f'with an unknown Boltzmann closure of "{self.boltzmann_closure}"'
             )
         # Set realization options
@@ -1222,8 +1247,8 @@ class Component:
                     'compoundorder',
                 }:
                     abort(
-                        f'Realization option "{realization_option_varname}" (specified for '
-                        f'component "{self.name}" not recognized.'
+                        f'Realization option "{realization_option_varname}" '
+                        f'(specified for {self.name}) not recognized.'
                     )
         if self.representation == 'particles':
             # None of the non-linear relization options
@@ -1245,8 +1270,8 @@ class Component:
                 if realization_options_varname['velocitiesfromdisplacements']:
                     masterwarn(
                         f'The "velocities from displacements" realization option was set to True '
-                        f'for the "{varname}" variable of the "{self.name}" component, but in only '
-                        f'makes sense for the "mom" variable'
+                        f'for the "{varname}" variable of {self.name}, '
+                        f'but this only makes sense for the "mom" variable'
                         + ('' if self.representation == 'particles' else
                             ' (and only for particle components)')
                     )
@@ -1285,7 +1310,7 @@ class Component:
         for approximation, value in approximations.copy().items():
             if unicode(approximation) not in approximations_implemented:
                 abort(
-                    f'The component "{self.name}" was initialized '
+                    f'{self.name.capitalize()} was initialized '
                     f'with the unknown approximation "{approximation}"'
                 )
             approximations[asciify(approximation)] = value
@@ -1318,7 +1343,7 @@ class Component:
                 # used component, in which case it is OK not to have
                 # any softening lenth set.
                 if self.name:
-                    masterwarn(f'No softening length set for particles component "{self.name}"')
+                    masterwarn(f'No softening length set for {self.name}')
             softening_length = 0
         self.softening_length = float(softening_length)
         # Set gridsize of powerspectrum
@@ -1348,9 +1373,9 @@ class Component:
         ):
             if self.name and self.name not in internally_defined_names:
                 masterwarn(
-                    f'A powerspec_gridsize of {self.powerspec_gridsize} was specified for the '
-                    f'"{self.name}" fluid component. This has been changed to {self.gridsize} '
-                    f'in order to match the grid size of the fluid grids.'
+                    f'A powerspec_gridsize of {self.powerspec_gridsize} was specified for '
+                    f'{self.name}, which is a fluid component. This has been changed '
+                    f'to {self.gridsize} in order to match the grid size of the fluid grids.'
                 )
             self.powerspec_gridsize = self.gridsize
         # This attribute will store the conserved mean density
@@ -1429,23 +1454,23 @@ class Component:
             if self.boltzmann_order != 1:
                 abort(
                     f'Particle components must have boltzmann_order = 1, '
-                    f'but boltzmann_order = {self.boltzmann_order} was specified for "{self.name}"'
+                    f'but boltzmann_order = {self.boltzmann_order} was specified for {self.name}'
                 )
         elif self.representation == 'fluid':
             if self.boltzmann_order < -1:
                 abort(
-                    f'Having boltzmann_order < -1 are nonsensical, '
-                    f'but boltzmann_order = {self.boltzmann_order} was specified for "{self.name}"'
+                    f'Having boltzmann_order < -1 is nonsensical, '
+                    f'but boltzmann_order = {self.boltzmann_order} was specified for {self.name}'
                 )
             if self.boltzmann_order == -1 and self.boltzmann_closure == 'truncate':
                 abort(
-                    f'The fluid component "{self.name}" has no non-linear and no '
+                    f'The {self.name} (a fluid component) has no non-linear and no '
                     f'linear fluid variables, and so practically it does not exist. '
                     f'Such components are disallowed.'
                 )
             if self.boltzmann_order == 2 and self.boltzmann_closure == 'class':
                 abort(
-                    f'The "{self.name}" component wants to close the Boltzmann hierarchy using '
+                    f'{self.name.capitalize()} wants to close its Boltzmann hierarchy using '
                     f'the linear variable after ς from CLASS, which is not implemented. '
                     f'You need to lower its Boltzmann order to '
                     f'1 or use boltzmann_closure = "truncate".'
@@ -1453,7 +1478,7 @@ class Component:
             if self.boltzmann_order > 2:
                 abort(
                     f'Fluids with boltzmann_order > 2 are not implemented, '
-                    f'but boltzmann_order = {self.boltzmann_order} was specified for "{self.name}"'
+                    f'but boltzmann_order = {self.boltzmann_order} was specified for {self.name}'
                 )
         self.shape = (1, 1, 1)
         self.shape_noghosts = (1, 1, 1)
@@ -1479,7 +1504,7 @@ class Component:
             for force, method in self.forces.items():
                 if method not in {'pm', ''}:
                     abort(
-                        f'Component "{self.name}" wants to receive the {force} force '
+                        f'{self.name.capitalize()} wants to receive the {force} force '
                         f'using the {method} method, but only the pm method is allowed '
                         f'for fluid components.'
                     )
@@ -1553,14 +1578,14 @@ class Component:
                 self.approximations[unicode('P=wρ')] = True
             elif self.boltzmann_order == 0 and self.boltzmann_closure == 'class':
                 masterwarn(
-                    f'The P=wρ approximation has been switched on for the "{self.name}" component '
+                    f'The P=wρ approximation has been switched on for {self.name} '
                     f'because Jⁱ = a⁴(ρ + c⁻²P)uⁱ is a linear fluid variable.'
                 )
                 self.approximations[asciify('P=wρ')] = True
                 self.approximations[unicode('P=wρ')] = True
             elif self.boltzmann_order == 1 and self.boltzmann_closure == 'truncate':
                 masterwarn(
-                    f'The P=wρ approximation has been switched on for the "{self.name}" component '
+                    f'The P=wρ approximation has been switched on for {self.name} '
                     f'because the non-linear Boltzmann hierarchy is truncated after the '
                     f'non-linear fluid variable Jⁱ, while 𝒫 is part of the next fluid variable.'
                 )
@@ -1574,9 +1599,9 @@ class Component:
         if not self.approximations['P=wρ']:
             if self.realization_options['𝒫']['structure'] == 'primordial':
                 masterwarn(
-                    f'It is specified that the 𝒫 fluid variable of the "{self.name}" component '
+                    f'It is specified that the 𝒫 fluid variable of {self.name} '
                     f'should be realized using the primordial structure throughout time. '
-                    f'It is known that this generates spurious features.'
+                    f'This is known to generates spurious features.'
                 )
         # When the P=wρ approximation is True, the 𝒫 fluid variable is
         # superfluous. Yet, as it is used in the definition of J,
@@ -1680,8 +1705,8 @@ class Component:
             elif self.representation == 'particles':
                 if self.mass == -1:
                     abort(
-                        f'Cannot determine ϱ_bar for particle component "{self.name}" because '
-                        f'its mass is not (yet?) set and enable_class_background is False'
+                        f'Cannot determine ϱ_bar for {self.name} because its (particle) '
+                        f'mass is not (yet?) set and enable_class_background is False'
                     )
                 # This does not hold for decaying species
                 self._ϱ_bar = self.N*self.mass/boxsize**3
@@ -1813,7 +1838,7 @@ class Component:
                 else:
                     self.momz_mv [:self.N_local] = mv1D[:]
             elif master:
-                abort('Wrong component attribute name "{}"!'.format(var))
+                abort(f'Wrong component attribute name "{var}"!')
         elif self.representation == 'fluid':
             mv3D = data
             # The fluid scalar will be given as
@@ -1825,15 +1850,18 @@ class Component:
             # For each possibility, find index and multi_index.
             if isinstance(var, int):
                 if not (0 <= var < len(self.fluidvars)):
-                    abort('The "{}" component does not have a fluid variable with index {}'
-                          .format(self.name, var))
+                    abort(
+                        f'{self.name.capitalize()} does not have a fluid variable with index {var}'
+                    )
                 # The fluid scalar is given as
                 # self.fluidvars[index][multi_index].
                 index = var
             if isinstance(var, str):
                 if var not in self.fluid_names:
-                    abort('The "{}" component does not contain a fluid variable with the name "{}"'
-                          .format(self.name, var))
+                    abort(
+                        f'{self.name.capitalize()} does not contain a fluid variable '
+                        f'with the name "{var}"'
+                    )
                 # Lookup the fluid indices corresponding to var.
                 # This can either be a tuple of the form
                 # (index, multi_index) (for a passed fluid scalar name)
@@ -1957,7 +1985,7 @@ class Component:
                 return
             if any([s < 1 for s in shape_noghosts]):
                 abort(
-                    f'Attempted to resize fluid grids of the "{self.name}" component '
+                    f'Attempted to resize fluid grids of {self.name} '
                     f'to a shape of {shape_noghosts}'
                 )
             # Recalculate and reassign meta data
@@ -2031,13 +2059,15 @@ class Component:
         # Also do some particles-only checks.
         if self.representation == 'particles':
             if self.N%nprocs != 0:
-                abort(f'Cannot perform realization of particle component "{self.name}" '
-                      f'with N = {self.N}, as N is not evenly divisible by {nprocs} processes.'
-                      )
+                abort(
+                    f'Cannot perform realization of {self.name} '
+                    f'with N = {self.N}, as N is not evenly divisible by {nprocs} processes.'
+                )
             if not isint(ℝ[cbrt(self.N)]):
-                abort(f'Cannot perform realization of particle component "{self.name}" '
-                      f'with N = {self.N}, as N is not a cubic number.'
-                      )
+                abort(
+                    f'Cannot perform realization of {self.name} '
+                    f'with N = {self.N}, as N is not a cubic number.'
+                )
             gridsize = int(round(ℝ[cbrt(self.N)]))
             self.N_local = self.N//nprocs
             self.resize(self.N_local)
@@ -2048,18 +2078,20 @@ class Component:
         # Check that the gridsize fulfills the requirements for FFT
         # and therefore for realizations.
         if gridsize%nprocs != 0:
-            abort(f'Cannot perform realization of component "{self.name}" '
-                  f'with gridsize = {gridsize}, as gridsize is not '
-                  f'evenly divisible by {nprocs} processes.'
-                  )
+            abort(
+                f'Cannot perform realization of {self.name} '
+                f'with gridsize = {gridsize}, as gridsize is not '
+                f'evenly divisible by {nprocs} processes.'
+            )
         for dim in range(3):
             if gridsize%domain_subdivisions[dim] != 0:
-                abort(f'Cannot perform realization of component "{self.name}" '
-                      f'with gridsize = {gridsize}, as the global grid of shape '
-                      f'({gridsize}, {gridsize}, {gridsize}) cannot be divided '
-                      f'according to the domain decomposition ({domain_subdivisions[0]}, '
-                      f'{domain_subdivisions[1]}, {domain_subdivisions[2]}).'
-                      )
+                abort(
+                    f'Cannot perform realization of {self.name} '
+                    f'with gridsize = {gridsize}, as the global grid of shape '
+                    f'({gridsize}, {gridsize}, {gridsize}) cannot be divided '
+                    f'according to the domain decomposition ({domain_subdivisions[0]}, '
+                    f'{domain_subdivisions[1]}, {domain_subdivisions[2]}).'
+                )
         # Argument processing
         if transfer_spline is None and cosmoresults is not None:
             abort('The realize method was called with cosmoresults but no transfer_spline')
@@ -2423,7 +2455,7 @@ class Component:
                     masterprint('done')
             else:
                 abort(
-                    f'It was specified that the {self.name} component should be evolved using '
+                    f'It was specified that {self.name} should be evolved using '
                     f'the "{scheme}" scheme, which is not implemented.'
                 )
 
@@ -3179,7 +3211,7 @@ class Component:
                 masterwarn(
                     f'Currently you must not mix species with non-zero w_eff together with '
                     f'decaying species in a single component. This is the case for '
-                    f'"{component.name}" with CLASS species "{self.class_species}".'
+                    f'{component.name} with CLASS species "{self.class_species}".'
                 )
             # Reduce all momenta, corresponding to the loss of mass
             if self.representation == 'particles':
@@ -3512,8 +3544,8 @@ class Component:
             # Get w as P_bar/ρ_bar from CLASS
             if not enable_class_background:
                 abort(
-                    f'Attempted to call CLASS to get the equation of state parameter w for the '
-                    f'"{self.name}" component of CLASS species "{self.class_species}", '
+                    f'Attempted to call CLASS to get the equation of state parameter w for '
+                    f'{self.name} with CLASS species "{self.class_species}", '
                     f'but enable_class_background is False.'
                 )
             self.w_type = 'tabulated (a)'
@@ -3559,7 +3591,10 @@ class Component:
             try:
                 self.w_constant = float(w_constant)
             except:
-                abort(f'No default, constant w is defined for the "{self.species}" species')
+                if self.representation == 'particles':
+                    self.w_constant = 0
+                else:
+                    abort(f'No default, constant w is defined for species "{self.species}"')
         elif isinstance(w, str) and os.path.isfile(w):
             # Load tabulated w from file
             self.w_type = 'tabulated (?)'
@@ -3609,10 +3644,11 @@ class Component:
                         unit = eval_unit(unit_match.group(1))
                         i_tabulated = asarray(i_tabulated)*unit
                     elif unit_match:
-                        abort('Time unit "{}" in header of "{}" not understood'
-                            .format(unit_match.group(1), w))
+                        abort(
+                            f'Time unit "{unit_match.group(1)}" in header of "{w}" not understood'
+                        )
                     else:
-                        abort('Could not find time unit in header of "{}"'.format(w))
+                        abort(f'Could not find time unit in header of "{w}"')
         elif isinstance(w, str):
             # Some expression for w was passed.
             # Insert '*' between all numbers and letters as well as all
@@ -3753,7 +3789,7 @@ class Component:
             # for interacting/decaying species.
             if self.w_type != 'constant':
                 abort(
-                    f'Cannot construct w_eff of component "{self.name}" '
+                    f'Cannot construct w_eff of {self.name} '
                     f'without access to the CLASS background evolution.'
                 )
             self.w_eff_type = 'constant'
@@ -4082,29 +4118,13 @@ class Component:
 
     # String representation
     def __repr__(self):
-        return '<component "{}" of species "{}">'.format(self.name, self.species)
+        return f'<component "{self.name}" of species "{self.species}">'
     def __str__(self):
         return self.__repr__()
 
 # Array used by the Component.tile_sort() method
 cython.declare(tile_location='double[::1]')
 tile_location = empty(3, dtype=C2np['double'])
-
-
-
-# Function for getting the component representation based on the species
-@cython.header(# Arguments
-               species=str,
-               # Locals
-               key=tuple,
-               representation=str,
-               returns=str
-               )
-def get_representation(species):
-    for key, representation in representation_of_species.items():
-        if species in key:
-            return representation
-    abort(f'Species "{species}" not implemented')
 
 # Function for adding species to the universals_dict,
 # recording the presence of any species in use.
@@ -4396,79 +4416,120 @@ subtiling_refinement_message_recv = empty(3*nprocs, dtype=C2np['Py_ssize_t']) if
 cython.declare(tiling_shapes=dict)
 tiling_shapes = {}
 
-# Mapping from species to their representations
-cython.declare(representation_of_species=dict)
-representation_of_species = {
-    (
-        'baryons',
-        'dark energy particles',
-        'dark matter particles',
-        'decay radiation particles',
-        'decaying dark matter particles',
-        'matter particles',
-        'neutrinos',
-        'photons',
-        'particles',
-    ): 'particles',
-    (
-        'baryon fluid',
-        'dark energy fluid',
-        'dark matter fluid',
-        'decay radiation fluid',
-        'decaying dark matter fluid',
-        'lapse',
-        'matter fluid',
-        'metric',
-        'neutrino fluid',
-        'photon fluid',
-        'fluid',
-    ): 'fluid',
+# Mapping from allowed species specifications to their canonical names
+cython.declare(species_canonical=dict)
+species_canonical = {
+    # Baryons
+    'baryons': 'baryons',
+    'baryon' : 'baryons',
+    'b'      : 'baryons',
+    # Cold dark matter
+    'cold dark matter': 'cold dark matter',
+    'dark matter'     : 'cold dark matter',
+    'cdm'             : 'cold dark matter',
+    'dm'              : 'cold dark matter',
+    # Matter
+    'matter': 'matter',
+    'mat'   : 'matter',
+    'm'     : 'matter',
+    # Photons
+    'photons'   : 'photons',
+    'photon'    : 'photons',
+    'g'         : 'photons',
+    'gamma'     : 'photons',
+    unicode('γ'): 'photons',
+    asciify('γ'): 'photons',
+    # Massless neutrinos
+    'massless neutrinos': 'massless neutrinos',
+    'massless neutrino' : 'massless neutrinos',
+    'ur'                : 'massless neutrinos',
+    # Massive neutrinos
+    'massive neutrinos': 'massive neutrinos',
+    'massive neutrino' : 'massive neutrinos',
+    'ncdm'             : 'massive neutrinos',
+    # Neutrinos
+    'neutrinos' : 'neutrinos',
+    'neutrino'  : 'neutrinos',
+    'nu'        : 'neutrinos',
+    unicode('ν'): 'neutrinos',
+    asciify('ν'): 'neutrinos',
+    # Radiation
+    'radiation': 'radiation',
+    'rad      ': 'radiation',
+    'r'        : 'radiation',
+    # Dark energy
+    'dark energy': 'dark energy',
+    'fld'        : 'dark energy',
+    # Decaying cold dark matter
+    'decaying cold dark matter': 'decaying cold dark matter',
+    'decay cold dark matter'   : 'decaying cold dark matter',
+    'decaying dark matter'     : 'decaying cold dark matter',
+    'decay dark matter'        : 'decaying cold dark matter',
+    'decaying matter'          : 'decaying cold dark matter',
+    'decay matter'             : 'decaying cold dark matter',
+    'dcdm'                     : 'decaying cold dark matter',
+    # Decay radiation
+    'decay radiation'   : 'decay radiation',
+    'decaying radiation': 'decay radiation',
+    'dark radiation'    : 'decay radiation',
+    'dr'                : 'decay radiation',
+    # Metric
+    'metric': 'metric',
+    # Lapse
+    'lapse': 'lapse',
+    # No specific species
+    'none': 'none',
 }
+
 # Mapping from (CO𝘕CEPT) species names to default
 # CLASS species names. Note that combination species
 # (e.g. matter) is expressed as e.g. 'cdm+b'.
-cython.declare(default_class_species=dict)
-default_class_species = {
-    'baryon fluid'                  : 'b',
-    'baryons'                       : 'b',
-    'dark energy fluid'             : 'fld',
-    'dark energy particles'         : 'fld',
-    'dark matter fluid'             : 'cdm',
-    'dark matter particles'         : 'cdm',
-    'decay radiation fluid'         : 'dr',
-    'decay radiation particles'     : 'dr',
-    'decaying dark matter fluid'    : 'dcdm',
-    'decaying dark matter particles': 'dcdm',
-    'lapse'                         : 'lapse',
-    'matter fluid'                  : matter_class_species,
-    'matter particles'              : matter_class_species,
-    'metric'                        : 'metric',
-    'neutrino fluid'                : 'ncdm[0]',
-    'neutrinos'                     : 'ncdm[0]',
-    'photon fluid'                  : 'g',
-    'photons'                       : 'g',
-}
-# Mapping from species and representations to default w values
+class ClassSpeciesDict(dict):
+    # Massive neutrinos are handled separately, so that "neutrinos 0",
+    # "neutrinos 1", "neutrinos 2" etc. is valid and maps to "ncdm[0]",
+    # "ncdm[1]", "ncdm[2]", etc.
+    def __getitem__(self, key):
+        match = re.search(r'neutrinos *(\d+)', key)
+        if match:
+            return f'ncdm[{match.group(1)}]'
+        return super().__getitem__(key)
+    def __contains__(self, key):
+        try:
+            self[key]
+        except KeyError:
+            return False
+        return True
+default_class_species = ClassSpeciesDict({
+    'baryons'                  : 'b',
+    'cold dark matter'         : 'cdm',
+    'matter'                   : matter_class_species,
+    'photons'                  : 'g',
+    'massless neutrinos'       : 'ur',
+    'massive neutrinos'        : massive_neutrinos_class_species,
+    'neutrinos'                : neutrinos_class_species,
+    'radiation'                : radiation_class_species,
+    'dark energy'              : 'fld',
+    'decaying cold dark matter': 'dcdm',
+    'decay radiation'          : 'dr',
+    'metric'                   : 'metric',
+    'lapse'                    : 'lapse',
+})
+# Mapping from species to default w values
 cython.declare(default_w=dict)
 default_w = {
-    'baryon fluid'                  :  0,
-    'baryons'                       :  0,
-    'dark energy fluid'             : -1,
-    'dark energy particles'         : -1,
-    'dark matter fluid'             :  0,
-    'dark matter particles'         :  0,
-    'decay radiation fluid'         :  1/3,
-    'decay radiation particles'     :  1/3,
-    'decaying dark matter fluid'    :  0,
-    'decaying dark matter particles':  0,
-    'lapse'                         :  0,
-    'matter fluid'                  :  0,
-    'matter particles'              :  0,
-    'metric'                        :  0,
-    'neutrino fluid'                :  1/3,
-    'neutrinos'                     :  1/3,
-    'photons'                       :  1/3,
-    'photon fluid'                  :  1/3,
+    'baryons'                  : 0,
+    'cold dark matter'         : 0,
+    'matter'                   : 0,
+    'photons'                  : 1/3,
+    'massless neutrinos'       : 1/3,
+    'massive neutrinos'        : 1/3,
+    'neutrinos'                : 1/3,
+    'radiation'                : 1/3,
+    'dark energy'              : -1,
+    'decaying cold dark matter': 0,
+    'decay radiation'          : 1/3,
+    'metric'                   : 0,
+    'lapse'                    : 0,
 }
 # Set of all approximations implemented on Component objects
 cython.declare(approximations_implemented=set)

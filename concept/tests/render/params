@@ -9,7 +9,7 @@ _size = 64
 initial_conditions = _this_dir + '/output/snapshot.hdf5'
 snapshot_type      = 'standard'
 output_times       = {'render2D': logspace(log(a_begin), log(1), 30, base=e)}
-render2D_select    = {'matter particles': {'terminal image': True}}
+render2D_select    = {'matter': {'terminal image': True}}
 
 # Numerical parameters
 boxsize = 80*Mpc
@@ -21,7 +21,7 @@ H0      = 70*km/s/Mpc
 a_begin = 0.02
 
 # Physics
-select_forces = {'matter particles': {'gravity': 'pm'}}
+select_forces = {'matter': {'gravity': 'pm'}}
 
 # Simulation options
 random_seed = 5  # A value of 5 results in nice looking 2D renders for _size = 64

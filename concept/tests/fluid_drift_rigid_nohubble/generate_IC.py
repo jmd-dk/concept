@@ -12,7 +12,7 @@ gridsize = 64
 Vcell = (boxsize/gridsize)**3
 speed = boxsize/(10*units.Gyr)
 N = gridsize**3
-component = Component('test fluid', 'matter fluid', gridsize)
+component = Component('test fluid', 'matter', gridsize=gridsize)
 ϱ = empty([gridsize]*3)
 for i in range(gridsize):
     ϱ[i, :, :] = 2 + np.sin(2*π*i/gridsize)  # Unitless

@@ -32,8 +32,7 @@ set -e
 for n in ${nprocs_list[@]}; do
     echo "$(cat "${this_dir}/params")
 initial_conditions = {
-    'name'   : 'test particles',
-    'species': 'matter particles',
+    'species': 'matter',
     'N'      : _size**3,
 }
 output_dirs  = {'powerspec': _this_dir + '/output_particles'}
@@ -48,8 +47,7 @@ done
 for n in ${nprocs_list[@]}; do
     echo "$(cat "${this_dir}/params")
 initial_conditions = {
-    'name'             : 'test fluid',
-    'species'          : 'matter fluid',
+    'species'          : 'matter',
     'gridsize'         : _size,
     'boltzmann_order'  : 0,
     'boltzmann_closure': 'truncate',

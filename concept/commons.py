@@ -2323,8 +2323,8 @@ for key, val in replace_ellipsis(dict(user_params.get('select_forces', {}))).ite
             method   = method  .replace(unicode_superscript(str(n)), str(n))
         subd[subd_key] = (method, gridsize)
     select_forces[key] = subd
-select_forces.setdefault('metric', {'gravity': ('', -1)})
-select_forces.setdefault('lapse', {'lapse': ('', -1)})
+select_forces.setdefault('metric', {'gravity': 'pm'})
+select_forces.setdefault('lapse', {'lapse': 'pm'})
 user_params['select_forces'] = select_forces
 select_class_species = {}
 if user_params.get('select_class_species'):
@@ -2426,10 +2426,10 @@ fluid_options_defaults = {
         'smoothing_select'             : {
             'default': 1.0,
             # Matter fluids require a lot of smoothing
-            'baryon fluid'              : 2.0,
-            'dark matter fluid'         : 2.0,
-            'decaying dark matter fluid': 2.0,
-            'matter fluid'              : 2.0,
+            'baryons'                  : 2.0,
+            'cold dark matter'         : 2.0,
+            'decaying cold dark matter': 2.0,
+            'matter'                   : 2.0,
         },
     },
     'kurganovtadmor': {
@@ -2438,10 +2438,10 @@ fluid_options_defaults = {
             'default': 'mc',
             # Matter fluids require a lot
             # of artificial viscosity (smoothing).
-            'baryon fluid'              : 'minmod',
-            'dark matter fluid'         : 'minmod',
-            'decaying dark matter fluid': 'minmod',
-            'matter fluid'              : 'minmod',
+            'baryons'                  : 'minmod',
+            'cold dark matter'         : 'minmod',
+            'decaying cold dark matter': 'minmod',
+            'matter'                   : 'minmod',
         },
     },
 }
@@ -2672,6 +2672,9 @@ cython.declare(
     Ωm='double',
     ρ_mbar='double',
     matter_class_species=str,
+    radiation_class_species=str,
+    neutrinos_class_species=str,
+    massive_neutrinos_class_species=str,
 )
 # Output times not explicitly written as either of type 'a' or 't'
 # is understood as being of type 'a' when Hubble expansion is enabled
@@ -2784,6 +2787,40 @@ matter_class_species = '+'.join([class_species
     for class_species, Ω in {'b': Ωb, 'cdm': Ωcdm, 'dcdm': Ωdcdm}.items() if Ω > 1e-9])
 # The average, comoving matter density
 ρ_mbar = Ωm*ρ_crit
+# Specification of which CLASS species together constitute "radiation",
+# "neutrinos" and "massive neutrinos" in the current simulation.
+radiation_class_species = 'g'  # Photons always present in CLASS
+neutrinos_class_species = ''
+massive_neutrinos_class_species = ''
+if 'N_ur' in class_params:
+    if class_params['N_ur'] > 0:
+        radiation_class_species += '+ur'
+        neutrinos_class_species += '+ur'
+elif 'N_eff' in class_params:
+    if class_params['N_eff'] > 0:
+        radiation_class_species += '+ur'
+        neutrinos_class_species += '+ur'
+elif 'Omega_ur' in class_params:
+    if class_params['Omega_ur'] > 0:
+        radiation_class_species += '+ur'
+        neutrinos_class_species += '+ur'
+elif 'Omega_ur' in class_params:
+    if class_params['Omega_ur'] > 0:
+        radiation_class_species += '+ur'
+        neutrinos_class_species += '+ur'
+else:
+    # Massless neutrinos present in CLASS by default
+    radiation_class_species += '+ur'
+    neutrinos_class_species += '+ur'
+N_ncdm = int(round(class_params.get('N_ncdm', 0)))
+if N_ncdm > 0:
+    massive_neutrinos_class_species += '+'.join([f'ncdm[{i}]' for i in range(N_ncdm)])
+    neutrinos_class_species += f'+{massive_neutrinos_class_species}'
+if Ωdcdm > 1e-9 and class_params.get('Gamma_dcdm', 0) > 0:
+    radiation_class_species += '+dr'
+radiation_class_species = radiation_class_species.strip('+')
+neutrinos_class_species = neutrinos_class_species.strip('+')
+massive_neutrinos_class_species = massive_neutrinos_class_species.strip('+')
 # Modify select_forces so that the value in the sub-dicts is just the
 # method. The gridsize currently also stored will be extracted and saved
 # in the φ_gridsizes dict.
@@ -3435,6 +3472,7 @@ def is_selected(component_or_components, d, accumulate=False):
     - 'default'
     - 'all'
     - component.representation
+    - any single species in component.species.split('+')
     - component.species
     - component.name
     - component
@@ -3465,6 +3503,7 @@ def is_selected(component_or_components, d, accumulate=False):
             'default',
             'all',
             component.representation.lower(),
+            *[single_species.lower() for single_species in component.species.split('+')],
             component.species.lower(),
             component.name.lower(),
             component,

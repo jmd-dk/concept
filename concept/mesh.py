@@ -945,7 +945,7 @@ def convert_particles_to_fluid(component, order):
     shape = tuple([component.gridsize//ds for ds in domain_subdivisions])
     if any([component.gridsize != domain_subdivisions[dim]*shape[dim] for dim in range(3)]):
         abort(
-            f'The gridsize of the "{component.name}" component is {component.gridsize} '
+            f'The gridsize of {component.name} is {component.gridsize} '
             f'which cannot be equally shared among {nprocs} processes'
         )
     component.resize(shape)  # This also nullifies all fluid grids

@@ -37,7 +37,6 @@ cimport('from linear import compute_cosmo, compute_transfer, get_archived_k_para
 cimport('from mesh import convert_particles_to_fluid')
 cimport('from snapshot import get_snapshot_type, snapshot_extensions')
 cimport('import species')
-cimport('from species import get_representation')
 cimport('from snapshot import get_initial_conditions, load, save')
 
 
@@ -163,8 +162,10 @@ def convert():
                 attributes[names[names_lower.index(name.lower())]].update(attributes[name])
                 del attributes[name]
             else:
-                masterwarn('The following attributes are specified for the "{}" component, '
-                           'which does not exist:\n{}'.format(name, attributes[name]))
+                masterwarn(
+                    f'The following attributes are specified for {name}, '
+                    f'which does not exist:\n{attributes[name]}'
+                )
     # Overwrite parameters in the snapshot with those from the
     # parameter file (those which are currently loaded as globals).
     # If parameters are passed directly, these should take precedence
@@ -189,10 +190,16 @@ def convert():
                 # A non-existing attribute was specified. As this is
                 # nonsensical and leads to an error in compiled mode
                 # but not in pure Python mode, do an explicit abort.
-                abort('The following non-existing attribute was specified for\n'
-                      'the "{}" component: {}'.format(component.name, key))
+                abort(
+                    f'The following non-existing attribute was specified for '
+                    f'{component.name}: {key}'
+                )
             setattr(component, key, val)
-        component.representation = get_representation(component.species)
+        # If both N and gridsize is specified for this component, it
+        # means that particles sould be converted to a fluid (the other
+        # way around is not supported).
+        if component.N > 1 and component.gridsize > 1:
+            component.representation = 'fluid'
         # Apply particles --> fluid convertion, if necessary
         if original_representation == 'particles' and component.representation == 'fluid':
             # To do the convertion, the particles need to be
@@ -222,19 +229,21 @@ def convert():
                 Σmass_fluid = universals.a**(-3*w_eff)*component.mass*component.gridsize**3
                 if not isclose(Σmass_particles, Σmass_fluid, 1e-6):
                     if Σmass_fluid > Σmass_particles:
-                        masterwarn('The specified mass for the "{}" component\n'
-                                   'leads to a relative increase of {:.9g}\n'
-                                   'for the total mass of this component.'
-                                   'Note that for fluids, the specified mass should be\n'
-                                   'the average mass of a fluid element.'
-                                   .format(component.name, Σmass_fluid/Σmass_particles - 1))
+                        masterwarn(
+                            f'The specified mass for {component.name} leads to a relative '
+                            f'increase of {(Σmass_fluid/Σmass_particles - 1):.9g} '
+                            f'for the total mass of this component. '
+                            f'Note that for fluids, the specified mass should be '
+                            f'the average mass of a fluid element.'
+                        )
                     else:
-                        masterwarn('The specified mass for the "{}" component\n'
-                                   'leads to a relative decrease of {:.9g}\n'
-                                   'for the total mass of this component.\n'
-                                   'Note that for fluids, the specified mass should be\n'
-                                   'the average mass of a fluid element.'
-                                   .format(component.name, 1 - Σmass_fluid/Σmass_particles))
+                        masterwarn(
+                            f'The specified mass for {component.name} leads to a relative '
+                            f'decrease of {(1 - Σmass_fluid/Σmass_particles):.9g} '
+                            f'for the total mass of this component. '
+                            f'Note that for fluids, the specified mass should be '
+                            f'the average mass of a fluid element.'
+                        )
             elif 'gridsize' not in attributes[name] and 'mass' not in attributes[name]:
                 # If neither the gridsize nor the mass is specified,
                 # the number of gridpoints in the fluid
@@ -330,7 +339,7 @@ def convert():
 def locate_snapshots(path):
     # Get all files from the path
     if master and not os.path.exists(path):
-        msg = 'Path "{}" does not exist!'.format(path)
+        msg = f'Path "{path}" does not exist'
         abort(msg)
     if os.path.isdir(path):
         filenames = [os.path.join(path, filename)
@@ -343,9 +352,9 @@ def locate_snapshots(path):
     # Abort if none of the files where snapshots
     if master and not snapshot_filenames:
         if os.path.isdir(path):
-            msg = 'The directory "{}" does not contain any snapshots.'.format(path)
+            msg = f'The directory "{path}" does not contain any snapshots'
         else:
-            msg = 'The file "{}" is not a valid snapshot.'.format(path)
+            msg = f'The file "{path}" is not a valid snapshot'
         abort(msg)
     return snapshot_filenames
 
@@ -539,9 +548,10 @@ def info():
                         masterprint('Ωb = {:.12g}'.format(params['Ωb']), file=file, wrap=False)
             # Do not edit the printed text below,
             # as it is grepped for by several of the Bash utilities.
-            masterprint('\nThe above parameters have been written to "{}"'
-                        .format(parameter_filename),
-                        wrap=False)
+            masterprint(
+                f'\nThe above parameters have been written to "{parameter_filename}"',
+                wrap=False,
+            )
             # Done writing out parameters. The code below which prints
             # out information about the snapshot should not be reached.
             continue

@@ -300,7 +300,7 @@ class CosmoResults:
             else:
                 self._background = {}
             # CLASS does not give the background pressure for cold
-            # dark matter, baryons, ultra relativistic species
+            # cold dark matter, baryons, ultra relativistic species
             # or the cosmological constant, as these are always
             # proportional to their densities with a constant
             # proportionality factor w. Here we add these missing
@@ -2584,7 +2584,7 @@ def compute_transfer(
         k_max,
         k_gridsize,
         'synchronous' if gauge == 'nbody' else gauge,
-        class_call_reason=f'in order to get "{component.name}" perturbations ',
+        class_call_reason=f'in order to get perturbations of {component.name} ',
     )
     k_magnitudes = cosmoresults.k_magnitudes
     # Update k_gridsize to be what ever value was settled on
@@ -2644,8 +2644,8 @@ def compute_transfer(
                 transfer[k] += (0.5*transfer_hʹ[k]
                     - ℝ[3/light_speed**2]*aH_transfer_θ_totʹ[k]/k_magnitudes[k]**2)
             # In order to introduce the lapse potential for the decaying
-            # dark matter, we have changed the velocity variable away
-            # from that used by CLASS. The needed transformation is
+            # cold dark matter, we have changed the velocity variable
+            # away from that used by CLASS. The needed transformation is
             # θ_dcdm_CO𝘕CEPT = θ_dcdm_CLASS + Γ_dcdm/(3H)*H_Tʹ.
             # In the general case for combination species, we have
             # θ_CO𝘕CEPT = θ_CLASS + θ_weight*Γ_dcdm/(3H)*H_Tʹ,
@@ -2969,7 +2969,7 @@ def realize(component, variable, transfer_spline, cosmoresults,
         # realization directly.
         if pariclevar_name == 'mom' and options['velocitiesfromdisplacements']:
             abort(
-                f'A realization of particle momenta for component "{component.name}" '
+                f'A realization of particle momenta for {component.name} '
                 f'was requested, but this component is supposed to get its velocities '
                 f'from the displacements.'
             )
@@ -3029,9 +3029,10 @@ def realize(component, variable, transfer_spline, cosmoresults,
     # Determine the gridsize of the grid used to do the realization
     if component.representation == 'particles':
         if not isint(ℝ[cbrt(component.N)]):
-            abort(f'Cannot perform realization of particle component "{component.name}" '
-                  f'with N = {component.N}, as N is not a cubic number.'
-                  )
+            abort(
+                f'Cannot perform realization of {component.name} '
+                f'with N = {component.N}, as N is not a cubic number.'
+            )
         gridsize = int(round(ℝ[cbrt(component.N)]))
     elif component.representation == 'fluid':
         gridsize = component.gridsize
@@ -3752,8 +3753,8 @@ def get_linear_powerspec(component_or_components, k_magnitudes, a=-1, gauge='N-b
     component = components[0]
     linear_component = type(component)(
         '',
-        'fluid',
-        2,
+        None,
+        gridsize=2,
         class_species='+'.join([component.class_species for component in components])
     )
     linear_component.name = 'linear power spectrum'

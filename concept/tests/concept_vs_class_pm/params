@@ -5,8 +5,7 @@ _this_dir = os.path.dirname(paths['params'])
 _size = 64
 initial_conditions = [
     {
-        'name'   : 'matter component',
-        'species': 'matter particles',
+        'species': 'matter',
         'N'      : _size**3,
     },
 ]
@@ -45,7 +44,7 @@ a_begin = 0.1
 
 # Physics
 select_forces = {
-    'matter particles': {
+    'matter': {
         'gravity': ('pm', _size),
     },
 }

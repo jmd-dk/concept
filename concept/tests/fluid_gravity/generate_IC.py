@@ -52,7 +52,7 @@ for i in range(Nx):
     if i < Nx - 1:
         x = binary_search(x, mass_unitless)
 # Instantiate particles
-particles = Component('control particles', 'matter particles', N, mass=mass)
+particles = Component('control particles', 'matter', N=N, mass=mass)
 particles.populate(posx, 'posx')
 particles.populate(posy, 'posy')
 particles.populate(posz, 'posz')
