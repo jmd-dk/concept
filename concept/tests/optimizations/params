@@ -5,13 +5,11 @@ _this_dir = os.path.dirname(paths['params'])
 _size = 16
 initial_conditions = [
     {
-        'name'   : 'matter component',
-        'species': 'matter particles',
+        'species': 'matter',
         'N'      : _size**3,
     },
     {
-        'name'           : 'neutrino component',
-        'species'        : 'neutrino fluid',
+        'species'        : 'neutrinos',
         'gridsize'       : _size,
         'boltzmann_order': 1,
     },
@@ -34,7 +32,7 @@ powerspec_select = {
 }
 render2D_select = {
     'all': False,
-    ('matter component', 'neutrino component'): {'data': True, 'image': False},
+    ('matter', 'neutrinos'): {'data': True, 'image': False},
 }
 
 # Numerical parameters

@@ -41,10 +41,10 @@ echo "$(cat "${this_dir}/params")
 output_dirs  = {'snapshot': '${this_dir}'}
 output_bases = {'snapshot': 'IC'}
 output_times = {'snapshot': a_begin}
-initial_conditions = {'name'   : 'test particles',
-                      'species': 'matter particles',
-                      'N'      : 8**3,
-                      }
+initial_conditions = {
+    'species': 'matter',
+    'N'      : 8**3,
+}
 " > "${this_dir}/ic.params"
 "${concept}" -n 1                       \
              -p "${this_dir}/ic.params" \

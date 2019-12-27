@@ -768,12 +768,14 @@ def maccormack(component, ᔑdt, a_next=-1):
                check_vacuum(component, mc_step)
                break
         else:
-           # None of the attempted MacCormack steps were accepted.
-           # If this is the second MacCormack step, this means that
-           # we have been unable to correct for negative densities.
-           if mc_step == 1:
-               abort('Giving up after {} failed attempts to remove negative densities in "{}"'
-                     .format(max_vacuum_corrections[mc_step], component.name))
+            # None of the attempted MacCormack steps were accepted.
+            # If this is the second MacCormack step, this means that
+            # we have been unable to correct for negative densities.
+            if mc_step == 1:
+                abort(
+                    f'Giving up after {max_vacuum_corrections[mc_step]} failed attempts '
+                    f'to remove negative densities in {component.name}'
+                )
         # Reverse step direction for the second MacCormack step
         for i in range(3):
            steps[i] *= -1
@@ -1091,7 +1093,7 @@ def check_vacuum(component, mc_step):
     # Show a warning if any vacuum elements were found
     any_vacuum = reduce(any_vacuum, op=MPI.LOR)
     if any_vacuum:
-        masterwarn('Vacuum detected in "{}"'.format(component.name))
+        masterwarn(f'Vacuum detected in {component.name}')
 
 # Function which checks for imminent vacuum in a fluid component
 # and does one sweep of vacuum corrections.

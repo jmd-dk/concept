@@ -19,8 +19,8 @@ H0      = 70*km/s/Mpc
 a_begin = 0.02
 
 # Physics
-select_forces           = {'matter particles': {'gravity': 'pp'}}
-select_softening_length = {'matter particles': '0.03*boxsize/cbrt(N)'}
+select_forces           = {'matter': {'gravity': 'pp'}}
+select_softening_length = {'matter': '0.03*boxsize/cbrt(N)'}
 
 # Simulation options
 class_reuse = False

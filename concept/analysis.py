@@ -1300,10 +1300,10 @@ def measure(component, quantity):
         # Compute mean(ϱ), std(ϱ), min(ϱ)
         if component.representation == 'particles':
             # Particle components have no ϱ
-            abort('The measure function was called with the "{}" component with '
-                  'quantity=\'ϱ\', but particle components do not have ϱ.'
-                  .format(component.name)
-                  )
+            abort(
+                f'The measure function was called with {component.name} and '
+                f'quantity=\'ϱ\', but particle components do not have ϱ'
+            )
         elif component.representation == 'fluid':
             # Total ϱ of all fluid elements
             Σϱ = np.sum(ϱ_noghosts)
@@ -1346,10 +1346,10 @@ def measure(component, quantity):
     elif quantity == 'discontinuity':
         if component.representation == 'particles':
             # Particle components have no discontinuity
-            abort('The measure function was called with the "{}" component with '
-                  'quantity=\'discontinuity\', which is not applicable to particle components.'
-                  .format(component.name)
-                  )
+            abort(
+                f'The measure function was called with {component.name} and '
+                f'quantity=\'discontinuity\', which is not applicable to particle components'
+            )
         elif component.representation == 'fluid':
             # Lists to store results which will be returned
             names = []
@@ -1475,19 +1475,20 @@ def debug(components):
                                rel_tol=1e-6,
                                abs_tol=1e-6*σmom[dim],
                                ):
-                    masterwarn('Previously the "{}" had a '
-                               'total {}-momentum of {} m☉ Mpc Gyr⁻¹'
-                               .format(component.name,
-                                       'xyz'[dim],
-                                       significant_figures(Σmom_prev_dim
-                                                           /(units.m_sun*units.Mpc/units.Gyr),
-                                                           12,
-                                                           fmt='unicode',
-                                                           incl_zeros=False,
-                                                           scientific=True,
-                                                           ),
-                                       )
-                               )
+                    masterwarn(
+                        'Previously {} had a total {}-momentum of {} m☉ Mpc Gyr⁻¹'
+                        .format(
+                            component.name,
+                            'xyz'[dim],
+                            significant_figures(
+                                Σmom_prev_dim/(units.m_sun*units.Mpc/units.Gyr),
+                                12,
+                                fmt='unicode',
+                                incl_zeros=False,
+                                scientific=True,
+                            ),
+                        )
+                    )
         Σmom_prev[component.name] = asarray(Σmom).copy()
         # mean(ϱ), std(ϱ) and min(ϱ)
         if component.representation == 'fluid':
@@ -1509,19 +1510,22 @@ def debug(components):
                         )
             # Warn if any densities are negative
             if ϱ_min < 0:
-                masterwarn('Negative density occured in "{}"'.format(component.name))
+                masterwarn(f'Negative density occured for {component.name}')
             # Warn if mean(ϱ) differs from the correct, constant result
             if not isclose(ϱ_bar, cast(component.ϱ_bar, 'double'), rel_tol=1e-6):
-                masterwarn('The "{}" ought to have a mean ϱ of {} m☉ Mpc⁻³'
-                           .format(component.name,
-                                   significant_figures(component.ϱ_bar/(units.m_sun/units.Mpc**3),
-                                                       12,
-                                                       fmt='unicode',
-                                                       incl_zeros=False,
-                                                       scientific=True,
-                                                       ),
-                                   )
+                masterwarn(
+                    '{} ought to have a mean ϱ of {} m☉ Mpc⁻³'
+                    .format(
+                        component.name.capitalize(),
+                        significant_figures(
+                            component.ϱ_bar/(units.m_sun/units.Mpc**3),
+                            12,
+                            fmt='unicode',
+                            incl_zeros=False,
+                            scientific=True,
+                        ),
                     )
+                )
         # The maximum discontinuities in the fluid scalars,
         # for each dimension. Here, a discontinuity means a difference
         # in forward and backward difference.

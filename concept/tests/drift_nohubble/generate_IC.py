@@ -8,7 +8,7 @@ from snapshot import save
 # Create the particle
 N = 1
 mass = ρ_mbar*boxsize**3/N
-particles = Component('test particles', 'matter particles', N, mass=mass)
+particles = Component('test particles', 'matter', N=N, mass=mass)
 particles.populate(np.array([0.75])*boxsize, 'posx')
 particles.populate(np.array([0.75])*boxsize, 'posy')
 particles.populate(np.array([0.75])*boxsize, 'posz')

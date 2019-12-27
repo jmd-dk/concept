@@ -37,10 +37,10 @@ echo "$(cat "${this_dir}/params")
 output_dirs  = {'snapshot': '${this_dir}'}
 output_bases = {'snapshot': 'IC'}
 output_times = {'snapshot': a_begin}
-initial_conditions = {'name'   : 'GADGET halos',
-                      'species': 'matter particles',
-                      'N'      : 8**3,
-                      }
+initial_conditions = {
+    'species': 'matter',
+    'N'      : 8**3,
+}
 enable_class_background = True  # Do use CLASS when creating the initial conditions
 " > "${this_dir}/ic.params"
 "${concept}" -n 1                       \

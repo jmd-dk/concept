@@ -29,17 +29,15 @@ _size = 64
 initial_conditions = [  # Initial condition snapshot file or container of components to be generated
     # Matter component
     {
-        'name'   : 'matter component',
-        'species': 'matter particles',
+        'species': 'matter',
         'N'      : _size**3,
     },
     # Neutrino component
     {
-        'name'             : 'neutrino component',
-        'species'          : 'neutrino fluid',
+        'species'          : 'neutrinos',
         'gridsize'         : _size,
-        'boltzmann_order'  : 1,
-        'boltzmann_closure': 'class',
+        'boltzmann order'  : 1,
+        'boltzmann closure': 'class',
     },
 ]
 snapshot_type = 'standard'  # Type of output snapshots
@@ -81,8 +79,8 @@ powerspec_select = {  # Toggle power spectra computation for individual and sets
 powerspec_include_linear = True  # Include linear CLASS power spectra in output?
 powerspec_significant_figures = 8  # Number of significant figures in power spectra output
 render2D_select = {  # Toggle 2D rendering for individual and sets of components
-    'matter component'  : {'data': False, 'image': True,  'terminal image': True},
-    'neutrino component': {'data': False, 'image': False, 'terminal image': False},
+    'matter'   : {'data': False, 'image': True,  'terminal image': True},
+    'neutrinos': {'data': False, 'image': False, 'terminal image': False},
 }
 render3D_select = {  # Toggle rendering for each component
     'all': True,
@@ -94,6 +92,7 @@ boxsize = 512*Mpc  # Linear size of the simulation box
 powerspec_gridsizes = {  # Linear grid sizes to use for power spectrum computation for each component
     'particles': '2*cbrt(N)',
 }
+powerspec_binsize = 2*π/boxsize  # Linear size of each power spectrum bin
 powerspec_interpolation = 'PCS'  # Particle interpolation order to use for power spectrum computation
 powerspec_interlacing = True  # Use interlaced grids for particle power spectra?
 force_interpolations = {  # Particle interpolation orders to use for each long-range force and method
@@ -291,8 +290,8 @@ render2D_options = {  # Specifications of 2D renders for individual and sets of 
     },
 }
 render3D_colors = {  # Color to use in 3D renders for each component
-    'matter component'  : 'lime',
-    'neutrino component': 'r',
+    'matter'   : 'lime',
+    'neutrinos': 'r',
 }
 render3D_bgcolor = 'black'  # Background color of 3D renders
 render3D_resolution = 1080  # The height and width of 3D renders

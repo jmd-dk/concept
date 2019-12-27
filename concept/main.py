@@ -37,7 +37,6 @@ cimport('from integration import cosmic_time,          '
         '                        scalefactor_integral, '
         )
 cimport('from snapshot import get_initial_conditions, save')
-cimport('from species import Component, get_representation')
 cimport('from utilities import delegate')
 
 
@@ -606,8 +605,8 @@ def get_base_timestep_size(components):
                         break
                     else:
                         abort(
-                            f'Failed to detect any lapse component, but the "{component.name}" '
-                            f'component is assigned the lapse force.'
+                            f'Failed to detect any lapse component, but the lapse force '
+                            f'is assigned to {component.name}'
                         )
                 φ_gridsize = component.φ_gridsizes['lapse', 'pm']
                 φ_gridsize = np.min([lapse_gridsize, φ_gridsize])

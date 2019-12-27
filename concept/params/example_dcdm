@@ -15,21 +15,17 @@ _Γ_dcdm = 10*km/(s*Mpc)
 initial_conditions = [
     # Total matter (baryons, (stable) cold dark matter and decaying cold dark matter) component
     {
-        'name'         : 'total matter component',
-        'species'      : 'matter particles',
-        'N'            : _size**3,
+        'species': 'matter',
+        'N'      : _size**3,
     },
-    # Linear GR "component"
+    # Linear radiation and metric component
     {
-        'name'           : 'GR component',
-        'species'        : 'fluid',
+        'species'        : 'radiation + metric',
         'gridsize'       : _size,
-        'boltzmann_order': -1,
-        'class_species'  : 'g+ur+dr+metric',
+        'boltzmann order': -1,
     },
-    # Linear lapse "component"
+    # Linear lapse component
     {
-        'name'    : 'lapse component',
         'species' : 'lapse',
         'gridsize': _size,
     }
@@ -65,11 +61,11 @@ class_params = {
 
 # Physics
 select_forces = {
-    'total matter component': {
+    'particles': {
         'gravity': ('p3m', 2*_size),
         'lapse': 'pm',
     },
-    'GR component': {
+    'fluid': {
         'gravity': 'pm',
     },
 }

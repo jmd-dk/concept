@@ -32,7 +32,7 @@ cimport('from communication import partition,                   '
         '                          smart_mpi,                   '
         )
 cimport('from mesh import domain_decompose, get_fftw_slab, slab_decompose')
-cimport('from species import Component, FluidScalar, get_representation, update_species_present')
+cimport('from species import Component, FluidScalar, update_species_present')
 
 # Pure Python imports
 import struct
@@ -109,7 +109,7 @@ class StandardSnapshot:
         if not filename.endswith('.hdf5'):
             filename += '.hdf5'
         # Print out message
-        masterprint('Saving standard snapshot "{}" ...'.format(filename))
+        masterprint(f'Saving standard snapshot "{filename}" ...')
         with open_hdf5(filename, mode='w', driver='mpio', comm=comm) as hdf5_file:
             # Save used base units
             hdf5_file.attrs['unit time'    ] = self.units['time']
@@ -224,8 +224,10 @@ class StandardSnapshot:
                     Barrier()
                     masterprint('done')
                 elif master:
-                    abort('Does not know how to save component "{}" with representation "{}"'
-                          .format(component.name, component.representation))
+                    abort(
+                        f'Does not know how to save {component.name} '
+                        f'with representation "{component.representation}"'
+                    )
         # Done saving the snapshot
         masterprint('done')
         # Return the filename of the saved file
@@ -275,9 +277,9 @@ class StandardSnapshot:
                     )
     def load(self, filename, only_params=False):
         if only_params:
-            masterprint('Loading parameters of snapshot "{}" ...'.format(filename))
+            masterprint(f'Loading parameters of snapshot "{filename}" ...')
         else:
-            masterprint('Loading snapshot "{}" ...'.format(filename))
+            masterprint(f'Loading snapshot "{filename}" ...')
         # Load all components
         with open_hdf5(filename, mode='r', driver='mpio', comm=comm) as hdf5_file:
             # Load used base units
@@ -296,18 +298,26 @@ class StandardSnapshot:
             # Load component data
             for name, component_h5 in hdf5_file['components'].items():
                 species = component_h5.attrs['species']
-                representation = get_representation(species)
+                if 'N' in component_h5.attrs:
+                    representation = 'particles'
+                elif 'gridsize' in component_h5.attrs:
+                    representation = 'fluid'
+                else:
+                    abort(
+                        f'Could not determine representation of {name} '
+                        f'in snapshot "{filename}", as neither N nor gridsize is specified'
+                    )
                 if representation == 'particles':
                     # Construct a Component instance and append it
                     # to this snapshot's list of components.
                     N = component_h5.attrs['N']
                     mass = component_h5.attrs['mass']*snapshot_unit_mass
-                    component = Component(name, species, N, mass=mass)
+                    component = Component(name, species, N=N, mass=mass)
                     self.components.append(component)
                     # Done loading component attributes
                     if only_params:
                         continue
-                    masterprint('Reading in {} ({} {}) ...'.format(name, N, species))
+                    masterprint(f'Reading in {name} ({N} {species} particles) ...')
                     # Extract HDF5 datasets
                     posx_h5 = component_h5['posx']
                     posy_h5 = component_h5['posy']
@@ -371,7 +381,8 @@ class StandardSnapshot:
                     boltzmann_order = component_h5.attrs['boltzmann_order']
                     # Construct a Component instance and append it
                     # to this snapshot's list of components.
-                    component = Component(name, species, gridsize, boltzmann_order=boltzmann_order)
+                    component = Component(name, species,
+                        gridsize=gridsize, boltzmann_order=boltzmann_order)
                     self.components.append(component)
                     # Done loading component attributes
                     if only_params:
@@ -430,8 +441,9 @@ class StandardSnapshot:
                     # Done reading in fluid component
                     masterprint('done')
                 elif master:
-                    abort('Does not know how to load component "{}" with representation "{}"'
-                          .format(name, representation))
+                    abort(
+                        f'Does not know how to load {name} with representation "{representation}"'
+                    )
         # Done loading the snapshot
         masterprint('done')
 
@@ -469,11 +481,10 @@ class StandardSnapshot:
 class Gadget2Snapshot:
     """This class represents snapshots of the "gadget2" type, meaning
     the second type of snapshot native to GADGET2. Only GADGET2 type 1
-    (halo) particles, corresponding to dark matter particles, are
-    supported. It is also possible to save a component with a
-    species of "matter" as a Gadget2Snapshot. When loading however,
-    any Gadget2Snapshot will produce a component of the
-    "dark matter particles" species.
+    (halo) particles, corresponding to cold dark matter particles, are
+    supported. It is possible to save a component with any species as
+    Gadget2Snapshot. When loading a Gadget2Snapshot, a component of
+    species "cold dark matter" is produced.
     As is the case for the standard snapshot class, this class contains
     a list components (the components attribute) and dict of parameters
     (the params attribute). Besides holding the cosmological parameters
@@ -548,15 +559,15 @@ class Gadget2Snapshot:
     def save(self, filename):
         """The snapshot data (positions and velocities) are stored in
         single precision. Only GADGET2 type 1 (halo) particles,
-        corresponding to dark matter (or matter) particles,
-        are supported.
+        corresponding to cold dark matter particles, are supported.
         """
-        masterprint('Saving GADGET2 snapshot "{}" ...'.format(filename))
+        masterprint(f'Saving GADGET2 snapshot "{filename}" ...')
         component = self.component
-        if master and component.species not in ('dark matter particles', 'matter particles'):
-            abort('The GAGDET2 snapshot type can only store dark matter or matter particles '
-                  '(the species of the {} component is "{}")'
-                  .format(component.name, component.species))
+        if master and component.representation != 'particles':
+            abort(
+                f'The GAGDET2 snapshot type can only store particles, '
+                f'but {self.component.name} is a {component.representation} component.'
+            )
         N = component.N
         N_local = component.N_local
         header = self.params['header']
@@ -590,7 +601,9 @@ class Gadget2Snapshot:
                 # Padding to fill out the 256 bytes
                 f.write(struct.pack('60s', b' '*60))
                 f.write(struct.pack('I', 256))
-        masterprint(f'Writing out {component.name} ({component.N} {component.species}) ...')
+        masterprint(
+            f'Writing out {component.name} ({component.N} {component.species} particles) ...'
+        )
         # Write the POS block in serial, one process at a time
         unit = units.kpc/header['HubbleParam']
         for i in range(nprocs):
@@ -687,21 +700,20 @@ class Gadget2Snapshot:
         snapshot of type 2 and that it uses single precision. The
         Gadget2Snapshot instance stores the data (positions and
         velocities) in double precision. Only GADGET type 1 (halo)
-        particles, corresponding to dark matter particles,
+        particles, corresponding to cold dark matter particles,
         are supported.
         """
         if only_params:
-            masterprint('Loading parameters of snapshot "{}" ...'.format(filename))
+            masterprint(f'Loading parameters of snapshot "{filename}" ...')
         else:
-            masterprint('Loading snapshot "{}" ...'.format(filename))
+            masterprint(f'Loading snapshot "{filename}" ...')
         # Only type 1 (halo) particles are supported. Since GADGET
         # wants Ωm = Ωcdm + Ωb (what GADGET calls Omega0) to be
         # accounted for fully by the particles, we should make the
-        # species of the particles 'matter particles', as using
-        # 'dark matter particles' would suggest that the
-        # baryons are missing.
+        # species of the particles 'matter', as using 'cold dark matter'
+        # would suggest that the baryons are missing.
         name = 'GADGET halos'
-        species = 'matter particles'
+        species = 'matter'
         # Read in the snapshot
         offset = 0
         with open(filename, 'rb') as f:
@@ -746,7 +758,7 @@ class Gadget2Snapshot:
             N = header['Npart'][1]
             unit = 1e+10*units.m_sun/header['HubbleParam']
             mass = header['Massarr'][1]*unit
-            self.component = Component(name, species, N, mass=mass)
+            self.component = Component(name, species, N=N, mass=mass)
             self.components = [self.component]
             # Done loading component attributes
             if only_params:
@@ -1022,9 +1034,13 @@ def load(filename, compare_params=True,
     # Determine snapshot type
     input_type = get_snapshot_type(filename)
     if master and input_type is None:
-        abort('Cannot recognize "{}" as one of the implemented snapshot types ({}).'
-              .format(filename,
-                      ', '.join([snapshot_class.name for snapshot_class in snapshot_classes])))
+        abort(
+            'Cannot recognize "{}" as one of the implemented snapshot types ({})'
+            .format(
+                filename,
+                ', '.join([snapshot_class.name for snapshot_class in snapshot_classes]),
+            )
+        )
     # Instantiate snapshot of the appropriate type
     snapshot = eval(input_type.capitalize() + 'Snapshot()')
     # Load the snapshot from disk
@@ -1183,17 +1199,12 @@ def out_of_bounds_check(component, snapshot_boxsize=-1):
         if (   not (0 <= posx[i] < snapshot_boxsize)
             or not (0 <= posy[i] < snapshot_boxsize)
             or not (0 <= posz[i] < snapshot_boxsize)):
-            abort('Particle number {} of component "{}" has position '
-                  '({:.9g}, {:.9g}, {:.9g}) {}, which is outside of the cubic box '
-                  'of side length {:.9g} {}'.format(i,
-                                                    component.name,
-                                                    posx[i],
-                                                    posy[i],
-                                                    posz[i],
-                                                    unit_length,
-                                                    snapshot_boxsize,
-                                                    unit_length),
-                  )
+            abort(
+                f'Particle number {i} of {component.name} has position '
+                f'({posx[i]:.9g}, {posy[i]:.9g}, {posz[i]:.9g}) {unit_length}, '
+                f'which is outside of the cubic box '
+                f'of side length {snapshot_boxsize:.9g} {unit_length}'
+            )
 
 # Function that either loads existing initial conditions from a snapshot
 # or produces the initial conditions itself.
@@ -1202,7 +1213,6 @@ def out_of_bounds_check(component, snapshot_boxsize=-1):
     do_realization='bint',
     # Locals
     N_components_from_snapshot='Py_ssize_t',
-    N_or_gridsize='Py_ssize_t',
     component='Component',
     components=list,
     initial_condition_specifications=list,
@@ -1245,56 +1255,15 @@ def get_initial_conditions(do_realization=True):
     # Instantiate the component(s) given as
     # initial condition specifications.
     for specifications in initial_condition_specifications:
-        name = specifications.pop('name')
-        species = specifications.pop('species')
-        representation = get_representation(species)
-        if 'N_or_gridsize' in specifications:
-            N_or_gridsize = specifications.pop('N_or_gridsize')
-            if 'N' in specifications:
-                masterwarn(
-                    f'Both N and N_or_gridsize specified '
-                    f'for component "{name}". The value of N will be ignored.'
-                )
-            if 'gridsize' in specifications:
-                masterwarn(
-                    f'Both gridsize and N_or_gridsize specified '
-                    f'for component "{name}". The value of gridsize will be ignored.'
-                )
-        elif 'N' in specifications:
-            N_or_gridsize = specifications.pop('N')
-            if 'gridsize' in specifications:
-                masterwarn(
-                    f'Both gridsize and N specified '
-                    f'for component "{name}". The value of gridsize will be ignored.'
-                )
-            if representation == 'fluid':
-                masterwarn(
-                    f'N = {N_or_gridsize} was specified '
-                    f'for fluid component "{name}". This will be used as the gridsize.'
-                )
-        elif 'gridsize' in specifications:
-            N_or_gridsize = specifications.pop('gridsize')
-            if representation == 'particles':
-                masterwarn(
-                    f'gridsize = {N_or_gridsize} was specified '
-                    f'for particle component "{name}". This will be used as N.'
-                )
+        species = str(specifications.pop('species', None))
+        if 'name' in specifications:
+            name = str(specifications.pop('name'))
         else:
-            if representation == 'particles':
-                abort(f'No N specified for "{name}"')
-            elif representation == 'fluid':
-                abort(f'No gridsize specified for "{name}"')
-        # Show a warning if not enough information is given to
-        # construct the initial conditions.
-        if (species in ('neutrinos', 'neutrino fluid')
-            and class_params.get('N_ncdm', 0) == 0):
-            masterwarn(
-                f'Component "{name}" with species "{species}" specified, '
-                f'but the N_ncdm CLASS parameter is 0'
-            )
+            # Let the name default to the species
+            name = species
         # Instantiate
         specifications = {key.replace(' ', '_'): value for key, value in specifications.items()}
-        component = Component(name, species, N_or_gridsize, **specifications)
+        component = Component(name, species, **specifications)
         components.append(component)
     # Populate universals_dict['species_present']
     # and universals_dict['class_species_present'].
@@ -1312,11 +1281,11 @@ def get_initial_conditions(do_realization=True):
         ϱ_cdmbar_components = 0
         ϱ_mbar_components = 0
         for component in components:
-            if component.species in {'baryon fluid', 'baryons'}:
+            if component.species == 'baryons':
                 ϱ_bbar_components += component.ϱ_bar
-            elif component.species in {'dark matter fluid', 'dark matter particles'}:
+            elif component.species == 'cold dark matter':
                 ϱ_cdmbar_components += component.ϱ_bar
-            elif component.species in {'matter fluid', 'matter particles'}:
+            elif component.species == 'matter':
                 ϱ_mbar_components += component.ϱ_bar
         ϱ_mbar_components += ϱ_bbar_components + ϱ_cdmbar_components
         if ϱ_bbar_components > Ωb*ρ_crit and not isclose(

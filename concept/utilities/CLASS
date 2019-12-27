@@ -159,12 +159,11 @@ echo "
 # perturbations argument of the CLASS utility.
 _initial_conditions = [
     {
-         'name'             : class_species,
-         'species'          : 'fluid',
-         'gridsize'         : 2,
-         'boltzmann_order'  : int(boltzmann_order) - 1,
-         'boltzmann_closure': 'class',
-         'class_species'    : class_species,
+        'name'             : class_species,
+        'species'          : class_species,
+        'gridsize'         : 2,
+        'boltzmann_order'  : int(boltzmann_order) - 1,
+        'boltzmann_closure': 'class',
     }
     for class_species, boltzmann_order in (
         perturbation.split(':') for perturbation in (

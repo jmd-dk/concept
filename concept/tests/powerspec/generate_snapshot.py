@@ -9,7 +9,7 @@ from snapshot import save
 N_lin = 128
 N = N_lin**3
 mass = ρ_mbar*boxsize**3/N
-component = Component('test particles', 'matter particles', N, mass=mass)
+component = Component('test particles', 'matter', N=N, mass=mass)
 posx = empty(N)
 posy = empty(N)
 posz = empty(N)

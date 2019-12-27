@@ -32,10 +32,11 @@ echo "$(cat "${this_dir}/params")
 output_dirs  = {'snapshot': '${this_dir}'}
 output_bases = {'snapshot': 'IC'}
 output_times = {'snapshot': a_begin}
-initial_conditions = {'name'   : 'test particles',
-                      'species': 'matter particles',
-                      'N'      : _size**3,
-                      }
+initial_conditions = {
+    'name'   : 'test particles',
+    'species': 'matter',
+    'N'      : _size**3,
+}
 " > "${this_dir}/ic.params"
 "${concept}" -n 1                       \
              -p "${this_dir}/ic.params" \
@@ -50,7 +51,6 @@ mv "${this_dir}/output" "${this_dir}/output_particles"
 gridsize=$(get_param "_size")
 particles2fluid(){
     "${concept}" --local -u convert "${1}"       \
-        "test particles.species  = matter fluid" \
         "test particles.gridsize = ${gridsize}"  \
         "test particles.name     = test fluid"
 }
