@@ -7800,7 +7800,7 @@ PIC=${PIC}, shared=${shared}, extra_MPILIBS=${extra_MPILIBS}"
                                         --disable-fortran    \
                                         ${with_pic}          \
                                         --prefix="${fftw_for_gadget_dir}" 2>&1 || continue
-                            make ${make_jobs} 2>&1 || continue
+                            make 2>&1 || continue
                             fftw_for_gadget_test_max_time=600
                             if [ "${extra_optimizations}" == "True" ]; then
                                 exit_code_filename="${top_dir}/tmp/.exit_code_fftw_for_gadget"
@@ -7846,7 +7846,7 @@ PIC=${PIC}, shared=${shared}, extra_MPILIBS=${extra_MPILIBS}"
                                 fi
                                 rm -f "${exit_code_filename}" || :
                             fi
-                            make ${make_jobs} install 2>&1 || continue
+                            make install 2>&1 || continue
                             # Single-precision
                             make clean || :
                             ./configure ${enable_shared}     \
@@ -7856,8 +7856,8 @@ PIC=${PIC}, shared=${shared}, extra_MPILIBS=${extra_MPILIBS}"
                                         --disable-fortran    \
                                         ${with_pic}          \
                                         --prefix="${fftw_for_gadget_dir}" 2>&1 || continue
-                            make ${make_jobs}         2>&1 || continue
-                            make ${make_jobs} install 2>&1 || continue
+                            make         2>&1 || continue
+                            make install 2>&1 || continue
                             install_success="True"
                             break
                         done
