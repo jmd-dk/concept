@@ -1032,7 +1032,8 @@ check_system_dependency(){
                         [Nn]* ) error "Terminated install due to missing component '${1}'"
                                 exit 1
                                 ;;
-                        ""    ) eval "${install_command} ${2}"
+                        ""    ) build_sudo_command
+                                eval "${sudo_command} ${install_command} ${2}"
                                 printf "${1} successfully installed\n\n"
                                 return
                                 ;;
