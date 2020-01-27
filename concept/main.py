@@ -536,6 +536,8 @@ def get_base_timestep_size(components):
     # The dynamical time scale
     ρ_bar = 0
     for component in components:
+        if component.representation == 'fluid' and component.is_linear(0):
+            continue
         ρ_bar += a**(-3*(1 + component.w_eff(a=a)))*component.ϱ_bar
     Δt_dynamical = fac_dynamical/sqrt(G_Newton*ρ_bar)
     if Δt_dynamical < Δt:
@@ -549,6 +551,8 @@ def get_base_timestep_size(components):
             bottleneck = 'the Hubble time'
     # 1/abs(ẇ)
     for component in components:
+        if component.representation == 'fluid' and component.is_linear(0):
+            continue
         Δt_ẇ = fac_ẇ/(abs(cast(component.ẇ(a=a), 'double')) + machine_ϵ)
         if Δt_ẇ < Δt:
             Δt = Δt_ẇ
@@ -565,6 +569,8 @@ def get_base_timestep_size(components):
     # Courant condition for fluid elements
     for component in components:
         if component.representation == 'particles':
+            continue
+        if component.representation == 'fluid' and component.is_linear(0):
             continue
         # Find maximum propagation speed of fluid
         key = (component, 'v_max')
@@ -583,6 +589,8 @@ def get_base_timestep_size(components):
             bottleneck = f'the Courant condition for {component.name}'
     # PM limiter
     for component in components:
+        if component.representation == 'fluid' and component.is_linear(0):
+            continue
         # Find PM resolution for this component.
         # The PM method is implemented for gravity and the lapse force.
         resolution = 0
@@ -636,6 +644,8 @@ def get_base_timestep_size(components):
             bottleneck = f'the PM method of the {extreme_force} force for {component.name}'
     # P³M limiter
     for component in components:
+        if component.representation == 'fluid' and component.is_linear(0):
+            continue
         # Find P³M resolution for this component.
         # The P³M method is only implemented for gravity.
         scale = ထ
