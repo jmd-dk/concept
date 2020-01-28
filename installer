@@ -369,8 +369,8 @@ set_version "fftw_for_gadget"  "2.1.5"  "2.1.5"   # Do not change
 set_version "freetype"         "2.10.1" "2.10.1"
 set_version "gadget"           "2.0.7"            # Do not change
 set_version "gsl"              "2.6"    "2.6"
-set_version "hdf5"             "1.10.5" "1.10.5"
-set_version "libffi"           "3.2.1"  "3.2.1"
+set_version "hdf5"             "1.10.6" "1.10.6"
+set_version "libffi"           "3.3"    "3.3"
 set_version "libpng"           "1.6.37" "1.6.37"
 if [ "${mpi}" == "mpich" ]; then
     set_version "mpi"          "3.3.2"  "3.3.2"
@@ -380,23 +380,23 @@ fi
 set_version "ncurses"          "6.1"    "6.1"
 set_version "openssl"          "1.1.1d" "1.1.1d"
 set_version "perl"             "5.30.1"
-set_version "python"           "3.8.0"
+set_version "python"           "3.8.1"
 set_version "zlib"             "1.2.11" "1.2.11"
 # Python packages
 set_version "blessings"        "1.7"
 set_version "cython"           "0.29.14"
 set_version "cythongsl"        "0.2.2"
 set_version "h5py"             "2.10.0"
-set_version "matplotlib"       "3.1.1"
+set_version "matplotlib"       "3.1.2"
 set_version "mpi4py"           "3.0.3"
-set_version "numpy"            "1.17.4"
-set_version "pip"              "19.3.1"
-set_version "pytest"           "5.2.4"
-set_version "scipy"            "1.3.2"
-set_version "setuptools"       "41.6.0"
-set_version "sphinx"           "2.2.1"
+set_version "numpy"            "1.18.1"
+set_version "pip"              "19.3.1"  # 20.0.2 breaks SciPy installation
+set_version "pytest"           "5.3.4"
+set_version "scipy"            "1.4.1"
+set_version "setuptools"       "45.1.0"
+set_version "sphinx"           "2.3.1"
 set_version "sphinx_rtd_theme" "0.4.3"
-set_version "wheel"            "0.33.6"
+set_version "wheel"            "0.34.1"
 # Note that the versions may be changed further down due to known
 # compatibility issues between specific versions of the above programs
 # and specific versions of system dependencies.
@@ -686,29 +686,58 @@ if [ "${fix_ssh}" == "True" ]; then
     exit 0
 fi
 
+# Function which prints the absolute path of a given command.
+# If the command is not an executable file on the PATH but instead a
+# known function, the input command is printed as is. If the command
+# cannot be found at all, nothing is printed and an exit code of 1
+# is returned.
+get_command(){
+    command_name="${1}"
+    # Use the type builtin to locate the command
+    local path="$(type "${command_name}" 2>/dev/null || :)"
+    path="${path##* }"
+    if [[ "${path}" == "/"* ]]; then
+        # The command is a path
+        path="$(readlink -f "${path}")"
+        echo "${path}"
+        return 0
+    elif [ -n "${path}" ]; then
+        # The command exists as a function
+        echo "${command_name}"
+        return 0
+    fi
+    # The command does not exist
+    return 1
+}
+
 # This function should be called before any use of sudo and will cache
 # the root password to the sudo_command variable. After this, instead of
-# invoing sudo, invoke ${sudo_command} (usind eval). This way, the root
+# invoing sudo, invoke ${sudo_command} (using eval). This way, the root
 # password has to be entered at most once.
 sudo_command=""
 build_sudo_command(){
     if [ -z "${sudo_command}" ]; then
-        if [ ${EUID} -eq 0 ]; then
-            sudo_command="sudo"
+        if get_command "sudo" >/dev/null; then
+            if [ ${EUID} -eq 0 ]; then
+                sudo_command="sudo"
+            else
+                sudo -k
+                while :; do
+                    read -s -p "[sudo] password for $(whoami): " sudo_password
+                    echo
+                    output="$(echo "${sudo_password}" | sudo -S echo hello 2>&1 || :)"
+                    output="${output##* }"
+                    if [ "${output}" == "hello" ]; then
+                        break
+                    fi
+                    echo "Sorry, try again."
+                done
+                sudo_command="echo \"${sudo_password}\" | sudo -S"
+                unset sudo_password
+            fi
         else
-            sudo -k
-            while :; do
-                read -s -p "[sudo] password for $(whoami): " sudo_password
-                echo
-                output="$(echo "${sudo_password}" | sudo -S echo hello 2>&1 || :)"
-                output="${output##* }"
-                if [ "${output}" == "hello" ]; then
-                    break
-                fi
-                echo "Sorry, try again."
-            done
-            sudo_command="echo \"${sudo_password}\" | sudo -S"
-            unset sudo_password
+            # No sudo command exist. Assume root privileges by default.
+            sudo_command=""
         fi
     fi
 }
@@ -738,30 +767,6 @@ cd "${top_dir}"
 # use_specified_mpi_compilers functions, which use it to store symlinks
 # to MPI library files.
 mpi_symlinkdir="${top_dir}/.mpi_symlinks"
-
-# Function which prints the absolute path of a given command.
-# If the command is not an executable file on the PATH but instead a
-# known function, the input command is printed as is. If the command
-# cannot be found at all, nothing is printed and an exit code of 1
-# is returned.
-get_command(){
-    command_name="${1}"
-    # Use the type builtin to locate the command
-    local path="$(type "${command_name}" 2>/dev/null || :)"
-    path="${path##* }"
-    if [[ "${path}" == "/"* ]]; then
-        # The command is a path
-        path="$(readlink -f "${path}")"
-        echo "${path}"
-        return 0
-    elif [ -n "${path}" ]; then
-        # The command exists as a function
-        echo "${command_name}"
-        return 0
-    fi
-    # The command does not exist
-    return 1
-}
 
 # Check whether system dependencies are installed and located on PATH
 current_step="check for preinstalled system dependencies"
@@ -1020,7 +1025,10 @@ check_system_dependency(){
             else
                 echo "Could not find '${1}'"
                 echo "You can install it by typing:"
-                echo "sudo ${install_command} ${2}"
+                if get_command "sudo" >/dev/null; then
+                    printf "sudo "
+                fi
+                echo "${install_command} ${2}"
                 while :; do
                     read -p "Run above command now? [Y/n] " yn
                     case "${yn}" in
@@ -5892,18 +5900,18 @@ extra_pip_arg=${extra_pip_arg}\n\n"
     rm -rf "${tmp_pip_dir}" "${tmp_pip_dir}_tmp" "${tmp_pip_dir}_cp" || :
 }
 
-# Upgrade/install pip, setuptools and wheel.
+# Upgrade/install setuptools, pip and wheel.
 # Do not use the pip_download or pip_install_pypackage functions
 # for this, as these packages (and their dependencies) may actually be
 # needed for that to work, resulting in a bootstrapping problem.
 # This problem really arises from the choice of installing Python
-# packages from source. Let 'pip install' upgrade pip, setuptools and
+# packages from source. Let 'pip install' upgrade setuptools, pip and
 # wheel by whatever means it wants, ensuring that the dependencies of
 # these bootstrapping packages are installed/upgraded as well.
 if [ "${pip_install}" == "True" ] && [ "${python_installed}" == "False" ]; then
     tmp_pip_dir="${top_dir}/tmp/pip"
     export TMPDIR="${tmp_pip_dir}_tmp"
-    for package in "pip" "setuptools" "wheel"; do
+    for package in "setuptools" "pip" "wheel"; do
         current_step="upgrade/install of ${package}"
         heading "Upgrading/installing ${package}"
         set_status "Upgrading/installing ${package}"
@@ -6230,6 +6238,13 @@ fi
 # SciPy (manual invocation of setup.py is needed
 # as we need to link to OpenBLAS).
 if [ "${scipy_install}" == "True" ] && [ "${scipy_installed}" == "False" ]; then
+    # As of SciPy 1.4, pybind11 is a required dependency, though this is
+    # not automatically installed by pip. If not already installed, we
+    # install this Python package now.
+    pybind11_installed=$(check_pypackage_installed pybind11)
+    if [ "${pybind11_installed}" == "False" ]; then
+        pip_install_pypackage "pybind11"
+    fi
     current_step="installation of SciPy ${scipy_version}"
     heading "Installing SciPy ${scipy_version}"
     set_status "Installing SciPy ${scipy_version}"
@@ -6295,7 +6310,6 @@ extra_LDFLAGS=${extra_LDFLAGS}\n\n"
                                     export F9X="gfortran"
                                 fi
                                 export CFLAGS="${CFLAGS} ${cstd}"
-                                export TMPDIR="${tmp_pip_dir}_tmp"
                                 export TMPDIR="${tmp_pip_dir}_tmp"
                                 export BLAS="${blas_dir}/lib/libopenblas.a"
                                 export LAPACK="${blas_dir}/lib/libopenblas.a"
