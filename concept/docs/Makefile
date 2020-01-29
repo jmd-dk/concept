@@ -57,6 +57,8 @@ html: Makefile
 	    sed -i 's/.*Previous<.*//g' $${filename} ; \
 	    sed -i 's/.*>Next .*//g' $${filename} ; \
 	done
+	@sed -i 's/.*Previous<.*//g' $(BUILDDIR)/html/under_the_hood.html
+	@sed -i 's/.*>Next .*//g'    $(BUILDDIR)/html/under_the_hood.html
 	@sed -i 's/.*>Next .*//g'    $(BUILDDIR)/html/troubleshooting.html
 	@sed -i 's/.*Previous<.*//g' $(BUILDDIR)/html/troubleshooting.html
 	@sed -i 's/.*>Next .*//g'    $(BUILDDIR)/html/publications.html
