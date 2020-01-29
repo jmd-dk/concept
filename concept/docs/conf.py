@@ -35,4 +35,4 @@ html_show_sphinx = False
 html_show_copyright = False
 html_last_updated_fmt = None
 html_use_smartypants = True
-
+html_scaled_image_link = False
