@@ -4894,8 +4894,8 @@ if [ "${fftw_install}" == "True" ] && [ "${fftw_installed}" == "False" ]; then
                             fi
                             reset_environment
                             init_install "FFTW" "extra_optimizations=${extra_optimizations}, \
-enable_shared=${enable_shared}, with_pic=${with_pic}, \
-PIC=${PIC}, shared=${shared}, extra_MPILIBS=${extra_MPILIBS}"
+enable_shared=${enable_shared}, shared=${shared}, with_pic=${with_pic}, \
+PIC=${PIC}, extra_MPILIBS=${extra_MPILIBS}"
                             if [ -n "${enable_mpi}" ]; then
                                 use_specified_mpi_compilers
                                 export MPICC="${CC}"
@@ -4923,7 +4923,7 @@ PIC=${PIC}, shared=${shared}, extra_MPILIBS=${extra_MPILIBS}"
                                         --disable-fortran \
                                         ${with_pic}       \
                                         --prefix="${fftw_dir}" 2>&1 || continue
-                            make ${make_jobs} 2>&1 || continue
+                            make 2>&1 || continue
                             fftw_test_max_time=600
                             if [ "${extra_optimizations}" == "True" ]; then
                                 exit_code_filename="${top_dir}/tmp/.exit_code_fftw"
@@ -4967,7 +4967,7 @@ PIC=${PIC}, shared=${shared}, extra_MPILIBS=${extra_MPILIBS}"
                                 fi
                                 rm -f "${exit_code_filename}" || :
                             fi
-                            make ${make_jobs} install 2>&1 || continue
+                            make install 2>&1 || continue
                             # Single-precision
                             make clean || :
                             ./configure ${enable_shared}  \
@@ -4976,8 +4976,8 @@ PIC=${PIC}, shared=${shared}, extra_MPILIBS=${extra_MPILIBS}"
                                         --disable-fortran \
                                         ${with_pic}       \
                                         --prefix="${fftw_dir}" 2>&1 || continue
-                            make ${make_jobs}         2>&1 || continue
-                            make ${make_jobs} install 2>&1 || continue
+                            make         2>&1 || continue
+                            make install 2>&1 || continue
                             install_success="True"
                             break
                         done
@@ -7804,8 +7804,8 @@ if [ "${fftw_for_gadget_install}" == "True" ] \
                             reset_environment
                             init_install "FFTW for GADGET" \
                                 "extra_optimizations=${extra_optimizations}, \
-enable_shared=${enable_shared}, with_pic=${with_pic}, \
-PIC=${PIC}, shared=${shared}, extra_MPILIBS=${extra_MPILIBS}"
+enable_shared=${enable_shared}, shared=${shared}, with_pic=${with_pic}, \
+PIC=${PIC}, extra_MPILIBS=${extra_MPILIBS}"
                             export CFLAGS="-O3 ${PIC} ${CFLAGS}"
                             export CXXFLAGS="-O3 ${PIC} ${CXXFLAGS}"
                             export LDFLAGS="${LDFLAGS} -Wl,-O3 ${shared} ${PIC}"
