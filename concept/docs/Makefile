@@ -1,8 +1,31 @@
+#
+define README_body
+CO*N*CEPT documentation
+=======================
+<img align="right" height="300" src="/_static/render2D.png"/>
+
+This is the git branch for the published CO*N*CEPT documentation,
+which is most likely not what you are looking for.
+
+Useful links:
+
+* [Hosted documentation][documentation_hosted]
+* [Source code for documentation][documentation_source]
+* [Code repository (master branch)][master_branch]
+
+[documentation_hosted]: https://jmd-dk.github.io/concept/
+[documentation_source]: https://github.com/jmd-dk/concept/tree/master/concept/docs/
+[master_branch]: https://github.com/jmd-dk/concept/
+
+endef
+export README_body
+
 # Default target which builds the documentation and prepares it for publication
-publish: html
+publish: html clean_sphinx_publish
 	@mkdir -p $(PUBLISHDIR)
 	@cp -r $(BUILDDIR)/html/* $(PUBLISHDIR)/
 	@touch $(PUBLISHDIR)/.nojekyll
+	@echo "$$README_body" > $(PUBLISHDIR)/README.md
 	@printf "\nThe html documentation has been collected in \"$(PUBLISHDIR)\"\n"
 .PHONY: publish
 
@@ -70,9 +93,15 @@ html: Makefile
 
 
 
-# Sphinx clean target, removing all build and publish files,
-# being careful not to remove .git* files and directories.
-clean_sphinx:
-	$(RM) -r $(BUILDDIR) $(PUBLISHDIR)/{.[!.git],}*
-.PHONY: clean_sphinx
+# Cleanup targets
+.PHONY:                  \
+    clean_sphinx_build   \
+    clean_sphinx_publish \
+    clean_sphinx         \
+
+clean_sphinx_build:
+	$(RM) -r $(BUILDDIR)
+clean_sphinx_publish:
+	$(RM) -r $(PUBLISHDIR)/{.[!.git],}*
+clean_sphinx: clean_sphinx_build clean_sphinx_publish
 
