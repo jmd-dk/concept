@@ -1,7 +1,7 @@
 # Project
 project   = 'CONCEPT'
 author    = 'Jeppe Dakin'
-copyright = '2019, Jeppe Dakin'
+copyright = '2020, Jeppe Dakin'
 
 # Paths
 html_static_path = ['_static']
