@@ -109,6 +109,7 @@ directory consist of the following and will be installed in order:
       - MPI4Py
       - H5Py
       - Sphinx
+      - sphinx_copybutton
       - sphinx_rtd_theme
   - CLASS
   - CO𝘕CEPT
@@ -288,34 +289,35 @@ set_dir(){
 # The install_explicit_only environment variable, when set to "True",
 # disables all implicit installations.
 if [ "${install_explicit_only}" == "True" ]; then
-    for progname in "concept"          \
-                    "blas"             \
-                    "class"            \
-                    "fftw"             \
-                    "fftw_for_gadget"  \
-                    "freetype"         \
-                    "gadget"           \
-                    "gsl"              \
-                    "hdf5"             \
-                    "libffi"           \
-                    "libpng"           \
-                    "mpi"              \
-                    "ncurses"          \
-                    "openssl"          \
-                    "perl"             \
-                    "python"           \
-                    "zlib"             \
-                    "blessings"        \
-                    "cython"           \
-                    "cythongsl"        \
-                    "h5py"             \
-                    "matplotlib"       \
-                    "mpi4py"           \
-                    "numpy"            \
-                    "pytest"           \
-                    "scipy"            \
-                    "sphinx"           \
-                    "sphinx_rtd_theme" \
+    for progname in "concept"           \
+                    "blas"              \
+                    "class"             \
+                    "fftw"              \
+                    "fftw_for_gadget"   \
+                    "freetype"          \
+                    "gadget"            \
+                    "gsl"               \
+                    "hdf5"              \
+                    "libffi"            \
+                    "libpng"            \
+                    "mpi"               \
+                    "ncurses"           \
+                    "openssl"           \
+                    "perl"              \
+                    "python"            \
+                    "zlib"              \
+                    "blessings"         \
+                    "cython"            \
+                    "cythongsl"         \
+                    "h5py"              \
+                    "matplotlib"        \
+                    "mpi4py"            \
+                    "numpy"             \
+                    "pytest"            \
+                    "scipy"             \
+                    "sphinx"            \
+                    "sphinx_copybutton" \
+                    "sphinx_rtd_theme"  \
     ; do
         eval "[ -n \"\${${progname}_install}\" ] || ${progname}_install=\"False\""
     done
@@ -361,42 +363,43 @@ set_version(){
 # link to the version given by the middle column is broken.
 # In case of CO𝘕CEPT and CLASS, possible versions are the corresponding
 # GitHub branches and releases.
-set_version "concept"          "master"
-set_version "blas"             "0.3.7"  "0.3.7"
-set_version "class"            "2.7.2"
-set_version "fftw"             "3.3.8"  "3.3.8"
-set_version "fftw_for_gadget"  "2.1.5"  "2.1.5"   # Do not change
-set_version "freetype"         "2.10.1" "2.10.1"
-set_version "gadget"           "2.0.7"            # Do not change
-set_version "gsl"              "2.6"    "2.6"
-set_version "hdf5"             "1.10.6" "1.10.6"
-set_version "libffi"           "3.3"    "3.3"
-set_version "libpng"           "1.6.37" "1.6.37"
+set_version "concept"           "master"
+set_version "blas"              "0.3.7"   "0.3.7"
+set_version "class"             "2.7.2"
+set_version "fftw"              "3.3.8"   "3.3.8"
+set_version "fftw_for_gadget"   "2.1.5"   "2.1.5"   # Do not change
+set_version "freetype"          "2.10.1"  "2.10.1"
+set_version "gadget"            "2.0.7"             # Do not change
+set_version "gsl"               "2.6"     "2.6"
+set_version "hdf5"              "1.10.6"  "1.10.6"
+set_version "libffi"            "3.3"     "3.3"
+set_version "libpng"            "1.6.37"  "1.6.37"
 if [ "${mpi}" == "mpich" ]; then
-    set_version "mpi"          "3.3.2"  "3.3.2"
+    set_version "mpi"           "3.3.2"   "3.3.2"
 elif [ "${mpi}" == "openmpi" ]; then
-    set_version "mpi"          "4.0.2"
+    set_version "mpi"           "4.0.2"
 fi
-set_version "ncurses"          "6.1"    "6.1"
-set_version "openssl"          "1.1.1d" "1.1.1d"
-set_version "perl"             "5.30.1"
-set_version "python"           "3.8.1"
-set_version "zlib"             "1.2.11" "1.2.11"
+set_version "ncurses"           "6.1"     "6.1"
+set_version "openssl"           "1.1.1d"  "1.1.1d"
+set_version "perl"              "5.30.1"
+set_version "python"            "3.8.1"
+set_version "zlib"              "1.2.11"  "1.2.11"
 # Python packages
-set_version "blessings"        "1.7"
-set_version "cython"           "0.29.14"
-set_version "cythongsl"        "0.2.2"
-set_version "h5py"             "2.10.0"
-set_version "matplotlib"       "3.1.2"
-set_version "mpi4py"           "3.0.3"
-set_version "numpy"            "1.18.1"
-set_version "pip"              "19.3.1"  # 20.0.2 breaks SciPy installation
-set_version "pytest"           "5.3.4"
-set_version "scipy"            "1.4.1"
-set_version "setuptools"       "45.1.0"
-set_version "sphinx"           "2.3.1"
-set_version "sphinx_rtd_theme" "0.4.3"
-set_version "wheel"            "0.34.1"
+set_version "blessings"         "1.7"
+set_version "cython"            "0.29.14"
+set_version "cythongsl"         "0.2.2"
+set_version "h5py"              "2.10.0"
+set_version "matplotlib"        "3.1.2"
+set_version "mpi4py"            "3.0.3"
+set_version "numpy"             "1.18.1"
+set_version "pip"               "19.3.1"  # 20.0.2 breaks SciPy installation
+set_version "pytest"            "5.3.4"
+set_version "scipy"             "1.4.1"
+set_version "setuptools"        "45.1.0"
+set_version "sphinx"            "2.3.1"
+set_version "sphinx_copybutton" "0.2.8"
+set_version "sphinx_rtd_theme"  "0.4.3"
+set_version "wheel"             "0.34.1"
 # Note that the versions may be changed further down due to known
 # compatibility issues between specific versions of the above programs
 # and specific versions of system dependencies.
@@ -1749,22 +1752,24 @@ numpy_preinstalled="False"
 pytest_preinstalled="False"
 scipy_preinstalled="False"
 sphinx_preinstalled="False"
+sphinx_copybutton_preinstalled="False"
 sphinx_rtd_theme_preinstalled="False"
 pip_preinstalled="False"
 if [ "${python_preinstalled}" == "True" ]; then
     python=$(ls -1 "${python_dir}/bin/python"* | head -n 1)
-    for pypackage in blessings        \
-                     cython           \
-                     cythongsl        \
-                     h5py             \
-                     matplotlib       \
-                     mpi4py           \
-                     numpy            \
-                     pytest           \
-                     scipy            \
-                     sphinx           \
-                     sphinx_rtd_theme \
-                     pip              \
+    for pypackage in blessings         \
+                     cython            \
+                     cythongsl         \
+                     h5py              \
+                     matplotlib        \
+                     mpi4py            \
+                     numpy             \
+                     pytest            \
+                     scipy             \
+                     sphinx            \
+                     sphinx_copybutton \
+                     sphinx_rtd_theme  \
+                     pip               \
     ; do
         pypackage_preinstalled=$(check_pypackage_installed ${pypackage})
         eval "${pypackage}_preinstalled=\"${pypackage_preinstalled}\""
@@ -1816,17 +1821,18 @@ if [ -z "${pip_install}" ]; then
         pip_install="True"
     fi
 fi
-for pypackage in blessings        \
-                 cython           \
-                 cythongsl        \
-                 h5py             \
-                 matplotlib       \
-                 mpi4py           \
-                 numpy            \
-                 pytest           \
-                 scipy            \
-                 sphinx           \
-                 sphinx_rtd_theme \
+for pypackage in blessings         \
+                 cython            \
+                 cythongsl         \
+                 h5py              \
+                 matplotlib        \
+                 mpi4py            \
+                 numpy             \
+                 pytest            \
+                 scipy             \
+                 sphinx            \
+                 sphinx_copybutton \
+                 sphinx_rtd_theme  \
 ; do
     eval "pypackage_install=\"\${${pypackage}_install}\""
     if [ -z "${pypackage_install}" ]; then
@@ -1938,37 +1944,38 @@ if [ -z "${perl_install}" ]; then
 fi
 # The install_any_software, install_any_pypackages
 # and install_anything variables.
-if     [ "${concept_install}"          == "True" ] \
-    || [ "${blas_install}"             == "True" ] \
-    || [ "${class_install}"            == "True" ] \
-    || [ "${gadget_install}"           == "True" ] \
-    || [ "${fftw_for_gadget_install}"  == "True" ] \
-    || [ "${python_install}"           == "True" ] \
-    || [ "${fftw_install}"             == "True" ] \
-    || [ "${hdf5_install}"             == "True" ] \
-    || [ "${mpi_install}"              == "True" ] \
-    || [ "${gsl_install}"              == "True" ] \
-    || [ "${libpng_install}"           == "True" ] \
-    || [ "${zlib_install}"             == "True" ] \
-    || [ "${freetype_install}"         == "True" ] \
-    || [ "${ncurses_install}"          == "True" ] \
-    || [ "${openssl_install}"          == "True" ] \
-    || [ "${libffi_install}"           == "True" ] \
-    || [ "${perl_install}"             == "True" ] \
+if     [ "${concept_install}"           == "True" ] \
+    || [ "${blas_install}"              == "True" ] \
+    || [ "${class_install}"             == "True" ] \
+    || [ "${gadget_install}"            == "True" ] \
+    || [ "${fftw_for_gadget_install}"   == "True" ] \
+    || [ "${python_install}"            == "True" ] \
+    || [ "${fftw_install}"              == "True" ] \
+    || [ "${hdf5_install}"              == "True" ] \
+    || [ "${mpi_install}"               == "True" ] \
+    || [ "${gsl_install}"               == "True" ] \
+    || [ "${libpng_install}"            == "True" ] \
+    || [ "${zlib_install}"              == "True" ] \
+    || [ "${freetype_install}"          == "True" ] \
+    || [ "${ncurses_install}"           == "True" ] \
+    || [ "${openssl_install}"           == "True" ] \
+    || [ "${libffi_install}"            == "True" ] \
+    || [ "${perl_install}"              == "True" ] \
 ; then
         install_any_software="True"
 fi
-if     [ "${blessings_install}"        == "True" ] \
-    || [ "${cython_install}"           == "True" ] \
-    || [ "${cythongsl_install}"        == "True" ] \
-    || [ "${h5py_install}"             == "True" ] \
-    || [ "${matplotlib_install}"       == "True" ] \
-    || [ "${mpi4py_install}"           == "True" ] \
-    || [ "${numpy_install}"            == "True" ] \
-    || [ "${pytest_install}"           == "True" ] \
-    || [ "${scipy_install}"            == "True" ] \
-    || [ "${sphinx_install}"           == "True" ] \
-    || [ "${sphinx_rtd_theme_install}" == "True" ] \
+if     [ "${blessings_install}"         == "True" ] \
+    || [ "${cython_install}"            == "True" ] \
+    || [ "${cythongsl_install}"         == "True" ] \
+    || [ "${h5py_install}"              == "True" ] \
+    || [ "${matplotlib_install}"        == "True" ] \
+    || [ "${mpi4py_install}"            == "True" ] \
+    || [ "${numpy_install}"             == "True" ] \
+    || [ "${pytest_install}"            == "True" ] \
+    || [ "${scipy_install}"             == "True" ] \
+    || [ "${sphinx_install}"            == "True" ] \
+    || [ "${sphinx_copybutton_install}" == "True" ] \
+    || [ "${sphinx_rtd_theme_install}"  == "True" ] \
 ; then
         install_any_pypackages="True"
 fi
@@ -2748,6 +2755,7 @@ numpy_installed="False"
 pytest_installed="False"
 scipy_installed="False"
 sphinx_installed="False"
+sphinx_copybutton_installed="False"
 sphinx_rtd_theme_installed="False"
 pip_installed="False"
 if [ -n "${python_dir}" ]; then
@@ -2761,18 +2769,19 @@ if [ -n "${python_dir}" ]; then
     done
 fi
 if [ -n "${python}" ] && [ "${python_installed}" == "True" ]; then
-    for pypackage in blessings        \
-                     cython           \
-                     cythongsl        \
-                     h5py             \
-                     matplotlib       \
-                     mpi4py           \
-                     numpy            \
-                     pytest           \
-                     scipy            \
-                     sphinx           \
-                     sphinx_rtd_theme \
-                     pip              \
+    for pypackage in blessings         \
+                     cython            \
+                     cythongsl         \
+                     h5py              \
+                     matplotlib        \
+                     mpi4py            \
+                     numpy             \
+                     pytest            \
+                     scipy             \
+                     sphinx            \
+                     sphinx_copybutton \
+                     sphinx_rtd_theme  \
+                     pip               \
     ; do
         pypackage_installed=$(check_pypackage_installed ${pypackage})
         eval "${pypackage}_installed=\"${pypackage_installed}\""
@@ -2862,18 +2871,19 @@ print_table(){
 # zlib           ...      "/..."
 #
 # The following Python packages will be installed
-# Name              Version
-# Blessings         ...
-# Cython            ...
-# CythonGSL         ...
-# H5Py              ...
-# Matplotlib        ...
-# MPI4Py            ...
-# NumPy             ...
-# pytest            ...
-# SciPy             ...
-# Sphinx            ...
-# sphinx_rtd_theme  ...
+# Name               Version
+# Blessings          ...
+# Cython             ...
+# CythonGSL          ...
+# H5Py               ...
+# Matplotlib         ...
+# MPI4Py             ...
+# NumPy              ...
+# pytest             ...
+# SciPy              ...
+# Sphinx             ...
+# sphinx_copybutton  ...
+# sphinx_rtd_theme   ...
 blas_patch="False"
 class_patch="True"
 concept_patch="False"
@@ -2906,6 +2916,7 @@ numpy_patch="False"
 pytest_patch="False"
 scipy_patch="False"
 sphinx_patch="False"
+sphinx_copybutton_patch="False"
 sphinx_rtd_theme_patch="False"
 footnote_patch="${esc_blue}*${esc_normal}"
 footnote_installed="${esc_green}†${esc_normal}"
@@ -3149,6 +3160,13 @@ if [ "${install_any_pypackages}" == "True" ]; then
         table=("${table[@]}"                                     \
             "Sphinx$(insert_footnote_installed 'sphinx')"        \
             "${sphinx_version}$(insert_footnote_patch 'sphinx')" \
+            "")
+    fi
+    # sphinx_copybutton
+    if [ "${sphinx_copybutton_install}" == "True" ]; then
+        table=("${table[@]}"                                                           \
+            "sphinx_copybutton$(insert_footnote_installed 'sphinx_copybutton')"        \
+            "${sphinx_copybutton_version}$(insert_footnote_patch 'sphinx_copybutton')" \
             "")
     fi
     # sphinx_rtd_theme
@@ -5598,22 +5616,24 @@ numpy_installed="False"
 pytest_installed="False"
 scipy_installed="False"
 sphinx_installed="False"
+sphinx_copybutton_installed="False"
 sphinx_rtd_theme_installed="False"
 if [ -n "${python}" ]; then
     current_step="checking of installed Python packages"
     set_status "Checking for installed Python packages"
-    for pypackage in blessings        \
-                     cython           \
-                     cythongsl        \
-                     h5py             \
-                     matplotlib       \
-                     mpi4py           \
-                     numpy            \
-                     pytest           \
-                     scipy            \
-                     sphinx           \
-                     sphinx_rtd_theme \
-                     pip              \
+    for pypackage in blessings         \
+                     cython            \
+                     cythongsl         \
+                     h5py              \
+                     matplotlib        \
+                     mpi4py            \
+                     numpy             \
+                     pytest            \
+                     scipy             \
+                     sphinx            \
+                     sphinx_copybutton \
+                     sphinx_rtd_theme  \
+                     pip               \
     ; do
         pypackage_installed=$(check_pypackage_installed ${pypackage})
         eval "${pypackage}_installed=\"${pypackage_installed}\""
@@ -5643,6 +5663,8 @@ pip_download(){
         fi
     fi
     pip_name="$(echo "${1}" | tr '[:upper:]' '[:lower:]')"
+    pip_name_nodashes="${pip_name//-/}"
+    pip_name_nodashes="${pip_name_nodashes//_/}"
     tmp_pip_dir="${top_dir}/tmp/pip"
     mkdir -p "${tmp_pip_dir}"
     tmp_pip_dir="${tmp_pip_dir// /\\ }"  # Add backslashes before spaces
@@ -5655,6 +5677,7 @@ pip_download(){
     fi
     # Download the Python package
     for n in {1..50}; do
+        printf "\nDownloading Python package \"${pip_name}${command_end}\"\n\n"
         pip_status="error"
         # Dependent on the version of pip, different calling conventions
         # are used to download (and not install) the source code
@@ -5689,7 +5712,10 @@ pip_download(){
             soothe ${pip_download_pid} ${pip_download_time}
             # If the archive exists in the tmp/pip dir,
             # the download completed successfully.
-            if ls "${top_dir}/tmp/pip" | grep -i "${pip_name}" > /dev/null 2>&1; then
+            if ls "${top_dir}/tmp/pip"                            \
+                | sed 's/-//g; s/_//g'                            \
+                | grep -i "${pip_name_nodashes}" > /dev/null 2>&1 \
+            ; then
                 pip_status="success"
             fi
             if [ "${pip_status}" == "success" ]; then
@@ -6645,6 +6671,22 @@ if [ "${sphinx_install}" == "True" ] && [ "${sphinx_installed}" == "False" ]; th
         sphinx_install_success="False"
         error "Failed to install Sphinx. The installation will continue regardless."
         sphinx_install="False"  # Flag as not to be installed
+    fi
+fi
+
+# sphinx_copybutton
+if     [ "${sphinx_copybutton_install}"   == "True"  ] \
+    && [ "${sphinx_copybutton_installed}" == "False" ] \
+    && [ "${sphinx_install_success}"      == "True"  ]; then
+    # As sphinx_copybutton is not a critical dependency (it is only used
+    # for building the documentation), we continue past failure
+    # to install it.
+    install_success="True"
+    pip_install_pypackage "sphinx_copybutton" "${sphinx_copybutton_version}" \
+        || install_success="False"
+    if [ "${install_success}" == "False" ]; then
+        error "Failed to install sphinx_copybutton. The installation will continue regardless."
+        sphinx_copybutton_install="False"  # Flag as not to be installed
     fi
 fi
 
@@ -8031,36 +8073,37 @@ if [ "${install_anything}" == "True" ] && [ "${say_copyright}" != "False" ]; the
     else
         printf "The following software has been installed:\n"
     fi
-    copyright_notice "blas"             "OpenBLAS"
-    copyright_notice "class"            "CLASS"
-    copyright_notice "fftw"             "FFTW 3"
-    copyright_notice "fftw_for_gadget"  "FFTW 2"
-    copyright_notice "freetype"         "FreeType"
-    copyright_notice "gadget"           "GADGET"
-    copyright_notice "gsl"              "GSL"
-    copyright_notice "hdf5"             "HDF5"
-    copyright_notice "libpng"           "libpng"
+    copyright_notice "blas"              "OpenBLAS"
+    copyright_notice "class"             "CLASS"
+    copyright_notice "fftw"              "FFTW 3"
+    copyright_notice "fftw_for_gadget"   "FFTW 2"
+    copyright_notice "freetype"          "FreeType"
+    copyright_notice "gadget"            "GADGET"
+    copyright_notice "gsl"               "GSL"
+    copyright_notice "hdf5"              "HDF5"
+    copyright_notice "libpng"            "libpng"
     if [ "${mpi}" == "mpich" ]; then
-        copyright_notice "mpi"          "MPICH"
+        copyright_notice "mpi"           "MPICH"
     elif [ "${mpi}" == "openmpi" ]; then
-        copyright_notice "mpi"          "OpenMPI"
+        copyright_notice "mpi"           "OpenMPI"
     fi
-    copyright_notice "ncurses"          "ncurses"
-    copyright_notice "openssl"          "OpenSSL"
-    copyright_notice "perl"             "Perl"
-    copyright_notice "zlib"             "zlib"
-    copyright_notice "python"           "Python"
-    copyright_notice "blessings"        "$(printf ${en_quad}%.s {1..4})Blessings"
-    copyright_notice "cython"           "$(printf ${en_quad}%.s {1..4})Cython"
-    copyright_notice "cythongsl"        "$(printf ${en_quad}%.s {1..4})CythonGSL"
-    copyright_notice "h5py"             "$(printf ${en_quad}%.s {1..4})H5Py"
-    copyright_notice "matplotlib"       "$(printf ${en_quad}%.s {1..4})Matplotlib"
-    copyright_notice "mpi4py"           "$(printf ${en_quad}%.s {1..4})MPI4Py"
-    copyright_notice "numpy"            "$(printf ${en_quad}%.s {1..4})NumPy"
-    copyright_notice "pytest"           "$(printf ${en_quad}%.s {1..4})pytest"
-    copyright_notice "scipy"            "$(printf ${en_quad}%.s {1..4})SciPy"
-    copyright_notice "sphinx"           "$(printf ${en_quad}%.s {1..4})Sphinx"
-    copyright_notice "sphinx_rtd_theme" "$(printf ${en_quad}%.s {1..4})sphinx_rtd_theme"
+    copyright_notice "ncurses"           "ncurses"
+    copyright_notice "openssl"           "OpenSSL"
+    copyright_notice "perl"              "Perl"
+    copyright_notice "zlib"              "zlib"
+    copyright_notice "python"            "Python"
+    copyright_notice "blessings"         "$(printf ${en_quad}%.s {1..4})Blessings"
+    copyright_notice "cython"            "$(printf ${en_quad}%.s {1..4})Cython"
+    copyright_notice "cythongsl"         "$(printf ${en_quad}%.s {1..4})CythonGSL"
+    copyright_notice "h5py"              "$(printf ${en_quad}%.s {1..4})H5Py"
+    copyright_notice "matplotlib"        "$(printf ${en_quad}%.s {1..4})Matplotlib"
+    copyright_notice "mpi4py"            "$(printf ${en_quad}%.s {1..4})MPI4Py"
+    copyright_notice "numpy"             "$(printf ${en_quad}%.s {1..4})NumPy"
+    copyright_notice "pytest"            "$(printf ${en_quad}%.s {1..4})pytest"
+    copyright_notice "scipy"             "$(printf ${en_quad}%.s {1..4})SciPy"
+    copyright_notice "sphinx"            "$(printf ${en_quad}%.s {1..4})Sphinx"
+    copyright_notice "sphinx_copybutton" "$(printf ${en_quad}%.s {1..4})sphinx_copybutton"
+    copyright_notice "sphinx_rtd_theme"  "$(printf ${en_quad}%.s {1..4})sphinx_rtd_theme"
     printf "\nThese have been installed into separate directories in\n\"${top_dir}\"\n"
     if [ "${concept_install}" == "True" ] && [ "${concept_installed}" == "False" ]; then
         printf "Any use of ${esc_concept} must conform to the license terms of the above
