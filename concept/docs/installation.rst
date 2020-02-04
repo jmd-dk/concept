@@ -25,7 +25,9 @@ the ``.paths`` and ``.env`` files.
 
 Entries on this page:
 
-.. contents:: :local:
+.. contents::
+   :local:
+   :depth: 2
 
 
 
@@ -167,7 +169,7 @@ their entirety, if you want to swap out the MPI library.
 
 For the MPI implementation, CO\ *N*\ CEPT officially supports MPICH and
 OpenMPI, though it should not matter much (a CO\ *N*\ CEPT installation
-using MVAPICH has been successful at least once). What it important is that
+using MVAPICH has been successful at least once). What is important is that
 the MPI library used supports the MPI-3 standard.
 
 
@@ -195,12 +197,12 @@ prompt for system-wide (root) installation through the package manager on the
 system.
 
 The ``installer`` script is able to bootstrap itself up from just Bash, GNU
-core utilities and a package manager (or just Bash and GNU core utilities if
+Core Utilities and a package manager (or just Bash and GNU Core Utilities if
 all system dependencies are already present). In addition, it builds all
 library dependencies from source, increasing the total number of dependencies
 (as many dependencies have other dependencies, and so on). For the absolute
 minimum dependency requirements needed to *run* CO\ *N*\ CEPT, see the
-:ref:`dependencies<dependencies>` entry.
+:ref:`Dependencies<dependencies>` entry.
 
 The complete set of system dependencies needed/installed by the ``installer``
 is:
@@ -641,8 +643,12 @@ System dependencies
 In addition to the many dependencies above, CO\ *N*\ CEPT further uses a lot
 of *system dependencies*, by which is meant programs that usually is installed
 system-wide. These include `Bash <https://www.gnu.org/software/bash/>`_ 3.0 or
-newer and the `GNU core utilities <https://www.gnu.org/software/coreutils/>`_,
-which are the only two dependencies not installed by the ``installer`` script.
+newer, the `GNU Core Utilities <https://www.gnu.org/software/coreutils/>`_
+and the `GNU Find Utilities <https://www.gnu.org/software/findutils/>`_, which
+are the only three that cannot be installed by the ``installer``. The GNU Find
+Utilities are only used for building the documentation and may be left out.
+That said, all three of these system dependencies comes preinstalled on
+virtually all Linux distributions.
 
 Other system dependencies needed for the core CO\ *N*\ CEPT functionality are
 awk, grep and sed. Also, the ``installer`` script and ``update`` utility
