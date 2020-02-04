@@ -236,7 +236,7 @@ jobid_and_exit_code="$(                \
         ${no_optimization_flag}        \
         ${no_watching_flag}            \
         ${pure_python_flag}            \
-        ${unsafe_build_flag}           \
+        ${unsafe_building_flag}        \
     | tee >(cat - >&4)                 \
     | grep "Log file"                  \
     | head -n 1                        \

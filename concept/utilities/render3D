@@ -132,7 +132,7 @@ info="$(                                              \
         ${no_recompilation_flag}                      \
         ${no_optimization_flag}                       \
         ${pure_python_flag}                           \
-        ${unsafe_build_flag}                          \
+        ${unsafe_building_flag}                       \
 )"
 snapshot_filenames="$(echo "${info}" | grep -x 'Parameters.*' | grep -o '".*"')"
 snapshot_params_filenames="$(echo "${info}"                                           \
@@ -204,7 +204,7 @@ paths['params'] = params_path_ori
             ${no_optimization_flag}        \
             --no-watching                  \
             ${pure_python_flag}            \
-            ${unsafe_build_flag}           \
+            ${unsafe_building_flag}        \
         | tee >(cat >&4)                   \
         | grep "^Log file: \|^Job "        \
         | head -n 1                        \

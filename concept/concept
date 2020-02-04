@@ -352,7 +352,7 @@ no_optimization_default="False"
 nprocs_default=1
 params_default="None"
 pure_python_default="False"
-unsafe_build_default="False"
+unsafe_building_default="False"
 walltime_default="00:00:00"  # 00:00:00 implies unset
 
 # Initial but illegal values of some command-line arguments,
@@ -390,29 +390,33 @@ def positive_int(value):
 # Function which checks whether input is a representation of
 # one or two positive integers. If two ints are given,
 # separate them by a colon.
-def positive_int_or_int_pair(value):
-    value_raw = value
+def positive_int_or_int_pair(value, value_input=None):
+    if value_input is None:
+        value_input = value
     def raise_argparse_exception():
-        raise argparse.ArgumentTypeError(\"invalid positive int or int pair: '{}'\"
-                                         .format(value_raw))
-    for sep in ' ,;':
+        raise argparse.ArgumentTypeError(
+            f\"invalid positive int or int pair: '{value_input}'\"
+        )
+    for sep in ',;':
         value = value.replace(sep, ':')
-    value = [part for part in value.split(':') if part]
-    if len(value) > 2:
+    if value.count(':') > 1:
         raise_argparse_exception()
-    try:
-        for i, part in enumerate(value):
-            value[i] = float(eval(part))
-    except:
+    elif value.count(':') == 1:
+        values = value.split(':')
+        return ':'.join(positive_int_or_int_pair(value, value_input) for value in values)
+    else:  # value.count(':') == 0
+        try:
+            value_eval = eval(value)
+        except:
+            return positive_int_or_int_pair(value.replace(' ', ':'), value_input)
+        try:
+            value_float = float(value_eval)
+        except:
+            raise_argparse_exception()
+        value_int = int(value_float)
+        if value_int == value_float and value_int > 0:
+            return str(value_int)
         raise_argparse_exception()
-    for i, part in enumerate(value):
-        if part != int(part):
-            raise_argparse_exception()
-        if part < 1:
-            raise_argparse_exception()
-        value[i] = str(int(part))
-    value = ':'.join(value)
-    return value
 # Function which checks whether input is a representation of
 # a memory size and converts it to bytes.
 def memory(value):
@@ -623,9 +627,9 @@ parser.add_argument(
     action='store_true',
 )
 parser.add_argument(
-    '--unsafe-build',
+    '--unsafe-building',
     help='ignore dependencies between modules when building',
-    default=${unsafe_build_default},
+    default=${unsafe_building_default},
     action='store_true',
 )
 parser.add_argument(
@@ -678,7 +682,7 @@ print('; '.join([
     \"no_optimization={}\".format(args.no_optimization),
     \"no_watching={}\".format(args.no_watching),
     \"pure_python={}\".format(args.pure_python),
-    \"unsafe_build={}\".format(args.unsafe_build),
+    \"unsafe_building={}\".format(args.unsafe_building),
     \"version={}\".format(args.version),
 ]))
 " "$@" || echo "argparse_exit_code=$?")
@@ -1092,7 +1096,7 @@ test:
             # Cython might warn about redeclarations in CythonGSL,
             # which we filter out as we do not want to worry about them.
             (cd "${concept_dir}" && make               \
-                unsafe_build="${unsafe_build}"         \
+                unsafe_building="${unsafe_building}"   \
                 no_optimization="${no_optimization}"   \
                 ${make_jobs}                           \
                 2> >(grep -v 'GSL_.* redeclared' 1>&2) \
@@ -1137,9 +1141,9 @@ if [ "${utility}" != "${utility_unspecified}" ]; then
     if [ "${pure_python}" == "True" ]; then
         pure_python_flag="--pure-python"
     fi
-    unsafe_build_flag=""
-    if [ "${unsafe_build}" == "True" ]; then
-        unsafe_build_flag="--unsafe-build"
+    unsafe_building_flag=""
+    if [ "${unsafe_building}" == "True" ]; then
+        unsafe_building_flag="--unsafe-building"
     fi
     # Run utility and exit
     colorprint "Running the $(basename "${utility}") utility" "yellow"
