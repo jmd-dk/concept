@@ -43,31 +43,36 @@ Supported platforms
 .. |macos| image:: /_static/macos.png
    :height: 35px
 
-.. topic:: |linux| :math:`\,\,` Linux
+.. tabs::
 
-   CO\ *N*\ CEPT should install trivially on all major Linux
-   distributions. The system may be a laptop, a workstation,
-   a massively parallel computer cluster, a Raspberry Pi,
-   a virtual machine, etc.
+   .. tab:: |linux| :math:`\,\,` Linux
 
-.. topic:: |windows| :math:`\,\,` Windows
+      CO\ *N*\ CEPT should be trivial to install on all major Linux
+      distributions. The system may be a laptop, a workstation, a massively
+      parallel computer cluster, a Raspberry Pi, a virtual machine, etc.
 
-   Though CO\ *N*\ CEPT does not run on native Windows, support is obtained
-   via the `Windows Subsytem for Linux <https://docs.microsoft.com/en-us/windows/wsl/about>`_.
-   If installing CO\ *N*\ CEPT on Windows this way, make sure to install it
-   into a proper Linux directory (e.g. your home directory ``~``) and not a
-   Windows directory (e.g. ``/mnt/c/...``).
+   .. tab:: |windows| :math:`\,\,` Windows
 
-   The more traditional approach of installing Linux in a virtual machine
-   within Windows of course works too.
+      Though CO\ *N*\ CEPT does not run on native Windows, support is obtained
+      via the
+      `Windows Subsytem for Linux <https://docs.microsoft.com/en-us/windows/wsl/about>`_.
+      If installing CO\ *N*\ CEPT on Windows this way, make sure to install it
+      into a proper Linux directory (e.g. your home directory ``~``) and not a
+      Windows directory (e.g. ``/mnt/c/...``).
 
-.. topic:: |macos| :math:`\,\,` macOS
+      The more traditional approach of installing Linux in a virtual machine
+      within Windows of course works too.
 
-   Though much of the POSIX infrastructure needed to install and run
-   CO\ *N*\ CEPT is available to macOS via `Homebrew <https://brew.sh/>`_,
-   numerous incompatibilities between the GNU and BSD tools make the porting
-   of CO\ *N*\ CEPT to macOS non-trivial. Currently the only option is to
-   run CO\ *N*\ CEPT in a virtual Linux machine.
+   .. tab:: |macos| :math:`\,\,` macOS
+
+      Currently the only means of running CO\ *N*\ CEPT on a mac is by
+      installing it within a virtual Linux machine.
+
+      Though much of the POSIX infrastructure needed to install and run
+      CO\ *N*\ CEPT is available to macOS via `Homebrew <https://brew.sh/>`_,
+      numerous incompatibilities between the GNU and BSD tools make the
+      porting to macOS non-trivial.
+
 
 
 
@@ -253,7 +258,7 @@ Sphinx, sphinx-copybutton, sphinx_rtd_theme.
 The ``installer`` installs the `OpenBLAS <https://github.com/xianyi/OpenBLAS>`_
 library in order to provide both BLAS and LAPACK. For MPI, MPICH (default) or
 OpenMPI is installed. If tests are to be performed during the installation
-(see the ``--test`` :ref:`command-line option<command_line_options>`), the
+(see the ``--tests`` :ref:`command-line option<command_line_options>`), the
 pytest Python package will be installed as well (needed for testing NumPy and
 SciPy).
 
@@ -293,7 +298,6 @@ Other command-line options to ``installer`` are listed below.
 This prints out a short description of how to use the ``installer`` script
 and then exits. Generally though, this documentation page is much preferable.
 
-
 .. raw:: html
 
    <h6>
@@ -303,7 +307,7 @@ and then exits. Generally though, this documentation page is much preferable.
      </span></code>
      ,
      <code class="docutils literal notranslate"><span class="pre">
-       --test
+       --tests
      </span></code>
    </h6>
 
@@ -325,8 +329,8 @@ The tests performed on the CO\ *N*\ CEPT code itself are those of
    ./concept -t all
 
 and so may also be run at any time after the installation, whether or not the
-``--test`` option was used for th installation. See the ``concept``
-:ref:`test<specials>` option for further details.
+``--tests`` option was used for th installation. See the ``concept``
+:ref:`test<test>` option for further details.
 
 
 .. raw:: html
