@@ -5,12 +5,14 @@ copyright = '2020, Jeppe Dakin'
 
 # Paths
 html_static_path = ['_static']
+html_css_files = ['custom.css']
 exclude_patterns = ['_build']
 
 # Extensions
 extensions = [
     'sphinx_copybutton',
     'sphinx_rtd_theme',
+    'sphinx_tabs.tabs',
 ]
 
 # Theme

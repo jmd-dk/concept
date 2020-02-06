@@ -307,15 +307,16 @@ LDFLAGS += $(call unique, $(foreach flag, $(python_ldflags)               \
 # The below recipes are responsible for the
 # .py --> ((.pyx --> types) --> .pxd) --> (.c + .html) --> .o --> .so
 # build chain. A heading is printed at the beginning of the build.
+building = modules
 define heading
-    $(python) -B -c "pass;                                                    \
-        import sys;                                                           \
-        from time import sleep;                                               \
-        import blessings;                                                     \
-        sys.exit() if '$(heading_printed)' else None;                         \
-        unsafe = ' (unsafe)' if '$(unsafe_build)' == 'True' else '';          \
-        terminal = blessings.Terminal(force_styling=True);                    \
-        print(terminal.bold_yellow('Building modules' + unsafe), flush=True); \
+    $(python) -B -c "pass;                                                        \
+        import sys;                                                               \
+        from time import sleep;                                                   \
+        import blessings;                                                         \
+        sys.exit() if '$(heading_printed)' else None;                             \
+        unsafe = ' (unsafe)' if '$(unsafe_build)' == 'True' else '';              \
+        terminal = blessings.Terminal(force_styling=True);                        \
+        print(terminal.bold_yellow('Building $(building)' + unsafe), flush=True); \
     "
     $(eval heading_printed = True)
     sleep 0.1

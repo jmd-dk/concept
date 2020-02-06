@@ -111,6 +111,7 @@ directory consist of the following and will be installed in order:
       - Sphinx
       - sphinx_copybutton
       - sphinx_rtd_theme
+      - sphinx_tabs
   - CLASS
   - CO𝘕CEPT
   - FFTW 2 (needed by GADGET)
@@ -318,6 +319,7 @@ if [ "${install_explicit_only}" == "True" ]; then
                     "sphinx"            \
                     "sphinx_copybutton" \
                     "sphinx_rtd_theme"  \
+                    "sphinx_tabs"       \
     ; do
         eval "[ -n \"\${${progname}_install}\" ] || ${progname}_install=\"False\""
     done
@@ -399,6 +401,7 @@ set_version "setuptools"        "45.1.0"
 set_version "sphinx"            "2.3.1"
 set_version "sphinx_copybutton" "0.2.8"
 set_version "sphinx_rtd_theme"  "0.4.3"
+set_version "sphinx_tabs"       "1.1.13"
 set_version "wheel"             "0.34.1"
 # Note that the versions may be changed further down due to known
 # compatibility issues between specific versions of the above programs
@@ -1754,6 +1757,7 @@ scipy_preinstalled="False"
 sphinx_preinstalled="False"
 sphinx_copybutton_preinstalled="False"
 sphinx_rtd_theme_preinstalled="False"
+sphinx_tabs_preinstalled="False"
 pip_preinstalled="False"
 if [ "${python_preinstalled}" == "True" ]; then
     python=$(ls -1 "${python_dir}/bin/python"* | head -n 1)
@@ -1764,12 +1768,13 @@ if [ "${python_preinstalled}" == "True" ]; then
                      matplotlib        \
                      mpi4py            \
                      numpy             \
+                     pip               \
                      pytest            \
                      scipy             \
                      sphinx            \
                      sphinx_copybutton \
                      sphinx_rtd_theme  \
-                     pip               \
+                     sphinx_tabs       \
     ; do
         pypackage_preinstalled=$(check_pypackage_installed ${pypackage})
         eval "${pypackage}_preinstalled=\"${pypackage_preinstalled}\""
@@ -1833,6 +1838,7 @@ for pypackage in blessings         \
                  sphinx            \
                  sphinx_copybutton \
                  sphinx_rtd_theme  \
+                 sphinx_tabs       \
 ; do
     eval "pypackage_install=\"\${${pypackage}_install}\""
     if [ -z "${pypackage_install}" ]; then
@@ -1976,6 +1982,7 @@ if     [ "${blessings_install}"         == "True" ] \
     || [ "${sphinx_install}"            == "True" ] \
     || [ "${sphinx_copybutton_install}" == "True" ] \
     || [ "${sphinx_rtd_theme_install}"  == "True" ] \
+    || [ "${sphinx_tabs_install}"       == "True" ] \
 ; then
         install_any_pypackages="True"
 fi
@@ -2757,6 +2764,7 @@ scipy_installed="False"
 sphinx_installed="False"
 sphinx_copybutton_installed="False"
 sphinx_rtd_theme_installed="False"
+sphinx_tabs_installed="False"
 pip_installed="False"
 if [ -n "${python_dir}" ]; then
     for python_version_major in 3 2; do
@@ -2781,6 +2789,7 @@ if [ -n "${python}" ] && [ "${python_installed}" == "True" ]; then
                      sphinx            \
                      sphinx_copybutton \
                      sphinx_rtd_theme  \
+                     sphinx_tabs       \
                      pip               \
     ; do
         pypackage_installed=$(check_pypackage_installed ${pypackage})
@@ -2884,6 +2893,7 @@ print_table(){
 # Sphinx             ...
 # sphinx_copybutton  ...
 # sphinx_rtd_theme   ...
+# sphinx_tabs        ...
 blas_patch="False"
 class_patch="True"
 concept_patch="False"
@@ -2918,6 +2928,7 @@ scipy_patch="False"
 sphinx_patch="False"
 sphinx_copybutton_patch="False"
 sphinx_rtd_theme_patch="False"
+sphinx_tabs_patch="False"
 footnote_patch="${esc_blue}*${esc_normal}"
 footnote_installed="${esc_green}†${esc_normal}"
 insert_footnote_patch(){
@@ -3174,6 +3185,13 @@ if [ "${install_any_pypackages}" == "True" ]; then
         table=("${table[@]}"                                                         \
             "sphinx_rtd_theme$(insert_footnote_installed 'sphinx_rtd_theme')"        \
             "${sphinx_rtd_theme_version}$(insert_footnote_patch 'sphinx_rtd_theme')" \
+            "")
+    fi
+    # sphinx_tabs
+    if [ "${sphinx_tabs_install}" == "True" ]; then
+        table=("${table[@]}"                                               \
+            "sphinx_tabs$(insert_footnote_installed 'sphinx_tabs')"        \
+            "${sphinx_tabs_version}$(insert_footnote_patch 'sphinx_tabs')" \
             "")
     fi
     if [ "${install_any_software}" ]; then
@@ -5618,6 +5636,7 @@ scipy_installed="False"
 sphinx_installed="False"
 sphinx_copybutton_installed="False"
 sphinx_rtd_theme_installed="False"
+sphinx_tabs_installed="False"
 if [ -n "${python}" ]; then
     current_step="checking of installed Python packages"
     set_status "Checking for installed Python packages"
@@ -5633,6 +5652,7 @@ if [ -n "${python}" ]; then
                      sphinx            \
                      sphinx_copybutton \
                      sphinx_rtd_theme  \
+                     sphinx_tabs       \
                      pip               \
     ; do
         pypackage_installed=$(check_pypackage_installed ${pypackage})
@@ -6703,6 +6723,21 @@ if     [ "${sphinx_rtd_theme_install}"   == "True"  ] \
     if [ "${install_success}" == "False" ]; then
         error "Failed to install sphinx_rtd_theme. The installation will continue regardless."
         sphinx_rtd_theme_install="False"  # Flag as not to be installed
+    fi
+fi
+
+# sphinx_tabs
+if     [ "${sphinx_tabs_install}"    == "True"  ] \
+    && [ "${sphinx_tabs_installed}"  == "False" ] \
+    && [ "${sphinx_install_success}" == "True"  ]; then
+    # As sphinx_tabs is not a critical dependency (it is only used
+    # for building the documentation), we continue past failure
+    # to install it.
+    install_success="True"
+    pip_install_pypackage "sphinx_tabs" "${sphinx_tabs_version}" || install_success="False"
+    if [ "${install_success}" == "False" ]; then
+        error "Failed to install sphinx_tabs. The installation will continue regardless."
+        sphinx_tabs_install="False"  # Flag as not to be installed
     fi
 fi
 
@@ -8035,6 +8070,7 @@ if [ "${concept_install}" == "True" ] && [ "${concept_installed}" == "False" ]; 
     # Remove log and parameter copy file generated by the above run
     (source "${concept}" && make clean_logs clean_params_cp) || :
     # Also build the documentation
+    echo
     (source "${concept}" && make docs 2>/dev/null) || :
     cd "${top_dir}"
 fi
@@ -8104,6 +8140,7 @@ if [ "${install_anything}" == "True" ] && [ "${say_copyright}" != "False" ]; the
     copyright_notice "sphinx"            "$(printf ${en_quad}%.s {1..4})Sphinx"
     copyright_notice "sphinx_copybutton" "$(printf ${en_quad}%.s {1..4})sphinx_copybutton"
     copyright_notice "sphinx_rtd_theme"  "$(printf ${en_quad}%.s {1..4})sphinx_rtd_theme"
+    copyright_notice "sphinx_tabs"       "$(printf ${en_quad}%.s {1..4})sphinx_tabs"
     printf "\nThese have been installed into separate directories in\n\"${top_dir}\"\n"
     if [ "${concept_install}" == "True" ] && [ "${concept_installed}" == "False" ]; then
         printf "Any use of ${esc_concept} must conform to the license terms of the above
