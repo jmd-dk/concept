@@ -2912,6 +2912,27 @@ units_dict.setdefault('cbrt', lambda x: x**(1/3))
 ###############
 # CLASS setup #
 ###############
+# Warn if the Hubble parameter, the baryon or cold dark matter density
+# parameter is specified explicitly in class_params.
+for class_param in ('H0', 'h', 'theta_s'):
+    if class_param in class_params:
+        masterwarn(
+            f'You have specified the Hubble constant by declaring "{class_param}" in '
+            f'class_params. You should instead define H0 as a normal CO𝘕CEPT parameter.'
+        )
+for class_param in ('Omega_b', 'omega_b'):
+    if class_param in class_params:
+        masterwarn(
+            f'You have specified the baryon density parameter by declaring "{class_param}" in '
+            f'class_params. You should instead define Ωb as a normal CO𝘕CEPT parameter.'
+        )
+for class_param in ('Omega_cdm', 'omega_cdm'):
+    if class_param in class_params:
+        masterwarn(
+            f'You have specified the cold dark matter density parameter by declaring '
+            f'"{class_param}" in class_params. You should instead define Ωcdm as a normal '
+            f'CO𝘕CEPT parameter.'
+        )
 # Update class_params with default values. This has already been done
 # before for the version of class_params inside of user_params.
 class_params = update_class_params(class_params)
