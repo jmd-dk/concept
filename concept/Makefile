@@ -409,7 +409,7 @@ endif
 ##################
 # For building the documentation
 docs:
-	@$(MAKE) -C $(docs_dir)
+	@$(MAKE) -C $(docs_dir) --no-print-directory
 .PHONY: docs
 
 
@@ -478,7 +478,7 @@ clean_ics:
 	$(RM) -r $(ics_dir)/* $(ics_dir)/.[^.]*
 # Remove documentation build
 clean_docs:
-	$(MAKE) -C $(docs_dir) clean_sphinx
+	@$(MAKE) -C $(docs_dir) clean_sphinx  --no-print-directory
 # Remove everything in the log directory
 clean_logs:
 	$(RM) -r $(logs_dir)/* $(logs_dir)/.[^.]*
