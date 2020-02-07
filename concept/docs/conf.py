@@ -29,7 +29,6 @@ html_theme_options = {
     'collapse_navigation'        : False,
     'navigation_depth'           : -1,
     'sticky_navigation'          : True,
-    'style_nav_header_background': 'darkorange',
     'titles_only'                : False,
 }
 
