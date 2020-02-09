@@ -159,8 +159,8 @@ print_logo(){
 import matplotlib
 # Apply colormap
 colors = (
-    [0.18, 0.98, 0.16],
-    [0.98, 0.55, 0.25],
+    matplotlib.colors.ColorConverter().to_rgb('ivory'),
+    matplotlib.colors.ColorConverter().to_rgb('darkorange'),
 )
 for i, color in enumerate(colors):
     colorhex = matplotlib.colors.rgb2hex(color)
@@ -172,6 +172,7 @@ logo = logo[1:-1]
 rows = logo.split('\\n')
 ANSI = []
 for row in rows:
+    ANSI.append('\\x1b[1m')
     for i, c in enumerate(row):
         if i in {0, 18, 31}:
             colornumber = 17 if i == 18 else 16
