@@ -391,18 +391,18 @@ set_version "blessings"         "1.7"
 set_version "cython"            "0.29.14"
 set_version "cythongsl"         "0.2.2"
 set_version "h5py"              "2.10.0"
-set_version "matplotlib"        "3.1.2"
+set_version "matplotlib"        "3.1.3"
 set_version "mpi4py"            "3.0.3"
 set_version "numpy"             "1.18.1"
-set_version "pip"               "19.3.1"  # 20.0.2 breaks SciPy installation
-set_version "pytest"            "5.3.4"
+set_version "pip"               "20.0.2"
+set_version "pytest"            "5.3.5"
 set_version "scipy"             "1.4.1"
-set_version "setuptools"        "45.1.0"
+set_version "setuptools"        "45.2.0"
 set_version "sphinx"            "2.3.1"
 set_version "sphinx_copybutton" "0.2.8"
 set_version "sphinx_rtd_theme"  "0.4.3"
 set_version "sphinx_tabs"       "1.1.13"
-set_version "wheel"             "0.34.1"
+set_version "wheel"             "0.34.2"
 # Note that the versions may be changed further down due to known
 # compatibility issues between specific versions of the above programs
 # and specific versions of system dependencies.
@@ -4161,7 +4161,7 @@ download(){
     # Download
     mkdir -p "${top_dir}/tmp/${progname}"
     cd "${top_dir}/tmp/${progname}"
-    for n in {1..50}; do
+    for n in {1..10}; do
         for ipv in "--inet4-only" "--inet6-only" ""; do
             wget_status="success"
             wget --progress=bar:force -t 1 --timeout 60 -c --no-check-certificate \
@@ -5696,48 +5696,66 @@ pip_download(){
         pip_download_time=${3}
     fi
     # Download the Python package
-    for n in {1..50}; do
-        printf "\nDownloading Python package \"${pip_name}${command_end}\"\n\n"
+    for n in {1..10}; do
         pip_status="error"
         # Dependent on the version of pip, different calling conventions
         # are used to download (and not install) the source code
         # of a Python package.
-        for pip_args in "download -v -v -v
-                                  --no-cache-dir
-                                  --no-binary=:all:
-                                  --dest=${tmp_pip_dir}
-                                  ${pip_name}${command_end}" \
-                        "install  -v -v -v
-                                  --no-cache-dir
-                                  --no-binary=:all:
-                                  --download
-                                  ${tmp_pip_dir}
-                                  ${pip_name}${command_end}" \
-                        "install  -v -v -v
-                                  --no-cache-dir
-                                  --no-use-wheel
-                                  --download
-                                  ${tmp_pip_dir}
-                                  ${pip_name}${command_end}" \
-                        "install  -v -v -v
-                                  --no-use-wheel
-                                  --download
-                                  ${tmp_pip_dir}
-                                  ${pip_name}${command_end}"; do
-            # Download Python package
-            "${python}" -m pip ${pip_args} & pip_download_pid=$!
-            # The above command may succeed in retrieving the package,
-            # but then hang indefinately. Kill the process after
-            # ${pip_download_time} seconds.
-            soothe ${pip_download_pid} ${pip_download_time}
-            # If the archive exists in the tmp/pip dir,
-            # the download completed successfully.
-            if ls "${top_dir}/tmp/pip"                            \
-                | sed 's/-//g; s/_//g'                            \
-                | grep -i "${pip_name_nodashes}" > /dev/null 2>&1 \
-            ; then
-                pip_status="success"
-            fi
+        for pip_args in \
+            "download -v -v -v        \
+                --no-cache-dir        \
+                --no-binary=:all:     \
+                --dest=${tmp_pip_dir} \
+                ${pip_name}${command_end}" \
+            "install -v -v -v     \
+                --no-cache-dir    \
+                --no-binary=:all: \
+                --download        \
+                ${tmp_pip_dir}    \
+                ${pip_name}${command_end}" \
+            "install -v -v -v  \
+                --no-cache-dir \
+                --no-use-wheel \
+                --download     \
+                ${tmp_pip_dir} \
+                ${pip_name}${command_end}" \
+            "install -v -v -v  \
+                --no-use-wheel \
+                --download     \
+                ${tmp_pip_dir} \
+                ${pip_name}${command_end}" \
+        ; do
+            # Problems after adoption of PEP 517 can cause packages that
+            # fail to build to be cleaned up, even when we just want the
+            # bare source (happens for e.g. pip 20.0.2 and scipy 1.4.1).
+            # On failure we try disregarding PEP 517.
+            for extra_pip_arg in "" "--no-use-pep517"; do
+                all_pip_args="$(echo "${pip_args} ${extra_pip_arg}" \
+                    | sed 's/  */ /g' 2>/dev/null || :)"
+                if [ -z "${all_pip_args}" ]; then
+                    all_pip_args="${pip_args} ${extra_pip_arg}"
+                fi
+                printf "
+Attempting to download Python package \"${pip_name}${command_end}\" \
+using pip ${all_pip_args}\n\n"
+                # Download Python package
+                "${python}" -m pip ${all_pip_args} & pip_download_pid=$!
+                # The above command may succeed in retrieving the
+                # package, but then hang indefinately.
+                # Kill the process after ${pip_download_time} seconds.
+                soothe ${pip_download_pid} ${pip_download_time}
+                # If the archive exists in the tmp/pip dir,
+                # the download completed successfully.
+                if ls "${top_dir}/tmp/pip"                            \
+                    | sed 's/-//g; s/_//g'                            \
+                    | grep -i "${pip_name_nodashes}" > /dev/null 2>&1 \
+                ; then
+                    pip_status="success"
+                fi
+                if [ "${pip_status}" == "success" ]; then
+                    break
+                fi
+            done
             if [ "${pip_status}" == "success" ]; then
                 break
             fi
@@ -6025,7 +6043,7 @@ print('\n'.join(packages))
             continue
         fi
         # Attempt to update all other installed Python packages
-        for n in {1..50}; do
+        for n in {1..10}; do
             pip_success="True"
             pip_install_pypackage "${package}" "upgrade" || pip_success="False"
             if [ "${pip_success}" == "True" ]; then
