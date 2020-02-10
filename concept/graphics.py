@@ -441,7 +441,9 @@ def plot_processed_perturbations(a_values, k_magnitudes, transfer, var_name, cla
     terminal_projection_ANSI=list,
     value='double',
     vmax='double',
+    vmax_terminal='double',
     vmin='double',
+    vmin_terminal='double',
 )
 def render2D(components, filename):
     """This function will produce 2D renders of the passed components.
@@ -612,6 +614,7 @@ def render2D(components, filename):
         # The colormap specified for this component combination
         colormap = is_selected(component_combination, render2D_options['colormap'])
         # Enhance projections if specified
+        vmin_terminal = vmin_terminal = 0
         if is_selected(component_combination, render2D_options['enhance']):
             projection, vmin, vmax, exponent = enhance(projection)
             if projection_terminal is not None:
