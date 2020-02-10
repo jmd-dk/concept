@@ -311,7 +311,7 @@ with the inclusion of linear photons, run
 
 .. code-block:: bash
 
-   ./concept -p params/tutorial -c '_lin = "photons"'
+   ./concept -p params/tutorial -c "_lin = 'photons'"
 
 .. tip::
 
@@ -336,7 +336,7 @@ include both linear photons and linear massless neutrinos:
 
 .. code-block:: bash
 
-   ./concept -p params/tutorial -c '_lin = "photons, massless neutrinos"'
+   ./concept -p params/tutorial -c "_lin = 'photons, massless neutrinos'"
 
 To our horror, including the neutrinos made the disagreement between the
 simulation and linear theory even larger!
@@ -373,7 +373,7 @@ photons and neutrinos in their entirety, run
 
 .. code-block:: bash
 
-   ./concept -p params/tutorial -c '_lin = "photons, massless neutrinos, metric"'
+   ./concept -p params/tutorial -c "_lin = 'photons, massless neutrinos, metric'"
 
 Replotting, you should see a much better behaved simulation power spectrum.
 
@@ -410,7 +410,7 @@ directly at the command-line using
 
 .. code-block:: bash
 
-   ./concept -p params/tutorial -c '_lin = "photons + massless neutrinos + metric"'
+   ./concept -p params/tutorial -c "_lin = 'photons + massless neutrinos + metric'"
 
 This idea of combining species is embraced fully by CO\ *N*\ CEPT. As such,
 the species ``'photons + massless neutrinos'`` may be collectively referred to
@@ -418,7 +418,7 @@ simply as ``'radiation'``. Thus,
 
 .. code-block:: bash
 
-   ./concept -p params/tutorial -c '_lin = "radiation + metric"'
+   ./concept -p params/tutorial -c "_lin = 'radiation + metric'"
 
 works just as well. You should run one of the above and check that you obtain
 the same result as before.
@@ -635,7 +635,7 @@ the usual ``params/tutorial``:
 
 .. code-block:: bash
 
-    ./concept -p params/tutorial -c '_mass = 0.1'
+    ./concept -p params/tutorial -c "_mass = 0.1"
 
 With both simulations done, we can plot their relative power spectrum. To do
 this, you should make use of the following script:
@@ -719,7 +719,7 @@ a Bash for-loop:
        ./concept \
            -p params/tutorial \
            -c "_mass = $mass" \
-           -c '_lin = "photons + neutrinos + metric"'
+           -c "_lin = 'photons + neutrinos + metric'"
    done
 
 Once completed, redo the plot. You should find that including the linear
@@ -907,9 +907,9 @@ shall make use of the following parameter file, which you should save as e.g.
    _lin = ''        # Linear species to include
 
 The parameter file is setup to use :math:`\Lambda` by default, while dynamical
-dark energy is enabled by suppling ``"_de = 'dynamical'"`` as a command-line
-parameter. One can also pass ``"_de = 'Lambda'"`` to explicitly select
-:math:`\Lambda`. Perform a simulation using both types of dark energy using
+dark energy is enabled by suppling ``-c "_de = 'dynamical'"``. One can also
+supply ``-c "_de = 'Lambda'"`` to explicitly select :math:`\Lambda`. Perform a
+simulation using both types of dark energy using
 
 .. code-block:: bash
 
@@ -1049,7 +1049,7 @@ including only dark energy as a linear species:
 
 .. code-block::
 
-   ./concept -p params/tutorial -c '_de = "dynamical"' -c '_lin = "dark energy"'
+   ./concept -p params/tutorial -c "_de = 'dynamical'" -c "_lin = 'dark energy'"
 
 If you now redo the plot, a relative spectrum between the newly run simulation
 and the :math:`\Lambda` simulation without any linear species will be added.
@@ -1063,7 +1063,7 @@ a simulation inlcuding the metric as well,
 
 .. code-block::
 
-   ./concept -p params/tutorial -c '_de = "dynamical"' -c '_lin = "dark energy + metric"'
+   ./concept -p params/tutorial -c "_de = 'dynamical'" -c "_lin = 'dark energy + metric'"
 
 and re-plotting, we see that we indeed achieve the same result as when running
 with photons and neutrinos.
