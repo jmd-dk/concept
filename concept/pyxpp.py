@@ -184,11 +184,19 @@ def oneline(lines, no_optimization=None):
             paren_counts['curly'] > 0) and not multiline:
             # Multiline statement begins
             multiline = True
-            if line.lstrip().startswith('@') or line.count('"""') == 1 or line.count("'''") == 1:
+            line_lstripped = line.lstrip()
+            if (
+                line_lstripped.startswith('@')
+                and not line_lstripped.startswith('@cython.iterator')
+            ):
                 stay_as_multiline = True
                 new_lines.append(line)
                 continue
-            if line.lstrip().startswith('#'):
+            if line.count('"""') == 1 or line.count("'''") == 1:
+                stay_as_multiline = True
+                new_lines.append(line)
+                continue
+            if line_lstripped.startswith('#'):
                 # Delete full-line comment
                 # within multiline statement.
                 line = ''
@@ -442,43 +450,12 @@ def cimport_commons(lines, no_optimization):
 
 
 
-def cimport_function(lines, no_optimization):
-    new_lines = []
-    for i, line in enumerate(lines):
-        if line.replace(' ', '').startswith('cimport('):
-            line = re.sub('cimport.*\((.*?)\)',
-                          lambda match: eval(match.group(1)).replace('import ', 'cimport '),
-                          line).rstrip()
-            if line.endswith(','):
-                line = line[:-1]
-            line = '{}\n'.format(line)
-            if line.lstrip().startswith('from ') and ' as ' not in line:
-                # Add normal imports enclosed in try/except
-                indentation = len(line) - len(line.lstrip())
-                words = line.strip(' \n').split(' ')
-                module = words[1]
-                functions = [function.strip(' ,') for function in words[3:]
-                             if function.strip(' ,')]
-                for function in functions:
-                    new_lines.append(' '*indentation + 'try:\n')
-                    new_lines.append(' '*(indentation + 4)
-                                     + 'from {} import {}\n'.format(module, function))
-                    new_lines.append(' '*indentation + 'except:\n')
-                    new_lines.append(' '*(indentation + 4) + 'pass\n')
-            # Add cimport import
-            new_lines.append(line)
-        else:
-            new_lines.append(line)
-    return new_lines
-
-
-
-def inline_iterators(lines, no_optimization):
-    # We need to import the *.py file given by the global
-    # "filename" variable, and then investigate its content.
-    # In order to get the *.py file and not the *.so file,
-    # we rely on all *.py files to be already copied to the
-    # pure_python_source_dir specified below.
+# Helper function for importing pure Python modules
+def import_pure_python_module_as_object(filename):
+    # We want to import the *.py file given by "filename". In order to
+    # get the *.py file and not the *.so file, we rely on all *.py files
+    # to be already copied to the pure_python_source_dir
+    # specified below.
     pure_python_source_dir = os.getcwd() + '/.pure_python_source_copy'
     sys.path.insert(0, pure_python_source_dir)
     # If we do this using the load_source function constructed from
@@ -489,12 +466,157 @@ def inline_iterators(lines, no_optimization):
         warnings.filterwarnings('ignore', category=DeprecationWarning)
         import imp
     load_source = imp.load_source
-    # Import "filename", which matches the lines passed, but these are
-    # the pure Python lines.
-    module = load_source(filename.rstrip('.py'), filename)
-    module_dict = module.__dict__
+    # Import the file into a module object
+    if not filename.endswith('.py'):
+        filename += '.py'
+    try:
+        module = load_source(filename.rstrip('.py'), filename)
+    except:
+        module = None
     # Remove the inserted pure_python_source_dir from sys.path
     sys.path.pop(0)
+    return module
+
+
+
+def cimport_function(lines, no_optimization):
+    def construct_cimport(module, function=None):
+        # Add normal import enclosed in try/except,
+        # followed by the cimport.
+        module = module.strip()
+        if function is None:
+            return [
+                f'try:\n',
+                f'    import {module}\n',
+                f'except:\n',
+                f'    pass\n',
+                f'cimport {module}\n',
+            ]
+        else:
+            function = function.strip()
+            return [
+                f'try:\n',
+                f'    from {module} import {function}\n',
+                f'except:\n',
+                f'    pass\n',
+                f'from {module} cimport {function}\n',
+            ]
+    def handle_iterator(line, new_lines):
+        match = re.search(r'from +(.+) +cimport +(.+)', line)
+        if not match:
+            return
+        filename = match.group(1).strip()
+        module = import_pure_python_module_as_object(filename)
+        if module is None:
+            return
+        funcnames = [
+            funcname.strip(' \n')
+            for funcname in match.group(2).strip().split(',')
+            if funcname.strip(' \n')
+        ]
+        inline_iterators_found = collections.defaultdict(set)
+        for funcname in funcnames:
+            try:
+                iterator_lines = inspect.getsourcelines(module.__dict__[funcname])[0]
+            except:
+                continue
+            if not iterator_lines[0].startswith('@'):
+                continue
+            iterator_lines = oneline(iterator_lines, no_optimization)
+            for j, iterator_line in enumerate(iterator_lines):
+                iterator_line_stripped = iterator_line.strip(' \n')
+                if not iterator_line_stripped.startswith('@'):
+                    break
+                if not iterator_line_stripped.startswith('@cython.iterator'):
+                    continue
+                # Cython inlinable iterator found
+                inline_iterators_found[filename].add(funcname)
+                # Remove the "depends" argument
+                depends = []
+                if '(' in iterator_line_stripped:
+                    iterator_arg = iterator_line_stripped[
+                        iterator_line_stripped.index('(') + 1:-1
+                    ].strip()
+                    try:
+                        depends = eval(iterator_arg)
+                    except:
+                        pass
+                    if not depends:
+                        tmp_dict = {}
+                        exec(iterator_arg, tmp_dict)
+                        depends = tmp_dict['depends']
+                    if isinstance(depends, str):
+                        depends = [depends]
+                    depends = list(depends)
+                    iterator_lines[j] = '@cython.iterator\n'
+                # Copy the source code
+                new_lines.append('\n')
+                new_lines.append(
+                    f'# The Cython iterator "{funcname}" below '
+                    f'is copied from "{filename}.py"\n'
+                )
+                new_lines += iterator_lines
+                new_lines.append('\n')
+                # Insert import for dependencies
+                if not depends:
+                    break
+                new_lines.append('pass\n')  # This ensures that the comment below stays
+                new_lines.append(
+                    f'# The Cython iterator "{funcname}" depends upon '
+                    + ', '.join([f'"{depend}"' for depend in depends])
+                    + f', which we import from {filename} below\n'
+                )
+                for depend in depends:
+                    new_lines += construct_cimport(filename, depend)
+                new_lines.append('\n')
+                break
+        return inline_iterators_found
+    new_lines = []
+    for i, line in enumerate(lines):
+        if line.replace(' ', '').startswith('cimport('):
+            if ' as ' in line:
+                print(
+                    'The "as" keyword is not allowed in the argument to cimport()',
+                    file=sys.stderr,
+                )
+                sys.exit(1)
+            line = re.sub(
+                'cimport.*\((.*?)\)',
+                lambda match: eval(match.group(1)).replace('import ', 'cimport '),
+                line
+            ).rstrip(' ,\n')
+            line = f'{line}\n'
+            # Check for cimported Cython inlinable iterator
+            # and copy it if found.
+            inline_iterators_found = handle_iterator(line, new_lines)
+            # Add cimport
+            if line.strip().startswith('cimport '):
+                # Module import
+                modules = re.search(r'^cimport +(.+)', line).group(1).split(',')
+                for module in modules:
+                    new_lines += construct_cimport(module)
+            else:
+                # Function (or other object) import from within module
+                match = re.search(r'^from +(.+) +cimport +(.+)', line)
+                module = match.group(1)
+                functions = match.group(2).split(',')
+                for function in functions:
+                    if (
+                        inline_iterators_found is None
+                        or function not in inline_iterators_found[module]
+                    ):
+                        new_lines += construct_cimport(module, function)
+            new_lines.append('\n')
+        else:
+            new_lines.append(line)
+    return new_lines
+
+
+
+def inline_iterators(lines, no_optimization):
+    # We need to import the *.py file given by the global
+    # "filename" variable, and then investigate its content.
+    module = import_pure_python_module_as_object(filename)
     # Function for processing the source lines
     # of an inline iterator function.
     def process_inline_iterator_lines(func_name, iterator_lines):
@@ -575,11 +697,11 @@ def inline_iterators(lines, no_optimization):
         if func_name.startswith('"') or func_name.startswith("'"):
             new_lines.append(line)
             continue
-        if not func_name in module_dict:
+        if not func_name in module.__dict__:
             new_lines.append(line)
             continue
         try:
-            iterator_lines = inspect.getsourcelines(module_dict[func_name])[0]
+            iterator_lines = inspect.getsourcelines(module.__dict__[func_name])[0]
         except:
             new_lines.append(line)
             continue
