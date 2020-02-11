@@ -1920,6 +1920,8 @@ class Component:
             size_old = self.N_allocated
             if size != size_old:
                 self.N_allocated = size
+                if self.N_allocated == 0:
+                    self.N_allocated = 1
                 # Reallocate particle data
                 self.posx = realloc(self.posx, self.N_allocated*sizeof('double'))
                 self.posy = realloc(self.posy, self.N_allocated*sizeof('double'))
