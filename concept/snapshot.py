@@ -341,24 +341,31 @@ class StandardSnapshot:
                     momz = component.momz
                     # Read particle data directly into
                     # the particle data arrays.
-                    posx_h5.read_direct(asarray(component.posx_mv),
-                                        source_sel=np.s_[start_local:end_local],
-                                        dest_sel=np.s_[:N_local])
-                    posy_h5.read_direct(asarray(component.posy_mv),
-                                        source_sel=np.s_[start_local:end_local],
-                                        dest_sel=np.s_[:N_local])
-                    posz_h5.read_direct(asarray(component.posz_mv),
-                                        source_sel=np.s_[start_local:end_local],
-                                        dest_sel=np.s_[:N_local])
-                    momx_h5.read_direct(asarray(component.momx_mv),
-                                        source_sel=np.s_[start_local:end_local],
-                                        dest_sel=np.s_[:N_local])
-                    momy_h5.read_direct(asarray(component.momy_mv),
-                                        source_sel=np.s_[start_local:end_local],
-                                        dest_sel=np.s_[:N_local])
-                    momz_h5.read_direct(asarray(component.momz_mv),
-                                        source_sel=np.s_[start_local:end_local],
-                                        dest_sel=np.s_[:N_local])
+                    if N_local > 0:
+                        posx_h5.read_direct(asarray(component.posx_mv),
+                            source_sel=np.s_[start_local:end_local],
+                            dest_sel=np.s_[:N_local],
+                        )
+                        posy_h5.read_direct(asarray(component.posy_mv),
+                            source_sel=np.s_[start_local:end_local],
+                            dest_sel=np.s_[:N_local],
+                        )
+                        posz_h5.read_direct(asarray(component.posz_mv),
+                            source_sel=np.s_[start_local:end_local],
+                            dest_sel=np.s_[:N_local],
+                        )
+                        momx_h5.read_direct(asarray(component.momx_mv),
+                            source_sel=np.s_[start_local:end_local],
+                            dest_sel=np.s_[:N_local],
+                        )
+                        momy_h5.read_direct(asarray(component.momy_mv),
+                            source_sel=np.s_[start_local:end_local],
+                            dest_sel=np.s_[:N_local],
+                        )
+                        momz_h5.read_direct(asarray(component.momz_mv),
+                            source_sel=np.s_[start_local:end_local],
+                            dest_sel=np.s_[:N_local],
+                        )
                     # If the snapshot and the current run uses different
                     # systems of units, mulitply the component positions
                     # and momenta by the snapshot units.
