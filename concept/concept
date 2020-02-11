@@ -154,14 +154,27 @@ print_logo(){
   \____/   \____/ /_/    \/     \____/  |_____| |_|      |_|
 '
     # Plot the logo via Python's matplotlib.
+    # While the color of the 𝘕 is fixed, the color used for the rest
+    # is determined from the timestamp of this file.
     # This uses up the the 16th and 17th color of the terminal.
     "${python}" -B -c "
-import matplotlib
-# Apply colormap
+import sys, matplotlib
+# Generate color based on input number
+color_for_N = 'darkorange'
+brightness = lambda color: 0.241*color[0]**2 + 0.691*color[1]**2 + 0.068*color[2]**2
+blim = (0.3, 0.97)
+color_choices = [
+    matplotlib.colors.ColorConverter().to_rgb(color)
+    for name, color in
+    matplotlib.colors.CSS4_COLORS.items()
+    if name != color_for_N
+]
+color_choices = [color for color in color_choices if blim[0] < brightness(color) < blim[1]]
 colors = (
-    matplotlib.colors.ColorConverter().to_rgb('ivory'),
-    matplotlib.colors.ColorConverter().to_rgb('darkorange'),
+    color_choices[int(sys.argv[1]) % len(color_choices)],
+    color_for_N,
 )
+# Apply colormap
 for i, color in enumerate(colors):
     colorhex = matplotlib.colors.rgb2hex(color)
     print('\\x1b]4;{};rgb:{}/{}/{}\\x1b\\\\'
@@ -181,7 +194,8 @@ for row in rows:
     ANSI.append('\\x1b[0m\\n')
 # Print the ANSI image
 print(''.join(ANSI), end='', flush=True)
-"
+" \
+    $(stat -c '%Y' "${this_file}")
 }
 # Print out the logo the first time an execution reaches this point
 if [ "${logo_printed}" != "True" ] && [ "${being_sourced}" == "False" ]; then
