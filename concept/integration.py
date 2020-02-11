@@ -897,8 +897,12 @@ def scalefactor_integral(key, t_ini, Δt, all_components):
                         w_eff = component.w_eff(t=t, a=a)
                         integrand_tab_spline[i] = a**(2 - 3*w_eff)
                     elif integrand == 'a**(-3*w_eff)*Γ/H':
-                        w_eff = component.w_eff(t=t, a=a)
-                        integrand_tab_spline[i] = a**(-3*w_eff)*component.Γ(a)/hubble(a)
+                        with unswitch:
+                            if enable_Hubble:
+                                w_eff = component.w_eff(t=t, a=a)
+                                integrand_tab_spline[i] = a**(-3*w_eff)*component.Γ(a)/hubble(a)
+                            else:
+                                integrand_tab_spline[i] = component.Γ(a)
                     elif master:
                         abort(
                             f'The scalefactor integral with "{integrand}" as the integrand '
@@ -989,6 +993,11 @@ def initiate_time(reinitialize=False):
             t_begin_correct = cosmic_time(a_begin_correct)
         elif 't_begin' in user_params_keys_raw:
             # a_begin not specified, t_begin specified
+            if t_begin == 0:
+                abort(
+                    'You have specified t_begin = 0 while having Hubble expansion enabled. '
+                    'Please specify some finite starting time or disable Hubble expansion.'
+                )
             t_begin_correct = t_begin
             a_begin_correct = scale_factor(t_begin_correct)
         else:
