@@ -1072,13 +1072,6 @@ if [ "${prepare_files}" == "True" ]; then
              )
         fi
         if [ "${no_recompilation}" != "True" ]; then
-            # When compiling, the pyxpp.py script needs a copy of
-            # all *.py source files located in a directory named
-            # ".pure_python_source_copy", placed within the
-            # concept directory.
-            pure_python_source_dir="${concept_dir}/.pure_python_source_copy"
-            mkdir -p "${pure_python_source_dir}"
-            cp "${concept_dir}"/*.py "${pure_python_source_dir}"/
             # When running locally, set the "make_jobs" variable,
             # holding the -j option for future make commands, enabling
             # parallel building. Some implementations of make does not
@@ -1116,8 +1109,6 @@ test:
                 ${make_jobs}                           \
                 2> >(grep -v 'GSL_.* redeclared' 1>&2) \
             )
-            # Remove the temporary pure_python_source_dir
-            rm -rf "${pure_python_source_dir}" 2>/dev/null || :
         fi
     fi
 fi
