@@ -501,6 +501,8 @@ def render2D(components, filename):
                     gridsize_component = component.gridsize
                 if gridsize_component > gridsize:
                     gridsize = gridsize_component
+            if gridsize < 2*nghosts:
+                gridsize = 2*nghosts
         # We now do the interpolation of the components onto grids.
         # A separate grid will be used for particles and fluids.
         # We choose to interpolate the physical density ρ.

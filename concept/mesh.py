@@ -1037,8 +1037,8 @@ def get_gridshape_local(gridsize):
     for dim in range(3):
         if gridshape_local[dim] < ℤ[4*nghosts]:
             abort(
-                f'A grid of shape {gridshape_local.shape} (or '
-                f'{(asarray(gridshape_local) - 2*nghosts).shape} without ghosts) was encountered '
+                f'A grid of shape {gridshape_local} (or '
+                f'{asarray(gridshape_local) - 2*nghosts} without ghosts) was encountered '
                 f'in gridshape_local(), but all domain grids must have at least twice as many '
                 f'grid points across each dimension as the number of ghost layers '
                 f'nghosts = {nghosts}.'
