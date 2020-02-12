@@ -85,28 +85,50 @@ the modified code in a very clean state either. Sorry...
 
 
 
-# For Python 2.x compatibility
-from __future__ import nested_scopes, generators, division
-from __future__ import absolute_import, with_statement, print_function, unicode_literals
-import sys
-if sys.version_info.major < 3:
-    from codecs import open
-if (sys.version_info.major, sys.version_info.minor) < (3, 7):
-    import imp
-    load_source = imp.load_source
-else:
-    import importlib.machinery, importlib.util
-    def load_source(module_name, filename):
-        loader = importlib.machinery.SourceFileLoader(module_name, filename)
-        spec = importlib.util.spec_from_loader(loader.name, loader)
-        module = importlib.util.module_from_spec(spec)
-        loader.exec_module(module)
-        return module
 # General imports
-import collections, contextlib, copy, inspect, itertools
-import keyword, os, re, shutil, unicodedata, warnings
+import collections, contextlib, copy, importlib, inspect, itertools
+import keyword, os, re, shutil, sys, unicodedata, warnings
 # For math
 import numpy as np
+
+
+
+# Function for importing a *.py module,
+# even when a *.so module of the same name is present.
+def import_py_module(module_name):
+    if module_name.endswith('.py'):
+        module_name = module_name[:-3]
+    with disable_loader('.so'):
+        module = importlib.import_module(module_name)
+    return module
+@contextlib.contextmanager
+def disable_loader(ext):
+    ext = '.' + ext.lstrip('.')
+    # Remove any loaders for the ext extension
+    edits = collections.defaultdict(list)
+    path_importer_cache = list(sys.path_importer_cache.values())
+    for i, finder in enumerate(path_importer_cache):
+        loaders = getattr(finder, '_loaders', None)
+        if loaders is None:
+            continue
+        for j, loader in enumerate(loaders):
+            if j + len(edits[i]) == len(loaders):
+                break
+            if loader[0] != ext:
+                continue
+            # Loader for the ext extension found.
+            # Push to the back.
+            loaders.append(loaders.pop(j))
+            edits[i].append(j)
+    try:
+        # Yield control back to the caller
+        yield
+    finally:
+        # Undo changes to path importer cache
+        for i, edit in edits.items():
+            loaders = path_importer_cache[i]._loaders
+            for j in reversed(edit):
+                loaders.insert(j, loaders.pop())
 
 
 
@@ -450,35 +472,6 @@ def cimport_commons(lines, no_optimization):
 
 
 
-# Helper function for importing pure Python modules
-def import_pure_python_module_as_object(filename):
-    # We want to import the *.py file given by "filename". In order to
-    # get the *.py file and not the *.so file, we rely on all *.py files
-    # to be already copied to the pure_python_source_dir
-    # specified below.
-    pure_python_source_dir = os.getcwd() + '/.pure_python_source_copy'
-    sys.path.insert(0, pure_python_source_dir)
-    # If we do this using the load_source function constructed from
-    # calls to importlib, this function will fail. We therefore rely
-    # on the deprecated imp module.
-    # This ought to some day be made to work with importlib.
-    with warnings.catch_warnings():
-        warnings.filterwarnings('ignore', category=DeprecationWarning)
-        import imp
-    load_source = imp.load_source
-    # Import the file into a module object
-    if not filename.endswith('.py'):
-        filename += '.py'
-    try:
-        module = load_source(filename.rstrip('.py'), filename)
-    except:
-        module = None
-    # Remove the inserted pure_python_source_dir from sys.path
-    sys.path.pop(0)
-    return module
-
-
-
 def cimport_function(lines, no_optimization):
     def construct_cimport(module, function=None):
         # Add normal import enclosed in try/except,
@@ -506,8 +499,9 @@ def cimport_function(lines, no_optimization):
         if not match:
             return
         filename = match.group(1).strip()
-        module = import_pure_python_module_as_object(filename)
-        if module is None:
+        try:
+            module = import_py_module(filename)
+        except ImportError:
             return
         funcnames = [
             funcname.strip(' \n')
@@ -616,7 +610,7 @@ def cimport_function(lines, no_optimization):
 def inline_iterators(lines, no_optimization):
     # We need to import the *.py file given by the global
     # "filename" variable, and then investigate its content.
-    module = import_pure_python_module_as_object(filename)
+    module = import_py_module(filename)
     # Function for processing the source lines
     # of an inline iterator function.
     def process_inline_iterator_lines(func_name, iterator_lines):
@@ -3437,7 +3431,7 @@ if __name__ == '__main__':
                 finally:
                     sys.stdout = old_stdout
         with suppress_stdout():
-            commons = load_source(commons_name, filename_commons)
+            commons = import_py_module('commons')
     no_optimization = False
     if len(sys.argv) > 3:
         if sys.argv[3] == '--no-optimization':

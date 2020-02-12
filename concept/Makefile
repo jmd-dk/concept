@@ -36,21 +36,23 @@ SHELL = /usr/bin/env bash
 # Specification of filenames #
 ##############################
 # Modules which should be cythonized and compiled
-pyfiles = analysis      \
-          commons       \
-          communication \
-          ewald         \
-          fluid         \
-          graphics      \
-          gravity       \
-          integration   \
-          interactions  \
-          linear        \
-          main          \
-          mesh          \
-          snapshot      \
-          species       \
-          utilities
+pyfiles =         \
+    analysis      \
+    commons       \
+    communication \
+    ewald         \
+    fluid         \
+    graphics      \
+    gravity       \
+    integration   \
+    interactions  \
+    linear        \
+    main          \
+    mesh          \
+    snapshot      \
+    species       \
+    utilities     \
+
 # Filename of the module holding common definitions
 commons = commons.py
 # Filename of the .pyx preprocessor script
@@ -63,7 +65,6 @@ types = .types.pyx
 files_auxiliary =            \
     jobscript                \
     .exit_code_*             \
-    .pure_python_source_copy \
     .lto_test.c              \
     .lto_test.o              \
 

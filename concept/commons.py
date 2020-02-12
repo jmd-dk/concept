@@ -43,8 +43,9 @@ __version__ = 'master'
 # Imports common to pure Python and Cython #
 ############################################
 # Miscellaneous
-import ast, collections, contextlib, ctypes, cython, functools, hashlib, inspect, itertools
-import keyword, operator, os, re, shutil, sys, textwrap, traceback, types, unicodedata, warnings
+import ast, collections, contextlib, ctypes, cython, functools, hashlib
+import importlib, inspect, itertools, keyword, operator, os, re, shutil, sys
+import textwrap, traceback, types, unicodedata, warnings
 from copy import deepcopy
 # Math
 # (note that numpy.array is purposely not imported directly into the
@@ -1222,7 +1223,13 @@ while True:
     elif master and top_dir == '/':
         abort('Cannot find the .paths file!')
     top_dir = os.path.dirname(top_dir)
-paths_module = pyxpp.load_source('paths', top_dir + '/.paths')
+def load_source(module_name, filename):
+    loader = importlib.machinery.SourceFileLoader(module_name, filename)
+    spec = importlib.util.spec_from_loader(loader.name, loader)
+    module = importlib.util.module_from_spec(spec)
+    loader.exec_module(module)
+    return module
+paths_module = load_source('paths', top_dir + '/.paths')
 paths = {key: value for key, value in paths_module.__dict__.items()
     if isinstance(key, str) and not key.startswith('__')}
 # Function for converting an absolute path to its "sensible" form.
@@ -3930,7 +3937,7 @@ for val, keys in {
 def commons_flood():
     if cython.compiled:
         with suppress_stdout():
-            commons_module = pyxpp.load_source(
+            commons_module = load_source(
                 'commons_pure_python',
                 '{}/commons.py'.format(paths['concept_dir']),
             )
