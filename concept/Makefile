@@ -24,7 +24,7 @@
 # interact with this file directly, but rather use the concept script to
 # build and run the code.
 # This makefile accepts the optional options
-# 'unsafe_build' and 'no_optimization', both of which may be either
+# 'unsafe_building' and 'no_optimization', both of which may be either
 # 'True' or 'False'. If not given, a value of 'False' will be used.
 
 # Use the bash shell
@@ -315,7 +315,7 @@ define heading
         from time import sleep;                                                   \
         import blessings;                                                         \
         sys.exit() if '$(heading_printed)' else None;                             \
-        unsafe = ' (unsafe)' if '$(unsafe_build)' == 'True' else '';              \
+        unsafe = ' (unsafe)' if '$(unsafe_building)' == 'True' else '';           \
         terminal = blessings.Terminal(force_styling=True);                        \
         print(terminal.bold_yellow('Building $(building)' + unsafe), flush=True); \
     "
@@ -362,7 +362,7 @@ else
 	$(python) -m cython $(filter-out -a, $(cythonflags)) $<
 	$(python) -B $(pyxpp) $< $@
 	$(python) -m cython $(cythonflags) $<
-ifneq ($(unsafe_build),True)
+ifneq ($(unsafe_building),True)
 	@touch $(types)
 	@touch $(addsuffix .pxd, $(pyfiles))
 	@touch $@
@@ -376,7 +376,7 @@ else
 	$(python) -m cython $(filter-out -a, $(cythonflags)) $<
 	$(python) -B $(pyxpp) $< $(@:.html=.c)
 	$(python) -m cython $(cythonflags) $<
-ifneq ($(unsafe_build),True)
+ifneq ($(unsafe_building),True)
 	@touch $(types)
 	@touch $(addsuffix .pxd, $(pyfiles))
 	@touch $@
@@ -421,8 +421,8 @@ docs:
 # Additional target dependencies
 $(foreach ext,c html,$(addsuffix .$(ext), mesh)): fft.c
 # Target dependencies which strictly speaking should be
-# taken into account, but can be ignored using the --unsafe-build flag.
-ifneq ($(unsafe_build),True)
+# taken into account, but can be ignored using the --unsafe-building flag.
+ifneq ($(unsafe_building),True)
     # Because modules cimport stuff from each other, some .c
     # (and therefore also .html) files depend on the .pxd files of
     # other modules.
