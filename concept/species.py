@@ -971,6 +971,7 @@ class Component:
         signed char[::1] rung_jumps_mv
         # Dict used for storing Tiling instances
         public dict tilings
+        public object n_interactions  # collections.defaultdict
         # Fluid attributes
         public Py_ssize_t gridsize
         public tuple shape
@@ -1139,6 +1140,9 @@ class Component:
                         f'the grid size of the fluid grids.'
                     )
                 self.φ_gridsizes[force, method] = self.gridsize
+        # Mapping from component names to number of
+        # (instantaneous) interactions that have taken place.
+        self.n_interactions = collections.defaultdict(int)
         # Set the CLASS species
         if class_species is None:
             class_species = is_selected(self, select_class_species)
@@ -1210,9 +1214,11 @@ class Component:
                     break
         realization_options_default = {
             # Linear realization options
-            'velocitiesfromdisplacements': realization_options_all.get(
-                'velocitiesfromdisplacements', False),
+            'interpolation': realization_options_all.get('interpolation', 'CIC'),
             'backscaling': realization_options_all.get('backscaling', False),
+            'velocitiesfromdisplacements': realization_options_all.get(
+                'velocitiesfromdisplacements', False,
+            ),
             # Non-linear realization options
             'structure'    : realization_options_all.get('structure', 'nonlinear'),
             'compoundorder': realization_options_all.get('compoundorder', 'linear'),
@@ -1240,8 +1246,9 @@ class Component:
             for realization_option_varname in realization_options_varname:
                 if realization_option_varname not in {
                     # Linear realization options
-                    'velocitiesfromdisplacements',
+                    'interpolation',
                     'backscaling',
+                    'velocitiesfromdisplacements',
                     # Non-linear realization options
                     'structure',
                     'compoundorder',
@@ -1257,6 +1264,10 @@ class Component:
                 del realization_options_varname['structure']
                 del realization_options_varname['compoundorder']
         elif self.representation == 'fluid':
+            # The 'interpolation' option does not make sense
+            # for fluid variables.
+            for realization_options_varname in realization_options.values():
+                del realization_options_varname['interpolation']
             # None of the non-linear relization options
             # makes sense for ϱ.
             for realization_options_varname in (
@@ -1341,7 +1352,7 @@ class Component:
             if self.representation == 'particles':
                 # If no name is given, this is an internally
                 # used component, in which case it is OK not to have
-                # any softening lenth set.
+                # any softening length set.
                 if self.name:
                     masterwarn(f'No softening length set for {self.name}')
             softening_length = 0
@@ -1417,6 +1428,9 @@ class Component:
         self.Δmomx_mv = cast(self.Δmomx, 'double[:self.N_allocated]')
         self.Δmomy_mv = cast(self.Δmomy, 'double[:self.N_allocated]')
         self.Δmomz_mv = cast(self.Δmomz, 'double[:self.N_allocated]')
+        self.Δmomx_mv[:self.N_allocated] = 0
+        self.Δmomy_mv[:self.N_allocated] = 0
+        self.Δmomz_mv[:self.N_allocated] = 0
         # Pack particle data buffers into a pointer array of pointers
         # and a list of memoryviews.
         self.Δmom = malloc(3*sizeof('double*'))
@@ -1511,8 +1525,8 @@ class Component:
         # Set the equation of state parameter w
         if w is None:
             w = is_selected(self, select_eos_w)
-        self.initialize_w(w)
-        self.initialize_w_eff()
+        self.init_w(w)
+        self.init_w_eff()
         # Fluid data.
         # Create the (boltzmann_order + 1) non-linear fluid variables
         # and store them in the fluidvars list. This is done even for
@@ -2106,7 +2120,7 @@ class Component:
                 masterwarn('The realize method was called without specifying a variable, '
                            'though a cosmoresults is passed. This cosmoresults will be ignored.')
             # Realize all variables
-            variables = arange(self.boltzmann_order + 1)
+            variables = list(arange(self.boltzmann_order + 1))
         else:
             # Realize one or more variables
             variables = any2list(self.varnames2indices(variables))
@@ -2119,6 +2133,10 @@ class Component:
                 if cosmoresults is not None:
                     abort(f'The realize method was called with {N_vars} variables '
                           'while cosmoresults was supplied as well')
+        # In the case of particles,
+        # momenta should be realized before positions.
+        if self.representation == 'particles' and variables == [0, 1]:
+            variables = [1, 0]
         # Prepare arguments to compute_transfer,
         # if no transfer_spline is passed.
         if transfer_spline is None:
@@ -2136,120 +2154,131 @@ class Component:
                 and self.approximations['P=wρ']
                 ):
                 self.realize_𝒫(a, use_gridˣ)
-            else:
-                # Normal realization
-                if (self.representation == 'particles'
-                    and 'velocitiesfromdisplacements' not in options
+                continue
+            # Normal realization.
+            # The 'interpolation' option.
+            if self.representation == 'particles':
+                interpolation_orders = {'NGP': 1, 'CIC': 2, 'TSC': 3, 'PCS': 4}
+                options.setdefault(
+                    'interpolation',
+                    self.realization_options[('pos', 'mom')[variable]]['interpolation'],
+                )
+                if isinstance(options['interpolation'], str):
+                    options['interpolation'] = interpolation_orders[
+                        options['interpolation'].upper()
+                    ]
+            # The 'velocities from displacements' option.
+            if (self.representation == 'particles'
+                and 'velocitiesfromdisplacements' not in options
+            ):
+                options['velocitiesfromdisplacements'] = self.realization_options['mom'][
+                    'velocitiesfromdisplacements']
+            # For particles, the Boltzmann order is always 1,
+            # corresponding to positions and momenta. However, when
+            # velocities are set to be realized from displacements, the
+            # momenta (proportional to the velocity field uⁱ) are
+            # constructed from the displacement field ψⁱ (using the
+            # linear growth rate f) during the Zel'dovich approximation.
+            # Thus, from a single realization of ψⁱ, both the positions
+            # and the momenta are constructed. In this case, we need to
+            # pass only the momenta as the variable to be realized (the
+            # realize function will realize both positions and momenta
+            # when velocities are to be realized from displacements),
+            # along with the transfer function for ψⁱ (δ, i.e. 0).
+            variable_transfer = variable
+            if self.representation == 'particles' and options['velocitiesfromdisplacements']:
+                if variable == 0:
+                    continue
+                variable_transfer = 0
+            # The back-scaling option
+            if 'backscaling' not in options:
+                if variable == 0:
+                    options['backscaling'] = self.realization_options[
+                        {'particles': 'pos', 'fluid': 'ϱ'}[self.representation]
+                    ]['backscaling']
+                elif variable == 1:
+                    options['backscaling'] = self.realization_options[
+                        {'particles': 'mom', 'fluid': 'J'}[self.representation]
+                    ]['backscaling']
+                elif variable == 2 and specific_multi_index == 'trace':
+                    options['backscaling'] = self.realization_options['𝒫']['backscaling']
+                elif variable == 2:
+                    options['backscaling'] = self.realization_options['ς']['backscaling']
+            # Get transfer function if not passed
+            if transfer_spline is None:
+                # When realizing using the primordial structure (as
+                # opposed to realizing non-linearly), the realization
+                # looks like
+                # ℱₓ⁻¹[T(k) ζ(k) K(k⃗) ℛ(k⃗)],
+                # with ℛ(k⃗) the primordial noise, T(k) = T(a, k) the
+                # transfer function at the specified a, ζ(k) the
+                # primordial curvature perturbations and K(k⃗) containing
+                # any additional tensor structure. The only time
+                # dependent part of the realiztion is then the transfer
+                # function T(a, k). In the case of linear realization,
+                # i.e. a realization of a field of the same variable
+                # number as the Boltzmann order of the component, we do
+                # not actually care about realizing the exact field, but
+                # only about obtaining precise influences from this
+                # field on other, non-linear fields. For each Boltzmann
+                # order, we list below the corresponding linear fluid
+                # variable together with its most important evolution
+                # equation through which it affects the rest
+                # of the system.
+                # Boltzmann order -1:
+                #     ϱ,     ∇²φ = 4πGa²ρ = 4πGa**(-3*w_eff - 1)ϱ
+                # Boltzmann order 0:
+                #     Jᵐ,    ∂ₜϱ = -a**(3*w_eff - 2)∂ᵢJⁱ  + ⋯
+                # Boltzmann order 1:
+                #     𝒫,    ∂ₜJᵐ = -a**(-3*w_eff)∂ᵐ𝒫      + ⋯
+                #     ςᵐₙ,  ∂ₜJᵐ = -a**(-3*w_eff)∂ⁿςᵐₙ    + ⋯
+                # To take Boltzmann order -1 as an example, this means
+                # we should realize a weighted average of ϱ(t, k⃗), with
+                # a weight given by a(t)**(-3*w_eff(t) - 1), i.e.
+                # T(a, k) → 1/(ᔑa(t)**(-3*w_eff(t) - 1) dt)
+                #             *ᔑa(t)**(-3*w_eff(t) - 1)T(a, k) dt,
+                # with the integrals ranging over the time step.
+                # Below these weights are represented as str's.
+                # The actual averaging is carried out by the
+                # TransferFunction.as_function_of_k() method.
+                weight = None
+                if (
+                        options.get('structure') != 'nonlinear'
+                    and self.representation == 'fluid'
+                    and self.boltzmann_closure == 'class'
+                    and self.boltzmann_order + 1 == variable_transfer
+                    and a_next != -1
                 ):
-                    # The 'velocities from displacements' option
-                    options['velocitiesfromdisplacements'] = self.realization_options['mom'][
-                        'velocitiesfromdisplacements']
-                    # For particles, the Boltzmann order is always 1,
-                    # corresponding to positions and momenta. However,
-                    # when velocities are set to be realized from
-                    # displacements, the momenta (proportional to the
-                    # velocity field uⁱ) are constructed from the
-                    # displacement field ψⁱ (using the linear growth
-                    # rate f) during the Zel'dovich approximation. Thus,
-                    # from a single realization of ψⁱ, both the
-                    # positions and the momenta are constructed. We
-                    # should then pass only the positions as the
-                    # variable to be realized (the realize function will
-                    # realize both positions and momenta when velocities
-                    # are to be realized from displacements).
-                    if options['velocitiesfromdisplacements'] and variable == 1:
-                        break
-                # The back-scaling option
-                if 'backscaling' not in options:
-                    if variable == 0:
-                        options['backscaling'] = self.realization_options[
-                            {'particles': 'pos', 'fluid': 'ϱ'}[self.representation]
-                        ]['backscaling']
-                    elif variable == 1:
-                        options['backscaling'] = self.realization_options[
-                            {'particles': 'mom', 'fluid': 'J'}[self.representation]
-                        ]['backscaling']
-                    elif variable == 2 and specific_multi_index == 'trace':
-                        options['backscaling'] = self.realization_options['𝒫']['backscaling']
-                    elif variable == 2:
-                        options['backscaling'] = self.realization_options['ς']['backscaling']
-                # Get transfer function if not passed
-                if transfer_spline is None:
-                    # When realizing using the primordial structure
-                    # (as opposed to realizing non-linearly),
-                    # the realization looks like
-                    # ℱₓ⁻¹[T(k) ζ(k) K(k⃗) ℛ(k⃗)],
-                    # with ℛ(k⃗) the primordial noise, T(k) = T(a, k) the
-                    # transfer function at the specified a, ζ(k) the
-                    # primordial curvature perturbations and K(k⃗)
-                    # containing any additional tensor structure.
-                    # The only time dependent part of the realiztion is
-                    # then the transfer function T(a, k). In the case of
-                    # linear realization, i.e. a realization of a
-                    # field of the same variable number as the Boltzmann
-                    # order of the component, we do not actually care
-                    # about realizing the exact field, but only about
-                    # obtaining precise influences from this field on
-                    # other, non-linear fields. For each Boltzmann
-                    # order, we list below the corresponding linear
-                    # fluid variable together with its most important
-                    # evolution equation through which it affects the
-                    # rest of the system.
-                    # Boltzmann order -1:
-                    #     ϱ,     ∇²φ = 4πGa²ρ = 4πGa**(-3*w_eff - 1)ϱ
-                    # Boltzmann order 0:
-                    #     Jᵐ,    ∂ₜϱ = -a**(3*w_eff - 2)∂ᵢJⁱ  + ⋯
-                    # Boltzmann order 1:
-                    #     𝒫,    ∂ₜJᵐ = -a**(-3*w_eff)∂ᵐ𝒫      + ⋯
-                    #     ςᵐₙ,  ∂ₜJᵐ = -a**(-3*w_eff)∂ⁿςᵐₙ    + ⋯
-                    # To take Boltzmann order -1 as an example, this
-                    # means we should realize a weighted average of
-                    # ϱ(t, k⃗), with a weight given by
-                    # a(t)**(-3*w_eff(t) - 1), i.e.
-                    # T(a, k) → 1/(ᔑa(t)**(-3*w_eff(t) - 1) dt)
-                    #             *ᔑa(t)**(-3*w_eff(t) - 1)T(a, k) dt,
-                    # with the integrals ranging over the time step.
-                    # Below these weights are represented as str's.
-                    # The actual averaging is carried out by the
-                    # TransferFunction.as_function_of_k() method.
-                    weight = None
-                    if (
-                            options.get('structure') != 'nonlinear'
-                        and self.representation == 'fluid'
-                        and self.boltzmann_closure == 'class'
-                        and self.boltzmann_order + 1 == variable
-                        and a_next != -1
-                    ):
-                        if variable == 0:
-                            weight = 'a**(-3*w_eff-1)'
-                        elif variable == 1:
-                            weight = 'a**(3*w_eff-2)'
-                        elif variable == 2:
-                            weight = 'a**(-3*w_eff)'
-                    transfer_spline, cosmoresults = compute_transfer(
-                        self,
-                        variable,
-                        k_min, k_max, k_gridsize,
-                        specific_multi_index,
-                        a,
-                        a_next,
-                        gauge,
-                        weight=weight,
-                    )
-                # Do the realization
-                realize(
+                    if variable_transfer == 0:
+                        weight = 'a**(-3*w_eff-1)'
+                    elif variable_transfer == 1:
+                        weight = 'a**(3*w_eff-2)'
+                    elif variable_transfer == 2:
+                        weight = 'a**(-3*w_eff)'
+                transfer_spline, cosmoresults = compute_transfer(
                     self,
-                    variable,
-                    transfer_spline,
-                    cosmoresults,
+                    variable_transfer,
+                    k_min, k_max, k_gridsize,
                     specific_multi_index,
                     a,
-                    options,
-                    use_gridˣ,
+                    a_next,
+                    gauge,
+                    weight=weight,
                 )
-                # Reset transfer_spline to None so that a transfer
-                # function will be computed for the next variable.
-                transfer_spline = None
+            # Do the realization
+            realize(
+                self,
+                variable,
+                transfer_spline,
+                cosmoresults,
+                specific_multi_index,
+                a,
+                options,
+                use_gridˣ,
+            )
+            # Reset transfer_spline to None so that a transfer
+            # function will be computed for the next variable.
+            transfer_spline = None
 
     # Method for realizing a linear fluid scalar
     def realize_if_linear(
@@ -2463,6 +2492,8 @@ class Component:
 
     # Method for updating mom due to Δmom
     @cython.header(
+        # Arguments
+        only_active='bint',
         # Locals
         i='Py_ssize_t',
         lowest_active_rung='signed char',
@@ -2475,10 +2506,10 @@ class Component:
         Δmomz='double*',
         returns='void',
     )
-    def apply_Δmom(self):
-        momx = self.momx
-        momy = self.momy
-        momz = self.momz
+    def apply_Δmom(self, only_active=True):
+        momx  = self. momx
+        momy  = self. momy
+        momz  = self. momz
         Δmomx = self.Δmomx
         Δmomy = self.Δmomy
         Δmomz = self.Δmomz
@@ -2486,7 +2517,7 @@ class Component:
         lowest_active_rung = self.lowest_active_rung
         for i in range(self.N_local):
             with unswitch:
-                if self.use_rungs:
+                if only_active and self.use_rungs:
                     if rung_indices[i] < lowest_active_rung:
                         continue
             momx[i] += Δmomx[i]
@@ -2507,6 +2538,7 @@ class Component:
         rung_index='signed char',
         rung_indices='signed char*',
         rung_jumps='signed char*',
+        w_eff='double',
         Δmomx='double*',
         Δmomy='double*',
         Δmomz='double*',
@@ -2520,15 +2552,21 @@ class Component:
             return
         # By "acceleration" is meant
         #   acc = (∂mom/∂t)/(a**2*mass),
-        #      -> Δmom/(ᔑdt['a**(2-3*w_eff)']*mass),
+        #      -> Δmom/(a**(-3*w_eff)*mass*ᔑdt['a**2'])
+        #       = Δmom*a**(3*w_eff)/(mass*ᔑdt['a**2']),
         # where the a**(-3*w_eff) takes care of decaying particle mass.
+        # As the momentum has the same scaling a**(-3*w_eff), this
+        # should not be included under the integral.
         Δmomx = self.Δmomx
         Δmomy = self.Δmomy
         Δmomz = self.Δmomz
         rung_indices = self.rung_indices
         rung_jumps = self.rung_jumps
         lowest_active_rung = self.lowest_active_rung
-        convertion_factors = 1/((machine_ϵ + ᔑdt_rungs['a**(2-3*w_eff)', self.name])*self.mass)
+        w_eff = self.w_eff(a=universals.a)
+        convertion_factors = universals.a**(3*w_eff)/(
+            self.mass*(machine_ϵ + ᔑdt_rungs['a**2'])
+        )
         for i in range(self.N_local):
             rung_index = rung_indices[i]
             if rung_index < lowest_active_rung:
@@ -2797,201 +2835,18 @@ class Component:
         tiling_name=str,
         initial_rung_size=object,  # sequence of length N_rungs or int-like
         # Locals
-        coarse_tiling='Tiling',
-        extent='double[::1]',
-        location='double[::1]',
-        refinement_period='Py_ssize_t',
-        rung_index='signed char',
-        shape=object,  # sequence of length 3 or 2 or int-like
         tiling='Tiling',
         returns='Tiling',
     )
     def init_tiling(self, tiling_name, initial_rung_size=-1):
-        # Do nothing if the tiling is already initialized
+        # Do nothing if the (sub)tiling is already initialized
         # on this component.
         tiling = self.tilings.get(tiling_name)
         if tiling is not None:
             return tiling
-        # Different tilings specified below
-        refinement_period = 0
-        if tiling_name == 'trivial':
-            # This tiling spans the box using a single tile,
-            # resulting in no actual tiling. It is useful since the
-            # rung-ordering of particles is done at the tile level.
-            shape = (1, 1, 1)
-            tiling_shapes[tiling_name] = asarray(shape, dtype=C2np['Py_ssize_t'])
-            # The rungs within the tile start out with half
-            # of the mean required memory per rung.
-            if initial_rung_size == -1:
-                initial_rung_size = [
-                    self.rungs_N[rung_index]//2
-                    for rung_index in range(N_rungs)
-                ]
-            # The extent of the entire tiling,
-            # i.e. the extent of the box.
-            extent = asarray([boxsize]*3, dtype=C2np['double'])
-            # The position of the beginning of the tiling,
-            # i.e. the left, backward, lower corner of the box.
-            location = zeros(3, dtype=C2np['double'])
-        elif tiling_name == 'gravity (tiles)':
-            # This tiling is used for the P³M method for gravity.
-            # The same tiling is applied to all domains. The tile
-            # decomposition on a domain will have a general shape
-            # of shape[0]×shape[1]×shape[2], with shape[dim] determined
-            # by the criterion that a tile must be at least as large as
-            # the short-range cutoff length, in all directions. At the
-            # same time, we want to maximize the number of tiles.
-            if tiling_name not in tiling_shapes:
-                shape = asarray(
-                    (boxsize/asarray(domain_subdivisions))/shortrange_params['gravity']['cutoff'],
-                    dtype=C2np['Py_ssize_t'],
-                )
-                masterprint(f'Gravitational tile decomposition: {shape[0]}×{shape[1]}×{shape[2]}')
-                tiling_shapes[tiling_name] = shape
-            else:
-                shape = tiling_shapes[tiling_name]
-            # We need this tiling to have a size of at least 3
-            # in every direction.
-            if np.min(shape) < 3:
-                message = [
-                    f'For the P³M method, the domain tiling needs a subdivision of at least 3 '
-                    f'in every direction.'
-                ]
-                if 1 != nprocs != int(round(cbrt(nprocs)))**3:
-                    message.append(
-                        'It may also help to choose a lower and/or cubic number of processes.'
-                    )
-                abort(' '.join(message))
-            # The rungs within each tile start out with half
-            # of the mean required memory per rung.
-            if initial_rung_size == -1:
-                initial_rung_size = [
-                    self.rungs_N[rung_index]//(2*np.prod(shape))
-                    for rung_index in range(N_rungs)
-                ]
-            # The extent of the entire tiling,
-            # i.e. the extent of the domain.
-            extent = asarray((domain_size_x, domain_size_y, domain_size_z),
-                dtype=C2np['double'])
-            # The position of the beginning of the tiling,
-            # i.e. the left, backward, lower corner of this domain.
-            location = asarray((domain_start_x, domain_start_y, domain_start_z),
-                dtype=C2np['double'])
-        elif tiling_name == 'gravity (subtiles)':
-            # Grab the constant refinement period,
-            # if automatic subtiling refinement is enabled.
-            shape = shortrange_params['gravity']['subtiling']
-            if 𝔹[shape[0] == 'automatic']:
-                refinement_period = shape[1]
-            # The entire (sub)tiling currently being initialized lives
-            # within one tile of the "gravity (tiles)" tiling.
-            # Get this coarser tiling.
-            coarse_tiling = self.tilings.get('gravity (tiles)')
-            if coarse_tiling is None:
-                abort(
-                    'Cannot initialize the "gravity (subtiles)" tiling '
-                    'without first having the "gravity (tiles)" tiling initialized'
-                )
-            # Get the shape of the subtiling
-            if tiling_name not in tiling_shapes:
-                if 𝔹[shape[0] == 'automatic']:
-                    # The subtiling shape is to be determined
-                    # automatically. It is optimal to have the subtiles
-                    # be as cubic as possible. Additionally, we have
-                    # found that having (on average) ~8–14
-                    # particles/subtile is optimal, when the particles
-                    # are not too clustered. Here we pick the most cubic
-                    # choice of all possible subtiling shapes which
-                    # leads to subtiles of a volume comparable to the
-                    # above stated number of particles.
-                    particles_per_subtile_min, particles_per_subtile_max = 8, 14
-                    tiling_global_shape = asarray(
-                        asarray(domain_subdivisions)*asarray(coarse_tiling.shape),
-                        dtype=C2np['double'],
-                    )
-                    shape_candidates = []
-                    for particles_per_subtile in (
-                        particles_per_subtile_min, particles_per_subtile_max,
-                    ):
-                        shape = np.prod(tiling_global_shape)/tiling_global_shape
-                        shape *= (float(self.N)/
-                            (nprocs*np.prod(asarray(coarse_tiling.shape)*shape)
-                                *particles_per_subtile)
-                        )**ℝ[1/3]
-                        shape = asarray(np.round(shape), dtype=C2np['Py_ssize_t'])
-                        shape[shape == 0] = 1
-                        shape_candidates.append(shape)
-                    shape_diff = shape_candidates[0] - shape_candidates[1]
-                    shape_base = shape_candidates[1]
-                    shape_candidates = {}
-                    for         i in range(shape_diff[0] + 1):
-                        for     j in range(shape_diff[1] + 1):
-                            for k in range(shape_diff[2] + 1):
-                                shape = shape_base + np.array((i, j, k))
-                                subtiling_global_shape = tiling_global_shape*shape
-                                particles_per_subtile = (
-                                    float(self.N)/np.prod(subtiling_global_shape)
-                                )
-                                # Construct tuple key to be used to
-                                # store this shape. The lower the value
-                                # of each element in the key, the better
-                                # we consider this key to be.
-                                key = []
-                                noncubicness = np.max((
-                                    np.max(subtiling_global_shape)**3
-                                        /np.prod(subtiling_global_shape),
-                                    np.prod(subtiling_global_shape)
-                                        /np.min(subtiling_global_shape)**3,
-                                ))
-                                key.append(noncubicness)
-                                ratio = particles_per_subtile/(
-                                    (particles_per_subtile_min*particles_per_subtile_max)**0.5
-                                )
-                                if ratio < 1:
-                                    ratio = 1/ratio
-                                key.append(ratio)
-                                shape_candidates[tuple(key)] = shape
-                    # Pick the shape with the smallest key
-                    shape = shape_candidates[sorted(shape_candidates)[0]]
-                    # Always use a subtile decomposition of at least 2
-                    # in each direction, unless this leads to more
-                    # subtiles than particles.
-                    shape_atleast2 = shape.copy()
-                    shape_atleast2[shape_atleast2 == 1] = 2
-                    if np.prod(tiling_global_shape*shape_atleast2) < self.N:
-                        shape = shape_atleast2
-                shape = asarray(shape, dtype=C2np['Py_ssize_t'])
-                masterprint(
-                    f'Gravitational subtile decomposition: {shape[0]}×{shape[1]}×{shape[2]}'
-                )
-                tiling_shapes[tiling_name] = shape
-            else:
-                shape = tiling_shapes[tiling_name]
-            # The rungs within each subtile start out with half
-            # of the mean required memory per rung.
-            if initial_rung_size == -1:
-                initial_rung_size = [
-                    self.rungs_N[rung_index]//(2*int(np.prod(shape)*np.prod(coarse_tiling.shape)))
-                    for rung_index in range(N_rungs)
-                ]
-            # The extent of the entire (sub)tiling,
-            # i.e. the extent of a coarse tile.
-            extent = coarse_tiling.tile_extent
-            # As this same (sub)tiling will be used for all of the
-            # coarse tiles, the location of this (sub)tiling is
-            # not static. We thus do not care about the initial value
-            # of the tiling location.
-            location = None
-        else:
-            abort(f'Tiling with name "{tiling_name}" not implemented in Component.tile_sort()')
-        # Instantiate Tiling instance
-        if initial_rung_size == -1:
-            initial_rung_size = 0
-        tiling = Tiling(tiling_name, self, shape, extent, initial_rung_size, refinement_period)
+        # Initialize the (sub)tiling on this component
+        tiling = init_tiling(self, tiling_name, initial_rung_size)
         self.tilings[tiling_name] = tiling
-        # Relocate the tiling if an initial location has been specified
-        if location is not None:
-            tiling.relocate(location)
         return tiling
 
     # Method for sorting particles according to short-range tiles
@@ -3029,6 +2884,8 @@ class Component:
         tiles_contain_particles='signed char*',
         tiling='Tiling',
         tiling_location='double[::1]',
+        tiling_plural=str,
+        tiling_names=object,  # list, collections.Counter, str
         tmp_rung_indices='signed char*',
         tmp_rung_indices_mv='signed char[::1]',
         tmpx='double*',
@@ -3036,8 +2893,7 @@ class Component:
         tmpz='double*',
         returns='void',
     )
-    def tile_sort(self, tiling_name, coarse_tiling=None, coarse_tile_index=-1,
-        subtiling_name=''):
+    def tile_sort(self, tiling_name, coarse_tiling=None, coarse_tile_index=-1, subtiling_name=''):
         # Get the tiling from the passed tiling_name
         tiling = self.tilings.get(tiling_name)
         if tiling is None:
@@ -3053,10 +2909,20 @@ class Component:
         # the tiles and subtiles.
         if not subtiling_name:
             return
-        masterprint(
-            f'Reordering {self.name} particles in memory according to the',
-            tiling_name.rstrip(' (tiles)'), 'tiling ...',
-        )
+        tiling_names = gather(tiling_name)
+        if master:
+            tiling_names = collections.Counter(tiling_names)
+            tiling_names = sorted(tiling_names,
+                key=(lambda key, tiling_names=tiling_names: (-tiling_names[key], key)),
+            )
+            tiling_plural = '' if len(tiling_names) == 1 else 's'
+            tiling_names = '/'.join([
+                tiling_name_i.rstrip(' (tiles)') for tiling_name_i in tiling_names
+            ])
+            masterprint(
+                f'Reordering {self.name} particles in memory according to '
+                f'the {tiling_names} tiling{tiling_plural} ...',
+            )
         # Extract variables
         lowest_populated_rung  = self.lowest_populated_rung
         highest_populated_rung = self.highest_populated_rung
@@ -3290,7 +3156,7 @@ class Component:
     # be called as w(a=a).
     def w(self, *, t=-1, a=-1):
         """This method should not be called before w has been
-        initialized by the initialize_w method.
+        initialized by the init_w method.
         """
         # If no time or scale factor value is passed,
         # use the current time and scale factor value.
@@ -3366,7 +3232,7 @@ class Component:
     # otherwise it cannot be called as w_eff(a=a).
     def w_eff(self, *, t=-1, a=-1):
         """This method should not be called before w_eff has been
-        initialized by the initialize_w_eff method.
+        initialized by the init_w_eff method.
         """
         # For constant w_eff, w_eff = w
         if self.w_eff_type == 'constant':
@@ -3390,7 +3256,7 @@ class Component:
     # otherwise it cannot be called as ẇ(a=a).
     def ẇ(self, *, t=-1, a=-1):
         """This method should not be called before w has been
-        initialized by the initialize_w method.
+        initialized by the init_w method.
         """
         # If no time or scale factor value is passed,
         # use the current time and scale factor value.
@@ -3434,7 +3300,7 @@ class Component:
     # otherwise it cannot be called as ẇ_eff(a=a).
     def ẇ_eff(self, *, t=-1, a=-1):
         """This method should not be called before w_eff has been
-        initialized by the initialize_w_eff method.
+        initialized by the init_w_eff method.
         """
         # Compute ẇ_eff dependent on its type
         if self.w_eff_type == 'constant':
@@ -3478,7 +3344,7 @@ class Component:
         ρ_tabulated=object,  # np.ndarray
         returns='Spline',
     )
-    def initialize_w(self, w):
+    def init_w(self, w):
         """The w argument can be one of the following (Python) types:
         - float-like: Designates a constant w.
                       The w will be stored in self.w_constant and
@@ -3758,7 +3624,7 @@ class Component:
     # Method which initializes the effective
     # equation of state parameter w_eff.
     # Call this before calling the w_eff method,
-    # but after calling the initialize_w method.
+    # but after calling the init_w method.
     @cython.header(
         # Locals
         a='double',
@@ -3770,7 +3636,7 @@ class Component:
         t_tabulated='double[::1]',
         ρ_bar_tabulated=object,  # np.ndarray
     )
-    def initialize_w_eff(self):
+    def init_w_eff(self):
         """This method initializes the effective equation of state
         parameter w_eff by defining the w_eff_spline attribute,
         which is used by the w_eff method to get w_eff(a).
@@ -4042,40 +3908,58 @@ class Component:
         for fluidscalar in self.iterate_nonlinear_fluidscalars():
             fluidscalar.nullify_gridˣ()
 
-    # Method which calls the nullify_Δ on all fluid scalars
-    @cython.header(
+    # Method for nullifying Δ buffers
+    @cython.pheader(
         # Arguments
         specifically=object,  # str og container of str's
+        only_active='bint',
         # Locals
         fluidscalar='FluidScalar',
         i='Py_ssize_t',
         lowest_active_rung='signed char',
         rung_indices='signed char*',
+        variable=str,
         Δmomx='double*',
         Δmomy='double*',
         Δmomz='double*',
         returns='void',
     )
-    def nullify_Δ(self, specifically=None):
+    def nullify_Δ(self, specifically=None, only_active=True):
+        """For fluid components, the nullification is delegated to the
+        nullify_Δ() method on each fluid scalar.
+        For particle components, a specific variable should be given by
+        the "specifically" argument. Currently only "mom" is valid.
+        """
         if self.representation == 'particles':
-            if specifically is None or 'mom' in specifically:
-                # We only nullify Δmom for active particles
-                Δmomx = self.Δmomx
-                Δmomy = self.Δmomy
-                Δmomz = self.Δmomz
-                rung_indices = self.rung_indices
-                lowest_active_rung = self.lowest_active_rung
-                for i in range(self.N_local):
-                    with unswitch:
-                        if self.use_rungs:
-                            if rung_indices[i] < lowest_active_rung:
-                                continue
-                    Δmomx[i] = 0
-                    Δmomy[i] = 0
-                    Δmomz[i] = 0
-            else:
-                abort(f'Component.nullify_Δ(): specifically = {specifically} not supported')
+            if specifically is None:
+                abort(
+                    'You must specify "specifically" when calling Component.nullify_Δ() '
+                    'for particle components.'
+                )
+            for variable in any2list(specifically):
+                if variable == 'mom':
+                    # We only nullify Δmom for active particles
+                    Δmomx = self.Δmomx
+                    Δmomy = self.Δmomy
+                    Δmomz = self.Δmomz
+                    rung_indices = self.rung_indices
+                    lowest_active_rung = self.lowest_active_rung
+                    for i in range(self.N_local):
+                        with unswitch:
+                            if only_active and self.use_rungs:
+                                if rung_indices[i] < lowest_active_rung:
+                                    continue
+                        Δmomx[i] = 0
+                        Δmomy[i] = 0
+                        Δmomz[i] = 0
+                else:
+                    abort(f'Component.nullify_Δ(): specifically = {specifically} not supported')
         elif self.representation == 'fluid':
+            if specifically is not None:
+                abort(
+                    f'Component.nullify_Δ(): specifically = {specifically} not supported '
+                    f'for fluid components'
+                )
             for fluidscalar in self.iterate_fluidscalars():
                 fluidscalar.nullify_Δ()
 
@@ -4172,6 +4056,248 @@ def update_species_present(components):
         '+'.join(set('+'.join(class_species_present).split('+'))).encode()
     )
     universals_dict['class_species_present'] = class_species_present_bytes
+
+# Function for initializing a tiling on a component
+@cython.header(
+    # Arguments
+    component='Component',
+    tiling_name=str,
+    initial_rung_size=object,  # sequence of length N_rungs or int-like
+    # Locals
+    extent='double[::1]',
+    force=str,
+    location='double[::1]',
+    rung_index='signed char',
+    shape=object, # sequence of length 3 of int-like
+    shortrange_params_force=dict,
+    tiling='Tiling',
+    returns='Tiling',
+)
+def init_tiling(component, tiling_name, initial_rung_size=-1):
+    """In general the tiling_name should be of the form
+        '<force_name> (tiles)'
+    or
+        '<force_name> (subtiles)'
+    In addition, the special
+        'trivial'
+    tiling_name is valid as well.
+    """
+    # Handle the special case of a trivial tiling
+    if tiling_name == 'trivial':
+        # This tiling spans the box using a single tile,
+        # resulting in no actual tiling. It is useful since the
+        # rung-ordering of particles is done at the tile level.
+        shape = (1, 1, 1)
+        tiling_shapes[tiling_name] = asarray(shape, dtype=C2np['Py_ssize_t'])
+        # If not already specified, the rungs within the tile start out
+        # with half of the mean required memory per rung.
+        if initial_rung_size == -1:
+            initial_rung_size = [
+                component.rungs_N[rung_index]//2
+                for rung_index in range(N_rungs)
+            ]
+        # The extent of the entire tiling, i.e. the extent of the box
+        extent = asarray([boxsize]*3, dtype=C2np['double'])
+        # The position of the beginning of the tiling,
+        # i.e. the left, backward, lower corner of the box.
+        location = zeros(3, dtype=C2np['double'])
+        # Instantiate Tiling instance
+        return Tiling(tiling_name, component, shape, extent, initial_rung_size,
+            refinement_period=0)
+    # Delegate subtiling initialization
+    if ' (subtiles)' in tiling_name:
+        return init_subtiling(component, tiling_name, initial_rung_size)
+    # Extract the name of the force
+    match = re.search(r'(.+) \(tiles\)', tiling_name)
+    if not match:
+        abort(f'init_tiling() called with tiling_name = "{tiling_name}"')
+    force = match.group(1)
+    # Extract the short-range parameters for the force
+    shortrange_params_force = shortrange_params.get(force)
+    if shortrange_params_force is None:
+        abort(f'Force "{force}" not specified in shortrange_params')
+    # The same tiling is applied to all domains. The tile
+    # decomposition on a domain will have a general shape
+    # of shape[0]×shape[1]×shape[2], with shape[dim] determined
+    # by the criterion that a tile must be at least as large as
+    # the cutoff length, in all directions.
+    # At the same time, we want to maximize the number of tiles.
+    shape = tiling_shapes.get(tiling_name)
+    if shape is None:
+        shape = asarray(
+            (boxsize/asarray(domain_subdivisions))/shortrange_params_force['cutoff'],
+            dtype=C2np['Py_ssize_t'],
+        )
+        masterprint(f'Tile decomposition ({force}): {shape[0]}×{shape[1]}×{shape[2]}')
+        tiling_shapes[tiling_name] = shape
+    # We need this tiling to have a size of at least 3
+    #  in every direction.
+    if np.min(shape) < 3:
+        message = [
+            f'The {force} domain tiling needs a subdivision of at least 3 in every direction.'
+        ]
+        if 1 != nprocs != int(round(cbrt(nprocs)))**3:
+            message.append('It may help to choose a lower and/or cubic number of processes.')
+        abort(' '.join(message))
+    # If not already specified, the rungs within each tile start out
+    # with half of the mean required memory per rung.
+    if initial_rung_size == -1:
+        initial_rung_size = [
+            component.rungs_N[rung_index]//(2*np.prod(shape))
+            for rung_index in range(N_rungs)
+        ]
+    # The extent of the entire tiling, i.e. the extent of the domain
+    extent = asarray((domain_size_x, domain_size_y, domain_size_z), dtype=C2np['double'])
+    # The position of the beginning of the tiling,
+    # i.e. the left, backward, lower corner of this domain.
+    location = asarray((domain_start_x, domain_start_y, domain_start_z), dtype=C2np['double'])
+    # Instantiate Tiling instance
+    tiling = Tiling(tiling_name, component, shape, extent, initial_rung_size, refinement_period=0)
+    # Relocate the tiling
+    tiling.relocate(location)
+    return tiling
+# Mapping from tiling names to shapes of all tilings instantiated
+# across all components.
+cython.declare(tiling_shapes=dict)
+tiling_shapes = {}
+
+# Function for initializing a subtiling on a component
+@cython.header(
+    # Arguments
+    component='Component',
+    subtiling_name=str,
+    initial_rung_size=object,  # sequence of length N_rungs or int-like
+    # Locals
+    coarse_tiling='Tiling',
+    extent='double[::1]',
+    force=str,
+    location='double[::1]',
+    refine='bint',
+    refinement_period='Py_ssize_t',
+    rung_index='signed char',
+    shape=object,  # sequence of length 3 or 2 or int-like
+    shortrange_params_force=dict,
+    returns='Tiling',
+)
+def init_subtiling(component, subtiling_name, initial_rung_size=-1):
+    """The subtiling_name should be of the form
+        '<force_name> (subtiles)'
+    """
+    # Extract the name of the force
+    match = re.search(r'(.+) \(subtiles\)', subtiling_name)
+    if not match:
+        abort(f'init_subtiling() called with subtiling_name = "{subtiling_name}"')
+    force = match.group(1)
+    # Extract the short-range parameters for the force
+    shortrange_params_force = shortrange_params.get(force)
+    if shortrange_params_force is None:
+        abort(f'Force "{force}" not specified in shortrange_params')
+    # Grab the constant refinement period,
+    # if automatic subtiling refinement is enabled.
+    refine = False
+    refinement_period = 0
+    shape = shortrange_params_force['subtiling']
+    if shape[0] == 'automatic':
+        refine = True
+        refinement_period = shape[1]
+    # The entire (sub)tiling currently being initialized lives
+    # within a single tile of the "<force> (tiles)" tiling.
+    # Get this coarser tiling.
+    coarse_tiling = component.tilings.get(f'{force} (tiles)')
+    if coarse_tiling is None:
+        abort(
+            f'Cannot initialize the "{force} (subtiles)" tiling '
+            f'without first having the "{force} (tiles)" tiling initialized'
+        )
+    # Get the shape of the subtiling
+    shape = tiling_shapes.get(subtiling_name)
+    if shape is None:
+        shape = shortrange_params_force['subtiling']
+        if refine:
+            # The subtiling shape is to be determined
+            # automatically. It is optimal to have the subtiles
+            # be as cubic as possible. Additionally, we have
+            # found that having (on average) ~8–14
+            # particles/subtile is optimal, when the particles
+            # are not too clustered. Here we pick the most cubic
+            # choice of all possible subtiling shapes which
+            # leads to subtiles of a volume comparable to the
+            # above stated number of particles.
+            particles_per_subtile_min, particles_per_subtile_max = 8, 14
+            tiling_global_shape = asarray(
+                asarray(domain_subdivisions)*asarray(coarse_tiling.shape),
+                dtype=C2np['double'],
+            )
+            shape_candidates = []
+            for particles_per_subtile in (
+                particles_per_subtile_min, particles_per_subtile_max,
+            ):
+                shape = np.prod(tiling_global_shape)/tiling_global_shape
+                shape *= (
+                    float(component.N)/(
+                        nprocs*np.prod(asarray(coarse_tiling.shape)*shape)*particles_per_subtile
+                    )
+                )**ℝ[1/3]
+                shape = asarray(np.round(shape), dtype=C2np['Py_ssize_t'])
+                shape[shape == 0] = 1
+                shape_candidates.append(shape)
+            shape_diff = shape_candidates[0] - shape_candidates[1]
+            shape_base = shape_candidates[1]
+            shape_candidates = {}
+            for         i in range(shape_diff[0] + 1):
+                for     j in range(shape_diff[1] + 1):
+                    for k in range(shape_diff[2] + 1):
+                        shape = shape_base + np.array((i, j, k))
+                        subtiling_global_shape = tiling_global_shape*shape
+                        particles_per_subtile = (
+                            float(component.N)/np.prod(subtiling_global_shape)
+                        )
+                        # Construct tuple key to be used to
+                        # store this shape. The lower the value
+                        # of each element in the key, the better
+                        # we consider this key to be.
+                        key = []
+                        noncubicness = np.max((
+                            np.max(subtiling_global_shape)**3
+                                /np.prod(subtiling_global_shape),
+                            np.prod(subtiling_global_shape)
+                                /np.min(subtiling_global_shape)**3,
+                        ))
+                        key.append(noncubicness)
+                        ratio = particles_per_subtile/(
+                            (particles_per_subtile_min*particles_per_subtile_max)**0.5
+                        )
+                        if ratio < 1:
+                            ratio = 1/ratio
+                        key.append(ratio)
+                        shape_candidates[tuple(key)] = shape
+            # Pick the shape with the smallest key
+            shape = shape_candidates[sorted(shape_candidates)[0]]
+            # Always use a subtile decomposition of at least 2
+            # in each direction, unless this leads to more
+            # subtiles than particles.
+            shape_atleast2 = shape.copy()
+            shape_atleast2[shape_atleast2 == 1] = 2
+            if np.prod(tiling_global_shape*shape_atleast2) < component.N:
+                shape = shape_atleast2
+        shape = asarray(shape, dtype=C2np['Py_ssize_t'])
+        masterprint(f'Subtile decomposition ({force}): {shape[0]}×{shape[1]}×{shape[2]}')
+        tiling_shapes[subtiling_name] = shape
+    # If not already specified, the rungs within each subtile start out
+    # with half of the mean required memory per rung.
+    if initial_rung_size == -1:
+        initial_rung_size = [
+            component.rungs_N[rung_index]//(2*int(np.prod(shape)*np.prod(coarse_tiling.shape)))
+            for rung_index in range(N_rungs)
+        ]
+    # The extent of the entire subtiling,
+    # i.e. the extent of a coarse tile.
+    extent = coarse_tiling.tile_extent
+    # Instantiate Tiling instance.
+    # Note that since this same subtiling will be used for all of the
+    # coarse tiles, the location of this subtiling is not static.
+    # We thus do not care about the initial value of the location.
+    return Tiling(subtiling_name, component, shape, extent, initial_rung_size, refinement_period)
 
 # Function which refines the subtiling corresponding to the given
 # interaction_name, on all instantiated components. The original
@@ -4412,11 +4538,6 @@ subtiling_refinement_message_rejected = zeros(3, dtype=C2np['Py_ssize_t'])
 subtiling_refinement_message_recv = empty(3*nprocs, dtype=C2np['Py_ssize_t']) if master else None
 
 
-
-# Mapping from tiling names to shapes of all tilings instantiated
-# across all components.
-cython.declare(tiling_shapes=dict)
-tiling_shapes = {}
 
 # Mapping from allowed species specifications to their canonical names
 cython.declare(species_canonical=dict)

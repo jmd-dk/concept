@@ -283,15 +283,17 @@ vector = malloc(3*sizeof('double'))
     returns='void',
 )
 def interpolate_domaingrid_to_particles(grid, component, variable, dim, order, factor=1):
-    """This function updates the dim'th dimension of variable ('pos' or
-    'mom') of the component, through interpolation in the grid of a
-    given order. If the grid values should be multiplied by a factor
-    prior to adding them to the variable, this may be specified.
+    """This function updates the dim'th dimension of variable ('pos',
+    'mom' or 'Δmom') of the component, through interpolation in the grid
+    of a given order. If the grid values should be multiplied by a
+    factor prior to adding them to the variable, this may be specified.
     """
     if variable == 'pos':
         ptr_dim = component.pos[dim]
     elif variable == 'mom':
         ptr_dim = component.mom[dim]
+    elif variable == 'Δmom':
+        ptr_dim = component.Δmom[dim]
     else:
         abort(
             f'interpolate_domaingrid_to_particles() called with variable = "{variable}" '
@@ -1431,6 +1433,139 @@ def slab_decompose(domain_grid, slab_or_buffer_name='slab_particles', prepare_ff
         request.wait()
     return slab
 
+# Iterator implementing looping over Fourier space slabs
+@cython.iterator(
+    depends=[
+        # Functions used by slab_fourier_loop()
+        'get_deconvolution',
+    ]
+)
+def slab_fourier_loop(
+    size_i, size_j, size_k,
+    compute_deconv=False, compute_k_gridvec=False,
+    compute_sumk=False, compute_symmetry_multiplicity=False,
+):
+    # Cython declarations for variables used for the iteration,
+    # not including positional arguments and variables to yield,
+    # but including keyword arguments.
+    # Do not write these using the decorator syntax above this function.
+    cython.declare(
+        # Keyword arguments
+        compute_deconv='bint',
+        compute_k_gridvec='bint',
+        compute_sumk='bint',
+        compute_symmetry_multiplicity='bint',
+        # Locals
+        gridsize='Py_ssize_t',
+        j_global='Py_ssize_t',
+        k_gridvec_arr='Py_ssize_t[::1]',
+        ki='Py_ssize_t',
+        ki_plus_kj='Py_ssize_t',
+        kj='Py_ssize_t',
+        kk='Py_ssize_t',
+        nyquist='Py_ssize_t',
+        deconv_ij='double',
+        deconv_j='double',
+    )
+    # Default values to yield when compute_* is False
+    deconv = 1
+    sumk = 0
+    symmetry_multiplicity = 1
+    k_gridvec_arr = zeros(3, dtype=C2np['Py_ssize_t'])
+    k_gridvec = cython.address(k_gridvec_arr[:])
+    # To satisfy the compiler
+    deconv_j = deconv_ij = deconv_ijk = 1
+    ki_plus_kj = 0
+    # The slab is distributed over the processes along the j dimension.
+    # The global gridsize is then equal to the size
+    # along the i dimension.
+    gridsize = size_i
+    # The looping over the slab is done in Fourier space, where the
+    # first and second dimensions (i, j) are transposed.
+    nyquist = gridsize//2
+    for j in range(size_j):
+        # The j-component of the wave vector (grid units).
+        # Since the slabs are distributed along the j-dimension,
+        # an offset must be used.
+        j_global = ℤ[size_j*rank] + j
+        kj = j_global - gridsize if j_global > ℤ[gridsize//2] else j_global
+        with unswitch(1):
+            if compute_k_gridvec:
+                k_gridvec[1] = kj
+        # The j-component of the deconvolution
+        with unswitch(1):
+            if compute_deconv:
+                deconv_j = get_deconvolution(kj*ℝ[π/gridsize])
+        # Loop over the entire first dimension
+        for i in range(gridsize):
+            # The i-component of the wave vector
+            ki = i - gridsize if i > ℤ[gridsize//2] else i
+            with unswitch(2):
+                if compute_k_gridvec:
+                    k_gridvec[0] = ki
+            # The product of the i- and the j-component
+            # of the deconvolution.
+            with unswitch(2):
+                if compute_deconv:
+                    deconv_ij = get_deconvolution(ki*ℝ[π/gridsize])*deconv_j
+            # The sum of wave vector elements
+            with unswitch(2):
+                if compute_sumk:
+                    ki_plus_kj = ki + kj
+            # Loop over the entire last dimension in steps of two,
+            # as contiguous pairs of elements are the real and
+            # imaginary part of the same complex number.
+            for k in range(0, size_k, 2):
+                # The k-component of the wave vector
+                kk = k//2
+                with unswitch(3):
+                    if compute_k_gridvec:
+                        k_gridvec[2] = kk
+                # The squared magnitude of the wave vector
+                k2 = ℤ[ℤ[kj**2] + ki**2] + kk**2
+                # Skip the DC component
+                if k2 == 0:
+                    continue
+                # The total 3D NGP deconvolution factor
+                with unswitch(3):
+                    if compute_deconv:
+                        deconv = deconv_ij*get_deconvolution(kk*ℝ[π/gridsize])
+                # The sum of wave vector elements
+                with unswitch(3):
+                    if compute_sumk:
+                        sumk = ki_plus_kj + kk
+                # The symmetry_multiplicity counts the number of
+                # times this grid point should be counted.
+                with unswitch(3):
+                    if compute_symmetry_multiplicity:
+                        if kk == 0 or kk == nyquist:
+                            symmetry_multiplicity = 1
+                        else:
+                            symmetry_multiplicity = 2
+                # To get the complex number at this [j, i, k]
+                # of a slab, use
+                # slab_jik = cython.address(slab[j, i, k:])
+                # after which the real and the imaginary part
+                # can be accessed as
+                # slab_jik[0]  # real part
+                # slab_jik[1]  # imag part
+                #
+                # Yield the local indices, the global k2
+                # and the optional values.
+                yield i, j, k, k2, deconv, k_gridvec, sumk, symmetry_multiplicity
+
+# Function returning the Fourier-space deconvulution factor needed for
+# NGP interpolation in one dimension. The full deconvulution factor is
+# achieved through exponentiation (**2 -> CIC, **3 -> TSC, **4 -> PCS)
+# and multiplication with one-dimensional factors for other dimensions.
+# The value to pass should be kᵢ*π/gridsize, with kᵢ the i'th component
+# of the wave vector in grid units.
+@cython.header(value='double', returns='double')
+def get_deconvolution(value):
+    if value == 0:
+        return 1
+    return value/sin(value)
+
 # Function that returns a slab decomposed grid,
 # allocated by FFTW.
 @cython.pheader(
@@ -1695,7 +1830,7 @@ def fft(slab, direction):
     For a forwards transformation from real to Fourier space, supply
     direction='forward'. Note that this is an unnormalized transform,
     as defined by FFTW. To do the normalization, divide all elements of
-    the slab by gridsize**3, where gridsize is the linear gridsize
+    the slab by gridsize**3, where gridsize is the linear grid size
     of the cubic grid.
     For a backwards transformation from Fourier to real space, supply
     direction='backward'. Here, no further normalization is needed,
@@ -2222,15 +2357,3 @@ highest_interpolation_order_implemented = 4  # PCS
 weights_x = malloc(highest_interpolation_order_implemented*sizeof('double'))
 weights_y = malloc(highest_interpolation_order_implemented*sizeof('double'))
 weights_z = malloc(highest_interpolation_order_implemented*sizeof('double'))
-
-# Function returning the Fourier-space deconvulution factor needed for
-# NGP interpolation in one dimension. The full deconvulution factor is
-# achieved through exponentiation (**2 -> CIC, **3 -> TSC, **4 -> PCS)
-# and multiplication with one-dimensional factors for other dimensions.
-# The value to pass should be kᵢ*π/gridsize, with kᵢ the i'th component
-# of the wave vector in grid units.
-@cython.header(value='double', returns='double')
-def get_deconvolution(value):
-    if value == 0:
-        return 1
-    return value/sin(value)

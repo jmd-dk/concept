@@ -488,7 +488,7 @@ clean_output:
 	$(RM) -r $(output_dir)/* $(output_dir)/.[^.]*
 # Remove parameter file copies
 clean_params_cp:
-	$(RM) $(params_dir)/.[^.]*
+	$(RM) $(params_dir)/.[0-9]*
 # Remove reusable dumps
 clean_reusables:
 	$(RM) -r $(reusables_dir)

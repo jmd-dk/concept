@@ -87,23 +87,25 @@ class StandardSnapshot:
         self.units = {}
 
     # Methd that saves the snapshot to an hdf5 file
-    @cython.pheader(# Argument
-                   filename=str,
-                   # Locals
-                   component='Component',
-                   end_local='Py_ssize_t',
-                   fluidscalar='FluidScalar',
-                   indices=object,  # int or tuple
-                   index='Py_ssize_t',
-                   multi_index=object,  # tuple or str
-                   name=object,  # str or int
-                   shape=tuple,
-                   slab='double[:, :, ::1]',
-                   slab_end='Py_ssize_t',
-                   slab_start='Py_ssize_t',
-                   start_local='Py_ssize_t',
-                   returns=str,
-                   )
+    @cython.pheader(
+        # Argument
+        filename=str,
+        # Locals
+        N_str=str,
+        component='Component',
+        end_local='Py_ssize_t',
+        fluidscalar='FluidScalar',
+        indices=object,  # int or tuple
+        index='Py_ssize_t',
+        multi_index=object,  # tuple or str
+        name=object,  # str or int
+        shape=tuple,
+        slab='double[:, :, ::1]',
+        slab_end='Py_ssize_t',
+        slab_start='Py_ssize_t',
+        start_local='Py_ssize_t',
+        returns=str,
+    )
     def save(self, filename):
         # Attach missing extension to filename
         if not filename.endswith('.hdf5'):
@@ -127,7 +129,14 @@ class StandardSnapshot:
                 component_h5 = hdf5_file.create_group('components/' + component.name)
                 component_h5.attrs['species'] = component.species
                 if component.representation == 'particles':
-                    masterprint(f'Writing out {component.name} ({component.N} {component.species}) ...')
+                    if component.N > 1 and isint(ℝ[cbrt(component.N)]):
+                        N_str = str(int(round(ℝ[cbrt(component.N)]))) + '³'
+                    else:
+                        N_str = str(component.N)
+                    masterprint(
+                        f'Writing out {component.name} '
+                        f'({N_str} {component.species} particles) ...'
+                    )
                     # Save particle attributes
                     component_h5.attrs['mass'] = component.mass
                     component_h5.attrs['N'] = component.N
@@ -234,47 +243,49 @@ class StandardSnapshot:
         return filename
 
     # Method for loading in a standard snapshot from disk
-    @cython.pheader(# Argument
-                    filename=str,
-                    only_params='bint',
-                    # Locals
-                    N='Py_ssize_t',
-                    N_local='Py_ssize_t',
-                    boltzmann_order='Py_ssize_t',
-                    component='Component',
-                    domain_size_i='Py_ssize_t',
-                    domain_size_j='Py_ssize_t',
-                    domain_size_k='Py_ssize_t',
-                    end_local='Py_ssize_t',
-                    fluidscalar='FluidScalar',
-                    grid='double*',
-                    gridsize='Py_ssize_t',
-                    i='Py_ssize_t',
-                    index='Py_ssize_t',
-                    mass='double',
-                    momx='double*',
-                    momy='double*',
-                    momz='double*',
-                    multi_index=tuple,
-                    name=str,
-                    posx='double*',
-                    posy='double*',
-                    posz='double*',
-                    representation=str,
-                    size='Py_ssize_t',
-                    slab='double[:, :, ::1]',
-                    slab_end='Py_ssize_t',
-                    slab_start='Py_ssize_t',
-                    snapshot_unit_length='double',
-                    snapshot_unit_mass='double',
-                    snapshot_unit_time='double',
-                    species=str,
-                    start_local='Py_ssize_t',
-                    unit='double',
-                    unit_J='double',
-                    unit_ϱ='double',
-                    units_fluidvars='double[::1]',
-                    )
+    @cython.pheader(
+        # Argument
+        filename=str,
+        only_params='bint',
+        # Locals
+        N='Py_ssize_t',
+        N_local='Py_ssize_t',
+        N_str=str,
+        boltzmann_order='Py_ssize_t',
+        component='Component',
+        domain_size_i='Py_ssize_t',
+        domain_size_j='Py_ssize_t',
+        domain_size_k='Py_ssize_t',
+        end_local='Py_ssize_t',
+        fluidscalar='FluidScalar',
+        grid='double*',
+        gridsize='Py_ssize_t',
+        i='Py_ssize_t',
+        index='Py_ssize_t',
+        mass='double',
+        momx='double*',
+        momy='double*',
+        momz='double*',
+        multi_index=tuple,
+        name=str,
+        posx='double*',
+        posy='double*',
+        posz='double*',
+        representation=str,
+        size='Py_ssize_t',
+        slab='double[:, :, ::1]',
+        slab_end='Py_ssize_t',
+        slab_start='Py_ssize_t',
+        snapshot_unit_length='double',
+        snapshot_unit_mass='double',
+        snapshot_unit_time='double',
+        species=str,
+        start_local='Py_ssize_t',
+        unit='double',
+        unit_J='double',
+        unit_ϱ='double',
+        units_fluidvars='double[::1]',
+    )
     def load(self, filename, only_params=False):
         if only_params:
             masterprint(f'Loading parameters of snapshot "{filename}" ...')
@@ -317,7 +328,11 @@ class StandardSnapshot:
                     # Done loading component attributes
                     if only_params:
                         continue
-                    masterprint(f'Reading in {name} ({N} {species} particles) ...')
+                    if N > 1 and isint(ℝ[cbrt(N)]):
+                        N_str = str(int(round(ℝ[cbrt(N)]))) + '³'
+                    else:
+                        N_str = str(N)
+                    masterprint(f'Reading in {name} ({N_str} {species} particles) ...')
                     # Extract HDF5 datasets
                     posx_h5 = component_h5['posx']
                     posy_h5 = component_h5['posy']
@@ -495,10 +510,10 @@ class Gadget2Snapshot:
     As is the case for the standard snapshot class, this class contains
     a list components (the components attribute) and dict of parameters
     (the params attribute). Besides holding the cosmological parameters
-    and the boxsize, the params dict also contains a a "header" key,
-    the item of which is the GADGET2 header, represented as an ordered
-    dict. This class does not have a units attribute, as no global
-    unit system is used by GADGET snapshots.
+    and the boxsize, the params dict also contains a "header" key, the
+    item of which is the GADGET2 header, represented as an ordered dict.
+    This class does not have a units attribute, as no global unit system
+    is used by GADGET snapshots.
     As only a single component (GADGET halos) are supported, the
     components list will always contain this single component only. For
     ease of access, the component attribute is also defined, referring
@@ -526,7 +541,7 @@ class Gadget2Snapshot:
                 if head[0] == b'HEAD':
                     return True
         except:
-            ...
+            pass
         return False
 
     # Initialization method
@@ -553,16 +568,18 @@ class Gadget2Snapshot:
         self.ID = None
 
     # Method for saving a GADGET2 snapshot of type 2 to disk
-    @cython.pheader(# Arguments
-                    filename=str,
-                    # Locals
-                    N='Py_ssize_t',
-                    N_local='Py_ssize_t',
-                    i='int',
-                    component='Component',
-                    unit='double',
-                    returns=str,
-                    )
+    @cython.pheader(
+        # Arguments
+        filename=str,
+        # Locals
+        N='Py_ssize_t',
+        N_local='Py_ssize_t',
+        N_str=str,
+        i='int',
+        component='Component',
+        unit='double',
+        returns=str,
+    )
     def save(self, filename):
         """The snapshot data (positions and velocities) are stored in
         single precision. Only GADGET2 type 1 (halo) particles,
@@ -608,76 +625,83 @@ class Gadget2Snapshot:
                 # Padding to fill out the 256 bytes
                 f.write(struct.pack('60s', b' '*60))
                 f.write(struct.pack('I', 256))
+        if component.N > 1 and isint(ℝ[cbrt(component.N)]):
+            N_str = str(int(round(ℝ[cbrt(component.N)]))) + '³'
+        else:
+            N_str = str(component.N)
         masterprint(
-            f'Writing out {component.name} ({component.N} {component.species} particles) ...'
+            f'Writing out {component.name} ({N_str} {component.species} particles) ...'
         )
         # Write the POS block in serial, one process at a time
         unit = units.kpc/header['HubbleParam']
         for i in range(nprocs):
             Barrier()
-            if i == rank:
-                with open(filename, 'ab') as f:
-                    # The identifier
-                    if i == 0:
-                        # 8 = 4*1 + 4 = 4*sizeof(s) + sizeof(i)
-                        f.write(struct.pack('I', 8))
-                        f.write(struct.pack('4s', b'POS '))
-                        # sizeof(i) + 3*N*sizeof(f) + sizeof(i)
-                        f.write(struct.pack('I', 4 + 3*N*4 + 4))
-                        f.write(struct.pack('I', 8))
-                        f.write(struct.pack('I', 3*N*4))
-                    # The data
-                    (np.mod(asarray(np.vstack((component.posx_mv[:N_local],
-                                               component.posy_mv[:N_local],
-                                               component.posz_mv[:N_local])
-                                              ).T.flatten(),
-                                    dtype=C2np['float'])/unit, boxsize/unit)).tofile(f)
-                    # The closing int
-                    if i == nprocs - 1:
-                        f.write(struct.pack('I', 3*N*4))
+            if i != rank:
+                continue
+            with open(filename, 'ab') as f:
+                # The identifier
+                if i == 0:
+                    # 8 = 4*1 + 4 = 4*sizeof(s) + sizeof(i)
+                    f.write(struct.pack('I', 8))
+                    f.write(struct.pack('4s', b'POS '))
+                    # sizeof(i) + 3*N*sizeof(f) + sizeof(i)
+                    f.write(struct.pack('I', 4 + 3*N*4 + 4))
+                    f.write(struct.pack('I', 8))
+                    f.write(struct.pack('I', 3*N*4))
+                # The data
+                (np.mod(asarray(np.vstack((component.posx_mv[:N_local],
+                                           component.posy_mv[:N_local],
+                                           component.posz_mv[:N_local])
+                                          ).T.flatten(),
+                                dtype=C2np['float'])/unit, boxsize/unit)).tofile(f)
+                # The closing int
+                if i == nprocs - 1:
+                    f.write(struct.pack('I', 3*N*4))
         # Write the VEL block in serial, one process at a time
         unit = units.km/units.s*component.mass*header['Time']**1.5
         for i in range(nprocs):
             Barrier()
-            if i == rank:
-                with open(filename, 'ab') as f:
-                    # The identifier
-                    if i == 0:
-                        # 8 = 4*1 + 4 = 4*sizeof(s) + sizeof(i)
-                        f.write(struct.pack('I', 8))
-                        f.write(struct.pack('4s', b'VEL '))
-                        # sizeof(i) + 3*N*sizeof(f) + sizeof(i)
-                        f.write(struct.pack('I', 4 + 3*N*4 + 4))
-                        f.write(struct.pack('I', 8))
-                        f.write(struct.pack('I', 3*N*4))
-                    # The data
-                    (asarray(np.vstack((component.momx_mv[:N_local],
-                                        component.momy_mv[:N_local],
-                                        component.momz_mv[:N_local])
-                                       ).T.flatten(),
-                             dtype=C2np['float'])/unit).tofile(f)
-                    # The closing int
-                    if i == nprocs - 1:
-                        f.write(struct.pack('i', 3*N*4))
+            if i != rank:
+                continue
+            with open(filename, 'ab') as f:
+                # The identifier
+                if i == 0:
+                    # 8 = 4*1 + 4 = 4*sizeof(s) + sizeof(i)
+                    f.write(struct.pack('I', 8))
+                    f.write(struct.pack('4s', b'VEL '))
+                    # sizeof(i) + 3*N*sizeof(f) + sizeof(i)
+                    f.write(struct.pack('I', 4 + 3*N*4 + 4))
+                    f.write(struct.pack('I', 8))
+                    f.write(struct.pack('I', 3*N*4))
+                # The data
+                (asarray(np.vstack((component.momx_mv[:N_local],
+                                    component.momy_mv[:N_local],
+                                    component.momz_mv[:N_local])
+                                   ).T.flatten(),
+                         dtype=C2np['float'])/unit).tofile(f)
+                # The closing int
+                if i == nprocs - 1:
+                    f.write(struct.pack('i', 3*N*4))
         # Write the ID block in serial, one process at a time
         for i in range(nprocs):
             Barrier()
-            if i == rank:
-                with open(filename, 'ab') as f:
-                    # The identifier
-                    if i == 0:
-                        # 8 = 4*1 + 4 = 4*sizeof(s) + sizeof(i)
-                        f.write(struct.pack('I', 8))
-                        f.write(struct.pack('4s', b'ID  '))
-                        # sizeof(i) + N*sizeof(I) + sizeof(i)
-                        f.write(struct.pack('I', 4 + N*4 + 4))
-                        f.write(struct.pack('I', 8))
-                        f.write(struct.pack('I', N*4))
-                    # The data
-                    asarray(self.ID, dtype=C2np['unsigned int']).tofile(f)
-                    # The closing int
-                    if i == nprocs - 1:
-                        f.write(struct.pack('I', N*4))
+            if i != rank:
+                continue
+            with open(filename, 'ab') as f:
+                # The identifier
+                if i == 0:
+                    # 8 = 4*1 + 4 = 4*sizeof(s) + sizeof(i)
+                    f.write(struct.pack('I', 8))
+                    f.write(struct.pack('4s', b'ID  '))
+                    # sizeof(i) + N*sizeof(I) + sizeof(i)
+                    f.write(struct.pack('I', 4 + N*4 + 4))
+                    f.write(struct.pack('I', 8))
+                    f.write(struct.pack('I', N*4))
+                # The data
+                asarray(self.ID, dtype=C2np['unsigned int']).tofile(f)
+                # The closing int
+                if i == nprocs - 1:
+                    f.write(struct.pack('I', N*4))
         # Finalize progress messages
         masterprint('done')
         masterprint('done')
@@ -685,25 +709,27 @@ class Gadget2Snapshot:
         return filename
 
     # Method for loading in a GADGET2 snapshot of type 2 from disk
-    @cython.pheader(# Arguments
-                    filename=str,
-                    only_params='bint',
-                    # Locals
-                    N='Py_ssize_t',
-                    N_local='Py_ssize_t',
-                    blockname=str,
-                    file_position='Py_ssize_t',
-                    header=object,  # collections.OrderedDict
-                    mass='double',
-                    name=str,
-                    offset='Py_ssize_t',
-                    size='unsigned int',
-                    species=str,
-                    start_local='Py_ssize_t',
-                    unit='double',
-                    )
+    @cython.pheader(
+        # Arguments
+        filename=str,
+        only_params='bint',
+        # Locals
+        N='Py_ssize_t',
+        N_local='Py_ssize_t',
+        N_str=str,
+        blockname=str,
+        file_position='Py_ssize_t',
+        header=object,  # collections.OrderedDict
+        mass='double',
+        name=str,
+        offset='Py_ssize_t',
+        size='unsigned int',
+        species=str,
+        start_local='Py_ssize_t',
+        unit='double',
+    )
     def load(self, filename, only_params=False):
-        """ It is assumed that the snapshot on the disk is a GADGET2
+        """It is assumed that the snapshot on the disk is a GADGET2
         snapshot of type 2 and that it uses single precision. The
         Gadget2Snapshot instance stores the data (positions and
         velocities) in double precision. Only GADGET type 1 (halo)
@@ -771,7 +797,11 @@ class Gadget2Snapshot:
             if only_params:
                 masterprint('done')
                 return
-            masterprint('Reading in {} ({} {}) ...'.format(name, N, species))
+            if N > 1 and isint(ℝ[cbrt(N)]):
+                N_str = str(int(round(ℝ[cbrt(N)]))) + '³'
+            else:
+                N_str = str(N)
+            masterprint(f'Reading in {name} ({N_str} {species} particles) ...')
             # Compute a fair distribution
             # of component data to the processes.
             start_local, N_local = partition(N)
@@ -832,14 +862,15 @@ class Gadget2Snapshot:
     # This method populate the snapshot with component data
     # as well as ID's (which are not used by this code) and
     # additional header information.
-    @cython.pheader(# Arguments
-                    components=list,
-                    params=dict,
-                    # Locals
-                    component='Component',
-                    start_local='Py_ssize_t',
-                    ΩΛ='double',
-                    )
+    @cython.pheader(
+        # Arguments
+        components=list,
+        params=dict,
+        # Locals
+        component='Component',
+        start_local='Py_ssize_t',
+        ΩΛ='double',
+    )
     def populate(self, components, params=None):
         """The following header fields depend on the particles:
             Npart, Massarr, Nall.
@@ -853,6 +884,12 @@ class Gadget2Snapshot:
         if params is None:
             params = {}
         # Pupulate snapshot with the GADGTE halos
+        if len(components) > 1:
+            abort(
+                f'The GAGDET2 snapshot type can only store a single component, '
+                f'but you are trying to populate a single such snapshot with',
+                [component.name for component in components],
+            )
         component = components[0]
         self.component = component
         self.components = [component]
@@ -863,15 +900,15 @@ class Gadget2Snapshot:
         # Populate snapshot with the passed scalefactor
         # and global parameters. If a params dict is passed,
         # use values from this instead.
-        self.params['H0']      = params.get('H0',      H0)
+        self.params['H0'] = params.get('H0', H0)
         if enable_Hubble:
-            self.params['a']   = params.get('a',       universals.a)
+            self.params['a'] = params.get('a', universals.a)
         else:
-            self.params['a']   = universals.a
+            self.params['a'] = universals.a
         self.params['boxsize'] = params.get('boxsize', boxsize)
-        self.params['Ωm']      = params.get('Ωm',      Ωm)
+        self.params['Ωm'] = params.get('Ωm', Ωm)
         ΩΛ = 1 - self.params['Ωm']  # Flat universe with only matter and cosmological constant
-        self.params['ΩΛ']      = params.get('ΩΛ',      ΩΛ)
+        self.params['ΩΛ'] = params.get('ΩΛ', ΩΛ)
         # Build the GADGET header
         self.update_header()
 
@@ -923,7 +960,7 @@ class Gadget2Snapshot:
                    returns=object,
                    )
     def read(self, f, fmt):
-        # Convert bytes to python objects and store them in a tuple
+        # Convert bytes to Python objects and store them in a tuple
         t = struct.unpack(fmt, f.read(struct.calcsize(fmt)))
         # If the tuple contains just a single element, return this
         # element rather than the tuple.

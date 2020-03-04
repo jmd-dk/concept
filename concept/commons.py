@@ -443,8 +443,11 @@ def fancyprint(
     wrap=True,
     ensure_newline_after_ellipsis=True,
     is_warning=False,
+    bullet='',
     **kwargs,
 ):
+    if bullet:
+        bullet = unicode(bullet)
     # If called without any arguments, print the empty string
     if not args:
         args = ('', )
@@ -540,6 +543,9 @@ def fancyprint(
             # Wrap text into lines which fit the terminal resolution.
             # Also indent all lines. Do this in a way that preserves
             # any newline characters already present in the text.
+            if bullet:
+                indent += len(bullet) + 1
+            indentation = ' '*indent
             lines = list(itertools.chain(*[textwrap.wrap(
                 hard_line,
                 terminal_width,
@@ -551,6 +557,8 @@ def fancyprint(
                 )
                 for hard_line in text.split('\n')
             ]))
+            if bullet:
+                lines[0] = ' '*(indent - (len(bullet) + 1)) + f'{bullet} ' + lines[0].lstrip()
             # Replace the inserted hyphens and replacement characters
             # with their original characters.
             text = '\n'.join(lines)
@@ -587,6 +595,9 @@ def fancyprint(
         else:
             # Do not wrap the text into multiple lines,
             # regardless of the length of the text.
+            # Add bullet.
+            if bullet:
+                text = f'{bullet} ' + text
             # Add indentation.
             text = indentation + text
             # If the text ends with '...', it is the start of a
@@ -825,15 +836,16 @@ if not cython.compiled:
     # Dummy functions and constants
     def dummy_func(*args, **kwargs):
         ...
-    # The ℝ, ℤ and 𝔹 dicts for constant expressions
+    # The 𝔹, ℝ, 𝕊, and ℤ dicts for constant expressions
     class BlackboardBold(dict):
         def __init__(self, constant_type):
             self.constant_type = constant_type
         def __getitem__(self, key):
             return self.constant_type(key)
-    ℝ = BlackboardBold(float)
-    ℤ = BlackboardBold(int)
     𝔹 = BlackboardBold(bool)
+    ℝ = BlackboardBold(float)
+    𝕊 = BlackboardBold(str)
+    ℤ = BlackboardBold(int)
     # The cimport function, which in the case of pure Python should
     # simply execute the statements passed to it as a string,
     # within the namespace of the call.
@@ -1166,18 +1178,20 @@ def unformat_unit(unit_str):
     # (though not the other way around).
     unit_str = re.sub(r'(([^_a-zA-Z0-9\.]|^)[0-9\.\)]+) ?([_a-zA-Z])', r'\g<1>*\g<3>', unit_str)
     unit_str = re.sub(r'([0-9])\*e([0-9+\-])', r'\g<1>e\g<2>', unit_str)
+    unit_str = unit_str.replace(',*', ',')
     return unit_str
 
 # Function which converts a string containing (possibly) units
 # to the corresponding numerical value.
-@cython.pheader(# Arguments
-                unit_str=str,
-                namespace=dict,
-                fail_on_error='bint',
-                # Locals
-                unit=object,  # double or NoneType
-                returns=object,  # double or NoneType
-                )
+@cython.pheader(
+    # Arguments
+    unit_str=str,
+    namespace=dict,
+    fail_on_error='bint',
+    # Locals
+    unit=object,  # double or NoneType
+    returns=object,  # double or NoneType
+)
 def eval_unit(unit_str, namespace=None, fail_on_error=True):
     """This function is roughly equivalent to
     eval(unit_str, units_dict). Here however more stylized versions
@@ -1200,6 +1214,8 @@ def eval_unit(unit_str, namespace=None, fail_on_error=True):
         unicode('π'): π,
         asciify('π'): π,
     }
+    namespace.pop('min')
+    namespace.pop('max')
     if fail_on_error:
         unit = eval(unit_str, namespace)
     else:
@@ -1963,6 +1979,7 @@ cython.declare(
     render3D_resolution='int',
     # Debugging options
     print_load_imbalance=object,
+    particle_reordering=object,
     enable_Hubble='bint',
     enable_class_background='bint',
     enable_debugging='bint',
@@ -2088,7 +2105,7 @@ force_interpolations = {
         'p3m': 'CIC',
     },
     'lapse': {
-        'pm' : 'CIC',
+        'pm': 'CIC',
     },
 }
 for key, val in replace_ellipsis(dict(user_params.get('force_interpolations', {}))).items():
@@ -2181,38 +2198,80 @@ ewald_gridsize = to_int(user_params.get('ewald_gridsize', 64))
 user_params['ewald_gridsize'] = ewald_gridsize
 shortrange_params = dict(user_params.get('shortrange_params', {}))
 if shortrange_params and not isinstance(list(shortrange_params.values())[0], dict):
-    shortrange_params = {'default': shortrange_params}
-shortrange_params.setdefault('default', {})
-for shortrange_force in ('gravity', ):
-    shortrange_params.setdefault(shortrange_force, shortrange_params['default'].copy())
-subtiling_refinement_period_default = 32
-p3m_gridsize = -1
+    shortrange_params = {'gravity': shortrange_params}  # Gravity defined as the primary tiling
+shortrange_params_defaults = {
+    'gravity': {
+        'scale'    : '1.25*boxsize/gridsize',
+        'cutoff'   : '4.5*scale',
+        'subtiling': 'automatic',
+    },
+}
+shortrange_params_defaults_placed = collections.defaultdict(bool)
+for force in shortrange_params_defaults.keys():
+    shortrange_params.setdefault(force, {})
+    shortrange_params_default = shortrange_params_defaults.get(force, {})
+    d = shortrange_params[force]
+    for key in ('scale', 'cutoff', 'subtiling'):
+        if key not in d:
+            d[key] = shortrange_params_default.get(key, 1)
+            shortrange_params_defaults_placed[force, key] = True
+shortrange_params_gridsizes = collections.defaultdict(int)
 for d in user_params.get('select_forces', {}).values():
     if not isinstance(d, dict):
         continue
-    for t in d.values():
+    for force, t in d.items():
         if isinstance(t, (tuple, list)) and len(t) == 2:
             if isinstance(t[1], str):
                 t = (t[1], t[0])
-            if t[0].lower() == 'p3m' and t[1] > p3m_gridsize:
-                p3m_gridsize = t[1]
-for d in shortrange_params.values():
-    d.setdefault('scale', '1.25*boxsize/gridsize')
-    d.setdefault('cutoff', '4.5*scale')
-    d.setdefault('subtiling', 'automatic')
-    scale = d['scale']
-    if isinstance(scale, str):
-        d['scale'] = eval(scale
-            .replace('boxsize', str(boxsize))
-            .replace('gridsize', str(p3m_gridsize))
-        )
-    cutoff = d['cutoff']
+            if t[0].lower() in {'pm', 'p3m'} and t[1] > shortrange_params_gridsizes[force]:
+                shortrange_params_gridsizes[force] = t[1]
+subtiling_refinement_period_default = 32
+for force, d in shortrange_params.items():
+    for key, val in shortrange_params_defaults.get(force, {}).items():
+        d.setdefault(key, val)
+    if 'scale' in d:
+        scale = d['scale']
+        if isinstance(scale, str):
+            scale = scale.replace('boxsize', str(boxsize))
+            if 'gridsize' in scale:
+                gridsize = shortrange_params_gridsizes.get(force)
+                if gridsize is None:
+                    if shortrange_params_defaults_placed[force, 'scale']:
+                        gridsize = 1
+                    else:
+                        abort(
+                            f'Could not detect gridsize needed for shortrange_params["{force}"]. '
+                            f'Is the gridsize specified in the select_forces parameter?'
+                        )
+                scale = scale.replace('gridsize', str(gridsize))
+            if 'N' in scale:
+                d['scale'] = scale
+            else:
+                d['scale'] = eval_unit(scale)
+    cutoff = d.get('cutoff')
+    if cutoff is None:
+        abort(f'No cutoff specified for shortrange_params["{force}"]')
     if isinstance(cutoff, str):
-        d['cutoff'] = eval(cutoff.replace('scale', str(d['scale'])))
-    subtiling = d['subtiling']
+        cutoff = cutoff.replace('boxsize', str(boxsize))
+        if 'scale' in cutoff:
+            if 'scale' not in d:
+                if shortrange_params_defaults_placed[force, 'cutoff']:
+                    scale = 1
+                else:
+                    abort(
+                        f'No scale specified for shortrange_params["{force}"], '
+                        f'but needed to define the cutoff'
+                    )
+            cutoff = cutoff.replace('scale', str(d['scale']))
+        d['cutoff'] = eval_unit(cutoff)
+    subtiling = d.get('subtiling', (1, 1, 1))
     if isinstance(subtiling, str):
         if subtiling.lower().startswith('auto'):
             d['subtiling'] = ('automatic', subtiling_refinement_period_default)
+        else:
+            abort(
+                f'Could not understand subtiling = "{subtiling}" of shortrange_params["{force}"]'
+            )
     else:
         subtiling = tuple(any2list(subtiling))
         if len(subtiling) == 1:
@@ -2608,6 +2667,10 @@ print_load_imbalance = user_params.get('print_load_imbalance', True)
 if isinstance(print_load_imbalance, str):
     print_load_imbalance = print_load_imbalance.lower()
 user_params['print_load_imbalance'] = print_load_imbalance
+particle_reordering = user_params.get('particle_reordering', True)
+if isinstance(particle_reordering, str):
+    particle_reordering = particle_reordering.lower()
+user_params['particle_reordering'] = particle_reordering
 enable_Hubble = bool(user_params.get('enable_Hubble', True))
 user_params['enable_Hubble'] = enable_Hubble
 enable_class_background = bool(user_params.get('enable_class_background', enable_Hubble))
@@ -3161,10 +3224,9 @@ def call_class(extra_params=None, sleep_time=0.1, mode='single node', class_call
 #########################
 # From the random_seed, generate seeds individual to each process.
 # The pseudo-random number generators on each proces will be seeded
-# using these unique seeds. The master process will have a seed
-# equal to the user parameer random_seed.
+# using these unique seeds, none of which equals random_seed.
 cython.declare(process_seed='unsigned long int')
-process_seed = random_seed + rank
+process_seed = random_seed + rank + 1
 # Initialize the pseudo-random number generator and declare the
 # functions random and random_gaussian, returning random numbers from
 # the uniform distibution between 0 and 1 and a gaussian distribution
@@ -3404,19 +3466,20 @@ def isint(x, abs_tol=1e-6):
 
 # Function which format numbers to have a
 # specific number of significant figures.
-@cython.pheader(# Arguments
-                numbers=object,  # Single number or container of numbers
-                nfigs='int',
-                fmt=str,
-                # Locals
-                coefficient=str,
-                exponent=str,
-                n_missing_zeros='int',
-                number=object,  # Single number of any type
-                number_str=str,
-                return_list=list,
-                returns=object,  # String or list of strings
-                )
+@cython.pheader(
+    # Arguments
+    numbers=object,  # Single number or container of numbers
+    nfigs='int',
+    fmt=str,
+    # Locals
+    coefficient=str,
+    exponent=str,
+    n_missing_zeros='int',
+    number=object,  # Single number of any type
+    number_str=str,
+    return_list=list,
+    returns=object,  # String or list of strings
+)
 def significant_figures(numbers, nfigs, fmt='', incl_zeros=True, scientific=False):
     """This function formats a floating point number to have nfigs
     significant figures.
@@ -3487,11 +3550,111 @@ def significant_figures(numbers, nfigs, fmt='', incl_zeros=True, scientific=Fals
     else:
         return return_list
 
+# Function that aligns a list of str's by inserting spaces.
+# The alignment points are specified by the 'alignat' character.
+@cython.pheader(
+    # Arguments
+    lines=list,
+    alignat=str,
+    indent='int',
+    rstrip='bint',
+    handle_numbers='bint',
+    # Locals
+    dot_location='Py_ssize_t',
+    dot_locations=dict,
+    dot_location_rightmost='Py_ssize_t',
+    i='Py_ssize_t',
+    indentation=str,
+    j='Py_ssize_t',
+    line=str,
+    lspacing='Py_ssize_t',
+    n_parts_max='Py_ssize_t',
+    num=str,
+    rspacing='Py_ssize_t',
+    rspacing_max='Py_ssize_t',
+    part=str,
+    part_len_max='Py_ssize_t',
+    parts=list,
+    parts_len_max=list,
+    size='Py_ssize_t',
+    space=str,
+    returns=list,
+)
+def align_text(lines, alignat='$', indent=0, rstrip=True, handle_numbers=True):
+    if not lines:
+        return lines
+    lines = [line.split(alignat) for line in map(str, any2list(lines))]
+    # Compute max length of each part
+    n_parts_max = np.max(list(map(len, lines)))
+    parts_len_max = [0]*n_parts_max
+    for parts in lines:
+        for i, part in enumerate(parts):
+            size = len(part)
+            if parts_len_max[i] < size:
+                parts_len_max[i] = size
+    # Add spacing to the parts to ensure alignment
+    for parts in lines:
+        for i, (part, part_len_max) in enumerate(zip(parts, parts_len_max)):
+            space = ' '*(part_len_max - len(part))
+            part += space
+            parts[i] = part
+    # Align numbers at the decimal point
+    strip = ' ,:%\n'
+    if handle_numbers:
+        for i in range(n_parts_max):
+            dot_locations = {}
+            for j, parts in enumerate(lines):
+                if len(parts) <= i:
+                    continue
+                part = parts[i]
+                num = part.rstrip(strip)
+                if '×' in num:
+                    num = num[:num.index('×')]
+                try:
+                    float(num)
+                except:
+                    continue
+                # This part is a number
+                if '.' in part:
+                    dot_location = part.index('.')
+                else:
+                    dot_location = len(part.rstrip(strip))
+                dot_locations[j] = dot_location
+            if not dot_locations:
+                continue
+            dot_location_rightmost = np.max(list(dot_locations.values()))
+            for j, dot_location in dot_locations.items():
+                parts = lines[j]
+                part = parts[i]
+                lspacing = dot_location_rightmost - dot_location
+                rspacing_max = len(part) - len(part.rstrip()) - 1
+                rspacing = np.min([lspacing, rspacing_max])
+                part = ' '*lspacing + part[:len(part)-rspacing]
+                parts[i] = f'{part}{alignat}'
+    # Join aligned parts together into lines
+    for i, parts in enumerate(lines):
+        line = ''.join(parts).rstrip(alignat)
+        lines[i] = line
+    # If new alignment characters have been placed by
+    # number handling, take care of these by calling
+    # this function once more.
+    for line in lines:
+        if alignat in line:
+            lines = align_text(lines, handle_numbers=False)
+            break
+    # Optional finishing touches
+    if rstrip:
+        lines = [line.rstrip() for line in lines]
+    if indent:
+        indentation = ' '*indent
+        lines = [f'{indentation}{line}' for line in lines]
+    return lines
+
 # Function which searches a dictionary for a component
 # or a set of components.
 # Note that something goes wrong when trying to make this into
 # a cdef function, so we leave it as a pure Python function.
-def is_selected(component_or_components, d, accumulate=False):
+def is_selected(component_or_components, d, accumulate=False, default=None):
     """This function searches for the given component in the given
     dict d. Both the component instance itself and its name, species
     and representation attributes are used, as well as the str's 'all'
@@ -3506,17 +3669,19 @@ def is_selected(component_or_components, d, accumulate=False):
     - component
     If multiple components are given, d is searched for an iterable
     containing all these components (and no more). Both the
-    component instances themselves and their names, as well as the
-    str's 'all combinations' and 'default' are used.
+    component instances themselves, their names, species and
+    representations as well as the str's 'all combinations' and
+    'default' are used.
     The precedence of these (lower takes precedence) are:
     - 'default'
     - 'all combinations'
+    - {component0.representation, component1.representation, ...}
     - {component0.name, component1.name, ...}
     - {component0, component1, ...}
     All str's are compared case insensitively. If a str key is not found
     in d, a regular expression match of the entire str is attempted.
     If the component is found in d, its value in d is returned.
-    Otherwise, None is returned.
+    Otherwise, the value specified by the default argument is returned.
     If accumulate is True, the above precedence will not be used.
     Rather, every match will be stored and returned. In this case,
     the returned value will be a list of matched values. If all these
@@ -3535,16 +3700,26 @@ def is_selected(component_or_components, d, accumulate=False):
             component.species.lower(),
             component.name.lower(),
             component,
-            )
+        )
     else:
         components = frozenset(component_or_components)
         names = frozenset([component.name.lower() for component in components])
+        representations = frozenset([component.representation.lower() for component in components])
+        single_species = frozenset([
+            single_species.lower()
+            for component in components
+            for single_species in component.species.split('+')
+        ])
+        species = frozenset([component.species.lower()for component in components])
         keys = (
             'default',
             'all combinations',
+            representations,
+            single_species,
+            species,
             names,
             components,
-            )
+        )
     # Ensure lowercase on all str keys
     # and transform otherwise iterable keys to sets.
     d_transformed = {}
@@ -3587,7 +3762,7 @@ def is_selected(component_or_components, d, accumulate=False):
         if selected:
             return selected[-1]
         else:
-            return None
+            return default
 
 # Context manager which suppresses all output to stdout
 @contextlib.contextmanager
@@ -3749,7 +3924,9 @@ for key, d in shortrange_params.items():
     if len(subtiling) == 3:
         for el in subtiling:
             if not isinstance(el, int):
-                abort(f'Could not understand shortrange_params["{key}"]["subtiling"] == {subtiling}')
+                abort(
+                    f'Could not understand shortrange_params["{key}"]["subtiling"] == {subtiling}'
+                )
             if el < 1:
                 abort(
                     f'shortrange_params["{key}"]["subtiling"] == {subtiling}, '
@@ -3868,7 +4045,7 @@ if autosave_interval < 0:
 for d in shortrange_params.values():
     for key, val in d.items():
         if key not in {'scale', 'cutoff', 'subtiling'}:
-            masterwarn(f'unrecognized parameter "{key}" in shortrange_params')
+            masterwarn(f'Unrecognized parameter "{key}" in shortrange_params')
         if key == 'subtiling':
             if isinstance(val, str) and val != 'automatic':
                 abort(f'Failed to interpret subtiling "{val}"')

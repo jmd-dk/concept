@@ -32,7 +32,7 @@ cimport('import analysis')
 cimport('from analysis import measure')
 cimport('from communication import domain_subdivisions, exchange, partition, smart_mpi')
 cimport('import graphics')
-cimport('from integration import initiate_time, remove_doppelgängers')
+cimport('from integration import init_time, remove_doppelgängers')
 cimport('from linear import compute_cosmo, compute_transfer, get_archived_k_parameters')
 cimport('from mesh import convert_particles_to_fluid')
 cimport('from snapshot import get_snapshot_type, snapshot_extensions')
@@ -184,7 +184,7 @@ def convert():
                 # An equation of state parameter w is given.
                 # As this is not just a single attribute, we need to
                 # handle this case on its own.
-                component.initialize_w(val)
+                component.init_w(val)
                 continue
             if not hasattr(component, key):
                 # A non-existing attribute was specified. As this is
@@ -372,7 +372,7 @@ def locate_snapshots(path):
 def powerspec():
     # Initial cosmic time universals.t
     # and scale factor a(universals.t) = universals.a.
-    initiate_time()
+    init_time()
     # Extract the snapshot filename
     snapshot_filename = special_params['snapshot_filename']
     # Read in the snapshot
@@ -410,7 +410,7 @@ def powerspec():
 def render3D():
     # Initial cosmic time universals.t
     # and scale factor a(universals.t) = universals.a.
-    initiate_time()
+    init_time()
     # Extract the snapshot filename
     snapshot_filename = special_params['snapshot_filename']
     # Read in the snapshot
@@ -700,7 +700,7 @@ def CLASS():
     # simulation anyway.
     suppress_output['err'].add('the energy density of the components add up to')
     # Initialize components, but do not realize them
-    initiate_time()
+    init_time()
     components = get_initial_conditions(do_realization=False)
     # Get power spectrum gridsize
     powerspec_gridsize = -1

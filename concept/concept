@@ -124,7 +124,11 @@ fi
 read -r start_time_epoch start_time_human <<<$("${python}" -B -c "
 import datetime
 t = datetime.datetime.now()
-print(t.timestamp(), str(t).replace(' ', '_'))
+now, ms = str(t).split('.')
+print(
+    t.timestamp(),
+    (now + ms[:3]).replace('-', '').replace(' ', '').replace(':', ''),
+)
 ")
 
 # Check whether this script is run locally or remotely via ssh
@@ -1181,7 +1185,7 @@ logs_dir_rel="$(sensible_path ${logs_dir})"
 # supplied parameter file for editing.
 # Also make sure that this directory exists.
 mkdir -p "${params_dir}"
-params_cp="${params_dir}/.params_cp_${start_time_human}"
+params_cp="${params_dir}/.${start_time_human}"
 if [ "${params}" == "${params_default}" ]; then
     params_cp_info=""
 else

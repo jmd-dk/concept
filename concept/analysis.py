@@ -567,7 +567,7 @@ def slab_fourier_loop(
     # this is the returned sum of wave vector elements.
     sumk = 0
     # To satisfy the compiler
-    deconv_i = deconv_ij = deconv_ijk = 1
+    deconv_j = deconv_ij = deconv_ijk = 1
     # When looping in Fourier space, remember that the first and second
     # dimension are transposed.
     for j in range(size_j):
@@ -1011,6 +1011,7 @@ cython.declare(σ2_integrand_arr=object)
     # Arguments
     component='Component',
     quantity=str,
+    communicate='bint',
     # Locals
     J_noghosts=object, # np.ndarray
     J_over_ϱ_plus_𝒫_2_i='double',
@@ -1080,7 +1081,7 @@ cython.declare(σ2_integrand_arr=object)
     ᐁgrid_dim='double[:, :, ::1]',
     returns=object,  # double or tuple
 )
-def measure(component, quantity):
+def measure(component, quantity, communicate=True):
     """Implemented quantities are:
     'v_max'
     'v_rms'
@@ -1092,8 +1093,8 @@ def measure(component, quantity):
     t = universals.t
     a = universals.a
     # Extract variables
-    N = component.N
-    N_elements = component.gridsize**3
+    N = component.N if communicate else component.N_local
+    N_elements = component.gridsize**3 if communicate else component.size_noghosts
     Vcell = boxsize**3/N_elements
     w     = component.w    (a=a)
     w_eff = component.w_eff(a=a)
@@ -1127,12 +1128,13 @@ def measure(component, quantity):
                 mom2_i = momx[i]**2 + momy[i]**2 + momz[i]**2
                 if mom2_i > mom2_max:
                     mom2_max = mom2_i
-            mom2_max = allreduce(mom2_max, op=MPI.MAX)
+            if communicate:
+                mom2_max = allreduce(mom2_max, op=MPI.MAX)
             v_max = sqrt(mom2_max)/(a**(2 - 3*w_eff)*component.mass)
         elif component.representation == 'fluid':
             if (    component.boltzmann_order == -1
                 or (component.boltzmann_order == 0 and component.boltzmann_closure == 'truncate')
-                ):
+            ):
                 # Without J as a fluid variable,
                 # no explicit velocity exists.
                 v_max = 0
@@ -1147,7 +1149,8 @@ def measure(component, quantity):
                     J_over_ϱ_2_i = (Jx_ptr[i]/ϱ_ptr[i])**2
                     if J_over_ϱ_2_i > J_over_ϱ_2_max:
                         J_over_ϱ_2_max = J_over_ϱ_2_i
-                J_over_ϱ_2_max = allreduce(J_over_ϱ_2_max, op=MPI.MAX)
+                if communicate:
+                    J_over_ϱ_2_max = allreduce(J_over_ϱ_2_max, op=MPI.MAX)
                 J_over_ϱ_plus_𝒫_2_max = 3*J_over_ϱ_2_max/(1 + w)**2
                 v_max = a**(3*w_eff - 2)*sqrt(J_over_ϱ_plus_𝒫_2_max)
                 # Since no non-linear evolution happens for J, the Euler
@@ -1170,7 +1173,8 @@ def measure(component, quantity):
                     )
                     if J_over_ϱ_plus_𝒫_2_i > J_over_ϱ_plus_𝒫_2_max:
                         J_over_ϱ_plus_𝒫_2_max = J_over_ϱ_plus_𝒫_2_i
-                J_over_ϱ_plus_𝒫_2_max = allreduce(J_over_ϱ_plus_𝒫_2_max, op=MPI.MAX)
+                if communicate:
+                    J_over_ϱ_plus_𝒫_2_max = allreduce(J_over_ϱ_plus_𝒫_2_max, op=MPI.MAX)
                 v_max = a**(3*w_eff - 2)*sqrt(J_over_ϱ_plus_𝒫_2_max)
                 # Add the sound speed. When the P=wρ approxiamation is
                 # False, the sound speed is non-global and given by the
@@ -1189,12 +1193,13 @@ def measure(component, quantity):
             momz = component.momz
             for i in range(component.N_local):
                 mom2 += momx[i]**2 + momy[i]**2 + momz[i]**2
-            mom2 = allreduce(mom2, op=MPI.SUM)
-            v_rms = sqrt(mom2/component.N)/(a**(2 - 3*component.w_eff(a=a))*component.mass)
+            if communicate:
+                mom2 = allreduce(mom2, op=MPI.SUM)
+            v_rms = sqrt(mom2/N)/(a**(2 - 3*component.w_eff(a=a))*component.mass)
         elif component.representation == 'fluid':
             if (    component.boltzmann_order == -1
                 or (component.boltzmann_order == 0 and component.boltzmann_closure == 'truncate')
-                ):
+            ):
                 # Without J as a fluid variable, no velocity exists
                 v_rms = 0
             elif component.boltzmann_order == 0 and component.boltzmann_closure == 'class':
@@ -1208,7 +1213,8 @@ def measure(component, quantity):
                     for     j in range(nghosts, ℤ[component.shape[1] - nghosts]):
                         for k in range(nghosts, ℤ[component.shape[2] - nghosts]):
                             ΣJ_over_ϱ_plus_𝒫_2 += 3*(Jx_mv[i, j, k]/(ϱ_mv[i, j, k]*(1 + w)))**2
-                ΣJ_over_ϱ_plus_𝒫_2 = allreduce(ΣJ_over_ϱ_plus_𝒫_2, op=MPI.SUM)
+                if communicate:
+                    ΣJ_over_ϱ_plus_𝒫_2 = allreduce(ΣJ_over_ϱ_plus_𝒫_2, op=MPI.SUM)
                 v_rms = a**(3*w_eff - 2)*sqrt(ΣJ_over_ϱ_plus_𝒫_2/N_elements)
                 # Since no non-linear evolution happens for J, the Euler
                 # equation and hence the gradient of the pressure will
@@ -1230,7 +1236,8 @@ def measure(component, quantity):
                                 (Jx_mv[i, j, k]**2 + Jy_mv[i, j, k]**2 + Jz_mv[i, j, k]**2)
                                 /(ϱ_mv[i, j, k] + ℝ[light_speed**(-2)]*𝒫_mv[i, j, k])**2
                             )
-                ΣJ_over_ϱ_plus_𝒫_2 = allreduce(ΣJ_over_ϱ_plus_𝒫_2, op=MPI.SUM)
+                if communicate:
+                    ΣJ_over_ϱ_plus_𝒫_2 = allreduce(ΣJ_over_ϱ_plus_𝒫_2, op=MPI.SUM)
                 v_rms = a**(3*w_eff - 2)*sqrt(ΣJ_over_ϱ_plus_𝒫_2/N_elements)
                 # Add the sound speed. When the P=wρ approxiamation is
                 # False, the sound speed is non-global and given by the
@@ -1255,8 +1262,9 @@ def measure(component, quantity):
                     Σmom_dim  += mom_i
                     Σmom2_dim += mom_i**2
                 # Add up local particle momenta sums
-                Σmom_dim  = allreduce(Σmom_dim,  op=MPI.SUM)
-                Σmom2_dim = allreduce(Σmom2_dim, op=MPI.SUM)
+                if communicate:
+                    Σmom_dim  = allreduce(Σmom_dim,  op=MPI.SUM)
+                    Σmom2_dim = allreduce(Σmom2_dim, op=MPI.SUM)
                 # Compute global standard deviation
                 σ2mom_dim = Σmom2_dim/N - (Σmom_dim/N)**2
                 if σ2mom_dim < 0:
@@ -1282,8 +1290,9 @@ def measure(component, quantity):
                 # Total dim'th momentum squared of all fluid elements
                 Σmom2_dim = np.sum(J_noghosts**2)*Vcell**2
                 # Add up local fluid element momenta sums
-                Σmom_dim  = allreduce(Σmom_dim,  op=MPI.SUM)
-                Σmom2_dim = allreduce(Σmom2_dim, op=MPI.SUM)
+                if communicate:
+                    Σmom_dim  = allreduce(Σmom_dim,  op=MPI.SUM)
+                    Σmom2_dim = allreduce(Σmom2_dim, op=MPI.SUM)
                 # Compute global standard deviation
                 σ2mom_dim = Σmom2_dim/N_elements - (Σmom_dim/N_elements)**2
                 if σ2mom_dim < 0:
@@ -1310,8 +1319,9 @@ def measure(component, quantity):
             # Total ϱ² of all fluid elements
             Σϱ2 = np.sum(ϱ_noghosts**2)
             # Add up local sums
-            Σϱ  = allreduce(Σϱ,  op=MPI.SUM)
-            Σϱ2 = allreduce(Σϱ2, op=MPI.SUM)
+            if communicate:
+                Σϱ  = allreduce(Σϱ,  op=MPI.SUM)
+                Σϱ2 = allreduce(Σϱ2, op=MPI.SUM)
             # Compute mean value of ϱ
             ϱ_bar = Σϱ/N_elements
             # Compute global standard deviation
@@ -1322,18 +1332,21 @@ def measure(component, quantity):
                 σ2ϱ = 0
             σϱ = sqrt(σ2ϱ)
             # Compute minimum value of ϱ
-            ϱ_min = allreduce(np.min(ϱ_noghosts), op=MPI.MIN)
+            ϱ_min = np.min(ϱ_noghosts)
+            if communicate:
+                ϱ_min = allreduce(ϱ_min, op=MPI.MIN)
         return ϱ_bar, σϱ, ϱ_min
     elif quantity == 'mass':
         if component.representation == 'particles':
             # Any change in the mass of particle a component is absorbed
             # into w_eff(a).
-            Σmass = a**(-3*w_eff)*component.N*component.mass
+            Σmass = a**(-3*w_eff)*N*component.mass
         elif component.representation == 'fluid':
             # Total ϱ of all fluid elements
             Σϱ = np.sum(ϱ_noghosts)
             # Add up local sums
-            Σϱ = allreduce(Σϱ, op=MPI.SUM)
+            if communicate:
+                Σϱ = allreduce(Σϱ, op=MPI.SUM)
             # The total mass is
             # Σmass = (a**3*Vcell)*Σρ
             # where a**3*Vcell is the proper volume and Σρ is the sum of
@@ -1407,8 +1420,9 @@ def measure(component, quantity):
                                 if diff_size > diff_max_dim:
                                     diff_max_dim = diff_size
                     # Use the global maxima
-                    Δdiff_max_dim = allreduce(Δdiff_max_dim, op=MPI.MAX)
-                    diff_max_dim  = allreduce(diff_max_dim,  op=MPI.MAX)
+                    if communicate:
+                        Δdiff_max_dim = allreduce(Δdiff_max_dim, op=MPI.MAX)
+                        diff_max_dim  = allreduce(diff_max_dim,  op=MPI.MAX)
                     # Pack results into lists
                     Δdiff_max[dim] = Δdiff_max_dim
                     diff_max[dim] = diff_max_dim

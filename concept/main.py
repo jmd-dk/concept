@@ -29,13 +29,15 @@ import interactions
 cimport('from analysis import debug, measure, powerspec')
 cimport('from communication import domain_subdivisions')
 cimport('from graphics import render2D, render3D')
-cimport('from integration import cosmic_time,          '
-        '                        expand,               '
-        '                        hubble,               '
-        '                        initiate_time,        '
-        '                        scale_factor,         '
-        '                        scalefactor_integral, '
-        )
+cimport(
+    'from integration import   '
+    '    cosmic_time,          '
+    '    expand,               '
+    '    hubble,               '
+    '    init_time,            '
+    '    scale_factor,         '
+    '    scalefactor_integral, '
+)
 cimport('from snapshot import get_initial_conditions, save')
 cimport('from utilities import delegate')
 
@@ -52,12 +54,16 @@ cimport('from utilities import delegate')
     dump_index='Py_ssize_t',
     dump_time=object,  # collections.namedtuple
     dump_times=list,
+    interaction_name=str,
     output_filenames=dict,
     period_frac='double',
     recompute_Δt_max='bint',
+    subtiling='Tiling',
+    subtiling_computation_times=object,  # collections.defaultdict
     subtiling_name=str,
     sync_at_dump='bint',
     sync_time='double',
+    tiling='Tiling',
     tiling_name=str,
     time_step='Py_ssize_t',
     time_step_last_sync='Py_ssize_t',
@@ -96,7 +102,7 @@ def timeloop():
     )
     # Determine and set the correct initial values for the cosmic time
     # universals.t and the scale factor universals.a = a(universals.t).
-    initiate_time()
+    init_time()
     # Get the dump times and the output filename patterns
     dump_times, output_filenames = prepare_for_output()
     # Get the initial components.
@@ -120,6 +126,9 @@ def timeloop():
         # Return now if all dumps lie at the initial time
         if len(dump_times) == 0:
             return
+    # Re-seed the pseudo-random number generator,
+    # using a separate seed on each process.
+    seed_rng()
     # The initial time step size Δt will be set to the maximum allowed
     # value times this factor. At early times of almost homogeneity,
     # it is preferable with a small Δt, and so
@@ -207,6 +216,9 @@ def timeloop():
                 component.set_rungs_N()
         kick_short(components, Δt, fake=True)
         masterprint('done')
+    # Mapping from (short-range) interaction names
+    # to (subtile) computation times.
+    subtiling_computation_times = collections.defaultdict(lambda: collections.defaultdict(float))
     # The main time loop
     masterprint('Beginning of main time loop')
     time_step = initial_time_step
@@ -223,9 +235,21 @@ def timeloop():
             # Things to do at the beginning and end of each time step
             if time_step > time_step_previous:
                 time_step_previous = time_step
+                # Update subtile computation times
+                for component in components:
+                    for subtiling_name, subtiling in component.tilings.items():
+                        match = re.search(r'(.*) \(subtiles\)', subtiling_name)
+                        if not match:
+                            continue
+                        subtiling_computation_times[component][match.group(1)
+                            ] += subtiling.computation_time_total
                 # Print out message at the end of each time step
                 if time_step > initial_time_step:
                     print_timestep_footer(components)
+                # Reset all computation_time_total tiling attributes
+                for component in components:
+                    for tiling in component.tilings.values():
+                        tiling.computation_time_total = 0
                 # Update universals.time_step. This is only ever done
                 # here, and so in general you should not count on
                 # universals.time_step being exactly equal to time_step.
@@ -264,23 +288,44 @@ def timeloop():
                 # Sort particles in memory so that the order matches
                 # the visiting order when iterating through all subtiles
                 # within tiles, improving the performance of
-                # CPU caching. If multiple tilings+subtilings exist on
-                # a component, the sorting will be done with respect to
-                # the first one encountered. For this in-memory sorting,
-                # the Δmom buffers will be used. It is then important
-                # that these do not currently contain information
-                # needed later. Note that for N_rungs = 1, the tiles and
-                # subtiles are not yet instantiated if this is the
-                # first time step, as no fake short-range kick has been
-                # performed prior to the time loop.
-                for component in components:
-                    for subtiling_name in component.tilings:
-                        match = re.search(r'(.*) \(subtiles\)', subtiling_name)
-                        if not match:
+                # CPU caching. For the in-memory sorting, the Δmom
+                # buffers will be used. It is then important that these
+                # do not currently contain information needed later.
+                # Note that for N_rungs = 1, the tiles and subtiles are
+                # not yet instantiated if this is the first time step,
+                # as no fake short-range kick has been performed prior
+                # to the main time loop.
+                if 𝔹[particle_reordering]:
+                    for component in components:
+                        if not subtiling_computation_times[component]:
                             continue
-                        tiling_name = f'{match.group(1)} (tiles)'
+                        if 𝔹[particle_reordering == 'deterministic']:
+                            # If multiple tilings+subtilings exist on a
+                            # component, the sorting will be done with
+                            # respect to the first subtiling
+                            # encountered.
+                            for subtiling_name in component.tilings:
+                                match = re.search(r'(.*) \(subtiles\)', subtiling_name)
+                                if not match:
+                                    continue
+                                interaction_name = match.group(1)
+                                break
+                        else:
+                            # If multiple tilings+subtilings exist on a
+                            # component, the sorting will be done with
+                            # respect to the subtiling with the highest
+                            # recorded computation time. Note that the
+                            # same component might then be sorted
+                            # according to different subtilings on
+                            # different processes.
+                            interaction_name = collections.Counter(
+                                subtiling_computation_times[component]
+                            ).most_common(1)[0][0]
+                        tiling_name    = f'{interaction_name} (tiles)'
+                        subtiling_name = f'{interaction_name} (subtiles)'
                         component.tile_sort(tiling_name, None, -1, subtiling_name)
-                        break
+                        # Reset subtile computation time
+                        subtiling_computation_times[component].clear()
                 # Initial half short-range kick of particles on all
                 # rungs. No rung jumps will occur, as any such has been
                 # nullified above.
@@ -702,6 +747,7 @@ def get_time_step_integrals(t_start, t_end, components):
         integrands = (
             # Global integrands
             '1',
+            'a**2',
             'a**(-1)',
             'a**(-2)',
             'ȧ/a',
@@ -870,15 +916,19 @@ def kick_long(components, Δt, sync_time, step_type, Δt_reltol):
     force=str,
     highest_populated_rung='signed char',
     integrand=object,  # str or tuple
+    interactions_instantaneous_list=list,
     interactions_list=list,
+    interactions_noninstantaneous_list=list,
     method=str,
     particle_components=list,
     printout='bint',
     receivers=list,
+    receivers_all=set,
     rung_index='signed char',
     suppliers=list,
     t_end='double',
     t_start='double',
+    tiling='Tiling',
     ᔑdt_rung=dict,
     returns='void',
 )
@@ -896,7 +946,13 @@ def kick_short(components, Δt, fake=False):
     if not particle_components:
         return
     # Find all short-range interactions. Do nothing if none exists.
-    interactions_list = interactions.find_interactions(particle_components, 'short-range')
+    interactions_instantaneous_list = interactions.find_interactions(
+        particle_components, 'short-range', instantaneous=True,
+    )
+    interactions_noninstantaneous_list = interactions.find_interactions(
+        particle_components, 'short-range', instantaneous=False,
+    )
+    interactions_list = interactions_instantaneous_list + interactions_noninstantaneous_list
     if not interactions_list:
         return
     # As we only do a single, simultaneous interaction for all rungs,
@@ -921,31 +977,57 @@ def kick_short(components, Δt, fake=False):
         ᔑdt_rung = get_time_step_integrals(t_start, t_end, particle_components)
         for integrand, integral in ᔑdt_rung.items():
             ᔑdt_rungs[integrand][rung_index] = integral
-    # The interactions to come will accumulate momentum updates
-    # into the Δmom buffers, so these need to be nullified.
-    for component in particle_components:
-        component.nullify_Δ('mom')
-    # Invoke short-range interactions
+    # Invoke short-range interactions, assign rungs and apply momentum
+    # updates depending on whether this is a fake call or not.
     printout = True
-    for force, method, receivers, suppliers in interactions_list:
-        getattr(interactions, force)(
-            method, receivers, suppliers, ᔑdt_rungs, 'short-range', printout,
-        )
-    # Assign rungs or apply momentum updates depending on
-    # whether this is a fake call or not.
-    for component in particle_components:
-        with unswitch:
-            if fake:
-                # The above interactions should only be used
-                # to determine the particle rungs.
-                component.convert_Δmom_to_acc(ᔑdt_rungs)
-                component.assign_rungs(Δt, fac_softening)
-            else:
-                # Apply the momentum updates from the above
-                # interactions and convert these to accelerations
-                # in an in-place manner.
-                component.apply_Δmom()
-                component.convert_Δmom_to_acc(ᔑdt_rungs)
+    receivers_all = {  # Really only receivers of non-instantaneous interactions
+        receiver
+        for force, method, receivers, suppliers in interactions_noninstantaneous_list
+        for receiver in receivers
+    }
+    if fake:
+        # Carry out fake non-instantaneous interactions in order to
+        # determine the particle rungs. Skip instantaneous interactions.
+        for component in particle_components:
+            component.nullify_Δ('mom')
+        for force, method, receivers, suppliers in interactions_noninstantaneous_list:
+            getattr(interactions, force)(
+                method, receivers, suppliers, ᔑdt_rungs, 'short-range', printout,
+            )
+
+        # for component in particle_components:
+            # warn(f'rank {rank}:', np.argmax(np.abs(component.Δmomx)), np.max(np.abs(component.Δmomx)))
+        # Barrier()
+        # abort()
+
+        for component in receivers_all:
+            component.convert_Δmom_to_acc(ᔑdt_rungs)
+        for component in particle_components:
+            component.assign_rungs(Δt, fac_softening)
+        # Reset all computation_time_total tiling attributes,
+        # as the above non-instantaneous-only interactions
+        # should not be counted.
+        for component in particle_components:
+            for tiling in component.tilings.values():
+                tiling.computation_time_total = 0
+    else:
+        # Carry out instantaneous short-range interactions.
+        # Any momentum updates will be applied.
+        for force, method, receivers, suppliers in interactions_instantaneous_list:
+            getattr(interactions, force)(
+                method, receivers, suppliers, ᔑdt_rungs, 'short-range', printout,
+            )
+        # Ensure nullified Δ buffers on all particle components
+        for component in particle_components:
+            component.nullify_Δ('mom')
+        # Carry out non-instantaneous short-range interactions
+        for force, method, receivers, suppliers in interactions_noninstantaneous_list:
+            getattr(interactions, force)(
+                method, receivers, suppliers, ᔑdt_rungs, 'short-range', printout,
+            )
+        for component in receivers_all:
+            component.apply_Δmom()
+            component.convert_Δmom_to_acc(ᔑdt_rungs)
 
 # Function which drifts all fluid components
 @cython.header(
@@ -1007,13 +1089,22 @@ def drift_fluids(components, Δt, sync_time, Δt_reltol):
     integral='double',
     integrals='double[::1]',
     integrand=object,  # str or tuple
+    interactions_instantaneous_list=list,
     interactions_list=list,
+    interactions_noninstantaneous_list=list,
+    lines=list,
     lowest_active_rung='signed char',
     message=list,
     method=str,
+    n='Py_ssize_t',
+    n_interactions=object,  # collections.defaultdict
+    pair=set,
+    pairs=list,
     particle_components=list,
     printout='bint',
+    receiver='Component',
     receivers=list,
+    receivers_all=set,
     rung_index='signed char',
     suppliers=list,
     t_end='double',
@@ -1060,7 +1151,13 @@ def driftkick_short(components, Δt, sync_time, Δt_jump_fac, Δt_reltol):
     if not particle_components:
         return
     # Find all short-range interactions
-    interactions_list = interactions.find_interactions(components, 'short-range')
+    interactions_instantaneous_list = interactions.find_interactions(
+        particle_components, 'short-range', instantaneous=True,
+    )
+    interactions_noninstantaneous_list = interactions.find_interactions(
+        particle_components, 'short-range', instantaneous=False,
+    )
+    interactions_list = interactions_instantaneous_list + interactions_noninstantaneous_list
     # In case of no short-range interactions among the particles at all,
     # we may drift the particles in one go, after which we are done
     # within this function, as the long-range kicks
@@ -1091,9 +1188,12 @@ def driftkick_short(components, Δt, sync_time, Δt_jump_fac, Δt_reltol):
         )
     ]
     for force, method, receivers, suppliers in interactions_list:
-        text = interactions.shortrange_progress_messages(force, method, receivers)
+        text = interactions.shortrange_progress_message(force, method, receivers)
         message.append(text[0].upper() + text[1:])
     printout = True
+    # Container holding interaction counts
+    # for instantaneous interactions.
+    n_interactions = collections.defaultdict(lambda: collections.defaultdict(int))
     # Perform the interlaced drifts and kicks
     any_kicks = True
     for driftkick_index in range(ℤ[2**(N_rungs - 1)]):
@@ -1147,6 +1247,13 @@ def driftkick_short(components, Δt, sync_time, Δt_jump_fac, Δt_reltol):
             ᔑdt = get_time_step_integrals(t_start, t_end, particle_components)
             for component in particle_components:
                 component.drift(ᔑdt)
+                # Reset lowest active rung, as process exchange of
+                # particles after drifting may alter the lowest
+                # populated rung.
+                if lowest_active_rung < component.lowest_populated_rung:
+                    component.lowest_active_rung = component.lowest_populated_rung
+                else:
+                    component.lowest_active_rung = lowest_active_rung
         # Get the highest populated rung amongst all components
         # and processes.
         highest_populated_rung = allreduce(
@@ -1218,7 +1325,7 @@ def driftkick_short(components, Δt, sync_time, Δt_jump_fac, Δt_reltol):
         if printout:
             masterprint(message[0])
             for text in message[1:]:
-                masterprint(text, indent=4)
+                masterprint(text, indent=4, bullet='•')
             masterprint('...', indent=4, wrap=False)
             printout = False
         # Flag inter-rung jumps and nullify Δmom.
@@ -1230,24 +1337,58 @@ def driftkick_short(components, Δt, sync_time, Δt_jump_fac, Δt_reltol):
             any_rung_jumps_arr[i] = (
                 component.flag_rung_jumps(Δt, Δt_jump_fac, fac_softening, ᔑdt_rungs)
             )
-            component.nullify_Δ('mom')
         Allreduce(MPI.IN_PLACE, any_rung_jumps_arr, op=MPI.LOR)
-        # Perform short-range interactions
-        for force, method, receivers, suppliers in interactions_list:
+        # Carry out instantaneous short-range interactions.
+        # Any momentum updates will be applied.
+        for force, method, receivers, suppliers in interactions_instantaneous_list:
+            # Nullify interaction tally
+            for receiver in receivers:
+                receiver.n_interactions.clear()
             getattr(interactions, force)(
-                method, receivers, suppliers, ᔑdt_rungs, 'short-range', printout)
-        # Apply momentum updates
+                method, receivers, suppliers, ᔑdt_rungs, 'short-range', printout,
+            )
+            for receiver in receivers:
+                for supplier_name, n in receiver.n_interactions.items():
+                    n_interactions[force, receiver][supplier_name] += n
+        # Ensure nullified Δ buffers on all particle components
         for component in particle_components:
-            component.apply_Δmom()
-        # Convert momentum updates to accelerations in an in-place
-        # manner, and apply the flagged rung jumps.
+            component.nullify_Δ('mom')
+        # Carry out non-instantaneous short-range interactions
+        receivers_all = {
+            receiver
+            for force, method, receivers, suppliers in interactions_noninstantaneous_list
+            for receiver in receivers
+        }
+        for force, method, receivers, suppliers in interactions_noninstantaneous_list:
+            getattr(interactions, force)(
+                method, receivers, suppliers, ᔑdt_rungs, 'short-range', printout,
+            )
+        for receiver in receivers_all:
+            receiver.apply_Δmom()
+            receiver.convert_Δmom_to_acc(ᔑdt_rungs)
         for i, component in enumerate(particle_components):
-            component.convert_Δmom_to_acc(ᔑdt_rungs)
             if any_rung_jumps_arr[i]:
                 component.apply_rung_jumps()
     # Finalize the progress message. If printout is True, no message
     # was ever printed (because there were no kicks).
     if not printout:
+        # Print out number of instantaneous interactions
+        if n_interactions:
+            for i, (force, method, receivers, suppliers,
+            ) in enumerate(interactions_instantaneous_list):
+                masterprint(message[1 + i][:message[1 + i].index(' for ')] + ' count:')
+                lines = []
+                pairs = []
+                for receiver in receivers:
+                    for supplier in suppliers:
+                        pair = {receiver, supplier}
+                        if pair in pairs:
+                            continue
+                        pairs.append(pair)
+                        n = allreduce(n_interactions[force, receiver][supplier.name], op=MPI.SUM)
+                        lines.append(f'{receiver.name} ⟷ {supplier.name}: ${n}')
+                masterprint('\n'.join(align_text(lines, indent=4)))
+        # Finish progress message
         masterprint('done')
 
 # Function which dump all types of output
@@ -1391,10 +1532,13 @@ def autosave(components, time_step, Δt, Δt_begin):
     end='bint',
     # Locals
     component='Component',
+    components_with_rungs=list,
+    components_with_w=list,
     header_lines=list,
     i='Py_ssize_t',
     last_populated_rung='signed char',
     line=list,
+    lines=list,
     part=str,
     parts=list,
     rung_index='signed char',
@@ -1443,26 +1587,40 @@ def print_timestep_heading(time_step, Δt, bottleneck, components, end=False):
             line[2] = ' '*(header_maxlength1 - len(line[1]) + 1) + line[2]
     parts += [''.join(line) for line in header_lines]
     # Equation of state of each component
-    for component in components:
-        if (component.w_type != 'constant'
+    components_with_w = [
+        component for component in components if (
+            component.w_type != 'constant'
             and 'metric' not in component.class_species
             and 'lapse'  not in component.class_species
-        ):
-            parts.append(f'\nEoS w ({component.name}): ')
-            parts.append(significant_figures(component.w(), 4, fmt='unicode'))
+        )
+    ]
+    if components_with_w:
+        parts.append(f'\nEoS w:\n')
+        lines = []
+        for component in components_with_w:
+            lines.append(
+                f'{component.name}: $' + significant_figures(component.w(), 4, fmt='unicode')
+            )
+        parts.append('\n'.join(align_text(lines, indent=4)))
     # Rung population for each component
-    for component in components:
-        if not component.use_rungs:
-            continue
-        parts.append(f'\nRung population ({component.name}): ')
-        rung_population = []
-        last_populated_rung = 0
-        for rung_index in range(N_rungs):
-            rung_N = allreduce(component.rungs_N[rung_index], op=MPI.SUM)
-            rung_population.append(str(rung_N))
-            if rung_N > 0:
-                last_populated_rung = rung_index
-        parts.append(', '.join(rung_population[:last_populated_rung+1]))
+    components_with_rungs = [
+        component for component in components if component.use_rungs
+    ]
+    if components_with_rungs:
+        parts.append(f'\nRung population:\n')
+        lines = []
+        for component in components_with_rungs:
+            rung_population = []
+            last_populated_rung = 0
+            for rung_index in range(N_rungs):
+                rung_N = allreduce(component.rungs_N[rung_index], op=MPI.SUM)
+                rung_population.append(str(rung_N))
+                if rung_N > 0:
+                    last_populated_rung = rung_index
+            lines.append(
+                f'{component.name}: $' + ', $'.join(rung_population[:last_populated_rung+1])
+            )
+        parts.append('\n'.join(align_text(lines, indent=4)))
     # Print out the combined heading
     masterprint(''.join(parts))
 
@@ -1478,11 +1636,13 @@ def print_timestep_heading(time_step, Δt, bottleneck, components, end=False):
     direct_summation_time_mean='double',
     direct_summation_time_total='double',
     imbalance='double',
-    imbalance_max_str_len='Py_ssize_t',
     imbalance_str=str,
+    line=str,
+    lines=list,
     message=list,
     other_rank='int',
     rank_max_load='int',
+    sign=str,
     tiling='Tiling',
     value_bad='double',
     value_miserable='double',
@@ -1502,10 +1662,6 @@ def print_timestep_footer(components):
         for component in components:
             for tiling in component.tilings.values():
                 direct_summation_time += tiling.computation_time_total
-                # The computation_time_total attribute is not used
-                # anywhere except here. Nullify it so that the same data
-                # is not used again for the next printout.
-                tiling.computation_time_total = 0
         if allreduce(direct_summation_time > 0, op=MPI.LOR):
             Gather(asarray([direct_summation_time]), direct_summation_times)
             if master:
@@ -1519,32 +1675,29 @@ def print_timestep_footer(components):
                 if 𝔹[print_load_imbalance == 'full']:
                     # We want to print out the load imbalance
                     # for each process individually.
-                    message = ['Load imbalance:']
-                    imbalance_max_str_len = (
-                        len(str(int(100*np.max(np.abs(imbalances))))) + decimals + 1
-                    )
+                    masterprint('Load imbalance:')
+                    lines = []
                     for other_rank in range(nprocs):
                         imbalance = imbalances[other_rank]
-                        imbalance_str = (
-                            ('+' if imbalance >= 0 else '-')
-                            + rf'{{{{:>{{}}.{decimals}f}}}}%'
-                                .format(imbalance_max_str_len)
-                                .format(100*abs(imbalance))
+                        sign = '+' if imbalance >= 0 else '-'
+                        lines.append(
+                            f'Process ${other_rank}: ${sign}${{:.{decimals}f}}%'
+                            .format(abs(100*imbalance))
                         )
-                        if other_rank == rank_max_load:
-                            if imbalance >= value_miserable:
-                                imbalance_str = terminal.bold_red(imbalance_str)
-                            elif imbalance >= value_bad:
-                                imbalance_str = terminal.bold_yellow(imbalance_str)
-                            else:
-                                imbalance_str = terminal.bold(imbalance_str)
-                        message.append(''.join([
-                            '    Process ',
-                            ' '*(ℤ[len(str(nprocs - 1))] - len(str(other_rank))),
-                            f'{other_rank}: {imbalance_str}',
-                        ]))
-                    # Print out load imbalances
-                    masterprint('\n'.join(message))
+                    lines = align_text(lines, indent=4)
+                    for other_rank, line in enumerate(lines):
+                        if other_rank != rank_max_load:
+                            continue
+                        imbalance = imbalances[other_rank]
+                        first, last = line.split(':')
+                        if imbalance >= value_miserable:
+                            last = terminal.bold_red(last)
+                        elif imbalance >= value_bad:
+                            last = terminal.bold_yellow(last)
+                        else:
+                            last = terminal.bold(last)
+                        lines[other_rank] = f'{first}:{last}'
+                    masterprint('\n'.join(lines))
                 else:
                     # We want to print out only the
                     # worst case load imbalance.
@@ -1564,8 +1717,7 @@ imbalances = empty(nprocs, dtype=C2np['double']) if master else None
 
 # Function which checks the sanity of the user supplied output times,
 # creates output directories and defines the output filename patterns.
-# A Python function is used because it contains a closure
-# (a lambda function).
+@cython.header()
 def prepare_for_output():
     """As this function uses universals.t and universals.a as the
     initial values of the cosmic time and the scale factor, you must

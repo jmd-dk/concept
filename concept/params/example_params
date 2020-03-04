@@ -168,10 +168,12 @@ select_realization_options = {  # Realization options for each component and var
     'all': {
         # Particle variables
         'pos': {
-            'back-scaling': False,
+            'interpolation': 'CIC',
+            'back-scaling' : False,
         },
         'mom': {
-            'back-scaling': False,
+            'interpolation'                : 'CIC',
+            'back-scaling'                 : False,
             'velocities from displacements': False,
         },
         # Fluid variables
@@ -260,11 +262,11 @@ suppress_output = {                # Suppress terminal output matching these reg
     'all': (),
 }
 render2D_options = {  # Specifications of 2D renders for individual and sets of components
-    'gridsize': {
+    'gridsize': {  # Resolution of grid on which to project the components
         'all'             : _size,
         'all combinations': ...,
     },
-    'interpolation': {
+    'interpolation': {  # Interpolation order
         'all'             : 'PCS',
         'all combinations': ...,
     },
@@ -302,9 +304,9 @@ unit_time = 'Gyr'      # Physical time   corresponding to a numerical value of 1
 unit_mass = '10¹⁰ m☉'  # Physical mass   corresponding to a numerical value of 1.0
 
 # Debugging options
-print_load_imbalance = True     # Print the CPU load imbalance after each time step?
-enable_Hubble = True            # Enable Hubble expansion?
-enable_class_background = True  # Use CLASS to compute the evolution of the background?
-enable_debugging = False        # Enable debugging mode?
-
+print_load_imbalance = True    # Print the CPU load imbalance after each time step?
+particle_reordering = True     # Allow in-memory particle reordering?
+enable_Hubble = True           # Enable Hubble expansion?
+enable_class_background = True # Use CLASS to compute the evolution of the background?
+enable_debugging = False       # Enable debugging mode?
 

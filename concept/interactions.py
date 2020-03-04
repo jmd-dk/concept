@@ -85,13 +85,13 @@ ctypedef double (*func_potential)(
     anticipate_refinement='bint',
     anticipation_period='Py_ssize_t',
     attempt_refinement='bint',
-    component_pair=set,
     computation_time='double',
     judge_refinement='bint',
     judgement_period='Py_ssize_t',
     lowest_active_rung='signed char',
     only_supply='bint',
-    pairings=list,
+    pair=set,
+    pairs=list,
     receiver='Component',
     refinement_offset='Py_ssize_t',
     refinement_period='Py_ssize_t',
@@ -211,15 +211,15 @@ def component_component(
         subtilings_under_tentative_refinement.add(interaction_name)
         tentatively_refine_subtiling(interaction_name)
     # Pair each receiver with all suppliers and let them interact
-    pairings = []
+    pairs = []
     tile_sorted = set()
     computation_time = 0  # Total tile-tile computation time for this call to component_component()
     for receiver in receivers:
         for supplier in suppliers:
-            component_pair = {receiver, supplier}
-            if component_pair in pairings:
+            pair = {receiver, supplier}
+            if pair in pairs:
                 continue
-            pairings.append(component_pair)
+            pairs.append(pair)
             # Make sure that the tile sorting of particles
             # in the two components are up-to-date.
             with unswitch(1):
@@ -329,7 +329,9 @@ subtilings_under_tentative_refinement = set()
     interaction_extra_args=dict,
     # Locals
     domain_pair_nr='Py_ssize_t',
+    instantaneous='bint',
     interact='bint',
+    only_supply_communication='bint',
     only_supply_passed='bint',
     rank_recv='int',
     rank_send='int',
@@ -367,6 +369,11 @@ def domain_domain(
     """
     # Just to satisfy the compiler
     tile_indices_receiver = tile_indices_supplier = None
+    tile_indices_supplier_paired = tile_indices_supplier_paired_N = NULL
+    # Flag specifying whether or not this interaction is instantaneous.
+    # For instantaneous interactions, we need to apply the updates to
+    # the affected variables after each domain-domain pairing.
+    instantaneous = interactions_registered[interaction_name].instantaneous
     # Get the process ranks to send to and receive from.
     # When only_supply is True, each domain will be paired with every
     # other domain, either in the entire box (pairing_level == 'domain')
@@ -374,8 +381,19 @@ def domain_domain(
     # When only_supply is False, the results of an interaction
     # computed on one process will be send back to the other
     # participating process and applied, cutting the number of domain
-    # pairs roughly in half.
-    ranks_send, ranks_recv = domain_domain_communication(pairing_level, only_supply)
+    # pairs roughly in half. Note however that even if only_supply is
+    # False, we may not cut the number of domain pairs in half if the
+    # receiver and supplier are separate components; all domains of
+    # the receiver then need to be paired with all domains of the
+    # supplier. That is, "only_supply" really serve two distinct usages:
+    # (1) it is passed to the interaction() function so that
+    # it knows whether to also update the supplier, (2) it determines
+    # the interprocess communication pattern. As this latter usage also
+    # depends upon whether the receiver and supplier is really the same
+    # component, we extract usage (2) into its own flag,
+    # "only_supply_communication".
+    only_supply_communication = (only_supply if 𝔹[receiver is supplier] else True)
+    ranks_send, ranks_recv = domain_domain_communication(pairing_level, only_supply_communication)
     # Backup of the passed only_supply boolean
     only_supply_passed = only_supply
     # Pair this process/domain with whichever other
@@ -401,30 +419,37 @@ def domain_domain(
         # interaction function. It is important that the passed
         # interaction function do not update the affected variables
         # directly (e.g. mom for gravity), but instead update the
-        # corresponding buffers (e.g. Δmom for gravity). These are the
-        # buffers that will be communicated, but just as importantly,
-        # Δmom is used to figure out which short-range rung any given
-        # particle belongs to.
-        # Special cases described below may change whether or not the
-        # interaction between this particular domain pair should be
-        # carried out on the local process (specified by the
-        # interact flag), or whether the only_supply
-        # flag should be changed.
+        # corresponding buffers (e.g. Δmom for gravity). The exception
+        # is when the interaction is instantaneous, in which case the
+        # affeceted variables should be updated directly, while also
+        # updating the corresponding buffer for the supplier. The
+        # buffers are what will be communicated. Also, Δmom is used to
+        # figure out which short-range rung any given particle belongs
+        # to. Special cases described below may change whether or not
+        # the interaction between this particular domain pair should be
+        # carried out on the local process (specified by the interact
+        # flag), or whether the only_supply flag should be changed.
         interact = True
         only_supply = only_supply_passed
         with unswitch:
-            if 𝔹[pairing_level == 'domain' and not only_supply_passed]:
+            if 𝔹[receiver is supplier] and 𝔹[pairing_level == 'domain']:
                 if rank_send == rank_recv != rank:
                     # We are dealing with the special case where the
                     # local process and some other (with a rank given by
                     # rank_send == rank_recv) both send all of their
-                    # particles to each other, after which the exact
-                    # same interaction takes place on both processes.
-                    # In such a case, even when only_supply is False,
-                    # there is no need to communicate the interaction
-                    # results, as these are already known to both
-                    # processes. Thus, we always pass in only_supply as
-                    # being True in such cases.
+                    # particles belonging to the same component to each
+                    # other, after which the exact same interaction
+                    # takes place on both processes. In such a case,
+                    # even when only_supply is False, there is no need
+                    # to communicate the interaction results, as these
+                    # are already known to both processes. Thus, we
+                    # always use only_supply = True in such cases.
+                    # Note that this is not true for
+                    # pairing_level == 'tile', as here not all of the
+                    # particles within the domains are communicated, but
+                    # rather particles within completely disjoint sets
+                    # of tiles, and so the interactions taking place on
+                    # the two processes will not be identical.
                     only_supply = True
                     # In the case of a non-deterministic interaction,
                     # the above logic no longer holds, as the two
@@ -436,7 +461,7 @@ def domain_domain(
                     with unswitch:
                         if not deterministic:
                             interact = (rank < rank_send)
-                            only_supply = False
+                            only_supply = only_supply_passed
         # Communicate the dependent variables (e.g. pos for gravity) of
         # the supplier. For pairing_level == 'domain', communicate all
         # local particles. For pairing_level == 'tile', we only need to
@@ -446,7 +471,9 @@ def domain_domain(
             if 𝔹[pairing_level == 'tile']:
                 # Find interacting tiles
                 tile_indices = domain_domain_tile_indices(
-                    receiver, supplier_local, only_supply_passed, domain_pair_nr, interaction_name)
+                    receiver, supplier_local, only_supply_communication,
+                    domain_pair_nr, interaction_name,
+                )
                 tile_indices_receiver = tile_indices[0, :]
                 tile_indices_supplier = tile_indices[1, :]
             else:  # pairing_level == 'domain'
@@ -472,7 +499,7 @@ def domain_domain(
                     # at the tile level.
                     tile_pairings_index = get_tile_pairings(
                         receiver, supplier, tile_indices_receiver, tile_indices_supplier,
-                        rank_recv, only_supply_passed, domain_pair_nr, interaction_name,
+                        rank_recv, only_supply_communication, domain_pair_nr, interaction_name,
                     )
                     tile_indices_supplier_paired   = tile_pairings_cache  [tile_pairings_index]
                     tile_indices_supplier_paired_N = tile_pairings_N_cache[tile_pairings_index]
@@ -490,20 +517,25 @@ def domain_domain(
                         tile_indices_supplier_paired, tile_indices_supplier_paired_N,
                         rank_recv, only_supply, ᔑdt, interaction_extra_args,
                     )
-        # Send the populated buffers back to the process from which the
-        # external supplier_extrl came. Add the received values in the
-        # buffers to the affected variable buffers (e.g. Δmom for
-        # gravity) of the local supplier_local. Note that we should not
-        # do this in the case of a local interaction (rank_send == rank)
-        # or in a case where only_supply is True.
+        # Send the populated buffers (e.g. Δmom for gravity) back to the
+        # process from which the external supplier_extrl came. Note that
+        # we should not do this in the case of a local interaction
+        # (rank_send == rank) or in a case where only_supply is True.
         if rank_send != rank and not only_supply:
+            # For non-instantaneous interactions, the received Δ values
+            # should be added to the Δ's of the local supplier_local.
+            # For instantaneous interactions, the received Δ values
+            # should be added directly to the data of the
+            # local supplier_local.
             sendrecv_component(
-                supplier_extrl, affected, pairing_level, interaction_name, tile_indices_supplier,
+                supplier_extrl, affected, pairing_level,
+                interaction_name, tile_indices_supplier,
                 dest=rank_recv, source=rank_send, component_recv=supplier_local,
+                use_Δ_recv=(not instantaneous),
             )
             # Nullify the Δ buffers of the external supplier_extrl,
             # leaving this with no leftover junk.
-            supplier_extrl.nullify_Δ(affected)
+            supplier_extrl.nullify_Δ(affected, only_active=False)
 # Tile indices for the trivial tiling,
 # used by the domain_domain function.
 cython.declare(
@@ -516,76 +548,6 @@ tile_indices_trivial_paired = malloc(1*sizeof('Py_ssize_t*'))
 tile_indices_trivial_paired[0] = cython.address(tile_indices_trivial[:])
 tile_indices_trivial_paired_N = malloc(1*sizeof('Py_ssize_t'))
 tile_indices_trivial_paired_N[0] = tile_indices_trivial.shape[0]
-
-# Function returning the indices of the tiles of the local receiver and
-# supplier which take part in tile-tile interactions under the
-# domain-domain pairing with number domain_pair_nr.
-@cython.header(
-    # Arguments
-    receiver='Component',
-    supplier='Component',
-    only_supply='bint',
-    domain_pair_nr='Py_ssize_t',
-    interaction_name=str,
-    # Locals
-    dim='int',
-    domain_pair_offsets='Py_ssize_t[:, ::1]',
-    domain_pair_offset='Py_ssize_t[::1]',
-    sign='int',
-    tile_indices='Py_ssize_t[:, ::1]',
-    tile_indices_all=list,
-    tile_indices_component='Py_ssize_t[::1]',
-    tile_indices_list=list,
-    tile_layout='Py_ssize_t[:, :, ::1]',
-    tile_layout_slice_end='Py_ssize_t[::1]',
-    tile_layout_slice_start='Py_ssize_t[::1]',
-    tiling='Tiling',
-    tiling_name=str,
-    returns='Py_ssize_t[:, ::1]',
-)
-def domain_domain_tile_indices(receiver, supplier, only_supply, domain_pair_nr, interaction_name):
-    tile_indices_all = domain_domain_tile_indices_dict.get((receiver, supplier, only_supply))
-    if tile_indices_all is None:
-        tile_indices_all = [None]*27
-        domain_domain_tile_indices_dict[receiver, supplier, only_supply] = tile_indices_all
-    else:
-        tile_indices = tile_indices_all[domain_pair_nr]
-        if tile_indices is not None:
-            return tile_indices
-    tile_layout_slice_start = empty(3, dtype=C2np['Py_ssize_t'])
-    tile_layout_slice_end   = empty(3, dtype=C2np['Py_ssize_t'])
-    domain_pair_offsets = domain_domain_communication_dict[
-        'tile', only_supply, 'domain_pair_offsets']
-    domain_pair_offset = domain_pair_offsets[domain_pair_nr, :]
-    tile_indices_list = []
-    tiling_name = f'{interaction_name} (tiles)'
-    for i, component in enumerate((receiver, supplier)):
-        tiling = component.tilings[tiling_name]
-        tile_layout = tiling.layout
-        sign = {0: -1, 1: +1}[i]
-        for dim in range(3):
-            if domain_pair_offset[dim] == -sign:
-                tile_layout_slice_start[dim] = 0
-                tile_layout_slice_end[dim]   = 1
-            elif domain_pair_offset[dim] == 0:
-                tile_layout_slice_start[dim] = 0
-                tile_layout_slice_end[dim]   = tile_layout.shape[dim]
-            elif domain_pair_offset[dim] == +sign:
-                tile_layout_slice_start[dim] = tile_layout.shape[dim] - 1
-                tile_layout_slice_end[dim]   = tile_layout.shape[dim]
-        tile_indices_component = asarray(tile_layout[
-            tile_layout_slice_start[0]:tile_layout_slice_end[0],
-            tile_layout_slice_start[1]:tile_layout_slice_end[1],
-            tile_layout_slice_start[2]:tile_layout_slice_end[2],
-        ]).flatten()
-        tile_indices_list.append(tile_indices_component)
-    tile_indices = asarray(tile_indices_list, dtype=C2np['Py_ssize_t'])
-    tile_indices_all[domain_pair_nr] = tile_indices
-    return tile_indices
-# Cached results of the domain_domain_tile_indices function
-# are stored in the dict below.
-cython.declare(domain_domain_tile_indices_dict=dict)
-domain_domain_tile_indices_dict = {}
 
 # Function returning the process ranks with which to pair
 # the local process/domain in the domain_domain function,
@@ -716,6 +678,78 @@ def domain_domain_communication(pairing_level, only_supply):
 cython.declare(domain_domain_communication_dict=dict)
 domain_domain_communication_dict = {}
 
+# Function returning the indices of the tiles of the local receiver and
+# supplier which take part in tile-tile interactions under the
+# domain-domain pairing with number domain_pair_nr.
+@cython.header(
+    # Arguments
+    receiver='Component',
+    supplier='Component',
+    only_supply='bint',
+    domain_pair_nr='Py_ssize_t',
+    interaction_name=str,
+    # Locals
+    dim='int',
+    domain_pair_offsets='Py_ssize_t[:, ::1]',
+    domain_pair_offset='Py_ssize_t[::1]',
+    key=tuple,
+    sign='int',
+    tile_indices='Py_ssize_t[:, ::1]',
+    tile_indices_all=list,
+    tile_indices_component='Py_ssize_t[::1]',
+    tile_indices_list=list,
+    tile_layout='Py_ssize_t[:, :, ::1]',
+    tile_layout_slice_end='Py_ssize_t[::1]',
+    tile_layout_slice_start='Py_ssize_t[::1]',
+    tiling='Tiling',
+    tiling_name=str,
+    returns='Py_ssize_t[:, ::1]',
+)
+def domain_domain_tile_indices(receiver, supplier, only_supply, domain_pair_nr, interaction_name):
+    key = (receiver.name, supplier.name, interaction_name, only_supply)
+    tile_indices_all = domain_domain_tile_indices_dict.get(key)
+    if tile_indices_all is None:
+        tile_indices_all = [None]*27
+        domain_domain_tile_indices_dict[key] = tile_indices_all
+    else:
+        tile_indices = tile_indices_all[domain_pair_nr]
+        if tile_indices is not None:
+            return tile_indices
+    tile_layout_slice_start = empty(3, dtype=C2np['Py_ssize_t'])
+    tile_layout_slice_end   = empty(3, dtype=C2np['Py_ssize_t'])
+    domain_pair_offsets = domain_domain_communication_dict[
+        'tile', only_supply, 'domain_pair_offsets']
+    domain_pair_offset = domain_pair_offsets[domain_pair_nr, :]
+    tile_indices_list = []
+    tiling_name = f'{interaction_name} (tiles)'
+    for i, component in enumerate((receiver, supplier)):
+        tiling = component.tilings[tiling_name]
+        tile_layout = tiling.layout
+        sign = {0: -1, 1: +1}[i]
+        for dim in range(3):
+            if domain_pair_offset[dim] == -sign:
+                tile_layout_slice_start[dim] = 0
+                tile_layout_slice_end[dim]   = 1
+            elif domain_pair_offset[dim] == 0:
+                tile_layout_slice_start[dim] = 0
+                tile_layout_slice_end[dim]   = tile_layout.shape[dim]
+            elif domain_pair_offset[dim] == +sign:
+                tile_layout_slice_start[dim] = tile_layout.shape[dim] - 1
+                tile_layout_slice_end[dim]   = tile_layout.shape[dim]
+        tile_indices_component = asarray(tile_layout[
+            tile_layout_slice_start[0]:tile_layout_slice_end[0],
+            tile_layout_slice_start[1]:tile_layout_slice_end[1],
+            tile_layout_slice_start[2]:tile_layout_slice_end[2],
+        ]).flatten()
+        tile_indices_list.append(tile_indices_component)
+    tile_indices = asarray(tile_indices_list, dtype=C2np['Py_ssize_t'])
+    tile_indices_all[domain_pair_nr] = tile_indices
+    return tile_indices
+# Cached results of the domain_domain_tile_indices function
+# are stored in the dict below.
+cython.declare(domain_domain_tile_indices_dict=dict)
+domain_domain_tile_indices_dict = {}
+
 # Function that given arrays of receiver and supplier tiles
 # returns them in paired format.
 @cython.header(
@@ -725,7 +759,7 @@ domain_domain_communication_dict = {}
     tile_indices_receiver='Py_ssize_t[::1]',
     tile_indices_supplier='Py_ssize_t[::1]',
     rank_supplier='int',
-    only_supply_passed='bint',
+    only_supply='bint',
     domain_pair_nr='Py_ssize_t',
     interaction_name=str,
     # Locals
@@ -763,11 +797,11 @@ domain_domain_communication_dict = {}
 )
 def get_tile_pairings(
     receiver, supplier, tile_indices_receiver, tile_indices_supplier,
-    rank_supplier, only_supply_passed, domain_pair_nr, interaction_name,
+    rank_supplier, only_supply, domain_pair_nr, interaction_name,
 ):
     global tile_pairings_cache, tile_pairings_N_cache, tile_pairings_cache_size
     # Lookup index of the required tile pairings in the global cache
-    key = (receiver.name, supplier.name, interaction_name, domain_pair_nr)
+    key = (receiver.name, supplier.name, interaction_name, domain_pair_nr, only_supply)
     tile_pairings_index = tile_pairings_cache_indices.get(key, tile_pairings_cache_size)
     if tile_pairings_index < tile_pairings_cache_size:
         return tile_pairings_index
@@ -800,9 +834,9 @@ def get_tile_pairings(
                 f'at domain_pair_nr == 0'
             )
         i = 0
-        for         l in range(tile_layout.shape[0]):
-            for     m in range(tile_layout.shape[1]):
-                for n in range(tile_layout.shape[2]):
+        for         l in range(ℤ[tile_layout.shape[0]]):
+            for     m in range(ℤ[tile_layout.shape[1]]):
+                for n in range(ℤ[tile_layout.shape[2]]):
                     if i != tile_layout[l, m, n]:
                         abort(
                             f'It looks as though the tile layout of {receiver.name} is incorrect'
@@ -821,8 +855,22 @@ def get_tile_pairings(
                                 if n_s == -1 or n_s == ℤ[tile_layout.shape[2]]:
                                     continue
                                 tile_index_s = tile_layout[l_s, m_s, n_s]
-                                if tile_index_s >= i:
-                                    neighbourtile_indices_supplier.append(tile_index_s)
+                                # As domain_pair_nr == 0, all tiles in
+                                # the local domain are paired with all
+                                # others. To not double count, we
+                                # disregard the pairing if the supplier
+                                # tile index is lower than the receiver
+                                # tile index (i). However, if
+                                # only_supply is True, there is no
+                                # double counting to be considered (the
+                                # two components are presumably
+                                # different), and so here we do not
+                                # disregard the pairing.
+                                with unswitch:
+                                    if not only_supply:
+                                        if tile_index_s < i:
+                                            continue
+                                neighbourtile_indices_supplier.append(tile_index_s)
                     tile_indices_receiver_supplier[i] = asarray(
                         neighbourtile_indices_supplier, dtype=C2np['Py_ssize_t'],
                     )
@@ -830,7 +878,7 @@ def get_tile_pairings(
     else:
         # Get relative offsets of the domains currently being paired
         domain_pair_offset = domain_domain_communication_dict[
-            'tile', only_supply_passed, 'domain_pair_offsets'][domain_pair_nr, :]
+            'tile', only_supply, 'domain_pair_offsets'][domain_pair_nr, :]
         # Get the indices of the global domain layout matching the
         # receiver (local) domain and supplier domain.
         domain_layout_receiver_indices = asarray(
@@ -918,10 +966,15 @@ def get_tile_pairings(
                             # For domain_pair_nr == 0, all tiles in the
                             # local domain are paired with all others.
                             # To not double count, we disregard the
-                            # pairing if the supplier index is lower
-                            # than the receiver.
+                            # pairing if the supplier tile index is
+                            # lower than the receiver tile index.
+                            # However, if only_supply is True, there is
+                            # no double counting to be considered (the
+                            # two components are presumably different),
+                            # and so here we do not disregard
+                            # the pairing.
                             with unswitch:
-                                if domain_pair_nr == 0:
+                                if domain_pair_nr == 0 and not only_supply:
                                     if tile_index_s < tile_index_r:
                                         continue
                             neighbourtile_indices_supplier.append(tile_index_s)
@@ -966,30 +1019,244 @@ def get_tile_pairings(
         tile_indices_supplier_paired_ptr = cython.address(tile_indices_supplier_paired[:])
         pairings[i] = tile_indices_supplier_paired_ptr
         pairings_N[i] = tile_indices_supplier_paired.shape[0]
+    tile_pairings_cache_indices[key] = tile_pairings_index
     tile_pairings_cache_size += 1
     tile_pairings_cache = realloc(
-        tile_pairings_cache, tile_pairings_cache_size*sizeof('Py_ssize_t**'),
+        tile_pairings_cache,
+        tile_pairings_cache_size*sizeof('Py_ssize_t**'),
     )
     tile_pairings_N_cache = realloc(
-        tile_pairings_N_cache, tile_pairings_cache_size*sizeof('Py_ssize_t*'),
+        tile_pairings_N_cache,
+        tile_pairings_cache_size*sizeof('Py_ssize_t*'),
     )
     tile_pairings_cache  [tile_pairings_index] = pairings
     tile_pairings_N_cache[tile_pairings_index] = pairings_N
-    tile_pairings_cache_indices[key] = tile_pairings_index
     return tile_pairings_index
 # Caches used by the get_tile_pairings function
 cython.declare(
     tile_indices_receiver_supplier_dict=dict,
-    tile_pairings_cache_size='Py_ssize_t',
     tile_pairings_cache_indices=dict,
+    tile_pairings_cache_size='Py_ssize_t',
     tile_pairings_cache='Py_ssize_t***',
     tile_pairings_N_cache='Py_ssize_t**',
 )
 tile_indices_receiver_supplier_dict = {}
-tile_pairings_cache_size = 0
 tile_pairings_cache_indices = {}
+tile_pairings_cache_size = 0
 tile_pairings_cache   = malloc(tile_pairings_cache_size*sizeof('Py_ssize_t**'))
 tile_pairings_N_cache = malloc(tile_pairings_cache_size*sizeof('Py_ssize_t*'))
+
+# Function responsible for constructing pairings between subtiles within
+# the supplied subtiling, including the corresponding subtiles in the 26
+# neighbour tiles. Subtiles further away than the supplied cutoff will
+# not be paired.
+@cython.header(
+    # Arguments
+    subtiling='Tiling',
+    cutoff='double',
+    only_supply='bint',
+    # Locals
+    all_pairings='Py_ssize_t***',
+    all_pairings_N='Py_ssize_t**',
+    dim='int',
+    extent_over_cutoff_dim='double',
+    key=tuple,
+    key_quick=tuple,
+    pairing_index='Py_ssize_t',
+    pairings='Py_ssize_t**',
+    pairings_N='Py_ssize_t*',
+    pairings_r='Py_ssize_t*',
+    r_dim='Py_ssize_t',
+    r2='double',
+    same_tile='bint',
+    shape='Py_ssize_t[::1]',
+    size='Py_ssize_t',
+    subtile_index_r='Py_ssize_t',
+    subtile_index_s='Py_ssize_t',
+    subtile_index3D='Py_ssize_t[::1]',
+    subtile_index3D_r='Py_ssize_t[::1]',
+    subtile_index3D_s='Py_ssize_t[::1]',
+    subtile_pairings_index='Py_ssize_t',
+    tile_extent='double[::1]',
+    tile_pair_index='Py_ssize_t',
+    tiles_offset='Py_ssize_t[::1]',
+    tiles_offset_i='Py_ssize_t',
+    tiles_offset_j='Py_ssize_t',
+    tiles_offset_k='Py_ssize_t',
+    returns='Py_ssize_t',
+)
+def get_subtile_pairings(subtiling, cutoff, only_supply):
+    global subtile_pairings_cache, subtile_pairings_N_cache, subtile_pairings_cache_size
+    # Lookup index of the required subtile pairings in the global cache.
+    # We first try a quick lookup using the passed subtiling instance
+    # as key. The same subtiling must then never be used with more than
+    # one cutoff, and the attributes (e.g. shape and extent) on a
+    # subtiling instance must never be redefined.
+    key_quick = (subtiling, only_supply)
+    subtile_pairings_index = subtile_pairings_cache_indices.get(
+        key_quick,
+        subtile_pairings_cache_size,
+    )
+    if subtile_pairings_index < subtile_pairings_cache_size:
+        return subtile_pairings_index
+    # The subtile pairings was not found in the cache. It is possible
+    # that a different subtiling instance with the same shape and the
+    # same extent in units of the cutoff is present in the cache.
+    # All results are therefore also stored using keys of the form
+    # (shape, extent/cutoff). Try this more involved lookup.
+    for dim in range(3):
+        extent_over_cutoff_dim = subtiling.extent[dim]*ℝ[1/cutoff]
+        extent_over_cutoff[dim] = float(f'{extent_over_cutoff_dim:.12g}')
+    shape = subtiling.shape
+    key = (tuple(shape), tuple(extent_over_cutoff), only_supply)
+    subtile_pairings_index = subtile_pairings_cache_indices.get(key, subtile_pairings_cache_size)
+    if subtile_pairings_index < subtile_pairings_cache_size:
+        # Found in cache. Add the missing, quick key.
+        subtile_pairings_cache_indices[key_quick] = subtile_pairings_index
+        return subtile_pairings_index
+    # No cached results found. Create subtile pairings
+    # for each of the 27 cases of neighbour tiles.
+    size = subtiling.size
+    tile_extent = subtiling.tile_extent
+    all_pairings   = malloc(27*sizeof('Py_ssize_t**'))
+    all_pairings_N = malloc(27*sizeof('Py_ssize_t*'))
+    tiles_offset      = empty(3, dtype=C2np['Py_ssize_t'])
+    subtile_index3D_r = empty(3, dtype=C2np['Py_ssize_t'])
+    same_tile = False
+    for tiles_offset_i in range(-1, 2):
+        tiles_offset[0] = tiles_offset_i
+        for tiles_offset_j in range(-1, 2):
+            tiles_offset[1] = tiles_offset_j
+            for tiles_offset_k in range(-1, 2):
+                tiles_offset[2] = tiles_offset_k
+                # Does the tile offset correspond to
+                # a tile being paired with itself?
+                with unswitch:
+                    if not only_supply:
+                        same_tile = (tiles_offset_i == tiles_offset_j == tiles_offset_k == 0)
+                # Get 1D tile pair index from the 3D offset
+                tile_pair_index = get_neighbourtile_pair_index(tiles_offset)
+                # Allocate memory for subtile pairings
+                # for this particular tile pair.
+                pairings   = malloc(size*sizeof('Py_ssize_t*'))
+                pairings_N = malloc(size*sizeof('Py_ssize_t'))
+                all_pairings  [tile_pair_index] = pairings
+                all_pairings_N[tile_pair_index] = pairings_N
+                # Loop over all receiver subtiles
+                for subtile_index_r in range(size):
+                    # Get 3D subtile index. As the tile_index3D() method
+                    # return a view over internal data and we mutate
+                    # subtile_index3D_r below, we take a copy of the
+                    # returned data.
+                    subtile_index3D = subtiling.tile_index3D(subtile_index_r)
+                    for dim in range(3):
+                        subtile_index3D_r[dim] = subtile_index3D[dim]
+                    # The receiver and supplier subtiles belong to
+                    # (potentially) diffent tiles, with a relative
+                    # offset given by tiles_offset_*, so that the
+                    # supplier tile is at the receiver tile location
+                    # plus tiles_offset_*. We now subtract this offset
+                    # from the receiver 3D subtile index, so that the
+                    # difference in subtile indices between the receiver
+                    # and supplier subtile is proportional to their
+                    # physical separation. Note that subtile_index3D_r
+                    # no longer represents the actual index in memory.
+                    for dim in range(3):
+                        subtile_index3D_r[dim] -= tiles_offset[dim]*shape[dim]
+                    # Allocate memory for subtile pairings with this
+                    # particular receiver subtile.
+                    # We give it the maximum possible needed memory.
+                    pairings_r = malloc(size*sizeof('Py_ssize_t'))
+                    pairings[subtile_index_r] = pairings_r
+                    # Pair receiver subtile with every supplier subtile,
+                    # unless the tile is being paired with itself.
+                    # In that case, we need to not double count the
+                    # subtile pairing (while still pairing every subtile
+                    # with themselves).
+                    pairing_index = 0
+                    for subtile_index_s in range(subtile_index_r if same_tile else 0, size):
+                        subtile_index3D_s = subtiling.tile_index3D(subtile_index_s)
+                        # Measure (squared) distance between the subtile
+                        # pair and reject if larger than the passed
+                        # cutoff length.
+                        r2 = 0
+                        for dim in range(3):
+                            # Distance between the same point in the two
+                            # subtiles along the dim'th dimenson,
+                            # in subtile grid units.
+                            r_dim = abs(subtile_index3D_r[dim] - subtile_index3D_s[dim])
+                            if r_dim > 0:
+                                # The two subtiles are offset along the
+                                # dim'th dimension. Subtract one unit
+                                # from the length, making the length
+                                # between the closest two points
+                                # in the two subtiles.
+                                r_dim -= 1
+                            r2 += (r_dim*tile_extent[dim])**2
+                        if r2 > ℝ[cutoff**2]:
+                            continue
+                        # Add this supplier subtile to the list of
+                        # pairing partners for this receiver subtile.
+                        pairings_r[pairing_index] = subtile_index_s
+                        pairing_index += 1
+                    # All pairs found for this receiver subtile.
+                    # Truncate the allocated memory as to only contain
+                    # the used chunk.
+                    pairings[subtile_index_r] = realloc(
+                        pairings_r, pairing_index*sizeof('Py_ssize_t'),
+                    )
+                    # Record the size of this pairing array
+                    pairings_N[subtile_index_r] = pairing_index
+    # Store results in global caches
+    subtile_pairings_cache_indices[key_quick] = subtile_pairings_index
+    subtile_pairings_cache_indices[key      ] = subtile_pairings_index
+    subtile_pairings_cache_size += 1
+    subtile_pairings_cache = realloc(
+        subtile_pairings_cache, subtile_pairings_cache_size*sizeof('Py_ssize_t***'),
+    )
+    subtile_pairings_N_cache = realloc(
+        subtile_pairings_N_cache, subtile_pairings_cache_size*sizeof('Py_ssize_t**'),
+    )
+    subtile_pairings_cache  [subtile_pairings_index] = all_pairings
+    subtile_pairings_N_cache[subtile_pairings_index] = all_pairings_N
+    # Return cached results in form of the cache index
+    return subtile_pairings_index
+# Caches used by the get_subtile_pairings function
+cython.declare(
+    extent_over_cutoff='double[::1]',
+    subtile_pairings_cache_indices=dict,
+    subtile_pairings_cache_size='Py_ssize_t',
+    subtile_pairings_cache='Py_ssize_t****',
+    subtile_pairings_N_cache='Py_ssize_t***',
+)
+extent_over_cutoff = empty(3, dtype=C2np['double'])
+subtile_pairings_cache_indices = {}
+subtile_pairings_cache_size = 0
+subtile_pairings_cache   = malloc(subtile_pairings_cache_size*sizeof('Py_ssize_t***'))
+subtile_pairings_N_cache = malloc(subtile_pairings_cache_size*sizeof('Py_ssize_t**'))
+
+# Helper function for the get_subtile_pairings function
+@cython.header(
+    # Arguments
+    tiles_offset='Py_ssize_t[::1]',
+    # Locals
+    dim='int',
+    returns='Py_ssize_t',
+)
+def get_neighbourtile_pair_index(tiles_offset):
+    # The passed tiles_offset is the relative offset between a pair of
+    # neighbouring tiles, and so each of its three elements has to be
+    # in {-1, 0, +1}. If any element is outside this range, it is due
+    # to the periodic boundaries. Fix this now, as we do not care about
+    # whether the tile pair is connected through the box boundary.
+    for dim in range(3):
+        if tiles_offset[dim] > 1:
+            tiles_offset[dim] = -1
+        elif tiles_offset[dim] < -1:
+            tiles_offset[dim] = +1
+    # Compute 1D index from a 3×3×3 shape. We add 1 to each element,
+    # as they range from -1 to +1.
+    return ((tiles_offset[0] + 1)*3 + (tiles_offset[1] + 1))*3 + (tiles_offset[2] + 1)
 
 # Generic function implementing particle-particle pairing.
 # Note that this function returns a generator and so should only be
@@ -1007,8 +1274,8 @@ tile_pairings_N_cache = malloc(tile_pairings_cache_size*sizeof('Py_ssize_t*'))
         'get_subtile_pairings',
             # Global variables used by get_subtile_pairings()
             'extent_over_cutoff',
-            'subtile_pairings_cache_size',
             'subtile_pairings_cache_indices',
+            'subtile_pairings_cache_size',
             'subtile_pairings_cache',
             'subtile_pairings_N_cache',
         'get_neighbourtile_pair_index',
@@ -1033,6 +1300,7 @@ def particle_particle(
         lowest_active_rung_s='signed char',
         lowest_populated_rung_r='signed char',
         lowest_populated_rung_s='signed char',
+        only_supply_communication='bint',
         posx_r='double*',
         posx_s='double*',
         posy_r='double*',
@@ -1169,10 +1437,11 @@ def particle_particle(
         subtiles_contain_particles_s = subtiling_s.contain_particles
     # Get subtile pairings between each
     # of the 27 possible tile pairings.
+    only_supply_communication = (only_supply if receiver.name == supplier.name else True)
     subtile_pairings_index = get_subtile_pairings(
-        subtiling_r, shortrange_params[interaction_name]['cutoff'],
+        subtiling_r, shortrange_params[interaction_name]['cutoff'], only_supply_communication,
     )
-    all_subtile_pairings   = subtile_pairings_cache  [subtile_pairings_index]
+    all_subtile_pairings = subtile_pairings_cache[subtile_pairings_index]
     all_subtile_pairings_N = subtile_pairings_N_cache[subtile_pairings_index]
     # Flags specifying whether the force betweeen particle i and j
     # should be applied to i and j. If only_supply is True,
@@ -1424,209 +1693,6 @@ tiles_offset    = empty(3, dtype=C2np['Py_ssize_t'])
 tile_location_r_ptr = cython.address(tile_location_r[:])
 tile_location_s_ptr = cython.address(tile_location_s[:])
 tiles_offset_ptr    = cython.address(tiles_offset[:])
-
-# Function responsible for constructing pairings between subtiles within
-# the supplied subtiling, including the corresponding subtiles in the 26
-# neighbour tiles. Subtiles further away than the supplied cutoff will
-# not be paired.
-@cython.header(
-    # Arguments
-    subtiling='Tiling',
-    cutoff='double',
-    # Locals
-    all_pairings='Py_ssize_t***',
-    all_pairings_N='Py_ssize_t**',
-    dim='int',
-    extent_over_cutoff_dim='double',
-    key=tuple,
-    pairing_index='Py_ssize_t',
-    pairings='Py_ssize_t**',
-    pairings_N='Py_ssize_t*',
-    pairings_r='Py_ssize_t*',
-    r_dim='Py_ssize_t',
-    r2='double',
-    same_tile='bint',
-    shape='Py_ssize_t[::1]',
-    size='Py_ssize_t',
-    subtile_index_r='Py_ssize_t',
-    subtile_index_s='Py_ssize_t',
-    subtile_index3D='Py_ssize_t[::1]',
-    subtile_index3D_r='Py_ssize_t[::1]',
-    subtile_index3D_s='Py_ssize_t[::1]',
-    subtile_pairings_index='Py_ssize_t',
-    tile_extent='double[::1]',
-    tile_pair_index='Py_ssize_t',
-    tiles_offset='Py_ssize_t[::1]',
-    tiles_offset_i='Py_ssize_t',
-    tiles_offset_j='Py_ssize_t',
-    tiles_offset_k='Py_ssize_t',
-    returns='Py_ssize_t',
-)
-def get_subtile_pairings(subtiling, cutoff):
-    global subtile_pairings_cache, subtile_pairings_N_cache, subtile_pairings_cache_size
-    # Lookup index of the required subtile pairings in the global cache.
-    # We first try a quick lookup using the passed subtiling instance
-    # as key. The same subtiling must then never be used with more than
-    # one cutoff, and the attributes (e.g. shape and extent) on a
-    # subtiling instance must never be redefined.
-    subtile_pairings_index = subtile_pairings_cache_indices.get(subtiling, subtile_pairings_cache_size)
-    if subtile_pairings_index < subtile_pairings_cache_size:
-        return subtile_pairings_index
-    # The subtile pairings was not found in the cache. It is possible
-    # that a different subtiling instance with the same shape and the
-    # same extent in units of the cutoff is present in the cache.
-    # All results are therefore also stored using keys of the form
-    # (shape, extent/cutoff). Try this more involved lookup.
-    for dim in range(3):
-        extent_over_cutoff_dim = subtiling.extent[dim]*ℝ[1/cutoff]
-        extent_over_cutoff[dim] = float(f'{extent_over_cutoff_dim:.12g}')
-    shape = subtiling.shape
-    key = (tuple(shape), tuple(extent_over_cutoff))
-    subtile_pairings_index = subtile_pairings_cache_indices.get(key, subtile_pairings_cache_size)
-    if subtile_pairings_index < subtile_pairings_cache_size:
-        # Found in cache. Add the missing, quick key.
-        subtile_pairings_cache_indices[subtiling] = subtile_pairings_index
-        return subtile_pairings_index
-    # No cached results found. Create subtile pairings
-    # for each of the 27 cases of neighbour tiles.
-    size = subtiling.size
-    tile_extent = subtiling.tile_extent
-    all_pairings   = malloc(27*sizeof('Py_ssize_t**'))
-    all_pairings_N = malloc(27*sizeof('Py_ssize_t*'))
-    tiles_offset      = empty(3, dtype=C2np['Py_ssize_t'])
-    subtile_index3D_r = empty(3, dtype=C2np['Py_ssize_t'])
-    for tiles_offset_i in range(-1, 2):
-        tiles_offset[0] = tiles_offset_i
-        for tiles_offset_j in range(-1, 2):
-            tiles_offset[1] = tiles_offset_j
-            for tiles_offset_k in range(-1, 2):
-                tiles_offset[2] = tiles_offset_k
-                # Does the tile offset correspond to
-                # a tile being paired with itself?
-                same_tile = (tiles_offset_i == tiles_offset_j == tiles_offset_k == 0)
-                # Get 1D tile pair index from the 3D offset
-                tile_pair_index = get_neighbourtile_pair_index(tiles_offset)
-                # Allocate memory for subtile pairings
-                # for this particular tile pair.
-                pairings   = malloc(size*sizeof('Py_ssize_t*'))
-                pairings_N = malloc(size*sizeof('Py_ssize_t'))
-                all_pairings  [tile_pair_index] = pairings
-                all_pairings_N[tile_pair_index] = pairings_N
-                # Loop over all receiver subtiles
-                for subtile_index_r in range(size):
-                    # Get 3D subtile index. As the tile_index3D() method
-                    # return a view over internal data and we mutate
-                    # subtile_index3D_r below, we take a copy of the
-                    # returned data.
-                    subtile_index3D = subtiling.tile_index3D(subtile_index_r)
-                    for dim in range(3):
-                        subtile_index3D_r[dim] = subtile_index3D[dim]
-                    # The receiver and supplier subtiles belong to
-                    # (potentially) diffent tiles, with a relative
-                    # offset given by tiles_offset_*, so that the
-                    # supplier tile is at the receiver tile location
-                    # plus tiles_offset_*. We now subtract this offset
-                    # from the receiver 3D subtile index, so that the
-                    # difference in subtile indices between the receiver
-                    # and supplier subtile is proportional to their
-                    # physical separation. Note that subtile_index3D_r
-                    # no longer represents the actual index in memory.
-                    for dim in range(3):
-                        subtile_index3D_r[dim] -= tiles_offset[dim]*shape[dim]
-                    # Allocate memory for subtile pairings with this
-                    # particular receiver subilte.
-                    # We give it the maximum possible needed memory.
-                    pairings_r = malloc(size*sizeof('Py_ssize_t'))
-                    pairings[subtile_index_r] = pairings_r
-                    # Pair receiver subtile with every supplier subtile,
-                    # unless the tile is being paired with itself.
-                    # In that case, we need to not double count the
-                    # subtile pairing (while still pairing every subtile
-                    # with themselves).
-                    pairing_index = 0
-                    for subtile_index_s in range(subtile_index_r if same_tile else 0, size):
-                        subtile_index3D_s = subtiling.tile_index3D(subtile_index_s)
-                        # Measure (squared) distance between the subtile
-                        # pair and reject if larger than the passed
-                        # cutoff length.
-                        r2 = 0
-                        for dim in range(3):
-                            # Distance between the same point in the two
-                            # subtiles along the dim'th dimenson,
-                            # in subtile grid units.
-                            r_dim = abs(subtile_index3D_r[dim] - subtile_index3D_s[dim])
-                            if r_dim > 0:
-                                # The two subtiles are offset along the
-                                # dim'th dimension. Subtract one unit
-                                # from the length, making the length
-                                # between the closest two points
-                                # in the two subtiles.
-                                r_dim -= 1
-                            r2 += (r_dim*tile_extent[dim])**2
-                        if r2 > ℝ[cutoff**2]:
-                            continue
-                        # Add this supplier subtile to the list of
-                        # pairing partners for this receiver subtile.
-                        pairings_r[pairing_index] = subtile_index_s
-                        pairing_index += 1
-                    # All pairs found for this receiver subtile.
-                    # Truncate the allocated memory as to only contain
-                    # the used chunk.
-                    pairings[subtile_index_r] = realloc(
-                        pairings_r, pairing_index*sizeof('Py_ssize_t'),
-                    )
-                    # Record the size of this pairing array
-                    pairings_N[subtile_index_r] = pairing_index
-    # Store results in global caches
-    subtile_pairings_cache_size += 1
-    subtile_pairings_cache = realloc(
-        subtile_pairings_cache, subtile_pairings_cache_size*sizeof('Py_ssize_t***'),
-    )
-    subtile_pairings_N_cache = realloc(
-        subtile_pairings_N_cache, subtile_pairings_cache_size*sizeof('Py_ssize_t**'),
-    )
-    subtile_pairings_cache  [subtile_pairings_index] = all_pairings
-    subtile_pairings_N_cache[subtile_pairings_index] = all_pairings_N
-    subtile_pairings_cache_indices[subtiling] = subtile_pairings_index
-    subtile_pairings_cache_indices[key      ] = subtile_pairings_index
-    # Return cached results in form of the cache index
-    return subtile_pairings_index
-# Caches used by the get_subtile_pairings function
-cython.declare(
-    extent_over_cutoff='double[::1]',
-    subtile_pairings_cache_size='Py_ssize_t',
-    subtile_pairings_cache_indices=dict,
-    subtile_pairings_cache='Py_ssize_t****',
-    subtile_pairings_N_cache='Py_ssize_t***',
-)
-extent_over_cutoff = empty(3, dtype=C2np['double'])
-subtile_pairings_cache_size = 0
-subtile_pairings_cache_indices = {}
-subtile_pairings_cache   = malloc(subtile_pairings_cache_size*sizeof('Py_ssize_t***'))
-subtile_pairings_N_cache = malloc(subtile_pairings_cache_size*sizeof('Py_ssize_t**'))
-
-# Helper function for the get_subtile_pairings function
-@cython.header(
-    # Arguments
-    tiles_offset='Py_ssize_t[::1]',
-    # Locals
-    dim='int',
-    returns='Py_ssize_t',
-)
-def get_neighbourtile_pair_index(tiles_offset):
-    # The passed tiles_offset is the relative offset between a pair of
-    # neighbouring tiles, and so each of its three elements has to be
-    # in {-1, 0, +1}. If any element is outside this range, it is due
-    # to the periodic boundaries. Fix this now, as we do not care about
-    # whether the tile pair is connected through the box boundary.
-    for dim in range(3):
-        if tiles_offset[dim] > 1:
-            tiles_offset[dim] = -1
-        elif tiles_offset[dim] < -1:
-            tiles_offset[dim] = +1
-    # Compute 1D index from a 3×3×3 shape. We add 1 to each element,
-    # as they range from -1 to +1.
-    return ((tiles_offset[0] + 1)*3 + (tiles_offset[1] + 1))*3 + (tiles_offset[2] + 1)
 
 # Generic function implementing particle-mesh interactions
 # for both particle and fluid componenets.
@@ -2103,9 +2169,9 @@ def construct_potential(
     component='Component',
     returns=str,
 )
-def shortrange_progress_messages(force, method, receivers, extra_message=' (short-range only)'):
+def shortrange_progress_message(force, method, receivers, extra_message=' (short-range only)'):
     # Lookup appropriate form of the name of the force
-    force = forces_conjugated_names.get(force, force)
+    force = interactions_registered[force].conjugated_name
     # Print the progress message
     if method == 'p3m':
         if len(receivers) == 1:
@@ -2132,7 +2198,7 @@ def shortrange_progress_messages(force, method, receivers, extra_message=' (shor
                 .format(', '.join([component.name for component in receivers]))
             )
     else:
-        abort(f'The method "{method}" is unknown to shortrange_progress_messages()')
+        abort(f'The method "{method}" is unknown to shortrange_progress_message()')
 
 # Function that given lists of receiver and supplier components of a
 # one-way interaction removes any components from the supplier list that
@@ -2143,7 +2209,7 @@ def oneway_force(receivers, suppliers):
 # Function which constructs a list of interactions from a list of
 # components. The list of interactions store information about which
 # components interact with one another, via what force and method.
-def find_interactions(components, interaction_type='any'):
+def find_interactions(components, interaction_type='any', instantaneous='both'):
     """You may specify an interaction_type to only get
     specific interactions. The options are:
     - interaction_type == 'any':
@@ -2156,9 +2222,19 @@ def find_interactions(components, interaction_type='any'):
       Include short-range interactions only, i.e. any other than PM.
       Note that P³M interactions will also be returned
       for interaction_type == 'short-range'.
+    Furthermore you may specify instantaneous to filter out interactions
+    that are (not) instantaneous:
+    - instantaneous == 'both':
+      Include both instantaneous and non-instantaneous interactions.
+    - instantaneous == True:
+      Include only non-instantaneous interactions.
+    - instantaneous == False:
+      Include only instantaneous interactions.
     """
     # Use cached result
-    interactions_list = interactions_lists.get(tuple(components + [interaction_type]))
+    interactions_list = interactions_lists.get(
+        tuple(components + [interaction_type, instantaneous])
+    )
     if interactions_list:
         return interactions_list
     # Find all (force, method) pairs in use. Store these as a (default)
@@ -2170,8 +2246,10 @@ def find_interactions(components, interaction_type='any'):
     # Check that all forces and methods assigned
     # to the components are implemented.
     for force, methods in forces_in_use.items():
-        methods_implemented = forces_implemented.get(force, [])
-        for method in methods:
+        interaction_info = interactions_registered.get(force)
+        if interaction_info is None:
+            abort(f'Force "{force}" is not implemented')
+        for method in interaction_info.methods:
             if not method:
                 # When the method is set to an empty string it signifies
                 # that this method should be used as a supplier for the
@@ -2194,7 +2272,8 @@ def find_interactions(components, interaction_type='any'):
     # specified method. Note that the receivers do not contribute to the
     # force unless they are also present in the suppliers list.
     interactions_list = []
-    for force, methods in forces_implemented.items():
+    for force, interaction_info in interactions_registered.items():
+        methods = interaction_info.methods
         for method in methods:
             if method not in forces_in_use.get(force, []):
                 continue
@@ -2260,8 +2339,8 @@ def find_interactions(components, interaction_type='any'):
                     return True
     while cleanup():
         pass
-    # In the case that only some interactions should be considered,
-    # remove the unwanted interactions.
+    # In the case that only long-/short-range interactions should be
+    # considered, remove the unwanted interactions.
     if 'long' in interaction_type:
         for interaction in interactions_list:
             if interaction.method not in {'pm', 'p3m'}:
@@ -2276,8 +2355,24 @@ def find_interactions(components, interaction_type='any'):
             pass
     elif 'any' not in interaction_type:
         abort(f'find_interactions(): Unknown interaction_type "{interaction_type}"')
+    # In the case that only (non-)instantaneous interactions should be
+    # considered, remove the unwanted interactions.
+    if 'True' in str(instantaneous):
+        for interaction in interactions_list:
+            if not interactions_registered[interaction.force].instantaneous:
+                interaction.receivers[:] = []
+        while cleanup():
+            pass
+    elif 'False' in str(instantaneous):
+        for interaction in interactions_list:
+            if interactions_registered[interaction.force].instantaneous:
+                interaction.receivers[:] = []
+        while cleanup():
+            pass
+    elif 'both' not in str(instantaneous):
+        abort(f'find_interactions(): Unknown instantaneous value "{instantaneous}"')
     # Cache the result and return it
-    interactions_lists[tuple(components + [interaction_type])] = interactions_list
+    interactions_lists[tuple(components + [interaction_type, instantaneous])] = interactions_list
     return interactions_list
 # Global dict of interaction lists populated by the above function
 cython.declare(interactions_lists=dict)
@@ -2287,30 +2382,120 @@ Interaction = collections.namedtuple(
     'Interaction', ('force', 'method', 'receivers', 'suppliers')
 )
 
+# Function for registrering interactions
+def register_interaction(force, methods, conjugated_name=None, instantaneous=False):
+    """Every implemented interaction should be registered by a call to
+    this function. The order in which interactions are registered will
+    be the order in which they are carried out, with the exeption that
+    short-range instantaneous interactions will be carried out before
+    short-range non-instantaneous interactions.
+    """
+    def canonicalize(s):
+        s = s.lower()
+        for char in ' _-^()':
+            s = s.replace(char, '')
+        for n in range(10):
+            s = s.replace(unicode_superscript(str(n)), str(n))
+        return s
+    force = canonicalize(force)
+    methods = [canonicalize(method) for method in any2list(methods)]
+    if conjugated_name is None:
+        conjugated_name = force
+    interactions_registered[force] = InteractionInfo(
+        force, methods, conjugated_name, instantaneous,
+    )
+# Global dict of interaction infos populated by the above function
+cython.declare(interactions_registered=dict)
+interactions_registered = {}
+# Create the InteractionInfo type used in the above function
+InteractionInfo = collections.namedtuple(
+    'InteractionInfo', ('force', 'methods', 'conjugated_name', 'instantaneous')
+)
+
+# Function which looks up quantities defined between pairs of
+# components within a passed dict.
+@cython.header(
+    # Arguments
+    receivers=list,
+    suppliers=list,
+    select_dict=dict,
+    name=str,
+    # Locals
+    key=tuple,
+    pair=set,
+    pairs=list,
+    quantities=dict,
+    quantity=object,
+    quantity_r=object,
+    quantity_s=object,
+    receiver='Component',
+    supplier='Component',
+    returns=dict,
+)
+def get_pairwise_quantities(receivers, suppliers, select_dict, name=''):
+    """The "name" argument is only used in relation with the caching.
+    """
+    # Attempt lookup in cache
+    if name:
+        key = (
+            name,
+            frozenset([receiver.name for receiver in receivers]),
+            frozenset([supplier.name for supplier in suppliers]),
+        )
+        quantities = pairwise_quantities.get(key)
+        if quantities is not None:
+            return quantities
+    # Result not present in cache. Do the lookups.
+    quantities = {}
+    pairs = []
+    for receiver in receivers:
+        for supplier in suppliers:
+            pair = {receiver, supplier}
+            if pair in pairs:
+                continue
+            pairs.append(pair)
+            # Look up the quantity for this {receiver, supplier} pair
+            quantity = is_selected((receiver, supplier), select_dict)
+            if quantity is None:
+                if receiver.name == supplier.name:
+                    quantity = is_selected(receiver, select_dict)
+                else:
+                    quantity_r = is_selected(receiver, select_dict)
+                    quantity_s = is_selected(supplier, select_dict)
+                    if quantity_r == quantity_s:
+                        quantity = quantity_r
+            if quantity is None:
+                if name:
+                    abort(
+                        f'get_pairwise_quantities(): No pairwise quantity "{name}" '
+                        f'for {{{receiver.name}, {supplier.name}}} specified in the passed dict.'
+                    )
+                else:
+                    abort(
+                        f'get_pairwise_quantities(): No pairwise quantity '
+                        f'for {{{receiver.name}, {supplier.name}}} specified in the passed dict.'
+                    )
+            # Store the found quantity symmetrically
+            # with respect to the receiver and supplier.
+            quantities[receiver.name, supplier.name] = quantity
+            quantities[supplier.name, receiver.name] = quantity
+    # Save the found quantities to the cache
+    if name:
+        pairwise_quantities[key] = quantities
+    return quantities
+# Cache used by the above function
+cython.declare(pairwise_quantities=dict)
+pairwise_quantities = {}
+
 
 
 #########################################
 # Implement specific interactions below #
 #########################################
-# Import interactions defined in other modules
-cimport('from gravity import *')
-# Specification of implemented forces.
-# The order specified here will be the order in which the forces
-# are computed and applied.
-# Importantly, all forces and methods should be written with purely
-# alphanumeric, lowercase characters.
-forces_implemented = {
-    'gravity': ['ppnonperiodic', 'pp', 'p3m', 'pm'],
-    'lapse'  : [                              'pm'],
-}
-# Alternative form for the names of forces, used by the
-# shortrange_progress_messages() function.
-# Does not have to be specified for every force.
-forces_conjugated_names = {
-    'gravity': 'gravitational',
-}
 
-# Function that carries out the gravitational interaction
+# Gavity
+cimport('from gravity import *')
+register_interaction('gravity', ['ppnonperiodic', 'pp', 'p3m', 'pm'], 'gravitational')
 @cython.pheader(
     # Arguments
     method=str,
@@ -2348,7 +2533,7 @@ def gravity(
                 extra_message = ''
             masterprint(
                 'Executing',
-                shortrange_progress_messages('gravity', method, receivers, extra_message),
+                shortrange_progress_message('gravity', method, receivers, extra_message),
                 '...',
             )
         # The long-range PM part
@@ -2453,7 +2638,7 @@ def gravity(
         if printout:
             masterprint(
                 'Executing',
-                shortrange_progress_messages('gravity', method, receivers),
+                shortrange_progress_message('gravity', method, receivers),
                 '...',
             )
         get_ewald_grid()
@@ -2472,7 +2657,7 @@ def gravity(
         if printout:
             masterprint(
                 'Executing',
-                shortrange_progress_messages('gravity', method, receivers),
+                shortrange_progress_message('gravity', method, receivers),
                 '...',
             )
         component_component(
@@ -2488,9 +2673,8 @@ def gravity(
     elif master:
         abort(f'gravity() was called with the "{method}" method')
 
-# Function that carry out the lapse interaction,
-# correcting for the fact that the decay rate of species should be
-# measured with respect to their individual proper time.
+# The lapse force
+register_interaction('lapse', 'pm')
 @cython.pheader(
     # Arguments
     method=str,
