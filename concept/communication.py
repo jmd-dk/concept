@@ -172,7 +172,7 @@ def exchange(component, reset_buffers=False):
     forms, freeing up memory.
     """
     # No need to consider exchange of particles if running serially
-    if nprocs == 1:
+    if 𝔹[nprocs == 1]:
         return
     # Only particles are exchangeable
     if component.representation != 'particles':
@@ -675,6 +675,7 @@ def rank_neighbouring_domain(i, j, k):
     dest='int',
     source='int',
     component_recv='Component',
+    use_Δ_recv='bint',
     # Locals
     N_particles='Py_ssize_t',
     N_particles_recv='Py_ssize_t',
@@ -713,7 +714,7 @@ def rank_neighbouring_domain(i, j, k):
 )
 def sendrecv_component(
     component_send, variables, pairing_level, interaction_name,
-    tile_indices_send, dest, source, component_recv=None,
+    tile_indices_send, dest, source, component_recv=None, use_Δ_recv=True,
 ):
     """This function operates in two modes:
     - Communicate data (no component_recv supplied):
@@ -819,7 +820,7 @@ def sendrecv_component(
             component_buffer.use_rungs = use_rungs
         # Use component_buffer as component_recv
         component_recv = component_buffer
-    # Operation-dependant preparations for the communication
+    # Operation-dependent preparations for the communication
     if 𝔹[operation == '=']:
         # In communication mode the particles within the tiles are
         # temporarily copied to the mv_send_buf buffer.
@@ -840,17 +841,16 @@ def sendrecv_component(
                 else:  # operation == '+='
                     abort('Δpos not implemented')
         elif variable == 'mom':
-            # Note that we always use Δmom and not mom for mv_recv_list.
-            # Thus, it is the local Δmom that is updated from the
-            # received external Δmom, not the local mom.
-            # The final "mom += Δmom" must be carried out later.
             with unswitch:
                 if 𝔹[operation == '=']:
                     mv_send_list = component_send.mom_mv
-                    mv_recv_list = component_recv.Δmom_mv
+                    mv_recv_list = component_recv.mom_mv
                 else:  # operation == '+='
                     mv_send_list = component_send.Δmom_mv
-                    mv_recv_list = component_recv.Δmom_mv
+                    if use_Δ_recv:
+                        mv_recv_list = component_recv.Δmom_mv
+                    else:
+                        mv_recv_list = component_recv.mom_mv
         else:
             abort(
                 f'Currently only "pos" and "mom" are implemented '

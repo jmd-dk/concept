@@ -42,5 +42,4 @@ html_show_copyright    = False
 html_show_sourcelink   = False
 html_show_sphinx       = False
 html_title             = 'CONCEPT Documentation'
-html_use_smartypants   = True
 

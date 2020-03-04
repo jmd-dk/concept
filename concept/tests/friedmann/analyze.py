@@ -1,6 +1,6 @@
 # Imports from the CO𝘕CEPT code
 from commons import *
-from integration import cosmic_time, initiate_time
+from integration import cosmic_time, init_time
 
 # Absolute path and name of the directory of this file
 this_dir  = os.path.dirname(os.path.realpath(__file__))
@@ -14,7 +14,7 @@ commons_flood()
 
 # Initiate the cosmic time and the scale factor,
 # and do the call to CLASS if enable_class_background is True.
-initiate_time()
+init_time()
 
 # Array of scale factor values at which to compute the cosmic time
 N_points = 50

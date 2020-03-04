@@ -24,7 +24,7 @@ a_begin = 0.02
 select_forces = {'matter': {'gravity': 'pm'}}
 
 # Simulation options
-random_seed = 5  # A value of 5 results in nice looking 2D renders for _size = 64
+random_seed = 4  # A value of 4 results in nice looking 2D renders for _size = 64
 
 # Graphics
 render2D_options = {

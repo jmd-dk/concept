@@ -473,7 +473,7 @@ def hubble(a=-1):
     # background computation.
     if enable_class_background and a <= 1:
         if spline_a_H is None:
-            abort('The function H(a) has not been tabulated. Have you called initiate_time?')
+            abort('The function H(a) has not been tabulated. Have you called init_time?')
         return spline_a_H.eval(a)
     # CLASS not enabled. Assume that the universe is flat
     # and consists purely of matter and dark energy.
@@ -524,7 +524,7 @@ def Ḣ(a=-1):
     # We have Ḣ = dH/dt = ȧ*dH/da.
     if enable_class_background and a <= 1:
         if spline_a_H is None:
-            abort('The function H(a) has not been tabulated. Have you called initiate_time?')
+            abort('The function H(a) has not been tabulated. Have you called init_time?')
         return ȧ(a)*spline_a_H.eval_deriv(a)
     # CLASS not enabled. Assume that the universe is flat
     # and consists purely of matter and dark energy.
@@ -556,7 +556,7 @@ def scale_factor(t=-1):
     # simply look up a(t) in the tabulated data.
     if enable_class_background:
         if spline_t_a is None:
-            abort('The function a(t) has not been tabulated. Have you called initiate_time?')
+            abort('The function a(t) has not been tabulated. Have you called init_time?')
         return spline_t_a.eval(t)
     # Not using CLASS.
     # Integrate the Friedmann equation from the beginning of time
@@ -596,7 +596,7 @@ def cosmic_time(a=-1, a_lower=machine_ϵ, t_lower=machine_ϵ, t_upper=-1):
     # simply look up t(a) in the tabulated data.
     if enable_class_background:
         if spline_a_t is None:
-            abort('The function t(a) has not been tabulated. Have you called initiate_time?')
+            abort('The function t(a) has not been tabulated. Have you called init_time?')
         return spline_a_t.eval(a)
     # Not using CLASS
     if t_upper == -1:
@@ -867,6 +867,8 @@ def scalefactor_integral(key, t_ini, Δt, all_components):
                 with unswitch:
                     if integrand == '1' or integrand == '':
                         integrand_tab_spline[i] = 1
+                    elif integrand == 'a**2':
+                        integrand_tab_spline[i] = a**2
                     elif integrand == 'a**(-1)':
                         integrand_tab_spline[i] = 1/a
                     elif integrand == 'a**(-2)':
@@ -948,7 +950,7 @@ spline_t_integrands = {}
     t_values='double[::1]',
     t_begin_correct='double',
 )
-def initiate_time(reinitialize=False):
+def init_time(reinitialize=False):
     global time_initialized, spline_a_t, spline_t_a, spline_a_H
     if time_initialized and not reinitialize:
         return
@@ -1029,7 +1031,7 @@ time_initialized = False
 
 
 
-# Global Spline objects defined by initiate_time
+# Global Spline objects defined by init_time
 cython.declare(spline_a_t='Spline', spline_t_a='Spline', spline_a_H='Spline')
 spline_a_t = None
 spline_t_a = None

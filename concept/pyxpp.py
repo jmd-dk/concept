@@ -104,7 +104,7 @@ def import_py_module(module_name):
 @contextlib.contextmanager
 def disable_loader(ext):
     ext = '.' + ext.lstrip('.')
-    # Remove any loaders for the ext extension
+    # Push any loaders for the ext extension to the back
     edits = collections.defaultdict(list)
     path_importer_cache = list(sys.path_importer_cache.values())
     for i, finder in enumerate(path_importer_cache):
@@ -615,7 +615,8 @@ def inline_iterators(lines, no_optimization):
     # of an inline iterator function.
     def process_inline_iterator_lines(func_name, iterator_lines):
         if func_name in cached_iterators:
-            return cached_iterators[func_name].copy()
+            t = cached_iterators[func_name]
+            return t[0].copy(), t[1].copy()
         # Remove the function definition lines(s)
         def_encountered = False
         parens = 0
@@ -633,7 +634,21 @@ def inline_iterators(lines, no_optimization):
                 continue
             if iterator_line.rstrip().endswith(':') and parens == 0 and parens_any:
                 break
+        definition = ''.join(iterator_lines[:i+1])
         iterator_lines = iterator_lines[i+1:]
+        # Extract default arguments
+        default_arguments = {}
+        for default_argument in re.findall(
+            r'.+?=.+?,', definition.replace('(', ')').replace(')', ',')
+        ):
+            default_argument = default_argument.replace(' ', '').strip(',')
+            while ',' in default_argument:
+                default_argument = default_argument[default_argument.index(','):].strip(',')
+            if default_argument.startswith('depends='):
+                # Skip the special 'depends' argument
+                continue
+            arg, val = default_argument.split('=')
+            default_arguments[arg] = val
         # Remove yield line, which has to be only on the last line.
         # We could generalise this to work for any number of yields,
         # if we needed to. Just removing it however may screw up the
@@ -655,8 +670,8 @@ def inline_iterators(lines, no_optimization):
                 continue
             iterator_lines[i] = iterator_line[indentation:]
         # Store the unindented source lines of the iterator
-        cached_iterators[func_name] = iterator_lines
-        return iterator_lines.copy()
+        cached_iterators[func_name] = (iterator_lines, default_arguments)
+        return iterator_lines.copy(), default_arguments.copy()
     cached_iterators = {}
     # Replace usages of inline iterators with the content of the
     # iterator functions themselves.
@@ -708,16 +723,37 @@ def inline_iterators(lines, no_optimization):
         else:
             new_lines.append(line)
             continue
-        # Use of iterator to be inlined found
-        iterator_lines = process_inline_iterator_lines(func_name, iterator_lines)
+        iterator_lines, default_arguments = process_inline_iterator_lines(
+            func_name, iterator_lines,
+        )
+        # Replace default arguments with supplied values
+        default_arguments_supplied = {}
+        for default_argument in re.findall(
+            r'.+?=.+?,', line.replace('(', ')').replace(')', ',')
+        ):
+            default_argument = default_argument.replace(' ', '').strip(',')
+            while ',' in default_argument:
+                default_argument = default_argument[default_argument.index(','):].strip(',')
+            if default_argument.startswith('depends='):
+                # Skip the special 'depends' argument
+                continue
+            arg, val = default_argument.split('=')
+            default_arguments_supplied[arg] = val
+        default_arguments.update(default_arguments_supplied)
         # Apply correct indentation
         for_indentation = len(line) - len(line.lstrip())
-        iterator_lines = [' '*for_indentation + iterator_line for iterator_line in iterator_lines]
+        iterator_lines = [
+            ' '*for_indentation + iterator_line for iterator_line in iterator_lines
+        ]
+        default_arguments = [
+            ' '*for_indentation + f'{arg} = {val}' for arg, val in default_arguments.items()
+        ]
         # Replace iterator call with inlined iterator code lines
         new_lines += [
             '\n',
             ' '*for_indentation + f'# Beginning of inlined iterator "{func_name}"\n',
         ]
+        new_lines += [default_argument + '\n' for default_argument in default_arguments]
         new_lines += iterator_lines
         # Indent the rest of the function according
         # to the inlined iterator.
@@ -790,10 +826,13 @@ def inline_iterators(lines, no_optimization):
 
 
 def constant_expressions(lines, no_optimization, first_call=True):
-    sets = {'ℝ': 'double',
-            'ℤ': 'Py_ssize_t',
-            '𝔹': 'bint',
-            }
+    sets = {
+        '𝔹': 'bint',
+        'ℝ': 'double',
+        '𝕊': 'str',
+        'ℤ': 'Py_ssize_t',
+    }
+    non_c_native = {'𝕊', }
     # Handle nested constant expressions.
     # If first_call is True, this is the original call to this function.
     # Edit all nested occurrences of constant expressions so that only
@@ -1186,47 +1225,47 @@ def constant_expressions(lines, no_optimization, first_call=True):
         lines = new_lines
     # Now do the actual work
     for blackboard_bold_symbol, ctype in sets.items():
-        # Find constant expressions using the
-        # ℝ[expression] or ℤ[expression] syntax.
+        # Find constant expressions using the ℝ[expression] syntax
         expressions = []
         expressions_cython = []
         declaration_linenrs = []
         declaration_placements = []
-        operators = collections.OrderedDict([('.' , 'DOT' ),
-                                             ('+' , 'PLS' ),
-                                             ('-' , 'MIN' ),
-                                             ('**', 'POW' ),
-                                             ('*' , 'TIM' ),
-                                             ('/' , 'DIV' ),
-                                             ('\\', 'BSL' ),
-                                             ('^' , 'CAR' ),
-                                             ('&' , 'AND' ),
-                                             ('|' , 'BAR' ),
-                                             ('@' , 'AT'  ),
-                                             (',' , 'COM' ),
-                                             ('(' , 'OPAR'),
-                                             (')' , 'CPAR'),
-                                             ('[' , 'OBRA'),
-                                             (']' , 'CBRA'),
-                                             ('{' , 'OCUR'),
-                                             ('}' , 'CCUR'),
-                                             ("'" , 'QTE' ),
-                                             ('"' , 'DQTE'),
-                                             (':' , 'COL' ),
-                                             (';' , 'SCOL'),
-                                             ('==', 'CMP' ),
-                                             ('!=', 'NCMP'),
-                                             ('=' , 'EQ'  ),
-                                             ('!' , 'BAN' ),
-                                             ('<' , 'LTH' ),
-                                             ('>' , 'GTH' ),
-                                             ('#' , 'SHA' ),
-                                             ('$' , 'DOL' ),
-                                             ('%' , 'PER' ),
-                                             ('?' , 'QUE' ),
-                                             ('`' , 'GRA' ),
-                                             ('~' , 'TIL' ),
-                                             ])
+        operators = collections.OrderedDict([
+            ('.' , 'DOT' ),
+            ('+' , 'PLS' ),
+            ('-' , 'MIN' ),
+            ('**', 'POW' ),
+            ('*' , 'TIM' ),
+            ('/' , 'DIV' ),
+            ('\\', 'BSL' ),
+            ('^' , 'CAR' ),
+            ('&' , 'AND' ),
+            ('|' , 'BAR' ),
+            ('@' , 'AT'  ),
+            (',' , 'COM' ),
+            ('(' , 'OPAR'),
+            (')' , 'CPAR'),
+            ('[' , 'OBRA'),
+            (']' , 'CBRA'),
+            ('{' , 'OCUR'),
+            ('}' , 'CCUR'),
+            ("'" , 'QTE' ),
+            ('"' , 'DQTE'),
+            (':' , 'COL' ),
+            (';' , 'SCOL'),
+            ('==', 'CMP' ),
+            ('!=', 'NCMP'),
+            ('=' , 'EQ'  ),
+            ('!' , 'BAN' ),
+            ('<' , 'LTH' ),
+            ('>' , 'GTH' ),
+            ('#' , 'SHA' ),
+            ('$' , 'DOL' ),
+            ('%' , 'PER' ),
+            ('?' , 'QUE' ),
+            ('`' , 'GRA' ),
+            ('~' , 'TIL' ),
+        ])
         while True:
             no_blackboard_bold_symbol = True
             module_scope = True
@@ -1492,14 +1531,25 @@ def constant_expressions(lines, no_optimization, first_call=True):
                 for e, expression_cython in enumerate(expressions_cython):
                     if declaration_linenrs[e] == -1:
                         if not expression_cython in declarations_placed[fname]:
-                            new_lines.append('cython.declare(' + expression_cython + "='{}')\n".format(ctype))
+                            if blackboard_bold_symbol in non_c_native:
+                                new_lines.append(
+                                    f'cython.declare({expression_cython}={ctype})\n'
+                                )
+                            else:
+                                new_lines.append(
+                                    f'cython.declare({expression_cython}=\'{ctype}\')\n'
+                                )
                             if fname:
                                 # Remember that this variable has been declared in this function
                                 declarations_placed[fname].append(expression_cython)
-                        new_lines.append(expression_cython + ' = <{}>('.format(ctype)
-                                                           + expressions[e]
-                                                           + ')\n'
-                                         )
+                        if blackboard_bold_symbol in non_c_native:
+                            new_lines.append(
+                                f'{expression_cython} = {ctype}({expressions[e]})\n'
+                            )
+                        else:
+                            new_lines.append(
+                                f'{expression_cython} = <{ctype}>({expressions[e]})\n'
+                            )
                 new_lines.append('\n')
             for e, n in enumerate(declaration_linenrs):
                 if i == n:
@@ -1509,18 +1559,25 @@ def constant_expressions(lines, no_optimization, first_call=True):
                     if declaration_placements[e] == 'above':
                         new_lines.pop()
                     if not expressions_cython[e] in declarations_placed[fname]:
-                        new_lines.append(indentation + 'cython.declare('
-                                                     + expressions_cython[e]
-                                                     + "='{}')\n".format(ctype)
-                                         )
+                        if blackboard_bold_symbol in non_c_native:
+                            new_lines.append(
+                                f'{indentation}cython.declare({expressions_cython[e]}={ctype})\n'
+                            )
+                        else:
+                            new_lines.append(
+                                f'{indentation}cython.declare({expressions_cython[e]}=\'{ctype}\')\n'
+                            )
                         if fname:
                             # Remember that this variable has been declared in this function
                             declarations_placed[fname].append(expressions_cython[e])
-                    new_lines.append(indentation + expressions_cython[e]
-                                                 + ' = <{}>('.format(ctype)
-                                                 + expressions[e]
-                                                 + ')\n'
-                                     )
+                    if blackboard_bold_symbol in non_c_native:
+                        new_lines.append(
+                            f'{indentation}{expressions_cython[e]} = {ctype}({expressions[e]})\n'
+                        )
+                    else:
+                        new_lines.append(
+                            f'{indentation}{expressions_cython[e]} = <{ctype}>({expressions[e]})\n'
+                        )
                     if declaration_placements[e] == 'above':
                         new_lines.append(line)
         # Exchange the original lines with the modified lines
