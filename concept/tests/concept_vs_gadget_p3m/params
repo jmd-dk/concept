@@ -22,8 +22,8 @@ force_differentiations = {
 }
 shortrange_params = {
     'gravity': {
-        'scale' : '1.25*boxsize/gridsize',
-        'cutoff': '4.5*scale',
+        'scale': '1.25*boxsize/gridsize',
+        'range': '4.5*scale',
     },
 }
 

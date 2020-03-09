@@ -994,12 +994,6 @@ def kick_short(components, Δt, fake=False):
             getattr(interactions, force)(
                 method, receivers, suppliers, ᔑdt_rungs, 'short-range', printout,
             )
-
-        # for component in particle_components:
-            # warn(f'rank {rank}:', np.argmax(np.abs(component.Δmomx)), np.max(np.abs(component.Δmomx)))
-        # Barrier()
-        # abort()
-
         for component in receivers_all:
             component.convert_Δmom_to_acc(ᔑdt_rungs)
         for component in particle_components:

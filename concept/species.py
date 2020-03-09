@@ -4120,12 +4120,12 @@ def init_tiling(component, tiling_name, initial_rung_size=-1):
     # decomposition on a domain will have a general shape
     # of shape[0]×shape[1]×shape[2], with shape[dim] determined
     # by the criterion that a tile must be at least as large as
-    # the cutoff length, in all directions.
+    # the given tilesize length, in all directions.
     # At the same time, we want to maximize the number of tiles.
     shape = tiling_shapes.get(tiling_name)
     if shape is None:
         shape = asarray(
-            (boxsize/asarray(domain_subdivisions))/shortrange_params_force['cutoff'],
+            (boxsize/asarray(domain_subdivisions))/shortrange_params_force['tilesize'],
             dtype=C2np['Py_ssize_t'],
         )
         masterprint(f'Tile decomposition ({force}): {shape[0]}×{shape[1]}×{shape[2]}')
@@ -4134,10 +4134,11 @@ def init_tiling(component, tiling_name, initial_rung_size=-1):
     #  in every direction.
     if np.min(shape) < 3:
         message = [
-            f'The {force} domain tiling needs a subdivision of at least 3 in every direction.'
+            f'The {force} domain tiling needs a subdivision of at least 3 in every direction. '
+            f'Consider lowering shortrange_params["{force}"]["tilesize"].'
         ]
         if 1 != nprocs != int(round(cbrt(nprocs)))**3:
-            message.append('It may help to choose a lower and/or cubic number of processes.')
+            message.append('It may also help to choose a lower and/or cubic number of processes.')
         abort(' '.join(message))
     # If not already specified, the rungs within each tile start out
     # with half of the mean required memory per rung.

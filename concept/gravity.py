@@ -31,15 +31,16 @@ cimport('from interactions import particle_particle')
 # Function implementing pairwise gravity (full/periodic)
 @cython.header(
     # Arguments
+    interaction_name=str,
     receiver='Component',
     supplier='Component',
+    ᔑdt_rungs=dict,
+    rank_supplier='int',
+    only_supply='bint',
     pairing_level=str,
     tile_indices_receiver='Py_ssize_t[::1]',
     tile_indices_supplier_paired='Py_ssize_t**',
     tile_indices_supplier_paired_N='Py_ssize_t*',
-    rank_supplier='int',
-    only_supply='bint',
-    ᔑdt_rungs=dict,
     extra_args=dict,
     # Locals
     apply_to_i='bint',
@@ -52,7 +53,6 @@ cimport('from interactions import particle_particle')
     gravity_factors='const double[::1]',
     gravity_factors_ptr='const double*',
     i='Py_ssize_t',
-    interaction_name=str,
     j='Py_ssize_t',
     particle_particle_t_begin='double',
     particle_particle_t_final='double',
@@ -73,9 +73,9 @@ cimport('from interactions import particle_particle')
     returns='void',
 )
 def gravity_pairwise(
-    receiver, supplier, pairing_level,
+    interaction_name, receiver, supplier, ᔑdt_rungs, rank_supplier, only_supply, pairing_level,
     tile_indices_receiver, tile_indices_supplier_paired, tile_indices_supplier_paired_N,
-    rank_supplier, only_supply, ᔑdt_rungs, extra_args,
+    extra_args,
 ):
     # Extract momentum update buffers
     Δmomx_r = receiver.Δmomx
@@ -98,7 +98,6 @@ def gravity_pairwise(
         'a**(-3*w_eff₀-3*w_eff₁-1)', receiver.name, supplier.name]
     gravity_factors_ptr = cython.address(gravity_factors[:])
     # Loop over all (receiver, supplier) particle pairs (i, j)
-    interaction_name = 'gravity'
     j = -1
     for i, j, rung_index_i, rung_index_j, x_ji, y_ji, z_ji, apply_to_i, apply_to_j, particle_particle_t_begin, subtiling_r in particle_particle(
         receiver, supplier, pairing_level,
@@ -152,15 +151,16 @@ def gravity_pairwise(
 # Function implementing pairwise gravity (short-range only)
 @cython.header(
     # Arguments
+    interaction_name=str,
     receiver='Component',
     supplier='Component',
+    ᔑdt_rungs=dict,
+    rank_supplier='int',
+    only_supply='bint',
     pairing_level=str,
     tile_indices_receiver='Py_ssize_t[::1]',
     tile_indices_supplier_paired='Py_ssize_t**',
     tile_indices_supplier_paired_N='Py_ssize_t*',
-    rank_supplier='int',
-    only_supply='bint',
-    ᔑdt_rungs=dict,
     extra_args=dict,
     # Locals
     apply_to_i='bint',
@@ -171,7 +171,6 @@ def gravity_pairwise(
     gravity_factors='const double[::1]',
     gravity_factors_ptr='const double*',
     i='Py_ssize_t',
-    interaction_name=str,
     j='Py_ssize_t',
     particle_particle_t_begin='double',
     particle_particle_t_final='double',
@@ -195,9 +194,9 @@ def gravity_pairwise(
     returns='void',
 )
 def gravity_pairwise_shortrange(
-    receiver, supplier, pairing_level,
+    interaction_name, receiver, supplier, ᔑdt_rungs, rank_supplier, only_supply, pairing_level,
     tile_indices_receiver, tile_indices_supplier_paired, tile_indices_supplier_paired_N,
-    rank_supplier, only_supply, ᔑdt_rungs, extra_args,
+    extra_args,
 ):
     # Extract momentum update buffers
     Δmomx_r = receiver.Δmomx
@@ -220,7 +219,6 @@ def gravity_pairwise_shortrange(
         'a**(-3*w_eff₀-3*w_eff₁-1)', receiver.name, supplier.name]
     gravity_factors_ptr = cython.address(gravity_factors[:])
     # Loop over all (receiver, supplier) particle pairs (i, j)
-    interaction_name = 'gravity'
     j = -1
     for i, j, rung_index_i, rung_index_j, x_ji, y_ji, z_ji, apply_to_i, apply_to_j, particle_particle_t_begin, subtiling_r in particle_particle(
         receiver, supplier, pairing_level,
@@ -244,7 +242,7 @@ def gravity_pairwise_shortrange(
         # If the particle pair is separated by a distance larger
         # than the range of the short-range force,
         # ignore this interaction completely.
-        if r2 > ℝ[shortrange_params['gravity']['cutoff']**2]:
+        if r2 > ℝ[shortrange_params['gravity']['range']**2]:
             continue
         # Compute the short-range force. Here the "force" is in units
         # of inverse length squared, given by
@@ -294,7 +292,7 @@ def tabulate_shortrange_gravity():
     in the global shortrange_table array. The tabulation is quadratic
     in r, which is the distance between two particles, while x = r/scale
     with scale the long/short-range force split scale.
-    We only need the tabulation for 0 <= r <= cutoff, where cutoff
+    We only need the tabulation for 0 <= r <= range, where range
     is the maximum reach of the short-range force.
     """
     global shortrange_table, shortrange_table_ptr
@@ -330,20 +328,21 @@ cython.declare(
 shortrange_table = None
 shortrange_table_ptr = NULL
 shortrange_table_size = 2**14  # Lower value improves caching, but leads to inaccurate lookups
-shortrange_table_maxr2 = (1 + 1e-3)*shortrange_params['gravity']['cutoff']**2
+shortrange_table_maxr2 = (1 + 1e-3)*shortrange_params['gravity']['range']**2
 
 # Function implementing pairwise gravity (non-periodic)
 @cython.header(
     # Arguments
+    interaction_name=str,
     receiver='Component',
     supplier='Component',
+    ᔑdt_rungs=dict,
+    rank_supplier='int',
+    only_supply='bint',
     pairing_level=str,
     tile_indices_receiver='Py_ssize_t[::1]',
     tile_indices_supplier_paired='Py_ssize_t**',
     tile_indices_supplier_paired_N='Py_ssize_t*',
-    rank_supplier='int',
-    only_supply='bint',
-    ᔑdt_rungs=dict,
     extra_args=dict,
     # Locals
     apply_to_i='bint',
@@ -355,7 +354,6 @@ shortrange_table_maxr2 = (1 + 1e-3)*shortrange_params['gravity']['cutoff']**2
     gravity_factors='const double[::1]',
     gravity_factors_ptr='const double*',
     i='Py_ssize_t',
-    interaction_name=str,
     j='Py_ssize_t',
     particle_particle_t_begin='double',
     particle_particle_t_final='double',
@@ -375,9 +373,9 @@ shortrange_table_maxr2 = (1 + 1e-3)*shortrange_params['gravity']['cutoff']**2
     returns='void',
 )
 def gravity_pairwise_nonperiodic(
-    receiver, supplier, pairing_level,
+    interaction_name, receiver, supplier, ᔑdt_rungs, rank_supplier, only_supply, pairing_level,
     tile_indices_receiver, tile_indices_supplier_paired, tile_indices_supplier_paired_N,
-    rank_supplier, only_supply, ᔑdt_rungs, extra_args,
+    extra_args,
 ):
     # Extract momentum update buffers
     Δmomx_r = receiver.Δmomx
@@ -398,7 +396,6 @@ def gravity_pairwise_nonperiodic(
         'a**(-3*w_eff₀-3*w_eff₁-1)', receiver.name, supplier.name]
     gravity_factors_ptr = cython.address(gravity_factors[:])
     # Loop over all (receiver, supplier) particle pairs (i, j)
-    interaction_name = 'gravity'
     j = -1
     for i, j, rung_index_i, rung_index_j, x_ji, y_ji, z_ji, apply_to_i, apply_to_j, particle_particle_t_begin, subtiling_r in particle_particle(
         receiver, supplier, pairing_level,

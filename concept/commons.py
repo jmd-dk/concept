@@ -2197,24 +2197,33 @@ user_params['force_differentiations'] = force_differentiations
 ewald_gridsize = to_int(user_params.get('ewald_gridsize', 64))
 user_params['ewald_gridsize'] = ewald_gridsize
 shortrange_params = dict(user_params.get('shortrange_params', {}))
+user_specification_involves_gridsize = collections.defaultdict(bool)
+for force, d in shortrange_params.items():
+    gridsize_in_d_vals = False
+    for val in d.values():
+        if not isinstance(val, str):
+            continue
+        if 'gridsize' in val:
+            user_specification_involves_gridsize[force] = True
+            break
 if shortrange_params and not isinstance(list(shortrange_params.values())[0], dict):
     shortrange_params = {'gravity': shortrange_params}  # Gravity defined as the primary tiling
 shortrange_params_defaults = {
+    'trivial': {
+        'scale'    : ထ,
+        'range'    : ထ,
+        'tilesize' : ထ,
+        'subtiling': (1, 1, 1),
+    },
     'gravity': {
         'scale'    : '1.25*boxsize/gridsize',
-        'cutoff'   : '4.5*scale',
+        'range'    : '4.5*scale',
+        'tilesize' : 'range',
         'subtiling': 'automatic',
     },
 }
-shortrange_params_defaults_placed = collections.defaultdict(bool)
-for force in shortrange_params_defaults.keys():
-    shortrange_params.setdefault(force, {})
-    shortrange_params_default = shortrange_params_defaults.get(force, {})
-    d = shortrange_params[force]
-    for key in ('scale', 'cutoff', 'subtiling'):
-        if key not in d:
-            d[key] = shortrange_params_default.get(key, 1)
-            shortrange_params_defaults_placed[force, key] = True
+for force, d in shortrange_params_defaults.items():
+    shortrange_params.setdefault(force, d)
 shortrange_params_gridsizes = collections.defaultdict(int)
 for d in user_params.get('select_forces', {}).values():
     if not isinstance(d, dict):
@@ -2229,41 +2238,59 @@ subtiling_refinement_period_default = 32
 for force, d in shortrange_params.items():
     for key, val in shortrange_params_defaults.get(force, {}).items():
         d.setdefault(key, val)
-    if 'scale' in d:
-        scale = d['scale']
-        if isinstance(scale, str):
-            scale = scale.replace('boxsize', str(boxsize))
-            if 'gridsize' in scale:
-                gridsize = shortrange_params_gridsizes.get(force)
-                if gridsize is None:
-                    if shortrange_params_defaults_placed[force, 'scale']:
-                        gridsize = 1
-                    else:
-                        abort(
-                            f'Could not detect gridsize needed for shortrange_params["{force}"]. '
-                            f'Is the gridsize specified in the select_forces parameter?'
-                        )
-                scale = scale.replace('gridsize', str(gridsize))
-            if 'N' in scale:
-                d['scale'] = scale
-            else:
-                d['scale'] = eval_unit(scale)
-    cutoff = d.get('cutoff')
-    if cutoff is None:
-        abort(f'No cutoff specified for shortrange_params["{force}"]')
-    if isinstance(cutoff, str):
-        cutoff = cutoff.replace('boxsize', str(boxsize))
-        if 'scale' in cutoff:
-            if 'scale' not in d:
-                if shortrange_params_defaults_placed[force, 'cutoff']:
-                    scale = 1
-                else:
+    scale = d.get('scale')
+    if isinstance(scale, str) and 'N' in scale:
+        scale = d['scale'] = {'all': scale}
+    keys = ['scale', 'range', 'tilesize']
+    if isinstance(scale, dict):
+        keys.remove('scale')
+        forcerange = d.get('range')
+        if isinstance(forcerange, str) and 'scale' in forcerange:
+            d['range'] = {'all combinations': forcerange}
+            keys.remove('range')
+    for key in keys:
+        val = d.get(key)
+        if val is None:
+            continue
+        if not isinstance(val, str):
+            continue
+        val = val.replace('boxsize', str(boxsize))
+        if 'gridsize' in val:
+            gridsize = shortrange_params_gridsizes[force]
+            if gridsize == 0:
+                if user_specification_involves_gridsize[force]:
                     abort(
-                        f'No scale specified for shortrange_params["{force}"], '
-                        f'but needed to define the cutoff'
+                        f'Could not detect gridsize needed for '
+                        f'shortrange_params["{force}"]["{key}"]. '
+                        f'Is the gridsize specified in the select_forces parameter?'
                     )
-            cutoff = cutoff.replace('scale', str(d['scale']))
-        d['cutoff'] = eval_unit(cutoff)
+                else:
+                    gridsize = 1
+            val = val.replace('gridsize', str(gridsize))
+        if 'scale' in val:
+            scale = d.get('scale')
+            if not isinstance(scale, (float, int)):
+                abort(
+                    f'Could not detect scale needed for '
+                    f'shortrange_params["{force}"]["{key}"]. '
+                    f'Is the scale specified in shortrange_params["{force}"]?'
+                )
+            if 'scale_i' in val:
+                val = val.replace('scale_i', str(scale))
+            if 'scale_j' in val:
+                val = val.replace('scale_j', str(scale))
+            if 'scale' in val:
+                val = val.replace('scale', str(scale))
+        if 'range' in val:
+            forcerange = d.get('range')
+            if not isinstance(forcerange, (float, int)):
+                abort(
+                    f'Could not detect range needed for '
+                    f'shortrange_params["{force}"]["{key}"]. '
+                    f'Is the range specified in shortrange_params["{force}"]?'
+                )
+            val = val.replace('range', str(forcerange))
+        d[key] = eval_unit(val)
     subtiling = d.get('subtiling', (1, 1, 1))
     if isinstance(subtiling, str):
         if subtiling.lower().startswith('auto'):
@@ -3764,6 +3791,85 @@ def is_selected(component_or_components, d, accumulate=False, default=None):
         else:
             return default
 
+# Function for doing lookup into shortrange_params which depend on the
+# component(s) in question, i.e. if the values involves the number of
+# particles N.
+@cython.header(
+    # Arguments
+    component_or_components=object,  # Component or list of Components
+    interaction_name=str,
+    param=str,
+    # Locals
+    component=object,  # acutally Component, but not allowed in the commons module
+    components=list,
+    key=tuple,
+    val=object,
+    returns='double',
+)
+def get_shortrange_param(component_or_components, interaction_name, param):
+    components = any2list(component_or_components)
+    # Look up in cache
+    key = (tuple([component.name for component in components]), interaction_name, param)
+    val = get_shortrange_param_cache.get(key)
+    if val is not None:
+        return val
+    # Get value from shortrange_params
+    val = shortrange_params[interaction_name][param]
+    if isinstance(val, dict):
+        # Get the value corresponding to the passed component(s)
+        if len(components) == 1:
+            val_selected = is_selected(components[0], val)
+        else:
+            val_selected = is_selected(components, val)
+            if val_selected is None:
+                for component in components:
+                    val_selected = is_selected(component, val)
+                    if val_selected is not None:
+                        break
+        if val_selected is None:
+            abort(
+                f'Lookup of',
+                [component.name for component in any2list(component_or_components)],
+                f'in shortrange_params["{interaction_name}"]["{param}"] failed'
+            )
+        val = val_selected
+    # Substitute string expressions
+    if isinstance(val, str):
+        val = val.replace('boxsize', str(boxsize))
+        if 'N' in val:
+            component = any2list(component_or_components)[0]
+            val = val.replace('N', str(component.N))
+        # Replace scale(s)
+        scale_strs = (
+            unicode('scaleⱼ'), asciify('scaleⱼ'), 'scale_j', 'scalej', 'scale[j]',
+            unicode('scaleₛ'), asciify('scaleₛ'), 'scales', 'scale[s]',
+            'scale[1]', 'scale_1', 'scale1',
+        )
+        scale = None
+        for scale_str in scale_strs:
+            if scale_str in val:
+                if scale is None:
+                    scale = str(get_shortrange_param(components[1], interaction_name, 'scale'))
+                val = val.replace(scale_str, scale)
+        scale_strs = (
+            unicode('scaleᵢ'), asciify('scaleᵢ'), 'scale_i', 'scalei', 'scale[i]',
+            unicode('scaleᵣ'), asciify('scaleᵣ'), 'scaler', 'scale[r]',
+            'scale[0]', 'scale_0', 'scale0', 'scale',
+        )
+        scale = None
+        for scale_str in scale_strs:
+            if scale_str in val:
+                if scale is None:
+                    scale = str(get_shortrange_param(components[0], interaction_name, 'scale'))
+                val = val.replace(scale_str, scale)
+        val = eval_unit(val)
+    # Cache and return float result
+    get_shortrange_param_cache[key] = val
+    val = float(val)
+    return val
+cython.declare(get_shortrange_param_cache=dict)
+get_shortrange_param_cache = {}
+
 # Context manager which suppresses all output to stdout
 @contextlib.contextmanager
 def suppress_stdout(f=sys.stdout):
@@ -4044,7 +4150,7 @@ if autosave_interval < 0:
 # Check keys and values in shortrange_params
 for d in shortrange_params.values():
     for key, val in d.items():
-        if key not in {'scale', 'cutoff', 'subtiling'}:
+        if key not in {'scale', 'range', 'tilesize', 'subtiling'}:
             masterwarn(f'Unrecognized parameter "{key}" in shortrange_params')
         if key == 'subtiling':
             if isinstance(val, str) and val != 'automatic':

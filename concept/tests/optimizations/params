@@ -40,7 +40,7 @@ boxsize = 5000*Mpc
 shortrange_params = {
     'gravity': {
         'scale'    : '1.25*boxsize/gridsize',
-        'cutoff'   : '2*scale',
+        'range'    : '2*scale',
         'subtiling': 2,
     },
 }
