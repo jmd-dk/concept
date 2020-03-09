@@ -28,11 +28,11 @@ render2D_select = {
 boxsize = 100*Mpc
 if _subtest == 'tile':
     _scale = 1.25
-    _cutoff = 4.8 - 1e-2
+    _range = 4.8 - 1e-2
     shortrange_params = {
         'gravity': {
             'scale'    : f'{_scale}*boxsize/gridsize',
-            'cutoff'   : f'{_cutoff}*scale',
+            'range'    : f'{_range}*scale',
             'subtiling': _subtiling,
         },
     }
@@ -48,7 +48,7 @@ if _subtest == 'domain':
 elif _subtest == 'tile':
     _tiles_lin = 6  # The global tiling will have a shape of _tiles_lin×_tiles_lin×_tiles_lin
     select_forces = {
-        'particles': {'gravity': ('p3m', ceil(_tiles_lin*_cutoff*_scale))},
+        'particles': {'gravity': ('p3m', ceil(_tiles_lin*_range*_scale))},
     }
 
 select_softening_length = {
