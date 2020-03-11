@@ -31,7 +31,7 @@ set -e
 "${concept}" -n 1 -p "${this_dir}/params" --local
 
 # Play the 2D terminal renders in the log file as an animation
-"${concept}" -u play -c "test fluid"
+"${concept}" -u play
 
 # Analyze the output snapshots
 "${concept}" -n 1 -p "${this_dir}/params" -m "${this_dir}/analyze.py" --pure-python --local

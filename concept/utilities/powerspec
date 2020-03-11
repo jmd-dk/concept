@@ -122,7 +122,7 @@ done
 # Get filenames of snapshots and create matching (temporary) parameter files
 info="$(                                              \
     "${concept}"                                      \
-        -c="${command_line_param}"                    \
+        -c="${command_line_params}"                   \
         -p="${params}"                                \
         -u=info                                       \
             "$(bash_array2python_list "${paths[@]}")" \
@@ -189,7 +189,7 @@ paths['params'] = params_path_ori
     exec 4>&1
     jobid_and_exit_code="$(                \
         "${concept}"                       \
-            -c="${command_line_param}"     \
+            -c="${command_line_params}"    \
             -j="${job_directive}"          \
             -m="${main}"                   \
             -n=${nprocs}                   \
