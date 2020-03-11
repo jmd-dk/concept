@@ -13,7 +13,6 @@
 **/__pycache__
 /concept/jobscript
 /concept/.exit_code_*
-/concept/.pure_python_source_copy
 /concept/utilities/params
 /concept/utilities/update_new
 /concept/.reusables
@@ -21,6 +20,7 @@
 /install_log_err
 /installer_*
 /tmp
+/.backup
 
 # Subdirectories
 /concept/docs/_build
@@ -45,4 +45,5 @@
 /perl
 /python
 /zlib
+/.mpi_symlinks
 
