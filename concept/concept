@@ -1127,12 +1127,21 @@ test:
             # Compile all the modules in parallel.
             # Cython might warn about redeclarations in CythonGSL,
             # which we filter out as we do not want to worry about them.
-            (cd "${concept_dir}" && make               \
-                unsafe_building="${unsafe_building}"   \
-                no_optimization="${no_optimization}"   \
-                ${make_jobs}                           \
-                2> >(grep -v 'GSL_.* redeclared' 1>&2) \
-            )
+            start_time_build=$("${python}" -B -c "import time; print(time.time())")
+            exec 4>&1
+            make_output="$(
+                cd "${concept_dir}" && make                \
+                    unsafe_building="${unsafe_building}"   \
+                    no_optimization="${no_optimization}"   \
+                    ${make_jobs}                           \
+                    2> >(grep -v 'GSL_.* redeclared' 1>&2) \
+                    | tee >(cat >&4)                       \
+            )"
+            exec 4>&-
+            if [[ "${make_output}" == *"Building modules"* ]]; then
+                "${python}" -B -c "from commons import *
+print('Build time: {}'.format(time_since(${start_time_build})))"
+            fi
         fi
     fi
 fi
