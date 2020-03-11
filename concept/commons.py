@@ -1354,50 +1354,50 @@ unit_relations = {
     'm_sun': 1,
 }
 # Add other time units
-unit_relations['kyr'    ] = 1e+3            *unit_relations['yr'     ]
-unit_relations['Myr'    ] = 1e+6            *unit_relations['yr'     ]
-unit_relations['Gyr'    ] = 1e+9            *unit_relations['yr'     ]
-unit_relations['day'    ] = 1/365.25        *unit_relations['yr'     ]  # Exact Julian year
-unit_relations['hr'     ] = 1/24            *unit_relations['day'    ]
-unit_relations['minutes'] = 1/60            *unit_relations['hr'     ]
-unit_relations['s'      ] = 1/60            *unit_relations['minutes']
+unit_relations['kyr'    ] = 1e+3           *unit_relations['yr'     ]
+unit_relations['Myr'    ] = 1e+6           *unit_relations['yr'     ]
+unit_relations['Gyr'    ] = 1e+9           *unit_relations['yr'     ]
+unit_relations['day'    ] = 1/365.25       *unit_relations['yr'     ]  # Exact Julian year
+unit_relations['hr'     ] = 1/24           *unit_relations['day'    ]
+unit_relations['minutes'] = 1/60           *unit_relations['hr'     ]
+unit_relations['s'      ] = 1/60           *unit_relations['minutes']
 # Add other length units
-unit_relations['kpc'    ] = 1e+3            *unit_relations['pc'     ]
-unit_relations['Mpc'    ] = 1e+6            *unit_relations['pc'     ]
-unit_relations['Gpc'    ] = 1e+9            *unit_relations['pc'     ]
-unit_relations['AU'     ] = π/(60*60*180)   *unit_relations['pc'     ]  # IAU exact definition, 2015
-unit_relations['m'      ] = 1/149597870700  *unit_relations['AU'     ]  # IAU exact definition, 2012
-unit_relations['mm'     ] = 1e-3            *unit_relations['m'      ]
-unit_relations['cm'     ] = 1e-2            *unit_relations['m'      ]
-unit_relations['km'     ] = 1e+3            *unit_relations['m'      ]
-unit_relations['ly'     ] = (                                           # CGPM exact definition, 1983
+unit_relations['kpc'    ] = 1e+3           *unit_relations['pc'     ]
+unit_relations['Mpc'    ] = 1e+6           *unit_relations['pc'     ]
+unit_relations['Gpc'    ] = 1e+9           *unit_relations['pc'     ]
+unit_relations['AU'     ] = π/(60*60*180)  *unit_relations['pc'     ]  # IAU exact definition, 2015
+unit_relations['m'      ] = 1/149597870700 *unit_relations['AU'     ]  # IAU exact definition, 2012
+unit_relations['mm'     ] = 1e-3           *unit_relations['m'      ]
+unit_relations['cm'     ] = 1e-2           *unit_relations['m'      ]
+unit_relations['km'     ] = 1e+3           *unit_relations['m'      ]
+unit_relations['ly'     ] = (                                          # CGPM exact definition, 1983
     (299792458*unit_relations['m']/unit_relations['s'])*unit_relations['yr']
 )
-unit_relations['kly'    ] = 1e+3            *unit_relations['ly'     ]
-unit_relations['Mly'    ] = 1e+6            *unit_relations['ly'     ]
-unit_relations['Gly'    ] = 1e+9            *unit_relations['ly'     ]
+unit_relations['kly'    ] = 1e+3           *unit_relations['ly'     ]
+unit_relations['Mly'    ] = 1e+6           *unit_relations['ly'     ]
+unit_relations['Gly'    ] = 1e+9           *unit_relations['ly'     ]
 # Add other mass units
-unit_relations['km_sun' ] = 1e+3            *unit_relations['m_sun'  ]
-unit_relations['Mm_sun' ] = 1e+6            *unit_relations['m_sun'  ]
-unit_relations['Gm_sun' ] = 1e+9            *unit_relations['m_sun'  ]
-unit_relations['kg'     ] = 1/1.98848e+30   *unit_relations['m_sun'  ]  # Particle data group, 2017
-unit_relations['g'      ] = 1e-3            *unit_relations['kg'     ]
+unit_relations['km_sun' ] = 1e+3           *unit_relations['m_sun'  ]
+unit_relations['Mm_sun' ] = 1e+6           *unit_relations['m_sun'  ]
+unit_relations['Gm_sun' ] = 1e+9           *unit_relations['m_sun'  ]
+unit_relations['kg'     ] = 1/1.98841e+30  *unit_relations['m_sun'  ]  # Particle data group, 2019
+unit_relations['g'      ] = 1e-3           *unit_relations['kg'     ]
 # Add energy units
 unit_relations['J'      ] = (
     unit_relations['kg']*unit_relations['m']**2*unit_relations['s']**(-2)
 )
-unit_relations['eV'     ] = 1.6021766208e-19*unit_relations['J'      ]  # Particle data group, 2017
-unit_relations['keV'    ] = 1e+3            *unit_relations['eV'     ]
-unit_relations['MeV'    ] = 1e+6            *unit_relations['eV'     ]
-unit_relations['GeV'    ] = 1e+9            *unit_relations['eV'     ]
-# Add additional units
+unit_relations['eV'     ] = 1.602176634e-19*unit_relations['J'      ]  # Particle data group, 2019
+unit_relations['keV'    ] = 1e+3           *unit_relations['eV'     ]
+unit_relations['MeV'    ] = 1e+6           *unit_relations['eV'     ]
+unit_relations['GeV'    ] = 1e+9           *unit_relations['eV'     ]
+# Add additional units/constants
 unit_relations['light_speed'] = unit_relations['c'] = unit_relations['ly']/unit_relations['yr']
 unit_relations['h_bar'] = unit_relations['hbar'] = unit_relations[unicode('ħ')] = unit_relations[asciify('ħ')] = (
-    1.054571800e-34                                                     # Particle data group, 2017
+    6.62607015e-34/(2*π)                                               # Exact definition, 2019
     *unit_relations['kg']*unit_relations['m']**2/unit_relations['s']
 )
-unit_relations['G_Newton'] = unit_relations['G'] = (                     # Particle data group, 2017
-    6.67408e-11*unit_relations['m']**3/(unit_relations['kg']*unit_relations['s']**2)
+unit_relations['G_Newton'] = unit_relations['G'] = (                   # Particle data group, 2019
+    6.67430e-11*unit_relations['m']**3/(unit_relations['kg']*unit_relations['s']**2)
 )
 
 
@@ -1529,78 +1529,81 @@ exec_params(params_file_content, user_params)
 # The names of the three fundamental units,
 # all with a numerical value of 1. If these are not defined in the
 # parameter file, give them some reasonable values.
-cython.declare(unit_time=str,
-               unit_length=str,
-               unit_mass=str,
-               )
+cython.declare(
+    unit_time=str,
+    unit_length=str,
+    unit_mass=str,
+)
 unit_time   = unformat_unit(user_params.get('unit_time'  , 'Gyr'        ))
 unit_length = unformat_unit(user_params.get('unit_length', 'Mpc'        ))
 unit_mass   = unformat_unit(user_params.get('unit_mass'  , '1e+10*m_sun'))
 # Construct a struct containing the values of all units
-units, units_dict = build_struct(# Values of basic units,
-                                 # determined from the choice of fundamental units.
-                                 yr      = ('double', 1/eval_unit(unit_time  , unit_relations)),
-                                 pc      = ('double', 1/eval_unit(unit_length, unit_relations)),
-                                 m_sun   = ('double', 1/eval_unit(unit_mass  , unit_relations)),
-                                 # Other time units
-                                 kyr     = ('double', 'unit_relations["kyr"    ]*yr'      ),
-                                 Myr     = ('double', 'unit_relations["Myr"    ]*yr'      ),
-                                 Gyr     = ('double', 'unit_relations["Gyr"    ]*yr'      ),
-                                 day     = ('double', 'unit_relations["day"    ]*yr'      ),
-                                 hr      = ('double', 'unit_relations["hr"     ]*yr'      ),
-                                 minutes = ('double', 'unit_relations["minutes"]*yr'      ),
-                                 s       = ('double', 'unit_relations["s"      ]*yr'      ),
-                                 # Other length units
-                                 kpc     = ('double', 'unit_relations["kpc"    ]*pc'      ),
-                                 Mpc     = ('double', 'unit_relations["Mpc"    ]*pc'      ),
-                                 Gpc     = ('double', 'unit_relations["Gpc"    ]*pc'      ),
-                                 AU      = ('double', 'unit_relations["AU"     ]*pc'      ),
-                                 m       = ('double', 'unit_relations["m"      ]*pc'      ),
-                                 mm      = ('double', 'unit_relations["mm"     ]*pc'      ),
-                                 cm      = ('double', 'unit_relations["cm"     ]*pc'      ),
-                                 km      = ('double', 'unit_relations["km"     ]*pc'      ),
-                                 ly      = ('double', 'unit_relations["ly"     ]*pc'      ),
-                                 kly     = ('double', 'unit_relations["kly"    ]*pc'      ),
-                                 Mly     = ('double', 'unit_relations["Mly"    ]*pc'      ),
-                                 Gly     = ('double', 'unit_relations["Gly"    ]*pc'      ),
-                                 # Other mass units
-                                 km_sun  = ('double', 'unit_relations["km_sun" ]*m_sun'   ),
-                                 Mm_sun  = ('double', 'unit_relations["Mm_sun" ]*m_sun'   ),
-                                 Gm_sun  = ('double', 'unit_relations["Gm_sun" ]*m_sun'   ),
-                                 kg      = ('double', 'unit_relations["kg"     ]*m_sun'   ),
-                                 g       = ('double', 'unit_relations["g"      ]*m_sun'   ),
-                                 # Energy units
-                                 J       = ('double', ('unit_relations["J"     ]*m_sun   '
-                                                       '                        *pc**2   '
-                                                       '                        *yr**(-2)'
-                                                       )                                  ),
-                                 eV      = ('double', ('unit_relations["eV"    ]*m_sun   '
-                                                       '                        *pc**2   '
-                                                       '                        *yr**(-2)'
-                                                       )                                  ),
-                                 keV     = ('double', ('unit_relations["keV"   ]*m_sun   '
-                                                       '                        *pc**2   '
-                                                       '                        *yr**(-2)'
-                                                       )                                  ),
-                                 MeV     = ('double', ('unit_relations["MeV"   ]*m_sun   '
-                                                       '                        *pc**2   '
-                                                       '                        *yr**(-2)'
-                                                       )                                  ),
-                                 GeV     = ('double', ('unit_relations["GeV"   ]*m_sun   '
-                                                       '                        *pc**2   '
-                                                       '                        *yr**(-2)'
-                                                       )                                  ),
-                                 )
+units, units_dict = build_struct(
+    # Values of basic units,
+    # determined from the choice of fundamental units.
+    yr      = ('double', 1/eval_unit(unit_time  , unit_relations)),
+    pc      = ('double', 1/eval_unit(unit_length, unit_relations)),
+    m_sun   = ('double', 1/eval_unit(unit_mass  , unit_relations)),
+    # Other time units
+    kyr     = ('double', 'unit_relations["kyr"    ]*yr'      ),
+    Myr     = ('double', 'unit_relations["Myr"    ]*yr'      ),
+    Gyr     = ('double', 'unit_relations["Gyr"    ]*yr'      ),
+    day     = ('double', 'unit_relations["day"    ]*yr'      ),
+    hr      = ('double', 'unit_relations["hr"     ]*yr'      ),
+    minutes = ('double', 'unit_relations["minutes"]*yr'      ),
+    s       = ('double', 'unit_relations["s"      ]*yr'      ),
+    # Other length units
+    kpc     = ('double', 'unit_relations["kpc"    ]*pc'      ),
+    Mpc     = ('double', 'unit_relations["Mpc"    ]*pc'      ),
+    Gpc     = ('double', 'unit_relations["Gpc"    ]*pc'      ),
+    AU      = ('double', 'unit_relations["AU"     ]*pc'      ),
+    m       = ('double', 'unit_relations["m"      ]*pc'      ),
+    mm      = ('double', 'unit_relations["mm"     ]*pc'      ),
+    cm      = ('double', 'unit_relations["cm"     ]*pc'      ),
+    km      = ('double', 'unit_relations["km"     ]*pc'      ),
+    ly      = ('double', 'unit_relations["ly"     ]*pc'      ),
+    kly     = ('double', 'unit_relations["kly"    ]*pc'      ),
+    Mly     = ('double', 'unit_relations["Mly"    ]*pc'      ),
+    Gly     = ('double', 'unit_relations["Gly"    ]*pc'      ),
+    # Other mass units
+    km_sun  = ('double', 'unit_relations["km_sun" ]*m_sun'   ),
+    Mm_sun  = ('double', 'unit_relations["Mm_sun" ]*m_sun'   ),
+    Gm_sun  = ('double', 'unit_relations["Gm_sun" ]*m_sun'   ),
+    kg      = ('double', 'unit_relations["kg"     ]*m_sun'   ),
+    g       = ('double', 'unit_relations["g"      ]*m_sun'   ),
+    # Energy units
+    J       = ('double', ('unit_relations["J"     ]*m_sun   '
+                          '                        *pc**2   '
+                          '                        *yr**(-2)'
+                          )                                  ),
+    eV      = ('double', ('unit_relations["eV"    ]*m_sun   '
+                          '                        *pc**2   '
+                          '                        *yr**(-2)'
+                          )                                  ),
+    keV     = ('double', ('unit_relations["keV"   ]*m_sun   '
+                          '                        *pc**2   '
+                          '                        *yr**(-2)'
+                          )                                  ),
+    MeV     = ('double', ('unit_relations["MeV"   ]*m_sun   '
+                          '                        *pc**2   '
+                          '                        *yr**(-2)'
+                          )                                  ),
+    GeV     = ('double', ('unit_relations["GeV"   ]*m_sun   '
+                          '                        *pc**2   '
+                          '                        *yr**(-2)'
+                          )                                  ),
+)
 
 
 
 ######################
 # Physical constants #
 ######################
-cython.declare(light_speed='double',
-               ħ='double',
-               G_Newton='double',
-               )
+cython.declare(
+    light_speed='double',
+    ħ='double',
+    G_Newton='double',
+)
 # The speed of light in vacuum
 light_speed = units.ly/units.yr
 # Reduced Planck constant
