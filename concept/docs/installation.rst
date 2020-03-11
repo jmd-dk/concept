@@ -179,6 +179,53 @@ the MPI library used supports the MPI-3 standard.
 
 
 
+Cloning with Git
+----------------
+For installing CO\ *N*\ CEPT, cloning the code repository is not needed, as
+a copy of the code (without Git history) is downloaded during
+:ref:`installation<standard_installation>`.
+
+If however you wish to work with a full clone of the CO\ *N*\ CEPT
+`code repository <https://github.com/jmd-dk/concept/>`_, the easiest way to do
+so is to fist install the master version of CO\ *N*\ CEPT *without* Git,
+following the
+:ref:`standard installation instructions<standard_installation>`. Once
+CO\ *N*\ CEPT is installed, ``git clone`` the online CO\ *N*\ CEPT repository
+into a temporary directory and simply drop the ``.git`` subdirectory into the
+root of your CO\ *N*\ CEPT installation.
+
+The above can be achieved from the ``concept`` directory using
+
+.. code-block:: bash
+
+   git clone https://github.com/jmd-dk/concept.git git
+   (source concept && mv git/.git $top_dir/)
+   rm -rf git
+
+If you now do a
+
+.. code-block:: bash
+
+   git status
+
+it should detect changes to the ``.paths`` and ``.env``
+:ref:`files<the_paths_and_env_files>` only. These changes represent
+customizations carried out during installation. You may commit these
+changes:
+
+.. code-block:: bash
+
+   git commit -a -m "customized .paths and .env for $(whoami)"
+
+.. note::
+
+   If you ``git checkout`` to another branch/tag/commit, your ``.paths`` and
+   ``.env`` files will be switched out for the ones in the online repository.
+   For CO\ *N*\ CEPT to run, you should then replace these with your own
+   versions (available on the ``master`` branch).
+
+
+
 .. _the_installer_script_in_depth:
 
 The ``installer`` script in-depth
@@ -213,20 +260,21 @@ The complete set of system dependencies needed/installed by the ``installer``
 is:
 
 * **GNU tools**: awk, grep, sed, gzip, tar, wget.
-* **Build tools**: gcc, g++, gfortran, glibc, GNU make, as, ld, Linux headers.
+* **Build tools**: gcc, g++, gfortran, glibc, GNU make, as and ld (binutils),
+  Linux headers.
 
 The complete list of all library dependencies (and their dependency relations)
 installed by the ``installer`` is given below:
 
 * **zlib**
 * **FreeType**
+* **Perl**
 * **BLAS** and **LAPACK**
 * **MPI**
 * **FFTW 3**
 * **FFTW 2**
 * **ncurses**
 * **libffi**
-* **Perl**
 * **OpenSSL** (depends on Perl)
 * **libpng** (depends on zlib)
 * **GSL** (depends on BLAS)
@@ -235,7 +283,7 @@ installed by the ``installer`` is given below:
 * **Python 3** (depends on zlib)
 
   - **pip** (depends on OpenSSL, libffi), **setuptools** and **wheel**;
-    needed to install the packages below:
+    needed to install the Python packages below:
 
     - **Blessings** (depends on ncurses)
     - **Cython**
@@ -257,10 +305,11 @@ Blessings, Cython, CythonGSL, NumPy, SciPy, matplotlib, MPI4Py, H5Py, classy,
 Sphinx, sphinx-copybutton, sphinx_rtd_theme, sphinx-tabs.
 
 The ``installer`` installs the
-`OpenBLAS <https://github.com/xianyi/OpenBLAS>`_ library in order to provide
-both BLAS and LAPACK. For MPI, `MPICH <https://www.mpich.org/>`_ (default) or
-`OpenMPI <https://www.open-mpi.org/>`_ is installed. If tests are to be
-performed during the installation (see the ``--tests``
+`OpenBLAS <https://github.com/xianyi/OpenBLAS>`_ library (which depends on
+Perl) in order to provide both BLAS and LAPACK. For MPI,
+`MPICH <https://www.mpich.org/>`_ (default) or
+`OpenMPI <https://www.open-mpi.org/>`_ is installed (both depend on Perl). If
+tests are to be performed during the installation (see the ``--tests``
 :ref:`command-line option<command_line_options>`), the pytest Python package
 will be installed as well (needed for testing NumPy and SciPy).
 
@@ -651,14 +700,15 @@ Here, ``<version>`` should be replaced with the CO\ *N*\ CEPT version whose
 System dependencies
 ...................
 In addition to the many dependencies above, CO\ *N*\ CEPT further uses a lot
-of *system dependencies*, by which is meant programs that usually is installed
-system-wide. These include `Bash <https://www.gnu.org/software/bash/>`_ 3.0 or
-newer, the `GNU Core Utilities <https://www.gnu.org/software/coreutils/>`_
-and the `GNU Find Utilities <https://www.gnu.org/software/findutils/>`_, which
-are the only three that cannot be installed by the ``installer``. The GNU Find
+of *system dependencies*, by which is meant programs that are usually
+installed system-wide. These include
+`Bash <https://www.gnu.org/software/bash/>`_ 3.0 or newer, the
+`GNU Core Utilities <https://www.gnu.org/software/coreutils/>`_ and the
+`GNU Find Utilities <https://www.gnu.org/software/findutils/>`_, which are the
+only three that cannot be installed by the ``installer``. The GNU Find
 Utilities are only used for building the documentation and may be left out.
-That said, all three of these system dependencies comes preinstalled on
-virtually all Linux distributions.
+That said, all three of these system dependencies comes preinstalled on the
+vast majority of Linux distributions.
 
 Other system dependencies needed for the core CO\ *N*\ CEPT functionality are
 awk, grep and sed. Also, the ``installer`` script and ``update`` utility
