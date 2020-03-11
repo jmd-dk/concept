@@ -4010,7 +4010,13 @@ os.makedirs = tryexcept_wrapper(os.makedirs, 'os.makedirs() failed')
 ##############################################################
 # Abort on unrecognized snapshot_type
 if snapshot_type not in ('standard', 'gadget2'):
-    abort('Does not recognize snapshot type "{}"'.format(user_params['snapshot_type']))
+    abort('Unrecognized snapshot type "{}"'.format(user_params['snapshot_type']))
+# Abort on unrecognized output types
+keys = {'snapshot', 'powerspec', 'render2D', 'render3D'}
+for d in output_times.values():
+    for key in d:
+        if key not in keys:
+            abort(f'Unrecognized output type "{key}"')
 # Warn about odd force differentiation
 for force, d in force_differentiations.items():
     for method, order in d.items():
@@ -4103,7 +4109,7 @@ if user_params.unused:
         msg = 'The following unknown parameter was specified:\n'
     else:
         msg = 'The following unknown parameters were specified:\n'
-    masterwarn(msg + '\n'.join(user_params.unused))
+    masterwarn(msg + '    ' + '\n    '.join(user_params.unused))
 # Output times very close to t_begin or a_begin
 # are probably meant to be exactly at t_begin or a_begin
 for time_param in ('t', 'a'):
