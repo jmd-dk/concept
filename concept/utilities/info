@@ -190,7 +190,7 @@ fi
 exec 4>&1
 jobid_and_exit_code="$(                \
     "${concept}"                       \
-        -c="${command_line_param}"     \
+        -c="${command_line_params}"    \
         -j="${job_directive}"          \
         -m="${main}"                   \
         -n=${nprocs}                   \
@@ -205,7 +205,7 @@ jobid_and_exit_code="$(                \
         ${no_watching_flag}            \
         ${pure_python_flag}            \
         ${unsafe_building_flag}        \
-    | tee >(cat  >&4)                  \
+    | tee >(cat >&4)                   \
     | grep "^Log file: \|^Job "        \
     | head -n 1                        \
     ; echo "exit_code${PIPESTATUS[0]}" \

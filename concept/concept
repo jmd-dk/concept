@@ -544,7 +544,7 @@ parser = argparse.ArgumentParser(
     description='Run the CO𝘕CEPT code',
 )
 parser.add_argument(
-    '-c', '--command-line-param',
+    '-c', '--command-line-params',
     help=(
         'specify parameter(s) directly from the command-line. '
         'If a parameter file is specified as well, the command-line '
@@ -684,7 +684,7 @@ sys.stdout = stdout_copy
 # These will be captured in the Bash 'args' variable
 print('; '.join([
     \"argparse_finished=yes\",
-    \"command_line_param='{}'\".format(' ; '.join(args.command_line_param).replace(\"'\", '\"')),
+    \"command_line_params='{}'\".format(' ; '.join(args.command_line_params).replace(\"'\", '\"')),
     \"interactive={}\".format(args.interactive),
     \"job_directive='{}'\".format(' ; '.join(args.job_directive).replace(\"'\", '\"')),
     \"main='{}'\".format(str(args.main).replace(\"'\", '\"')),
@@ -845,8 +845,26 @@ with open('${params}', 'r', encoding='utf-8') as f:
 ast.parse(source)
 " 2>&1 || :)"
     if [ -n "${params_traceback}" ]; then
-        colorprint "Error in parameter file \"${params}\":" "red"
+        colorprint "Syntax error in parameter file \"${params}\":" "red"
         echo "${params_traceback}"
+        exit 1
+    fi
+fi
+# Check for syntax errors in supplied command-line parameters.
+# Other types of errors will not be detected before runtime.
+if [ -n "${command_line_params}" ]; then
+    command_line_params_traceback="$("${python}" -B -c "
+import ast
+source = '${command_line_params}'
+ast.parse(source)
+" 2>&1 || :)"
+    if [ -n "${command_line_params_traceback}" ]; then
+        if [[ "${command_line_params_traceback}" == *";"* ]]; then
+            colorprint "Syntax error in command-line parameters:" "red"
+        else
+            colorprint "Syntax error in command-line parameter:" "red"
+        fi
+        echo "${command_line_params_traceback}"
         exit 1
     fi
 fi
@@ -938,7 +956,7 @@ if [ "${test}" != "${test_unspecified}" ]; then
     # given by "${this_dir}/params". This is used by some tests.
     get_param(){
         "${concept}"                                                \
-            -c="${command_line_param}"                              \
+            -c="${command_line_params}"                             \
             -m="
 from commons import *
 try:
@@ -1200,7 +1218,7 @@ lines = [
     '# The above is a copy of the CO𝘕CEPT parameter file \"${params}\".',
     '# Below we apply any additional command-line parameters.',
 ]
-for statement in '${command_line_param}'.split(';'):
+for statement in '${command_line_params}'.split(';'):
     lines.append(statement.strip())
 lines.append('')
 with open('${params_cp}', 'a') as f:

@@ -56,14 +56,14 @@ echo "
 output_bases        = {'render3D': 'render3D'}
 render3D_select     = {'all': True}
 render3D_resolution = 234
-render3D_colors     = {'test particles': 'g'}
+render3D_colors     = {'matter': 'g'}
 render3D_bgcolor    = '0'
 " > "${this_dir}/render3D.params_0"
 echo "
 output_bases        = {'render3D': ''}
 render3D_select     = {'all': True}
 render3D_resolution = 1080
-render3D_colors     = {'test particles': (1, 0.2, 0.3)}
+render3D_colors     = {'matter': (1, 0.2, 0.3)}
 render3D_bgcolor    = 'LightYellow'
 " > "${this_dir}/render3D.params_1"
 
@@ -95,7 +95,7 @@ mv "${this_dir}/output/render3D_snapshot.png" "${this_dir}/output/render3D_snaps
 "${concept}" -n 1 -p "${this_dir}/params" --local
 
 # Also demonstrate the play utility
-"${concept}" -u play -c "test particles"
+"${concept}" -u play --component "matter"
 
 # Test ran successfully. Deactivate traps.
 trap : 0
