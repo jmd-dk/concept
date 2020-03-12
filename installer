@@ -87,12 +87,12 @@ directory consist of the following and will be installed in order:
   - zlib     (needed by libpng, HDF5 and Python)
   - libpng   (needed by matplotlib)
   - GSL
+  - Perl     (needed by OpenSSL, OpenBLAS and MPICH/OpenMPI)
   - MPICH/OpenMPI
   - HDF5
   - FFTW
   - FreeType (needed by matplotlib)
   - ncurses  (needed by _curses, which is needed by blessings)
-  - Perl     (needed by OpenSSL)
   - OpenSSL  (needed by pip)
   - libffi   (needed by _ctypes, which is needed by pip)
   - OpenBLAS (needed by SciPy and also used by NumPy)
@@ -493,38 +493,39 @@ status_visible="${status_on}"
 status_finish="finish_successfully"
 
 # Backup of initial environment variables
-env_var_names=(BLAS             \
-               CC               \
-               CFLAGS           \
-               CPPFLAGS         \
-               CXX              \
-               CXXFLAGS         \
-               F77              \
-               F90              \
-               F9X              \
-               FC               \
-               FCFLAGS          \
-               FFLAGS           \
-               HDF5_DIR         \
-               HDF5_MPI         \
-               LAPACK           \
-               LD_LIBRARY_PATH  \
-               LD_PRELOAD       \
-               LDFLAGS          \
-               LIBS             \
-               MPICC            \
-               MPILIBS          \
-               PATH             \
-               PERL             \
-               PKG_CONFIG_PATH  \
-               PNG_CFLAGS       \
-               PNG_LIBS         \
-               TMPDIR           \
-               ZLIB_CFLAGS      \
-               ZLIB_LIBS        \
-               ZLIBLIB          \
-               ZLIBINC          \
-               )
+env_var_names=(     \
+    BLAS            \
+   CC               \
+   CFLAGS           \
+   CPPFLAGS         \
+   CXX              \
+   CXXFLAGS         \
+   F77              \
+   F90              \
+   F9X              \
+   FC               \
+   FCFLAGS          \
+   FFLAGS           \
+   HDF5_DIR         \
+   HDF5_MPI         \
+   LAPACK           \
+   LD_LIBRARY_PATH  \
+   LD_PRELOAD       \
+   LDFLAGS          \
+   LIBS             \
+   MPICC            \
+   MPILIBS          \
+   PATH             \
+   PERL             \
+   PKG_CONFIG_PATH  \
+   PNG_CFLAGS       \
+   PNG_LIBS         \
+   TMPDIR           \
+   ZLIB_CFLAGS      \
+   ZLIB_LIBS        \
+   ZLIBLIB          \
+   ZLIBINC          \
+)
 for env_var_name in "${env_var_names[@]}"; do
     # Save initial state (set/unset) of the environment variable
     if [ -n "$(eval "echo "\${${env_var_name}+x}"")" ]; then
@@ -815,6 +816,7 @@ set_package_manager_and_names(){
         "eopkg"     \
         "emerge"    \
         "slackpkg"  \
+        "apk"       \
     ; do
         if get_command "${pmanager}" >/dev/null; then
             # Package manager found
@@ -1008,6 +1010,23 @@ set_package_manager_and_names(){
                         "kernel-headers"
                     break
                     ;;
+                "apk") install_command="${package_manager} add"
+                    set_package_names         \
+                        "gawk"                \
+                        "gcc"                 \
+                        "g++"                 \
+                        "gfortran"            \
+                        "grep"                \
+                        "gzip"                \
+                        "make"                \
+                        "sed"                 \
+                        "tar"                 \
+                        "wget"                \
+                        "libc-utils libc-dev" \
+                        "binutils"            \
+                        "linux-headers"
+                    break
+                    ;;
             esac
             break
         fi
@@ -1094,17 +1113,21 @@ gcc_test(){
     # Prepare for gcc test
     current_dir="$(pwd)"
     gcc_test_dir="${top_dir}/tmp/gcc_test"
-    rm -rf "${gcc_test_dir}" || :
-    mkdir -p "${gcc_test_dir}"
-    cd "${gcc_test_dir}"
-    # Write C source to file
-    echo "${C_source}" > main.c
     # Test compile and run
     for i in 0 1; do
+        # Cleanup
+        cd "${current_dir}"
+        rm -rf "${gcc_test_dir}" || :
+        mkdir -p "${gcc_test_dir}"
+        # Write C source to file
+        cd "${gcc_test_dir}"
+        echo "${C_source}" > main.c
+        # Compile
         gcc_test_success="True"
-        gcc main.c -o main || gcc_test_success="False"
+        gcc main.c -o main >/dev/null 2>&1 || gcc_test_success="False"
         if [ "${gcc_test_success}" == "True" ]; then
-            gcc_test_output="$(./main)"
+            # Run
+            gcc_test_output="$(./main 2>&1)"
             if [ "${gcc_test_output}" != "${expected_output}" ]; then
                 gcc_test_success="False"
             fi
@@ -1704,8 +1727,12 @@ if [ "${python_preinstalled}" == "True" ]; then
     assume_preinstalled "libffi"
     assume_preinstalled "ncurses"
 fi
-# If OpenSSL is pre-installed, assume that Perl is also pre-installed
-if [ "${openssl_preinstalled}" == "True" ]; then
+# If OpenSSL, BLAS and MPI is pre-installed,
+# assume that Perl is also pre-installed.
+if     [ "${openssl_preinstalled}" == "True" ] \
+    && [ "${blas_preinstalled}"    == "True" ] \
+    && [ "${mpi_preinstalled}"     == "True" ] \
+; then
     assume_preinstalled "perl"
 fi
 
@@ -1941,10 +1968,16 @@ if [ -z "${libffi_install}" ]; then
         libffi_install="True"
     fi
 fi
-# Perl (needed by OpenSSL)
+# Perl (needed by OpenSSL, OpenBLAS and MPICH/OpenMPI)
 if [ -z "${perl_install}" ]; then
     perl_install="False"
-    if [ "${perl_preinstalled}" == "False" ] && [ "${openssl_install}" == "True" ]; then
+    if [ "${perl_preinstalled}" == "False" ]      \
+        && (                                      \
+               [ "${openssl_install}" == "True" ] \
+            || [ "${blas_install}"    == "True" ] \
+            || [ "${mpi_install}"     == "True" ] \
+        )                                         \
+    ; then
         perl_install="True"
     fi
 fi
@@ -2079,43 +2112,52 @@ validate_url(){
     for n in {1..3}; do
         for spider in "True" "False"; do
             for ipv in "--inet4-only" "--inet6-only" ""; do
-                wget_status="success"
-                if [ "${spider}" == "True" ]; then
-                    if [[ "${url}" == "ftp://"* ]]; then
-                        # wget do not always return with a non-zero status on
-                        # failure when using ftp.
-                        (cd "${top_dir}/tmp"
-                         wget -t 1 --timeout 30 --no-check-certificate --no-dns-cache --spider \
-                              --no-remove-listing ${ipv} "${url}" > "${top_dir}/tmp/.wget" 2>&1 \
-                            || :)
-                        grep "${filename}" "${top_dir}/tmp/.listing" > /dev/null 2>&1 \
-                             || wget_status="error"
-                        rm -f "${top_dir}/tmp/.listing" || :
-                    else
-                        wget -t 1 --timeout 30 --no-check-certificate --no-dns-cache --spider \
-                            ${ipv} "${url}" > "${top_dir}/tmp/.wget" 2>&1 || wget_status="error"
-                    fi
-                    if [ "${wget_status}" == "error" ]; then
-                        # Heavy scraping can result in bans, indicated by a
-                        # "429 Too Many Requests" error. This does not mean
-                        # that we cannot download the file, just that the
-                        # spider has been disallowed by the server.
-                        if grep "429" "${top_dir}/tmp/.wget" >/dev/null 2>&1; then
-                            wget_status="success"
+                for no_dns_cache in "--no-dns-cache" ""; do
+                    wget_status="success"
+                    if [ "${spider}" == "True" ]; then
+                        if [[ "${url}" == "ftp://"* ]]; then
+                            # wget do not always return with a non-zero
+                            # status on failure when using ftp.
+                            (cd "${top_dir}/tmp"
+                             wget -t 1 --timeout 30 --no-check-certificate ${no_dns_cache} \
+                                --spider --no-remove-listing ${ipv} "${url}"               \
+                                > "${top_dir}/tmp/.wget" 2>&1                              \
+                                || :)
+                            grep "${filename}" "${top_dir}/tmp/.listing" > /dev/null 2>&1 \
+                                 || wget_status="error"
+                            rm -f "${top_dir}/tmp/.listing" || :
+                        else
+                            wget -t 1 --timeout 30 --no-check-certificate ${no_dns_cache} \
+                                --spider ${ipv} "${url}" > "${top_dir}/tmp/.wget" 2>&1 \
+                                || wget_status="error"
                         fi
+                        if [ "${wget_status}" == "error" ]; then
+                            # Heavy scraping can result in bans,
+                            # indicated by a "429 Too Many Requests"
+                            # error. This does not mean that we cannot
+                            # download the file, just that the spider
+                            # has been disallowed by the server.
+                            if grep "429" "${top_dir}/tmp/.wget" >/dev/null 2>&1; then
+                                wget_status="success"
+                            fi
+                        fi
+                        rm -f "${top_dir}/tmp/.wget" || :
+                        if [ "${wget_status}" == "success" ]; then
+                            break
+                        fi
+                    else
+                        # Some times --spider just does not succeed in
+                        # correctly reporting the existence of the
+                        # remote file, even though it exists. As a last
+                        # resort, try downloading the file completelte,
+                        # without using --spider (and throw away the
+                        # downloaded file).
+                        wget -t 1 --timeout 30 --no-check-certificate ${no_dns_cache} ${ipv} -O - \
+                            "${url}" >/dev/null 2>&1 || wget_status="error"
                     fi
-                    rm -f "${top_dir}/tmp/.wget" || :
-                    if [ "${wget_status}" == "success" ]; then
-                        break
-                    fi
-                else
-                    # Some times --spider just does not succeed in
-                    # correctly reporting the existence of the remote
-                    # file, even though it exists. As a last resort, try
-                    # downloading the file completelte, without using
-                    # --spider (and throw away the downloaded file).
-                    wget -t 1 --timeout 30 --no-check-certificate --no-dns-cache ${ipv} -O - \
-                        "${url}" >/dev/null 2>&1 || wget_status="error"
+                done
+                if [ "${wget_status}" == "success" ]; then
+                    break
                 fi
             done
             if [ "${wget_status}" == "success" ]; then
@@ -2580,10 +2622,8 @@ if [ "${mpi_install}" == "True" ]; then
         fi
     elif [ "${mpi}" == "openmpi" ]; then
         # OpenMPI
-        mpi_version_major="$(echo "${mpi_version}" | grep -m 1 -o -P "[0-9]*" \
-                                                   | head -n 1)"
-        mpi_version_major_dot_minor="$(echo "${mpi_version}" | grep -m 1 -o -P \
-                                            "${mpi_version_major}\.[0-9]*")"
+        mpi_version_major_dot_minor="${mpi_version%.*}"
+        mpi_version_major="${mpi_version_major_dot_minor%.*}"
         mpi_url="https://www.open-mpi.org/software/ompi/v${mpi_version_major_dot_minor}/\
 downloads/openmpi-${mpi_version}.tar.gz"
         # Check if already installed and/or downloaded
@@ -4163,9 +4203,19 @@ download(){
     cd "${top_dir}/tmp/${progname}"
     for n in {1..10}; do
         for ipv in "--inet4-only" "--inet6-only" ""; do
-            wget_status="success"
-            wget --progress=bar:force -t 1 --timeout 60 -c --no-check-certificate \
-                --no-dns-cache ${ipv} "${url}" || wget_status="error"
+            for no_dns_cache in "--no-dns-cache" ""; do
+                for progressbar in "--progress=bar:force" ""; do
+                    wget_status="success"
+                    wget ${progressbar} -t 1 --timeout 60 -c --no-check-certificate \
+                        ${no_dns_cache} ${ipv} "${url}" || wget_status="error"
+                    if [ "${wget_status}" == "success" ]; then
+                        break
+                    fi
+                done
+                if [ "${wget_status}" == "success" ]; then
+                    break
+                fi
+            done
             if [ "${wget_status}" == "success" ]; then
                 break
             fi
@@ -4293,103 +4343,119 @@ extract(){
             exit 1
         fi
     fi
+    # Extract
+    if [ -z "${extract_tar_options}" ]; then
+        extract_tar_options="-ixvf"
+    fi
+    extract_success="True"
     case "${archive}" in
         # 7zip
-        *.tar.7zip)  7z       -so  x   "${archive}" | tar -ixvf -;;
-        *.tar.7z)    7z       -so  x   "${archive}" | tar -ixvf -;;
-        *.t7zip)     7z       -so  x   "${archive}" | tar -ixvf -;;
-        *.t7z)       7z       -so  x   "${archive}" | tar -ixvf -;;
-        *.7zip)      7z            x   "${archive}"              ;;
-        *.7z)        7z            x   "${archive}"              ;;
+        *.tar.7zip)  7z       -so  x   "${archive}" | tar ${extract_tar_options} -;;
+        *.tar.7z)    7z       -so  x   "${archive}" | tar ${extract_tar_options} -;;
+        *.t7zip)     7z       -so  x   "${archive}" | tar ${extract_tar_options} -;;
+        *.t7z)       7z       -so  x   "${archive}" | tar ${extract_tar_options} -;;
+        *.7zip)      7z            x   "${archive}"                               ;;
+        *.7z)        7z            x   "${archive}"                               ;;
         # ar
-        *.ar)        ar       -xv      "${archive}"              ;;
-        *.a)         ar       -xv      "${archive}"              ;;
+        *.ar)        ar       -xv      "${archive}"                               ;;
+        *.a)         ar       -xv      "${archive}"                               ;;
         # bzip2
-        *.tar.bzip2) bzip2    -d     < "${archive}" | tar -ixvf -;;
-        *.tar.bz2)   bzip2    -d     < "${archive}" | tar -ixvf -;;
-        *.tbzip2)    bzip2    -d     < "${archive}" | tar -ixvf -;;
-        *.tbz2)      bzip2    -d     < "${archive}" | tar -ixvf -;;
-        *.bzip2)     bzip2    -d       "${archive}"              ;;
-        *.bz2)       bzip2    -d       "${archive}"              ;;
-        *.tar.bzip)  bzip2    -d     < "${archive}" | tar -ixvf -;;
-        *.tar.bz)    bzip2    -d     < "${archive}" | tar -ixvf -;;
-        *.tbzip)     bzip2    -d     < "${archive}" | tar -ixvf -;;
-        *.tbz)       bzip2    -d     < "${archive}" | tar -ixvf -;;
-        *.bzip)      bzip2    -d       "${archive}"              ;;
-        *.bz)        bzip2    -d       "${archive}"              ;;
+        *.tar.bzip2) bzip2    -d     < "${archive}" | tar ${extract_tar_options} -;;
+        *.tar.bz2)   bzip2    -d     < "${archive}" | tar ${extract_tar_options} -;;
+        *.tbzip2)    bzip2    -d     < "${archive}" | tar ${extract_tar_options} -;;
+        *.tbz2)      bzip2    -d     < "${archive}" | tar ${extract_tar_options} -;;
+        *.bzip2)     bzip2    -d       "${archive}"                               ;;
+        *.bz2)       bzip2    -d       "${archive}"                               ;;
+        *.tar.bzip)  bzip2    -d     < "${archive}" | tar ${extract_tar_options} -;;
+        *.tar.bz)    bzip2    -d     < "${archive}" | tar ${extract_tar_options} -;;
+        *.tbzip)     bzip2    -d     < "${archive}" | tar ${extract_tar_options} -;;
+        *.tbz)       bzip2    -d     < "${archive}" | tar ${extract_tar_options} -;;
+        *.bzip)      bzip2    -d       "${archive}"                               ;;
+        *.bz)        bzip2    -d       "${archive}"                               ;;
         # cbz
-        *.cbz)       unzip             "${archive}"              ;;
+        *.cbz)       unzip             "${archive}"                               ;;
         # compress
-        *.tar.Z)     compress -d     < "${archive}" | tar -ixvf -;;
-        *.tZ)        compress -d     < "${archive}" | tar -ixvf -;;
-        *.Z)         compress -d       "${archive}"              ;;
+        *.tar.Z)     compress -d     < "${archive}" | tar ${extract_tar_options} -;;
+        *.tZ)        compress -d     < "${archive}" | tar ${extract_tar_options} -;;
+        *.Z)         compress -d       "${archive}"                               ;;
         # cpio
-        *.cpio)      cpio     -idv     "${archive}"              ;;
+        *.cpio)      cpio     -idv     "${archive}"                               ;;
         # exe
-        *.exe)       "$(readlink -f    "${archive}")"            ;;
+        *.exe)       "$(readlink -f    "${archive}")"                             ;;
         # gzip
-        *.tar.gzip)  gzip     -d     < "${archive}" | tar -ixvf -;;
-        *.tar.gz)    gzip     -d     < "${archive}" | tar -ixvf -;;
-        *.tar.z)     gzip     -d     < "${archive}" | tar -ixvf -;;
-        *.tgzip)     gzip     -d     < "${archive}" | tar -ixvf -;;
-        *.tgz)       gzip     -d     < "${archive}" | tar -ixvf -;;
-        *.tz)        gzip     -d     < "${archive}" | tar -ixvf -;;
-        *.gzip)      gzip     -d       "${archive}"              ;;
-        *.gz)        gzip     -d       "${archive}"              ;;
+        *.tar.gzip)  gzip     -d     < "${archive}" | tar ${extract_tar_options} -;;
+        *.tar.gz)    gzip     -d     < "${archive}" | tar ${extract_tar_options} -;;
+        *.tar.z)     gzip     -d     < "${archive}" | tar ${extract_tar_options} -;;
+        *.tgzip)     gzip     -d     < "${archive}" | tar ${extract_tar_options} -;;
+        *.tgz)       gzip     -d     < "${archive}" | tar ${extract_tar_options} -;;
+        *.tz)        gzip     -d     < "${archive}" | tar ${extract_tar_options} -;;
+        *.gzip)      gzip     -d       "${archive}"                               ;;
+        *.gz)        gzip     -d       "${archive}"                               ;;
         # iso
-        *.7z)        7z            x   "${archive}"              ;;
+        *.7z)        7z            x   "${archive}"                               ;;
         # jar
-        *.jar)       jar      -xvf     "${archive}"              ;;
+        *.jar)       jar      -xvf     "${archive}"                               ;;
         # lzip
-        *.tar.lzip)  lzip     -d     < "${archive}" | tar -ixvf -;;
-        *.tar.lz)    lzip     -d     < "${archive}" | tar -ixvf -;;
-        *.tlzip)     lzip     -d     < "${archive}" | tar -ixvf -;;
-        *.tlz)       lzip     -d     < "${archive}" | tar -ixvf -;;
-        *.lzip)      lzip     -d       "${archive}"              ;;
-        *.lz)        lzip     -d       "${archive}"              ;;
+        *.tar.lzip)  lzip     -d     < "${archive}" | tar ${extract_tar_options} -;;
+        *.tar.lz)    lzip     -d     < "${archive}" | tar ${extract_tar_options} -;;
+        *.tlzip)     lzip     -d     < "${archive}" | tar ${extract_tar_options} -;;
+        *.tlz)       lzip     -d     < "${archive}" | tar ${extract_tar_options} -;;
+        *.lzip)      lzip     -d       "${archive}"                               ;;
+        *.lz)        lzip     -d       "${archive}"                               ;;
         # lzma
-        *.tar.lzma)  lzma     -d     < "${archive}" | tar -ixvf -;;
-        *.tlzma)     lzma     -d     < "${archive}" | tar -ixvf -;;
-        *.lzma)      lzma     -d       "${archive}"              ;;
+        *.tar.lzma)  lzma     -d     < "${archive}" | tar ${extract_tar_options} -;;
+        *.tlzma)     lzma     -d     < "${archive}" | tar ${extract_tar_options} -;;
+        *.lzma)      lzma     -d       "${archive}"                               ;;
         # lzop
-        *.tar.lzop)  lzop     -d     < "${archive}" | tar -ixvf -;;
-        *.tar.lzo)   lzop     -d     < "${archive}" | tar -ixvf -;;
-        *.tlzop)     lzop     -d     < "${archive}" | tar -ixvf -;;
-        *.tlzo)      lzop     -d     < "${archive}" | tar -ixvf -;;
-        *.lzop)      lzop     -d       "${archive}"              ;;
-        *.lzo)       lzop     -d       "${archive}"              ;;
+        *.tar.lzop)  lzop     -d     < "${archive}" | tar ${extract_tar_options} -;;
+        *.tar.lzo)   lzop     -d     < "${archive}" | tar ${extract_tar_options} -;;
+        *.tlzop)     lzop     -d     < "${archive}" | tar ${extract_tar_options} -;;
+        *.tlzo)      lzop     -d     < "${archive}" | tar ${extract_tar_options} -;;
+        *.lzop)      lzop     -d       "${archive}"                               ;;
+        *.lzo)       lzop     -d       "${archive}"                               ;;
         # pack
-        *.z)         pack          u   "${archive}" out          ;;
+        *.z)         pack          u   "${archive}" out                           ;;
         # rar
-        *.rar)       unrar         x   "${archive}"              ;;
+        *.rar)       unrar         x   "${archive}"                               ;;
         # rzip
-        *.tar.rzip)  rzip     -d     < "${archive}" | tar -ixvf -;;
-        *.tar.rz)    rzip     -d     < "${archive}" | tar -ixvf -;;
-        *.trzip)     rzip     -d     < "${archive}" | tar -ixvf -;;
-        *.trz)       rzip     -d     < "${archive}" | tar -ixvf -;;
-        *.rzip)      rzip     -d       "${archive}"              ;;
-        *.rz)        rzip     -d       "${archive}"              ;;
+        *.tar.rzip)  rzip     -d     < "${archive}" | tar ${extract_tar_options} -;;
+        *.tar.rz)    rzip     -d     < "${archive}" | tar ${extract_tar_options} -;;
+        *.trzip)     rzip     -d     < "${archive}" | tar ${extract_tar_options} -;;
+        *.trz)       rzip     -d     < "${archive}" | tar ${extract_tar_options} -;;
+        *.rzip)      rzip     -d       "${archive}"                               ;;
+        *.rz)        rzip     -d       "${archive}"                               ;;
         # shar
-        *.shar)      unshar            "${archive}"              ;;
+        *.shar)      unshar            "${archive}"                               ;;
         # snappy
-        *.sz)        snzip    -d       "${archive}"              ;;
+        *.sz)        snzip    -d       "${archive}"                               ;;
         # tar
-        *.tar)       cat               "${archive}" | tar -ixvf -;;
+        *.tar)       cat               "${archive}" | tar ${extract_tar_options} -;;
         # xz
-        *.tar.xz)    xz       -d     < "${archive}" | tar -ixvf -;;
-        *.txz)       xz       -d     < "${archive}" | tar -ixvf -;;
-        *.xz)        xz       -d       "${archive}"              ;;
+        *.tar.xz)    xz       -d     < "${archive}" | tar ${extract_tar_options} -;;
+        *.txz)       xz       -d     < "${archive}" | tar ${extract_tar_options} -;;
+        *.xz)        xz       -d       "${archive}"                               ;;
         # zip
-        *tar.zip)    unzip    -p       "${archive}" | tar -ixvf -;;
-        *tzip)       unzip    -p       "${archive}" | tar -ixvf -;;
-        *.zip)       unzip             "${archive}"              ;;
+        *tar.zip)    unzip    -p       "${archive}" | tar ${extract_tar_options} -;;
+        *tzip)       unzip    -p       "${archive}" | tar ${extract_tar_options} -;;
+        *.zip)       unzip             "${archive}"                               ;;
         # unknown
         *) error "Could not understand the compression format of \"${archive}\""
            exit 1
            ;;
-    esac
+    esac || extract_success="False"
     if [ "$2" != "True" ]; then
         cd "${top_dir}"
+    fi
+    if [ "${extract_success}" == "False" ]; then
+        if [ "${extract_tar_options}" == "-ixvf" ]; then
+            # If the extraction failed it may be because the tar
+            # implementation in use do not support -i. Try without.
+            extract_tar_options="-xvf"
+            extract "$1" "$2"
+        else
+            error "Failed to extract \"${archive}\""
+            exit 1
+        fi
     fi
 }
 
@@ -4630,6 +4696,135 @@ if [ "${gsl_install}" == "True" ] && [ "${gsl_installed}" == "False" ]; then
     install_notice "GSL" "${gsl_dir}"
 fi
 
+# Perl
+if [ "${perl_install}" == "True" ] && [ "${perl_installed}" == "False" ]; then
+    # Sometimes make fails to build due to #include of poll.h from a
+    # wrong location. A fix for this is implemented below. First we try
+    # without the fix, then with the fix.
+    # Furthermore, sometimes the installation will complain that the
+    # Perl libraries should have been compiled statically.
+    # Thus, we try with and witouth the -fPIC C flag.
+    install_success="False"
+    for compiler in "${compiler_possibilities[@]}"; do
+        libimf_dumped="False"
+        for dump_libimf in "True" "False"; do
+            if [ "${dump_libimf}" == "False" ] && [ "${libimf_dumped}" == "False" ]; then
+                # libimf was not found, so dump_libimf == True is
+                # equivalent to dump_libimf == False.
+                continue
+            fi
+            for perl_poll_fix in "False" "True"; do
+                for perl_cflags in "" "-fPIC"; do
+                    reset_environment
+                    eval "use_${compiler}_compilers" || continue
+                    init_install "Perl" "compiler=${compiler}, dump_libimf=${dump_libimf}, \
+perl_poll_fix=${perl_poll_fix}, perl_cflags=${perl_cflags}"
+                    # When an Intel C compiler is used, some libraries
+                    # like libimf may not be found by the perl
+                    # executable. We can fix this by dropping symlinks
+                    # to all Intel libraries into the build directory.
+                    # For whatever reason, updating LD_LIBRARY_PATH
+                    # has no effect.
+                    if [ "${dump_libimf}" == "True" ]; then
+                        while IFS=':' read -ra library_paths; do
+                            for library_path in "${library_paths[@]}"; do
+                                is_intel_lib_dir="False"
+                                for f in "${library_path}"/*; do
+                                    f_base="$(basename "${f}")"
+                                    if     [[ "${f_base}" == libimf*.a    ]] \
+                                        || [[ "${f_base}" == libimf*.so   ]] \
+                                        || [[ "${f_base}" == libimd*.so.* ]]; then
+                                        is_intel_lib_dir="True"
+                                        break
+                                    fi
+                                done
+                                if [ "${is_intel_lib_dir}" == "False" ]; then
+                                    continue
+                                fi
+                                libimf_dumped="True"
+                                for f in "${library_path}"/*; do
+                                    f_base="$(basename "${f}")"
+                                    if (   [[ "${f_base}" == *.a    ]] \
+                                        || [[ "${f_base}" == *.so   ]] \
+                                        || [[ "${f_base}" == *.so.* ]] \
+                                       ) && [ ! -f "./${f_base}" ]; then
+                                        ln -s "${f}" ./ >/dev/null 2>&1 || :
+                                    fi
+                                done
+                            done
+                        done <<< "${LD_LIBRARY_PATH}"
+                    fi
+                    perl_config_options="-de -Dprefix=${perl_dir}"
+                    if [ "${compiler}" != "default" ] && [ -n "${CC}" ]; then
+                        perl_config_options="${perl_config_options} -Dcc=${CC}"
+                    fi
+                    if [ -n "${perl_cflags}" ]; then
+                        perl_config_options="${perl_config_options} -Accflags=${perl_cflags}"
+                    fi
+                    ./Configure ${perl_config_options} 2>&1 || : continue
+                    if [ "${perl_poll_fix}" == "True" ]; then
+                        sed -i 's/<poll\.h>/<sys\/poll\.h>/' 'dist/IO/poll.h' || continue
+                    fi
+                    make ${make_jobs} 2>&1 || continue
+                    if [ "${do_tests}" == "True" ]; then
+                        # On some systems, the Perl test hangs indefinitely.
+                        # To counteract this, kill the process if it still
+                        # runs after ${perl_test_max_time} seconds.
+                        perl_test_max_time=3600
+                        exit_code_filename="${top_dir}/tmp/.exit_code_perl"
+                        (make ${make_jobs} test 2>&1 | tee "test_log"; \
+                         echo "${PIPESTATUS[0]}" > "${exit_code_filename}") & perl_test_pid=$!
+                        soothe ${perl_test_pid} ${perl_test_max_time}
+                        sleep 1
+                        kill -9 ${perl_test_pid} >/dev/null 2>&1 || :
+                        wait    ${perl_test_pid} >/dev/null 2>&1 || :
+                        exit_code="$(wait ${perl_test_pid} >/dev/null 2>&1 || echo $?)"
+                        if [ -n "${exit_code}" ]; then
+                            perl_test_success="False"
+                        else
+                            exit_code="$(cat "${exit_code_filename}" 2>/dev/null || :)"
+                            if [ "${exit_code}" != "0" ]; then
+                                perl_test_success="False"
+                            fi
+                        fi
+                        # The text "Failed" will be present in the test log
+                        # file if any of the tests failed.
+                        if grep 'Failed' "test_log" >/dev/null 2>&1; then
+                            perl_test_success="False"
+                        fi
+                        rm -f "${exit_code_filename}" || :
+                    fi
+                    if [ "${perl_test_success}" == "False" ]; then
+                        mkdir -p "$(dirname "${perl_test_log}")"
+                        cp "test_log" "${perl_test_log}"
+                    fi
+                    make ${make_jobs} install 2>&1 || continue
+                    install_success="True"
+                    break
+                done
+                if [ "${install_success}" == "True" ]; then
+                    break
+                fi
+            done
+            if [ "${install_success}" == "True" ]; then
+                break
+            fi
+        done
+        if [ "${install_success}" == "True" ]; then
+            break
+        fi
+    done
+    if [ "${install_success}" == "False" ]; then
+        error "Failed to install Perl"
+        exit 1
+    fi
+    reset_environment
+    cp "AUTHORS" "Copying" "README" "${perl_dir}/" || :
+    cd "${top_dir}"
+    rm -rf "${top_dir}/tmp/perl" || :
+    install_notice "Perl" "${perl_dir}"
+fi
+
 # MPI
 if [ "${mpi_install}" == "True" ] && [ "${mpi_installed}" == "False" ]; then
     install_success="False"
@@ -4652,6 +4847,7 @@ if [ "${mpi_install}" == "True" ] && [ "${mpi_installed}" == "False" ]; then
             reset_environment
             eval "use_${compiler}_compilers" || continue
             init_install "MPI" "compiler=${compiler}"
+            export PATH="${perl_dir}/bin:${PATH}"
             ./configure --enable-shared --prefix="${mpi_dir}" 2>&1 || continue
             if [ "${make_jobs}" == "-j" ]; then
                 # Building in parallel takes up a lot of resources
@@ -4682,6 +4878,7 @@ if [ "${mpi_install}" == "True" ] && [ "${mpi_installed}" == "False" ]; then
             reset_environment
             eval "use_${compiler}_compilers" || continue
             init_install "MPI" "compiler=${compiler}"
+            export PATH="${perl_dir}/bin:${PATH}"
             ./configure --prefix="${mpi_dir}" 2>&1 || continue
             if [ "${make_jobs}" == "-j" ]; then
                 # Building in parallel takes up a lot of resources
@@ -5107,135 +5304,6 @@ if [ "${ncurses_install}" == "True" ] && [ "${ncurses_installed}" == "False" ]; 
     install_notice "ncurses" "${ncurses_dir}"
 fi
 
-# Perl
-if [ "${perl_install}" == "True" ] && [ "${perl_installed}" == "False" ]; then
-    # Sometimes make fails to build due to #include of poll.h from a
-    # wrong location. A fix for this is implemented below. First we try
-    # without the fix, then with the fix.
-    # Furthermore, sometimes the installation will complain that the
-    # Perl libraries should have been compiled statically.
-    # Thus, we try with# and witouth the -fPIC C flag.
-    install_success="False"
-    for compiler in "${compiler_possibilities[@]}"; do
-        libimf_dumped="False"
-        for dump_libimf in "True" "False"; do
-            if [ "${dump_libimf}" == "False" ] && [ "${libimf_dumped}" == "False" ]; then
-                # libimf was not found, so dump_libimf == True is
-                # equivalent to dump_libimf == False.
-                continue
-            fi
-            for perl_poll_fix in "False" "True"; do
-                for perl_cflags in "" "-fPIC"; do
-                    reset_environment
-                    eval "use_${compiler}_compilers" || continue
-                    init_install "Perl" "compiler=${compiler}, dump_libimf=${dump_libimf}, \
-perl_poll_fix=${perl_poll_fix}, perl_cflags=${perl_cflags}"
-                    # When an Intel C compiler is used, some libraries
-                    # like libimf may not be found by the perl
-                    # executable. We can fix this by dropping symlinks
-                    # to all Intel libraries into the build directory.
-                    # For whatever reason, updating LD_LIBRARY_PATH
-                    # has no effect.
-                    if [ "${dump_libimf}" == "True" ]; then
-                        while IFS=':' read -ra library_paths; do
-                            for library_path in "${library_paths[@]}"; do
-                                is_intel_lib_dir="False"
-                                for f in "${library_path}"/*; do
-                                    f_base="$(basename "${f}")"
-                                    if     [[ "${f_base}" == libimf*.a    ]] \
-                                        || [[ "${f_base}" == libimf*.so   ]] \
-                                        || [[ "${f_base}" == libimd*.so.* ]]; then
-                                        is_intel_lib_dir="True"
-                                        break
-                                    fi
-                                done
-                                if [ "${is_intel_lib_dir}" == "False" ]; then
-                                    continue
-                                fi
-                                libimf_dumped="True"
-                                for f in "${library_path}"/*; do
-                                    f_base="$(basename "${f}")"
-                                    if (   [[ "${f_base}" == *.a    ]] \
-                                        || [[ "${f_base}" == *.so   ]] \
-                                        || [[ "${f_base}" == *.so.* ]] \
-                                       ) && [ ! -f "./${f_base}" ]; then
-                                        ln -s "${f}" ./ >/dev/null 2>&1 || :
-                                    fi
-                                done
-                            done
-                        done <<< "${LD_LIBRARY_PATH}"
-                    fi
-                    perl_config_options="-de -Dprefix=${perl_dir}"
-                    if [ "${compiler}" != "default" ] && [ -n "${CC}" ]; then
-                        perl_config_options="${perl_config_options} -Dcc=${CC}"
-                    fi
-                    if [ -n "${perl_cflags}" ]; then
-                        perl_config_options="${perl_config_options} -Accflags=${perl_cflags}"
-                    fi
-                    ./Configure ${perl_config_options} 2>&1 || : continue
-                    if [ "${perl_poll_fix}" == "True" ]; then
-                        sed -i 's/<poll\.h>/<sys\/poll\.h>/' 'dist/IO/poll.h' || continue
-                    fi
-                    make ${make_jobs} 2>&1 || continue
-                    if [ "${do_tests}" == "True" ]; then
-                        # On some systems, the Perl test hangs indefinitely.
-                        # To counteract this, kill the process if it still
-                        # runs after ${perl_test_max_time} seconds.
-                        perl_test_max_time=3600
-                        exit_code_filename="${top_dir}/tmp/.exit_code_perl"
-                        (make ${make_jobs} test 2>&1 | tee "test_log"; \
-                         echo "${PIPESTATUS[0]}" > "${exit_code_filename}") & perl_test_pid=$!
-                        soothe ${perl_test_pid} ${perl_test_max_time}
-                        sleep 1
-                        kill -9 ${perl_test_pid} >/dev/null 2>&1 || :
-                        wait    ${perl_test_pid} >/dev/null 2>&1 || :
-                        exit_code="$(wait ${perl_test_pid} >/dev/null 2>&1 || echo $?)"
-                        if [ -n "${exit_code}" ]; then
-                            perl_test_success="False"
-                        else
-                            exit_code="$(cat "${exit_code_filename}" 2>/dev/null || :)"
-                            if [ "${exit_code}" != "0" ]; then
-                                perl_test_success="False"
-                            fi
-                        fi
-                        # The text "Failed" will be present in the test log
-                        # file if any of the tests failed.
-                        if grep 'Failed' "test_log" >/dev/null 2>&1; then
-                            perl_test_success="False"
-                        fi
-                        rm -f "${exit_code_filename}" || :
-                    fi
-                    if [ "${perl_test_success}" == "False" ]; then
-                        mkdir -p "$(dirname "${perl_test_log}")"
-                        cp "test_log" "${perl_test_log}"
-                    fi
-                    make ${make_jobs} install 2>&1 || continue
-                    install_success="True"
-                    break
-                done
-                if [ "${install_success}" == "True" ]; then
-                    break
-                fi
-            done
-            if [ "${install_success}" == "True" ]; then
-                break
-            fi
-        done
-        if [ "${install_success}" == "True" ]; then
-            break
-        fi
-    done
-    if [ "${install_success}" == "False" ]; then
-        error "Failed to install Perl"
-        exit 1
-    fi
-    reset_environment
-    cp "AUTHORS" "Copying" "README" "${perl_dir}/" || :
-    cd "${top_dir}"
-    rm -rf "${top_dir}/tmp/perl" || :
-    install_notice "Perl" "${perl_dir}"
-fi
-
 # OpenSSL
 if [ "${openssl_install}" == "True" ] && [ "${openssl_installed}" == "False" ]; then
     install_success="False"
@@ -5382,6 +5450,7 @@ openblas_BINARY=${openblas_BINARY}"
                     if [ -n "${openblas_BINARY}" ]; then
                         openblas_make_options="${openblas_make_options} BINARY=${openblas_BINARY}"
                     fi
+                    export PATH="${perl_dir}/bin:${PATH}"
                     make ${openblas_make_options} || continue
                     make PREFIX="${blas_dir}" install || continue
                     install_success="True"
@@ -6346,6 +6415,16 @@ library_dirs = ${blas_dir}/lib
 include_dirs = ${blas_dir}/include
 runtime_library_dirs = ${blas_dir}/lib
 " > "${scipy_build_dir}/site.cfg"
+    # At least in SciPy 1.4.1, compilation of SciPy may fail with an
+    # error stating that int64_t has not been declared.
+    # We fix this below.
+    rectangular_lsap="${scipy_build_dir}/scipy/optimize/rectangular_lsap/rectangular_lsap.cpp"
+    echo "
+/* Fix needed at least for SciPy 1.4.1 */
+#include \"rectangular_lsap.h\"
+
+$(cat "${rectangular_lsap}")
+" > "${rectangular_lsap}"
     # Build and install SciPy with OpenBLAS support.
     # We wish to use the gfortran Fortran compiler. We try out all the
     # compiler environments but overwriting the Fortran compiler.
@@ -6558,9 +6637,8 @@ if [ "${matplotlib_install}" == "True" ] && [ "${matplotlib_installed}" == "Fals
     done
     cp "setup.cfg.template" "setup.cfg"
     freetype_include2="$(echo "${freetype_dir}/include/freetype"* | awk '{print $NF}')"
-    libpng_version_majors="$(echo "${libpng_version}" | grep -m 1 -o -P "[0-9]*\.[0-9]*" \
-                                                      | head -n 1)"
-    libpng_version_majors="$(echo "${libpng_version_majors//./}")"
+    libpng_version_majors="${libpng_version%.*}"
+    libpng_version_majors="${libpng_version_majors//./}"
     basedirlist="${freetype_dir},\
 ${freetype_dir}/include,\
 ${freetype_include2},\
@@ -6865,23 +6943,16 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
     }
     # Change the values of some preprocessing directives
     # in header files, allowing larger inputs and outputs.
-    # Specifically, these are the changes:
-    # _MAXTITLESTRINGLENGTH_   = 10⁶  (in include/common.h)
-    # _LINE_LENGTH_MAX_        = 10⁴  (in include/parser.h)
-    # _ARGUMENT_LENGTH_MAX_    = 10⁴  (in include/parser.h)
-    # _MAX_NUMBER_OF_K_FILES_  = 10⁵  (in include/perturbations.h)
-    value=1000000
-    sed -i "s/^\( *#define \+_MAXTITLESTRINGLENGTH_ \+\)[^ ]*\(.*\)*$/\1${value}\2/" \
-           "${class_dir}/include/common.h"
-    value=10000
-    sed -i "s/^\( *#define \+_LINE_LENGTH_MAX_ \+\)[^ ]*\(.*\)*$/\1${value}\2/" \
-           "${class_dir}/include/parser.h"
-    value=10000
-    sed -i "s/^\( *#define \+_ARGUMENT_LENGTH_MAX_ \+\)[^ ]*\(.*\)*$/\1${value}\2/" \
-           "${class_dir}/include/parser.h"
-    value=100000
-    sed -i "s/^\( *#define \+_MAX_NUMBER_OF_K_FILES_ \+\)[^ ]*\(.*\)*$/\1${value}\2/" \
-           "${class_dir}/include/perturbations.h"
+    redefine_class() {
+        filename="$1"
+        name="$2"
+        value="$3"
+        sed -i "s/^\( *#define \+${name} \+\)\([^ ]*\)\(.*\)*$/\1${value}\3/" "${filename}"
+    }
+    redefine_class "${class_dir}/include/common.h"        _MAXTITLESTRINGLENGTH_  1000000  # 10⁶
+    redefine_class "${class_dir}/include/parser.h"        _LINE_LENGTH_MAX_         10000  # 10⁴
+    redefine_class "${class_dir}/include/parser.h"        _ARGUMENT_LENGTH_MAX_     10000  # 10⁴
+    redefine_class "${class_dir}/include/perturbations.h" _MAX_NUMBER_OF_K_FILES_  100000  # 10⁵
     # As only the (relatively) late-time evolution is needed from CLASS,
     # we hardcode the perturbations output to only be printed here.
     a_min="3e-4"
