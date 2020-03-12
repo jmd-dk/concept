@@ -112,8 +112,8 @@ directory consist of the following and will be installed in order:
       - sphinx_copybutton
       - sphinx_rtd_theme
       - sphinx_tabs
-  - CLASS
   - CO𝘕CEPT
+  - CLASS
   - FFTW 2 (needed by GADGET)
   - GADGET
 
@@ -6839,6 +6839,211 @@ fi
 
 
 
+###################################
+# Install the CO𝘕CEPT code itself #
+###################################
+# Paths used by CO𝘕CEPT
+concept="${concept_dir}/concept"
+docs_dir="${concept_dir}/docs"
+ics_dir="${concept_dir}/ICs"
+logs_dir="${concept_dir}/logs"
+output_dir="${concept_dir}/output"
+params_dir="${concept_dir}/params"
+reusables_dir="${concept_dir}/.reusables"
+tests_dir="${concept_dir}/tests"
+utilities_dir="${concept_dir}/utilities"
+Gadget2_dir="${gadget_dir}/Gadget2"
+installer="${top_dir}/installer"
+mpiexec="${mpi_bindir}/mpiexec"
+# Move source files, create empty directories and create the .paths file
+if [ "${concept_install}" == "True" ] && [ "${concept_installed}" == "False" ]; then
+    init_install "CONCEPT"
+    # Move everything from the concept-${concept_version}
+    # directory to ${top_dir}.
+    if [ -f "${top_dir}/installer" ]; then
+        # An installation script already exists in the directory where
+        # the downloaded installation script for the installed CO𝘕CEPT
+        # version should go. This pre-existing installation script might
+        # be the very file running now, and so it is not safe to
+        # overwrite it. Instead, move the new installation script there
+        # under a new name, reflecting its version.
+        mv "installer" "${top_dir}/installer_${concept_version}"
+    fi
+    mv ./{.[!.],}* "${top_dir}/"
+    cd "${top_dir}"
+    rm -rf "${top_dir}/tmp/concept" || :
+    # Create directories
+    mkdir -p "${ics_dir}"
+    mkdir -p "${logs_dir}"
+    mkdir -p "${output_dir}"
+    mkdir -p "${params_dir}"
+    # Add PATH-like and a few PYTHON environment variables present at
+    # install time (now) to the .env file.
+    current_step="setup of the .env file"
+    printf "\nSetting up the .env file\n"
+    set_status "Setting up the .env file"
+    "${python}" -c "
+import os
+with open('${env_file}', 'r', encoding='utf-8') as file:
+    lines = file.readlines()
+# Generator for extracting environment variables
+def get_envs():
+    for var, val in os.environ.items():
+        if (
+            # PATH, LD_LIBRARY_PATH, ...
+            ('path' in var.lower() and (val.startswith('/') or val.startswith(':')))
+            # Intel license file
+            or (var in {'INTEL_LICENSE_FILE', 'INTEL_LICENCE_FILE'} and val.startswith('/'))
+        ):
+            yield var, val
+# Add environment variables
+envs_inserted = False
+with open('${env_file}', 'w', encoding='utf-8') as file:
+    for line in lines:
+        if not envs_inserted and 'Update the environment' in line:
+            print('# The following has been placed by the installer script', file=file)
+            if '${python_install}' == 'True':
+                print('unset PYTHONPATH', file=file)
+                print('unset PYTHONHOME', file=file)
+                print('export PYTHONNOUSERSITE=\"True\"', file=file)
+            print('pathenv_name_value_pairs_installtime=( \\\\', file=file)
+            for var, val in get_envs():
+                print(f'    {var} \"{val}\" \\\\', file=file)
+            print(')', file=file)
+            print('', file=file)
+            envs_inserted = True
+        print(line, end='', file=file)
+"
+    # If MPI was installed as part of this installation process, it is
+    # not set up to function with e.g. Slurm, and so we set the
+    # MPI executor to mpiexec explicitly. This should work even when
+    # running on multiple nodes, though the network performance will
+    # most likely be bad. We further add some arguments to mpiexec
+    # depending on the MPI distribution and version.
+    if [ "${mpi_preinstalled}" == "False" ]; then
+        use_specified_mpi_compilers
+        mpiexec_args=""
+        if [ "${mpi}" == "mpich" ]; then
+            # Though MPICH should not use process binding by default,
+            # it still supports a -bind-to none or --bind-to none
+            # option. Here we check if this is so, and apply it.
+            mpiexec_output="$("${mpiexec}" -bind-to none -n 1 echo "success" 2>&1 || :)"
+            if [ "${mpiexec_output}" == "success" ]; then
+                mpiexec_args="${mpiexec_args} -bind-to none"
+            else
+                mpiexec_output="$("${mpiexec}" --bind-to none -n 1 echo "success" 2>&1 || :)"
+                if [ "${mpiexec_output}" == "success" ]; then
+                    mpiexec_args="${mpiexec_args} --bind-to none"
+                fi
+            fi
+        elif [ "${mpi}" == "openmpi" ]; then
+            # In OpenMPI 3 and 4, oversubscription (having more MPI
+            # processes than physical cores) is disallowed by default.
+            mpi_version_major="${mpi_version:0:1}"
+            if [ "${mpi_version_major}" -ge 3 2>/dev/null ]; then
+                mpiexec_args="${mpiexec_args} --oversubscribe"
+            fi
+            # Disable automatic process binding/affinity, allowing
+            # OpenMP threads to be assigned to cores in a one-to-one
+            # fashion. This is off by default prior to OpenMPI version
+            # 1.7. All of 1.7 -- 4.0 supports the --bind-to none option
+            # to mpiexec. Here we add this option if it is understood.
+            mpiexec_output="$("${mpiexec}" --bind-to none -n 1 echo "success" 2>&1 || :)"
+            if [ "${mpiexec_output}" == "success" ]; then
+                mpiexec_args="${mpiexec_args} --bind-to none"
+            fi
+        fi
+        sed -i "s/mpi_executor=\"\"/mpi_executor=\"mpiexec${mpiexec_args}\"/" "${env_file}"
+        reset_environment
+    fi
+    # Create the .paths file,
+    # storing important paths used by CO𝘕CEPT.
+    current_step="creation of the .paths file"
+    printf "\nWriting paths to .paths\n"
+    set_status "Writing paths to .paths"
+    echo "# This file contains absolute paths to directories and files
+# used by the CO𝘕CEPT code. You may manually edit these paths.
+
+#######################
+# CO𝘕CEPT directories #
+#######################
+# Directory containing the source code
+concept_dir='${concept_dir}'
+# Directory containing the documentation
+docs_dir='${docs_dir}'
+# Directory intended for initial conditions
+ics_dir='${ics_dir}'
+# Directory containing the log files
+logs_dir='${logs_dir}'
+# Directory intended for output
+output_dir='${output_dir}'
+# Directory intended for parameter files
+params_dir='${params_dir}'
+# Directory containing various reusable dumps
+reusables_dir='${reusables_dir}'
+# Directory containing tests
+tests_dir='${tests_dir}'
+# Top level directory, containing e.g. README.md
+top_dir='${top_dir}'
+# Directory containing utilities
+utilities_dir='${utilities_dir}'
+
+##########################
+# Dependency directories #
+##########################
+# Directory of BLAS
+blas_dir='${blas_dir}'
+# Directory of CLASS
+class_dir='${class_dir}'
+# Directory of FFTW
+fftw_dir='${fftw_dir}'
+# Directory of FFTW2, used by GADGET
+fftw_for_gadget_dir='${fftw_for_gadget_dir}'
+# Directory of Gadget2
+gadget_dir='${gadget_dir}'
+# Directory containing the GADGET2 source code
+Gadget2_dir='${Gadget2_dir}'
+# Directory of GSL
+gsl_dir='${gsl_dir}'
+# Directory of HDF5
+hdf5_dir='${hdf5_dir}'
+# Directory of libpng
+libpng_dir='${libpng_dir}'
+# Directories of MPI
+mpi_dir='${mpi_dir}'
+mpi_compilerdir='${mpi_compilerdir}'
+mpi_bindir='${mpi_bindir}'
+mpi_libdir='${mpi_libdir}'
+mpi_includedir='${mpi_includedir}'
+mpi_symlinkdir='${mpi_symlinkdir}'
+# Directory of Python
+python_dir='${python_dir}'
+# Directory of zlib
+zlib_dir='${zlib_dir}'
+
+#########
+# Files #
+#########
+# The executable script of the CO𝘕CEPT code
+concept='${concept}'
+# The file containing environment variables
+env_file='${env_file}'
+# The installer script
+installer='${installer}'
+# The MPI C compiler
+mpicc='${mpicc}'
+# The MPI executable
+mpiexec='${mpiexec}'
+# The file containing paths (this file)
+paths_file='${paths_file}'
+# The Python interpreter
+python='${python}'
+" > "${paths_file}"
+    # CO𝘕CEPT will be tested later
+fi
+
+
+
 ###########################
 # Install and patch CLASS #
 ###########################
@@ -7576,6 +7781,57 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
         "}"                                                                      \
     )
     patch_class "${class_dir}/source/perturbations.c" ${linenr} "insert" "above" "${new_lines[@]}"
+    # If CO𝘕CEPT is installed we now switch out the values of various
+    # constants in the CLASS source code so that they match the values
+    # used in CO𝘕CEPT.
+    if [ -n "${concept}" ] && [ -f "${concept}" ]; then
+        echo "Patching physical constants in CLASS to match values used in CO𝘕CEPT"
+        current_dir="$(pwd)"
+        if [ -n "${concept_dir}" ] && [ -d "${concept_dir}" ]; then
+            cd "${concept_dir}"
+        fi
+        # Test whether CO𝘕CEPT is able to run
+        concept_works="False"
+        result="$("${concept}" -m "print(2+2)" --pure-python 2>/dev/null | tail -n 1)"
+        if [ "${result}" == "4" ]; then
+            concept_commons_print() {
+                expression="$1"
+                "${concept}" -m "from commons import *; print(${expression})" --pure-python \
+                    2>/dev/null | tail -n 1
+            }
+            result="$(concept_commons_print "π")"
+            if [[ "${result}" == "3.14"* ]]; then
+                concept_works="True"
+            fi
+        fi
+        if [ "${concept_works}" == "True" ]; then
+            class_constants=(                                            \
+                _Mpc_over_m_   "units.Mpc/units.m"                       \
+                _Gyr_over_Mpc_ "light_speed*units.Gyr/units.Mpc"         \
+                _c_            "light_speed*units.s/units.m"             \
+                _G_            "G_Newton*units.kg*units.s**2/units.m**3" \
+                _eV_           "units.eV/units.J"                        \
+                _k_B_          "NotImplemented"                          \
+                _h_P_          "2*π*ħ/(units.J*units.s)"                 \
+            )
+            for ((name_index=0; name_index<${#class_constants[@]}; name_index+=2)); do
+                ((expr_index = name_index + 1))
+                name=${class_constants[${name_index}]}
+                expr="${class_constants[${expr_index}]}"
+                if [ "${expr}" == "NotImplemented" ]; then
+                    # This CLASS constant has no equivalent in CO𝘕CEPT
+                    continue
+                fi
+                value="$(concept_commons_print "${expr}")"
+                redefine_class "${class_dir}/include/background.h" ${name} "${value}"
+            done
+        else
+            # CO𝘕CEPT was not able to run.
+            # Print out error but do not exit.
+            error "Unable to run CO𝘕CEPT during CLASS installation"
+        fi
+        cd "${current_dir}"
+    fi
     # Build CLASS, including the Python wrapper classy. We explicitly
     # specify Python 3 as the language level and replace -O4 with -O3
     # (which are equivalent on compilers that recognize -O4).
@@ -7692,211 +7948,6 @@ sys.exit(int(cosmo.get_background()['proper time [Gyr]'][-1]) != 13)
     cd "${top_dir}"
     rm -rf "${top_dir}/tmp/class" || :
     install_notice "CLASS" "${class_dir}"
-fi
-
-
-
-###################################
-# Install the CO𝘕CEPT code itself #
-###################################
-# Paths used by CO𝘕CEPT
-concept="${concept_dir}/concept"
-docs_dir="${concept_dir}/docs"
-ics_dir="${concept_dir}/ICs"
-logs_dir="${concept_dir}/logs"
-output_dir="${concept_dir}/output"
-params_dir="${concept_dir}/params"
-reusables_dir="${concept_dir}/.reusables"
-tests_dir="${concept_dir}/tests"
-utilities_dir="${concept_dir}/utilities"
-Gadget2_dir="${gadget_dir}/Gadget2"
-installer="${top_dir}/installer"
-mpiexec="${mpi_bindir}/mpiexec"
-# Move source files, create empty directories and create the .paths file
-if [ "${concept_install}" == "True" ] && [ "${concept_installed}" == "False" ]; then
-    init_install "CONCEPT"
-    # Move everything from the concept-${concept_version}
-    # directory to ${top_dir}.
-    if [ -f "${top_dir}/installer" ]; then
-        # An installation script already exists in the directory where
-        # the downloaded installation script for the installed CO𝘕CEPT
-        # version should go. This pre-existing installation script might
-        # be the very file running now, and so it is not safe to
-        # overwrite it. Instead, move the new installation script there
-        # under a new name, reflecting its version.
-        mv "installer" "${top_dir}/installer_${concept_version}"
-    fi
-    mv ./{.[!.],}* "${top_dir}/"
-    cd "${top_dir}"
-    rm -rf "${top_dir}/tmp/concept" || :
-    # Create directories
-    mkdir -p "${ics_dir}"
-    mkdir -p "${logs_dir}"
-    mkdir -p "${output_dir}"
-    mkdir -p "${params_dir}"
-    # Add PATH-like and a few PYTHON environment variables present at
-    # install time (now) to the .env file.
-    current_step="setup of the .env file"
-    printf "\nSetting up the .env file\n"
-    set_status "Setting up the .env file"
-    "${python}" -c "
-import os
-with open('${env_file}', 'r', encoding='utf-8') as file:
-    lines = file.readlines()
-# Generator for extracting environment variables
-def get_envs():
-    for var, val in os.environ.items():
-        if (
-            # PATH, LD_LIBRARY_PATH, ...
-            ('path' in var.lower() and (val.startswith('/') or val.startswith(':')))
-            # Intel license file
-            or (var in {'INTEL_LICENSE_FILE', 'INTEL_LICENCE_FILE'} and val.startswith('/'))
-        ):
-            yield var, val
-# Add environment variables
-envs_inserted = False
-with open('${env_file}', 'w', encoding='utf-8') as file:
-    for line in lines:
-        if not envs_inserted and 'Update the environment' in line:
-            print('# The following has been placed by the installer script', file=file)
-            if '${python_install}' == 'True':
-                print('unset PYTHONPATH', file=file)
-                print('unset PYTHONHOME', file=file)
-                print('export PYTHONNOUSERSITE=\"True\"', file=file)
-            print('pathenv_name_value_pairs_installtime=( \\\\', file=file)
-            for var, val in get_envs():
-                print(f'    {var} \"{val}\" \\\\', file=file)
-            print(')', file=file)
-            print('', file=file)
-            envs_inserted = True
-        print(line, end='', file=file)
-"
-    # If MPI was installed as part of this installation process, it is
-    # not set up to function with e.g. Slurm, and so we set the
-    # MPI executor to mpiexec explicitly. This should work even when
-    # running on multiple nodes, though the network performance will
-    # most likely be bad. We further add some arguments to mpiexec
-    # depending on the MPI distribution and version.
-    if [ "${mpi_preinstalled}" == "False" ]; then
-        use_specified_mpi_compilers
-        mpiexec_args=""
-        if [ "${mpi}" == "mpich" ]; then
-            # Though MPICH should not use process binding by default,
-            # it still supports a -bind-to none or --bind-to none
-            # option. Here we check if this is so, and apply it.
-            mpiexec_output="$("${mpiexec}" -bind-to none -n 1 echo "success" 2>&1 || :)"
-            if [ "${mpiexec_output}" == "success" ]; then
-                mpiexec_args="${mpiexec_args} -bind-to none"
-            else
-                mpiexec_output="$("${mpiexec}" --bind-to none -n 1 echo "success" 2>&1 || :)"
-                if [ "${mpiexec_output}" == "success" ]; then
-                    mpiexec_args="${mpiexec_args} --bind-to none"
-                fi
-            fi
-        elif [ "${mpi}" == "openmpi" ]; then
-            # In OpenMPI 3 and 4, oversubscription (having more MPI
-            # processes than physical cores) is disallowed by default.
-            mpi_version_major="${mpi_version:0:1}"
-            if [ "${mpi_version_major}" -ge 3 2>/dev/null ]; then
-                mpiexec_args="${mpiexec_args} --oversubscribe"
-            fi
-            # Disable automatic process binding/affinity, allowing
-            # OpenMP threads to be assigned to cores in a one-to-one
-            # fashion. This is off by default prior to OpenMPI version
-            # 1.7. All of 1.7 -- 4.0 supports the --bind-to none option
-            # to mpiexec. Here we add this option if it is understood.
-            mpiexec_output="$("${mpiexec}" --bind-to none -n 1 echo "success" 2>&1 || :)"
-            if [ "${mpiexec_output}" == "success" ]; then
-                mpiexec_args="${mpiexec_args} --bind-to none"
-            fi
-        fi
-        sed -i "s/mpi_executor=\"\"/mpi_executor=\"mpiexec${mpiexec_args}\"/" "${env_file}"
-        reset_environment
-    fi
-    # Create the .paths file,
-    # storing important paths used by CO𝘕CEPT.
-    current_step="creation of the .paths file"
-    printf "\nWriting paths to .paths\n"
-    set_status "Writing paths to .paths"
-    echo "# This file contains absolute paths to directories and files
-# used by the CO𝘕CEPT code. You may manually edit these paths.
-
-#######################
-# CO𝘕CEPT directories #
-#######################
-# Directory containing the source code
-concept_dir='${concept_dir}'
-# Directory containing the documentation
-docs_dir='${docs_dir}'
-# Directory intended for initial conditions
-ics_dir='${ics_dir}'
-# Directory containing the log files
-logs_dir='${logs_dir}'
-# Directory intended for output
-output_dir='${output_dir}'
-# Directory intended for parameter files
-params_dir='${params_dir}'
-# Directory containing various reusable dumps
-reusables_dir='${reusables_dir}'
-# Directory containing tests
-tests_dir='${tests_dir}'
-# Top level directory, containing e.g. README.md
-top_dir='${top_dir}'
-# Directory containing utilities
-utilities_dir='${utilities_dir}'
-
-##########################
-# Dependency directories #
-##########################
-# Directory of BLAS
-blas_dir='${blas_dir}'
-# Directory of CLASS
-class_dir='${class_dir}'
-# Directory of FFTW
-fftw_dir='${fftw_dir}'
-# Directory of FFTW2, used by GADGET
-fftw_for_gadget_dir='${fftw_for_gadget_dir}'
-# Directory of Gadget2
-gadget_dir='${gadget_dir}'
-# Directory containing the GADGET2 source code
-Gadget2_dir='${Gadget2_dir}'
-# Directory of GSL
-gsl_dir='${gsl_dir}'
-# Directory of HDF5
-hdf5_dir='${hdf5_dir}'
-# Directory of libpng
-libpng_dir='${libpng_dir}'
-# Directories of MPI
-mpi_dir='${mpi_dir}'
-mpi_compilerdir='${mpi_compilerdir}'
-mpi_bindir='${mpi_bindir}'
-mpi_libdir='${mpi_libdir}'
-mpi_includedir='${mpi_includedir}'
-mpi_symlinkdir='${mpi_symlinkdir}'
-# Directory of Python
-python_dir='${python_dir}'
-# Directory of zlib
-zlib_dir='${zlib_dir}'
-
-#########
-# Files #
-#########
-# The executable script of the CO𝘕CEPT code
-concept='${concept}'
-# The file containing environment variables
-env_file='${env_file}'
-# The installer script
-installer='${installer}'
-# The MPI C compiler
-mpicc='${mpicc}'
-# The MPI executable
-mpiexec='${mpiexec}'
-# The file containing paths (this file)
-paths_file='${paths_file}'
-# The Python interpreter
-python='${python}'
-" > "${paths_file}"
-    # CO𝘕CEPT will be tested later
 fi
 
 
