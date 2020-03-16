@@ -888,6 +888,10 @@ export OMPI_MCA_orte_base_help_aggregate=0"
     # Disable OpenMPI warning about forking
     mpi_env="${mpi_env}
 export OMPI_MCA_mpi_warn_on_fork=0"
+    # By default, OpenMPI disallows any usage by the root user
+    mpi_env="${mpi_env}
+export OMPI_ALLOW_RUN_AS_ROOT=1
+export OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1"
     # In OpenMPI 3 and 4, oversubscription (having more MPI processes
     # than physical cores) is disallowed by default.
     mpi_version_major="${mpi_version:0:1}"
