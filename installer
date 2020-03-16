@@ -6943,12 +6943,6 @@ with open('${env_file}', 'w', encoding='utf-8') as file:
                 fi
             fi
         elif [ "${mpi}" == "openmpi" ]; then
-            # In OpenMPI 3 and 4, oversubscription (having more MPI
-            # processes than physical cores) is disallowed by default.
-            mpi_version_major="${mpi_version:0:1}"
-            if [ "${mpi_version_major}" -ge 3 2>/dev/null ]; then
-                mpiexec_args="${mpiexec_args} --oversubscribe"
-            fi
             # Disable automatic process binding/affinity, allowing
             # OpenMP threads to be assigned to cores in a one-to-one
             # fashion. This is off by default prior to OpenMPI version
