@@ -493,38 +493,38 @@ status_visible="${status_on}"
 status_finish="finish_successfully"
 
 # Backup of initial environment variables
-env_var_names=(     \
-    BLAS            \
-   CC               \
-   CFLAGS           \
-   CPPFLAGS         \
-   CXX              \
-   CXXFLAGS         \
-   F77              \
-   F90              \
-   F9X              \
-   FC               \
-   FCFLAGS          \
-   FFLAGS           \
-   HDF5_DIR         \
-   HDF5_MPI         \
-   LAPACK           \
-   LD_LIBRARY_PATH  \
-   LD_PRELOAD       \
-   LDFLAGS          \
-   LIBS             \
-   MPICC            \
-   MPILIBS          \
-   PATH             \
-   PERL             \
-   PKG_CONFIG_PATH  \
-   PNG_CFLAGS       \
-   PNG_LIBS         \
-   TMPDIR           \
-   ZLIB_CFLAGS      \
-   ZLIB_LIBS        \
-   ZLIBLIB          \
-   ZLIBINC          \
+env_var_names=(      \
+    BLAS             \
+    CC               \
+    CFLAGS           \
+    CPPFLAGS         \
+    CXX              \
+    CXXFLAGS         \
+    F77              \
+    F90              \
+    F9X              \
+    FC               \
+    FCFLAGS          \
+    FFLAGS           \
+    HDF5_DIR         \
+    HDF5_MPI         \
+    LAPACK           \
+    LD_LIBRARY_PATH  \
+    LD_PRELOAD       \
+    LDFLAGS          \
+    LIBS             \
+    MPICC            \
+    MPILIBS          \
+    PATH             \
+    PERL             \
+    PKG_CONFIG_PATH  \
+    PNG_CFLAGS       \
+    PNG_LIBS         \
+    TMPDIR           \
+    ZLIB_CFLAGS      \
+    ZLIB_LIBS        \
+    ZLIBLIB          \
+    ZLIBINC          \
 )
 for env_var_name in "${env_var_names[@]}"; do
     # Save initial state (set/unset) of the environment variable
@@ -1697,6 +1697,12 @@ fi
 # so that OpenMP runs serially.
 if [ "${ssh}" == "True" ] && [ -z "${OMP_NUM_THREADS}" ]; then
     export OMP_NUM_THREADS=1
+fi
+# In OpenMPI 3 and 4, oversubscription (having more MPI processes
+# than physical cores) is disallowed by default.
+# We want oversubscription to be allowed during installation.
+if [ -z "${OMPI_MCA_rmaps_base_oversubscribe}" ]; then
+    export OMPI_MCA_rmaps_base_oversubscribe=1
 fi
 
 
@@ -3603,7 +3609,7 @@ int main(int argc, char *argv[]) {
     number = -1;
   }
   MPI_Reduce(&number, &sum, 1, MPI_INT, MPI_SUM, master_rank, MPI_COMM_WORLD);
-  if (rank == 0){
+  if (rank == 0) {
     printf("\nMPI test result = %d\n", sum);
   }
   MPI_Finalize();

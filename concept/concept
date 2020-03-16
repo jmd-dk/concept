@@ -882,25 +882,25 @@ fi
 mpiexec_args=""
 mpi_env=""
 if [ "${mpi_implementation}" == "openmpi" ]; then
-    # Extra arguments to pass to OpenMPI's mpiexec.
-    # In OpenMPI 3 and 4, oversubscription (having more MPI processes
-    # than physical cores) is disallowed by default.
-    mpi_version_major="${mpi_version:0:1}"
-    if [ "${mpi_version_major}" -ge 3 2>/dev/null ]; then
-        mpiexec_args="${mpiexec_args} --oversubscribe"
-    fi
     # Disable aggregation of OpenMPI warnings
     mpi_env="${mpi_env}
 export OMPI_MCA_orte_base_help_aggregate=0"
     # Disable OpenMPI warning about forking
     mpi_env="${mpi_env}
 export OMPI_MCA_mpi_warn_on_fork=0"
+    # In OpenMPI 3 and 4, oversubscription (having more MPI processes
+    # than physical cores) is disallowed by default.
+    mpi_version_major="${mpi_version:0:1}"
+    if [ "${mpi_version_major}" -ge 3 2>/dev/null ]; then
+        mpi_env="${mpi_env}
+export OMPI_MCA_rmaps_base_oversubscribe=1"
+    fi
     # In OpenMPI 4, infiniband ports are disabled by default in favour
     # of UCX. If this leads to an error about not initializing an
     # OpenFabrics device, we overwrite this default.
     if [ -z "${OMPI_MCA_btl_openib_allow_ib}" ] \
         && [ "${mpi_version_major}" -ge 4 2>/dev/null ]; then
-        mpi_warning="$("${python}" -c '
+        mpi_warning="$("${python}" -B -c '
 import mpi4py.rc; mpi4py.rc.threads = False  # Do not use threads
 from mpi4py import MPI
 ' 2>&1)"
