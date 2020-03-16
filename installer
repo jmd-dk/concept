@@ -4857,7 +4857,7 @@ if [ "${mpi_install}" == "True" ] && [ "${mpi_installed}" == "False" ]; then
             eval "use_${compiler}_compilers" || continue
             init_install "MPI" "compiler=${compiler}"
             export PATH="${perl_dir}/bin:${PATH}"
-            ./configure "${mpi_configure_options}" --prefix="${mpi_dir}" 2>&1 || continue
+            ./configure ${mpi_configure_options} --prefix="${mpi_dir}" 2>&1 || continue
             if [ "${make_jobs}" == "-j" ]; then
                 # Building in parallel takes up a lot of resources
                 make -j 2 2>&1 || continue
@@ -4891,7 +4891,7 @@ if [ "${mpi_install}" == "True" ] && [ "${mpi_installed}" == "False" ]; then
             eval "use_${compiler}_compilers" || continue
             init_install "MPI" "compiler=${compiler}"
             export PATH="${perl_dir}/bin:${PATH}"
-            ./configure "${mpi_configure_options}" --prefix="${mpi_dir}" 2>&1 || continue
+            ./configure ${mpi_configure_options} --prefix="${mpi_dir}" 2>&1 || continue
             if [ "${make_jobs}" == "-j" ]; then
                 # Building in parallel takes up a lot of resources
                 make -j 2 2>&1 || continue
