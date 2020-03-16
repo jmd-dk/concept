@@ -1704,6 +1704,10 @@ fi
 if [ -z "${OMPI_MCA_rmaps_base_oversubscribe}" ]; then
     export OMPI_MCA_rmaps_base_oversubscribe=1
 fi
+# By default, OpenMPI disallows any usage by the root user.
+# We do not want this limitation during installation.
+export OMPI_ALLOW_RUN_AS_ROOT=1
+export OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
 
 
 
