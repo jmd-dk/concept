@@ -54,12 +54,14 @@ html: sphinx
 	    sed -i 's/Edit on GitHub/Code Repository/g' $${filename} ;                      \
 	    sed -i 's/github\.com\/\/[^"]*/github\.com\/jmd-dk\/concept\//g' $${filename} ; \
 	done
-	@# Write CO𝘕CEPT in the heading with an italics N using HTML tags.
-	@# Also insert a small (en) space after N, needed due to the heading font.
-	@sed -i 's/<h1>CONCEPT/<h1>CO<em>N<\/em> CEPT/g' $(BUILDDIR)/html/index.html
-	@# Generally write the N in CO𝘕CEPT in italics via HTML tags
-	@for filename in $$(find $(BUILDDIR)/html/ -name '*.html'); do \
-	    sed -i 's/CONCEPT/CO<em>N<\/em>CEPT/g' $${filename} ;      \
+	@# Write the N in CO𝘕CEPT in italics via HTML tags.
+	@# In headings, also insert a small (en) space after N,
+	@# needed due to the heading font.
+	@for filename in $$(find $(BUILDDIR)/html/ -name '*.html'); do                                         \
+	    for h in 1 2 3 4 5 6; do                                                                           \
+	        sed -i "s/\(<h$${h}>.*\)\(CONCEPT\)\(.*<\/h$${h}>.*\)/\1CO<em>N<\/em> CEPT\3/g" $${filename} ; \
+	    done ;                                                                                             \
+	    sed -i 's/CONCEPT/CO<em>N<\/em>CEPT/g' $${filename} ;                                              \
 	done
 	@# Remove HTML tags from titles
 	@for filename in $$(find $(BUILDDIR)/html/ -name '*.html'); do                                    \
