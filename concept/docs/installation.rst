@@ -597,7 +597,7 @@ dependencies.
 Dependencies
 ------------
 This entry lists the dependency stack of CO\ *N*\ CEPT. Knowledge about this
-stack is not needed if using the installation script (*highly* recommended!),
+stack is not needed if using the ``installer`` script (*highly* recommended!),
 but it is important if for some reason you want to build (parts of) this stack
 yourself.
 
@@ -669,22 +669,27 @@ dependencies, CO\ *N*\ CEPT further depends explicitly on
 
 If building FFTW yourself, remember to link against an MPI library. The same
 goes for building HDF5 and installing MPI4Py and H5Py. Also, the MPI library
-has to conform to the MPI-3 standard.
+has to conform to the MPI-3 (or MPI-3.1) standard.
 
 For testing, CO\ *N*\ CEPT compares itself against
 `GADGET <https://wwwmpa.mpa-garching.mpg.de/gadget/>`_, specifically version
-2.0.7. If you do not care about running the CO\ *N*\ CEPT test suite, you do
-not have to install GADGET.
+2.0.7. When installing using the ``installer`` script, GADGET is patched in
+order to increase the maximum allowed size of path names and slightly change
+the values of various internal physical constants as to match the values
+adopted by CO\ *N*\ CEPT. If you do not care about running the CO\ *N*\ CEPT
+test suite, you do not have to install GADGET at all.
 
 The last non-standard depenency of CO\ *N*\ CEPT is the
 `CLASS <http://class-code.net/>`_ code, along with its Python wrapper
-'classy'. When installing using the installation script, CLASS and classy are
+'classy'. When installing using the ``installer`` script, CLASS and classy are
 patched in order to enable larger and new kinds of output, fix bugs and
-improve interoperability with CO\ *N*\ CEPT. If installing without the use of
-the installation script, you will have to obtain the patched CLASS + classy by
-some other means. A good solution is to install everything else first,
-including CO\ *N*\ CEPT itself, and then make use of the CO\ *N*\ CEPT
-``update`` utility to install and patch CLASS + classy:
+improve interoperability with CO\ *N*\ CEPT (which includes (slight) changes
+to internal values of physical constants, to match the values adopted by
+CO\ *N*\ CEPT). If installing without the use of the ``installer`` script, you
+will have to obtain the patched CLASS + classy by some other means. A good
+solution is to install everything else first, including CO\ *N*\ CEPT itself,
+and then make use of the CO\ *N*\ CEPT ``update`` utility to install and patch
+CLASS + classy:
 
 .. code-block:: bash
 

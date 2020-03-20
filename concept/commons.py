@@ -3580,6 +3580,38 @@ def significant_figures(numbers, nfigs, fmt='', incl_zeros=True, scientific=Fals
     else:
         return return_list
 
+# Function for correcting floating point numbers
+def correct_float(val_raw):
+    """Example: correct_float(1.234499999999998) -> 1.2345
+    """
+    isnumber = False
+    try:
+        val_raw = float(val_raw)
+        isnumber = True
+    except:
+        pass
+    if not isnumber:
+        # Assume container
+        vals = [correct_float(val_raw_i) for val_raw_i in any2list(val_raw)]
+        val_type = type(val_raw)
+        if val_type is np.ndarray:
+            return asarray(vals)
+        return val_type(vals)
+    val_g = float(f'{val_raw:g}')
+    if val_g == val_raw:
+        return val_g
+    val_str = str(np.abs(val_raw))
+    if 'e' in val_str:
+        val_str = val_str[:val_str.index('e')]
+    val_str = val_str.replace('.', '')
+    if len(val_str) < 15:
+        return val_raw
+    val_new = sorted(
+        [val_raw*(1 + sign*i*ℝ[0.5*machine_ϵ]) for i in range(21) for sign in (+1, -1)],
+        key=(lambda val: len(str(val))),
+    )[0]
+    return (val_new if len(str(val_new)) < len(str(val_raw)) - 2 else val_raw)
+
 # Function that aligns a list of str's by inserting spaces.
 # The alignment points are specified by the 'alignat' character.
 @cython.pheader(

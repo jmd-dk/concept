@@ -1,0 +1,513 @@
+#!/usr/bin/env bash
+
+# This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
+# Copyright © 2015–2020 Jeppe Mosgaard Dakin.
+#
+# CO𝘕CEPT is free software: You can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# CO𝘕CEPT is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with CO𝘕CEPT. If not, see http://www.gnu.org/licenses/
+#
+# The author of CO𝘕CEPT can be contacted at dakin(at)phys.au.dk
+# The latest version of CO𝘕CEPT is available at
+# https://github.com/jmd-dk/concept/
+
+
+
+# This utility generates a GADGET Makefile, parameter file
+# and outputlist file, given an equivalent CO𝘕CEPT parameter file.
+# You can run this file directly as
+# utilities/gadget [dump_directory]
+# or invoke it via the concept script as
+# ./concept -u gadget [dump_directory]
+# where the optional dump_directory specifies where to dump
+# the generated files.
+# When run without specifying a CO𝘕CEPT parameter file, as above, this will
+# generate a GADGET Makefile only. If in addition a CO𝘕CEPT parameter file is
+# supplied (-p path/to/parameterfile), a matching GADGET parameter file
+# and outputlist file will also be generated.
+
+
+
+# Absolute paths to this file and its directory
+this_file="$(readlink -f "${BASH_SOURCE[0]}")"
+this_dir="$(dirname "${this_file}")"
+
+# Source the concept script
+source "${this_dir}/../concept"
+
+# Set up error trapping
+ctrl_c(){
+    trap : 0
+    exit 2
+}
+abort(){
+    exit_code=$?
+    colorprint "An error occurred while using the \"$(basename "${this_file}")\" utility!" "red"
+    exit ${exit_code}
+}
+if [ "${called_from_concept}" == "True" ]; then
+    trap 'ctrl_c' SIGINT
+    trap 'abort' EXIT
+    set -e
+fi
+
+# Use Python's argparse module to handle command-line arguments
+dump_directory_unspecified="__none__"
+argparse_finished="no"
+argparse_exit_code=""
+args=$("${python}" -B -c "
+import argparse, sys
+# Setup command-line arguments
+parser = argparse.ArgumentParser(
+    prog='$(basename "${this_file}")',
+    description='Run the CO𝘕CEPT $(basename "${this_file}") utility',
+)
+parser.add_argument(
+    'dump_directory',
+    nargs='?',
+    default='${dump_directory_unspecified}',
+    help='path to directory in which to dump generated GADGET files',
+)
+# Enables Python to write directly to screen (stderr)
+# in case of help request.
+stdout_copy = sys.stdout
+sys.stdout = sys.stderr
+# Now do the actual argument parsing,
+# including writing out the help message.
+if '${called_from_concept}' == 'True':
+    # Called from concept - Throw exception on illegal args
+    args = parser.parse_args()
+else:
+    # Called directly - Allow what appears to be illegal args
+    # (these might be known to the concept script).
+    args, unknown_args = parser.parse_known_args()
+# Reset stdout
+sys.stdout = stdout_copy
+# Print out the arguments.
+# These will be captured in the Bash 'args' variable.
+print('argparse_finished=yes')
+print(f'dump_directory={args.dump_directory}')
+" "$@" || echo "argparse_exit_code=$?")
+# Evaluate the handled arguments into this scope
+eval "${args}"
+# Exit if argparse exited without finishing
+if [ "${argparse_finished}" != "yes" ]; then
+    if [ -z "${argparse_exit_code}" ]; then
+        argparse_exit_code=0
+    fi
+    if [ ${argparse_exit_code} -eq 0 ]; then
+        trap : 0
+    fi
+    exit ${argparse_exit_code}
+fi
+
+# If not called indirectly through the concept script,
+# call the concept script now.
+if [ "${called_from_concept}" != "True" ]; then
+    "${concept}" -u="${this_file}" "$@"
+    trap : 0
+    exit 0
+fi
+
+# Convert supplied path to absolute path
+if [ "${dump_directory}" != "${dump_directory_unspecified}" ]; then
+    dump_directory="$(absolute_path "${dump_directory}")"
+    occupied="False"
+    mkdir -p "${dump_directory}" 2>/dev/null || occupied="True"
+    if [ "${occupied}" == "True" ]; then
+        colorprint "Error: Cannot create directory \"${dump_directory}\" for storing output" "red"
+        exit 1
+    fi
+fi
+
+# The absolute path to the output GADGET Makefile and parameter file
+if [ "${params}" == "None" ]; then
+    # When no CO𝘕CEPT parameter file is given,
+    # we only generate a GADGET Makefile.
+    if [ "${dump_directory}" == "${dump_directory_unspecified}" ]; then
+        dump_directory="${gadget_dir}/Gadget2"
+        gadget_makefile="${dump_directory}/Makefile_concept"
+    else
+        gadget_makefile="${dump_directory}/Makefile"
+    fi
+else
+    if [ "${dump_directory}" == "${dump_directory_unspecified}" ]; then
+        dump_directory="${params}_gadget"
+    fi
+    gadget_makefile="${dump_directory}/Makefile"
+    gadget_params="${dump_directory}/params"
+    # Further paths needed for the GADGET parameter file
+    gadget_outputlist="${dump_directory}/outputlist"
+    gadget_output="${dump_directory}/output"
+    mkdir -p "${gadget_output}" >/dev/null 2>&1 || :
+fi
+
+
+
+############################
+# Generate GADGET Makefile #
+############################
+# GADGET Makefile header
+header_lines=("# This GADGET Makefile was generated by the CONCEPT GADGET utility")
+if [ "${params}" != "None" ]; then
+    header_lines=("${header_lines[@]}" "# from the CO𝘕CEPT parameter file \"${params}\"")
+fi
+header_lines=("${header_lines[@]}" "# at $(date).")
+header=""
+for line in "${header_lines[@]}"; do
+    header="${header}${line}\n"
+done
+
+# If a CO𝘕CEPT parameter file is supplied,
+# get the grid size of the P(³)M grid used, if any.
+PMGRID="128"
+disable_pm="#"
+if [ "${params}" != "None" ]; then
+    gridsize="$("${concept}" -m '
+from commons import *
+print(np.max([val for d in φ_gridsizes.values() for val in d.values()]))
+' -n 1 -p "${params}" --pure-python --local | tail -n 1)"
+    if [ ${gridsize} -gt 1 ]; then
+        PMGRID=${gridsize}
+        disable_pm=""
+    fi
+fi
+
+# Write out GADGET Makefile
+make_vars="$(cd "${concept_dir}" && make print_vars)"
+get_make_var() {
+    varname="$1"
+    definition="$(echo "${make_vars}" | grep "^${varname} = ")"
+    for dots in "." ".."; do
+        directory="${concept_dir}"
+        if [ ${dots} == ".." ]; then
+            directory="$(dirname ${directory})"
+        fi
+        replacements=(                     \
+            "-I${dots}/" "-I${directory}/" \
+            "-L${dots}/" "-L${directory}/" \
+            " ${dots}/"  " ${directory}/"  \
+            "=${dots}/"  "=${directory}/"  \
+        )
+        for ((pattern_index=0; pattern_index<${#replacements[@]}; pattern_index+=2)); do
+            ((replace_index = pattern_index + 1))
+            pattern="${replacements[${pattern_index}]}"
+            pattern="${pattern//\./\\\.}"
+            pattern="${pattern//\//\\\/}"
+            replace="${replacements[${replace_index}]}"        
+            replace="${replace//\./\\\.}"
+            replace="${replace//\//\\\/}"
+            definition="$(echo "${definition}" | sed "s/${pattern}/${replace}/g")"
+        done
+    done
+    definition="$(echo "${definition#* = }")"
+    definition="$("${python}" -B -c "print('${definition}'.strip())")"
+    echo "${definition}"
+}
+echo "$(printf "${header}")
+
+
+
+#####################
+# Optional settings #
+#####################
+# Basic operation mode of code
+OPT += -DPERIODIC
+
+# Things that are always recommended
+OPT += -DPEANOHILBERT
+OPT += -DWALLCLOCK
+
+# TreePM options
+${disable_pm}OPT += -DPMGRID=${PMGRID}
+
+# Time integration options
+OPT += -DSYNCHRONIZATION
+
+
+
+########################################
+# Settings for compilation and linking #
+########################################
+# Includes
+fftw_incl = -I${fftw_for_gadget_dir}/include
+gsl_incl = $(get_make_var gsl_incl)
+mpi_incl = $(get_make_var mpi_incl)
+includes = \$(fftw_incl) \$(gsl_incl) \$(mpi_incl)
+
+# Compiler options
+CC = $(get_make_var CC)
+other_cflags = $(get_make_var other_cflags)
+optimizations = $(get_make_var optimizations)
+CFLAGS += \$(OPT) \$(other_cflags) \$(optimizations) \$(includes)
+
+# Libraries to link
+fftw_libs = -L${fftw_for_gadget_dir}/lib -Wl,-rpath=${fftw_for_gadget_dir}/lib \\
+    -lsrfftw_mpi -lsfftw_mpi -lsrfftw -lsfftw
+gsl_libs = $(get_make_var gsl_libs)
+mpi_libs = $(get_make_var mpi_libs)
+LDLIBS += \$(fftw_libs) \$(gsl_libs) \$(mpi_libs)
+
+# Linker options
+other_ldflags = $(get_make_var other_ldflags | sed 's/-shared//g')
+linker_optimizations = $(get_make_var linker_optimizations)
+LDFLAGS += \$(other_ldflags) \$(optimizations) \$(linker_optimizations)
+
+
+
+##############################
+# Specification of filenames #
+##############################
+executable = Gadget2
+sources =               \\
+    accel               \\
+    allocate            \\
+    allvars             \\
+    begrun              \\
+    density             \\
+    domain              \\
+    driftfac            \\
+    endrun              \\
+    forcetree           \\
+    global              \\
+    gravtree            \\
+    gravtree_forcetest  \\
+    hydra               \\
+    init                \\
+    io                  \\
+    longrange           \\
+    main                \\
+    ngb                 \\
+    peano               \\
+    pm_nonperiodic      \\
+    pm_periodic         \\
+    potential           \\
+    predict             \\
+    read_ic             \\
+    restart             \\
+    run                 \\
+    system              \\
+    timestep            \\
+
+headers =   \\
+    allvars \\
+    proto   \\
+    tags    \\
+
+
+
+###########
+# Targets #
+###########
+# Link object files into executable
+\$(executable): \$(addsuffix .o, \$(sources))
+	\$(CC) \$? -o \$@ \$(LDFLAGS) \$(LDLIBS)
+
+# Compile C source files into object files
+\$(addsuffix .o, \$(sources)): %.o: %.c
+	\$(CC) \$(CFLAGS) -c -o \$@ \$<
+\$(addsuffix .o, \$(sources)): \$(addsuffix .h, \$(headers)) \$(MAKEFILE_LIST)
+
+# Cleanup target
+clean:
+	rm -f \$(addsuffix .o, \$(sources)) \$(executable)
+" > "${gadget_makefile}"
+
+
+
+##################################
+# Generate GADGET parameter file #
+##################################
+# A CO𝘕CEPT parameter file is only generated
+# if a corresponding CO𝘕CEPT parameter file is given.
+if [ "${params}" != "None" ]; then
+    # GADGET parameter file header
+    header_lines=("%% This GADGET parameter file was generated by the CONCEPT GADGET utility")
+    if [ "${params}" != "None" ]; then
+        header_lines=("${header_lines[@]}" "%% from the CO𝘕CEPT parameter file \"${params}\"")
+    fi
+    header_lines=("${header_lines[@]}" "%% at $(date).")
+    header=""
+    for line in "${header_lines[@]}"; do
+        header="${header}${line}\n"
+    done
+    # Get IC file
+    ic_unspecified="__none__"
+    gadget_ic="$(cd "${concept_dir}" && "${concept}" -m "
+from commons import *
+if isinstance(initial_conditions, str) and initial_conditions:
+    print(os.path.abspath(initial_conditions))
+else:
+    print('${ic_unspecified}')
+" -n 1 -p "${params}" --pure-python --local | tail -n 1)"
+    # Get number of particles
+    if [ "${gadget_ic}" == "${ic_unspecified}" ]; then
+        gadget_ic="<path to initial condition file>"
+        ((N = 128**3))
+    else
+        gadget_ic_info="$("${concept}" -u info "${gadget_ic}" --pure-python --local)"
+        N=$(echo "${gadget_ic_info}" | grep " N " | awk '{print $2}')
+    fi
+    # Extract various parameters and dump outputlist
+    parameters="$("${concept}" -m "
+from commons import *
+# Get and dump outputlist
+outputlist = [
+    correct_float(a)
+    for a in sorted([correct_float(a) for a in output_times['a']['snapshot']])
+]
+if not outputlist:
+    # Default to one output at a = 1
+    outputlist.append(1)
+np.savetxt('${gadget_outputlist}', outputlist)
+# Various parameters
+print('TimeBegin =', correct_float(a_begin))
+print('TimeMax =', outputlist[-1])
+print('Omega0 =', correct_float(Ωb + Ωcdm))
+print('OmegaLambda =', correct_float(1 - (Ωb + Ωcdm)))
+print('OmegaBaryon =', correct_float(Ωb))
+h = H0/(100*units.km/(units.s*units.Mpc))
+print('HubbleParam =', correct_float(h))
+print('BoxSize =', correct_float(boxsize/(units.kpc/h)))  # kpc/h
+print('UnitLength_in_cm =', correct_float(units.kpc/units.cm))
+print('UnitMass_in_g =', correct_float(1e+10*units.m_sun/units.g))
+print('UnitVelocity_in_cm_per_s =', correct_float(units.km/units.cm))
+# Use the largest available softening length
+print('SofteningHalo =',
+    np.max([
+        correct_float(eval_unit(str(softening_length).replace('N', '${N}'))/(units.kpc/h))
+        for softening_length in select_softening_length.values()
+    ])
+)
+# A large TreeAllocFactor is needed for simulations with few particles
+Limit = collections.namedtuple('Limit', ('log2N', 'value'))
+lower = Limit(10, 200.0)
+upper = Limit(20,   0.8)
+log2N = log2(${N})
+if log2N < lower.log2N:
+    TreeAllocFactor = lower.value
+elif log2N > upper.log2N:
+    TreeAllocFactor = upper.value
+else:
+    a = (upper.value - lower.value)/(upper.log2N - lower.log2N)
+    b = lower.value - a*lower.log2N
+    TreeAllocFactor = a*log2N + b
+print(f'TreeAllocFactor = {TreeAllocFactor:.1f}')
+" -n 1 -p "${params}" --pure-python --local)"
+    # Write out GADGET parameter file
+    get_gadget_param() {
+        varname="$1"
+        echo "${parameters}" | grep "^${varname} = " | awk '{print $3}'
+    }
+    echo "$(printf "${header}")
+
+
+
+% Relevant files
+InitCondFile       ${gadget_ic}
+OutputDir          ${gadget_output}
+EnergyFile         energy.txt
+InfoFile           info.txt
+TimingsFile        timings.txt
+CpuFile            cpu.txt
+RestartFile        restart
+SnapshotFileBase   snapshot
+OutputListFilename ${gadget_outputlist}
+
+% CPU time-limit
+TimeLimitCPU    999999999
+ResubmitOn      0
+ResubmitCommand scriptfile
+
+% Code options
+ICFormat                2
+SnapFormat              2
+ComovingIntegrationOn   1
+TypeOfTimestepCriterion 0
+OutputListOn            1
+PeriodicBoundariesOn    1
+
+% Caracteristics of run
+TimeBegin   $(get_gadget_param TimeBegin)
+TimeMax     $(get_gadget_param TimeMax)
+Omega0      $(get_gadget_param Omega0)
+OmegaLambda $(get_gadget_param OmegaLambda)
+OmegaBaryon $(get_gadget_param OmegaBaryon)
+HubbleParam $(get_gadget_param HubbleParam)
+BoxSize     $(get_gadget_param BoxSize)  % kpc/h
+
+% Output frequency
+TimeBetSnapshot           0
+TimeOfFirstSnapshot       0
+CpuTimeBetRestartFile     999999999
+TimeBetStatistics         999999999
+NumFilesPerSnapshot       1
+NumFilesWrittenInParallel 1
+
+% Accuracy of time integration
+ErrTolIntAccuracy      0.025
+MaxRMSDisplacementFac  0.2
+CourantFac             0.15
+MaxSizeTimestep        0.03
+MinSizeTimestep        0.0
+
+% Tree algorithm, force accuracy, domain update frequency
+ErrTolTheta               0.5
+TypeOfOpeningCriterion    1
+ErrTolForceAcc            0.005
+TreeDomainUpdateFrequency 0.1
+
+% Further parameters of SPH
+DesNumNgb          33
+MaxNumNgbDeviation 2
+ArtBulkViscConst   0.8
+InitGasTemp        0.0
+MinGasTemp         0.0
+
+% Memory allocation
+PartAllocFactor 1.6
+TreeAllocFactor $(get_gadget_param TreeAllocFactor)  % based on N = ${N}
+BufferSize      100
+
+% System of units
+UnitLength_in_cm         $(get_gadget_param UnitLength_in_cm)  % kpc/cm --> kpc
+UnitMass_in_g            $(get_gadget_param UnitMass_in_g)  % 1e+10*m_sun/g --> 1e+10*m_sun
+UnitVelocity_in_cm_per_s $(get_gadget_param UnitVelocity_in_cm_per_s)  % km/cm --> km/s
+GravityConstantInternal  0
+
+% Softening lengths
+MinGasHsmlFractional  0.0
+SofteningGas          0.0
+SofteningHalo         $(get_gadget_param SofteningHalo)  % kpc/h
+SofteningDisk         0.0
+SofteningBulge        0.0
+SofteningStars        0.0
+SofteningBndry        0.0
+SofteningGasMaxPhys   0.0
+SofteningHaloMaxPhys  $(get_gadget_param SofteningHalo)  % kpc/h
+SofteningDiskMaxPhys  0.0
+SofteningBulgeMaxPhys 0.0
+SofteningStarsMaxPhys 0.0
+SofteningBndryMaxPhys 0.0
+" > "${gadget_params}"
+fi
+
+# Exit gracefully
+if [ "${params}" == "None" ]; then
+    echo "GADGET Makefile dumped as \"$(sensible_path ${gadget_makefile})\""
+else
+    echo "GADGET Makefile, parameter file and outputlist \
+dumped in \"$(sensible_path ${dump_directory})\""
+fi
+colorprint "$(basename "${this_file}") utility finished successfully" "green"
+trap : 0
+

@@ -22,8 +22,7 @@ N_snapshots = len(a)
 
 # Read in data from the GADGET snapshots
 components_gadget = []
-for fname in sorted(glob(this_dir + '/output/snapshot_gadget_*'),
-                    key=lambda s: s[(s.index('gadget_') + 7):])[:N_snapshots]:
+for fname in sorted(glob(this_dir + '/Gadget2/output/snapshot_*'))[:N_snapshots]:
     components_gadget.append(load(fname, compare_params=False, only_components=True)[0])
 
 # Begin analysis

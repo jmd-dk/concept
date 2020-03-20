@@ -985,14 +985,14 @@ from glob import glob
 order = (
     # Test whether the code is able to compile and run
     'basic',
-    # Test of the GADGET installation
-    'gadget',
     # Tests of the CLASS installation,
     # the Friedmann equation, realizations
     # and the power spectrum functionality.
     'friedmann',
     'realize',
     'powerspec',
+    # Test of the GADGET installation
+    'gadget',
     # Tests of the particle implementation
     'drift_nohubble',
     'drift',
