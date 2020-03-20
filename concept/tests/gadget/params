@@ -1,0 +1,16 @@
+# Directory of this parameter file (non-parameter variable)
+_this_dir = os.path.dirname(paths['params'])
+
+# Input/output
+initial_conditions = _this_dir + '/IC'
+snapshot_type      = 'GADGET2'
+output_times       = {'snapshot': [a_begin, 0.5]}
+
+# Numerical parameters
+boxsize = 32*Mpc/h
+
+# Cosmology
+H0      = 67*km/s/Mpc
+Ωcdm    = 0.27
+Ωb      = 0.049
+a_begin = 0.1

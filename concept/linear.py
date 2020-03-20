@@ -3668,7 +3668,7 @@ def generate_primordial_noise(slab):
                 f'and phase shift {θ_str} ...'
             )
     else:
-        masterprint(f'Generating primordial Gaussian noise of grid size {gridsize}...')
+        masterprint(f'Generating primordial Gaussian noise of grid size {gridsize} ...')
     # Allocate the entire DC and Nyquist plane on all processes
     plane_dc      = empty((gridsize, gridsize, 2), dtype=C2np['double'])
     plane_nyquist = empty((gridsize, gridsize, 2), dtype=C2np['double'])

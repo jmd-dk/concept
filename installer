@@ -1355,7 +1355,7 @@ for ${1/CONCEPT/$esc_concept} does not exist!"
             if [ -d "${progname_dir}/../Gadget2" ]; then
                 gadget_dir="$(dirname ${progname_dir})"
             else
-                error "Could not locate Gadget at \"${gadget_dir}\""
+                error "Could not locate GADGET at \"${gadget_dir}\""
                 exit 1
             fi
         fi
@@ -1760,7 +1760,7 @@ check_pypackage_installed(){
             export LD_LIBRARY_PATH="${lib_dir}:${LD_LIBRARY_PATH}"
         fi
     done
-    "${python}" -c "
+    "${python}" -B -c "
 from time import sleep
 try:
     if '${1}' == 'cythongsl':
@@ -2917,7 +2917,7 @@ print_table(){
 # FFTW           ...      "/..."
 # FFTW           ...      "/..."
 # FreeType       ...      "/..."
-# Gadget         ...      "/..."
+# GADGET         ...      "/..."
 # GSL            ...      "/..."
 # HDF5           ...      "/..."
 # libffi         ...      "/..."
@@ -2950,7 +2950,7 @@ concept_patch="False"
 fftw_patch="False"
 fftw_for_gadget_patch="False"
 freetype_patch="False"
-gadget_patch="False"
+gadget_patch="True"
 gsl_patch="False"
 hdf5_patch="False"
 libffi_patch="False"
@@ -3049,10 +3049,10 @@ if [ "${install_any_software}" == "True" ]; then
             "${freetype_version}$(insert_footnote_patch 'freetype')" \
             "\"${freetype_dir}\"")
     fi
-    # Gadget
+    # GADGET (which will be patched)
     if [ "${gadget_install}" == "True" ]; then
         table=("${table[@]}"                                     \
-            "Gadget$(insert_footnote_installed 'gadget')"        \
+            "GADGET$(insert_footnote_installed 'gadget')"        \
             "${gadget_version}$(insert_footnote_patch 'gadget')" \
             "\"${gadget_dir}\"")
     fi
@@ -6106,12 +6106,12 @@ if [ "${python_install}" == "True" ] && [ "${python_installed}" == "False" ] \
             || installed_packages_success="False"
     fi
     if [ "${installed_packages_success}" == "False" ]; then
-        installed_packages="$("${python}" -c "
+        installed_packages="$("${python}" -B -c "
 import pip
 print('\n'.join([i.key for i in pip.get_installed_distributions()]))
 ")"
     fi
-    installed_packages="$("${python}" -c "
+    installed_packages="$("${python}" -B -c "
 packages = '''${installed_packages}'''.split('\n')
 for i, package in enumerate(packages):
     if not package.strip().replace(' ', '').replace('-', ''):
@@ -6357,7 +6357,7 @@ extra_LDFLAGS=${extra_LDFLAGS}\n\n"
         numpy_test_max_time=600
         exit_code_filename="${top_dir}/tmp/.exit_code_numpy"
         export LD_LIBRARY_PATH="${blas_dir}/lib:${LD_LIBRARY_PATH}"
-        ("${python}" -c "import numpy; numpy.test('full', verbose=2, \
+        ("${python}" -B -c "import numpy; numpy.test('full', verbose=2, \
 extra_argv=['--color=yes'])" 2>&1 | tee "${numpy_test_log}"; \
          echo "${PIPESTATUS[0]}" > "${exit_code_filename}") & numpy_test_pid=$!
         soothe ${numpy_test_pid} ${numpy_test_max_time}
@@ -6542,7 +6542,7 @@ extra_LDFLAGS=${extra_LDFLAGS}\n\n"
         # which may not be installed.
         exit_code_filename="${top_dir}/tmp/.exit_code_scipy"
         export LD_LIBRARY_PATH="${blas_dir}/lib:${LD_LIBRARY_PATH}"
-        ("${python}" -c "import scipy; scipy.test('full', verbose=2, \
+        ("${python}" -B -c "import scipy; scipy.test('full', verbose=2, \
 extra_argv=['--color=yes', '-k not test_face'])" 2>&1 | tee "${scipy_test_log}"; \
          echo "${PIPESTATUS[0]}" > "${exit_code_filename}") & scipy_test_pid=$!
         soothe ${scipy_test_pid} ${scipy_test_max_time}
@@ -6898,7 +6898,7 @@ if [ "${concept_install}" == "True" ] && [ "${concept_installed}" == "False" ]; 
     current_step="setup of the .env file"
     printf "\nSetting up the .env file\n"
     set_status "Setting up the .env file"
-    "${python}" -c "
+    "${python}" -B -c "
 import os
 with open('${env_file}', 'r', encoding='utf-8') as file:
     lines = file.readlines()
@@ -7009,7 +7009,7 @@ class_dir='${class_dir}'
 fftw_dir='${fftw_dir}'
 # Directory of FFTW2, used by GADGET
 fftw_for_gadget_dir='${fftw_for_gadget_dir}'
-# Directory of Gadget2
+# Directory of GADGET2
 gadget_dir='${gadget_dir}'
 # Directory containing the GADGET2 source code
 Gadget2_dir='${Gadget2_dir}'
@@ -7050,6 +7050,47 @@ paths_file='${paths_file}'
 python='${python}'
 " > "${paths_file}"
     # CO𝘕CEPT will be tested later
+fi
+# The concept_print function, used later for extracting values
+# from the CO𝘕CEPT code.
+concept_works="False"
+if [ -f "${concept}" ]; then
+    # Test whether CO𝘕CEPT is able to run
+    concept_print() {
+        local expression="$1"
+        local current_dir="$(pwd)"
+        if [ -n "${concept_dir}" ] && [ -d "${concept_dir}" ]; then
+            cd "${concept_dir}"
+        fi
+        "${concept}" -m "
+from commons import *
+val_raw = float(${expression})
+if float('{:g}'.format(val_raw)) == val_raw:
+    print('{:g}'.format(val_raw))
+else:
+    val_str = str(abs(val_raw))
+    if 'e' in val_str:
+        val_str = val_str[:val_str.index('e')]
+    val_str = val_str.replace('.', '')
+    if len(val_str) < 15:
+        print(val_raw)
+    else:
+        val_new = sorted(
+            [val_raw*(1 + sign*i*(0.5*machine_ϵ)) for i in range(21) for sign in (+1, -1)],
+            key=(lambda val: len(str(val))),
+        )[0]
+        print(val_new if len(str(val_new)) < len(str(val_raw)) - 2 else val_raw)
+" --pure-python --local | tail -n 1
+        cd "${current_dir}"
+    }
+    result="$(concept_print "π")"
+    if [[ "${result}" == "3.14"* ]]; then
+        concept_works="True"
+    else
+        # CO𝘕CEPT was not able to run.
+        # Print out error but do not exit.
+        error "CO𝘕CEPT was not able to run, or it produced incorrect results"
+    fi
 fi
 
 
@@ -7162,7 +7203,7 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
         filename="$1"
         name="$2"
         value="$3"
-        sed -i "s/^\( *#define \+${name} \+\)\([^ ]*\)\(.*\)*$/\1${value}\3/" "${filename}"
+        sed -i "s/^\(\s*#define\s\+${name}\s\+\)\(\S*\)\(.*\)$/\1${value}\3/" "${filename}"
     }
     redefine_class "${class_dir}/include/common.h"        _MAXTITLESTRINGLENGTH_  1000000  # 10⁶
     redefine_class "${class_dir}/include/parser.h"        _LINE_LENGTH_MAX_         10000  # 10⁴
@@ -7794,53 +7835,28 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
     # If CO𝘕CEPT is installed we now switch out the values of various
     # constants in the CLASS source code so that they match the values
     # used in CO𝘕CEPT.
-    if [ -n "${concept}" ] && [ -f "${concept}" ]; then
+    if [ "${concept_works}" == "True" ]; then
         echo "Patching physical constants in CLASS to match values used in CO𝘕CEPT"
-        current_dir="$(pwd)"
-        if [ -n "${concept_dir}" ] && [ -d "${concept_dir}" ]; then
-            cd "${concept_dir}"
-        fi
-        # Test whether CO𝘕CEPT is able to run
-        concept_works="False"
-        result="$("${concept}" -m "print(2+2)" --pure-python 2>/dev/null | tail -n 1)"
-        if [ "${result}" == "4" ]; then
-            concept_commons_print() {
-                expression="$1"
-                "${concept}" -m "from commons import *; print(${expression})" --pure-python \
-                    2>/dev/null | tail -n 1
-            }
-            result="$(concept_commons_print "π")"
-            if [[ "${result}" == "3.14"* ]]; then
-                concept_works="True"
+        class_constants=(                                            \
+            _Mpc_over_m_   "units.Mpc/units.m"                       \
+            _Gyr_over_Mpc_ "light_speed*units.Gyr/units.Mpc"         \
+            _c_            "light_speed*units.s/units.m"             \
+            _G_            "G_Newton*units.kg*units.s**2/units.m**3" \
+            _eV_           "units.eV/units.J"                        \
+            _k_B_          "NotImplemented"                          \
+            _h_P_          "2*π*ħ/(units.J*units.s)"                 \
+        )
+        for ((name_index=0; name_index<${#class_constants[@]}; name_index+=2)); do
+            ((expr_index = name_index + 1))
+            name=${class_constants[${name_index}]}
+            expr="${class_constants[${expr_index}]}"
+            if [ "${expr}" == "NotImplemented" ]; then
+                # This CLASS constant has no equivalent in CO𝘕CEPT
+                continue
             fi
-        fi
-        if [ "${concept_works}" == "True" ]; then
-            class_constants=(                                            \
-                _Mpc_over_m_   "units.Mpc/units.m"                       \
-                _Gyr_over_Mpc_ "light_speed*units.Gyr/units.Mpc"         \
-                _c_            "light_speed*units.s/units.m"             \
-                _G_            "G_Newton*units.kg*units.s**2/units.m**3" \
-                _eV_           "units.eV/units.J"                        \
-                _k_B_          "NotImplemented"                          \
-                _h_P_          "2*π*ħ/(units.J*units.s)"                 \
-            )
-            for ((name_index=0; name_index<${#class_constants[@]}; name_index+=2)); do
-                ((expr_index = name_index + 1))
-                name=${class_constants[${name_index}]}
-                expr="${class_constants[${expr_index}]}"
-                if [ "${expr}" == "NotImplemented" ]; then
-                    # This CLASS constant has no equivalent in CO𝘕CEPT
-                    continue
-                fi
-                value="$(concept_commons_print "${expr}")"
-                redefine_class "${class_dir}/include/background.h" ${name} "${value}"
-            done
-        else
-            # CO𝘕CEPT was not able to run.
-            # Print out error but do not exit.
-            error "Unable to run CO𝘕CEPT during CLASS installation"
-        fi
-        cd "${current_dir}"
+            value="$(concept_print "${expr}")"
+            redefine_class "${class_dir}/include/background.h" ${name} "${value}"
+        done
     fi
     # Build CLASS, including the Python wrapper classy. We explicitly
     # specify Python 3 as the language level and replace -O4 with -O3
@@ -7908,7 +7924,7 @@ OMPFLAG=${OMPFLAG}, fast_math=${fast_math}\n\n"
                             fi
                         fi
                         PYTHON="${python}" make ${make_jobs} 2>&1 || continue
-                        "${python}" -c "import classy; classy.Class().compute()" || continue
+                        "${python}" -B -c "import classy; classy.Class().compute()" || continue
                         install_success="True"
                         break
                     done
@@ -7940,7 +7956,7 @@ OMPFLAG=${OMPFLAG}, fast_math=${fast_math}\n\n"
         # of gigabytes and uses the Nose and parameterized Python
         # packages. Instead we perform a simple test of our own,
         # which only does a background computation.
-        if ! "${python}" -c "
+        if ! "${python}" -B -c "
 import sys
 from classy import Class
 cosmo = Class()
@@ -8142,6 +8158,60 @@ if [ "${gadget_install}" == "True" ] && [ "${gadget_installed}" == "False" ]; th
     init_install "GADGET"
     mkdir -p "${gadget_dir}"
     mv ./* "${gadget_dir}/"
+    # As M_PI is not part of the C standard,
+    # it should be defined within the GADGET source code.
+    pi="$("${python}" -B -c "import math; print('pi =', math.pi)" \
+        | grep 'pi =' | awk '{print $NF}')"
+    echo "
+#ifndef M_PI
+#define M_PI ${pi}
+#endif
+" >> "${Gadget2_dir}/allvars.h"
+    # Increase the maximum allowed file name size
+    redefine_gadget() {
+        filename="$1"
+        name="$2"
+        value="$3"
+        sed -i "s/^\(\s*#define\s\+${name}\s\+\)\(\S*\)\(.*\)$/\1${value}\3/" "${filename}"
+    }
+    redefine_gadget "${Gadget2_dir}/allvars.h" MAXLEN_FILENAME 1000
+    # If CO𝘕CEPT is installed we now switch out the values of various
+    # constants in the GADGET source code so that they match the values
+    # used in CO𝘕CEPT.
+    if [ "${concept_works}" == "True" ]; then
+        echo "Patching units and physical constants in GADGET to match values used in CO𝘕CEPT"
+        gadget_constants=(                                              \
+            HYDROGEN_MASSFRAC "NotImplemented"                          \
+            GRAVITY           "G_Newton*units.g*units.s**2/units.cm**3" \
+            SOLAR_MASS        "units.m_sun/units.g"                     \
+            SOLAR_LUM         "NotImplemented"                          \
+            RAD_CONST         "NotImplemented"                          \
+            AVOGADRO          "NotImplemented"                          \
+            BOLTZMANN         "NotImplemented"                          \
+            GAS_CONST         "NotImplemented"                          \
+            C                 "light_speed*units.s/units.cm"            \
+            PLANCK            "2*π*ħ*units.s/(units.g*units.cm**2)"     \
+            CM_PER_MPC        "units.Mpc/units.cm"                      \
+            PROTONMASS        "NotImplemented"                          \
+            ELECTRONMASS      "NotImplemented"                          \
+            THOMPSON          "NotImplemented"                          \
+            ELECTRONCHARGE    "NotImplemented"                          \
+            HUBBLE            "100*units.km/units.Mpc"                  \
+            SEC_PER_MEGAYEAR  "units.Myr/units.s"                       \
+            SEC_PER_YEAR      "units.yr/units.s"                        \
+        )
+        for ((name_index=0; name_index<${#gadget_constants[@]}; name_index+=2)); do
+            ((expr_index = name_index + 1))
+            name=${gadget_constants[${name_index}]}
+            expr="${gadget_constants[${expr_index}]}"
+            if [ "${expr}" == "NotImplemented" ]; then
+                # This GADGET constant has no equivalent in CO𝘕CEPT
+                continue
+            fi
+            value="$(concept_print "${expr}")"
+            redefine_gadget "${Gadget2_dir}/allvars.h" ${name} "${value}"
+        done
+    fi
     cd "${top_dir}"
     rm -rf "${top_dir}/tmp/gadget" || :
     # GADGET will be tested as part of the CO𝘕CEPT test suite

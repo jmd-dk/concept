@@ -530,22 +530,37 @@ def info():
                     h = params['H0']/unit
                     value = params['boxsize']*h
                     if isint(value):
-                        masterprint('boxsize = {}/{:.12g}*{}'.format(int(round(value)),
-                                                                     h,
-                                                                     unit_length),
-                                    file=file, wrap=False)
+                        masterprint(
+                            'boxsize = {}/{}*{}'
+                            .format(int(round(value)), correct_float(h), unit_length),
+                            file=file, wrap=False,
+                        )
                     else:
-                        masterprint('boxsize = {:.12g}*{}'.format(params['boxsize'], unit_length),
-                                    file=file, wrap=False)
+                        masterprint(
+                            'boxsize = {}*{}'
+                            .format(correct_float(params['boxsize']), unit_length),
+                            file=file, wrap=False,
+                        )
                     masterprint('# Cosmological parameters', file=file, wrap=False)
                     unit = units.km/(units.s*units.Mpc)
-                    masterprint('H0 = {:.12g}*km/(s*Mpc)'.format(params['H0']/unit),
-                                file=file, wrap=False)
+                    masterprint(
+                        'H0 = {}*km/(s*Mpc)'.format(correct_float(params['H0']/unit)),
+                        file=file, wrap=False,
+                    )
                     if enable_Hubble:
-                        masterprint('a_begin = {:.12g}'.format(params['a']), file=file, wrap=False)
+                        masterprint(
+                            'a_begin = {}'.format(correct_float(params['a'])),
+                            file=file, wrap=False,
+                        )
                     if snapshot_type == 'standard':
-                        masterprint('Ωcdm = {:.12g}'.format(params['Ωcdm']), file=file, wrap=False)
-                        masterprint('Ωb = {:.12g}'.format(params['Ωb']), file=file, wrap=False)
+                        masterprint(
+                            'Ωcdm = {}'.format(correct_float(params['Ωcdm'])),
+                            file=file, wrap=False,
+                        )
+                        masterprint(
+                            'Ωb = {}'.format(correct_float(params['Ωb'])),
+                            file=file, wrap=False,
+                        )
             # Do not edit the printed text below,
             # as it is grepped for by several of the Bash utilities.
             masterprint(
@@ -573,24 +588,27 @@ def info():
                                                                        mass_basicunit)))
         # Print out global parameters
         unit = units.km/(units.s*units.Mpc)
-        masterprint('{:<20} {:.12g} km s⁻¹ Mpc⁻¹'.format('H0', params['H0']/unit))
-        masterprint('{:<20} {:.12g}'.format('a', params['a']))
+        masterprint('{:<20} {} km s⁻¹ Mpc⁻¹'.format('H0', correct_float(params['H0']/unit)))
+        masterprint('{:<20} {}'.format('a', correct_float(params['a'])))
         # The boxsize should also be printed as boxsize/h, if integer
         unit = 100*units.km/(units.s*units.Mpc)
         h = params['H0']/unit
         value = params['boxsize']*h
         alt_str = ''
         if isint(value) and not isint(params['boxsize']):
-            alt_str = ' = {:.12g} {}/h'.format(int(round(value)), unit_length)
-        masterprint('{:<20} {:.12g} {}{}'.format('boxsize', params['boxsize'], unit_length, alt_str))
+            alt_str = ' = {} {}/h'.format(int(round(value)), unit_length)
+        masterprint(
+            '{:<20} {} {}{}'
+            .format('boxsize', correct_float(params['boxsize']), unit_length, alt_str)
+        )
         # Print out the cosmological density parameters Ωcdm and Ωb.
         # These are only present in the standard snapshots. In gadget2
         # snapshots, instead we have ΩΛ and Ωm. We do not print these
         # out here, as these will be printed as part
         # of the GADGET header.
         if snapshot_type == 'standard':
-            masterprint('{:<20} {:.12g}'.format(unicode('Ωcdm'), params['Ωcdm']))
-            masterprint('{:<20} {:.12g}'.format(unicode('Ωb'), params['Ωb']))
+            masterprint('{:<20} {}'.format(unicode('Ωcdm'), correct_float(params['Ωcdm'])))
+            masterprint('{:<20} {}'.format(unicode('Ωb'), correct_float(params['Ωb'])))
         # Print out component information
         for component in snapshot.components:
             masterprint('{}:'.format(component.name))

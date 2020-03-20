@@ -1671,7 +1671,7 @@ def get_fftw_slab(gridsize, buffer_name='slab_particles', nullify=False):
         reuse = bcast(reuse if master else None)
         if not reuse and not wisdom_acquired.get((gridsize, nprocs, rigor_final)):
             masterprint(
-                f'Acquiring FFTW wisdom ({rigor_final}) for grid of linear size {gridsize} ...'
+                f'Acquiring FFTW wisdom ({rigor_final}) for grid size {gridsize} ...'
             )
         fftw_struct = fftw_setup(gridsize, gridsize, gridsize,
                                  bytes(rigor_final, encoding='ascii'),

@@ -28,13 +28,13 @@ set -e
 "${this_dir}/clean"
 
 # Create the Ewald grid using Cython, if it does not already exist
-ewald_gridsize="$(get_param ewald_gridsize)"
-if [ ! -f "${reusables_dir}/ewald/ewald_gridsize=${ewald_gridsize}.hdf5" ]; then
-    select_forces="$(get_param select_forces)"
-    echo "ewald_gridsize = ${ewald_gridsize}" >  "${this_dir}/params_ewald"
-    echo "select_forces  = ${select_forces}"  >> "${this_dir}/params_ewald"
-    "${concept}" -n 1 -p "${this_dir}/params_ewald" --local
-fi
+#ewald_gridsize="$(get_param ewald_gridsize)"
+#if [ ! -f "${reusables_dir}/ewald/${ewald_gridsize}.hdf5" ]; then
+#    select_forces="$(get_param select_forces)"
+#    echo "ewald_gridsize = ${ewald_gridsize}" >  "${this_dir}/params_ewald"
+#    echo "select_forces  = ${select_forces}"  >> "${this_dir}/params_ewald"
+#    "${concept}" -n 1 -p "${this_dir}/params_ewald" --local
+#fi
 
 # Generate ICs
 echo "$(cat "${this_dir}/params")
@@ -46,9 +46,7 @@ initial_conditions = {
     'N'      : 8**3,
 }
 " > "${this_dir}/ic.params"
-"${concept}" -n 1                       \
-             -p "${this_dir}/ic.params" \
-             --local
+"${concept}" -n 1 -p "${this_dir}/ic.params" --local
 mv "${this_dir}/IC"* "${this_dir}/IC.hdf5"
 
 # Run the CO𝘕CEPT code on the generated ICs

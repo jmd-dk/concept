@@ -22,9 +22,9 @@ for fname in sorted(glob(this_dir + '/output/snapshot_a=*'),
     posx = snapshot.components[0].posx
     a.append(snapshot.params['a'])
     x0.append(np.mean(posx[:4]))
-    x0_std.append(np.std(posx[:4]))
+    x0_std.append(np.std(posx[:4])/np.mean(posx[:4]))
     x1.append(np.mean(posx[4:]))
-    x1_std.append(np.std(posx[4:]))
+    x1_std.append(np.std(posx[4:])/np.mean(posx[4:]))
 N_snapshots = len(a)
 
 # Read in data from the GADGET snapshots
@@ -32,14 +32,13 @@ x0_gadget = []
 x0_std_gadget = []
 x1_gadget = []
 x1_std_gadget = []
-for fname in sorted(glob(this_dir + '/output/snapshot_gadget_*'),
-                    key=lambda s: s[(s.index('gadget_') + 7):])[:N_snapshots]:
+for fname in sorted(glob(this_dir + '/Gadget2/output/snapshot_*'))[:N_snapshots]:
     snapshot = load(fname, compare_params=False)
     posx_gadget = snapshot.components[0].posx[np.argsort(snapshot.ID)]
     x0_gadget.append(np.mean(posx_gadget[:4]))
-    x0_std_gadget.append(np.std(posx_gadget[:4]))
+    x0_std_gadget.append(np.std(posx_gadget[:4])/np.mean(posx_gadget[:4]))
     x1_gadget.append(np.mean(posx_gadget[4:]))
-    x1_std_gadget.append(np.std(posx_gadget[4:]))
+    x1_std_gadget.append(np.std(posx_gadget[4:])/np.mean(posx_gadget[4:]))
 
 # Begin analysis
 masterprint('Analyzing {} data ...'.format(this_test))
@@ -66,18 +65,18 @@ plt.tight_layout()
 plt.savefig(fig_file)
 
 # There should be no variance on the x positions.
-tol = 1e+2*N_snapshots*machine_ϵ
-if np.sum(x0_std_gadget) > tol or np.sum(x1_std_gadget) > tol:
+reltol = 1e-9
+if np.max(x0_std_gadget) > reltol or np.max(x1_std_gadget) > reltol:
     abort('Unequal x-positions for the 2*4 particles in the GADGET snapshots.\n'
           'It is no good to compare the CO𝘕CEPT results to these.')
-if np.sum(x0_std) > tol or np.sum(x1_std) > tol:
+if np.max(x0_std) > reltol or np.max(x1_std) > reltol:
     abort('Unequal x-positions for the 2*4 particles in the snapshots.\n'
           'The symmetric initial conditions has produced nonsymmetrical results!')
 
 # Printout error message for unsuccessful test
-tol = 1e-2
-if (   max(np.abs(np.array(x0)/np.array(x0_gadget) - 1)) > tol
-    or max(np.abs(np.array(x1)/np.array(x1_gadget) - 1)) > tol):
+reltol = 1e-2
+if (   max(np.abs(np.array(x0)/np.array(x0_gadget) - 1)) > reltol
+    or max(np.abs(np.array(x1)/np.array(x1_gadget) - 1)) > reltol):
     abort('The results from CO𝘕CEPT disagree with those from GADGET.\n'
           'See "{}" for a visualization.'.format(fig_file))
 

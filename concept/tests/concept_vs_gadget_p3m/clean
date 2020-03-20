@@ -2,12 +2,10 @@
 
 # This script does cleanup after a test
 this_dir="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
-(cd "${this_dir}" && rm -rf Gadget2_local            \
-                            IC                       \
-                            Makefile_gadget_edited   \
-                            ic.params                \
-                            output                   \
-                            outputlist               \
-                            params_gadget-usedvalues \
-                            result.png               \
- )
+(cd "${this_dir}" && rm -rf \
+    Gadget2                 \
+    IC                      \
+    ic.params               \
+    output                  \
+    result.png              \
+)

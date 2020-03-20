@@ -26,8 +26,7 @@ N_snapshots = len(a)
 # Read in data from the GADGET snapshots
 x_gadget = []
 x_std_gadget = []
-for fname in sorted(glob(this_dir + '/output/snapshot_gadget_*'),
-                    key=lambda s: s[(s.index('gadget_') + 7):])[:N_snapshots]:
+for fname in sorted(glob(this_dir + '/Gadget2/output/snapshot_*'))[:N_snapshots]:
     components_gadget = load(fname, compare_params=False, only_components=True)[0]
     x_gadget.append(np.mean(components_gadget.posx))
     x_std_gadget.append(np.std(components_gadget.posx))

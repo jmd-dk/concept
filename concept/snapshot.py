@@ -496,7 +496,7 @@ class StandardSnapshot:
         self.units['length'] = unit_length
         self.units['mass']   = unit_mass
 
-# Class storing a Gadget2 snapshot. Besides holding methods for
+# Class storing a GADGET2 snapshot. Besides holding methods for
 # saving/loading, it stores particle data (positions, momenta, mass)
 # and also Gadget ID's and the Gadget header.
 @cython.cclass
@@ -605,23 +605,23 @@ class Gadget2Snapshot:
                 f.write(struct.pack('I', 4 + 256 + 4))
                 f.write(struct.pack('I', 8))
                 f.write(struct.pack('I', 256))
-                f.write(struct.pack('6I', *header['Npart']))
-                f.write(struct.pack('6d', *header['Massarr']))
-                f.write(struct.pack('d',   header['Time']))
-                f.write(struct.pack('d',   header['Redshift']))
-                f.write(struct.pack('i',   header['FlagSfr']))
-                f.write(struct.pack('i',   header['FlagFeedback']))
-                f.write(struct.pack('6i', *header['Nall']))
-                f.write(struct.pack('i',   header['FlagCooling']))
-                f.write(struct.pack('i',   header['Numfiles']))
-                f.write(struct.pack('d',   header['BoxSize']))
-                f.write(struct.pack('d',   header['Omega0']))
-                f.write(struct.pack('d',   header['OmegaLambda']))
-                f.write(struct.pack('d',   header['HubbleParam']))
-                f.write(struct.pack('i',   header['FlagAge']))
-                f.write(struct.pack('i',   header['FlagMetals']))
-                f.write(struct.pack('6i', *header['NallHW']))
-                f.write(struct.pack('i',   header['flag_entr_ics']))
+                f.write(struct.pack('6I', *             (header['Npart'        ])))
+                f.write(struct.pack('6d', *correct_float(header['Massarr'      ])))
+                f.write(struct.pack('d',   correct_float(header['Time'         ])))
+                f.write(struct.pack('d',   correct_float(header['Redshift'     ])))
+                f.write(struct.pack('i',                (header['FlagSfr'      ])))
+                f.write(struct.pack('i',                (header['FlagFeedback' ])))
+                f.write(struct.pack('6i', *             (header['Nall'         ])))
+                f.write(struct.pack('i',                (header['FlagCooling'  ])))
+                f.write(struct.pack('i',                (header['Numfiles'     ])))
+                f.write(struct.pack('d',   correct_float(header['BoxSize'      ])))
+                f.write(struct.pack('d',   correct_float(header['Omega0'       ])))
+                f.write(struct.pack('d',   correct_float(header['OmegaLambda'  ])))
+                f.write(struct.pack('d',   correct_float(header['HubbleParam'  ])))
+                f.write(struct.pack('i',                (header['FlagAge'      ])))
+                f.write(struct.pack('i',                (header['FlagMetals'   ])))
+                f.write(struct.pack('6i', *             (header['NallHW'       ])))
+                f.write(struct.pack('i',                (header['flag_entr_ics'])))
                 # Padding to fill out the 256 bytes
                 f.write(struct.pack('60s', b' '*60))
                 f.write(struct.pack('I', 256))
@@ -1027,6 +1027,11 @@ def save(one_or_more_components, filename, params=None, snapshot_type=snapshot_t
         components_selected = [
             component for component in components if is_selected(component, snapshot_select)
         ]
+        if not components_selected:
+            abort(
+                'You have specified snapshot(s) to be dumped, but none of the components present '
+                'are selected for snapshot output. Check the snapshot_select parameter.'
+            )
     # Instantiate snapshot of the appropriate type
     snapshot = eval(snapshot_type.capitalize() + 'Snapshot()')
     # Populate the snapshot with data

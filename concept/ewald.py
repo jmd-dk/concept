@@ -229,7 +229,7 @@ def get_ewald_grid():
 # Function for tabulation of the Ewald grid
 @cython.pheader(grid='double[:, :, :, ::1]', returns='double[:, :, :, ::1]')
 def tabulate():
-    masterprint('Tabulating Ewald grid of linear size {} ...'.format(ewald_gridsize))
+    masterprint(f'Tabulating Ewald grid of size {ewald_gridsize} ...')
     grid = tabulate_vectorgrid(ewald_gridsize, summation, 0.5/(ewald_gridsize - 1), filename)
     masterprint('done')
     return grid
@@ -239,7 +239,7 @@ def tabulate():
 # The global Ewald grid and its path on disk
 cython.declare(grid='double[:, :, :, ::1]', filename=str)
 grid = None
-filename = f'{paths["reusables_dir"]}/ewald/ewald_gridsize={ewald_gridsize}.hdf5'
+filename = f'{paths["reusables_dir"]}/ewald/{ewald_gridsize}.hdf5'
 
 # Set parameters for the Ewald summation at import time
 cython.declare(h_lower='int',
