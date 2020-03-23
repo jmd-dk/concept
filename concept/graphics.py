@@ -126,42 +126,12 @@ def plot_powerspec(powerspec_declaration, filename):
     plt.close(fig)
     masterprint('done')
 
-# Mappings from (pieces of) CLASS perturbation variable names
-# to the LaTeX code for typesetting of the variables and their units,
-# used by the plot_*_perturbations functions below.
-var_name_to_latex = {
-    'δ'  : r'{\delta}',
-    'θ'  : r'{\theta}',
-    'ρ'  : r'{\rho}',
-    'σ'  : r'{\sigma}',
-    'ϕ'  : r'{\phi}',
-    'ψ'  : r'{\psi}',
-    'H_T': r'H_{\mathrm{T}}',
-    'ʹ'  : r'^{\prime}',
-}
-var_name_to_latex_unit = {
-    'δ'   : rf'',
-    'θ'   : rf'[\mathrm{{{unit_time}}}^{{-1}}]',
-    'δP'  : (
-        rf'['
-        rf'\mathrm{{{unit_mass}}}'
-        rf'\mathrm{{{unit_length}}}^{{-1}}'
-        rf'\mathrm{{{unit_time}}}^{{-2}}'
-        rf']'
-    ),
-    'σ'   : rf'[\mathrm{{{unit_length}}}^2\mathrm{{{unit_time}}}^{{-2}}]',
-    'ϕ'   : rf'[\mathrm{{{unit_length}}}^2\mathrm{{{unit_time}}}^{{-2}}]',
-    'ψ'   : rf'[\mathrm{{{unit_length}}}^2\mathrm{{{unit_time}}}^{{-2}}]',
-    'hʹ'  : rf'[\mathrm{{{unit_time}}}^{{-1}}]',
-    'H_Tʹ': rf'[\mathrm{{{unit_time}}}^{{-1}}]',
-}
-
 # Function for plotting detrended CLASS perturbations
 @cython.pheader(
     # Arguments
     k='Py_ssize_t',
     k_magnitude='double',
-    var_name=str,
+    transferfunction_info=object,  # TransferFunctionInfo
     class_species=str,
     factors='double[::1]',
     exponents='double[::1]',
@@ -185,13 +155,10 @@ var_name_to_latex_unit = {
     perturbations_detrended_spline='double[::1]',
     perturbations_raw=object,  # np.ndarray
     skip='Py_ssize_t',
-    specific_species='bint',
     spline='Spline',
-    unit_latex=str,
     val=str,
-    var_name_latex=str,
 )
-def plot_detrended_perturbations(k, k_magnitude, var_name, class_species,
+def plot_detrended_perturbations(k, k_magnitude, transferfunction_info, class_species,
     factors, exponents, splines, largest_trusted_k_magnitude, crossover):
     # All processes could carry out this work, but as it involves I/O,
     # we only allow the master process to do so.
@@ -204,21 +171,9 @@ def plot_detrended_perturbations(k, k_magnitude, var_name, class_species,
         n_subplots += 1
     fig, axes = plt.subplots(1, n_subplots, figsize=(6*n_subplots + 0.4, 4.8))
     axes = any2list(axes)
-    var_name_latex = var_name
-    for key, val in var_name_to_latex.items():
-        var_name_latex = var_name_latex.replace(key, val)
-    unit_latex = var_name_to_latex_unit[var_name]
-    unit_latex = (unit_latex
-        .replace('(', '{')
-        .replace(')', '}')
-        .replace('**', '^')
-        .replace('*', '')
-        .replace('m_sun', r'm_{\odot}')
-    )
-    specific_species = (var_name not in {'ϕ', 'ψ', 'hʹ', 'H_Tʹ'})
     k_str = significant_figures(k_magnitude, 3, fmt='tex', scientific=True)
     fig.suptitle(
-        (rf'{class_species}, ' if specific_species else '')
+        ('' if transferfunction_info.total else rf'{class_species}, ')
         + rf'$k = {k_str}\, \mathrm{{{unit_length}}}^{{-1}}$',
         fontsize=16,
         horizontalalignment='center',
@@ -258,9 +213,10 @@ def plot_detrended_perturbations(k, k_magnitude, var_name, class_species,
         # Decorate plot
         if n == 0:
             ax.set_ylabel(
-                rf'$({var_name_latex} - \mathrm{{trend}})\, {unit_latex}$'
-                    if unit_latex else
-                    rf'${var_name_latex} - \mathrm{{trend}}$',
+                rf'$({transferfunction_info.name_latex} - \mathrm{{trend}})\, '
+                rf'[{transferfunction_info.units_latex}]$'
+                if transferfunction_info.units_latex else
+                rf'${transferfunction_info.name_latex} - \mathrm{{trend}}$',
                 fontsize=14,
             )
         ax.set_xlabel(rf'$a \in [{a_min}, {a_max}]$', fontsize=14)
@@ -269,7 +225,8 @@ def plot_detrended_perturbations(k, k_magnitude, var_name, class_species,
         trend_str = (
             rf'$\mathrm{{trend}} = 0$'
             if factor == 0 else
-            rf'$\mathrm{{trend}} = {factor_str}{unit_latex.strip("[]")}a^{{{exponent_str}}}$'
+            rf'$\mathrm{{trend}} = {factor_str}'
+            rf'{transferfunction_info.units_latex}a^{{{exponent_str}}}$'
         )
         ax.text(0.5, 0.8,
             trend_str,
@@ -289,19 +246,11 @@ def plot_detrended_perturbations(k, k_magnitude, var_name, class_species,
             )
     # Finalise and save plot
     fig.subplots_adjust(wspace=0, hspace=0)
-    filename = output_dirs['powerspec'] + '/class_perturbations'
-    filename += '/' + (var_name_latex
-        .replace('\\'    , ''      )
-        .replace('{'     , ''      )
-        .replace('}'     , ''      )
-        .replace('^'     , ''      )
-        .replace('mathrm', ''      )
-        .replace('/'     , '_'     )
-        .replace('sigma' , 'shear' )
-        .replace('prime' , '_prime')
-    )
-    if specific_species:
-        filename += f'_{class_species}'
+    filename = '/'.join([
+        output_dirs['powerspec'],
+        'class_perturbations',
+        transferfunction_info.name_ascii.format(class_species),
+    ])
     os.makedirs(filename, exist_ok=True)
     filename += f'/{k}.png'
     plt.savefig(filename, bbox_inches='tight', pad_inches=0.1)
@@ -313,7 +262,7 @@ def plot_detrended_perturbations(k, k_magnitude, var_name, class_species,
     a_values='double[::1]',
     k_magnitudes='double[::1]',
     transfer='double[:, ::1]',
-    var_name=str,
+    transferfunction_info=object,  # TransferFunctionInfo
     class_species=str,
     n_plots_in_figure='Py_ssize_t',
     # Locals
@@ -323,13 +272,12 @@ def plot_detrended_perturbations(k, k_magnitude, var_name, class_species,
     i_figure='Py_ssize_t',
     key=str,
     nfigs='Py_ssize_t',
-    unit_latex=str,
     val=str,
-    var_name_ascii=str,
-    var_name_latex=str,
 )
-def plot_processed_perturbations(a_values, k_magnitudes, transfer, var_name, class_species,
-    n_plots_in_figure=10):
+def plot_processed_perturbations(
+    a_values, k_magnitudes, transfer, transferfunction_info, class_species,
+    n_plots_in_figure=10,
+):
     """The 2D transfer array is the tabulated transfer function values,
     indexed as transfer[a, k], with the values of a and k given by
     a_values and k_magnitudes.
@@ -338,44 +286,19 @@ def plot_processed_perturbations(a_values, k_magnitudes, transfer, var_name, cla
     # we only allow the master process to do so.
     if not master:
         abort(f'rank {rank} called plot_processed_perturbations()')
-    if class_species == 'tot' and var_name not in {'δ', 'θ', 'δP', 'σ'}:
-        masterprint(f'Plotting processed {var_name} transfer functions ...')
+    if transferfunction_info.total:
+        masterprint(f'Plotting processed {transferfunction_info.name} transfer functions ...')
     else:
-        masterprint(f'Plotting processed {var_name} {class_species} transfer functions ...')
-    var_name_latex = var_name
-    for key, val in var_name_to_latex.items():
-        var_name_latex = var_name_latex.replace(key, val)
-    var_name_ascii = (var_name_latex
-        .replace('\\'    , ''      )
-        .replace('{'     , ''      )
-        .replace('}'     , ''      )
-        .replace('^'     , ''      )
-        .replace('mathrm', ''      )
-        .replace('/'     , '_'     )
-        .replace('sigma' , 'shear' )
-        .replace('prime' , '_prime')
-    )
-    if class_species == 'tot' and var_name not in {'δ', 'θ', 'δP', 'σ'}:
-        dirname = '/'.join([
-            output_dirs['powerspec'],
-            'class_perturbations_processed',
-            f'{var_name_ascii}'
-        ])
-    else:
-        dirname = '/'.join([
-            output_dirs['powerspec'],
-            'class_perturbations_processed',
-            f'{var_name_ascii}_{class_species}'
-        ])
+        masterprint(
+            f'Plotting processed {transferfunction_info.name} {class_species} '
+            f'transfer functions ...'
+        )
+    dirname = '/'.join([
+        output_dirs['powerspec'],
+        'class_perturbations_processed',
+        transferfunction_info.name_ascii.format(class_species),
+    ])
     os.makedirs(dirname, exist_ok=True)
-    unit_latex = var_name_to_latex_unit[var_name]
-    unit_latex = (unit_latex
-        .replace('(', '{')
-        .replace(')', '}')
-        .replace('**', '^')
-        .replace('*', '')
-        .replace('m_sun', r'm_{\odot}')
-    )
     nfigs = int(log10(a_values.shape[0])) + 1
     i_figure = 0
     plt.figure()
@@ -386,8 +309,13 @@ def plot_processed_perturbations(a_values, k_magnitudes, transfer, var_name, cla
         if ((i + 1)%n_plots_in_figure == 0) or i == ℤ[a_values.shape[0] - 1]:
             plt.legend()
             plt.xlabel(rf'$k\,[\mathrm{{{unit_length}}}^{{-1}}]$', fontsize=14)
-            plt.ylabel(rf'${var_name_latex}\, {unit_latex}$', fontsize=14)
-            if class_species != 'tot':
+            plt.ylabel(
+                rf'${transferfunction_info.name_latex}\, [{transferfunction_info.units_latex}]$'
+                if transferfunction_info.units_latex else
+                rf'${transferfunction_info.name_latex}$',
+                fontsize=14,
+            )
+            if not transferfunction_info.total:
                 plt.title(
                     class_species,
                     fontsize=16,

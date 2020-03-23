@@ -86,6 +86,8 @@ render3D_select = {  # Toggle rendering for each component
     'all': True,
 }
 class_plot_perturbations = False  # Plot CLASS perturbations?
+class_extra_background = {}       # Extra CLASS background variables to dump
+class_extra_perturbations = {}    # Extra CLASS perturbations to dump
 
 # Numerical parameters
 boxsize = 512*Mpc  # Linear size of the simulation box
@@ -250,8 +252,6 @@ fluid_options = {  # Specifications of fluid scheme parameters
 }
 class_k_max = {}                # Maximum trusted k for individual perturbations
 class_reuse = True              # Reuse CLASS results from earlier runs?
-class_extra_background = {}     # Extra CLASS background variables to dump
-class_extra_perturbations = {}  # Extra CLASS perturbations to dump
 
 # Graphics
 terminal_width = 80                # Maximum width of terminal output, in characters
