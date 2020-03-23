@@ -1926,6 +1926,8 @@ cython.declare(
     render2D_select=dict,
     render3D_select=dict,
     class_plot_perturbations='bint',
+    class_extra_background=set,
+    class_extra_perturbations=set,
     # Numerical parameter
     boxsize='double',
     powerspec_gridsizes=dict,
@@ -1970,8 +1972,6 @@ cython.declare(
     fluid_options=dict,
     class_k_max=dict,
     class_reuse='bint',
-    class_extra_background=set,
-    class_extra_perturbations=set,
     # Graphics
     terminal_width='int',
     enable_terminal_formatting='bint',
@@ -2084,6 +2084,14 @@ if user_params.get('render3D_select'):
 user_params['render3D_select'] = render3D_select
 class_plot_perturbations = bool(user_params.get('class_plot_perturbations', False))
 user_params['class_plot_perturbations'] = class_plot_perturbations
+class_extra_background = set(
+    str(el) for el in any2list(user_params.get('class_extra_background', [])) if el
+)
+user_params['class_extra_background'] = class_extra_background
+class_extra_perturbations = set(
+    str(el) for el in any2list(user_params.get('class_extra_perturbations', [])) if el
+)
+user_params['class_extra_perturbations'] = class_extra_perturbations
 # Numerical parameters
 boxsize = float(user_params.get('boxsize', 512*units.Mpc))
 user_params['boxsize'] = boxsize
@@ -2604,14 +2612,6 @@ for key, val in class_k_max.copy().items():
 user_params['class_k_max'] = class_k_max
 class_reuse = bool(user_params.get('class_reuse', True))
 user_params['class_reuse'] = class_reuse
-class_extra_background = set(
-    str(el) for el in any2list(user_params.get('class_extra_background', [])) if el
-)
-user_params['class_extra_background'] = class_extra_background
-class_extra_perturbations = set(
-    str(el) for el in any2list(user_params.get('class_extra_perturbations', [])) if el
-)
-user_params['class_extra_perturbations'] = class_extra_perturbations
 # Graphics
 terminal_width = to_int(user_params.get('terminal_width', 80))
 user_params['terminal_width'] = terminal_width
@@ -2941,19 +2941,19 @@ for key, subd in select_forces.items():
     if keep:
         φ_gridsizes[key] = d
 # Handle optional values in special_params
-if 'max_a_values' in special_params:
-    max_a_values = str(special_params['max_a_values'])
-    if max_a_values in {'inf', 'np.inf', 'numpy.inf'}:
-        max_a_values = ထ
+if 'ntimes' in special_params:
+    ntimes = str(special_params['ntimes'])
+    if ntimes in {'inf', 'np.inf', 'numpy.inf'}:
+        ntimes = ထ
     else:
         try:
-            max_a_values = float(max_a_values)
+            ntimes = float(ntimes)
         except:
             try:
-                max_a_values = float(eval(max_a_values))
+                ntimes = float(eval(ntimes))
             except:
-                abort(f'Could not interpret max_a_values = {max_a_values}')
-    special_params['max_a_values'] = max_a_values
+                abort(f'Could not interpret ntimes = {ntimes}')
+    special_params['ntimes'] = ntimes
 
 
 
@@ -4236,18 +4236,6 @@ for val, keys in {
     if keys & class_extra_background:
         class_extra_background.difference_update(keys)
         class_extra_background.add(val)
-# Allow for easier names in class_extra_perturbations
-for val, keys in {
-    'theta_tot': {unicode('θ_tot'), asciify('θ_tot'),
-        unicode('θ_total'), asciify('θ_total'), 'theta', 'theta_total'},
-    'phi'      : {unicode('ϕ'), asciify('ϕ')},
-    'psi'      : {unicode('ψ'), asciify('ψ')},
-    'h_prime'  : {unicode('hʹ'), asciify('hʹ'), "h'"},
-    'H_T_prime': {unicode('H_Tʹ'), asciify('H_Tʹ'), "H_T'"}
-}.items():
-    if keys & class_extra_perturbations:
-        class_extra_perturbations.difference_update(keys)
-        class_extra_perturbations.add(val)
 
 
 

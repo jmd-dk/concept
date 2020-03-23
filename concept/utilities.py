@@ -33,7 +33,14 @@ cimport('from analysis import measure')
 cimport('from communication import domain_subdivisions, exchange, partition, smart_mpi')
 cimport('import graphics')
 cimport('from integration import init_time, remove_doppelgängers')
-cimport('from linear import compute_cosmo, compute_transfer, get_archived_k_parameters')
+cimport(
+    'from linear import                   '
+    '    class_extra_perturbations_class, '
+    '    compute_cosmo,                   '
+    '    compute_transfer,                '
+    '    get_archived_k_parameters,       '
+    '    transferfunctions_registered,    '
+)
 cimport('from mesh import convert_particles_to_fluid')
 cimport('from snapshot import get_snapshot_type, snapshot_extensions')
 cimport('import species')
@@ -689,6 +696,7 @@ def info():
     component='Component',
     component_variables=dict,
     components=list,
+    compute_perturbations='bint',
     convenience_attributes=dict,
     filename=str,
     gauge=str,
@@ -700,15 +708,15 @@ def info():
     k_magnitudes='double[::1]',
     k_max='double',
     k_min='double',
-    max_a_values='Py_ssize_t',
+    ntimes='Py_ssize_t',
     other_rank='int',
     perturbations=object,  # PerturbationDict
     powerspec_gridsize='Py_ssize_t',
     size='Py_ssize_t',
     transfer='double[:, ::1]',
+    transferfunction_info=object,  # TransferFunctionInfo
     transfer_of_k='double[::1]',
     var_name=str,
-    var_name_ascii=str,
     variable_specifications=list,
     ρ_bars=dict,
 )
@@ -720,37 +728,50 @@ def CLASS():
     # Initialize components, but do not realize them
     init_time()
     components = get_initial_conditions(do_realization=False)
-    # Get power spectrum gridsize
-    powerspec_gridsize = -1
-    for component in components:
-        gridsize_tmp = is_selected(component, powerspec_gridsizes)
-        if gridsize_tmp is None or isinstance(gridsize_tmp, str) or gridsize_tmp <= 2:
-            continue
-        gridsize = int(gridsize_tmp)
-        if gridsize and gridsize > powerspec_gridsize:
-            powerspec_gridsize = gridsize
-    if powerspec_gridsize == -1:
-        abort(
-            'You should (further) specify powerspec_gridsizes, e.g.\n'
-            'powerspec_gridsizes = {"all": 64}'
-        )
+    # Should we compute and store perturbations (or only background)?
+    compute_perturbations = bool(components or class_extra_perturbations)
+    if compute_perturbations:
+        # Get power spectrum gridsize
+        powerspec_gridsize = -1
+        for component in components:
+            gridsize_tmp = is_selected(component, powerspec_gridsizes)
+            if gridsize_tmp is None or isinstance(gridsize_tmp, str) or gridsize_tmp <= 2:
+                continue
+            gridsize = int(gridsize_tmp)
+            if gridsize and gridsize > powerspec_gridsize:
+                powerspec_gridsize = gridsize
+        if powerspec_gridsize == -1:
+            for gridsize_tmp in powerspec_gridsizes.values():
+                if not (
+                    gridsize_tmp is None or isinstance(gridsize_tmp, str) or gridsize_tmp <= 2
+                ):
+                    powerspec_gridsize = int(gridsize_tmp)
+                    break
+        if powerspec_gridsize <= 2:
+            abort(
+                'You should (further) specify powerspec_gridsizes, e.g.\n'
+                'powerspec_gridsizes = {"all": 64}'
+            )
     # Do CLASS computation
-    k_min, k_max, k_gridsize = get_archived_k_parameters(powerspec_gridsize)
-    gauge = special_params['gauge'].replace('-', '').lower()
-    cosmoresults = compute_cosmo(
-        k_min,
-        k_max,
-        k_gridsize,
-        'synchronous' if gauge == 'nbody' else gauge,
-        class_call_reason='in order to get perturbations ',
-    )
+    if compute_perturbations:
+        k_min, k_max, k_gridsize = get_archived_k_parameters(powerspec_gridsize)
+        gauge = special_params['gauge'].replace('-', '').lower()
+        cosmoresults = compute_cosmo(
+            k_min,
+            k_max,
+            k_gridsize,
+            'synchronous' if gauge == 'nbody' else gauge,
+            class_call_reason='in order to get perturbations ',
+        )
+        k_magnitudes = cosmoresults.k_magnitudes
+    else:
+        cosmoresults = compute_cosmo(class_call_reason='in order to get background ')
     cosmoresults.load_everything()
-    k_magnitudes = cosmoresults.k_magnitudes
     # Store all CLASS parameters, the unit system in use,
     # the processed background and a few convenience attributes
     # in a new hdf5 file.
+    filename = output_dirs['powerspec'] + '/class_processed.hdf5'
     if master:
-        filename = output_dirs['powerspec'] + '/class_processed.hdf5'
         os.makedirs(output_dirs['powerspec'], exist_ok=True)
         with open_hdf5(filename, mode='w') as hdf5_file:
             # Store CLASS parameters as attributes on the
@@ -865,6 +886,10 @@ def CLASS():
                 convenience_attributes['w_a'] = float(class_params['wa_fld'])
             for convenience_name, convenience_val in convenience_attributes.items():
                 background_h5.attrs[convenience_name] = convenience_val
+    # Done writing CLASS background to file
+    if not compute_perturbations:
+        masterprint(f'All processed CLASS output has been saved to "{filename}"')
+        return
     # Create dict mapping components to lists of
     # (variable, specific_multi_index, var_name), specifying which
     # transfer functions to store in the hdf5 file.
@@ -886,18 +911,14 @@ def CLASS():
         component_variables[component] = variable_specifications
     # Add any extra perturbations specified in the
     # class_extra_perturbations user parameter.
-    class_tot_perturbation_names = {
-        'theta_tot': 'θ',
-        'phi'      : 'ϕ',
-        'psi'      : 'ψ',
-        'h_prime'  : 'hʹ',
-        'H_T_prime': 'H_Tʹ',
-    }
     component_variables[None] = []
-    for class_extra_perturbation in sorted(class_extra_perturbations):
-        var_name = class_tot_perturbation_names.get(class_extra_perturbation)
-        if var_name:
-            component_variables[None].append((None, None, var_name))
+    for class_extra_perturbation in sorted(class_extra_perturbations_class):
+        for transferfunction_info in transferfunctions_registered.values():
+            if not transferfunction_info.total:
+                continue
+            if transferfunction_info.name_class == class_extra_perturbation:
+                component_variables[None].append((None, None, transferfunction_info.name))
+                break
     if not component_variables[None]:
         component_variables.pop(None)
     # Construct array of a values at which to tabulate the
@@ -942,14 +963,14 @@ def CLASS():
         all_a_values, _ = remove_doppelgängers(all_a_values, all_a_values, rel_tol=0.5)
         all_a_values = asarray(all_a_values).copy()
         # If too many a values are given, evenly select the amount
-        # given by the "max_a_values" utility argument.
-        if all_a_values.shape[0] > special_params['max_a_values']:
-            max_a_values = int(round(special_params['max_a_values']))
-            step = float(all_a_values.shape[0])/(max_a_values - 1)
-            all_a_values_selected = empty(max_a_values, dtype=C2np['double'])
-            for i in range(max_a_values - 1):
+        # given by the "ntimes" utility argument.
+        if all_a_values.shape[0] > special_params['ntimes']:
+            ntimes = int(round(special_params['ntimes']))
+            step = float(all_a_values.shape[0])/(ntimes - 1)
+            all_a_values_selected = empty(ntimes, dtype=C2np['double'])
+            for i in range(ntimes - 1):
                 all_a_values_selected[i] = all_a_values[cast(int(i*step), 'Py_ssize_t')]
-            all_a_values_selected[max_a_values - 1] = all_a_values[all_a_values.shape[0] - 1]
+            all_a_values_selected[ntimes - 1] = all_a_values[all_a_values.shape[0] - 1]
             all_a_values = all_a_values_selected
         # Broadcast the a values to the slave processes
         bcast(all_a_values.shape[0])
@@ -969,7 +990,7 @@ def CLASS():
         Bcast(all_a_values)
     # Store the a and k values at which the perturbations are tabulated.
     # Also store the gauge.
-    if master:
+    if component_variables and master:
         with open_hdf5(filename, mode='a') as hdf5_file:
             perturbations_h5 = hdf5_file.require_group('perturbations')
             dset = perturbations_h5.create_dataset(
@@ -1000,13 +1021,9 @@ def CLASS():
         else:
             class_species = component.class_species
         for variable, specific_multi_index, var_name in variable_specifications:
-            if class_species == 'tot':
-                if var_name in {'δ', 'θ', 'δP', 'σ'}:
-                    masterprint(
-                        f'Working on total {var_name} {gauge_str} gauge transfer functions ...'
-                    )
-                else:
-                    masterprint(f'Working on {var_name} transfer functions ...')
+            transferfunction_info = transferfunctions_registered[var_name]
+            if transferfunction_info.total:
+                masterprint(f'Working on {var_name} transfer functions ...')
             else:
                 masterprint(
                     f'Working on {var_name} {class_species} '
@@ -1028,29 +1045,13 @@ def CLASS():
             if not master:
                 continue
             # Save transfer function to disk
-            if class_species == 'tot':
-                if var_name in {'δ', 'θ', 'δP', 'σ'}:
-                    masterprint(f'Saving processed total {var_name} transfer functions ...')
-                else:
-                    masterprint(f'Saving processed {var_name} transfer functions ...')
+            if transferfunction_info.total:
+                masterprint(f'Saving processed {var_name} transfer functions ...')
             else:
                 masterprint(f'Saving processed {var_name} {class_species} transfer functions ...')
-            var_name_ascii = var_name
-            for key, val in {
-                'δ': 'delta',
-                'θ': 'theta',
-                'σ': 'shear',
-                'ϕ': 'phi',
-                'ψ': 'psi',
-                'ʹ': '_prime',
-            }.items():
-                var_name_ascii = var_name_ascii.replace(key, val)
             with open_hdf5(filename, mode='a') as hdf5_file:
                 perturbations_h5 = hdf5_file.require_group('perturbations')
-                if class_species == 'tot' and var_name not in {'δ', 'θ', 'δP', 'σ'}:
-                    dset_name = var_name_ascii
-                else:
-                    dset_name = f'{var_name_ascii}_{class_species}'
+                dset_name = transferfunction_info.name_ascii.format(class_species)
                 dset = perturbations_h5.create_dataset(
                     dset_name,
                     asarray(transfer).shape,
@@ -1064,11 +1065,10 @@ def CLASS():
                     all_a_values,
                     k_magnitudes,
                     transfer,
-                    var_name,
+                    transferfunction_info,
                     class_species,
                 )
             # Completely done with this requested transfer function
             masterprint('done')
     # Done writing processed CLASS output
-    if master:
-        masterprint(f'All processed CLASS output has been saved to "{filename}"')
+    masterprint(f'All processed CLASS output has been saved to "{filename}"')

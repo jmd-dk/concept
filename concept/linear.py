@@ -51,11 +51,6 @@ cimport(
 # together with the corresponding |k| values
 # and results retrieved from the classy.Class instance.
 class CosmoResults:
-    # Names of all implemented transfer function variables.
-    # Methods with these names will be defined, which will return
-    # the corresponding transfer function as a function of k,
-    # for a given a.
-    transfer_function_variable_names = ('δ', 'θ', 'δP', 'σ', 'ϕ', 'ψ', 'hʹ', 'H_Tʹ')
     # Names of scalar attributes
     attribute_names = ('h', )
     # Class used instead of regular dict to store the CLASS
@@ -109,6 +104,7 @@ class CosmoResults:
         # data is written as regular expressions.
         # This dict need to be an instance variable, as it may be
         # mutated by the methods.
+        gauge = (params if params else {}).get('gauge', 'synchronous').lower()
         self.needed_keys = {
             # Background data as function of time
             'background': {
@@ -132,7 +128,7 @@ class CosmoResults:
                 # Time
                 r'^a$',
                 # Other
-                r'^h_prime$',
+                *([r'^h_prime$'] if gauge == 'synchronous' else []),
                 r'^theta_tot$',
             },
         }
@@ -162,23 +158,20 @@ class CosmoResults:
             self.id = hashlib.sha1(str(
                 tuple(sorted({str(key).replace(' ', ''): str(val).replace(' ', '').lower()
                     for key, val in self.params.items()}.items()))
-                + tuple(sorted([str(val).replace(' ', '').lower()
-                    for val in class_extra_background]))
-                + tuple(sorted([str(val).replace(' ', '').lower()
-                    for val in class_extra_perturbations]))
                 + (class__VERSION_, class__ARGUMENT_LENGTH_MAX_, class_a_min)
             ).encode()).hexdigest()[:sha_length]
             self.filename = f'{paths["reusables_dir"]}/class/{self.id}.hdf5'
         # Message that gets printed if and when CLASS is called
         self.class_call_reason = class_call_reason
-        # Add methods which returns transfer function splines
-        # for a given a.
+        # Add methods which return transfer function splines for a
+        # given a. The method names are those of the registered
+        # transfer functions given by transferfunctions_registered.
         def construct_func(var_name):
             return (
                 lambda a=-1, a_next=-1, component=None, get='as_function_of_k', weight=None:
                     self.transfer_function(var_name, component, get, a, a_next, weight)
             )
-        for var_name in self.transfer_function_variable_names:
+        for var_name in transferfunctions_registered:
             setattr(self, var_name, construct_func(var_name))
         # Initialize the hdf5 file on disk, if it does not
         # already exist. If it exist, 'params' and 'k_magnitudes' are
@@ -281,17 +274,32 @@ class CosmoResults:
                 self.save('background')
                 # Now remove the extra CLASS background variables
                 # not used by this simulation.
-                if master and not special_params.get('keep_class_extra_background', False):
-                    for key in set(self._background.keys()):
-                        if not any([key == pattern or re.search(pattern, key)
-                            for pattern in class_extra_background]
-                        ):
-                            continue
+                if master:
+                    self._background = {
+                        key: arr for key, arr in self._background.items()
                         if any([key == pattern or re.search(pattern, key)
-                            for pattern in self.needed_keys['background']]
-                        ):
-                            continue
-                        del self._background[key]
+                            for pattern in self.needed_keys['background'] | class_extra_background
+                        ])
+                    }
+                    # Throw a warning if background quantities specified
+                    # in class_extra_background are not present.
+                    missing_backgrounds = (
+                        class_extra_background
+                        - set(self._background.keys())
+                        - missing_background_quantities
+                    )
+                    if missing_backgrounds:
+                        missing_background_quantities.update(missing_backgrounds)
+                        quantity_plural = (
+                            'quantity' if len(missing_backgrounds) == 1 else 'quantities'
+                        )
+                        masterwarn(
+                            f'Background {quantity_plural} {{}} not available from CLASS'
+                            .format(', '.join([
+                                f'"{missing_background}"'
+                                for missing_background in missing_backgrounds
+                            ]))
+                        )
             # Communicate background as
             # dict mapping str's to arrays.
             size = bcast(len(self._background) if master else None)
@@ -461,7 +469,7 @@ class CosmoResults:
                             key: arr.copy()
                             for key, arr in perturbation.items()
                             if any([key == pattern or re.search(pattern, key) for pattern in (
-                                self.needed_keys['perturbations'] | class_extra_perturbations
+                                self.needed_keys['perturbations'] | class_extra_perturbations_class
                             )])
                          }
                          for perturbation in self._perturbations
@@ -513,7 +521,21 @@ class CosmoResults:
                                     del perturbation[key]
                 # The master process now holds all perturbations
                 # while the other node masters do not store any.
-                # We are done extracting perturbations from CLASS.
+                # Throw a warning if perturbations specified in
+                # class_extra_perturbations are not present.
+                if master:
+                    missing_perturbations = (
+                        class_extra_perturbations_class - set(self._perturbations[0].keys())
+                    )
+                    if missing_perturbations:
+                        masterwarn(
+                            'Perturbations {} not available from CLASS'
+                            .format(', '.join([
+                                f'"{missing_perturbation}"'
+                                for missing_perturbation in missing_perturbations
+                            ]))
+                        )
+                # We are done extracting perturbations from CLASS
                 masterprint('done')
                 # Save to disk
                 self.save('perturbations')
@@ -531,7 +553,7 @@ class CosmoResults:
                 if master and special_params.get('special') != 'CLASS':
                     for key in set(self._perturbations[0].keys()):
                         if not any([key == pattern or re.search(pattern, key)
-                            for pattern in class_extra_perturbations]
+                            for pattern in class_extra_perturbations_class]
                         ):
                             continue
                         if any([key == pattern or re.search(pattern, key)
@@ -715,11 +737,9 @@ class CosmoResults:
         as the already_loaded argument. This is crucial to specify when
         called from within one of the methods matching an attribute.
         """
-        attributes = {
-            *self.attribute_names,
-            'background',
-            'perturbations',
-        }
+        attributes = {*self.attribute_names, 'background'}
+        if 'k_output_values' in self.params:
+            attributes.add('perturbations')
         if already_loaded:
             attributes -= set(any2list(already_loaded))
         # Importantly, we need to iterate over the attributes in some
@@ -1047,7 +1067,7 @@ class CosmoResults:
         read from the same file, as long as it is not opened in write
         mode by any process. Thus, this complication is only relevent
         for this method. The open_hdf5 function is ment to alleviate
-        this problem, but is has not been thoroughly tested.
+        this problem, but it has not been thoroughly tested.
         Note that we save regardless of the value of class_reuse.
         """
         # Do not save anything if a filename was passed,
@@ -1189,13 +1209,21 @@ class CosmoResults:
                     for key, dset in background_h5.items()
                     if any([key.replace('__per__', '/') == pattern
                         or re.search(pattern, key.replace('__per__', '/'))
-                        for pattern in self.needed_keys['background']
-                            | (class_extra_background
-                                if special_params.get('keep_class_extra_background', False)
-                                else set()
-                            )
+                        for pattern in self.needed_keys['background'] | class_extra_background
                     ])
                 }
+                # Check that all background quanities in
+                # class_extra_background were present in the file.
+                background_loaded = set(self._background.keys())
+                backgrounds_missing = {background_missing
+                    for background_missing in class_extra_background
+                    if not any([key == background_missing or re.search(background_missing, key)
+                        for key in background_loaded])
+                }
+                if backgrounds_missing:
+                    # One or more background quantities are missing.
+                    # CLASS should be rerun.
+                    return bcast(False)
             elif element == 'perturbations':
                 # Load perturbations stored as
                 # /perturbations/index/name.
@@ -1231,7 +1259,7 @@ class CosmoResults:
                 # Load the perturbations
                 needed_keys = self.needed_keys['perturbations'].copy()
                 if special_params.get('special') == 'CLASS':
-                    needed_keys |= class_extra_perturbations
+                    needed_keys |= class_extra_perturbations_class
                 for key, d in perturbations_h5.items():
                     if key == 'k_magnitudes':
                         continue
@@ -1318,8 +1346,8 @@ class TransferFunction:
         self.cosmoresults = cosmoresults
         self.component = component
         self.var_name = var_name
-        if self.var_name not in CosmoResults.transfer_function_variable_names:
-            abort(f'var_name {self.var_name} not implemented in TransferFunction')
+        if self.var_name not in transferfunctions_registered:
+            abort(f'Transfer function "{self.var_name}" not implemented')
         # The species (CLASS convention) of which to compute
         # transfer functions. If component is None, set the CLASS
         # species to 'tot', as this "species" do not correspond
@@ -1390,6 +1418,8 @@ class TransferFunction:
         other_rank='int',
         outlier='Py_ssize_t',
         outliers='Py_ssize_t[::1]',
+        outliers_first='Py_ssize_t',
+        outliers_last='Py_ssize_t',
         outliers_list=list,
         perturbation=object,  # np.ndarray or double
         perturbation_k=object,  # PerturbationDict
@@ -1397,6 +1427,7 @@ class TransferFunction:
         perturbation_keys=set,
         perturbation_values='double[::1]',
         perturbation_values_arr=object,  # np.ndarray
+        perturbation_values_auxiliary='double[::1]',
         perturbations_available=dict,
         perturbations_detrended='double[::1]',
         perturbations_detrended_largest_trusted_k=object,  # np.ndarray of dtype object
@@ -1404,21 +1435,29 @@ class TransferFunction:
         rank_largest_trusted_k='int',
         size='Py_ssize_t',
         spline='Spline',
+        transferfunction_info=object,  # TransferFunctionInfo
         trend=object,  # np.ndarray
         untrusted_perturbations=object,  # np.ndarray of dtype object
         weights=object,  # np.ndarray
         weights_species=dict,
-        Σweights=object,  # np.ndarray
+        Σweights_inv=object,  # np.ndarray
     )
     def process(self):
         # Ensure that the cosmological background has been loaded
         self.cosmoresults.background
+        # The processing of the perturbation / transfer function
+        # depends on its type. Information about each implemented
+        # transfer function is available in the global
+        # transferfunctions_registered dict.
+        transferfunction_info = transferfunctions_registered[self.var_name]
+        class_perturbation_name = transferfunction_info.name_class
+        class_units = transferfunction_info.units_class
         # Display progress message
         if self.component is None:
-            if self.var_name in {'δ', 'θ', 'δP', 'σ'}:
-                masterprint(f'Processing total {self.var_name} transfer functions ...')
-            else:
+            if transferfunction_info.total:
                 masterprint(f'Processing {self.var_name} transfer functions ...')
+            else:
+                masterprint(f'Processing total {self.var_name} transfer functions ...')
         else:
             masterprint(
                 f'Processing {self.var_name} transfer functions '
@@ -1433,16 +1472,6 @@ class TransferFunction:
         perturbations_available = {
             class_species: True for class_species in self.class_species.split('+')
         }
-        class_perturbation_name = {
-            'δ'   : 'delta_{}',
-            'θ'   : 'theta_{}',
-            'δP'  : 'cs2_{}',  # Note that cs2 is really δP/δρ
-            'σ'   : 'shear_{}',
-            'ϕ'   : 'phi',
-            'ψ'   : 'psi',
-            'hʹ'  : 'h_prime',
-            'H_Tʹ': 'H_T_prime',
-        }[self.var_name]
         approximate_P_as_wρ = (self.var_name == 'δP' and self.component.approximations['P=wρ'])
         # Update self.k_max dependent on the CLASS species
         perturbation_keys = set()
@@ -1469,126 +1498,60 @@ class TransferFunction:
         a_values_largest_trusted_k = empty(self.n_intervals, dtype=object)
         perturbations_detrended_largest_trusted_k = empty(self.n_intervals, dtype=object)
         for k_local, perturbation_k in enumerate(self.cosmoresults.perturbations):
-            # The global k index corresponding to the local k index
+            # The perturbation_k dict store perturbation arrays for
+            # all perturbation types and CLASS species, defined at
+            # times matching those of a_values.
+            # The global k index corresponding to the local k index.
             k = self.k_indices[k_local]
             # Array of scale factor values at which perturbations for
             # this k mode is tabulated.
             a_values = perturbation_k['a'].copy()
-            # The perturbation_k dict store perturbation arrays for
-            # all perturbation types and CLASS species, defined at
-            # times matching those of a_values.
             # Because a single CO𝘕CEPT species can map to multiple
             # CLASS species, we need to construct an array of
             # perturbation values as a weighted sum of perturbations
-            # over the individual ('+'-separated) CLASS species,
-            # with weights dependent on the type of
-            # CLASS perturbation.
-            # We also need to apply the CLASS units, which again
-            # depend on the type of perturbation.
-            # Finally, outlier rejection may take place by adding
-            # indices to the outliers_list.
-            outliers_list = []
-            if self.var_name == 'δ':
-                # For δ we have
-                # δ_tot = (δ_1*ρ_bar_1 + δ_2*ρ_bar_2 + ...)/(ρ_bar_1 + ρ_bar_2 + ...)
-                weights_species = {
-                    class_species: self.cosmoresults.ρ_bar(a_values, class_species)
-                    for class_species in self.class_species.split('+')
-                }
-                Σweights = np.sum(tuple(weights_species.values()), axis=0)
-                for class_species in weights_species:
-                    weights_species[class_species] *= 1/Σweights
-                # We have no CLASS units to apply
-                class_units = 1
-            elif self.var_name == 'θ':
-                # For θ we have
-                # θ_tot = (θ_1*(ρ_bar_1 + c⁻²P_bar_1) + θ_2*(ρ_bar_2 + c⁻²P_bar_2) + ...)
-                #          /((ρ_bar_1 + c⁻²P_bar_1) + (ρ_bar_2 + c⁻²P_bar_2) + ...)
-                weights_species = {class_species:
-                                           self.cosmoresults.ρ_bar(a_values, class_species)
-                    + ℝ[light_speed**(-2)]*self.cosmoresults.P_bar(a_values, class_species)
-                    for class_species in self.class_species.split('+')
-                }
-                Σweights = np.sum(tuple(weights_species.values()), axis=0)
-                for class_species in weights_species:
-                    weights_species[class_species] *= 1/Σweights
-                # We have CLASS units of [time⁻¹]
-                class_units = ℝ[light_speed/units.Mpc]
-            elif self.var_name == 'δP':
-                # CLASS does not provide the δP(k) perturbations
-                # directly. Instead it provides δP(k)/δρ(k).
-                # To get the total δP from multiple δP/δρ,
-                # we then have
-                # δP_tot = δP_1 + δP_2 + ...
-                #        = (δP/δρ)_1*δρ_1 + (δP/δρ)_2*δρ_2 + ...
-                #        = (δP/δρ)_1*δ_1*ρ_bar_1 + (δP/δρ)_2*δ_2*ρ_bar_2 + ...
-                weights_species = {
-                    class_species: (
-                        perturbation_k.get(f'delta_{class_species}')
-                        *self.cosmoresults.ρ_bar(a_values, class_species)
+            # over the individual ('+'-separated) CLASS species.
+            # These weights are constructed below.
+            with unswitch:
+                if 𝕊[transferfunction_info.weighting] == '1':
+                    weights_species = {
+                        class_species: 1
+                        for class_species in self.class_species.split('+')
+                    }
+                elif 𝕊[transferfunction_info.weighting] == 'ρ':
+                    weights_species = {
+                        class_species: self.cosmoresults.ρ_bar(a_values, class_species)
+                        for class_species in self.class_species.split('+')
+                    }
+                    Σweights_inv = 1/np.sum(tuple(weights_species.values()), axis=0)
+                    for class_species in weights_species:
+                        weights_species[class_species] *= Σweights_inv
+                elif 𝕊[transferfunction_info.weighting] == 'ρ+P':
+                    weights_species = {
+                        class_species: (
+                            self.cosmoresults.ρ_bar(a_values, class_species)
+                            + ℝ[light_speed**(-2)]*self.cosmoresults.P_bar(a_values, class_species)
+                        )
+                        for class_species in self.class_species.split('+')
+                    }
+                    Σweights_inv = 1/np.sum(tuple(weights_species.values()), axis=0)
+                    for class_species in weights_species:
+                        weights_species[class_species] *= Σweights_inv
+                elif 𝕊[transferfunction_info.weighting] == 'δρ':
+                    weights_species = {
+                        class_species: (
+                            perturbation_k.get(f'delta_{class_species}')
+                            *self.cosmoresults.ρ_bar(a_values, class_species)
+                        )
+                        for class_species in self.class_species.split('+')
+                    }
+                else:
+                    weights_species = {}  # To satisfy the compiler
+                    abort(
+                        f'Transfer function weighting "{transferfunction_info.weighting}" '
+                        f'not implemented.'
                     )
-                    for class_species in self.class_species.split('+')
-                }
-                # The CLASS units of δP/δρ are [length²time⁻²]
-                class_units = ℝ[light_speed**2]
-                # Look for outlier points which are outside the
-                # legal range 0 ≤ δP/δρ ≤ c²/3. As the data is
-                # directly from CLASS, c = 1.
-                for class_species in weights_species:
-                    if (class_species not in {'g', 'ur', 'dr'}
-                        and not class_species.startswith('ncdm[')):
-                        continue
-                    perturbation = perturbation_k.get(f'cs2_{class_species}')
-                    if perturbation is not None:
-                        perturbation_values = perturbation
-                        for i in range(perturbation_values.shape[0]):
-                            if not (0 <= perturbation_values[i] <= ℝ[1/3]):
-                                outliers_list.append(i)
-            elif self.var_name == 'σ':
-                # For σ we have
-                # σ_tot = (σ_1*(ρ_bar_1 + c⁻²P_bar_1) + σ_2*(ρ_bar_2 + c⁻²P_bar_2) + ...)
-                #          /((ρ_bar_1 + c⁻²P_bar_1) + (ρ_bar_2 + c⁻²P_bar_2) + ...)
-                weights_species = {class_species:
-                                           self.cosmoresults.ρ_bar(a_values, class_species)
-                    + ℝ[light_speed**(-2)]*self.cosmoresults.P_bar(a_values, class_species)
-                    for class_species in self.class_species.split('+')
-                }
-                Σweights = np.sum(tuple(weights_species.values()), axis=0)
-                for class_species in weights_species:
-                    weights_species[class_species] *= 1/Σweights
-                # We have CLASS units of [length²time⁻²]
-                class_units = ℝ[light_speed**2]
-            elif self.var_name in {'ϕ', 'ψ'}:
-                # As ϕ and ψ are species independent quantities,
-                # we do not have any weights.
-                weights_species = {class_species: 1
-                    for class_species in self.class_species.split('+')
-                }
-                # We have CLASS units of [length²time⁻²]
-                class_units = ℝ[light_speed**2]
-            elif self.var_name == 'hʹ':
-                # As hʹ is a species independent quantity,
-                # we do not have any weights.
-                weights_species = {class_species: 1
-                    for class_species in self.class_species.split('+')
-                }
-                # We have CLASS units of [time⁻¹]
-                class_units = ℝ[light_speed/units.Mpc]
-            elif self.var_name == 'H_Tʹ':
-                # As H_Tʹ is a species independent quantity,
-                # we do not have any weights.
-                weights_species = {class_species: 1
-                    for class_species in self.class_species.split('+')
-                }
-                # We have CLASS units of [time⁻¹]
-                class_units = ℝ[light_speed/units.Mpc]
-            else:
-                abort(f'Do not know how to process transfer function "{self.var_name}"')
-                # Just to satisfy the compiler
-                weights_species, class_units = {}, 1
-            # Construct the perturbation_values_arr array from the
-            # CLASS perturbations matching the perturbations type
-            # and CLASS species, together with the weights.
+            # Construct the perturbation_values array from the CLASS
+            # perturbations, units and weights.
             perturbation_values_arr = 0
             if approximate_P_as_wρ:
                 # We are working on the δP transfer function and
@@ -1638,9 +1601,43 @@ class TransferFunction:
                                 else f'for the {self.component.name} component ')
                             + f'available'
                         )
-            # Remove outliers
+            # Perform outlier rejection
+            outliers_list = []
+            if self.var_name == 'δP':
+                # Look for outlier points which are outside the
+                # legal range 0 ≤ δP/δρ ≤ c²/3. As the data is
+                # directly from CLASS, c = 1.
+                for class_species in weights_species:
+                    if (
+                        class_species not in {'g', 'ur', 'dr'}
+                        and not class_species.startswith('ncdm[')
+                    ):
+                        continue
+                    perturbation = perturbation_k.get(f'cs2_{class_species}')
+                    if perturbation is not None:
+                        perturbation_values_auxiliary = perturbation
+                        for i in range(perturbation_values.shape[0]):
+                            if not (0 <= perturbation_values_auxiliary[i] <= ℝ[1/3]):
+                                outliers_list.append(i)
             if outliers_list:
-                outliers = asarray(outliers_list, dtype=C2np['Py_ssize_t'])
+                # We want to keep the points at both ends of a_values,
+                # even if they are classified as outliers. In fact we
+                # keep all outlier points to the left of the first
+                # non-outlier, as well as all outliers to the right of
+                # the last non-outlier.
+                outliers = np.unique(asarray(outliers_list, dtype=C2np['Py_ssize_t']))
+                outliers_first = ℤ[outliers.shape[0]]
+                for i in range(ℤ[outliers.shape[0]]):
+                    if outliers[i] != i:
+                        outliers_first = i
+                        break
+                outliers_last = 0
+                for i in range(ℤ[outliers.shape[0]]):
+                    if outliers[ℤ[ℤ[outliers.shape[0] - 1] - i]] != ℤ[a_values.shape[0] - 1] - i:
+                        outliers_last = ℤ[ℤ[outliers.shape[0] - 1] - i]
+                        break
+                outliers = asarray(outliers)[outliers_first:outliers_last+1]
+                # Now do the removal
                 n_outliers = 0
                 outlier = outliers[n_outliers]
                 for i in range(perturbation_values.shape[0]):
@@ -1924,7 +1921,7 @@ class TransferFunction:
                         plot_detrended_perturbations(
                             k,
                             self.k_magnitudes[k],
-                            self.var_name,
+                            transferfunctions_registered[self.var_name],
                             self.class_species,
                             factors,
                             exponents,
@@ -2300,6 +2297,9 @@ class TransferFunction:
         smart_mpi(self.data_deriv_local, self.data_deriv, mpifun='allgatherv')
         self.data_deriv = asarray(self.data_deriv)[self.k_indices_all]
         return self.data_deriv
+# Global set used by the above class
+cython.declare(missing_background_quantities=set)
+missing_background_quantities = set()
 
 # Function which finds critical moments in the cosmic history,
 # like that of matter-radiation equality
@@ -3870,7 +3870,155 @@ def ζ(k):
         *exp(ℝ[primordial_spectrum['α_s']/4]*(log(k) - ℝ[log(primordial_spectrum['pivot'])])**2)
     )
 
+# Function for registrering transfer functions / perturbations
+def register(
+    name, name_class, name_latex=None, name_ascii=None,
+    units_class=1, units_latex='',
+    weighting='1',
+):
+    if not name.isidentifier():
+        abort(
+            f'Transfer function name "{name}" illegal as it is not a valid Python isidentifier'
+        )
+    if name_latex is None:
+        name_latex = rf'\mathrm{{{name_class}}}'.replace('_', ' ')
+    if name_ascii is None:
+        name_ascii = name_class
+    name_ascii = asciify(name_ascii)
+    units_class = float(units_class)
+    units_latex = (units_latex
+        .replace('length', rf'\mathrm{{{unit_length}}}')
+        .replace('time', rf'\mathrm{{{unit_time}}}')
+        .replace('mass', unit_mass.replace('1e+10*', '10^{10}').replace('m_sun', r'm_{\odot}'))
+    )
+    weighting = weighting.replace(' ', '')
+    if weighting not in {'1', 'ρ', 'ρ+P', 'δρ'}:
+        abort(f'Transfer function weighting "{weighting}" not implemented')
+    # The 'total' flag, specifying whether this transfer function
+    # belongs to the universe as a whole or exists
+    # for several species individually.
+    total = ('{}' not in name_class)
+    # Pack the information into a TransferFunctionInfo instance
+    transferfunction_info = TransferFunctionInfo(
+        name, name_class, name_latex, name_ascii,
+        units_class, units_latex,
+        weighting, total,
+    )
+    # Store the transfer function info globally
+    if transferfunction_info in transferfunctions_registered:
+        abort(f'Multiple transfer function registrations under the same name "{name}"')
+    transferfunctions_registered[name] = transferfunction_info
+    return transferfunction_info
+# Global dict of transfer function infos populated by the above function
+cython.declare(transferfunctions_registered=dict)
+transferfunctions_registered = {}
+# Create the TransferFunctionInfo type used in the above function
+TransferFunctionInfo = collections.namedtuple(
+    'TransferFunctionInfo',
+    (
+        'name', 'name_class', 'name_latex', 'name_ascii',
+        'units_class', 'units_latex',
+        'weighting', 'total',
+    ),
+)
 
+
+
+# Register all implemented transfer functions
+register(
+    'δ', 'delta_{}', r'{\delta}',
+    weighting='ρ',
+)
+register(
+    'θ', 'theta_{}', r'{\theta}',
+    units_class=light_speed/units.Mpc,
+    units_latex=r'time^{-1}',
+    weighting='ρ + P',
+)
+register(  # δP from cs2 = c⁻²δP/δρ
+    'δP', 'cs2_{}', r'{\delta}P', 'deltaP_{}',
+    units_class=light_speed**2,
+    units_latex=r'mass\, length^{-1}\, time^{-2}',
+    weighting='δρ',
+)
+register(
+    'σ', 'shear_{}', r'{\sigma}', 'sigma_{}',
+    units_class=light_speed**2,
+    units_latex=r'length^2\, time^{-2}',
+    weighting='ρ + P',
+)
+register(
+    'θ_tot', 'theta_tot', r'{\theta}_{\mathrm{tot}}',
+    units_class=light_speed/units.Mpc,
+    units_latex=r'time^{-1}',
+)
+register(
+    'ϕ', 'phi', r'{\phi}',
+    units_class=light_speed**2,
+    units_latex=r'length^2\, time^{-2}',
+)
+register(
+    'ψ', 'psi', r'{\psi}',
+    units_class=light_speed**2,
+    units_latex=r'length^2\, time^{-2}',
+)
+register(
+    'hʹ', 'h_prime', r'h^{\prime}',
+    units_class=light_speed/units.Mpc,
+    units_latex=r'time^{-1}',
+)
+register(
+    'H_Tʹ', 'H_T_prime', r'H_{\mathrm{T}}^{\prime}',
+    units_class=light_speed/units.Mpc,
+    units_latex=r'time^{-1}',
+)
+
+# Create class_extra_perturbations_class, a version of
+# class_extra_perturbations with keys equal to the CLASS names.
+# Also perform automatic (and poor) registering of CLASS unknown
+# perturbations found in class_extra_perturbations.
+cython.declare(class_extra_perturbations_class=set)
+class_extra_perturbations_class = set()
+transferfunctions_registered_classnames = {
+    transferfunction_info.name_class
+    for transferfunction_info in transferfunctions_registered.values()
+}
+for class_extra_perturbation in class_extra_perturbations:
+    for class_extra_perturbation_modified in (
+        class_extra_perturbation,
+        unicode(class_extra_perturbation),
+        asciify(class_extra_perturbation),
+    ):
+        transferfunction_info = transferfunctions_registered.get(class_extra_perturbation_modified)
+        if transferfunction_info is not None:
+            class_extra_perturbations_class.add(transferfunction_info.name_class)
+            break
+    else:
+        if class_extra_perturbation in transferfunctions_registered_classnames:
+            class_extra_perturbations_class.add(class_extra_perturbation)
+            continue
+        # Unregistered perturbation from class_extra_perturbation.
+        # Perform automatic registration, but throw a warning.
+        masterwarn(
+            f'Auto-registering CLASS perturbation "{class_extra_perturbation}". '
+            f'Consider placing a proper registration in linear.py.'
+        )
+        perturbation_name = ''.join([
+            char for char in class_extra_perturbation if f'x{char}'.isidentifier()
+        ])
+        for i, char in enumerate(perturbation_name):
+            if char.isidentifier():
+                perturbation_name = perturbation_name[i:]
+                break
+        else:
+            perturbation_name = ''
+        if not perturbation_name:
+            abort(
+                f'Failed to generate CO𝘕CEPT name '
+                f'for CLASS peturbation "{class_extra_perturbation}"'
+            )
+        transferfunction_info = register(perturbation_name, class_extra_perturbation)
+        class_extra_perturbations_class.add(transferfunction_info.name_class)
 
 # Read in definitions from CLASS source files at import time
 cython.declare(
@@ -3907,4 +4055,4 @@ for (varname,
         # This is the maximum number of k modes that CLASS can handle
         k_gridsize_max = (class__ARGUMENT_LENGTH_MAX_ - 1)//(len(k_float2str(0)) + 1)
     elif varname == 'a_min':
-        class_a_min = -1.0 if special_params.get('keep_class_extra_background', False) else value
+        class_a_min = -1.0 if special_params.get('special') == 'CLASS' else value
