@@ -4144,11 +4144,12 @@ if user_params.unused:
     masterwarn(msg + '    ' + '\n    '.join(user_params.unused))
 # Output times very close to t_begin or a_begin
 # are probably meant to be exactly at t_begin or a_begin
-for time_param in ('t', 'a'):
+for time_param, time_begin in zip(('t', 'a'), (t_begin, a_begin)):
     output_times[time_param] = {
-        key: tuple([a_begin
-            if isclose(float(nr), a_begin, abs_tol=(0 if float(nr) else machine_ϵ))
-            else nr for nr in val])
+        key: tuple([
+            time_begin if isclose(float(nr), time_begin, abs_tol=(0 if float(nr) else machine_ϵ))
+            else correct_float(nr)
+            for nr in val])
         for key, val in output_times[time_param].items()
     }
 # Output times very close to a = 1

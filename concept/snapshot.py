@@ -118,11 +118,11 @@ class StandardSnapshot:
             hdf5_file.attrs['unit length'  ] = self.units['length']
             hdf5_file.attrs['unit mass'    ] = self.units['mass']
             # Save global attributes
-            hdf5_file.attrs['H0'           ] = self.params['H0']
-            hdf5_file.attrs['a'            ] = self.params['a']
-            hdf5_file.attrs['boxsize'      ] = self.params['boxsize']
-            hdf5_file.attrs[unicode('Ωcdm')] = self.params['Ωcdm']
-            hdf5_file.attrs[unicode('Ωb')  ] = self.params['Ωb']
+            hdf5_file.attrs['H0'           ] = correct_float(self.params['H0'])
+            hdf5_file.attrs['a'            ] = correct_float(self.params['a'])
+            hdf5_file.attrs['boxsize'      ] = correct_float(self.params['boxsize'])
+            hdf5_file.attrs[unicode('Ωcdm')] = correct_float(self.params['Ωcdm'])
+            hdf5_file.attrs[unicode('Ωb')  ] = correct_float(self.params['Ωb'])
             # Store each component as a separate group
             # within /components.
             for component in self.components:
@@ -138,7 +138,7 @@ class StandardSnapshot:
                         f'({N_str} {component.species} particles) ...'
                     )
                     # Save particle attributes
-                    component_h5.attrs['mass'] = component.mass
+                    component_h5.attrs['mass'] = correct_float(component.mass)
                     component_h5.attrs['N'] = component.N
                     # Get local indices of the particle data
                     start_local = int(np.sum(smart_mpi(component.N_local,
