@@ -87,10 +87,12 @@ ctypedef double (*func_potential)(
     computation_time='double',
     dependent=list,
     deterministic='bint',
+    index='Py_ssize_t',
     judge_refinement='bint',
     judgement_period='Py_ssize_t',
     lowest_active_rung='signed char',
     only_supply='bint',
+    other_rank='int',
     pair=set,
     pairs=list,
     receiver='Component',
@@ -101,6 +103,7 @@ ctypedef double (*func_potential)(
     subtiles_computation_times_interaction='double[::1]',
     subtiles_computation_times_sq_interaction='double[::1]',
     subtiling='Tiling',
+    subtiling_shape_judged='Py_ssize_t[::1]',
     subtiling_name=str,
     subtiling_name_2=str,
     supplier='Component',
@@ -292,7 +295,7 @@ def component_component(
         # do so and reset the computation time.
         if judge_refinement:
             subtilings_under_tentative_refinement.remove(interaction_name)
-            accept_or_reject_subtiling_refinement(
+            subtiling_shape_judged = accept_or_reject_subtiling_refinement(
                 interaction_name,
                 subtiles_computation_times_interaction,
                 subtiles_computation_times_sq_interaction,
@@ -301,7 +304,22 @@ def component_component(
             subtiles_computation_times_interaction   [:] = 0
             subtiles_computation_times_sq_interaction[:] = 0
             subtiles_computation_times_N_interaction [:] = 0
-# Containers used by the component_component() function.
+        else:
+            subtiling_shape_judged = subtiling_shape_rejected
+        # Gather information about the acceptance of the new subtiling
+        # and print out any positive results.
+        Gather(subtiling_shape_judged, subtiling_shapes_judged)
+        if master:
+            for other_rank in range(nprocs):
+                index = 3*other_rank
+                if subtiling_shapes_judged[index] == 0:
+                    continue
+                subtiling_shape_judged = subtiling_shapes_judged[index:index+3]
+                masterprint(
+                    f'Rank {other_rank}: Refined subtile decomposition ({interaction_name}):',
+                    '×'.join(list(map(str, subtiling_shape_judged)))
+                )
+# Containers and array used by the component_component() function.
 # The subtiles_computation_times and subtiles_computation_times_N are
 # used to store total computation times and numbers for performed
 # interations. They are indexed as
@@ -311,11 +329,16 @@ def component_component(
 # The subtilings_under_tentative_refinement set contain names of
 # interactions the subtilings of which are currently under
 # tentative refinement.
+# The subtiling_shape_rejected are used only for signalling purposes,
+# while the subtiling_shapes_judged are used to gather subtiling shapes
+# from all processes into the master process.
 cython.declare(
     subtiles_computation_times=object,
     subtiles_computation_times_sq=object,
     subtiles_computation_times_N=object,
     subtilings_under_tentative_refinement=set,
+    subtiling_shape_rejected='Py_ssize_t[::1]',
+    subtiling_shapes_judged='Py_ssize_t[::1]',
 )
 subtiles_computation_times = collections.defaultdict(
     lambda: zeros(ℤ[2*N_rungs], dtype=C2np['double'])
@@ -327,6 +350,8 @@ subtiles_computation_times_N = collections.defaultdict(
     lambda: zeros(ℤ[2*N_rungs], dtype=C2np['Py_ssize_t'])
 )
 subtilings_under_tentative_refinement = set()
+subtiling_shape_rejected = zeros(3, dtype=C2np['Py_ssize_t'])
+subtiling_shapes_judged = empty(3*nprocs, dtype=C2np['Py_ssize_t']) if master else None
 
 # Generic function implementing domain-domain pairing
 @cython.header(
@@ -486,8 +511,8 @@ def domain_domain(
             if 𝔹[pairing_level == 'tile']:
                 # Find interacting tiles
                 tile_indices = domain_domain_tile_indices(
-                    receiver, supplier_local, only_supply_communication,
-                    domain_pair_nr, interaction_name,
+                    interaction_name, receiver,
+                    only_supply_communication, domain_pair_nr,
                 )
                 tile_indices_receiver = tile_indices[0, :]
                 tile_indices_supplier = tile_indices[1, :]
@@ -514,7 +539,6 @@ def domain_domain(
                     tile_pairings_index = get_tile_pairings(
                         interaction_name,
                         receiver,
-                        supplier,
                         rank_recv,
                         only_supply_communication,
                         domain_pair_nr,
@@ -703,11 +727,10 @@ domain_domain_communication_dict = {}
 # domain-domain pairing with number domain_pair_nr.
 @cython.header(
     # Arguments
-    receiver='Component',
-    supplier='Component',
+    interaction_name=str,
+    component='Component',
     only_supply='bint',
     domain_pair_nr='Py_ssize_t',
-    interaction_name=str,
     # Locals
     dim='int',
     domain_pair_offsets='Py_ssize_t[:, ::1]',
@@ -725,8 +748,8 @@ domain_domain_communication_dict = {}
     tiling_name=str,
     returns='Py_ssize_t[:, ::1]',
 )
-def domain_domain_tile_indices(receiver, supplier, only_supply, domain_pair_nr, interaction_name):
-    key = (receiver.name, supplier.name, interaction_name, only_supply)
+def domain_domain_tile_indices(interaction_name, component, only_supply, domain_pair_nr):
+    key = (interaction_name, only_supply)
     tile_indices_all = domain_domain_tile_indices_dict.get(key)
     if tile_indices_all is None:
         tile_indices_all = [None]*27
@@ -740,12 +763,11 @@ def domain_domain_tile_indices(receiver, supplier, only_supply, domain_pair_nr, 
     domain_pair_offsets = domain_domain_communication_dict[
         'tile', only_supply, 'domain_pair_offsets']
     domain_pair_offset = domain_pair_offsets[domain_pair_nr, :]
-    tile_indices_list = []
     tiling_name = f'{interaction_name} (tiles)'
-    for i, component in enumerate((receiver, supplier)):
-        tiling = component.tilings[tiling_name]
-        tile_layout = tiling.layout
-        sign = {0: -1, 1: +1}[i]
+    tiling = component.tilings[tiling_name]
+    tile_layout = tiling.layout
+    tile_indices_list = []
+    for sign in range(-1, 2, 2):
         for dim in range(3):
             if domain_pair_offset[dim] == -sign:
                 tile_layout_slice_start[dim] = 0
@@ -775,8 +797,7 @@ domain_domain_tile_indices_dict = {}
 @cython.header(
     # Arguments
     interaction_name=str,
-    receiver='Component',
-    supplier='Component',
+    component='Component',
     rank_supplier='int',
     only_supply='bint',
     domain_pair_nr='Py_ssize_t',
@@ -816,12 +837,12 @@ domain_domain_tile_indices_dict = {}
     returns='Py_ssize_t',
 )
 def get_tile_pairings(
-    interaction_name, receiver, supplier, rank_supplier, only_supply,
+    interaction_name, component, rank_supplier, only_supply,
     domain_pair_nr, tile_indices_receiver, tile_indices_supplier,
 ):
     global tile_pairings_cache, tile_pairings_N_cache, tile_pairings_cache_size
     # Lookup index of the required tile pairings in the global cache
-    key = (receiver.name, supplier.name, interaction_name, domain_pair_nr, only_supply)
+    key = (interaction_name, domain_pair_nr, only_supply)
     tile_pairings_index = tile_pairings_cache_indices.get(key, tile_pairings_cache_size)
     if tile_pairings_index < tile_pairings_cache_size:
         return tile_pairings_index
@@ -834,7 +855,7 @@ def get_tile_pairings(
     # Get the shape of the local (domain) tile layout,
     # as well as of the global (box) tile layout.
     tiling_name = f'{interaction_name} (tiles)'
-    tiling = receiver.tilings[tiling_name]
+    tiling = component.tilings[tiling_name]
     tile_layout = tiling.layout
     tile_layout_shape = asarray(asarray(tile_layout).shape)
     # The general computation below takes a long time when dealing with
@@ -859,7 +880,7 @@ def get_tile_pairings(
                 for n in range(ℤ[tile_layout.shape[2]]):
                     if i != tile_layout[l, m, n]:
                         abort(
-                            f'It looks as though the tile layout of {receiver.name} is incorrect'
+                            f'It looks as though the tile layout of {component.name} is incorrect'
                         )
                     neighbourtile_indices_supplier = tile_indices_receiver_supplier[i]
                     for l_offset in range(-1, 2):

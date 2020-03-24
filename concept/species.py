@@ -463,7 +463,7 @@ class Tiling:
         # It will get picked up by the pyxpp script
         # and indluded in the .pxd file.
         """
-        str                   name
+        public str            name
         bint                  is_trivial
         Component             component
         Py_ssize_t[::1]       shape
@@ -477,8 +477,8 @@ class Tiling:
         double[::1]           location
         double[::1]           extent
         double[::1]           tile_extent
-        Py_ssize_t            refinement_period
-        Py_ssize_t            refinement_offset
+        public Py_ssize_t     refinement_period
+        public Py_ssize_t     refinement_offset
         double                computation_time
         double                computation_time_total
         """
@@ -820,7 +820,7 @@ class Tiling:
 
     # String representation
     def __repr__(self):
-        return f'<tiling of {self.component.name} with shape {tuple(self.shape)}>'
+        return f'<tiling "{self.name}" of "{self.component.name}" with shape {tuple(self.shape)}>'
     def __str__(self):
         return self.__repr__()
 
@@ -1033,7 +1033,7 @@ class Component:
                 f'been instantiated. Instantiating multiple components '
                 f'with the same name may lead to undesired behaviour.'
             )
-        for char in ',{}':
+        for char in r',{}':
             if char in name:
                 masterwarn(
                     f'A component by the name of "{name}" is to be created. '
@@ -4393,16 +4393,13 @@ rejected_subtilings = {}
     computation_times_N='Py_ssize_t[::1]',
     # Locals
     N='Py_ssize_t',
-    any_acceptance='bint',
     component='Component',
     computation_time_total_new='double',
     computation_time_total_old='double',
     index='Py_ssize_t',
     key=tuple,
     keys=list,
-    message='Py_ssize_t[::1]',
     name=str,
-    other_rank='int',
     sigmas='double',
     shape='Py_ssize_t[::1]',
     subtiling='Tiling',
@@ -4410,7 +4407,7 @@ rejected_subtilings = {}
     subtiling_name_2=str,
     subtiling_names=set,
     subtiling_rejected='Tiling',
-    returns='void',
+    returns='Py_ssize_t[::1]',
 )
 def accept_or_reject_subtiling_refinement(
     interaction_name, computation_times_sum, computation_times_sqsums, computation_times_N,
@@ -4470,9 +4467,17 @@ def accept_or_reject_subtiling_refinement(
         for key in tuple(stored_subtilings.keys()):
             if key[1] in subtiling_names:
                 stored_subtilings.pop(key)
-        # We want to send the new subtiling decomposition
-        # to the master processes.
-        message = tiling_shapes[subtiling_name]
+        # Fast forward the refinement cycle so that we immediately
+        # begin collecting computation times.
+        for component in components_all:
+            subtiling = component.tilings.get(subtiling_name)
+            if subtiling is None:
+                continue
+            subtiling.refinement_offset += (
+                subtiling.refinement_period - subtiling_refinement_period_min
+        )
+        # Return the new subtiling decomposition
+        return tiling_shapes[subtiling_name]
     else:
         # Reject recent subtiling refinement.
         # Move the stored subtilings back on to their respective
@@ -4493,50 +4498,17 @@ def accept_or_reject_subtiling_refinement(
         # Remove the old references in the stored_subtilings dict
         for key in keys:
             stored_subtilings.pop(key)
-        # We want to let the master process know that the new subtiling
-        # has been rejected.
-        message = subtiling_refinement_message_rejected
-    # Gather information about the acceptance of the new subtiling
-    # and print out any positive results.
-    Gather(message, subtiling_refinement_message_recv)
-    any_acceptance = False
-    if master:
-        for other_rank in range(nprocs):
-            index = 3*other_rank
-            if subtiling_refinement_message_recv[index] == 0:
-                continue
-            any_acceptance = True
-            shape = subtiling_refinement_message_recv[index:index+3]
-            with unswitch:
-                if interaction_name == 'gravity':
-                    masterprint(
-                        f'Rank {other_rank}: Refined gravitational subtile decomposition: '
-                        f'{shape[0]}×{shape[1]}×{shape[2]}'
-                    )
-                elif ...:
-                    ...
-    # If even a single process accepted the refinement, we fast forward
-    # the refinement cycle so that we immeiately begin collecting
-    # computation times, on all processes.
-    if bcast(any_acceptance if master else None):
-        for component in components_all:
-            subtiling = component.tilings.get(subtiling_name)
-            if subtiling is None:
-                continue
-            subtiling.refinement_offset += (
-                subtiling.refinement_period - subtiling_refinement_period_min
-            )
+        # Return zeros, indicating rejection
+        return subtiling_shape_rejected
 # Arrays used by the accept_or_reject_subtiling_refinement() function
 cython.declare(
     computation_times_mean='double[::1]',
     computation_times_std='double[::1]',
-    subtiling_refinement_message_rejected='Py_ssize_t[::1]',
-    subtiling_refinement_message_recv='Py_ssize_t[::1]',
+    subtiling_shape_rejected='Py_ssize_t[::1]',
 )
 computation_times_mean = zeros(2*N_rungs, dtype=C2np['double'])
 computation_times_std  = zeros(2*N_rungs, dtype=C2np['double'])
-subtiling_refinement_message_rejected = zeros(3, dtype=C2np['Py_ssize_t'])
-subtiling_refinement_message_recv = empty(3*nprocs, dtype=C2np['Py_ssize_t']) if master else None
+subtiling_shape_rejected = zeros(3, dtype=C2np['Py_ssize_t'])
 
 
 
