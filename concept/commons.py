@@ -4147,7 +4147,8 @@ if user_params.unused:
 for time_param, time_begin in zip(('t', 'a'), (t_begin, a_begin)):
     output_times[time_param] = {
         key: tuple([
-            time_begin if isclose(float(nr), time_begin, abs_tol=(0 if float(nr) else machine_ϵ))
+            time_begin if isclose(float(nr), time_begin,
+                abs_tol=(0 if (float(nr) and time_begin) else machine_ϵ))
             else correct_float(nr)
             for nr in val])
         for key, val in output_times[time_param].items()
