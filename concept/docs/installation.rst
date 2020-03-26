@@ -175,7 +175,7 @@ their entirety, if you want to swap out the MPI library.
 For the MPI implementation, CO\ *N*\ CEPT officially supports MPICH and
 OpenMPI, though it should not matter much (a CO\ *N*\ CEPT installation
 using MVAPICH has been successful at least once). What is important is that
-the MPI library used supports the MPI-3 standard.
+the MPI library used conforms to the MPI-3 (or MPI-3.1) standard.
 
 
 
