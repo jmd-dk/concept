@@ -1796,11 +1796,16 @@ check_pypackage_installed(){
     cd "${top_dir}"
     # Some Python packages may need access to libraries at runtime
     current_LD_LIBRARY_PATH="${LD_LIBRARY_PATH}"
-    for lib in "blas" "gsl" "hdf5" "libpng" "mpi" "zlib"; do
-        eval "lib_dir=\"\${${lib}_dir}/lib\""
-        if [ -d "${lib_dir}" ]; then
-            export LD_LIBRARY_PATH="${lib_dir}:${LD_LIBRARY_PATH}"
+    for lib in "blas" "gsl" "hdf5" "libpng" "ncurses" "python" "zlib"; do
+        eval "lib_dir=\"\${${lib}_dir}\""
+        if [ -z "${lib_dir}" ]; then
+            continue
         fi
+        lib_dir="${lib_dir}/lib"
+        if [ ! -d "${lib_dir}" ]; then
+            continue
+        fi
+        export LD_LIBRARY_PATH="${lib_dir}:${LD_LIBRARY_PATH}"
     done
     "${python}" -B -c "
 from time import sleep
@@ -5332,6 +5337,7 @@ if [ "${ncurses_install}" == "True" ] && [ "${ncurses_installed}" == "False" ]; 
         make ${make_jobs} 2>&1 || continue
         make ${make_jobs} install 2>&1 || continue
         if [ "${do_tests}" == "True" ]; then
+            export LD_LIBRARY_PATH="${ncurses_dir}/lib:${LD_LIBRARY_PATH}"
             disable_status
             (sleep ${sleep_time}; echo "q") | "test/worm" -n 7 > "/dev/tty" 2>&1 \
                 || ncurses_test_success="False"
@@ -6083,12 +6089,12 @@ extra_pip_arg=${extra_pip_arg}\n\n"
         fi
     done
     reset_environment
-    # Exit on failure
+    rm -rf "${tmp_pip_dir}" "${tmp_pip_dir}_tmp" "${tmp_pip_dir}_cp" || :
+    # Return non-zero on failure
     if [ "${pypackage_installed}" != "True" ]; then
         echo "pip could not install/upgrade ${1}"
         return 1
     fi
-    rm -rf "${tmp_pip_dir}" "${tmp_pip_dir}_tmp" "${tmp_pip_dir}_cp" || :
 }
 
 # Upgrade/install setuptools, pip and wheel.

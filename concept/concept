@@ -90,11 +90,16 @@ source "${env_file}"
 export PYTHONPATH="${concept_dir}:${PYTHONPATH}"
 
 # Some Python packages may need access to libraries at runtime
-for lib in "blas" "gsl" "hdf5" "libpng" "zlib"; do
-    eval "lib_dir=\"\${${lib}_dir}/lib\""
-    if [ -n "${lib_dir}" ]; then
-        export LD_LIBRARY_PATH="${lib_dir}:${LD_LIBRARY_PATH}"
+for lib in "blas" "gsl" "hdf5" "libpng" "ncurses" "python" "zlib"; do
+    eval "lib_dir=\"\${${lib}_dir}\""
+    if [ -z "${lib_dir}" ]; then
+        continue
     fi
+    lib_dir="${lib_dir}/lib"
+    if [ ! -d "${lib_dir}" ]; then
+        continue
+    fi
+    export LD_LIBRARY_PATH="${lib_dir}:${LD_LIBRARY_PATH}"
 done
 
 # A bug in HDF5 makes the code crash on certain file systems.
