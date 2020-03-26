@@ -767,7 +767,49 @@ if [ "${top_dir_is_sane}" == "False" ]; then
     exit 1
 fi
 top_dir="$(convert_to_abs_path "${top_dir}")"
+if [ "${top_dir_specified}" == "False" ]; then
+    top_dir_reasonable="False"
+    if [ "${top_dir}" == "${HOME}" ]; then
+        printf "\nYou have specified your home directory \"${HOME}\" for the installation path.\n"
+    elif [ "${top_dir}" == "/home" ]; then
+        printf "\nYou have specified the \"/home\" directory for the installation path.\n"
+    elif [ "${top_dir}" == "/" ]; then
+        printf "\nYou have specified the root directory \"/\" for the installation path.\n"
+    elif [ "${top_dir}" == "/root" ]; then
+        printf "\nYou have specified the \"/root\" directory for the installation path.\n"
+    else
+        top_dir_reasonable="True"
+    fi
+    if [ "${top_dir_reasonable}" == "False" ]; then
+        top_dir_suggestion="$(convert_to_abs_path "${top_dir}/concept")"
+        printf "You should probably change the installation path to a subdirectory within \
+this directory — e.g. \"${top_dir_suggestion}\" — so that ${esc_concept} is fully contained \
+within a dedicated directory.\n"
+        while :; do
+            read -p "Change installation path to \"${top_dir_suggestion}\"? [Y/n] " yn
+            case "${yn}" in
+                [Yy]* ) top_dir="${top_dir_suggestion}"
+                        break
+                        ;;
+                [Nn]* ) break
+                        ;;
+                ""    ) top_dir="${top_dir_suggestion}"
+                        break
+                        ;;
+                *     ) ;;
+            esac
+        done
+    mkdir -p "${top_dir}" 2>/dev/null || top_dir_is_sane="False"
+    if [ "${top_dir_is_sane}" == "False" ]; then
+        error "\nThe installation path \"${top_dir}\" cannot be created."
+        exit 1
+    fi
+    fi
+fi
 printf "\nThe code will be installed in \"${top_dir}\"\n"
+if [ "${top_dir_reasonable}" == "False" ]; then
+    sleep 2
+fi
 cd "${top_dir}"
 
 # This directory may be created by the fix_path, use_mpi_compilers or
