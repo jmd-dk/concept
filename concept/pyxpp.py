@@ -2834,11 +2834,15 @@ def fix_addresses(lines, no_optimization):
 
 
 def malloc_realloc(lines, no_optimization):
+    # Check and print memory copies by realloc()?
+    check_realloc_copy = False
+    # Replace the allocations
+    counter = 0
     new_lines = []
     for line in lines:
         found_alloc = False
-        for alloc in ('malloc(', 'realloc('):
-            if alloc in line and 'sizeof(' in line and not line.lstrip().startswith('#'):
+        for alloc in ('malloc', 'realloc'):
+            if f'{alloc}(' in line and 'sizeof(' in line and not line.lstrip().startswith('#'):
                 found_alloc = True
                 paren = 1
                 dtype = ''
@@ -2852,17 +2856,31 @@ def malloc_realloc(lines, no_optimization):
                         break
                     dtype += symbol
                 dtype = dtype.replace("'", '').replace('"', '')
-                line = (line.replace(alloc, '<' + dtype
-                        + '*> PyMem_' + alloc.capitalize()))
+                indentation = ' '*(len(line) - len(line.lstrip()))
+                if check_realloc_copy and alloc == 'realloc':
+                    ptr_old = re.search(rf'{alloc} *\((.+?),', line).group(1).strip()
+                    ptr_old_cp = f'__realloc_copy_check_{counter}__'
+                    new_lines.append(f'{indentation}cython.declare({ptr_old_cp}=\'{dtype}*\')\n')
+                    new_lines.append(f'{indentation}{ptr_old_cp} = {ptr_old}\n')
+                    counter += 1
+                line = (line.replace(alloc, f'<{dtype}*> PyMem_' + alloc.capitalize()))
                 new_lines.append(line)
                 # Add exception
                 LHS = line[:line.find('=')].strip()
-                indentation = (len(line[:line.find('=')])
-                               - len(line[:line.find('=')].lstrip()))
-                new_lines.append(' '*indentation + 'if not ' + LHS + ':\n')
-                new_lines.append(' '*(indentation + 4)
+                new_lines.append(indentation + 'if not ' + LHS + ':\n')
+                new_lines.append(indentation + ' '*4
                                  + "raise MemoryError('Could not "
-                                 + alloc[:-1] + ' ' + LHS + "')\n")
+                                 + alloc + ' ' + LHS + "')\n")
+                # Add prinout on realloc copy
+                if check_realloc_copy and alloc == 'realloc':
+                    new_lines.append(f'{indentation}if {LHS} != {ptr_old_cp}:\n')
+                    line_fmt = line.strip().replace('\'', '\\\'')
+                    new_lines.append(f'{indentation}    __line_realloc__ = \'{line_fmt}\'\n')
+                    new_lines.append(
+                        f'{indentation}    fancyprint(f\'Copy due to realloc() by rank {{rank}} '
+                        f'in the following line:\\n{{__line_realloc__}}\', '
+                        f'fun=terminal.bold_cyan, wrap=False)\n'
+                    )
         if not found_alloc:
             if line.lstrip().startswith('free('):
                 # Normal frees
