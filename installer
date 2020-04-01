@@ -4511,7 +4511,7 @@ extract(){
             extract "$1" "$2"
         else
             error "Failed to extract \"${archive}\""
-            exit 1
+            return 1
         fi
     fi
 }
