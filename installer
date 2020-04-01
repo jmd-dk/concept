@@ -7156,7 +7156,7 @@ else:
             key=(lambda val: len(str(val))),
         )[0]
         print(val_new if len(str(val_new)) < len(str(val_raw)) - 2 else val_raw)
-" --pure-python --local | tail -n 1
+" --pure-python --local 2>/dev/null | tail -n 1
         cd "${current_dir}"
     }
     result="$(concept_print "π")"
