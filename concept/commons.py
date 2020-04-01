@@ -1311,7 +1311,10 @@ params_file_content = bcast(params_file_content)
 # To allow for this, we add lines defining h from H0.
 params_file_content += '\n'.join([
     '\n# Added by commons.py',
-    'h = (H0 if "H0" in globals() else 1)/(100*km/(s*Mpc))',
+    'try:',
+    '    h = H0/(100*km/(s*Mpc))',
+    'except NameError:',
+    '    h = 1',
     'h = float(f"{h:.15f}")',
     'h = h',  # To ensure h gets flagged as used
 ])
