@@ -432,10 +432,38 @@ set -e
 sleep_time=10
 
 # For the terminal to be able to print Unicode characters correctly,
-# the terminal character set needs to be compatible. To ensure this,
-# we set all locale settings to en_US.UTF-8.
-export LC_ALL="en_US.UTF-8"
-export LANG="en_US.UTF-8"
+# we need to use a UTF-8 locale.
+set_locale() {
+    # This function will set the locale through the LC_ALL and LANG
+    # evironment variables. We want to use a supported UTF-8 locale.
+    # The preference order is as follows:
+    #   en_US.UTF-8
+    #   en_*.UTF-8
+    #   C.UTF-8
+    #   POSIX.UTF-8
+    #   *.UTF-8
+    # We consider the suffix (UTF-8) valid regardless of the case and
+    # presence of the dash.
+    # Get all available locals.
+    locales="$(locale -a 2>/dev/null)"
+    if [ -z "${locales}" ]; then
+        return
+    fi
+    # Look for available UTF-8 locale
+    for prefix in "en_US" "en_*" "C" "POSIX" "*"; do
+        for suffix in "UTF-8" "UTF8" "utf-8" "utf8"; do
+            pattern="${prefix}.${suffix}"
+            for loc in ${locales}; do
+                if [[ "${loc}" == ${pattern} ]]; then
+                    export LC_ALL="${loc}"
+                    export LANG="${loc}"
+                    return
+                fi
+            done
+        done
+    done
+}
+set_locale
 # Set the terminal if unset or broken
 if [ -z "${TERM}" ] || [ "${TERM}" == "dumb" ]; then
     export TERM="linux"
