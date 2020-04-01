@@ -1492,18 +1492,36 @@ for key, val in inferred_params.items():
 # in the content.
 def exec_params(content, d, suppress_exceptions=True):
     lines = pyxpp.oneline(content.split('\n'))
-    lines_executed = []
-    lines_executed_prev = [-1]
+    lines_executed = set()
+    lines_executed_prev = {-1}
     while lines_executed != lines_executed_prev:
         lines_executed_prev = lines_executed
-        lines_executed = []
+        lines_executed = set()
+        lines_failed = []
         d_copy = d.copy()
         for n, line in enumerate(lines):
             try:
                 exec(line, d)
-                lines_executed.append(n)
+                lines_executed.add(n)
+                lines_failed = []
+                continue
             except:
                 pass
+            lines_failed.append(n)
+            if len(lines_failed) < 2:
+                continue
+            try:
+                exec('\n'.join([lines[m] for m in lines_failed]), d)
+            except:
+                continue
+            for m in lines_failed:
+                lines_executed.add(m)
+            lines_failed = []
+    if lines_failed:
+        try:
+            exec('\n'.join([lines[m] for m in lines_failed]), d)
+        except:
+            pass            
     if not suppress_exceptions:
         # If exceptions should raise an error, we do an extra exec
         # on the full content.
