@@ -382,22 +382,22 @@ elif [ "${mpi}" == "openmpi" ]; then
     set_version "mpi"           "4.0.3"
 fi
 set_version "ncurses"           "6.2"     "6.2"
-set_version "openssl"           "1.1.1e"  "1.1.1e"
+set_version "openssl"           "1.1.1f"  "1.1.1e"
 set_version "perl"              "5.30.2"
 set_version "python"            "3.8.2"
 set_version "zlib"              "1.2.11"  "1.2.11"
 # Python packages
 set_version "blessings"         "1.7"
-set_version "cython"            "0.29.15"
+set_version "cython"            "0.29.16"
 set_version "cythongsl"         "0.2.2"
 set_version "h5py"              "2.10.0"
 set_version "matplotlib"        "3.2.1"
 set_version "mpi4py"            "3.0.3"
-set_version "numpy"             "1.18.1"
+set_version "numpy"             "1.18.2"
 set_version "pip"               "20.0.2"
 set_version "pytest"            "5.4.1"
 set_version "scipy"             "1.4.1"
-set_version "setuptools"        "46.0.0"
+set_version "setuptools"        "46.1.3"
 set_version "sphinx"            "2.4.4"
 set_version "sphinx_copybutton" "0.2.10"
 set_version "sphinx_rtd_theme"  "0.4.3"
@@ -2774,7 +2774,8 @@ fi
 
 # OpenSSL
 if [ "${openssl_install}" == "True" ]; then
-    openssl_url="https://www.openssl.org/source/openssl-${openssl_version}.tar.gz"
+    openssl_url="https://github.com/openssl/openssl/archive/\
+OpenSSL_${openssl_version//./_}.tar.gz"
     # Check if already installed and/or downloaded
     check_progress "OpenSSL"
     # If not yet downloaded, validate the URL
@@ -2783,9 +2784,8 @@ if [ "${openssl_install}" == "True" ]; then
         if [ "${validate_url_status}" != "success" ]; then
             echo "Primary OpenSSL link broken: ${openssl_url}"
             fallback "openssl"
-            openssl_version_underscores="$(echo "${openssl_version}" | tr '.' '_')"
-            openssl_url="https://github.com/openssl/openssl/archive/\
-OpenSSL_${openssl_version_underscores}.tar.gz"
+            openssl_url="https://www.openssl.org/source/old/${openssl_version/[a-z]*/}/\
+openssl-${openssl_version}.tar.gz"
             echo "Using secondary OpenSSL link: ${openssl_url}"
             # Check if already installed and/or downloaded
             check_progress "OpenSSL"
