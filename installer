@@ -445,7 +445,7 @@ set_locale() {
     # We consider the suffix (UTF-8) valid regardless of the case and
     # presence of the dash.
     # Get all available locals.
-    locales="$(locale -a 2>/dev/null)"
+    locales="$(locale -a 2>/dev/null || :)"
     if [ -z "${locales}" ]; then
         return
     fi
