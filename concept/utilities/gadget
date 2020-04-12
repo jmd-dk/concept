@@ -201,11 +201,11 @@ get_make_var() {
         for ((pattern_index=0; pattern_index<${#replacements[@]}; pattern_index+=2)); do
             ((replace_index = pattern_index + 1))
             pattern="${replacements[${pattern_index}]}"
-            pattern="${pattern//\./\\\.}"
-            pattern="${pattern//\//\\\/}"
-            replace="${replacements[${replace_index}]}"        
-            replace="${replace//\./\\\.}"
-            replace="${replace//\//\\\/}"
+            pattern="${pattern//\./\\.}"
+            pattern="${pattern//\//\\/}"
+            replace="${replacements[${replace_index}]}"
+            replace="${replace//\./\\.}"
+            replace="${replace//\//\\/}"
             definition="$(echo "${definition}" | sed "s/${pattern}/${replace}/g")"
         done
     done
