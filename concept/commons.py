@@ -1524,7 +1524,7 @@ def exec_params(content, d, suppress_exceptions=True):
         try:
             exec('\n'.join([lines[m] for m in lines_failed]), d)
         except:
-            pass            
+            pass
     if not suppress_exceptions:
         # If exceptions should raise an error, we do an extra exec
         # on the full content.
@@ -1533,10 +1533,10 @@ def exec_params(content, d, suppress_exceptions=True):
         #   Format strings are only supported in Python 3.6 and greater.
         # This has been observed using Python 3.8.x. The SyntaxError
         # only occurs when running in compiled mode. The SyntaxError can
-        # be made to mysteriously disappear in several ways,
-        # for example by inserting a call to print() before
-        # doing exec(). We do this below.
-        print(end='')
+        # be made to mysteriously disappear by invoking I/O operations,
+        # hence the following seemingly redundant lines.
+        print(end='', flush=True)
+        sleep(0)
         exec(content, d)
 # Execute the content of the parameter file in the namespace defined
 # by user_params in order to get the user defined units.
