@@ -101,11 +101,11 @@ appropriately (see the ``.env`` file).
 
 
 
-Error messages containing 'errno = 38'
---------------------------------------
+Error messages containing 'Read -1'
+-----------------------------------
 If you see error messages of the format
 
-   Read -1, expected <int>, errno = 38
+   Read -1, expected <int>, errno = <int>
 
 whenever you run CO\ *N*\ CEPT using more than a single process, it is likely
 a problem with OpenMPI, more specifically vader/CMA. If CO\ *N*\ CEPT
@@ -226,10 +226,10 @@ reinstall CO\ *N*\ CEPT --- including all of its dependencies --- from that
 node. You may either do this by ssh'ing into the node and run the installation
 manually, or you may submit the installation as a remote job. Below you will
 find examples of Slurm and TORQUE/PBS job scripts for installing CO\ *N*\ CEPT.
-In both cases, you may wish to add loading of modules or other environment
-changes, and/or make use of a preinstalled MPI library as described under
-:doc:`installation`. Once a CO\ *N*\ CEPT installation job has begun, you
-can follow the installation process by executing
+In both cases you may wish to change ``concept_version`` and ``install_path``,
+load modules or perform other environment changes, and/or make use of a
+preinstalled MPI library as described
+:ref:`here<optimal_network_performance_on_clusters>`.
 
 .. tabs::
 
