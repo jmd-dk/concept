@@ -1490,10 +1490,16 @@ inferred_params = {unicode(key): val for key, val in
 for key, val in inferred_params.items():
     user_params.setdefault(key, val)
 # Function which repeatedly executes the str content in the
-# dictionary d, ignoring any execeptions. The executation stops when
-# no more exceptions are resolved by definitions further down
-# in the content.
-def exec_params(content, d, suppress_exceptions=True):
+# dictionary-like object d, ignoring any execeptions.
+# The executation stops when no more exceptions are resolved
+# by definitions further down in the content.
+def exec_params(content, d_in, suppress_exceptions=True):
+    # Ensure that we are working on a proper dict.
+    # If not, f-strings in content may generate mysterious SyntaxError's
+    # when in compiled mode, stating that
+    #   Format strings are only supported in Python 3.6 and greater
+    d = dict(d_in)
+    # Perform execution
     lines = pyxpp.oneline(content.split('\n'))
     lines_executed = set()
     lines_executed_prev = {-1}
@@ -1501,7 +1507,6 @@ def exec_params(content, d, suppress_exceptions=True):
         lines_executed_prev = lines_executed
         lines_executed = set()
         lines_failed = []
-        d_copy = d.copy()
         for n, line in enumerate(lines):
             try:
                 exec(line, d)
@@ -1527,17 +1532,14 @@ def exec_params(content, d, suppress_exceptions=True):
             pass
     if not suppress_exceptions:
         # If exceptions should raise an error, we do an extra exec
-        # on the full content.
-        # For some strange reason, having f-strings inside of content
-        # may lead to the following SyntaxError:
-        #   Format strings are only supported in Python 3.6 and greater.
-        # This has been observed using Python 3.8.x. The SyntaxError
-        # only occurs when running in compiled mode. The SyntaxError can
-        # be made to mysteriously disappear by invoking I/O operations,
-        # hence the following seemingly redundant lines.
+        # on the full content. The mysterious SyntaxError's mentioned
+        # before happens at this exec(). Performing I/O operations just
+        # before may alleviate the problem, as it turns out.
         print(end='', flush=True)
         sleep(0)
         exec(content, d)
+    # Changes should be reflected in the input container
+    d_in.update(d)
 # Execute the content of the parameter file in the namespace defined
 # by user_params in order to get the user defined units.
 exec_params(params_file_content, user_params)
@@ -4151,6 +4153,8 @@ if primordial_phase_shift == 1:
         f'Are you sure that you do not mean primordial_phase_shift = π?'
     )
 # Warn about unused but specified parameters
+for key in ['h', ] + list(inferred_params_final):
+    user_params.use(key)
 if user_params.unused:
     if len(user_params.unused) == 1:
         msg = 'The following unknown parameter was specified:\n'
