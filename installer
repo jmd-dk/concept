@@ -947,8 +947,8 @@ set_package_manager_and_names(){
     # This function takes no arguments
     package_manager=""
     for pmanager in \
-        "apt"       \
         "apt-get"   \
+        "apt"       \
         "aptitude"  \
         "dnf"       \
         "yum"       \
@@ -965,7 +965,7 @@ set_package_manager_and_names(){
             package_manager="${pmanager}"
             # Package names
             case "${package_manager}" in
-                "apt") install_command="${package_manager} install -y"
+                "apt-get") install_command="${package_manager} -y install"
                     set_package_names               \
                         "gawk"                      \
                         "gcc"                       \
@@ -982,7 +982,7 @@ set_package_manager_and_names(){
                         "linux-headers-$(uname -r)"
                     break
                     ;;
-                "apt-get") install_command="${package_manager} -y install"
+                "apt") install_command="${package_manager} install -y"
                     set_package_names               \
                         "gawk"                      \
                         "gcc"                       \
