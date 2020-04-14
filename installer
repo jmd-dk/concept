@@ -8003,13 +8003,17 @@ if [ "${gadget_install}" == "True" ] && [ "${gadget_installed}" == "False" ]; th
     mv ./* "${gadget_dir}/"
     # As M_PI is not part of the C standard,
     # it should be defined within the GADGET source code.
-    pi="$("${python}" -B -c "import math; print('pi =', math.pi)" \
-        | grep 'pi =' | awk '{print $NF}')"
-    echo "
+    if [ -n "${python}" ]; then
+        pi="$("${python}" -B -c "import math; print('pi =', math.pi)" \
+            | grep 'pi =' | awk '{print $NF}' || :)"
+        if [[ "${pi}" == "3.14"* ]]; then
+            echo "
 #ifndef M_PI
 #define M_PI ${pi}
 #endif
 " >> "${Gadget2_dir}/allvars.h"
+        fi
+    fi
     # Increase the maximum allowed file name size
     redefine_gadget() {
         filename="$1"
