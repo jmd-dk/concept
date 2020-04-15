@@ -746,38 +746,6 @@ get_command(){
     return 1
 }
 
-# This function should be called before any use of sudo and will cache
-# the root password to the sudo_command variable. After this, instead of
-# invoing sudo, invoke ${sudo_command} (using eval). This way, the root
-# password has to be entered at most once.
-sudo_command=""
-build_sudo_command(){
-    if [ -z "${sudo_command}" ]; then
-        if get_command "sudo" >/dev/null; then
-            if [ ${EUID} -eq 0 ]; then
-                sudo_command="sudo"
-            else
-                sudo -k
-                while :; do
-                    read -s -p "[sudo] password for $(whoami): " sudo_password
-                    echo
-                    output="$(echo "${sudo_password}" | sudo -S echo hello 2>&1 || :)"
-                    output="${output##* }"
-                    if [ "${output}" == "hello" ]; then
-                        break
-                    fi
-                    echo "Sorry, try again."
-                done
-                sudo_command="echo \"${sudo_password}\" | sudo -S"
-                unset sudo_password
-            fi
-        else
-            # No sudo command exist. Assume root privileges by default.
-            sudo_command=""
-        fi
-    fi
-}
-
 # Creating top level directory (top_dir)
 current_step="setup of top level directory"
 if [ "${top_dir_specified}" == "False" ]; then
@@ -911,6 +879,136 @@ How to proceed?
         fi
     fi
 fi
+
+# This function should be called before any use of sudo and will cache
+# the root password to the sudo_command variable. After this, instead of
+# invoing sudo, invoke ${sudo_command} (using eval). This way, the root
+# password has to be entered at most once.
+sudo_func_built="False"
+build_sudo_func() {
+    if [ "${sudo_func_built}" == "True" ]; then
+        return
+    fi
+    sudo_command_only="False"
+    if [ "$1" == "sudo_command_only" ]; then
+        sudo_command_only="True"
+    fi
+    if [ "${sudo_command_only}" == "False" ]; then
+        sudo_func_built="True"
+    fi
+    # If root, no sudo/su is needed
+    if [ "${EUID}" == "0" ]; then
+        sudo_func() {
+            eval "$@"
+        }
+        sudo_command() {
+            echo "$@"
+        }
+        return
+    fi
+    # Check for sudo and su command
+    sudo_exist="False"
+    if get_command "sudo" >/dev/null; then
+        sudo_exist="True"
+    fi
+    su_exist="False"
+    if get_command "su" >/dev/null; then
+        su_exist="True"
+    fi
+    if [ "${sudo_exist}" == "False" ] && [ "${su_exist}" == "False" ]; then
+        # Neither the sudo nor the su command exist.
+        # Assume root privileges by default.
+        sudo_func() {
+            eval "$@"
+        }
+        sudo_command() {
+            echo "$@"
+        }
+        return
+    fi
+    # Invalidate sudo timestamp
+    if [ "${sudo_exist}" == "True" ]; then
+        sudo -k
+    fi
+    # Check if sudo/su run without a password
+    if [ "${sudo_exist}" == "True" ]; then
+        output="$(echo '' | sudo -S echo 'success' 2>/dev/null || :)"
+        if [ "${output##* }" == "hello" ]; then
+            sudo_func() {
+                args="$@"
+                sudo ${args}
+            }
+            sudo_command() {
+                echo "sudo $@"
+            }
+            return
+        fi
+    fi
+    if [ "${su_exist}" == "True" ]; then
+        output="$(echo '' | su -c 'echo hello' 2>/dev/null || :)"
+        if [ "${output##* }" == "hello" ]; then
+            sudo_func() {
+                args="$@"
+                su -c "${args}"
+            }
+            sudo_command() {
+                echo "su -c '$@'"
+            }
+            return
+        fi
+    fi
+    # If we only need to build th sudo command, do so now and return
+    if [ "${sudo_command_only}" == "True" ]; then
+        if [ "${sudo_exist}" == "True" ]; then
+            sudo_command() {
+                echo "sudo $@"
+            }
+        elif [ "${sudo_exist}" == "True" ]; then
+            sudo_command() {
+                echo "su -c '$@'"
+            }
+        else
+            sudo_command() {
+                echo "$@"
+            }
+        fi
+        return
+    fi
+    # Prompt for password and try out sudo and/or su
+    while :; do
+        read -s -p "[sudo] password for $(whoami): " sudo_password
+        echo
+        # Try out sudo
+        if [ "${sudo_exist}" == "True" ]; then
+            output="$(echo "${sudo_password}" | sudo -S echo hello 2>/dev/null || :)"
+            if [ "${output##* }" == "hello" ]; then
+                sudo_func() {
+                    args="$@"
+                    echo "${sudo_password}" | sudo -S ${args}
+                }
+                sudo_command() {
+                    echo "sudo $@"
+                }
+                return
+            fi
+        fi
+        # Try out su
+        if [ "${su_exist}" == "True" ]; then
+            output="$(echo "${sudo_password}" | su -c 'echo hello' 2>/dev/null || :)"
+            if [ "${output##* }" == "hello" ]; then
+                sudo_func() {
+                    args="$@"
+                    echo "${sudo_password}" | su -c "${args}"
+                }
+                sudo_command() {
+                    echo "su -c '$@'"
+                }
+                return
+            fi
+        fi
+        echo "Sorry, try again."
+    done
+}
 
 # This directory may be created by the fix_path, use_mpi_compilers or
 # use_specified_mpi_compilers functions, which use it to store symlinks
@@ -1185,24 +1283,22 @@ check_system_dependency(){
         if [ -n "${package_manager}" ]; then
             # Package manager found
             if [ "${yes_to_defaults}" == "True" ]; then
-                echo "Auto installing '${1}'"
-                build_sudo_command
-                eval "${sudo_command} ${install_command} ${2}"
-                printf "${1} successfully installed\n\n"
+                echo "Auto installing '$1'"
+                build_sudo_func
+                sudo_func ${install_command} $2
+                printf "$1 successfully installed\n\n"
             else
-                echo "Could not find '${1}'"
+                build_sudo_func "sudo_command_only"
+                echo "Could not find '$1'"
                 echo "You can install it by typing:"
-                if get_command "sudo" >/dev/null; then
-                    printf "sudo "
-                fi
-                echo "${install_command} ${2}"
+                sudo_command ${install_command} $2
                 while :; do
                     read -p "Run above command now? [Y/n] " yn
                     case "${yn}" in
                         [Yy]*)
-                            build_sudo_command
-                            eval "${sudo_command} ${install_command} ${2}"
-                            printf "${1} successfully installed\n\n"
+                            build_sudo_func
+                            sudo_func ${install_command} $2
+                            printf "$1 successfully installed\n\n"
                             return
                             ;;
                         [Nn]*)
@@ -1210,9 +1306,9 @@ check_system_dependency(){
                             exit 1
                             ;;
                         "")
-                            build_sudo_command
-                            eval "${sudo_command} ${install_command} ${2}"
-                            printf "${1} successfully installed\n\n"
+                            build_sudo_func
+                            sudo_func ${install_command} $2
+                            printf "$1 successfully installed\n\n"
                             return
                             ;;
                         *)
@@ -1291,16 +1387,19 @@ gcc_test(){
                 fi
                 if [ "${yes_to_defaults}" == "True" ]; then
                     echo "Auto installing ${name}"
-                    eval "${install_command} ${package_name}"
+                    build_sudo_func
+                    sudo_func ${install_command} ${package_name}
                 else
+                    build_sudo_func "sudo_command_only"
                     echo "To ensure that ${name} are installed, type:"
-                    echo "${install_command} ${package_name}"
+                    sudo_command ${install_command} ${package_name}
                     gcc_test_prompt(){
                         while :; do
                             read -p "Run above command now? [Y/n] " yn
                             case "${yn}" in
                                 [Yy]*)
-                                    eval "${install_command} ${package_name}"
+                                    build_sudo_func
+                                    sudo_func ${install_command} ${package_name}
                                     return
                                     ;;
                                 [Nn]*)
@@ -1308,7 +1407,8 @@ gcc_test(){
                                     exit 1
                                     ;;
                                 "")
-                                    eval "${install_command} ${package_name}"
+                                    build_sudo_func
+                                    sudo_func ${install_command} ${package_name}
                                     return
                                     ;;
                                 *)
