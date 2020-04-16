@@ -1043,6 +1043,7 @@ set_package_names(){
 }
 set_package_manager_and_names(){
     # This function takes no arguments
+    update_command=""
     package_manager=""
     for pmanager in \
         "apt-get"   \
@@ -1063,7 +1064,9 @@ set_package_manager_and_names(){
             package_manager="${pmanager}"
             # Package names
             case "${package_manager}" in
-                "apt-get") install_command="${package_manager} -y install"
+                "apt-get")
+                    install_command="${package_manager} -y install"
+                    update_command="${package_manager} update"
                     set_package_names               \
                         "gawk"                      \
                         "gcc"                       \
@@ -1080,7 +1083,9 @@ set_package_manager_and_names(){
                         "linux-headers-$(uname -r)"
                     break
                     ;;
-                "apt") install_command="${package_manager} install -y"
+                "apt")
+                    install_command="${package_manager} install -y"
+                    update_command="${package_manager} update"
                     set_package_names               \
                         "gawk"                      \
                         "gcc"                       \
@@ -1097,7 +1102,9 @@ set_package_manager_and_names(){
                         "linux-headers-$(uname -r)"
                     break
                     ;;
-                "aptitude") install_command="${package_manager} -y install"
+                "aptitude")
+                    install_command="${package_manager} -y install"
+                    update_command="${package_manager} update"
                     set_package_names               \
                         "gawk"                      \
                         "gcc"                       \
@@ -1114,7 +1121,8 @@ set_package_manager_and_names(){
                         "linux-headers-$(uname -r)"
                     break
                     ;;
-                "dnf") install_command="${package_manager} -y install"
+                "dnf")
+                    install_command="${package_manager} -y install"
                     set_package_names       \
                         "gawk"              \
                         "gcc"               \
@@ -1131,7 +1139,8 @@ set_package_manager_and_names(){
                         "kernel-headers"
                     break
                     ;;
-                "yum") install_command="${package_manager} -y install"
+                "yum")
+                    install_command="${package_manager} -y install"
                     set_package_names       \
                         "gawk"              \
                         "gcc"               \
@@ -1148,7 +1157,8 @@ set_package_manager_and_names(){
                         "kernel-headers"
                     break
                     ;;
-                "zypper") install_command="${package_manager} -n install"
+                "zypper")
+                    install_command="${package_manager} -n install"
                     set_package_names          \
                         "gawk"                 \
                         "gcc"                  \
@@ -1165,7 +1175,8 @@ set_package_manager_and_names(){
                         "linux-kernel-headers"
                     break
                     ;;
-                "urpmi") install_command="${package_manager} --auto"
+                "urpmi")
+                    install_command="${package_manager} --auto"
                     set_package_names              \
                         "gawk"                     \
                         "gcc"                      \
@@ -1182,7 +1193,9 @@ set_package_manager_and_names(){
                         "kernel-userspace-headers"
                     break
                     ;;
-                "pacman") install_command="${package_manager} -S --noconfirm"
+                "pacman")
+                    install_command="${package_manager} -S --noconfirm"
+                    update_command="${package_manager} -Sy"
                     set_package_names   \
                         "gawk"          \
                         "gcc"           \
@@ -1199,7 +1212,8 @@ set_package_manager_and_names(){
                         "linux-headers"
                     break
                     ;;
-                "eopkg") install_command="${package_manager} install -y"
+                "eopkg")
+                    install_command="${package_manager} install -y"
                     set_package_names       \
                         "gawk"              \
                         "gcc"               \
@@ -1216,7 +1230,8 @@ set_package_manager_and_names(){
                         "linux-headers"
                     break
                     ;;
-                "emerge") install_command="${package_manager}"
+                "emerge")
+                    install_command="${package_manager}"
                     set_package_names       \
                         "gawk"              \
                         "gcc"               \
@@ -1233,7 +1248,8 @@ set_package_manager_and_names(){
                         "linux-headers"
                     break
                     ;;
-                "slackpkg") install_command="${package_manager} install"
+                "slackpkg")
+                    install_command="${package_manager} install"
                     set_package_names       \
                         "gawk"              \
                         "gcc"               \
@@ -1250,7 +1266,8 @@ set_package_manager_and_names(){
                         "kernel-headers"
                     break
                     ;;
-                "apk") install_command="${package_manager} add"
+                "apk")
+                    install_command="${package_manager} add"
                     set_package_names         \
                         "gawk"                \
                         "gcc"                 \
@@ -1283,22 +1300,33 @@ check_system_dependency(){
         if [ -n "${package_manager}" ]; then
             # Package manager found
             if [ "${yes_to_defaults}" == "True" ]; then
-                echo "Auto installing '$1'"
+                printf "\nAuto installing '$1'\n"
                 build_sudo_func
+                if [ -n "${update_command}" ]; then
+                    sudo_func ${update_command} || :
+                    update_command=""
+                fi
                 sudo_func ${install_command} $2
                 printf "$1 successfully installed\n\n"
             else
                 build_sudo_func "sudo_command_only"
-                echo "Could not find '$1'"
+                printf "\nCould not find '$1'\n"
                 echo "You can install it by typing:"
+                if [ -n "${update_command}" ]; then
+                    printf "$(sudo_command ${update_command}); "
+                fi
                 sudo_command ${install_command} $2
                 while :; do
                     read -p "Run above command now? [Y/n] " yn
                     case "${yn}" in
                         [Yy]*)
                             build_sudo_func
+                            if [ -n "${update_command}" ]; then
+                                sudo_func ${update_command} || :
+                                update_command=""
+                            fi
                             sudo_func ${install_command} $2
-                            printf "$1 successfully installed\n\n"
+                            echo "$1 successfully installed"
                             return
                             ;;
                         [Nn]*)
@@ -1307,8 +1335,12 @@ check_system_dependency(){
                             ;;
                         "")
                             build_sudo_func
+                            if [ -n "${update_command}" ]; then
+                                sudo_func ${update_command} || :
+                                update_command=""
+                            fi
                             sudo_func ${install_command} $2
-                            printf "$1 successfully installed\n\n"
+                            echo "$1 successfully installed"
                             return
                             ;;
                         *)
@@ -1388,10 +1420,17 @@ gcc_test(){
                 if [ "${yes_to_defaults}" == "True" ]; then
                     echo "Auto installing ${name}"
                     build_sudo_func
+                    if [ -n "${update_command}" ]; then
+                        sudo_func ${update_command} || :
+                        update_command=""
+                    fi
                     sudo_func ${install_command} ${package_name}
                 else
                     build_sudo_func "sudo_command_only"
                     echo "To ensure that ${name} are installed, type:"
+                    if [ -n "${update_command}" ]; then
+                        printf "$(sudo_command ${update_command}); "
+                    fi
                     sudo_command ${install_command} ${package_name}
                     gcc_test_prompt(){
                         while :; do
@@ -1399,6 +1438,10 @@ gcc_test(){
                             case "${yn}" in
                                 [Yy]*)
                                     build_sudo_func
+                                    if [ -n "${update_command}" ]; then
+                                        sudo_func ${update_command} || :
+                                        update_command=""
+                                    fi
                                     sudo_func ${install_command} ${package_name}
                                     return
                                     ;;
@@ -1408,6 +1451,10 @@ gcc_test(){
                                     ;;
                                 "")
                                     build_sudo_func
+                                    if [ -n "${update_command}" ]; then
+                                        sudo_func ${update_command} || :
+                                        update_command=""
+                                    fi
                                     sudo_func ${install_command} ${package_name}
                                     return
                                     ;;
