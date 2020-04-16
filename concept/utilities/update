@@ -157,6 +157,7 @@ fi
 # Sourcing is no good here, as we are not interested in
 # actually running the installer script.
 installer_functions="             \
+    build_sudo_func               \
     check_system_dependency       \
     download                      \
     extract                       \
