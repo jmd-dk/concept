@@ -196,7 +196,7 @@ other_cflags =                              \
 
 # General optimization options
 ifneq ($(no_optimization),True)
-    optimizations = -O3 -march=native
+    optimizations += -O3 -march=native
     # Check whether the -flto option is recognized
     lto_warning = $(shell \
         echo "int main(void){ return 0; }" > .lto_test.c;           \

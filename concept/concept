@@ -1167,14 +1167,21 @@ test:
             start_time_build=$("${python}" -B -c "import time; print(time.time())")
             exec 4>&1
             make_output="$(
-                cd "${concept_dir}" && make                \
-                    unsafe_building="${unsafe_building}"   \
-                    no_optimization="${no_optimization}"   \
-                    ${make_jobs}                           \
-                    2> >(grep -v 'GSL_.* redeclared' 1>&2) \
-                    | tee >(cat >&4)                       \
+                cd "${concept_dir}" && make                     \
+                    unsafe_building="${unsafe_building}"        \
+                    no_optimization="${no_optimization}"        \
+                    ${make_jobs}                                \
+                    2> >(grep -v 'GSL_.* redeclared' 1>&2)      \
+                    | tee >(cat >&4)                            \
+                    ; echo "concept_exit_code = ${PIPESTATUS[0]}" \
             )"
             exec 4>&-
+            exit_code="$(echo "${make_output}" | grep "concept_exit_code" \
+                | awk '{print $NF}' || :)"
+            if [ "${exit_code}" != "0" ]; then
+                colorprint "Failed to compile CO𝘕CEPT!" "red"
+                exit 1
+            fi
             if [[ "${make_output}" == *"Building modules"* ]]; then
                 "${python}" -B -c "from commons import *
 print('Build time: {}'.format(time_since(${start_time_build})))"
