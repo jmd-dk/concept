@@ -398,9 +398,10 @@ interactive_default="False"
 local_default="False"
 main_default="${concept_dir}/main.py"
 memory_default=0  # 0 implies unset
-no_watching_default="False"
+native_optimizations_default="False"
+no_optimizations_default="False"
 no_recompilation_default="False"
-no_optimization_default="False"
+no_watching_default="False"
 nprocs_default=1
 params_default="None"
 pure_python_default="False"
@@ -655,15 +656,21 @@ parser.add_argument(
     action='store_true',
 )
 parser.add_argument(
-    '--no-recompilation',
-    help='do not re-cythonize and recompile before running',
-    default=${no_recompilation_default},
+    '--native-optimizations',
+    help='allow the compiler to generate non-portable code optimized for this machine',
+    default=${native_optimizations_default},
     action='store_true',
 )
 parser.add_argument(
-    '--no-optimization',
+    '--no-optimizations',
     help='disable compiler optimizations',
-    default=${no_optimization_default},
+    default=${no_optimizations_default},
+    action='store_true',
+)
+parser.add_argument(
+    '--no-recompilation',
+    help='do not re-cythonize and recompile before running',
+    default=${no_recompilation_default},
     action='store_true',
 )
 parser.add_argument(
@@ -730,8 +737,9 @@ print('; '.join([
     \"utility_args={}\".format(python_list2bash_array(utility_args)),
     \"walltime={}\".format(args.walltime),
     \"local={}\".format(args.local),
+    \"native_optimizations={}\".format(args.native_optimizations),
+    \"no_optimizations={}\".format(args.no_optimizations),
     \"no_recompilation={}\".format(args.no_recompilation),
-    \"no_optimization={}\".format(args.no_optimization),
     \"no_watching={}\".format(args.no_watching),
     \"pure_python={}\".format(args.pure_python),
     \"unsafe_building={}\".format(args.unsafe_building),
@@ -1167,13 +1175,14 @@ test:
             start_time_build=$("${python}" -B -c "import time; print(time.time())")
             exec 4>&1
             make_output="$(
-                cd "${concept_dir}" && make                     \
-                    unsafe_building="${unsafe_building}"        \
-                    no_optimization="${no_optimization}"        \
-                    ${make_jobs}                                \
-                    2> >(grep -v 'GSL_.* redeclared' 1>&2)      \
-                    | tee >(cat >&4)                            \
-                    ; echo "concept_exit_code = ${PIPESTATUS[0]}" \
+                cd "${concept_dir}" && make                        \
+                    native_optimizations="${native_optimizations}" \
+                    no_optimizations="${no_optimizations}"         \
+                    unsafe_building="${unsafe_building}"           \
+                    ${make_jobs}                                   \
+                    2> >(grep -v 'GSL_.* redeclared' 1>&2)         \
+                    | tee >(cat >&4)                               \
+                    ; echo "concept_exit_code = ${PIPESTATUS[0]}"  \
             )"
             exec 4>&-
             exit_code="$(echo "${make_output}" | grep "concept_exit_code" \
@@ -1200,21 +1209,25 @@ if [ "${utility}" != "${utility_unspecified}" ]; then
     # Set flag variables for the flag command options,
     # so that a utility can call this script with the same flags enabled
     # as was used to invoke this script originally.
-    local_flag=""
-    if [ "${local}" == "True" ]; then
-        local_flag="--local"
-    fi
     interactive_flag=""
     if [ "${interactive}" == "True" ]; then
         interactive_flag="--interactive"
     fi
+    local_flag=""
+    if [ "${local}" == "True" ]; then
+        local_flag="--local"
+    fi
+    native_optimizations_flag=""
+    if [ "${native_optimizations}" == "True" ]; then
+        native_optimizations_flag="--native-optimizations"
+    fi
+    no_optimizations_flag=""
+    if [ "${no_optimizations}" == "True" ]; then
+        no_optimizations_flag="--no-optimizations"
+    fi
     no_recompilation_flag=""
     if [ "${no_recompilation}" == "True" ]; then
         no_recompilation_flag="--no-recompilation"
-    fi
-    no_optimization_flag=""
-    if [ "${no_optimization}" == "True" ]; then
-        no_optimization_flag="--no-optimization"
     fi
     no_watching_flag=""
     if [ "${no_watching}" == "True" ]; then

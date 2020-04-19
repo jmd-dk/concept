@@ -23,9 +23,12 @@
 # This is the makefile for the CO𝘕CEPT code. Preferebly you should not
 # interact with this file directly, but rather use the concept script to
 # build and run the code.
-# This makefile accepts the optional options
-# 'unsafe_building' and 'no_optimization', both of which may be either
-# 'True' or 'False'. If not given, a value of 'False' will be used.
+# This makefile accepts the options
+#   native_optimizations
+#   no_optimizations
+#   unsafe_building
+# all of which may be either 'True' or 'False',
+# with unset valus being equivalent to 'False'.
 
 # Use the bash shell
 SHELL = /usr/bin/env bash
@@ -195,8 +198,12 @@ other_cflags =                              \
     $(addprefix -Wno-,$(unwanted_warnings)) \
 
 # General optimization options
-ifneq ($(no_optimization),True)
-    optimizations += -O3 -march=native
+ifneq ($(no_optimizations),True)
+    optimizations += -O3 -funroll-loops
+    # Native optimization options
+    ifeq ($(native_optimizations),True)
+        optimizations += -march=native
+    endif
     # Check whether the -flto option is recognized
     lto_warning = $(shell \
         echo "int main(void){ return 0; }" > .lto_test.c;           \
@@ -211,10 +218,10 @@ ifneq ($(no_optimization),True)
         optimizations += -flto
     endif
 endif
-# Options specific to the compiler version
+# Options specific to the compiler implementation
 ifeq ($(CC_implementation),gcc)
     # Optimization options
-    ifneq ($(no_optimization),True)
+    ifneq ($(no_optimizations),True)
         # Fast floating point operations
         optimizations += -ffast-math
         # Better inlining
@@ -223,7 +230,7 @@ ifeq ($(CC_implementation),gcc)
 endif
 ifeq ($(CC_implementation),icc)
     # Optimization options
-    ifneq ($(no_optimization),True)
+    ifneq ($(no_optimizations),True)
         # Fast floating point operations
         optimizations += -fp-model fast=2
         # Increase amount of inlining
@@ -286,7 +293,7 @@ LDLIBS += $(call unique, $(call sensible_paths, \
 # Linker options
 python_ldflags = $(shell $(python_config) --ldflags)
 other_ldflags  = -shared
-ifneq ($(no_optimization),True)
+ifneq ($(no_optimizations),True)
     linker_optimizations = -Wl,-O3
     ifeq ($(lto_recognized),True)
         linker_optimizations += -Wl,-flto
@@ -309,17 +316,26 @@ LDFLAGS += $(call unique, $(call sensible_paths, \
 # build chain. A heading is printed at the beginning of the build.
 building = modules
 define heading
-    $(python) -B -c "pass;                                                           \
-        import sys;                                                                  \
-        from time import sleep;                                                      \
-        import blessings;                                                            \
-        sys.exit() if '$(heading_printed)' else None;                                \
-        extra = [];                                                                  \
-        extra.append('unsafe') if '$(unsafe_building)' == 'True' else None;          \
-        extra.append('no optimization') if '$(no_optimization)' == 'True' else None; \
-        extra = (' (' + ', '.join(extra) + ')') if extra else '';                    \
-        terminal = blessings.Terminal(force_styling=True);                           \
-        print(terminal.bold_yellow('Building $(building)' + extra), flush=True);     \
+    $(python) -B -c "pass;                                                              \
+        import sys;                                                                     \
+        from time import sleep;                                                         \
+        import blessings;                                                               \
+        sys.exit() if '$(heading_printed)' else None;                                   \
+        extra = [];                                                                     \
+        extra.append('native optimizations')                                            \
+            if '$(native_optimizations)' == 'True' and '$(no_optimizations)' == 'False' \
+            else None;                                                                  \
+        extra.append('no optimizations')                                                \
+            if '$(no_optimizations)' == 'True'                                          \
+            else None;                                                                  \
+        extra.append('unsafe')                                                          \
+            if '$(unsafe_building)' == 'True'                                           \
+            else None;                                                                  \
+        extra = (' (' + ', '.join(extra) + ')')                                         \
+            if extra                                                                    \
+            else '';                                                                    \
+        terminal = blessings.Terminal(force_styling=True);                              \
+        print(terminal.bold_yellow('Building $(building)' + extra), flush=True);        \
     "
     $(eval heading_printed = True)
     sleep 0.1
@@ -358,7 +374,7 @@ $(addsuffix .o, $(pyfiles)): %.o: %.c
 # some time stamps by hand.
 $(addsuffix .c, $(pyfiles)): %.c: %.pyx %.pxd
 	@$(call heading)
-ifeq ($(no_optimization),True)
+ifeq ($(no_optimizations),True)
 	$(python) -m cython $(cythonflags) $<
 else
 	$(python) -m cython $(filter-out -a, $(cythonflags)) $<
@@ -372,7 +388,7 @@ endif
 endif
 # Same as above (for explicit builds of html)
 $(addsuffix .html, $(pyfiles)): %.html: %.pyx %.pxd
-ifeq ($(no_optimization),True)
+ifeq ($(no_optimizations),True)
 	$(python) -m cython $(cythonflags) $<
 else
 	$(python) -m cython $(filter-out -a, $(cythonflags)) $<
@@ -399,10 +415,10 @@ $(types):
 # Write .pyx files from .py files using the pyxpp script
 $(addsuffix .pyx, $(pyfiles)): %.pyx: %.py
 	@$(call heading)
-ifneq ($(no_optimization),True)
+ifneq ($(no_optimizations),True)
 	$(python) -B $(pyxpp) $< $(commons)
 else
-	$(python) -B $(pyxpp) $< $(commons) --no-optimization
+	$(python) -B $(pyxpp) $< $(commons) --no-optimizations
 endif
 
 
@@ -485,7 +501,7 @@ clean_ics:
 	$(RM) -r $(ics_dir)/* $(ics_dir)/.[^.]*
 # Remove documentation build
 clean_docs:
-	@$(MAKE) -C $(docs_dir) clean_sphinx  --no-print-directory
+	@$(MAKE) -C $(docs_dir) clean_sphinx --no-print-directory
 # Remove everything in the log directory
 clean_logs:
 	$(RM) -r $(logs_dir)/* $(logs_dir)/.[^.]*

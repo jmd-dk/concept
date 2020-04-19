@@ -26,8 +26,8 @@
 """
 This is the .pyx preprocessor script.
 It can be run with the following three sets of arguments,
-all arguments being filenames except the optional --no-optimization:
-- module.py commons.py [--no-optimization]
+all arguments being filenames except the optional --no-optimizations:
+- module.py commons.py [--no-optimizations]
   Creates module.pyx, a version of module.py with cython-legal and
   optimized syntax.
 - .types.pyx commons.py .types.pyx module0.pyx module1.pyx ...
@@ -3509,15 +3509,15 @@ if __name__ == '__main__':
             commons = import_py_module('commons')
     no_optimization = False
     if len(sys.argv) > 3:
-        if sys.argv[3] == '--no-optimization':
+        if sys.argv[3] == '--no-optimizations':
             no_optimization = True
         else:
             filename_types = sys.argv[3]
             if not filename_types.endswith('.pyx'):
-                raise Exception('Got "{}" as the third argument, which should be either a .pyx file '
-                                'or the "--no-optimization" flag'
-                                .format(filename_types)
-                                )
+                raise Exception(
+                    f'Got "{filename_types}" as the third argument, which should be either '
+                    f'a .pyx file or the "--no-optimizations" flag'
+                )
     if len(sys.argv) > 4:
         all_pyxfiles = sys.argv[4:]
     # Perform operations

@@ -158,8 +158,9 @@ info="$(                                              \
             --generate-params="${this_dir}/params"    \
         ${interactive_flag}                           \
         --local                                       \
+        ${native_optimizations_flag}                  \
+        ${no_optimizations_flag}                      \
         ${no_recompilation_flag}                      \
-        ${no_optimization_flag}                       \
         ${pure_python_flag}                           \
         ${unsafe_building_flag}                       \
 )"
@@ -231,8 +232,9 @@ paths['params'] = _params_path_ori
             --memory=${memory}             \
             ${interactive_flag}            \
             ${local_flag}                  \
+            ${native_optimizations_flag}   \
+            ${no_optimizations_flag}       \
             ${no_recompilation_flag}       \
-            ${no_optimization_flag}        \
             --no-watching                  \
             ${pure_python_flag}            \
             ${unsafe_building_flag}        \

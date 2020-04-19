@@ -28,7 +28,7 @@ set -e
 
 # Run the CO𝘕CEPT code without optimizations
 (cd "${concept_dir}" && make clean)
-"${concept}" -n 4 -p "${this_dir}/params" --no-optimization --local
+"${concept}" -n 4 -p "${this_dir}/params" --no-optimizations --local
 mv "${this_dir}/output" "${this_dir}/output_without_optimizations"
 
 # Run the CO𝘕CEPT code with optimizations

@@ -35,23 +35,29 @@ installation directory. Alternatively, this directory can be passed as
 an argument. Everything will be installed within this directory.
 
 Options taken by this script:
-  -h, --help   Show this help message and exit.
-  -t, --tests  Test the various dependency programs after their individual
-               installations. CO𝘕CEPT itself will similarly be tested.
-               On failure (fatal or non-fatal) of any test, a log file of the
-               test output will be placed in the installation subdirectory of
-               the given program. Any test failures will be reported at the
-               end of the entire installation process.
-  -y, --yes    Accept default options on future quiries. Currently these
-               include only the system-wide installations of system
-               dependencies (e.g. gcc), should they be missing.
-               Note that this require root access.
-  --fix-ssh    Set up the ~/.ssh directory so that it allows for password-less
-               SSH login between nodes. This may be needed in order to run
-               multi-node MPI computations on clusters.
-               The original state of the ~/.ssh directory will be backed up.
-               Note that this option will perform the changes to ~/.ssh only;
-               no actual installation will take place.
+-h, --help             Show this help message and exit.
+-t, --tests            Test the various dependency programs after their
+                       individual installations. CO𝘕CEPT itself will similarly
+                       be tested. On failure (fatal or non-fatal) of any test,
+                       a log file of the test output will be placed in the
+                       installation subdirectory of the given program. Any
+                       test failures will be reported at the end of the entire
+                       installation process.
+-y, --yes              Accept default options on future queries. These include
+                       system-wide installations of system dependencies (e.g.
+                       gcc), should they be missing, as well as termination of
+                       already running CO𝘕CEPT installation process, should
+                       one exist.
+--fix-ssh              Set up the ~/.ssh directory so that it allows for
+                       password-less SSH login between nodes. This may be
+                       needed in order to run multi-node MPI computations on
+                       clusters. The original state of the ~/.ssh directory
+                       will be backed up. Note that this option will perform
+                       the changes to ~/.ssh only; no actual installation will
+                       take place.
+--native-optimizations Allow the compilation of the CO𝘕CEPT code to make use
+                       of non-portable code optimizations targeted at
+                       this machine.
 
 The full invocation signature of this script thus looks like
   /path/to/installer [/path/to/concept] [-t] [-y]
@@ -611,6 +617,9 @@ fi
 if [ -z "${fix_ssh}" ]; then
     fix_ssh="False"
 fi
+if [ -z "${native_optimizations}" ]; then
+    native_optimizations="False"
+fi
 if [ -z "${top_dir_specified}" ]; then
     top_dir_specified="False"
 fi
@@ -626,21 +635,46 @@ for var in "$@"; do
         || [ "${var}" == "--te"    ] \
         || [ "${var}" == "--tes"   ] \
         || [ "${var}" == "--test"  ] \
-        || [ "${var}" == "--tests" ]; then
+        || [ "${var}" == "--tests" ] \
+    ; then
         do_tests="True"
     elif   [ "${var}" ==  "-y"   ] \
         || [ "${var}" == "--y"   ] \
         || [ "${var}" == "--ye"  ] \
-        || [ "${var}" == "--yes" ]; then
+        || [ "${var}" == "--yes" ] \
+    ; then
         yes_to_defaults="True"
-    elif   [ "${var}" == "--f"         ] \
-        || [ "${var}" == "--fi"        ] \
-        || [ "${var}" == "--fix"       ] \
-        || [ "${var}" == "--fix-"      ] \
-        || [ "${var}" == "--fix-s"     ] \
-        || [ "${var}" == "--fix-ss"    ] \
-        || [ "${var}" == "--fix-ssh"   ]; then
+    elif   [ "${var}" == "--f"       ] \
+        || [ "${var}" == "--fi"      ] \
+        || [ "${var}" == "--fix"     ] \
+        || [ "${var}" == "--fix-"    ] \
+        || [ "${var}" == "--fix-s"   ] \
+        || [ "${var}" == "--fix-ss"  ] \
+        || [ "${var}" == "--fix-ssh" ] \
+    ; then
         fix_ssh="True"
+    elif   [ "${var}" == "--n"                    ] \
+        || [ "${var}" == "--na"                   ] \
+        || [ "${var}" == "--nat"                  ] \
+        || [ "${var}" == "--nati"                 ] \
+        || [ "${var}" == "--nativ"                ] \
+        || [ "${var}" == "--native"               ] \
+        || [ "${var}" == "--native-"              ] \
+        || [ "${var}" == "--native-o"             ] \
+        || [ "${var}" == "--native-op"            ] \
+        || [ "${var}" == "--native-opt"           ] \
+        || [ "${var}" == "--native-opti"          ] \
+        || [ "${var}" == "--native-optim"         ] \
+        || [ "${var}" == "--native-optimi"        ] \
+        || [ "${var}" == "--native-optimiz"       ] \
+        || [ "${var}" == "--native-optimiza"      ] \
+        || [ "${var}" == "--native-optimizat"     ] \
+        || [ "${var}" == "--native-optimizati"    ] \
+        || [ "${var}" == "--native-optimizatio"   ] \
+        || [ "${var}" == "--native-optimization"  ] \
+        || [ "${var}" == "--native-optimizations" ] \
+    ; then
+        native_optimizations="True"
     elif [ "${var}" == "--fast" ]; then
         # This is a deprecated option for skipping tests,
         # which is now the default. Allow it but do nothing.
@@ -1307,7 +1341,7 @@ check_system_dependency(){
                     update_command=""
                 fi
                 sudo_func ${install_command} $2
-                printf "$1 successfully installed\n\n"
+                echo "$1 successfully installed"
             else
                 build_sudo_func "sudo_command_only"
                 printf "\nCould not find '$1'\n"
@@ -1468,7 +1502,7 @@ gcc_test(){
                     }
                     gcc_test_prompt
                 fi
-                printf "${name} successfully installed\n\n"
+                echo "${name} successfully installed"
             else
                 # Test failed even after installing the needed package
                 error "Terminated install due to gcc failing to \
@@ -5437,7 +5471,6 @@ fftw_install_func() {
     export CXXFLAGS="-O3 ${PIC} ${CXXFLAGS}"
     export LDFLAGS="${LDFLAGS} -Wl,-O3 ${shared} ${PIC}"
     if [ "${extra_optimizations}" == "True" ]; then
-        export CFLAGS="${CFLAGS} -march=native"
         info="$("${CC}" --version | head -n 1 || :)"
         if echo "${info}" | grep -i icc >/dev/null; then
             # icc
@@ -5452,10 +5485,19 @@ fftw_install_func() {
         export PATH="${perl_dir}/bin:${PATH}"
     fi
     # Double-precision
+    simd_instructions=""
+    for ((i_simd = 0; i_simd < ${n_simd}; i_simd += 1)); do
+        simd="${simd_instructions_all[${i_simd}]}"
+        if [ "${simd}" == "--enable-sse" ]; then
+            continue
+        fi
+        simd_instructions="${simd_instructions} ${simd}"
+    done
     ./configure ${enable_shared} ${enable_mpi} --disable-fortran ${with_pic} \
-        --prefix="${fftw_dir}" 2>&1 || return 1
+        ${simd_instructions} --prefix="${fftw_dir}" 2>&1 || return 1
     make 2>&1 || return 1  # Parallel builds fail on some systems
-    if [ "${extra_optimizations}" == "True" ] || [ "${do_tests}" == "True" ]; then
+    if     [ "${extra_optimizations}" == "True" ] || [ -n "${simd_instructions}" ] \
+        || [ "${do_tests}" == "True" ]; then
         fftw_test_max_time=3600
         exit_code_filename="${top_dir}/tmp/.exit_code_fftw"
         mkdir -p "$(dirname "${exit_code_filename}")"
@@ -5468,7 +5510,7 @@ fftw_install_func() {
         wait    ${fftw_test_pid} >/dev/null 2>&1 || :
         exit_code="$(cat "${exit_code_filename}" 2>/dev/null || :)"
         rm -f "${exit_code_filename}" || :
-        if [ "${extra_optimizations}" == "True" ]; then
+        if [ "${extra_optimizations}" == "True" ] || [ -n "${simd_instructions}" ]; then
             if [ "${exit_code}" != "0" ]; then
                 rm -f "test_log" || :
                 return 1
@@ -5485,8 +5527,12 @@ fftw_install_func() {
     make install 2>&1 || return 1  # Parallel builds fail on some systems
     # Single-precision
     make clean || :
+    simd_instructions=""
+    for ((i_simd = 0; i_simd < ${n_simd}; i_simd += 1)); do
+        simd_instructions="${simd_instructions} ${simd_instructions_all[${i_simd}]}"
+    done
     ./configure ${enable_shared} ${enable_mpi} --enable-float --disable-fortran ${with_pic} \
-        --prefix="${fftw_dir}" 2>&1 || return 1
+        ${simd_instructions} --prefix="${fftw_dir}" 2>&1 || return 1
     make         2>&1 || return 1  # Parallel builds fail on some systems
     make install 2>&1 || return 1  # Parallel builds fail on some systems
 }
@@ -5494,9 +5540,16 @@ compiler_possibilities_fftw=("${compiler_possibilities[@]}")
 if [ -n "${mpi_dir}" ]; then
     compiler_possibilities_fftw=("specified_mpi")
 fi
+simd_instructions_all=("--enable-sse" "--enable-sse2" \
+    "--enable-avx" "--enable-avx2" "--enable-avx512")
+n_simd_all=""
+for ((n_simd = ${#simd_instructions_all[@]}; n_simd >= 0; n_simd -= 1)); do
+    n_simd_all="${n_simd_all} ${n_simd}"
+done
 install "FFTW"                                       \
     compiler "${compiler_possibilities_fftw[@]}" ";" \
     extra_optimizations "True" "False"           ";" \
+    n_simd ${n_simd_all}                         ";" \
     enable_shared "--enable-shared" ""           ";" \
     shared "" "-shared"                          ";" \
     with_pic "" "--with-pic"                     ";" \
@@ -5574,40 +5627,8 @@ blas_install_func() {
     # Due to the threading behaviour of Python,
     # we install a non-threaded version of OpenBLAS.
     openblas_make_options="USE_THREAD=0"
-    mavx_C="${mavx_C_options[${mavx_index}]}"
-    mavx_F="${mavx_F_options[${mavx_index}]}"
-    if [ "${mavx_C}" == "NO_AVX2" ]; then
-        # Disable AVX2 completely
-        openblas_make_options="${openblas_make_options} NO_AVX2=1"
-    elif [ "${mavx_C}" == "NO_AVX" ]; then
-        # Disable AVX2 and AVX completely
-        openblas_make_options="${openblas_make_options} NO_AVX2=1 NO_AVX=1"
-    else
-        # Handle the C mavx flag
-        pattern='CCOMMON_OPT *\\+= *-mavx2'
-        linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
-            "Makefile.x86_64" | head -n 1)
-        if [ "${mavx_C}" != "-mavx2" ] && [ -z "${linenr}" ]; then
-            return 1
-        fi
-        if [ -z "${mavx_C}" ]; then
-            sed -i "${linenr}d" "Makefile.x86_64"
-        elif [ "${mavx_C}" == "-mavx" ]; then
-            sed -i "${linenr}s/.*/CCOMMON_OPT += -mavx/" "Makefile.x86_64"
-        fi
-        # Handle the F mavx flag
-        pattern='FCOMMON_OPT *\\+= *-mavx2'
-        linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
-            "Makefile.x86_64" | head -n 1)
-        if [ "${mavx_F}" != "-mavx2" ] && [ -z "${linenr}" ]; then
-            return 1
-        fi
-        if [ -z "${mavx_F}" ]; then
-            sed -i "${linenr}d" "Makefile.x86_64"
-        elif [ "${mavx_F}" == "-mavx" ]; then
-            sed -i "${linenr}s/.*/FCOMMON_OPT += -mavx/" "Makefile.x86_64"
-        fi
-    fi
+    # Disable AVX2 and AVX completely
+    openblas_make_options="${openblas_make_options} NO_AVX2=1 NO_AVX=1"
     if [ "${openblas_gfortran}" == "True" ]; then
         export FC="gfortran"
         export F77="gfortran"
@@ -5631,20 +5652,7 @@ blas_install_func() {
     make PREFIX="${blas_dir}" install || return 1  # Should not be run in parallel
     # Note that OpenBLAS runs its test suite during the build
 }
-# On Haswell architectures the -mavx2 C and Fortran compiler flag
-# is added, though not all compilers accept these. We first try
-# with both, then we switch them out for -mavx, then only with the C
-# flag -mavx2, then only with the C flag -mavx. If all fail we
-# disable AVX2 entirely. If this fails as well we additionally
-# disable AVX.
-mavx_C_options=("-mavx2" "-mavx" "-mavx2" "-mavx" "NO_AVX2" "NO_AVX")
-mavx_F_options=("-mavx2" "-mavx" ""       ""      "NO_AVX2" "NO_AVX")
-mavx_indices=""
-for ((mavx_index = 0; mavx_index < ${#mavx_C_options[@]}; mavx_index += 1)); do
-    mavx_indices="${mavx_indices} ${mavx_index}"
-done
 install "BLAS"                                  \
-    mavx_index ${mavx_indices}              ";" \
     openblas_gfortran "True" "False"        ";" \
     compiler "${compiler_possibilities[@]}" ";" \
     openblas_BINARY "" "32"                 ";" \
@@ -5955,7 +5963,7 @@ pip_download(){
                     all_pip_args="${pip_args} ${extra_pip_arg}"
                 fi
                 printf "
-Attempting to download ${pip_name} using pip ${all_pip_args}\n\n"
+Attempting to download ${1} using pip ${all_pip_args}\n\n"
                 # Download Python package
                 "${python}" -m pip ${all_pip_args} & pip_download_pid=$!
                 # The above command may succeed in retrieving the
@@ -6027,6 +6035,8 @@ pip_install_pypackage(){
     mkdir -p "${tmp_pip_dir}" "${tmp_pip_dir}_tmp"
     export TMPDIR="${tmp_pip_dir}_tmp"
     pypackage="$(echo "${1}" | tr '[:upper:]' '[:lower:]')"
+    pypackage_nodashes="${pypackage//-/}"
+    pypackage_nodashes="${pypackage_nodashes//_/}"
     pip_download "${1}" "${2}"
     rm -rf "${tmp_pip_dir}_cp" || :
     cp -r "${tmp_pip_dir}" "${tmp_pip_dir}_cp"
@@ -6054,15 +6064,23 @@ pip_install_pypackage(){
             pypackage_archive=""
             for f in *; do
                 f_lower="$(echo "${f}" | tr '[:upper:]' '[:lower:]')"
-                if [ ! -d "${f}" ] && [[ "${f_lower}" == "${pypackage}"* ]]; then
+                f_lower="${f_lower//-/}"
+                f_lower="${f_lower//_/}"
+                if [ ! -d "${f}" ] && [[ "${f_lower}" == "${pypackage_nodashes}"* ]]; then
                     pypackage_archive="${f}"
                     break
                 fi
             done
+            if [ -z "${pypackage_archive}" ]; then
+                # Could not locate source archive
+                continue
+            fi
             extract "${pypackage_archive}" "True"
             for f in *; do
                 f_lower="$(echo "${f}" | tr '[:upper:]' '[:lower:]')"
-                if [ -d "${f}" ] && [[ "${f_lower}" == "${pypackage}"* ]]; then
+                f_lower="${f_lower//-/}"
+                f_lower="${f_lower//_/}"
+                if [ -d "${f}" ] && [[ "${f_lower}" == "${pypackage_nodashes}"* ]]; then
                     cd "${f}"
                     break
                 fi
@@ -6348,7 +6366,7 @@ if [ "${numpy_install}" == "True" ] && [ "${numpy_installed}" == "False" ] \
     rm -rf "${tmp_pip_dir}" "${tmp_pip_dir}_tmp" || :
     mkdir -p "${tmp_pip_dir}_tmp"
     export TMPDIR="${tmp_pip_dir}_tmp"
-    pip_download "numpy" "${numpy_version}"
+    pip_download "NumPy" "${numpy_version}"
     cd "${tmp_pip_dir}"
     # It can happen that an archive format different from tar.gz is
     # downloaded, in which case the extraction will fail if the
@@ -6506,7 +6524,7 @@ if [ "${scipy_install}" == "True" ] && [ "${scipy_installed}" == "False" ] \
     rm -rf "${tmp_pip_dir}" "${tmp_pip_dir}_tmp" || :
     mkdir -p "${tmp_pip_dir}_tmp"
     export TMPDIR="${tmp_pip_dir}_tmp"
-    pip_download "scipy" "${scipy_version}"
+    pip_download "SciPy" "${scipy_version}"
     cd "${tmp_pip_dir}"
     extract "scipy"* "True"
     for f in *; do
@@ -6663,7 +6681,7 @@ Attempting to install Matplotlib with compiler=${compiler}\n\n"
         if [ -d "${blas_dir}/lib" ]; then
             export LD_LIBRARY_PATH="${blas_dir}/lib:${LD_LIBRARY_PATH}"
         fi
-        pip_download "matplotlib" "${matplotlib_version}"
+        pip_download "Matplotlib" "${matplotlib_version}"
         # Matplotlib depends on other Python packages not directly used
         # by CO𝘕CEPT. Most often these dependencies are downloaded
         # automatically by the previous command. In case of failure,
@@ -6867,7 +6885,7 @@ Attempting to install H5Py with compiler=${compiler}\n\n"
         if [ -n "${mpicc}" ]; then
             export CC="${mpicc}"
         fi
-        pip_install_pypackage "h5py" "${h5py_version}" || continue
+        pip_install_pypackage "H5Py" "${h5py_version}" || continue
         install_success="True"
         break
     done
@@ -8060,7 +8078,6 @@ fftw_for_gadget_install_func() {
     export CXXFLAGS="-O3 ${PIC} ${CXXFLAGS}"
     export LDFLAGS="${LDFLAGS} -Wl,-O3 ${shared} ${PIC}"
     if [ "${extra_optimizations}" == "True" ]; then
-        export CFLAGS="${CFLAGS} -march=native"
         info="$("${CC}" --version | head -n 1 || :)"
         if echo "${info}" | grep -i icc >/dev/null; then
             # icc
@@ -8137,11 +8154,11 @@ if [ -n "${mpi_dir}" ]; then
 fi
 install "FFTW for GADGET"                                       \
     compiler "${compiler_possibilities_fftw_for_gadget[@]}" ";" \
-    extra_optimizations "True" "False"           ";" \
-    enable_shared "--enable-shared" ""           ";" \
-    shared "" "-shared"                          ";" \
-    with_pic "" "--with-pic"                     ";" \
-    PIC "-fPIC" ""                               ";" \
+    extra_optimizations "True" "False"                      ";" \
+    enable_shared "--enable-shared" ""                      ";" \
+    shared "" "-shared"                                     ";" \
+    with_pic "" "--with-pic"                                ";" \
+    PIC "-fPIC" ""                                          ";" \
 
 # GADGET
 if [ "${gadget_install}" == "True" ] && [ "${gadget_installed}" == "False" ]; then
@@ -8280,7 +8297,11 @@ if [ "${concept_install}" == "True" ] && [ "${concept_installed}" == "False" ]; 
     set_status "Building ${esc_concept}"
     # Build the code by running it with no parameters specified
     cd "${concept_dir}"
-    logo_printed=True "${concept}" --local 2>&1
+    native_optimizations_flag=""
+    if [ "${native_optimizations}" == "True" ]; then
+        native_optimizations_flag="--native-optimizations"
+    fi
+    logo_printed=True "${concept}" ${native_optimizations_flag} --local 2>&1
     # Remove log and parameter copy file generated by the above run
     (source "${concept}" && make clean_logs clean_params_cp) || :
     # Also build the documentation
