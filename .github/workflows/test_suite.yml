@@ -17,4 +17,4 @@ jobs:
       run: |
         docker run \
         -v ${{ github.workspace }}:/github \
-        jmddk/concept:master /usr/bin/env bash -c "concept -t concept_vs_gadget_p3m"
+        jmddk/concept:master /usr/bin/env bash -c "concept -t concept_vs_gadget_p3"
