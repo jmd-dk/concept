@@ -23,6 +23,9 @@ jobs:
         jmddk/concept:master /usr/bin/env bash -c ': \
             && cd / \
             && source ~/.bashrc \
+            && rm -rf "${concept_dir}" \
+            && cp -r /github/concept "${concept_dir}" \
+            && concept \
             && concept -p params/example_params -n 2
         '
 
