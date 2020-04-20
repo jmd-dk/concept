@@ -25,8 +25,6 @@ jobs:
             && source ~/.bashrc \
             && rm -rf "${concept_dir}" \
             && cp -r /github/concept "${concept_dir}" \
-            && echo hello \
-            && su -c "swapoff -a" \
             && free -m -h \
         '
 
