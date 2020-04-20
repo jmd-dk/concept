@@ -16,7 +16,11 @@ jobs:
     - name: test suite
       run: |
         docker run \
-        -v ${{ github.workspace }}:/github \
-        jmddk/concept:master /usr/bin/env bash -i -c 'echo "rm -rf ${concept_dir} && cp -r /github/concept/concept ${concept_dir} && concept -t concept_vs_gadget_p3m"'
+        -v ${{github.workspace}}:/github \
+        jmddk/concept:master /usr/bin/env bash -i -c ': \
+            && echo "rm -rf ${concept_dir}" \
+            && echo "cp -r /github/concept/concept ${concept_dir}" \
+            && echo "concept -t concept_vs_gadget_p3m" \
+        '
 
 
