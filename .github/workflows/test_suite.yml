@@ -22,6 +22,6 @@ jobs:
             && source ~/.bashrc \
             && rm -rf "${concept_dir}" \
             && cp -r /github/concept "${concept_dir}" \
-            && echo SSH_CLIENT="${SSH_CLIENT}" && echo SSH_TTY="${SSH_TTY}"
+            && concept -t all
         '
 
