@@ -25,7 +25,7 @@ jobs:
       - name: Run basic test
         run: |
           docker run \
-          -e GITHUB_ACTION \
+          -e GITHUB_ACTION=${{github.actions}} \
           -v ${{github.workspace}}:/github \
           jmddk/concept:master /usr/bin/env bash -c ': \
               && cd / \
