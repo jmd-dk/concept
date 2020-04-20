@@ -17,12 +17,12 @@ on:
 
 jobs:
 
-  test_basic:
-    name: Test basic
+  Test basic:
     runs-on: ubuntu-18.04
     steps:
       - uses: actions/checkout@v2
-      - run: |
+      - name: Run test
+        run: |
           docker run \
           -e GITHUB_JOB \
           -v ${GITHUB_WORKSPACE}:/github \
