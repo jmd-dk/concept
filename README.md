@@ -1,5 +1,7 @@
-CO*N*CEPT
-=========
+## CO*N*CEPT
+
+![test suite](https://github.com/jmd-dk-raspberrypi/concept/workflows/test%20suite/badge.svg)
+
 <img align="right" height="300" src="/concept/docs/_static/render2D.png"/>
 
 CO*N*CEPT (**CO**smological ***N***-body **C**od**E** in **P**y**T**hon)
