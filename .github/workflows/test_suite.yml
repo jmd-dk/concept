@@ -22,7 +22,7 @@ jobs:
     runs-on: ubuntu-18.04
     steps:
       - uses: actions/checkout@v2
-      - name: Run basic test
+      - name: Run ${{github.job}} test
         run: |
           docker run \
           -e GITHUB_JOB \
