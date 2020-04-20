@@ -27,7 +27,7 @@ jobs:
             && source ~/.bashrc \
             && rm -rf "${concept_dir}" \
             && cp -r /github/concept "${concept_dir}" \
-            && free -m -h \
+            && concept -t nprocs_pp \
         '
 
 #&& concept -t all
