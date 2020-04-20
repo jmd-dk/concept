@@ -1,0 +1,20 @@
+name: CO𝘕CEPT CI
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  test:
+
+    runs-on: ubuntu-18.04
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Test suite
+      run: |
+        docker run \
+        -v ${{ github.workspace }}:/github \
+        jmddk/concept:master /usr/bin/env bash -c "concept -t concept_vs_gadget_p3m"
