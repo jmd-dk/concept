@@ -133,7 +133,6 @@ jobs:
               && source ~/.bashrc \
               && rm -rf "${concept_dir}" \
               && cp -r /github/concept "${concept_dir}" \
-              && cp /github/built/* "${concept_dir}/" \
               && concept -t ${GITHUB_JOB/test_} \
           '
 
