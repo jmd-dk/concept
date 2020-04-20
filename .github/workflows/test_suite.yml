@@ -25,8 +25,9 @@ jobs:
       - name: Run basic test
         run: |
           docker run \
+          -e GITHUB_ACTION \
           -v ${{github.workspace}}:/github \
-          jmddk/concept:master /usr/bin/env bash -e GITHUB_ACTION -c ': \
+          jmddk/concept:master /usr/bin/env bash -c ': \
               && cd / \
               && source ~/.bashrc \
               && rm -rf "${concept_dir}" \
@@ -53,8 +54,9 @@ jobs:
       - name: Run ${{github.action}} test
         run: |
           docker run \
+          -e GITHUB_ACTION \
           -v ${{github.workspace}}:/github \
-          jmddk/concept:master /usr/bin/env bash -e GITHUB_ACTION -c ': \
+          jmddk/concept:master /usr/bin/env bash -c ': \
               && cd / \
               && source ~/.bashrc \
               && rm -rf "${concept_dir}" \
