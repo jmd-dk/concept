@@ -18,11 +18,10 @@ jobs:
         docker run \
         -v ${{github.workspace}}:/github \
         jmddk/concept:master /usr/bin/env bash -c ': \
+            && cd / \
             && source ~/.bashrc \
             && rm -rf "${concept_dir}" \
             && cp -r /github/concept "${concept_dir}" \
-            && echo concept_dir="${concept_dir}" \
-            && ls ${concept_dir} \
-            && concept -t concept_vs_gadget_p3m \
+            && echo SSH_CLIENT="${SSH_CLIENT}" && echo SSH_TTY="${SSH_TTY}"
         '
 
