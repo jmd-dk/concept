@@ -17,6 +17,6 @@ jobs:
       run: |
         docker run \
         -v ${{ github.workspace }}:/github \
-        jmddk/concept:master /usr/bin/env bash -c "rm -rf ${concept_dir} && cp -r /github/concept/concept ${concept_dir} && concept -t concept_vs_gadget_p3m"
+        jmddk/concept:master /usr/bin/env bash -c "echo rm -rf ${concept_dir} && cp -r /github/concept/concept ${concept_dir} && concept -t concept_vs_gadget_p3m"
 
 
