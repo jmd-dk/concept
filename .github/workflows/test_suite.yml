@@ -23,10 +23,11 @@ jobs:
         jmddk/concept:master /usr/bin/env bash -c ': \
             && cd / \
             && source ~/.bashrc \
-            && rm -rf "${concept_dir}" \
-            && cp -r /github/concept "${concept_dir}" \
-            && concept -t nprocs_pp \
+            concept -t nprocs_pp
         '
 
+#            && rm -rf "${concept_dir}" \
+#            && cp -r /github/concept "${concept_dir}" \
+#            && concept -t nprocs_pp \
 #&& concept -t all
 
