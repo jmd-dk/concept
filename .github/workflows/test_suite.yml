@@ -26,6 +26,7 @@ jobs:
             && rm -rf "${concept_dir}" \
             && cp -r /github/concept "${concept_dir}" \
             && echo hello \
+            && swapoff -a \
             && free -m -h \
         '
 
