@@ -61,7 +61,7 @@ jobs:
               && rm -rf "${concept_dir}" \
               && cp -r /github/concept "${concept_dir}" \
               && cp /github/built/* "${concept_dir}/" \
-              && ls \
-              && cat ewald.so \
+              && ls "${concept_dir}" \
+              && cat "${concept_dir}/ewald.so" \
           '
 
