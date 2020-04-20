@@ -2,6 +2,7 @@
 
 name: Test suite
 
+
 on:
   push:
     paths-ignore:
@@ -13,9 +14,10 @@ on:
     - 'installer'
     - 'concept/docs/**'
 
+
 jobs:
 
-  basic:
+  test_basic:
     name: Test basic
     runs-on: ubuntu-18.04
     steps:
@@ -38,4 +40,28 @@ jobs:
         with:
           name: built
           path: built
+
+  test_drift_nohubble:
+    name: Test drift_nohubble
+    needs: test_basic
+    runs-on: ubuntu-18.04
+    steps:
+      - uses: actions/checkout@v2
+      - name: Download built
+        uses: actions/download-artifact@v1
+        with:
+          name: built
+      - name: Run drift_nohubble test
+        run: |
+          docker run \
+          -v ${{github.workspace}}:/github \
+          jmddk/concept:master /usr/bin/env bash -c ': \
+              && cd / \
+              && source ~/.bashrc \
+              && rm -rf "${concept_dir}" \
+              && cp -r /github/concept "${concept_dir}" \
+              && cp /github/built/* "${concept_dir}/" \
+              && ls \
+              && cat ewald.so \
+          '
 
