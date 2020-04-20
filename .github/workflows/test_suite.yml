@@ -26,7 +26,7 @@ jobs:
         run: |
           docker run \
           -v ${{github.workspace}}:/github \
-          jmddk/concept:master /usr/bin/env bash -c ': \
+          jmddk/concept:master /usr/bin/env bash -e GITHUB_ACTION -c ': \
               && cd / \
               && source ~/.bashrc \
               && rm -rf "${concept_dir}" \
@@ -50,11 +50,11 @@ jobs:
         uses: actions/download-artifact@v1
         with:
           name: built
-      - name: Run friedmann test
+      - name: Run ${{github.action}} test
         run: |
           docker run \
           -v ${{github.workspace}}:/github \
-          jmddk/concept:master /usr/bin/env bash -c ': \
+          jmddk/concept:master /usr/bin/env bash -e GITHUB_ACTION -c ': \
               && cd / \
               && source ~/.bashrc \
               && rm -rf "${concept_dir}" \
