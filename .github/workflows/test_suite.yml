@@ -20,7 +20,7 @@ jobs:
         jmddk/concept:master /usr/bin/env bash -c ': \
             && source ~/.bashrc \
             && rm -rf "${concept_dir}" \
-            && cp -r /github/concept/concept "${concept_dir}" \
+            && cp -r /github/concept "${concept_dir}" \
             && echo concept_dir="${concept_dir}" \
             && ls ${concept_dir} \
             && concept -t concept_vs_gadget_p3m \
