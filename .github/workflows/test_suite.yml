@@ -1,4 +1,4 @@
-name: CO𝘕CEPT CI
+name: test suite
 
 on:
   push:
@@ -13,7 +13,7 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
-    - name: Test suite
+    - name: test suite
       run: |
         docker run \
         -v ${{ github.workspace }}:/github \
