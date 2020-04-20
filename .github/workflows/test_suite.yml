@@ -23,7 +23,7 @@ jobs:
 
   test_basic:
     name: Test basic
-    runs-on: ${{ runner_environment }}
+    runs-on: ${{ env.runner_environment }}
     steps:
       - name: Checkout
         uses: actions/checkout@v2
