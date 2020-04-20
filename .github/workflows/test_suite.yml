@@ -26,7 +26,7 @@ jobs:
         run: |
           echo "GITHUB_JOB=$GITHUB_JOB, github.job=${{github.job}}" && \
           docker run \
-          -e GITHUB_JOB=${{github.job}} \
+          -e GITHUB_JOB=$GITHUB_JOB \
           -v ${{github.workspace}}:/github \
           jmddk/concept:master /usr/bin/env bash -c ': \
               && cd / \
