@@ -20,13 +20,14 @@ jobs:
       run: |
         docker run \
         -v ${{github.workspace}}:/github \
-        jmddk/concept:master /usr/bin/env bash -c ':
-            && cd /
-            && source ~/.bashrc
-            && rm -rf "${concept_dir}"
-            && cp -r /github/concept "${concept_dir}"
-            && echo hello
-            && free -m -h
-            #&& concept -t all
+        jmddk/concept:master /usr/bin/env bash -c ': \
+            && cd / \
+            && source ~/.bashrc \
+            && rm -rf "${concept_dir}" \
+            && cp -r /github/concept "${concept_dir}" \
+            && echo hello \
+            && free -m -h \
         '
+
+#&& concept -t all
 
