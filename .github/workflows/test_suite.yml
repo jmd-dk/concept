@@ -15,11 +15,15 @@ on:
     - 'concept/docs/**'
 
 
+env:
+  runner_environment: ubuntu-18.04
+
+
 jobs:
 
   test_basic:
     name: Test basic
-    runs-on: ubuntu-18.04
+    runs-on: ${{ runner_environment }}
     steps:
       - name: Checkout
         uses: actions/checkout@v2
@@ -66,4 +70,6 @@ jobs:
               && cp /github/built/* "${concept_dir}/" \
               && concept -t ${GITHUB_JOB/test_} \
           '
+
+
 
