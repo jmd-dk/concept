@@ -23,7 +23,7 @@ jobs:
         jmddk/concept:master /usr/bin/env bash -c ': \
             && cd / \
             && source ~/.bashrc \
-            && concept -t nprocs_pp
+            && concept -p params/example_params -n 2
         '
 
 #            && rm -rf "${concept_dir}" \
