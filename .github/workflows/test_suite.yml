@@ -15,7 +15,6 @@ on:
     - 'concept/docs/**'
 
 
-
 jobs:
 
   test_basic:
@@ -104,6 +103,26 @@ jobs:
         uses: actions/download-artifact@v1
         with:
           name: built
+      - name: Run test
+        run: |
+          docker run \
+          -e GITHUB_JOB \
+          -v ${GITHUB_WORKSPACE}:/github \
+          jmddk/concept:master /usr/bin/env bash -c ': \
+              && cd / \
+              && source ~/.bashrc \
+              && rm -rf "${concept_dir}" \
+              && cp -r /github/concept "${concept_dir}" \
+              && cp /github/built/* "${concept_dir}/" \
+              && concept -t ${GITHUB_JOB/test_} \
+          '
+
+  test_optimizations:
+    name: Test optimizations
+    runs-on: ubuntu-18.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
       - name: Run test
         run: |
           docker run \
