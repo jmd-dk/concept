@@ -38,6 +38,9 @@ enable_class_background = True  # Do use CLASS when creating the initial conditi
 "${concept}" -n 1 -p "${this_dir}/ic.params" --local
 mv "${this_dir}/IC"* "${this_dir}/IC"
 
+# !!!
+exit 1
+
 # Run the CO𝘕CEPT code on the generated ICs
 "${concept}" -n 1 -p "${this_dir}/params" --local
 
