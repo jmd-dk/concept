@@ -19,8 +19,8 @@ jobs:
     name: Run basic test
     runs-on: ubuntu-18.04
     steps:
+      - uses: actions/checkout@v2
       - name: Run basic test
-        uses: actions/checkout@v2
         run: |
           docker run \
           -v ${{github.workspace}}:/github \
