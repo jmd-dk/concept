@@ -6,6 +6,7 @@ name: Build docs
 on:
   push:
     paths:
+    - '.github/workflows/build_docs.yml'
     - 'concept/docs/**'
 
 
