@@ -15,15 +15,12 @@ on:
     - 'concept/docs/**'
 
 
-env:
-  runner_environment: ubuntu-18.04
-
 
 jobs:
 
   test_basic:
     name: Test basic
-    runs-on: ${{ env.runner_environment }}
+    runs-on: ubuntu-18.04
     steps:
       - name: Checkout
         uses: actions/checkout@v2
@@ -71,5 +68,53 @@ jobs:
               && concept -t ${GITHUB_JOB/test_} \
           '
 
+  test_realize:
+    name: Test realize
+    needs: test_basic
+    runs-on: ubuntu-18.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Download built
+        uses: actions/download-artifact@v1
+        with:
+          name: built
+      - name: Run test
+        run: |
+          docker run \
+          -e GITHUB_JOB \
+          -v ${GITHUB_WORKSPACE}:/github \
+          jmddk/concept:master /usr/bin/env bash -c ': \
+              && cd / \
+              && source ~/.bashrc \
+              && rm -rf "${concept_dir}" \
+              && cp -r /github/concept "${concept_dir}" \
+              && cp /github/built/* "${concept_dir}/" \
+              && concept -t ${GITHUB_JOB/test_} \
+          '
 
+  test_powerspec:
+    name: Test powerspec
+    needs: test_basic
+    runs-on: ubuntu-18.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Download built
+        uses: actions/download-artifact@v1
+        with:
+          name: built
+      - name: Run test
+        run: |
+          docker run \
+          -e GITHUB_JOB \
+          -v ${GITHUB_WORKSPACE}:/github \
+          jmddk/concept:master /usr/bin/env bash -c ': \
+              && cd / \
+              && source ~/.bashrc \
+              && rm -rf "${concept_dir}" \
+              && cp -r /github/concept "${concept_dir}" \
+              && cp /github/built/* "${concept_dir}/" \
+              && concept -t ${GITHUB_JOB/test_} \
+          '
 
