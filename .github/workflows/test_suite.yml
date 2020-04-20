@@ -11,26 +11,32 @@ on:
     - 'installer'
     - 'concept/docs/**'
 
+
+#            && rm -rf "${concept_dir}" \
+#            && cp -r /github/concept "${concept_dir}" \
+
 jobs:
   test_suite:
     runs-on: ubuntu-18.04
     steps:
     - uses: actions/checkout@v2
-    - name: test suite
+    - name: basic # test suite
       run: |
         docker run \
         -v ${{github.workspace}}:/github \
         jmddk/concept:master /usr/bin/env bash -c ': \
             && cd / \
             && source ~/.bashrc \
-            && rm -rf "${concept_dir}" \
-            && cp -r /github/concept "${concept_dir}" \
-            && concept \
-            && concept -p params/example_params -n 2
+            && concept -t basic \
+        '
+    - name: concept_vs_class_pm
+      run: |
+        docker run \
+        -v ${{github.workspace}}:/github \
+        jmddk/concept:master /usr/bin/env bash -c ': \
+            && cd / \
+            && source ~/.bashrc \
+            && concept -t concept_vs_class_pm \
         '
 
-#            && rm -rf "${concept_dir}" \
-#            && cp -r /github/concept "${concept_dir}" \
-#            && concept -t nprocs_pp \
-#&& concept -t all
 
