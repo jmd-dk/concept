@@ -16,7 +16,7 @@ jobs:
     - name: test suite
       run: |
         docker run \
+        -v ${{ github.workspace }}:/github \
         jmddk/concept:master /usr/bin/env bash -c "ls /; echo; echo; ls /github"
 
 
-# -v ${{ github.workspace }}:/github \
