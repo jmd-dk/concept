@@ -20,6 +20,8 @@ jobs:
       run: |
         docker run \
         -v ${{github.workspace}}:/github \
+        --memory      6GB \
+        --memory-swap 6GB \
         jmddk/concept:master /usr/bin/env bash -c ': \
             && cd / \
             && source ~/.bashrc \
