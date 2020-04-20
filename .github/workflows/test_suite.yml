@@ -24,10 +24,9 @@ jobs:
       - uses: actions/checkout@v2
       - name: Run basic test
         run: |
-          echo "GITHUB_JOB=$GITHUB_JOB, github.job=${{github.job}}" && \
           docker run \
-          -e GITHUB_JOB=$GITHUB_JOB \
-          -v ${{github.workspace}}:/github \
+          -e GITHUB_JOB \
+          -v ${GITHUB_WORKSPACE}:/github \
           jmddk/concept:master /usr/bin/env bash -c ': \
               && cd / \
               && source ~/.bashrc \
