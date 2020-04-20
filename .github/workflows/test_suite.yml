@@ -1,27 +1,32 @@
-name: test suite
+# GitHub action testing the code base by running the test suite
 
 on:
-  push:
-    branches: [ master ]
-  pull_request:
-    branches: [ master ]
+  [push, pull_request]:
+    paths-ignore:
+    - '.env'
+    - '.gitignore'
+    - '.paths'
+    - 'COPYING'
+    - 'README.md'
+    - 'installer'
+    - 'concept/docs/**'
 
 jobs:
-  test:
-
+  test_suite:
     runs-on: ubuntu-18.04
-
     steps:
     - uses: actions/checkout@v2
     - name: test suite
       run: |
         docker run \
         -v ${{github.workspace}}:/github \
-        jmddk/concept:master /usr/bin/env bash -c ': \
-            && cd / \
-            && source ~/.bashrc \
-            && rm -rf "${concept_dir}" \
-            && cp -r /github/concept "${concept_dir}" \
-            && concept -t all
+        jmddk/concept:master /usr/bin/env bash -c ':
+            && cd /
+            && source ~/.bashrc
+            && rm -rf "${concept_dir}"
+            && cp -r /github/concept "${concept_dir}"
+            && echo hello
+            && free -m -h
+            #&& concept -t all
         '
 
