@@ -25,14 +25,13 @@ jobs:
       - name: Run basic test
         run: |
           docker run \
-          -e GITHUB_ACTION=${{github.action}} \
           -v ${{github.workspace}}:/github \
           jmddk/concept:master /usr/bin/env bash -c ': \
               && cd / \
               && source ~/.bashrc \
               && rm -rf "${concept_dir}" \
               && cp -r /github/concept "${concept_dir}" \
-              && concept -t ${GITHUB_ACTION/test_} \
+              && concept -t ${{github.action}} \
               && mkdir /github/built \
               && cp "${concept_dir}/"*.so /github/built/ \
           '
