@@ -17,7 +17,7 @@ on:
 
 jobs:
 
-  Test basic:
+  test_basic:
     runs-on: ubuntu-18.04
     steps:
       - uses: actions/checkout@v2
