@@ -16,7 +16,7 @@ on:
 jobs:
 
   basic:
-    name: Run basic test
+    name: Test basic
     runs-on: ubuntu-18.04
     steps:
       - uses: actions/checkout@v2
@@ -29,12 +29,12 @@ jobs:
               && source ~/.bashrc \
               && rm -rf "${concept_dir}" \
               && cp -r /github/concept "${concept_dir}" \
-              && echo qwerty > test.txt \
-              && cp test.txt /github/
+              && mkdir /github/built \
+              && cp "${concept_dir}/"*.so /github/built \
           '
       - name: Upload built
         uses: actions/upload-artifact@v1
         with:
           name: built
-          path: test.txt
+          path: built
 
