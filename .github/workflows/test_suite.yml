@@ -29,7 +29,7 @@ jobs:
               && source ~/.bashrc \
               && rm -rf "${concept_dir}" \
               && cp -r /github/concept "${concept_dir}" \
-              && echo A > /concept/concept/common.so && ech A > concept/concept/ewald.so \
+              && echo A > /concept/concept/common.so && echo A > concept/concept/ewald.so \
               && mkdir /github/built \
               && cp "${concept_dir}/"*.so /github/built/ \
           '
