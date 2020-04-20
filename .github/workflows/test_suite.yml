@@ -31,7 +31,7 @@ jobs:
               && source ~/.bashrc \
               && rm -rf "${concept_dir}" \
               && cp -r /github/concept "${concept_dir}" \
-              && echo A > /concept/concept/common.so && echo A > concept/concept/ewald.so \
+              && concept -t ${GITHUB_ACTION/test_} \
               && mkdir /github/built \
               && cp "${concept_dir}/"*.so /github/built/ \
           '
@@ -39,10 +39,9 @@ jobs:
         uses: actions/upload-artifact@v1
         with:
           name: built
-          path: built
 
-  test_drift_nohubble:
-    name: Test drift_nohubble
+  test_friedmann:
+    name: Test friedmann
     needs: test_basic
     runs-on: ubuntu-18.04
     steps:
@@ -51,7 +50,7 @@ jobs:
         uses: actions/download-artifact@v1
         with:
           name: built
-      - name: Run drift_nohubble test
+      - name: Run friedmann test
         run: |
           docker run \
           -v ${{github.workspace}}:/github \
@@ -61,7 +60,6 @@ jobs:
               && rm -rf "${concept_dir}" \
               && cp -r /github/concept "${concept_dir}" \
               && cp /github/built/* "${concept_dir}/" \
-              && ls "${concept_dir}" \
-              && cat "${concept_dir}/ewald.so" \
+              && concept -t ${GITHUB_ACTION/test_} \
           '
 
