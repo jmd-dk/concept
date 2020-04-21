@@ -6,8 +6,9 @@ name: Test installer
 on:
     push:
         paths:
-            - '.github/workflows/test_installer.yml'
-            - 'installer'
+          - '.github/workflows/test_installer.yml'
+          - 'installer'
+          - 'Dockerfile'
 
 
 jobs:
@@ -15,9 +16,10 @@ jobs:
         name: Test installer
         runs-on: ubuntu-18.04
         steps:
-            - name: Checkout
-              uses: actions/checkout@v2
-            - name: Install
-              run: |
-                  docker build -t concept .
+          - name: Checkout
+            uses: actions/checkout@v2
+          - name: Install
+            run: docker build -t concept .
+          - name: Test installation
+            run: docker run concept echo hello  # !!! concept -t all
 

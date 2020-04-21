@@ -17,23 +17,29 @@ RUN : \
 # Install CO𝘕CEPT
 COPY installer /
 RUN : \
-    && mpi=${mpi} bash /installer \
+    && concept_install=False gsl_install=True mpi=${mpi} bash /installer \
         -y \
         $([ "${native_optimizations}" == "True" ] && echo --native-optimizations) \
         "${top_dir}" \
     && rm -f /installer
 
-# Set up bash autocompletion and intelligent search with ↑↓
+# Set up:
+#  - bash autocompletion
+#  - intelligent search with ↑↓
+#  - color prompt
 RUN : \
     && apt-get install -y bash-completion \
-    && echo '. /etc/bash_completion' >> /etc/bash.bashrc \
+    && echo "source /etc/bash_completion" >> ~/.bashrc \
     && echo "bind '\"\e[A\": history-search-backward'" >> ~/.bashrc \
-    && echo "bind '\"\e[B\": history-search-forward'" >> ~/.bashrc
+    && echo "bind '\"\e[B\": history-search-forward'" >> ~/.bashrc \
+    && sed -i "s/xterm-color)/xterm-color|*-256color)/" ~/.bashrc
+ENV TERM="xterm-256color"
+
+# Environment
+RUN sed -i "1i source \"${top_dir}/concept/concept\"" ~/.bashrc
+ENV PATH="${PATH}:${top_dir}/concept"
+WORKDIR "${top_dir}/concept"
 
 # Cleanup
 RUN rm -rf /var/lib/apt/lists/*
-
-# Environment
-ENV PATH="${top_dir}/concept:${PATH}"
-WORKDIR "${top_dir}/concept"
 
