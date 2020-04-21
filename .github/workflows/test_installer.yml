@@ -4,13 +4,6 @@ name: Test installer
 
 
 on:
-    push:
-        branches:
-          - master
-        paths:
-          - '.github/workflows/test_installer.yml'
-          - 'installer'
-          - 'Dockerfile'
     pull_request:
         branches:
           - master
