@@ -23,6 +23,8 @@ code, you then need to
 the ``.paths`` and ``.env`` files.
 
 
+something new
+
 Entries on this page:
 
 .. contents::
