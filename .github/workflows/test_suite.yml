@@ -61,7 +61,7 @@ jobs:
                       && for file in $(echo "${concept_dir}"/* "${concept_dir}"/.*); do \
                           if [ -f "${file}" ] && [[ "${file}" != *.py ]] && [[ "${file}" != *Makefile ]]; then \
                               files="${files} ${file}" ; \
-                          fi ; \
+                          fi \
                       done \
                       && rm -rf "${concept_dir}" \
                       && cp -r /github/concept "${concept_dir}" \
