@@ -68,8 +68,8 @@ jobs:
                               files="${files} ${file}"; \
                           fi ; \
                           echo D; \
-                      done \
-                      && rm -rf "${concept_dir}" \
+                      done ; \
+                      rm -rf "${concept_dir}" \
                       && cp -r /github/concept "${concept_dir}" \
                       && cp /github/build/* "${concept_dir}/" \
                       && for _ in 0 1; do touch ${files}; done \
