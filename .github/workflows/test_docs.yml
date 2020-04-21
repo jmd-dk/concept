@@ -5,28 +5,35 @@ name: Test docs
 
 on:
     push:
+        branches:
+          - master
         paths:
-            - '.github/workflows/test_docs.yml'
-            - 'concept/docs/**'
-
+          - '.github/workflows/test_docs.yml'
+          - 'concept/docs/**'
+    pull_request:
+        branches:
+          - master
+        paths:
+          - '.github/workflows/test_docs.yml'
+          - 'concept/docs/**'
 
 jobs:
-    build_docs:
+    test_docs:
         name: Test docs
         runs-on: ubuntu-18.04
         steps:
-            - name: Checkout
-              uses: actions/checkout@v2
-            - name: Build docs
-              run: |
-                  docker run \
-                  -v ${GITHUB_WORKSPACE}:/github \
-                  jmddk/concept:master /usr/bin/env bash -c ': \
-                      && cd / \
-                      && source ~/.bashrc \
-                      && rm -rf "${concept_dir}" \
-                      && cp -r /github/concept "${concept_dir}" \
-                      && cd "${concept_dir}" \
-                      && make -j docs \
-                  '
+          - name: Checkout
+            uses: actions/checkout@v2
+          - name: Build docs
+            run: |
+                docker run \
+                -v ${GITHUB_WORKSPACE}:/github \
+                jmddk/concept:master /usr/bin/env bash -c ': \
+                    && cd / \
+                    && source ~/.bashrc \
+                    && rm -rf "${concept_dir}" \
+                    && cp -r /github/concept "${concept_dir}" \
+                    && cd "${concept_dir}" \
+                    && make docs \
+                '
 

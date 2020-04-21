@@ -5,13 +5,25 @@ name: Test suite
 
 on:
     push:
+        branches:
+          - master
         paths:
-            - '.github/workflows/test_suite.yml'
-            - 'concept/*.py'
-            - 'concept/Makefile'
-            - 'concept/concept'
-            - 'concept/fft.c'
-            - 'concept/tests/**'
+          - '.github/workflows/test_suite.yml'
+          - 'concept/*.py'
+          - 'concept/Makefile'
+          - 'concept/concept'
+          - 'concept/fft.c'
+          - 'concept/tests/**'
+    pull_request:
+        branches:
+          - master
+        paths:
+          - '.github/workflows/test_suite.yml'
+          - 'concept/*.py'
+          - 'concept/Makefile'
+          - 'concept/concept'
+          - 'concept/fft.c'
+          - 'concept/tests/**'
 
 
 jobs:
@@ -20,127 +32,127 @@ jobs:
         name: Test basic
         runs-on: ubuntu-18.04
         steps:
-            - name: Checkout
-              uses: actions/checkout@v2
-            - name: Run test
-              run: |
-                  docker run \
-                  -e GITHUB_JOB \
-                  -v ${GITHUB_WORKSPACE}:/github \
-                  jmddk/concept:master /usr/bin/env bash -c ': \
-                      && cd / \
-                      && source ~/.bashrc \
-                      && mkdir /github/build \
-                      && printf ": \
-                          && rm -rf \"${concept_dir}\" \
-                          && cp -r /github/concept \"${concept_dir}\" \
-                          && cp /github/build/* \"${concept_dir}/\" \
-                      " > /github/build/reuse \
-                      && bash /github/build/reuse \
-                      && concept -t ${GITHUB_JOB/test_} \
-                      && cp "${concept_dir}/"*.so /github/build/ \
-                      && for file in $(echo "${concept_dir}"/* "${concept_dir}"/.*); do \
-                          if [ -f "${file}" ] && [[ "${file}" != *.py ]] && [[ "${file}" != *Makefile ]]; then \
-                              files="${files} ${file}"; \
-                          fi \
-                      done \
-                      && echo "&& for _ in 0 1; do touch ${files}; done" >> /github/build/reuse \
-                  '
-            - name: Upload build
-              uses: actions/upload-artifact@v1
-              with:
-                  name: build
-                  path: build
+          - name: Checkout
+            uses: actions/checkout@v2
+          - name: Run test
+            run: |
+                docker run \
+                -e GITHUB_JOB \
+                -v ${GITHUB_WORKSPACE}:/github \
+                jmddk/concept:master /usr/bin/env bash -c ': \
+                    && cd / \
+                    && source ~/.bashrc \
+                    && mkdir /github/build \
+                    && printf ": \
+                        && rm -rf \"${concept_dir}\" \
+                        && cp -r /github/concept \"${concept_dir}\" \
+                        && cp /github/build/* \"${concept_dir}/\" \
+                    " > /github/build/reuse \
+                    && bash /github/build/reuse \
+                    && concept -t ${GITHUB_JOB/test_} \
+                    && cp "${concept_dir}/"*.so /github/build/ \
+                    && for file in $(echo "${concept_dir}"/* "${concept_dir}"/.*); do \
+                        if [ -f "${file}" ] && [[ "${file}" != *.py ]] && [[ "${file}" != *Makefile ]]; then \
+                            files="${files} ${file}"; \
+                        fi \
+                    done \
+                    && echo "&& for _ in 0 1; do touch ${files}; done" >> /github/build/reuse \
+                '
+          - name: Upload build
+            uses: actions/upload-artifact@v1
+            with:
+                name: build
+                path: build
 
     test_friedmann:
         name: Test friedmann
         needs: test_basic
         runs-on: ubuntu-18.04
         steps:
-            - name: Checkout
-              uses: actions/checkout@v2
-            - name: Download build
-              uses: actions/download-artifact@v1
-              with:
-                  name: build
-            - name: Run test
-              run: |
-                  docker run \
-                  -e GITHUB_JOB \
-                  -v ${GITHUB_WORKSPACE}:/github \
-                  jmddk/concept:master /usr/bin/env bash -c ': \
-                      && cd / \
-                      && source ~/.bashrc \
-                      && bash /github/build/reuse \
-                      && concept -t ${GITHUB_JOB/test_} \
-                  '
+          - name: Checkout
+            uses: actions/checkout@v2
+          - name: Download build
+            uses: actions/download-artifact@v1
+            with:
+                name: build
+          - name: Run test
+            run: |
+                docker run \
+                -e GITHUB_JOB \
+                -v ${GITHUB_WORKSPACE}:/github \
+                jmddk/concept:master /usr/bin/env bash -c ': \
+                    && cd / \
+                    && source ~/.bashrc \
+                    && bash /github/build/reuse \
+                    && concept -t ${GITHUB_JOB/test_} \
+                '
 
     test_realize:
         name: Test realize
         needs: test_basic
         runs-on: ubuntu-18.04
         steps:
-            - name: Checkout
-              uses: actions/checkout@v2
-            - name: Download build
-              uses: actions/download-artifact@v1
-              with:
-                  name: build
-            - name: Run test
-              run: |
-                  docker run \
-                  -e GITHUB_JOB \
-                  -v ${GITHUB_WORKSPACE}:/github \
-                  jmddk/concept:master /usr/bin/env bash -c ': \
-                      && cd / \
-                      && source ~/.bashrc \
-                      && bash /github/build/reuse \
-                      && concept -t ${GITHUB_JOB/test_} \
-                  '
+          - name: Checkout
+            uses: actions/checkout@v2
+          - name: Download build
+            uses: actions/download-artifact@v1
+            with:
+                name: build
+          - name: Run test
+            run: |
+                docker run \
+                -e GITHUB_JOB \
+                -v ${GITHUB_WORKSPACE}:/github \
+                jmddk/concept:master /usr/bin/env bash -c ': \
+                    && cd / \
+                    && source ~/.bashrc \
+                    && bash /github/build/reuse \
+                    && concept -t ${GITHUB_JOB/test_} \
+                '
 
     test_powerspec:
         name: Test powerspec
         needs: test_basic
         runs-on: ubuntu-18.04
         steps:
-            - name: Checkout
-              uses: actions/checkout@v2
-            - name: Download build
-              uses: actions/download-artifact@v1
-              with:
-                  name: build
-            - name: Run test
-              run: |
-                  docker run \
-                  -e GITHUB_JOB \
-                  -v ${GITHUB_WORKSPACE}:/github \
-                  jmddk/concept:master /usr/bin/env bash -c ': \
-                      && cd / \
-                      && source ~/.bashrc \
-                      && bash /github/build/reuse \
-                      && concept -t ${GITHUB_JOB/test_} \
-                  '
+          - name: Checkout
+            uses: actions/checkout@v2
+          - name: Download build
+            uses: actions/download-artifact@v1
+            with:
+                name: build
+          - name: Run test
+            run: |
+                docker run \
+                -e GITHUB_JOB \
+                -v ${GITHUB_WORKSPACE}:/github \
+                jmddk/concept:master /usr/bin/env bash -c ': \
+                    && cd / \
+                    && source ~/.bashrc \
+                    && bash /github/build/reuse \
+                    && concept -t ${GITHUB_JOB/test_} \
+                '
 
     test_optimizations:
         name: Test optimizations
         needs: test_basic
         runs-on: ubuntu-18.04
         steps:
-            - name: Checkout
-              uses: actions/checkout@v2
-            - name: Download build
-              uses: actions/download-artifact@v1
-              with:
-                  name: build
-            - name: Run test
-              run: |
-                  docker run \
-                  -e GITHUB_JOB \
-                  -v ${GITHUB_WORKSPACE}:/github \
-                  jmddk/concept:master /usr/bin/env bash -c ': \
-                      && cd / \
-                      && source ~/.bashrc \
-                      && bash /github/build/reuse \
-                      && concept -t ${GITHUB_JOB/test_} \
-                  '
+          - name: Checkout
+            uses: actions/checkout@v2
+          - name: Download build
+            uses: actions/download-artifact@v1
+            with:
+                name: build
+          - name: Run test
+            run: |
+                docker run \
+                -e GITHUB_JOB \
+                -v ${GITHUB_WORKSPACE}:/github \
+                jmddk/concept:master /usr/bin/env bash -c ': \
+                    && cd / \
+                    && source ~/.bashrc \
+                    && bash /github/build/reuse \
+                    && concept -t ${GITHUB_JOB/test_} \
+                '
 
