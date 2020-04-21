@@ -23,7 +23,7 @@
 
 
 # This script runs the CO𝘕CEPT code.
-# Run the script with the -h option to get help.
+# un the script with the -h option to get help.
 
 # Unless this file is being sourced,
 # automatically export all variables when set.
