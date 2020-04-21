@@ -10,12 +10,6 @@ on:
         paths:
           - '.github/workflows/test_docs.yml'
           - 'concept/docs/**'
-    pull_request:
-        branches:
-          - master
-        paths:
-          - '.github/workflows/test_docs.yml'
-          - 'concept/docs/**'
 
 jobs:
     test_docs:
