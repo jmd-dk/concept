@@ -61,12 +61,13 @@ jobs:
                       && cd / \
                       && source ~/.bashrc \
                       && for file in $(echo "${concept_dir}"/* "${concept_dir}"/.*); do \
-                          [ -f "${file}" ] && [[ "${file}" != *.py ]] && [[ "${file}" != *Makefile ]] \
-                              && files="${files} ${file}"; \
+                          if [ -f "${file}" ] && [[ "${file}" != *.py ]] && [[ "${file}" != *Makefile ]]; then \
+                              files="${files} ${file}"; \
+                          fi \
                       done \
                       && rm -rf "${concept_dir}" \
                       && cp -r /github/concept "${concept_dir}" \
                       && cp /github/build/* "${concept_dir}/" \
-                      && for _ in 0 1; do touch $files; done \
+                      && for _ in 0 1; do touch ${files}; done \
                   '
 
