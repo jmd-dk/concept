@@ -19,25 +19,33 @@ jobs:
         name: Test basic
         runs-on: ubuntu-18.04
         steps:
-          - name: Checkout
-            uses: actions/checkout@v2
-          - name: Run test
-            run: |
-                docker run \
-                -e GITHUB_JOB \
-                -v ${GITHUB_WORKSPACE}:/github \
-                jmddk/concept:master /usr/bin/env bash -c ': \
-                    && cd / \
-                    && source ~/.bashrc \
-                    && concept \
-                    && mkdir /github/build \
-                    && cp "${concept_dir}/"*.so /github/build/ \
-                    && printf "#!/usr/bin/env bash\n: \
-                        && cd / \
-                        && source ~/.bashrc \
-                    " > /github/build/reuse \
-                    && chmod +x /github/build/reuse
-                '
+            - name: Checkout
+              uses: actions/checkout@v2
+            - name: Run test
+              run: |
+                  docker run \
+                  -e GITHUB_JOB \
+                  -v ${GITHUB_WORKSPACE}:/github \
+                  jmddk/concept:master /usr/bin/env bash -c ': \
+                      && cd / \
+                      && source ~/.bashrc \
+                      && mkdir /github/build \
+                      && printf "#!/usr/bin/env bash\n: \
+                          && rm -rf \"${concept_dir}\" \
+                          && cp -r /github/concept \"${concept_dir}\" \
+                          && cp /github/build/* \"${concept_dir}/\" \
+                      " > /github/build/reuse \
+                      && chmod +x /github/build/reuse \
+                      && /github/build/reuse \
+                      && concept -t ${GITHUB_JOB/test_}
+                      && cp "${concept_dir}/"*.so /github/build/
+                      && for file in $(echo "${concept_dir}"/* "${concept_dir}"/.*); do \
+                          if [ -f "${file}" ] && [[ "${file}" != *.py ]] && [[ "${file}" != *Makefile ]]; then \
+                              files="${files} ${file}" ; \
+                          fi \
+                      done \
+                      && echo "&& for _ in 0 1; do touch ${files}; done" >> /github/build/reuse \
+                  '
           - name: Upload build
             uses: actions/upload-artifact@v1
             with:
@@ -63,19 +71,9 @@ jobs:
                   jmddk/concept:master /usr/bin/env bash -c ': \
                       && cd / \
                       && source ~/.bashrc \
-                      && for file in $(echo "${concept_dir}"/* "${concept_dir}"/.*); do \
-                          if [ -f "${file}" ] && [[ "${file}" != *.py ]] && [[ "${file}" != *Makefile ]]; then \
-                              files="${files} ${file}" ; \
-                          fi \
-                      done \
-                      && rm -rf "${concept_dir}" \
-                      && cp -r /github/concept "${concept_dir}" \
-                      && cp /github/build/* "${concept_dir}/" \
-                      && for _ in 0 1; do touch ${files}; done \
+                      && /github/build/reuse \
                       && concept -t ${GITHUB_JOB/test_} \
                   '
-
-
 
 
 
