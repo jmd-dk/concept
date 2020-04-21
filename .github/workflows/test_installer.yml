@@ -3,12 +3,11 @@
 name: Test installer
 
 
-on:
-    push:
-        paths:
-          - '.github/workflows/test_installer.yml'
-          - 'installer'
-          - 'Dockerfile'
+on: [push, pull_request]
+    paths:
+      - '.github/workflows/test_installer.yml'
+      - 'installer'
+      - 'Dockerfile'
 
 
 jobs:
