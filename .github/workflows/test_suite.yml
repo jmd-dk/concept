@@ -56,22 +56,21 @@ jobs:
                   -e GITHUB_JOB \
                   -v ${GITHUB_WORKSPACE}:/github \
                   jmddk/concept:master /usr/bin/env bash -c ': \
-                      && echo A \
                       && cd / \
-                      && echo B \
                       && source ~/.bashrc \
-                      && echo C \
                       && for file in $(echo "${concept_dir}"/* "${concept_dir}"/.*); do \
-                          echo D; \
                           if [ -f "${file}" ] && [[ "${file}" != *.py ]] && [[ "${file}" != *Makefile ]]; then \
-                              echo file=$file ; \
-                              files="${files} ${file}"; \
-                          fi ; \
-                          echo D; \
-                      done ; \
-                      rm -rf "${concept_dir}" \
+                              files="${files} ${file}" \
+                          fi \
+                      done \
+                      && rm -rf "${concept_dir}" \
                       && cp -r /github/concept "${concept_dir}" \
                       && cp /github/build/* "${concept_dir}/" \
                       && for _ in 0 1; do touch ${files}; done \
+                      && concept -t ${GITHUB_JOB/test_} \
                   '
+
+
+
+
 
