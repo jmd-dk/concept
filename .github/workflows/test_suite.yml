@@ -65,8 +65,8 @@ jobs:
                       && rm -rf "${concept_dir}" \
                       && cp -r /github/concept "${concept_dir}" \
                       && cp /github/build/* "${concept_dir}/" \
-                      && echo $f \
-                      && for _ in 0 1; do touch $f; done \
+                      && echo $files \
+                      && for _ in 0 1; do touch $files; done \
                       && concept -t ${GITHUB_JOB/test_} \
                   '
 
@@ -89,14 +89,15 @@ jobs:
                   jmddk/concept:master /usr/bin/env bash -c ': \
                       && cd / \
                       && source ~/.bashrc \
+                      && files="$(echo "${concept_dir}"/*[^.py] "${concept_dir}"/.[^.]*[^.py])" \
                       && rm -rf "${concept_dir}" \
                       && cp -r /github/concept "${concept_dir}" \
                       && cp /github/build/* "${concept_dir}/" \
                       && sed -i "/: *$(MAKEFILE_LIST) *$/d" "${concept_dir}/Makefile" \
                       && cat "${concept_dir}/Makefile" \
-                      && echo touch "${concept_dir}"/*[^.py] "${concept_dir}"/.[^.]*[^.py] \
-                      && touch "${concept_dir}"/*[^.py] "${concept_dir}"/.[^.]*[^.py] \
-                      && touch "${concept_dir}"/*[^.py] "${concept_dir}"/.[^.]*[^.py] \
+                      && echo touch $files \
+                      && touch $files \
+                      && touch $files \
                       && concept -t ${GITHUB_JOB/test_} \
                   '
 
