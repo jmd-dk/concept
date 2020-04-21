@@ -67,7 +67,6 @@ jobs:
                       && rm -rf "${concept_dir}" \
                       && cp -r /github/concept "${concept_dir}" \
                       && cp /github/build/* "${concept_dir}/" \
-                      && echo $files \
                       && for _ in 0 1; do touch $files; done \
                       && concept -t ${GITHUB_JOB/test_} \
                   '
