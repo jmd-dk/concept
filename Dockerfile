@@ -17,7 +17,7 @@ RUN : \
 # Install CO𝘕CEPT
 COPY installer /
 RUN : \
-    && concept_install=False gsl_install=True mpi=${mpi} bash /installer \
+    && concept_install=False gsl_install=True mpi=${mpi} bash /installer  \
         -y \
         $([ "${native_optimizations}" == "True" ] && echo --native-optimizations) \
         "${top_dir}" \
