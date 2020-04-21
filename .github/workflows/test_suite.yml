@@ -37,7 +37,7 @@ jobs:
                       " > /github/build/reuse \
                       && chmod +x /github/build/reuse \
                       && /github/build/reuse \
-                      && echo bla > ${concept_dir}/ewald.so \
+                      && concept -t ${GITHUB_JOB/test_} \
                       && cp "${concept_dir}/"*.so /github/build/ \
                       && for file in $(echo "${concept_dir}"/* "${concept_dir}"/.*); do \
                           if [ -f "${file}" ] && [[ "${file}" != *.py ]] && [[ "${file}" != *Makefile ]]; then \
