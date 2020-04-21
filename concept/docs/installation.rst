@@ -23,7 +23,7 @@ code, you then need to
 the ``.paths`` and ``.env`` files.
 
 
-on branch3
+on branch4 something extra
 
 Entries on this page:
 
@@ -912,4 +912,3 @@ and serially when working remotely. To overrule this, add one of e.g.
    export make_jobs="-j"    # Always build in parallel, using any number of cores
 
 to ``.env``.
-
