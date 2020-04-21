@@ -1,6 +1,6 @@
 # GitHub action testing building of the docs
 
-name: Build docs
+name: Test docs
 
 
 on:
@@ -12,7 +12,7 @@ on:
 
 jobs:
   build_docs:
-    name: Build docs
+    name: Test docs
     runs-on: ubuntu-18.04
     steps:
       - name: Checkout
