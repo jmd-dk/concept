@@ -1,32 +1,32 @@
-# GitHub action testing building of the docs
+# GitHub action for testing building of the docs
 
 name: Test docs
 
 
 on:
-  push:
-    paths:
-    - '.github/workflows/test_docs.yml'
-    - 'concept/docs/**'
+    push:
+        paths:
+            - '.github/workflows/test_docs.yml'
+            - 'concept/docs/**'
 
 
 jobs:
-  build_docs:
-    name: Test docs
-    runs-on: ubuntu-18.04
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v2
-      - name: Build docs
-        run: |
-          docker run \
-          -v ${GITHUB_WORKSPACE}:/github \
-          jmddk/concept:master /usr/bin/env bash -c ': \
-              && cd / \
-              && source ~/.bashrc \
-              && rm -rf "${concept_dir}" \
-              && cp -r /github/concept "${concept_dir}" \
-              && cd "${concept_dir}" \
-              && make -j docs \
-          '
+    build_docs:
+        name: Test docs
+        runs-on: ubuntu-18.04
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v2
+            - name: Build docs
+              run: |
+                  docker run \
+                  -v ${GITHUB_WORKSPACE}:/github \
+                  jmddk/concept:master /usr/bin/env bash -c ': \
+                      && cd / \
+                      && source ~/.bashrc \
+                      && rm -rf "${concept_dir}" \
+                      && cp -r /github/concept "${concept_dir}" \
+                      && cd "${concept_dir}" \
+                      && make -j docs \
+                  '
 
