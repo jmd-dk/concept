@@ -1,4 +1,4 @@
-# GitHub action testing the code base by running the test suite
+# GitHub action for testing the code base by running the test suite
 
 name: Test suite
 
@@ -6,12 +6,12 @@ name: Test suite
 on:
     push:
         paths:
-        - '.github/workflows/test_suite.yml'
-        - 'concept/*.py'
-        - 'concept/Makefile'
-        - 'concept/concept'
-        - 'concept/fft.c'
-        - 'concept/tests/**'
+            - '.github/workflows/test_suite.yml'
+            - 'concept/*.py'
+            - 'concept/Makefile'
+            - 'concept/concept'
+            - 'concept/fft.c'
+            - 'concept/tests/**'
 
 
 jobs:
