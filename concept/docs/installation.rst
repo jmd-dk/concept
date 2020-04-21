@@ -23,7 +23,7 @@ code, you then need to
 the ``.paths`` and ``.env`` files.
 
 
-something new
+something new 2
 
 Entries on this page:
 
