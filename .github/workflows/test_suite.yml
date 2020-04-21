@@ -5,14 +5,12 @@ name: Test suite
 
 on:
   push:
-    paths-ignore:
-    - '.env'
-    - '.gitignore'
-    - '.paths'
-    - 'COPYING'
-    - 'README.md'
-    - 'installer'
-    - 'concept/docs/**'
+    paths:
+    - '.github/workflows/build_docs.yml'
+    - 'concept/*.py'
+    - 'concept/Makefile'
+    - 'concept/concept'
+    - 'concept/tests/**'
 
 
 jobs:
