@@ -60,8 +60,10 @@ jobs:
                   jmddk/concept:master /usr/bin/env bash -c ': \
                       && cd / \
                       && source ~/.bashrc \
-                      && files="$(echo "${concept_dir}"/*[^.py] "${concept_dir}"/.[^.]*[^.py] \
-                          | sed "s/[^ ]*Makefile[^ ]*//")" \
+                      && for file in $(echo "${concept_dir}"/* "${concept_dir}"/.*); do \
+                          [ -f "${file}" ] && [[ "${file}" != *.py ]] && [[ "${file}" != *Makefile ]] \
+                              && files="${files} ${file}"; \
+                      done \
                       && rm -rf "${concept_dir}" \
                       && cp -r /github/concept "${concept_dir}" \
                       && cp /github/build/* "${concept_dir}/" \
@@ -93,7 +95,7 @@ jobs:
                       && rm -rf "${concept_dir}" \
                       && cp -r /github/concept "${concept_dir}" \
                       && cp /github/build/* "${concept_dir}/" \
-                      && sed -i "/: *$(MAKEFILE_LIST) *$/d" "${concept_dir}/Makefile" \
+                      && sed -i "/: *\$(MAKEFILE_LIST) *$/d" "${concept_dir}/Makefile" \
                       && cat "${concept_dir}/Makefile" \
                       && echo touch $files \
                       && touch $files \
@@ -101,22 +103,22 @@ jobs:
                       && concept -t ${GITHUB_JOB/test_} \
                   '
 
-    test_optimizations:
-        name: Test optimizations
-        runs-on: ubuntu-18.04
-        steps:
-            - name: Checkout
-              uses: actions/checkout@v2
-            - name: Run test
-              run: |
-                  docker run \
-                  -e GITHUB_JOB \
-                  -v ${GITHUB_WORKSPACE}:/github \
-                  jmddk/concept:master /usr/bin/env bash -c ': \
-                      && cd / \
-                      && source ~/.bashrc \
-                      && rm -rf "${concept_dir}" \
-                      && cp -r /github/concept "${concept_dir}" \
-                      && concept -t ${GITHUB_JOB/test_} \
+#    test_optimizations:
+#        name: Test optimizations
+#        runs-on: ubuntu-18.04
+#        steps:
+#            - name: Checkout
+#              uses: actions/checkout@v2
+#            - name: Run test
+#              run: |
+#                  docker run \
+#                  -e GITHUB_JOB \
+#                  -v ${GITHUB_WORKSPACE}:/github \
+#                  jmddk/concept:master /usr/bin/env bash -c ': \
+#                      && cd / \
+#                      && source ~/.bashrc \
+#                      && rm -rf "${concept_dir}" \
+#                      && cp -r /github/concept "${concept_dir}" \
+#                      && concept -t ${GITHUB_JOB/test_} \
                   '
 
