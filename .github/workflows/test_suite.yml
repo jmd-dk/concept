@@ -37,15 +37,15 @@ jobs:
                       " > /github/build/reuse \
                       && chmod +x /github/build/reuse \
                       && /github/build/reuse \
-                      && concept -t ${GITHUB_JOB/test_} \
+                      && echo bla > ${concept_dir}/ewald.so \
                       && cp "${concept_dir}/"*.so /github/build/ \
                       && for file in $(echo "${concept_dir}"/* "${concept_dir}"/.*); do \
                           if [ -f "${file}" ] && [[ "${file}" != *.py ]] && [[ "${file}" != *Makefile ]]; then \
                               files="${files} ${file}"; \
                           fi \
                       done \
+                      && echo "&& for _ in 0 1; do touch ${files}; done" >> /github/build/reuse \
                   '
-
             - name: Upload build
               uses: actions/upload-artifact@v1
               with:
