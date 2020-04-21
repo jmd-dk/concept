@@ -44,14 +44,13 @@ jobs:
                               files="${files} ${file}"; \
                           fi \
                       done \
-                      && echo "&& for _ in 0 1; do touch ${files}; done" >> /github/build/reuse \
                   '
 
-          - name: Upload build
-            uses: actions/upload-artifact@v1
-            with:
-                name: build
-                path: build
+            - name: Upload build
+              uses: actions/upload-artifact@v1
+              with:
+                  name: build
+                  path: build
 
     test_friedmann:
         name: Test friedmann
