@@ -39,6 +39,7 @@ jobs:
         uses: actions/upload-artifact@v1
         with:
           name: built
+          path: built
 
   test_friedmann:
     name: Test friedmann
