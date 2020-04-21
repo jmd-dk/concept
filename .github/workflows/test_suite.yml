@@ -10,6 +10,7 @@ on:
         - 'concept/*.py'
         - 'concept/Makefile'
         - 'concept/concept'
+        - 'concept/fft.c'
         - 'concept/tests/**'
 
 
@@ -74,4 +75,72 @@ jobs:
                       && concept -t ${GITHUB_JOB/test_} \
                   '
 
+    test_realize:
+        name: Test realize
+        needs: test_basic
+        runs-on: ubuntu-18.04
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v2
+            - name: Download build
+              uses: actions/download-artifact@v1
+              with:
+                  name: build
+            - name: Run test
+              run: |
+                  docker run \
+                  -e GITHUB_JOB \
+                  -v ${GITHUB_WORKSPACE}:/github \
+                  jmddk/concept:master /usr/bin/env bash -c ': \
+                      && cd / \
+                      && source ~/.bashrc \
+                      && bash /github/build/reuse \
+                      && concept -t ${GITHUB_JOB/test_} \
+                  '
+
+    test_powerspec:
+        name: Test powerspec
+        needs: test_basic
+        runs-on: ubuntu-18.04
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v2
+            - name: Download build
+              uses: actions/download-artifact@v1
+              with:
+                  name: build
+            - name: Run test
+              run: |
+                  docker run \
+                  -e GITHUB_JOB \
+                  -v ${GITHUB_WORKSPACE}:/github \
+                  jmddk/concept:master /usr/bin/env bash -c ': \
+                      && cd / \
+                      && source ~/.bashrc \
+                      && bash /github/build/reuse \
+                      && concept -t ${GITHUB_JOB/test_} \
+                  '
+
+    test_optimizations:
+        name: Test optimizations
+        needs: test_basic
+        runs-on: ubuntu-18.04
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v2
+            - name: Download build
+              uses: actions/download-artifact@v1
+              with:
+                  name: build
+            - name: Run test
+              run: |
+                  docker run \
+                  -e GITHUB_JOB \
+                  -v ${GITHUB_WORKSPACE}:/github \
+                  jmddk/concept:master /usr/bin/env bash -c ': \
+                      && cd / \
+                      && source ~/.bashrc \
+                      && bash /github/build/reuse \
+                      && concept -t ${GITHUB_JOB/test_} \
+                  '
 
