@@ -6,7 +6,7 @@ name: Test suite
 on:
   push:
     paths:
-    - '.github/workflows/build_docs.yml'
+    - '.github/workflows/test_suite.yml'
     - 'concept/*.py'
     - 'concept/Makefile'
     - 'concept/concept'
