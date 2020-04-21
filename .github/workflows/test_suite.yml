@@ -4,134 +4,143 @@ name: Test suite
 
 
 on:
-  push:
-    paths:
-    - '.github/workflows/test_suite.yml'
-    - 'concept/*.py'
-    - 'concept/Makefile'
-    - 'concept/concept'
-    - 'concept/tests/**'
+    push:
+        paths:
+        - '.github/workflows/test_suite.yml'
+        - 'concept/*.py'
+        - 'concept/Makefile'
+        - 'concept/concept'
+        - 'concept/tests/**'
 
 
 jobs:
 
-  test_basic:
-    name: Test basic
-    runs-on: ubuntu-18.04
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v2
-      - name: Run test
-        run: |
-          docker run \
-          -e GITHUB_JOB \
-          -v ${GITHUB_WORKSPACE}:/github \
-          jmddk/concept:master /usr/bin/env bash -c ': \
-              && cd / \
-              && source ~/.bashrc \
-              && rm -rf "${concept_dir}" \
-              && cp -r /github/concept "${concept_dir}" \
-              && concept -t ${GITHUB_JOB/test_} \
-              && mkdir /github/built \
-              && cp "${concept_dir}/"*.so /github/built/ \
-          '
-      - name: Upload built
-        uses: actions/upload-artifact@v1
-        with:
-          name: built
-          path: built
+    test_basic:
+        name: Test basic
+        runs-on: ubuntu-18.04
+        steps:
+          - name: Checkout
+            uses: actions/checkout@v2
+          - name: Run test
+            run: |
+                docker run \
+                -e GITHUB_JOB \
+                -v ${GITHUB_WORKSPACE}:/github \
+                jmddk/concept:master /usr/bin/env bash -c ': \
+                    && cd / \
+                    && source ~/.bashrc \
+                    && rm -rf "${concept_dir}" \
+                    && cp -r /github/concept "${concept_dir}" \
+                    && concept -t ${GITHUB_JOB/test_} \
+                    && mkdir /github/build \
+                    && cp "${concept_dir}/"*.so /github/build/ \
+                '
+          - name: Upload build
+            uses: actions/upload-artifact@v1
+            with:
+                name: build
+                path: build
 
-  test_friedmann:
-    name: Test friedmann
-    needs: test_basic
-    runs-on: ubuntu-18.04
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v2
-      - name: Download built
-        uses: actions/download-artifact@v1
-        with:
-          name: built
-      - name: Run test
-        run: |
-          docker run \
-          -e GITHUB_JOB \
-          -v ${GITHUB_WORKSPACE}:/github \
-          jmddk/concept:master /usr/bin/env bash -c ': \
-              && cd / \
-              && source ~/.bashrc \
-              && rm -rf "${concept_dir}" \
-              && cp -r /github/concept "${concept_dir}" \
-              && cp /github/built/* "${concept_dir}/" \
-              && concept -t ${GITHUB_JOB/test_} \
-          '
+    test_friedmann:
+        name: Test friedmann
+        needs: test_basic
+        runs-on: ubuntu-18.04
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v2
+            - name: Download build
+              uses: actions/download-artifact@v1
+              with:
+                  name: build
+            - name: Run test
+              run: |
+                  docker run \
+                  -e GITHUB_JOB \
+                  -v ${GITHUB_WORKSPACE}:/github \
+                  jmddk/concept:master /usr/bin/env bash -c ': \
+                      && cd / \
+                      && source ~/.bashrc \
+                      && rm -rf "${concept_dir}" \
+                      && cp -r /github/concept "${concept_dir}" \
+                      && cp /github/build/* "${concept_dir}/" \
+                      && f="$(echo "${concept_dir}"/*[^.py] "${concept_dir}"/.[^.]*[^.py] \
+                          | sed "s/[^ ]*Makefile[^ ]*//")" \
+                      && for _ in 0 1; do touch $f; done \
+                      && concept -t ${GITHUB_JOB/test_} \
+                  '
 
-  test_realize:
-    name: Test realize
-    needs: test_basic
-    runs-on: ubuntu-18.04
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v2
-      - name: Download built
-        uses: actions/download-artifact@v1
-        with:
-          name: built
-      - name: Run test
-        run: |
-          docker run \
-          -e GITHUB_JOB \
-          -v ${GITHUB_WORKSPACE}:/github \
-          jmddk/concept:master /usr/bin/env bash -c ': \
-              && cd / \
-              && source ~/.bashrc \
-              && rm -rf "${concept_dir}" \
-              && cp -r /github/concept "${concept_dir}" \
-              && cp /github/built/* "${concept_dir}/" \
-              && concept -t ${GITHUB_JOB/test_} \
-          '
+    test_realize:
+        name: Test realize
+        needs: test_basic
+        runs-on: ubuntu-18.04
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v2
+            - name: Download build
+              uses: actions/download-artifact@v1
+              with:
+                  name: build
+            - name: Run test
+              run: |
+                  docker run \
+                  -e GITHUB_JOB \
+                  -v ${GITHUB_WORKSPACE}:/github \
+                  jmddk/concept:master /usr/bin/env bash -c ': \
+                      && cd / \
+                      && source ~/.bashrc \
+                      && rm -rf "${concept_dir}" \
+                      && cp -r /github/concept "${concept_dir}" \
+                      && cp /github/build/* "${concept_dir}/" \
+                      && f="$(echo "${concept_dir}"/*[^.py] "${concept_dir}"/.[^.]*[^.py] \
+                          | sed "s/[^ ]*Makefile[^ ]*//")" \
+                      && for _ in 0 1; do touch $f; done \
+                      && concept -t ${GITHUB_JOB/test_} \
+                  '
 
-  test_powerspec:
-    name: Test powerspec
-    needs: test_basic
-    runs-on: ubuntu-18.04
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v2
-      - name: Download built
-        uses: actions/download-artifact@v1
-        with:
-          name: built
-      - name: Run test
-        run: |
-          docker run \
-          -e GITHUB_JOB \
-          -v ${GITHUB_WORKSPACE}:/github \
-          jmddk/concept:master /usr/bin/env bash -c ': \
-              && cd / \
-              && source ~/.bashrc \
-              && rm -rf "${concept_dir}" \
-              && cp -r /github/concept "${concept_dir}" \
-              && cp /github/built/* "${concept_dir}/" \
-              && concept -t ${GITHUB_JOB/test_} \
-          '
+    test_powerspec:
+        name: Test powerspec
+        needs: test_basic
+        runs-on: ubuntu-18.04
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v2
+            - name: Download build
+              uses: actions/download-artifact@v1
+              with:
+                  name: build
+            - name: Run test
+              run: |
+                  docker run \
+                  -e GITHUB_JOB \
+                  -v ${GITHUB_WORKSPACE}:/github \
+                  jmddk/concept:master /usr/bin/env bash -c ': \
+                      && cd / \
+                      && source ~/.bashrc \
+                      && rm -rf "${concept_dir}" \
+                      && cp -r /github/concept "${concept_dir}" \
+                      && cp /github/build/* "${concept_dir}/" \
+                      && f="$(echo "${concept_dir}"/*[^.py] "${concept_dir}"/.[^.]*[^.py] \
+                          | sed "s/[^ ]*Makefile[^ ]*//")" \
+                      && for _ in 0 1; do touch $f; done \
+                      && concept -t ${GITHUB_JOB/test_} \
+                  '
 
-  test_optimizations:
-    name: Test optimizations
-    runs-on: ubuntu-18.04
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v2
-      - name: Run test
-        run: |
-          docker run \
-          -e GITHUB_JOB \
-          -v ${GITHUB_WORKSPACE}:/github \
-          jmddk/concept:master /usr/bin/env bash -c ': \
-              && cd / \
-              && source ~/.bashrc \
-              && rm -rf "${concept_dir}" \
-              && cp -r /github/concept "${concept_dir}" \
-              && concept -t ${GITHUB_JOB/test_} \
-          '
+    test_optimizations:
+        name: Test optimizations
+        runs-on: ubuntu-18.04
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v2
+            - name: Run test
+              run: |
+                  docker run \
+                  -e GITHUB_JOB \
+                  -v ${GITHUB_WORKSPACE}:/github \
+                  jmddk/concept:master /usr/bin/env bash -c ': \
+                      && cd / \
+                      && source ~/.bashrc \
+                      && rm -rf "${concept_dir}" \
+                      && cp -r /github/concept "${concept_dir}" \
+                      && concept -t ${GITHUB_JOB/test_} \
+                  '
 
