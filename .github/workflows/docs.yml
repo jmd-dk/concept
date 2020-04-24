@@ -1,0 +1,29 @@
+# GitHub workflow for testing building of the docs
+name: docs
+
+on:
+    pull_request:
+        branches:
+          - master
+        paths:
+          - 'concept/docs/**'
+
+jobs:
+    docs:
+        runs-on: ubuntu-18.04
+        steps:
+          - name: Checkout
+            uses: actions/checkout@v2
+          - name: Build docs
+            run: |
+                docker run \
+                -v ${GITHUB_WORKSPACE}:/github \
+                jmddk/concept:master bash -c ': \
+                    && cd / \
+                    && source ~/.bashrc \
+                    && rm -rf "${concept_dir}" \
+                    && cp -r /github/concept "${concept_dir}" \
+                    && cd "${concept_dir}" \
+                    && make docs \
+                '
+

@@ -1,0 +1,715 @@
+# GitHub workflow for testing the code base by running the test suite
+name: test_suite
+
+on:
+    pull_request:
+        branches:
+          - master
+        paths:
+          - 'concept/*.py'
+          - 'concept/Makefile'
+          - 'concept/concept'
+          - 'concept/fft.c'
+          - 'concept/tests/**'
+          - 'concept/utilities/**'
+
+jobs:
+    # This job runs first
+    test_basic:
+        runs-on: ubuntu-18.04
+        steps:
+          - name: Checkout
+            uses: actions/checkout@v2
+          - name: Run test
+            run: |
+                docker run \
+                -e GITHUB_JOB \
+                -v "${GITHUB_WORKSPACE}":/github \
+                jmddk/concept:master bash -c ': \
+                    && cd / \
+                    && source ~/.bashrc \
+                    && rm -rf "${concept_dir}" \
+                    && cp -r /github/concept "${concept_dir}" \
+                    && concept -t ${GITHUB_JOB/test_} \
+                    && mkdir /github/build \
+                    && cp "${concept_dir}/"*.so /github/build/ \
+                '
+          - name: Upload build
+            uses: actions/upload-artifact@v1
+            with:
+                name: build
+                path: build
+    # All jobs below uses the compiled code from the test_basic job
+    test_friedmann:
+        needs: test_basic
+        runs-on: ubuntu-18.04
+        steps:
+          - name: Checkout
+            uses: actions/checkout@v2
+          - name: Download build
+            uses: actions/download-artifact@v1
+            with:
+                name: build
+          - name: Run test
+            run: |
+                docker run \
+                -e GITHUB_JOB \
+                -v "${GITHUB_WORKSPACE}":/github \
+                jmddk/concept:master bash -c ': \
+                    && cd / \
+                    && source ~/.bashrc \
+                    && rm -rf "${concept_dir}" \
+                    && cp -r /github/concept "${concept_dir}" \
+                    && cp /github/build/* "${concept_dir}/" \
+                    && (cd "${concept_dir}" && make -t) \
+                    && concept -t ${GITHUB_JOB/test_} \
+                '
+    test_realize:
+        needs: test_basic
+        runs-on: ubuntu-18.04
+        steps:
+          - name: Checkout
+            uses: actions/checkout@v2
+          - name: Download build
+            uses: actions/download-artifact@v1
+            with:
+                name: build
+          - name: Run test
+            run: |
+                docker run \
+                -e GITHUB_JOB \
+                -v "${GITHUB_WORKSPACE}":/github \
+                jmddk/concept:master bash -c ': \
+                    && cd / \
+                    && source ~/.bashrc \
+                    && rm -rf "${concept_dir}" \
+                    && cp -r /github/concept "${concept_dir}" \
+                    && cp /github/build/* "${concept_dir}/" \
+                    && (cd "${concept_dir}" && make -t) \
+                    && concept -t ${GITHUB_JOB/test_} \
+                '
+    test_powerspec:
+        needs: test_basic
+        runs-on: ubuntu-18.04
+        steps:
+          - name: Checkout
+            uses: actions/checkout@v2
+          - name: Download build
+            uses: actions/download-artifact@v1
+            with:
+                name: build
+          - name: Run test
+            run: |
+                docker run \
+                -e GITHUB_JOB \
+                -v "${GITHUB_WORKSPACE}":/github \
+                jmddk/concept:master bash -c ': \
+                    && cd / \
+                    && source ~/.bashrc \
+                    && rm -rf "${concept_dir}" \
+                    && cp -r /github/concept "${concept_dir}" \
+                    && cp /github/build/* "${concept_dir}/" \
+                    && (cd "${concept_dir}" && make -t) \
+                    && concept -t ${GITHUB_JOB/test_} \
+                '
+    test_gadget:
+        needs: test_basic
+        runs-on: ubuntu-18.04
+        steps:
+          - name: Checkout
+            uses: actions/checkout@v2
+          - name: Download build
+            uses: actions/download-artifact@v1
+            with:
+                name: build
+          - name: Run test
+            run: |
+                docker run \
+                -e GITHUB_JOB \
+                -v "${GITHUB_WORKSPACE}":/github \
+                jmddk/concept:master bash -c ': \
+                    && cd / \
+                    && source ~/.bashrc \
+                    && rm -rf "${concept_dir}" \
+                    && cp -r /github/concept "${concept_dir}" \
+                    && cp /github/build/* "${concept_dir}/" \
+                    && (cd "${concept_dir}" && make -t) \
+                    && concept -t ${GITHUB_JOB/test_} \
+                '
+    test_drift_nohubble:
+        needs: test_basic
+        runs-on: ubuntu-18.04
+        steps:
+          - name: Checkout
+            uses: actions/checkout@v2
+          - name: Download build
+            uses: actions/download-artifact@v1
+            with:
+                name: build
+          - name: Run test
+            run: |
+                docker run \
+                -e GITHUB_JOB \
+                -v "${GITHUB_WORKSPACE}":/github \
+                jmddk/concept:master bash -c ': \
+                    && cd / \
+                    && source ~/.bashrc \
+                    && rm -rf "${concept_dir}" \
+                    && cp -r /github/concept "${concept_dir}" \
+                    && cp /github/build/* "${concept_dir}/" \
+                    && (cd "${concept_dir}" && make -t) \
+                    && concept -t ${GITHUB_JOB/test_} \
+                '
+    test_drift:
+        needs: test_basic
+        runs-on: ubuntu-18.04
+        steps:
+          - name: Checkout
+            uses: actions/checkout@v2
+          - name: Download build
+            uses: actions/download-artifact@v1
+            with:
+                name: build
+          - name: Run test
+            run: |
+                docker run \
+                -e GITHUB_JOB \
+                -v "${GITHUB_WORKSPACE}":/github \
+                jmddk/concept:master bash -c ': \
+                    && cd / \
+                    && source ~/.bashrc \
+                    && rm -rf "${concept_dir}" \
+                    && cp -r /github/concept "${concept_dir}" \
+                    && cp /github/build/* "${concept_dir}/" \
+                    && (cd "${concept_dir}" && make -t) \
+                    && concept -t ${GITHUB_JOB/test_} \
+                '
+    test_kick_pp_without_ewald:
+        needs: test_basic
+        runs-on: ubuntu-18.04
+        steps:
+          - name: Checkout
+            uses: actions/checkout@v2
+          - name: Download build
+            uses: actions/download-artifact@v1
+            with:
+                name: build
+          - name: Run test
+            run: |
+                docker run \
+                -e GITHUB_JOB \
+                -v "${GITHUB_WORKSPACE}":/github \
+                jmddk/concept:master bash -c ': \
+                    && cd / \
+                    && source ~/.bashrc \
+                    && rm -rf "${concept_dir}" \
+                    && cp -r /github/concept "${concept_dir}" \
+                    && cp /github/build/* "${concept_dir}/" \
+                    && (cd "${concept_dir}" && make -t) \
+                    && concept -t ${GITHUB_JOB/test_} \
+                '
+    test_kick_pp_with_ewald:
+        needs: test_basic
+        runs-on: ubuntu-18.04
+        steps:
+          - name: Checkout
+            uses: actions/checkout@v2
+          - name: Download build
+            uses: actions/download-artifact@v1
+            with:
+                name: build
+          - name: Run test
+            run: |
+                docker run \
+                -e GITHUB_JOB \
+                -v "${GITHUB_WORKSPACE}":/github \
+                jmddk/concept:master bash -c ': \
+                    && cd / \
+                    && source ~/.bashrc \
+                    && rm -rf "${concept_dir}" \
+                    && cp -r /github/concept "${concept_dir}" \
+                    && cp /github/build/* "${concept_dir}/" \
+                    && (cd "${concept_dir}" && make -t) \
+                    && concept -t ${GITHUB_JOB/test_} \
+                '
+    test_nprocs_pp:
+        needs: test_basic
+        runs-on: ubuntu-18.04
+        steps:
+          - name: Checkout
+            uses: actions/checkout@v2
+          - name: Download build
+            uses: actions/download-artifact@v1
+            with:
+                name: build
+          - name: Run test
+            run: |
+                docker run \
+                -e GITHUB_JOB \
+                -v "${GITHUB_WORKSPACE}":/github \
+                jmddk/concept:master bash -c ': \
+                    && cd / \
+                    && source ~/.bashrc \
+                    && rm -rf "${concept_dir}" \
+                    && cp -r /github/concept "${concept_dir}" \
+                    && cp /github/build/* "${concept_dir}/" \
+                    && (cd "${concept_dir}" && make -t) \
+                    && concept -t ${GITHUB_JOB/test_} \
+                '
+    test_pure_python_pp:
+        needs: test_basic
+        runs-on: ubuntu-18.04
+        steps:
+          - name: Checkout
+            uses: actions/checkout@v2
+          - name: Download build
+            uses: actions/download-artifact@v1
+            with:
+                name: build
+          - name: Run test
+            run: |
+                docker run \
+                -e GITHUB_JOB \
+                -v "${GITHUB_WORKSPACE}":/github \
+                jmddk/concept:master bash -c ': \
+                    && cd / \
+                    && source ~/.bashrc \
+                    && rm -rf "${concept_dir}" \
+                    && cp -r /github/concept "${concept_dir}" \
+                    && cp /github/build/* "${concept_dir}/" \
+                    && (cd "${concept_dir}" && make -t) \
+                    && concept -t ${GITHUB_JOB/test_} \
+                '
+    test_concept_vs_gadget_pp:
+        needs: test_basic
+        runs-on: ubuntu-18.04
+        steps:
+          - name: Checkout
+            uses: actions/checkout@v2
+          - name: Download build
+            uses: actions/download-artifact@v1
+            with:
+                name: build
+          - name: Run test
+            run: |
+                docker run \
+                -e GITHUB_JOB \
+                -v "${GITHUB_WORKSPACE}":/github \
+                jmddk/concept:master bash -c ': \
+                    && cd / \
+                    && source ~/.bashrc \
+                    && rm -rf "${concept_dir}" \
+                    && cp -r /github/concept "${concept_dir}" \
+                    && cp /github/build/* "${concept_dir}/" \
+                    && (cd "${concept_dir}" && make -t) \
+                    && concept -t ${GITHUB_JOB/test_} \
+                '
+    test_nprocs_pm:
+        needs: test_basic
+        runs-on: ubuntu-18.04
+        steps:
+          - name: Checkout
+            uses: actions/checkout@v2
+          - name: Download build
+            uses: actions/download-artifact@v1
+            with:
+                name: build
+          - name: Run test
+            run: |
+                docker run \
+                -e GITHUB_JOB \
+                -v "${GITHUB_WORKSPACE}":/github \
+                jmddk/concept:master bash -c ': \
+                    && cd / \
+                    && source ~/.bashrc \
+                    && rm -rf "${concept_dir}" \
+                    && cp -r /github/concept "${concept_dir}" \
+                    && cp /github/build/* "${concept_dir}/" \
+                    && (cd "${concept_dir}" && make -t) \
+                    && concept -t ${GITHUB_JOB/test_} \
+                '
+    test_pure_python_pm:
+        needs: test_basic
+        runs-on: ubuntu-18.04
+        steps:
+          - name: Checkout
+            uses: actions/checkout@v2
+          - name: Download build
+            uses: actions/download-artifact@v1
+            with:
+                name: build
+          - name: Run test
+            run: |
+                docker run \
+                -e GITHUB_JOB \
+                -v "${GITHUB_WORKSPACE}":/github \
+                jmddk/concept:master bash -c ': \
+                    && cd / \
+                    && source ~/.bashrc \
+                    && rm -rf "${concept_dir}" \
+                    && cp -r /github/concept "${concept_dir}" \
+                    && cp /github/build/* "${concept_dir}/" \
+                    && (cd "${concept_dir}" && make -t) \
+                    && concept -t ${GITHUB_JOB/test_} \
+                '
+    test_concept_vs_class_pm:
+        needs: test_basic
+        runs-on: ubuntu-18.04
+        steps:
+          - name: Checkout
+            uses: actions/checkout@v2
+          - name: Download build
+            uses: actions/download-artifact@v1
+            with:
+                name: build
+          - name: Run test
+            run: |
+                docker run \
+                -e GITHUB_JOB \
+                -v "${GITHUB_WORKSPACE}":/github \
+                jmddk/concept:master bash -c ': \
+                    && cd / \
+                    && source ~/.bashrc \
+                    && rm -rf "${concept_dir}" \
+                    && cp -r /github/concept "${concept_dir}" \
+                    && cp /github/build/* "${concept_dir}/" \
+                    && (cd "${concept_dir}" && make -t) \
+                    && concept -t ${GITHUB_JOB/test_} \
+                '
+    test_nprocs_p3m:
+        needs: test_basic
+        runs-on: ubuntu-18.04
+        steps:
+          - name: Checkout
+            uses: actions/checkout@v2
+          - name: Download build
+            uses: actions/download-artifact@v1
+            with:
+                name: build
+          - name: Run test
+            run: |
+                docker run \
+                -e GITHUB_JOB \
+                -v "${GITHUB_WORKSPACE}":/github \
+                jmddk/concept:master bash -c ': \
+                    && cd / \
+                    && source ~/.bashrc \
+                    && rm -rf "${concept_dir}" \
+                    && cp -r /github/concept "${concept_dir}" \
+                    && cp /github/build/* "${concept_dir}/" \
+                    && (cd "${concept_dir}" && make -t) \
+                    && concept -t ${GITHUB_JOB/test_} \
+                '
+    test_pure_python_p3m:
+        needs: test_basic
+        runs-on: ubuntu-18.04
+        steps:
+          - name: Checkout
+            uses: actions/checkout@v2
+          - name: Download build
+            uses: actions/download-artifact@v1
+            with:
+                name: build
+          - name: Run test
+            run: |
+                docker run \
+                -e GITHUB_JOB \
+                -v "${GITHUB_WORKSPACE}":/github \
+                jmddk/concept:master bash -c ': \
+                    && cd / \
+                    && source ~/.bashrc \
+                    && rm -rf "${concept_dir}" \
+                    && cp -r /github/concept "${concept_dir}" \
+                    && cp /github/build/* "${concept_dir}/" \
+                    && (cd "${concept_dir}" && make -t) \
+                    && concept -t ${GITHUB_JOB/test_} \
+                '
+    test_concept_vs_gadget_p3m:
+        needs: test_basic
+        runs-on: ubuntu-18.04
+        steps:
+          - name: Checkout
+            uses: actions/checkout@v2
+          - name: Download build
+            uses: actions/download-artifact@v1
+            with:
+                name: build
+          - name: Run test
+            run: |
+                docker run \
+                -e GITHUB_JOB \
+                -v "${GITHUB_WORKSPACE}":/github \
+                jmddk/concept:master bash -c ': \
+                    && cd / \
+                    && source ~/.bashrc \
+                    && rm -rf "${concept_dir}" \
+                    && cp -r /github/concept "${concept_dir}" \
+                    && cp /github/build/* "${concept_dir}/" \
+                    && (cd "${concept_dir}" && make -t) \
+                    && concept -t ${GITHUB_JOB/test_} \
+                '
+    test_multicomponent:
+        needs: test_basic
+        runs-on: ubuntu-18.04
+        steps:
+          - name: Checkout
+            uses: actions/checkout@v2
+          - name: Download build
+            uses: actions/download-artifact@v1
+            with:
+                name: build
+          - name: Run test
+            run: |
+                docker run \
+                -e GITHUB_JOB \
+                -v "${GITHUB_WORKSPACE}":/github \
+                jmddk/concept:master bash -c ': \
+                    && cd / \
+                    && source ~/.bashrc \
+                    && rm -rf "${concept_dir}" \
+                    && cp -r /github/concept "${concept_dir}" \
+                    && cp /github/build/* "${concept_dir}/" \
+                    && (cd "${concept_dir}" && make -t) \
+                    && concept -t ${GITHUB_JOB/test_} \
+                '
+    test_fluid_drift_rigid_nohubble:
+        needs: test_basic
+        runs-on: ubuntu-18.04
+        steps:
+          - name: Checkout
+            uses: actions/checkout@v2
+          - name: Download build
+            uses: actions/download-artifact@v1
+            with:
+                name: build
+          - name: Run test
+            run: |
+                docker run \
+                -e GITHUB_JOB \
+                -v "${GITHUB_WORKSPACE}":/github \
+                jmddk/concept:master bash -c ': \
+                    && cd / \
+                    && source ~/.bashrc \
+                    && rm -rf "${concept_dir}" \
+                    && cp -r /github/concept "${concept_dir}" \
+                    && cp /github/build/* "${concept_dir}/" \
+                    && (cd "${concept_dir}" && make -t) \
+                    && concept -t ${GITHUB_JOB/test_} \
+                '
+    test_fluid_drift_rigid:
+        needs: test_basic
+        runs-on: ubuntu-18.04
+        steps:
+          - name: Checkout
+            uses: actions/checkout@v2
+          - name: Download build
+            uses: actions/download-artifact@v1
+            with:
+                name: build
+          - name: Run test
+            run: |
+                docker run \
+                -e GITHUB_JOB \
+                -v "${GITHUB_WORKSPACE}":/github \
+                jmddk/concept:master bash -c ': \
+                    && cd / \
+                    && source ~/.bashrc \
+                    && rm -rf "${concept_dir}" \
+                    && cp -r /github/concept "${concept_dir}" \
+                    && cp /github/build/* "${concept_dir}/" \
+                    && (cd "${concept_dir}" && make -t) \
+                    && concept -t ${GITHUB_JOB/test_} \
+                '
+    test_fluid_gravity_nohubble:
+        needs: test_basic
+        runs-on: ubuntu-18.04
+        steps:
+          - name: Checkout
+            uses: actions/checkout@v2
+          - name: Download build
+            uses: actions/download-artifact@v1
+            with:
+                name: build
+          - name: Run test
+            run: |
+                docker run \
+                -e GITHUB_JOB \
+                -v "${GITHUB_WORKSPACE}":/github \
+                jmddk/concept:master bash -c ': \
+                    && cd / \
+                    && source ~/.bashrc \
+                    && rm -rf "${concept_dir}" \
+                    && cp -r /github/concept "${concept_dir}" \
+                    && cp /github/build/* "${concept_dir}/" \
+                    && (cd "${concept_dir}" && make -t) \
+                    && concept -t ${GITHUB_JOB/test_} \
+                '
+    test_fluid_gravity:
+        needs: test_basic
+        runs-on: ubuntu-18.04
+        steps:
+          - name: Checkout
+            uses: actions/checkout@v2
+          - name: Download build
+            uses: actions/download-artifact@v1
+            with:
+                name: build
+          - name: Run test
+            run: |
+                docker run \
+                -e GITHUB_JOB \
+                -v "${GITHUB_WORKSPACE}":/github \
+                jmddk/concept:master bash -c ': \
+                    && cd / \
+                    && source ~/.bashrc \
+                    && rm -rf "${concept_dir}" \
+                    && cp -r /github/concept "${concept_dir}" \
+                    && cp /github/build/* "${concept_dir}/" \
+                    && (cd "${concept_dir}" && make -t) \
+                    && concept -t ${GITHUB_JOB/test_} \
+                '
+    test_fluid_vacuum:
+        needs: test_basic
+        runs-on: ubuntu-18.04
+        steps:
+          - name: Checkout
+            uses: actions/checkout@v2
+          - name: Download build
+            uses: actions/download-artifact@v1
+            with:
+                name: build
+          - name: Run test
+            run: |
+                docker run \
+                -e GITHUB_JOB \
+                -v "${GITHUB_WORKSPACE}":/github \
+                jmddk/concept:master bash -c ': \
+                    && cd / \
+                    && source ~/.bashrc \
+                    && rm -rf "${concept_dir}" \
+                    && cp -r /github/concept "${concept_dir}" \
+                    && cp /github/build/* "${concept_dir}/" \
+                    && (cd "${concept_dir}" && make -t) \
+                    && concept -t ${GITHUB_JOB/test_} \
+                '
+    test_fluid_vs_particles:
+        needs: test_basic
+        runs-on: ubuntu-18.04
+        steps:
+          - name: Checkout
+            uses: actions/checkout@v2
+          - name: Download build
+            uses: actions/download-artifact@v1
+            with:
+                name: build
+          - name: Run test
+            run: |
+                docker run \
+                -e GITHUB_JOB \
+                -v "${GITHUB_WORKSPACE}":/github \
+                jmddk/concept:master bash -c ': \
+                    && cd / \
+                    && source ~/.bashrc \
+                    && rm -rf "${concept_dir}" \
+                    && cp -r /github/concept "${concept_dir}" \
+                    && cp /github/build/* "${concept_dir}/" \
+                    && (cd "${concept_dir}" && make -t) \
+                    && concept -t ${GITHUB_JOB/test_} \
+                '
+    test_fluid_pressure:
+        needs: test_basic
+        runs-on: ubuntu-18.04
+        steps:
+          - name: Checkout
+            uses: actions/checkout@v2
+          - name: Download build
+            uses: actions/download-artifact@v1
+            with:
+                name: build
+          - name: Run test
+            run: |
+                docker run \
+                -e GITHUB_JOB \
+                -v "${GITHUB_WORKSPACE}":/github \
+                jmddk/concept:master bash -c ': \
+                    && cd / \
+                    && source ~/.bashrc \
+                    && rm -rf "${concept_dir}" \
+                    && cp -r /github/concept "${concept_dir}" \
+                    && cp /github/build/* "${concept_dir}/" \
+                    && (cd "${concept_dir}" && make -t) \
+                    && concept -t ${GITHUB_JOB/test_} \
+                '
+    test_neutrino:
+        needs: test_basic
+        runs-on: ubuntu-18.04
+        steps:
+          - name: Checkout
+            uses: actions/checkout@v2
+          - name: Download build
+            uses: actions/download-artifact@v1
+            with:
+                name: build
+          - name: Run test
+            run: |
+                docker run \
+                -e GITHUB_JOB \
+                -v "${GITHUB_WORKSPACE}":/github \
+                jmddk/concept:master bash -c ': \
+                    && cd / \
+                    && source ~/.bashrc \
+                    && rm -rf "${concept_dir}" \
+                    && cp -r /github/concept "${concept_dir}" \
+                    && cp /github/build/* "${concept_dir}/" \
+                    && (cd "${concept_dir}" && make -t) \
+                    && concept -t ${GITHUB_JOB/test_} \
+                '
+    test_optimizations:
+        needs: test_basic
+        runs-on: ubuntu-18.04
+        steps:
+          - name: Checkout
+            uses: actions/checkout@v2
+          - name: Download build
+            uses: actions/download-artifact@v1
+            with:
+                name: build
+          - name: Run test
+            run: |
+                docker run \
+                -e GITHUB_JOB \
+                -v "${GITHUB_WORKSPACE}":/github \
+                jmddk/concept:master bash -c ': \
+                    && cd / \
+                    && source ~/.bashrc \
+                    && rm -rf "${concept_dir}" \
+                    && cp -r /github/concept "${concept_dir}" \
+                    && cp /github/build/* "${concept_dir}/" \
+                    && (cd "${concept_dir}" && make -t) \
+                    && concept -t ${GITHUB_JOB/test_} \
+                '
+    test_render:
+        needs: test_basic
+        runs-on: ubuntu-18.04
+        steps:
+          - name: Checkout
+            uses: actions/checkout@v2
+          - name: Download build
+            uses: actions/download-artifact@v1
+            with:
+                name: build
+          - name: Run test
+            run: |
+                docker run \
+                -e GITHUB_JOB \
+                -v "${GITHUB_WORKSPACE}":/github \
+                jmddk/concept:master bash -c ': \
+                    && cd / \
+                    && source ~/.bashrc \
+                    && rm -rf "${concept_dir}" \
+                    && cp -r /github/concept "${concept_dir}" \
+                    && cp /github/build/* "${concept_dir}/" \
+                    && (cd "${concept_dir}" && make -t) \
+                    && concept -t ${GITHUB_JOB/test_} \
+                '
+
