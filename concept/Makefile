@@ -28,7 +28,7 @@
 #   no_optimizations
 #   unsafe_building
 # all of which may be either 'True' or 'False',
-# with unset valus being equivalent to 'False'.
+# with unset values being equivalent to 'False'.
 
 # Use the bash shell
 SHELL = /usr/bin/env bash

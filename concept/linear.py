@@ -446,7 +446,6 @@ class CosmoResults:
                     }
             if not self.load('perturbations'):
                 # Get perturbations from CLASS
-                masterprint('Extracting perturbations from CLASS ...')
                 self._perturbations = self.cosmo.get_perturbations()
                 # The perturbation data is distributed on
                 # the node masters. Let these operate on the data.
@@ -535,8 +534,6 @@ class CosmoResults:
                                 for missing_perturbation in missing_perturbations
                             ]))
                         )
-                # We are done extracting perturbations from CLASS
-                masterprint('done')
                 # Save to disk
                 self.save('perturbations')
                 # As perturbations comprise the vast majority of the
