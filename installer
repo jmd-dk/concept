@@ -115,9 +115,9 @@ directory consist of the following and will be installed in order:
       - MPI4Py
       - H5Py
       - Sphinx
-      - sphinx_copybutton
-      - sphinx_rtd_theme
-      - sphinx_tabs
+      - Sphinx_copybutton
+      - Sphinx_rtd_theme
+      - Sphinx_tabs
   - CO𝘕CEPT
   - CLASS
   - FFTW 2 (needed by GADGET)
@@ -3286,9 +3286,9 @@ print_table(){
 # pytest             ...
 # SciPy              ...
 # Sphinx             ...
-# sphinx_copybutton  ...
-# sphinx_rtd_theme   ...
-# sphinx_tabs        ...
+# Sphinx_copybutton  ...
+# Sphinx_rtd_theme   ...
+# Sphinx_tabs        ...
 blas_patch="False"
 class_patch="True"
 concept_patch="False"
@@ -3571,21 +3571,21 @@ if [ "${install_any_pypackages}" == "True" ]; then
     # sphinx_copybutton
     if [ "${sphinx_copybutton_install}" == "True" ]; then
         table=("${table[@]}"                                                           \
-            "sphinx_copybutton$(insert_footnote_installed 'sphinx_copybutton')"        \
+            "Sphinx_copybutton$(insert_footnote_installed 'sphinx_copybutton')"        \
             "${sphinx_copybutton_version}$(insert_footnote_patch 'sphinx_copybutton')" \
             "")
     fi
     # sphinx_rtd_theme
     if [ "${sphinx_rtd_theme_install}" == "True" ]; then
         table=("${table[@]}"                                                         \
-            "sphinx_rtd_theme$(insert_footnote_installed 'sphinx_rtd_theme')"        \
+            "Sphinx_rtd_theme$(insert_footnote_installed 'sphinx_rtd_theme')"        \
             "${sphinx_rtd_theme_version}$(insert_footnote_patch 'sphinx_rtd_theme')" \
             "")
     fi
     # sphinx_tabs
     if [ "${sphinx_tabs_install}" == "True" ]; then
         table=("${table[@]}"                                               \
-            "sphinx_tabs$(insert_footnote_installed 'sphinx_tabs')"        \
+            "Sphinx_tabs$(insert_footnote_installed 'sphinx_tabs')"        \
             "${sphinx_tabs_version}$(insert_footnote_patch 'sphinx_tabs')" \
             "")
     fi
@@ -5302,12 +5302,14 @@ install "Perl"                                  \
 
 # MPI
 mpi_install_func() {
-    if [ -z "${mpi_configure_options}" ]; then
+    if [ -z "${mpi_configure_options}" ] || [[ "${mpi_configure_options}" == "+="* ]]; then
+        mpi_configure_options_supplied="${mpi_configure_options/+=/}"
         if [ "${mpi}" == "mpich" ]; then
             mpi_configure_options="--disable-cxx --disable-fortran"
         elif [ "${mpi}" == "openmpi" ]; then
             mpi_configure_options="--enable-mpi-cxx=none --enable-mpi-fortran=none"
         fi
+        mpi_configure_options="${mpi_configure_options} ${mpi_configure_options_supplied}"
     fi
     # The below works for both MPICH and OpenMPI
     if [ -d "${perl_dir}" ]; then
@@ -6900,11 +6902,11 @@ fi
 sphinx_install_success="True"
 if [ "${sphinx_install}" == "True" ] && [ "${sphinx_installed}" == "False" ] \
     && [ "$(check_pypackage_installed sphinx)" == "False" ]; then
-    # As sphinx is not a critical dependency (it is only used for
+    # As Sphinx is not a critical dependency (it is only used for
     # building the documentation), we continue past failure
     # to install it.
     install_success="True"
-    pip_install_pypackage "sphinx" "${sphinx_version}" || install_success="False"
+    pip_install_pypackage "Sphinx" "${sphinx_version}" || install_success="False"
     if [ "${install_success}" == "False" ]; then
         sphinx_install_success="False"
         error "Failed to install Sphinx. The installation will continue regardless."
@@ -6912,19 +6914,19 @@ if [ "${sphinx_install}" == "True" ] && [ "${sphinx_installed}" == "False" ] \
     fi
 fi
 
-# sphinx_copybutton
+# Sphinx_copybutton
 if     [ "${sphinx_copybutton_install}"                   == "True"  ] \
     && [ "${sphinx_copybutton_installed}"                 == "False" ] \
     && [ "${sphinx_install_success}"                      == "True"  ] \
     && [ "$(check_pypackage_installed sphinx_copybutton)" == "False" ]; then
-    # As sphinx_copybutton is not a critical dependency (it is only used
+    # As Sphinx_copybutton is not a critical dependency (it is only used
     # for building the documentation), we continue past failure
     # to install it.
     install_success="True"
-    pip_install_pypackage "sphinx_copybutton" "${sphinx_copybutton_version}" \
+    pip_install_pypackage "Sphinx_copybutton" "${sphinx_copybutton_version}" \
         || install_success="False"
     if [ "${install_success}" == "False" ]; then
-        error "Failed to install sphinx_copybutton. The installation will continue regardless."
+        error "Failed to install Sphinx_copybutton. The installation will continue regardless."
         sphinx_copybutton_install="False"  # Flag as not to be installed
     fi
 fi
@@ -6938,10 +6940,10 @@ if     [ "${sphinx_rtd_theme_install}"                   == "True"  ] \
     # for building the documentation), we continue past failure
     # to install it.
     install_success="True"
-    pip_install_pypackage "sphinx_rtd_theme" "${sphinx_rtd_theme_version}" \
+    pip_install_pypackage "Sphinx_rtd_theme" "${sphinx_rtd_theme_version}" \
         || install_success="False"
     if [ "${install_success}" == "False" ]; then
-        error "Failed to install sphinx_rtd_theme. The installation will continue regardless."
+        error "Failed to install Sphinx_rtd_theme. The installation will continue regardless."
         sphinx_rtd_theme_install="False"  # Flag as not to be installed
     fi
 fi
@@ -6955,9 +6957,9 @@ if     [ "${sphinx_tabs_install}"                   == "True"  ] \
     # for building the documentation), we continue past failure
     # to install it.
     install_success="True"
-    pip_install_pypackage "sphinx_tabs" "${sphinx_tabs_version}" || install_success="False"
+    pip_install_pypackage "Sphinx_tabs" "${sphinx_tabs_version}" || install_success="False"
     if [ "${install_success}" == "False" ]; then
-        error "Failed to install sphinx_tabs. The installation will continue regardless."
+        error "Failed to install Sphinx_tabs. The installation will continue regardless."
         sphinx_tabs_install="False"  # Flag as not to be installed
     fi
 fi
@@ -7999,7 +8001,7 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
             sed -i "s/OMPFLAG *=/OMPFLAG = ${OMPFLAG}  #/" "Makefile"
         fi
         sed -i "s/extra_link_args *=/extra_link_args=\
-'${lgomp_in_extra_link_args} ${OMPFLAG}'.split(),  #/" "python/setup.py"
+'${gomp_in_extra_link_args} ${OMPFLAG}'.split(),  #/" "python/setup.py"
         if [ "${hardcoded_gcc}" == "False" ]; then
             # Remove hardcoding of gcc
             linenr_1=$(awk "\$0 ~ \"gcc\" {print NR}" "python/setup.py" \
@@ -8050,7 +8052,7 @@ sys.exit(int(cosmo.get_background()['proper time [Gyr]'][-1]) != 13)
         fi
     }
     install "CLASS" "no_init_install"               \
-        lgomp_in_extra_link_args "" "-gomp"     ";" \
+        gomp_in_extra_link_args "" "-gomp"      ";" \
         hardcoded_gcc "False" "True"            ";" \
         compiler "${compiler_possibilities[@]}" ";" \
         OMPFLAG "-fopenmp" "-openmp" "-qopenmp" ";" \
@@ -8373,9 +8375,9 @@ if [ "${install_anything}" == "True" ] && [ "${say_copyright}" != "False" ]; the
     copyright_notice "pytest"            "$(printf ${en_quad}%.s {1..4})pytest"
     copyright_notice "scipy"             "$(printf ${en_quad}%.s {1..4})SciPy"
     copyright_notice "sphinx"            "$(printf ${en_quad}%.s {1..4})Sphinx"
-    copyright_notice "sphinx_copybutton" "$(printf ${en_quad}%.s {1..4})sphinx_copybutton"
-    copyright_notice "sphinx_rtd_theme"  "$(printf ${en_quad}%.s {1..4})sphinx_rtd_theme"
-    copyright_notice "sphinx_tabs"       "$(printf ${en_quad}%.s {1..4})sphinx_tabs"
+    copyright_notice "sphinx_copybutton" "$(printf ${en_quad}%.s {1..4})Sphinx_copybutton"
+    copyright_notice "sphinx_rtd_theme"  "$(printf ${en_quad}%.s {1..4})Sphinx_rtd_theme"
+    copyright_notice "sphinx_tabs"       "$(printf ${en_quad}%.s {1..4})Sphinx_tabs"
     printf "\nThese have been installed into separate directories in\n\"${top_dir}\"\n"
     if [ "${concept_install}" == "True" ] && [ "${concept_installed}" == "False" ]; then
         printf "Any use of ${esc_concept} must conform to the license terms of the above
