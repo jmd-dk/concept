@@ -5038,7 +5038,7 @@ install() {
     # Get the directory from the test log path.
     files_to_copy=(                                                                           \
         "acknowledgement" "acknowledgements" "acknowledgment" "acknowledgments" "announce"    \
-        "announcement" "announcements" "announce" "author" "authors" "backers" "changelist"   \
+        "announcement" "announcements" "author" "authors" "backers" "changelist"              \
         "changelog" "changes" "contributing" "contributors" "copying" "copyright" "ftl" "gpl" \
         "gplv2" "gplv3" "license" "new" "news" "readme" "thank" "thanks" "trademark"          \
         "trademarks" "version"                                                                \

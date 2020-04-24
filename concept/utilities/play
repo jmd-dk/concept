@@ -282,7 +282,7 @@ for match in re.finditer(
         a_stamps.append(a_stamp)
     t_stamp = re.sub(' +', ' ', match.group(2))
     t_stamps.append(t_stamp)
-# Construct final time stamp strings,
+# Construct final time stamp strings.
 # All time stamp strings should have the same length,
 # as otherwise they may not properly overwrite each other.
 # If scale factor stamps are used, all of these should be
