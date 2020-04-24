@@ -21,8 +21,8 @@ RUN bash /installer -y "${top_dir}"
 
 # Set up:
 #  - CO𝘕CEPT and Python environment
-#  - bash autocompletion
-#  - bash history search with ↑↓
+#  - Bash autocompletion
+#  - Bash history search with ↑↓
 #  - color prompt
 RUN : \
     && sed -i "1i source \"${top_dir}/concept/concept\"" ~/.bashrc \
