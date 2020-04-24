@@ -43,6 +43,9 @@ Supported platforms
 .. |macos| image:: /_static/macos.png
    :height: 35px
 
+.. |docker| image:: /_static/docker.png
+   :height: 35px
+
 .. tabs::
 
    .. tab:: |linux| :math:`\,\,` Linux
@@ -73,6 +76,9 @@ Supported platforms
       numerous incompatibilities between the GNU and BSD tools make the
       porting to macOS non-trivial.
 
+   .. tab:: |docker| :math:`\,\,` Docker
+
+      *Under construction!*
 
 
 
