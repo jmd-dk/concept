@@ -1565,8 +1565,13 @@ An almost complete job script has been saved to \"${jobscript}\"." "red"
 else
     # Run locally
     if [[ "${nprocs}" == *':'* ]]; then
-        colorprint "You may not specify a number of nodes when running locally" "red"
-        exit 1
+        nnodes=$("${python}" -B -c "print('${nprocs}'[:'${nprocs}'.index(':')])")
+        if [ "${nnodes}" == "1" ]; then
+            nprocs=$("${python}" -B -c "print('${nprocs}'[('${nprocs}'.index(':') + 1):])")
+        else
+            colorprint "You may not specify a number of nodes when running locally" "red"
+            exit 1
+        fi
     fi
     # Construct a jobid that does not conflict with the content
     # of the logs dir, using binary search.

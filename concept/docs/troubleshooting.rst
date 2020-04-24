@@ -396,7 +396,7 @@ directory)
 .. code-block:: bash
 
    (source concept && make clean)  # cleanup
-   ./concept --local               # rebuild 
+   ./concept --local               # rebuild
 
 If rebuilding the code with only portable optimizations did not fix the
 problem, it is worth submitting a remote CO\ *N*\ CEPT job without *any*
