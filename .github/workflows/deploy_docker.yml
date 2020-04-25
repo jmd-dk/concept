@@ -1,0 +1,28 @@
+# GitHub workflow for deploying the Docker image to Docker Hub
+# by retagging concept:test-build to concept:master.
+name: deploy_docker
+
+on:
+    push:
+        branches:
+          - master
+
+jobs:
+    deploy_docker:
+        runs-on: ubuntu-18.04
+        steps:
+          - name: Deploy to Docker Hub 🚀
+            env:
+                docker_username: ${{ secrets.DOCKER_USERNAME }}
+            if: env.docker_username
+            run: |
+                docker pull ${{ secrets.DOCKER_USERNAME }}/concept:test-build
+                docker tag \
+                    ${{ secrets.DOCKER_USERNAME }}/concept:test-build \
+                    ${{ secrets.DOCKER_USERNAME }}/concept:master
+                docker login \
+                    -u ${{ secrets.DOCKER_USERNAME }} \
+                    -p ${{ secrets.DOCKER_PASSWORD }} \
+                    2>/dev/null
+                docker push ${{ secrets.DOCKER_USERNAME }}/concept:master
+
