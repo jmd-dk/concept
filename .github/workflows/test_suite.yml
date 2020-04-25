@@ -18,9 +18,9 @@ jobs:
     test_basic:
         runs-on: ubuntu-18.04
         steps:
-          - name: Checkout
+          - name: Checkout 🛎
             uses: actions/checkout@v2
-          - name: Run test
+          - name: Run test 🤖
             run: |
                 docker run \
                 -e GITHUB_JOB \
@@ -34,7 +34,7 @@ jobs:
                     && mkdir /github/build \
                     && cp "${concept_dir}/"*.so /github/build/ \
                 '
-          - name: Upload build
+          - name: Upload build 📤
             uses: actions/upload-artifact@v1
             with:
                 name: build
@@ -44,13 +44,13 @@ jobs:
         needs: test_basic
         runs-on: ubuntu-18.04
         steps:
-          - name: Checkout
+          - name: Checkout 🛎
             uses: actions/checkout@v2
-          - name: Download build
+          - name: Download build 📥
             uses: actions/download-artifact@v1
             with:
                 name: build
-          - name: Run test
+          - name: Run test 🤖
             run: |
                 docker run \
                 -e GITHUB_JOB \
@@ -68,13 +68,13 @@ jobs:
         needs: test_basic
         runs-on: ubuntu-18.04
         steps:
-          - name: Checkout
+          - name: Checkout 🛎
             uses: actions/checkout@v2
-          - name: Download build
+          - name: Download build 📥
             uses: actions/download-artifact@v1
             with:
                 name: build
-          - name: Run test
+          - name: Run test 🤖
             run: |
                 docker run \
                 -e GITHUB_JOB \
@@ -92,13 +92,13 @@ jobs:
         needs: test_basic
         runs-on: ubuntu-18.04
         steps:
-          - name: Checkout
+          - name: Checkout 🛎
             uses: actions/checkout@v2
-          - name: Download build
+          - name: Download build 📥
             uses: actions/download-artifact@v1
             with:
                 name: build
-          - name: Run test
+          - name: Run test 🤖
             run: |
                 docker run \
                 -e GITHUB_JOB \
@@ -116,13 +116,13 @@ jobs:
         needs: test_basic
         runs-on: ubuntu-18.04
         steps:
-          - name: Checkout
+          - name: Checkout 🛎
             uses: actions/checkout@v2
-          - name: Download build
+          - name: Download build 📥
             uses: actions/download-artifact@v1
             with:
                 name: build
-          - name: Run test
+          - name: Run test 🤖
             run: |
                 docker run \
                 -e GITHUB_JOB \
@@ -140,13 +140,13 @@ jobs:
         needs: test_basic
         runs-on: ubuntu-18.04
         steps:
-          - name: Checkout
+          - name: Checkout 🛎
             uses: actions/checkout@v2
-          - name: Download build
+          - name: Download build 📥
             uses: actions/download-artifact@v1
             with:
                 name: build
-          - name: Run test
+          - name: Run test 🤖
             run: |
                 docker run \
                 -e GITHUB_JOB \
@@ -164,13 +164,13 @@ jobs:
         needs: test_basic
         runs-on: ubuntu-18.04
         steps:
-          - name: Checkout
+          - name: Checkout 🛎
             uses: actions/checkout@v2
-          - name: Download build
+          - name: Download build 📥
             uses: actions/download-artifact@v1
             with:
                 name: build
-          - name: Run test
+          - name: Run test 🤖
             run: |
                 docker run \
                 -e GITHUB_JOB \
@@ -188,13 +188,13 @@ jobs:
         needs: test_basic
         runs-on: ubuntu-18.04
         steps:
-          - name: Checkout
+          - name: Checkout 🛎
             uses: actions/checkout@v2
-          - name: Download build
+          - name: Download build 📥
             uses: actions/download-artifact@v1
             with:
                 name: build
-          - name: Run test
+          - name: Run test 🤖
             run: |
                 docker run \
                 -e GITHUB_JOB \
@@ -212,13 +212,13 @@ jobs:
         needs: test_basic
         runs-on: ubuntu-18.04
         steps:
-          - name: Checkout
+          - name: Checkout 🛎
             uses: actions/checkout@v2
-          - name: Download build
+          - name: Download build 📥
             uses: actions/download-artifact@v1
             with:
                 name: build
-          - name: Run test
+          - name: Run test 🤖
             run: |
                 docker run \
                 -e GITHUB_JOB \
@@ -236,13 +236,13 @@ jobs:
         needs: test_basic
         runs-on: ubuntu-18.04
         steps:
-          - name: Checkout
+          - name: Checkout 🛎
             uses: actions/checkout@v2
-          - name: Download build
+          - name: Download build 📥
             uses: actions/download-artifact@v1
             with:
                 name: build
-          - name: Run test
+          - name: Run test 🤖
             run: |
                 docker run \
                 -e GITHUB_JOB \
@@ -260,13 +260,13 @@ jobs:
         needs: test_basic
         runs-on: ubuntu-18.04
         steps:
-          - name: Checkout
+          - name: Checkout 🛎
             uses: actions/checkout@v2
-          - name: Download build
+          - name: Download build 📥
             uses: actions/download-artifact@v1
             with:
                 name: build
-          - name: Run test
+          - name: Run test 🤖
             run: |
                 docker run \
                 -e GITHUB_JOB \
@@ -284,13 +284,13 @@ jobs:
         needs: test_basic
         runs-on: ubuntu-18.04
         steps:
-          - name: Checkout
+          - name: Checkout 🛎
             uses: actions/checkout@v2
-          - name: Download build
+          - name: Download build 📥
             uses: actions/download-artifact@v1
             with:
                 name: build
-          - name: Run test
+          - name: Run test 🤖
             run: |
                 docker run \
                 -e GITHUB_JOB \
@@ -308,13 +308,13 @@ jobs:
         needs: test_basic
         runs-on: ubuntu-18.04
         steps:
-          - name: Checkout
+          - name: Checkout 🛎
             uses: actions/checkout@v2
-          - name: Download build
+          - name: Download build 📥
             uses: actions/download-artifact@v1
             with:
                 name: build
-          - name: Run test
+          - name: Run test 🤖
             run: |
                 docker run \
                 -e GITHUB_JOB \
@@ -332,13 +332,13 @@ jobs:
         needs: test_basic
         runs-on: ubuntu-18.04
         steps:
-          - name: Checkout
+          - name: Checkout 🛎
             uses: actions/checkout@v2
-          - name: Download build
+          - name: Download build 📥
             uses: actions/download-artifact@v1
             with:
                 name: build
-          - name: Run test
+          - name: Run test 🤖
             run: |
                 docker run \
                 -e GITHUB_JOB \
@@ -356,13 +356,13 @@ jobs:
         needs: test_basic
         runs-on: ubuntu-18.04
         steps:
-          - name: Checkout
+          - name: Checkout 🛎
             uses: actions/checkout@v2
-          - name: Download build
+          - name: Download build 📥
             uses: actions/download-artifact@v1
             with:
                 name: build
-          - name: Run test
+          - name: Run test 🤖
             run: |
                 docker run \
                 -e GITHUB_JOB \
@@ -380,13 +380,13 @@ jobs:
         needs: test_basic
         runs-on: ubuntu-18.04
         steps:
-          - name: Checkout
+          - name: Checkout 🛎
             uses: actions/checkout@v2
-          - name: Download build
+          - name: Download build 📥
             uses: actions/download-artifact@v1
             with:
                 name: build
-          - name: Run test
+          - name: Run test 🤖
             run: |
                 docker run \
                 -e GITHUB_JOB \
@@ -404,13 +404,13 @@ jobs:
         needs: test_basic
         runs-on: ubuntu-18.04
         steps:
-          - name: Checkout
+          - name: Checkout 🛎
             uses: actions/checkout@v2
-          - name: Download build
+          - name: Download build 📥
             uses: actions/download-artifact@v1
             with:
                 name: build
-          - name: Run test
+          - name: Run test 🤖
             run: |
                 docker run \
                 -e GITHUB_JOB \
@@ -428,13 +428,13 @@ jobs:
         needs: test_basic
         runs-on: ubuntu-18.04
         steps:
-          - name: Checkout
+          - name: Checkout 🛎
             uses: actions/checkout@v2
-          - name: Download build
+          - name: Download build 📥
             uses: actions/download-artifact@v1
             with:
                 name: build
-          - name: Run test
+          - name: Run test 🤖
             run: |
                 docker run \
                 -e GITHUB_JOB \
@@ -452,13 +452,13 @@ jobs:
         needs: test_basic
         runs-on: ubuntu-18.04
         steps:
-          - name: Checkout
+          - name: Checkout 🛎
             uses: actions/checkout@v2
-          - name: Download build
+          - name: Download build 📥
             uses: actions/download-artifact@v1
             with:
                 name: build
-          - name: Run test
+          - name: Run test 🤖
             run: |
                 docker run \
                 -e GITHUB_JOB \
@@ -476,13 +476,13 @@ jobs:
         needs: test_basic
         runs-on: ubuntu-18.04
         steps:
-          - name: Checkout
+          - name: Checkout 🛎
             uses: actions/checkout@v2
-          - name: Download build
+          - name: Download build 📥
             uses: actions/download-artifact@v1
             with:
                 name: build
-          - name: Run test
+          - name: Run test 🤖
             run: |
                 docker run \
                 -e GITHUB_JOB \
@@ -500,13 +500,13 @@ jobs:
         needs: test_basic
         runs-on: ubuntu-18.04
         steps:
-          - name: Checkout
+          - name: Checkout 🛎
             uses: actions/checkout@v2
-          - name: Download build
+          - name: Download build 📥
             uses: actions/download-artifact@v1
             with:
                 name: build
-          - name: Run test
+          - name: Run test 🤖
             run: |
                 docker run \
                 -e GITHUB_JOB \
@@ -524,13 +524,13 @@ jobs:
         needs: test_basic
         runs-on: ubuntu-18.04
         steps:
-          - name: Checkout
+          - name: Checkout 🛎
             uses: actions/checkout@v2
-          - name: Download build
+          - name: Download build 📥
             uses: actions/download-artifact@v1
             with:
                 name: build
-          - name: Run test
+          - name: Run test 🤖
             run: |
                 docker run \
                 -e GITHUB_JOB \
@@ -548,13 +548,13 @@ jobs:
         needs: test_basic
         runs-on: ubuntu-18.04
         steps:
-          - name: Checkout
+          - name: Checkout 🛎
             uses: actions/checkout@v2
-          - name: Download build
+          - name: Download build 📥
             uses: actions/download-artifact@v1
             with:
                 name: build
-          - name: Run test
+          - name: Run test 🤖
             run: |
                 docker run \
                 -e GITHUB_JOB \
@@ -572,13 +572,13 @@ jobs:
         needs: test_basic
         runs-on: ubuntu-18.04
         steps:
-          - name: Checkout
+          - name: Checkout 🛎
             uses: actions/checkout@v2
-          - name: Download build
+          - name: Download build 📥
             uses: actions/download-artifact@v1
             with:
                 name: build
-          - name: Run test
+          - name: Run test 🤖
             run: |
                 docker run \
                 -e GITHUB_JOB \
@@ -596,13 +596,13 @@ jobs:
         needs: test_basic
         runs-on: ubuntu-18.04
         steps:
-          - name: Checkout
+          - name: Checkout 🛎
             uses: actions/checkout@v2
-          - name: Download build
+          - name: Download build 📥
             uses: actions/download-artifact@v1
             with:
                 name: build
-          - name: Run test
+          - name: Run test 🤖
             run: |
                 docker run \
                 -e GITHUB_JOB \
@@ -620,13 +620,13 @@ jobs:
         needs: test_basic
         runs-on: ubuntu-18.04
         steps:
-          - name: Checkout
+          - name: Checkout 🛎
             uses: actions/checkout@v2
-          - name: Download build
+          - name: Download build 📥
             uses: actions/download-artifact@v1
             with:
                 name: build
-          - name: Run test
+          - name: Run test 🤖
             run: |
                 docker run \
                 -e GITHUB_JOB \
@@ -644,13 +644,13 @@ jobs:
         needs: test_basic
         runs-on: ubuntu-18.04
         steps:
-          - name: Checkout
+          - name: Checkout 🛎
             uses: actions/checkout@v2
-          - name: Download build
+          - name: Download build 📥
             uses: actions/download-artifact@v1
             with:
                 name: build
-          - name: Run test
+          - name: Run test 🤖
             run: |
                 docker run \
                 -e GITHUB_JOB \
@@ -668,13 +668,13 @@ jobs:
         needs: test_basic
         runs-on: ubuntu-18.04
         steps:
-          - name: Checkout
+          - name: Checkout 🛎
             uses: actions/checkout@v2
-          - name: Download build
+          - name: Download build 📥
             uses: actions/download-artifact@v1
             with:
                 name: build
-          - name: Run test
+          - name: Run test 🤖
             run: |
                 docker run \
                 -e GITHUB_JOB \
@@ -692,13 +692,13 @@ jobs:
         needs: test_basic
         runs-on: ubuntu-18.04
         steps:
-          - name: Checkout
+          - name: Checkout 🛎
             uses: actions/checkout@v2
-          - name: Download build
+          - name: Download build 📥
             uses: actions/download-artifact@v1
             with:
                 name: build
-          - name: Run test
+          - name: Run test 🤖
             run: |
                 docker run \
                 -e GITHUB_JOB \

@@ -235,6 +235,9 @@ for var in "$@"; do
     fi
 done
 
+# Absolute paths to this file
+this_file="$(readlink -f "${BASH_SOURCE[0]}")"
+
 # If invoked directly from the web (e.g. via wget), a small pause
 # ensures that the print outs will not corrupt the loading bar.
 sleep 2
@@ -371,6 +374,10 @@ set_version(){
 # link to the version given by the middle column is broken.
 # In case of CO𝘕CEPT and CLASS, possible versions are the corresponding
 # GitHub branches and releases.
+concept_version_specified="False"
+if [ -n "${concept_version}" ]; then
+    concept_version_specified="True"
+fi
 set_version "concept"           "master"
 set_version "blas"              "0.3.9"   "0.3.9"
 set_version "class"             "2.7.2"
@@ -2422,6 +2429,8 @@ set_status "Initialising"
 
 # Store the pid of the installation in the install log
 echo "${status_prefix}${status_installpid}${installpid}"
+set_status "Initialising"
+
 
 
 #############################
@@ -2659,9 +2668,8 @@ check_progress(){
             mv "${gadget_dir}/fftw" "${gadget_dir}/.fftw"
         fi
         if [ -d "${gadget_dir}" ] && [ -n "$(ls "${gadget_dir}")" ]; then
-            printf "Cleaning up ${progname_display} directory ..."
+            printf "Cleaning up ${progname_display} directory ...\n"
             rm -rf "${gadget_dir}/"* || :
-            printf " done\n"
         fi
         if [ -d "${gadget_dir}/.fftw" ]; then
             mv "${gadget_dir}/.fftw" "${gadget_dir}/fftw"
@@ -2675,22 +2683,19 @@ check_progress(){
         :
     elif [ "${progname}" == "ncurses" ]; then
         if [ -d "${python_dir}/include/ncurses" ]; then
-            printf "Cleaning up ${progname_display} directory ..."
+            printf "Cleaning up ${progname_display} directory ...\n"
             rm -rf "${python_dir}/include/ncurses" || :
-            printf " done\n"
         fi
     elif [ "${progname}" == "openssl" ]; then
         if [ -d "${python_dir}/include/openssl" ]; then
-            printf "Cleaning up ${progname_display} directory ..."
+            printf "Cleaning up ${progname_display} directory ...\n"
             rm -rf "${python_dir}/include/openssl" || :
-            printf " done\n"
         fi
     elif [ "${progname}" == "libffi" ]; then
         for f in "${python_dir}/lib/libffi"*; do
             if [ -d "${f}" ]; then
-                printf "Cleaning up ${progname_display} directory ..."
+                printf "Cleaning up ${progname_display} directory ...\n"
                 rm -rf "${python_dir}/lib/libffi"* || :
-                printf " done\n"
                 break
             fi
         done
@@ -2698,17 +2703,15 @@ check_progress(){
         # In the case of CO𝘕CEPT, ${progdir} is set to
         # the GADGET directory.
         if [ -d "${concept_dir}" ]; then
-            printf "Cleaning up ${progname_display} directory ..."
+            printf "Cleaning up ${progname_display} directory ...\n"
             rm -rf "${concept_dir}" || :
-            printf " done\n"
         fi
     else
         # The files of all other programs live isolated
         # in their very own dedicated directory.
         if [ -d "${progdir}" ]; then
-            printf "Cleaning up ${progname_display} directory ..."
+            printf "Cleaning up ${progname_display} directory ...\n"
             rm -rf "${progdir}" || :
-            printf " done\n"
         fi
     fi
     # The url to the installation file for this program
@@ -2731,14 +2734,75 @@ check_progress(){
 }
 
 # CO𝘕CEPT
+if [ "${concept_version_specified}" == "True" ]; then
+    # If concept_version has been supplied as a path to an existing
+    # directory containing the CO𝘕CEPT code, the installation will use
+    # a copy of these code files rather than downloading them. To fake
+    # the download, we create a .tar.gz archive with the code files
+    concept_dir_supplied="$(convert_to_abs_path "${concept_version}" 2>/dev/null || :)"
+    if [ -d "${concept_dir_supplied}" ]; then
+        if [ -d "${concept_dir_supplied}/concept" ]; then
+            concept_dir_supplied="${concept_dir_supplied}/concept"
+        fi
+        if [ -f "${concept_dir_supplied}/concept" ]; then
+            top_dir_supplied="$(dirname "${concept_dir_supplied}")"
+            printf "\nCopying ${esc_concept} files from \"${top_dir_supplied}\" ...\n"
+            rm -rf "${top_dir}/tmp/concept"
+            mkdir -p "${top_dir}/tmp/concept/concept-supplied"
+            for f in         \
+                "COPYING"    \
+                "Dockerfile" \
+                "README.md"  \
+                "concept"    \
+                "installer"  \
+                ".env"       \
+                ".github"    \
+                ".gitignore" \
+                ".paths"     \
+            ; do
+                f="${top_dir_supplied}/${f}"
+                if [ -f "${f}" ] || [ -d "${f}" ]; then
+                    cp -r "${f}" "${top_dir}/tmp/concept/concept-supplied/"
+                fi
+            done
+            # Replace installer with a copy of this script,
+            # if possible.
+            current_dir="$(pwd)"
+            cd "${top_dir}/tmp/concept"
+            if [ -f "${this_file}" ]; then
+                copied_installer="True"
+                cp "${this_file}" "concept-supplied/.installer" 2>/dev/null \
+                    || copied_installer=False
+                if [ "${copied_installer}" == "True" ] \
+                    && [ -f "concept-supplied/.installer" ]; then
+                        mv "concept-supplied/.installer" "concept-supplied/installer"
+                fi
+            fi
+            # Make archive and fake the download
+            tar -cf - "concept-supplied" | gzip > "concept-supplied.tar.gz"
+            rm -rf "concept-supplied"
+            concept_url="${top_dir_supplied}"
+            echo "The following has been fully downloaded:
+File:    concept-supplied.tar.gz
+URL:     ${concept_url}
+Program: CONCEPT
+Version: ${top_dir_supplied}
+Date:    $(date)
+" > ".download_finished"
+            cd "${current_dir}"
+        fi
+    fi
+fi
 if [ "${concept_install}" == "True" ]; then
     # Either download the current state of the master branch
     # or a specific release.
-    if [ "${concept_version}" == "master" ]; then
-        concept_url="https://github.com/jmd-dk/concept/archive/${concept_version}.tar.gz"
-    else
-        concept_version="${concept_version/v/}"
-        concept_url="https://github.com/jmd-dk/concept/archive/v${concept_version}.tar.gz"
+    if [ -z "${concept_url}" ]; then
+        if [ "${concept_version}" == "master" ]; then
+            concept_url="https://github.com/jmd-dk/concept/archive/${concept_version}.tar.gz"
+        else
+            concept_version="${concept_version/v/}"
+            concept_url="https://github.com/jmd-dk/concept/archive/v${concept_version}.tar.gz"
+        fi
     fi
     # Check if already downloaded/installed
     check_progress "CONCEPT"

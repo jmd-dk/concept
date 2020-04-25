@@ -3,6 +3,7 @@ FROM ubuntu:20.04
 SHELL ["/usr/bin/env", "bash", "-c"]
 
 # Installation options
+ARG concept_version=/source
 ARG top_dir="/concept"
 ARG mpi=mpich
 ARG mpi_configure_options="+= --with-device=ch3:sock"
@@ -16,13 +17,16 @@ RUN : \
         2> >(grep -v 'apt-utils is not installed' >&2)
 
 # Install CO𝘕CEPT
-COPY installer /
-RUN bash /installer -y "${top_dir}"
+COPY installer COPYING* Dockerfile* README.md* .env .github* .gitignore* /source/
+COPY installer concept* /source/concept/
+RUN : \
+    && rm -f /source/concept/installer \
+    && concept_version=${concept_version} bash /source/installer -y "${top_dir}"
 
 # Set up:
 #  - CO𝘕CEPT and Python environment
-#  - Bash autocompletion
-#  - Bash history search with ↑↓
+#  - bash autocompletion
+#  - bash history search with ↑↓
 #  - color prompt
 RUN : \
     && sed -i "1i source \"${top_dir}/concept/concept\"" ~/.bashrc \
@@ -39,5 +43,5 @@ WORKDIR "${top_dir}/concept"
 # Cleanup
 RUN : \
     && rm -rf /var/lib/apt/lists/* \
-    && rm -f /installer
+    && rm -rf /source
 

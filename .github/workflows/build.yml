@@ -1,5 +1,5 @@
 # GitHub workflow for testing the entire build,
-# including installation and test suite.
+# including installation, the test suite and building of the docs.
 name: build
 
 on:
@@ -16,10 +16,12 @@ jobs:
     build:
         runs-on: ubuntu-18.04
         steps:
-          - name: Checkout
+          - name: Checkout 🛎
             uses: actions/checkout@v2
-          - name: Install
+          - name: Install 🔧
             run: docker build -t concept .
-          - name: Test suite
+          - name: Test suite 🤖
             run: docker run concept concept -t all
+          - name: Build docs 📖
+            run: docker run concept make docs
 
