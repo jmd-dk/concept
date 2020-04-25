@@ -1,0 +1,34 @@
+# GitHub workflow for deploying the docs to GitHub Pages
+name: deploy_docs
+
+on:
+    push:
+        branches:
+          - master
+        paths:
+          - 'concept/docs/**'
+
+jobs:
+    deploy_docs:
+        runs-on: ubuntu-18.04
+        steps:
+          - name: Checkout 🛎
+            uses: actions/checkout@v2
+          - name: Build 📖
+            run: |
+                docker run \
+                -v ${GITHUB_WORKSPACE}:/github \
+                jmddk/concept:master bash -c ': \
+                    && cd / \
+                    && source ~/.bashrc \
+                    && rm -rf "${concept_dir}" \
+                    && cp -r /github/concept "${concept_dir}" \
+                    && (cd "${concept_dir}" && make docs) \
+                    && cp -r "${docs_dir}/publish" /github/ \
+                '
+          - name: Deploy 🚀
+            uses: peaceiris/actions-gh-pages@v3
+            with:
+                github_token: ${{ secrets.GITHUB_TOKEN }}
+                publish_dir: publish
+

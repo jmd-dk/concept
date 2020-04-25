@@ -1,5 +1,5 @@
-# GitHub workflow for testing building of the docs
-name: docs
+# GitHub workflow for testing the building of the docs
+name: test_docs
 
 on:
     pull_request:
@@ -9,12 +9,12 @@ on:
           - 'concept/docs/**'
 
 jobs:
-    docs:
+    test_docs:
         runs-on: ubuntu-18.04
         steps:
-          - name: Checkout
+          - name: Checkout 🛎
             uses: actions/checkout@v2
-          - name: Build docs
+          - name: Build docs 📖
             run: |
                 docker run \
                 -v ${GITHUB_WORKSPACE}:/github \
@@ -23,7 +23,6 @@ jobs:
                     && source ~/.bashrc \
                     && rm -rf "${concept_dir}" \
                     && cp -r /github/concept "${concept_dir}" \
-                    && cd "${concept_dir}" \
-                    && make docs \
+                    && (cd "${concept_dir}" && make docs) \
                 '
 
