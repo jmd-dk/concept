@@ -14,11 +14,17 @@ jobs:
         steps:
           - name: Checkout 🛎
             uses: actions/checkout@v2
+          - name: Set Docker username 📝
+            env:
+                docker_username: ${{ secrets.DOCKER_USERNAME }}
+            run: |
+                [ -n "${docker_username}" ] || docker_username=jmddk
+                echo "::set-env name=docker_username::${docker_username}"
           - name: Build docs 📖
             run: |
                 docker run \
                 -v ${GITHUB_WORKSPACE}:/github \
-                jmddk/concept:master bash -c ': \
+                ${docker_username}/concept:master bash -c ': \
                     && cd / \
                     && source ~/.bashrc \
                     && rm -rf "${concept_dir}" \

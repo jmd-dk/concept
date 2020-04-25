@@ -1,5 +1,6 @@
 # GitHub workflow for testing the entire build,
 # including installation, the test suite and building of the docs.
+# Docker build is pushed to Docker Hub upon success.
 name: build
 
 on:
@@ -24,4 +25,15 @@ jobs:
             run: docker run concept concept -t all
           - name: Build docs 📖
             run: docker run concept make docs
+          - name: Push to Docker Hub 📤
+            env:
+                docker_username: ${{ secrets.DOCKER_USERNAME }}
+            if: env.docker_username
+            run: |
+                docker tag concept ${{ secrets.DOCKER_USERNAME }}/concept:test-build
+                docker login \
+                    -u ${{ secrets.DOCKER_USERNAME }} \
+                    -p ${{ secrets.DOCKER_PASSWORD }} \
+                    2>/dev/null
+                docker push ${{ secrets.DOCKER_USERNAME }}/concept:test-build
 
