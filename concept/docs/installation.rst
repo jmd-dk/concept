@@ -70,7 +70,7 @@ Supported platforms
    .. tab:: |macos| :math:`\,\,` macOS
 
       Currently the only means of running CO\ *N*\ CEPT on a mac are either to
-      install it within a virtual Linux machine or through Docker.
+      install it within a virtual Linux machine or run it through Docker.
 
       Though much of the POSIX infrastructure needed to install and run
       CO\ *N*\ CEPT is available to macOS via `Homebrew <https://brew.sh/>`_,
