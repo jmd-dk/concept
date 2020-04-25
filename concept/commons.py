@@ -291,8 +291,8 @@ def sleeping_barrier(sleep_time, mode):
 # Function that can call another function that uses OpenMP.
 # The (global or node) master process is the only one that actually does
 # the call, while slave processes periodically asks whether their
-# master is done so that they may continue. This period is controlled by
-# sleep_time, given in seconds. While sleeping, the slave processes
+# master is done so that they may continue. This period is controlled
+# by sleep_time, given in seconds. While sleeping, the slave processes
 # can be utilized to cary out OpenMP work by their master.
 def call_openmp_lib(func, *args, sleep_time=0.1, mode='single node', **kwargs):
     """When mode == 'single node', only the master process calls

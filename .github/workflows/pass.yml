@@ -16,7 +16,7 @@ jobs:
           - name: Pass
             run: exit 0
     # Test docs
-    docs:
+    test_docs:
         runs-on: ubuntu-18.04
         steps:
           - name: Pass
