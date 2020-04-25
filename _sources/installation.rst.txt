@@ -297,13 +297,13 @@ installed by the ``installer`` is given below:
     - **CythonGSL** (depends on Cython, GSL)
     - **NumPy** (depends on BLAS, LAPACK)
     - **SciPy** (depends on BLAS, LAPACK)
-    - **matplotlib** (depends on libpng, FreeType)
+    - **Matplotlib** (depends on libpng, FreeType)
     - **MPI4Py** (depends on MPI, Cython)
     - **H5Py** (depends on HDF5 and MPI)
     - **Sphinx**
-    - **sphinx-copybutton** (depends on Sphinx)
-    - **sphinx_rtd_theme** (depends on Sphinx)
-    - **sphinx-tabs** (depends on Sphinx)
+    - **Sphinx-copybutton** (depends on Sphinx)
+    - **Sphinx_rtd_theme** (depends on Sphinx)
+    - **Sphinx-tabs** (depends on Sphinx)
 
 * **CLASS** + **classy** (depends on Cython, NumPy)
 
