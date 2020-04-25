@@ -115,9 +115,9 @@ directory consist of the following and will be installed in order:
       - MPI4Py
       - H5Py
       - Sphinx
-      - Sphinx_copybutton
+      - Sphinx-copybutton
       - Sphinx_rtd_theme
-      - Sphinx_tabs
+      - Sphinx-tabs
   - CO𝘕CEPT
   - CLASS
   - FFTW 2 (needed by GADGET)
