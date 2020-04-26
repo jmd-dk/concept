@@ -3,12 +3,12 @@ Installation
 This page contains detailed information about how to install CO\ *N*\ CEPT
 along with its many dependencies. Unless you have some special need, it is
 recommended to just follow the simple,
-:ref:`standard installation<standard_installation>` instructions, including
+:ref:`standard installation <standard_installation>` instructions, including
 those covering how to obtain
 :ref:`optimal network performance<optimal_network_performance_on_clusters>`
 if you intend to install CO\ *N*\ CEPT on a cluster.
 
-The :ref:`standard<standard_installation>` way of installing CO\ *N*\ CEPT
+The :ref:`standard <standard_installation>` way of installing CO\ *N*\ CEPT
 utilizes the ``installer`` script to install CO\ *N*\ CEPT and all of its
 dependencies. Many more details about how to use this script for more
 customized installation is available under the
@@ -16,7 +16,7 @@ customized installation is available under the
 
 Though not recommended, you may choose to not make use of the ``installer``
 script, in which case you need to install all of the
-:ref:`dependencies<dependencies>` yourself. After
+:ref:`dependencies <dependencies>` yourself. After
 `downloading <https://github.com/jmd-dk/concept>`_ the CO\ *N*\ CEPT source
 code, you then need to
 :ref:`specify environment information<the_paths_and_env_files>` by editing
@@ -104,7 +104,7 @@ Supported platforms
       .. caution::
 
          While running CO\ *N*\ CEPT via Docker is great for experimental use,
-         :ref:`proper installation<standard_installation>` on a Linux host is
+         :ref:`proper installation <standard_installation>` on a Linux host is
          preferable for running large simulations, ensuring maximum
          performance.
 
@@ -218,7 +218,7 @@ Cloning with Git
 ----------------
 For installing CO\ *N*\ CEPT, cloning the code repository is not needed, as
 a copy of the code (without Git history) is downloaded during
-:ref:`installation<standard_installation>`.
+:ref:`installation <standard_installation>`.
 
 If however you wish to work with a full clone of the CO\ *N*\ CEPT
 `code repository <https://github.com/jmd-dk/concept/>`_, the easiest way to do
@@ -244,7 +244,7 @@ If you now do a
    git status
 
 it should detect changes to the ``.paths`` and ``.env``
-:ref:`files<the_paths_and_env_files>` only. These changes represent
+:ref:`files <the_paths_and_env_files>` only. These changes represent
 customizations carried out during installation. You may commit these
 changes:
 
@@ -289,7 +289,7 @@ all system dependencies are already present). In addition, it builds all
 library dependencies from source, increasing the total number of dependencies
 (as many dependencies have other dependencies, and so on). For the absolute
 minimum dependency requirements needed to *run* CO\ *N*\ CEPT, see the
-:ref:`Dependencies<dependencies>` entry.
+:ref:`Dependencies <dependencies>` entry.
 
 The complete set of system dependencies needed/installed by the ``installer``
 is:
@@ -415,7 +415,7 @@ The tests performed on the CO\ *N*\ CEPT code itself are those of
 
 and so may also be run at any time after the installation, whether or not the
 ``--tests`` option was used for th installation. See the ``concept``
-:ref:`test<test>` option for further details.
+:ref:`test <test>` option for further details.
 
 
 .. raw:: html
@@ -450,7 +450,7 @@ should any be missing. Note that this requires root access.
 Invoking the installer with this option will not install CO\ *N*\ CEPT, but
 instead attempt to configure the local ``~/.ssh`` directory of the user for
 use with remote jobs running on multiple nodes, as described
-:ref:`here<problems_when_using_multiple_nodes>`.
+:ref:`here <problems_when_using_multiple_nodes>`.
 
 
 
@@ -926,7 +926,7 @@ suitable value will be determined by the ``concept`` script.
 After submitting a remote CO\ *N*\ CEPT job, see the ``jobscript`` for the
 chosen value of ``mpi_executor``.
 
-See :ref:`this<chosing_an_mpi_executor>` troubleshooting entry for further
+See :ref:`this <chosing_an_mpi_executor>` troubleshooting entry for further
 details.
 
 
