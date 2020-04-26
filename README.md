@@ -1,5 +1,5 @@
-CO*N*CEPT
-=========
+## CO*N*CEPT <img align="right" src="https://github.com/jmd-dk/concept/workflows/build/badge.svg?event=schedule"/>
+
 <img align="right" height="300" src="/concept/docs/_static/render2D.png"/>
 
 CO*N*CEPT (**CO**smological ***N***-body **C**od**E** in **P**y**T**hon)
