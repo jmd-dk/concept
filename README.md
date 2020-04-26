@@ -7,7 +7,7 @@
 
 ### Abstract
 
-<img align="right" height="300" src="/concept/docs/_static/render2D.png"/>
+<img align="right" height="250" src="/concept/docs/_static/render2D.png"/>
 
 CO*N*CEPT (**CO**smological ***N***-body **C**od**E** in **P**y**T**hon)
 is a free and open-source simulation code for cosmological structure
