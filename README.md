@@ -1,5 +1,12 @@
 ## CO*N*CEPT <img align="right" src="https://github.com/jmd-dk/concept/workflows/build/badge.svg?event=schedule"/>
 
+ &nbsp; <a href="https://github.com/jmd-dk/concept/tree/master/">:rocket:</a> &nbsp; Latest release: Use <a href="https://github.com/jmd-dk/concept/tree/master/">master</a> for now \
+ &nbsp; <a href="https://jmd-dk.github.io/concept/">:book:</a> &nbsp; <a href="https://jmd-dk.github.io/concept/">Documentation</a> <img height="22" width="0" src="/concept/docs/_static/render2D.png"/>
+
+
+
+### Abstract
+
 <img align="right" height="300" src="/concept/docs/_static/render2D.png"/>
 
 CO*N*CEPT (**CO**smological ***N***-body **C**od**E** in **P**y**T**hon)
