@@ -50,9 +50,10 @@ Supported platforms
 
    .. tab:: |linux| :math:`\,\,` Linux
 
-      CO\ *N*\ CEPT should be trivial to install on all major Linux
-      distributions. The system may be a laptop, a workstation, a massively
-      parallel computer cluster, a Raspberry Pi, a virtual machine, etc.
+      CO\ *N*\ CEPT should be :ref:`trivial to install<standard_installation>`
+      on all major Linux distributions. The system may be a laptop, a
+      workstation, a massively parallel computer cluster, a Raspberry Pi,
+      a virtual machine, etc.
 
    .. tab:: |windows| :math:`\,\,` Windows
 
@@ -79,7 +80,33 @@ Supported platforms
 
    .. tab:: |docker| :math:`\,\,` Docker
 
-      *Under construction!*
+      You may wish to run CO\ *N*\ CEPT through one of the provided
+      `Docker images <https://hub.docker.com/r/jmddk/concept/>`_, freeing you
+      from the installation process entirely (assuming you have
+      `Docker <https://www.docker.com/>`_ already installed).
+
+      To start a Docker container based on the latest CO\ *N*\ CEPT Docker
+      image, do e.g.
+
+      .. code-block:: bash
+
+         docker run --rm -it -v "${PWD}":/concept/concept/output jmddk/concept
+
+      Any files dumped in the CO\ *N*\ CEPT ``output`` directory will then
+      persist in your current directory after the Docker container is stopped.
+
+      .. note::
+
+         If you run Docker Desktop/Toolbox on Windows or macOS, some
+         configuration is needed for the mounting (``-v``) to actually point
+         to your native Windows/macOS directory.
+
+      .. caution::
+
+         While running CO\ *N*\ CEPT via Docker is great for experimental use,
+         :ref:`proper installation<standard_installation>` on a Linux host is
+         preferable for running large simulations, ensuring maximum
+         performance.
 
 
 
@@ -89,8 +116,9 @@ Standard installation
 ---------------------
 The easiest way to install CO\ *N*\ CEPT along with all of its dependencies is
 to use the CO\ *N*\ CEPT ``installer`` Bash script. This script is part of the
-CO\ *N*\ CEPT source code, and so if you have CO\ *N*\ CEPT already downloaded,
-you may find and run this script:
+CO\ *N*\ CEPT source code, and so if you have CO\ *N*\ CEPT already
+`downloaded <https://github.com/jmd-dk/concept>`_, you may find and run this
+script:
 
 .. code-block:: bash
 
