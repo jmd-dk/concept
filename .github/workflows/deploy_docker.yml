@@ -1,5 +1,5 @@
 # GitHub workflow for deploying the Docker image to Docker Hub
-# by retagging concept:test-build to concept:master.
+# by retagging concept:test-build to concept:latest.
 name: deploy_docker
 
 on:
@@ -19,10 +19,10 @@ jobs:
                 docker pull ${{ secrets.DOCKER_USERNAME }}/concept:test-build
                 docker tag \
                     ${{ secrets.DOCKER_USERNAME }}/concept:test-build \
-                    ${{ secrets.DOCKER_USERNAME }}/concept:master
+                    ${{ secrets.DOCKER_USERNAME }}/concept:latest
                 docker login \
                     -u ${{ secrets.DOCKER_USERNAME }} \
                     -p ${{ secrets.DOCKER_PASSWORD }} \
                     2>/dev/null
-                docker push ${{ secrets.DOCKER_USERNAME }}/concept:master
+                docker push ${{ secrets.DOCKER_USERNAME }}/concept:latest
 
