@@ -347,24 +347,81 @@ else
     mpi_version="unknown"
 fi
 
-# Function which prints the resource manager.
-# In order, the implemented resource managers are:
-# - Slurm
-# - TORQUE/PBS
-get_resource_manager(){
-    # Detect what resource manager is used
-    if get_command sbatch >/dev/null; then
-        # Slurm is installed. Use this as the resource manager.
-        resource_manager="slurm"
-    elif get_command qsub >/dev/null; then
-        # TORQUE/PBS is installed. Use this as the resource manager.
-        resource_manager="torque"
-    else
-        # No resource manager found
-        resource_manager=""
+# MPI implementation specifics
+mpiexec_args=""
+mpi_env=""
+if [ "${mpi_implementation}" == "openmpi" ]; then
+    # Disable aggregation of OpenMPI warnings
+    mpi_env="${mpi_env}
+export OMPI_MCA_orte_base_help_aggregate=0"
+    # Disable OpenMPI warning about forking
+    mpi_env="${mpi_env}
+export OMPI_MCA_mpi_warn_on_fork=0"
+    # By default, OpenMPI disallows any usage by the root user
+    mpi_env="${mpi_env}
+export OMPI_ALLOW_RUN_AS_ROOT=1
+export OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1"
+    # In OpenMPI 3 and 4, oversubscription (having more MPI processes
+    # than physical cores) is disallowed by default.
+    mpi_version_major="${mpi_version:0:1}"
+    if [ "${mpi_version_major}" -ge 3 2>/dev/null ]; then
+        mpi_env="${mpi_env}
+export OMPI_MCA_rmaps_base_oversubscribe=1"
     fi
-    echo "${resource_manager}"
-}
+    # In OpenMPI 4, infiniband ports are disabled by default in favour
+    # of UCX. If this leads to an error about not initializing an
+    # OpenFabrics device, we overwrite this default.
+    if [ -z "${OMPI_MCA_btl_openib_allow_ib}" ] \
+        && [ "${mpi_version_major}" -ge 4 2>/dev/null ]; then
+        mpi_warning="$("${python}" -B -c '
+import mpi4py.rc; mpi4py.rc.threads = False  # Do not use threads
+from mpi4py import MPI
+' 2>&1)"
+        if [ -n "${mpi_warning}" ]; then
+            if echo "${mpi_warning}" | grep "error" | grep "OpenFabrics" >/dev/null; then
+                if echo "${mpi_warning}" | grep "btl_openib_allow_ib" >/dev/null; then
+                    mpi_env="${mpi_env}
+export OMPI_MCA_btl_openib_allow_ib=1"
+                fi
+            fi
+        fi
+    fi
+    # Disable automatic process binding/affinity, allowing OpenMP
+    # threads to be assigned to cores in a one-to-one fashion.
+    # This is off by default prior to OpenMPI version 1.7.
+    # All of 1.7 -- 4.0 supports the --bind-to none option to mpiexec.
+    # Here we add this option if it is understood.
+    mpiexec_output="$("${mpiexec}" --bind-to none -n 1 echo "success" 2>&1 || :)"
+    if [ "${mpiexec_output}" == "success" ]; then
+        mpiexec_args="${mpiexec_args} --bind-to none"
+    fi
+    # For OpenMPI 1.8 -- 4.0 process binding can also be deactivated
+    # using the following environment variable.
+    mpi_env="${mpi_env}
+export OMPI_MCA_hwloc_base_binding_policy=none"
+elif [ "${mpi_implementation}" == "mpich" ]; then
+    # Though MPICH should not use process binding by default,
+    # it still supports a -bind-to none or --bind-to none option.
+    # Here we check if this is so, and apply it.
+    mpiexec_output="$("${mpiexec}" -bind-to none -n 1 echo "success" 2>&1 || :)"
+    if [ "${mpiexec_output}" == "success" ]; then
+        mpiexec_args="${mpiexec_args} -bind-to none"
+    else
+        mpiexec_output="$("${mpiexec}" --bind-to none -n 1 echo "success" 2>&1 || :)"
+        if [ "${mpiexec_output}" == "success" ]; then
+            mpiexec_args="${mpiexec_args} --bind-to none"
+        fi
+    fi
+elif [ "${mpi_implementation}" == "mvapich" ]; then
+    # Disable automatic process binding, allowing OpenMP threads to be
+    # assigned to cores in a one-to-one fashion.
+    mpi_env="${mpi_env}
+export MV2_ENABLE_AFFINITY=0"
+fi
+if [ -n "${mpi_env}" ]; then
+    eval "${mpi_env}"
+    mpi_env="# Environment variables${mpi_env}"
+fi
 
 # If this file is being sourced, return now
 if [ "${being_sourced}" == "True" ]; then
@@ -392,6 +449,25 @@ abort(){
 trap 'ctrl_c' SIGINT
 trap 'abort' EXIT
 set -e
+
+# Function which prints the resource manager.
+# In order, the implemented resource managers are:
+# - Slurm
+# - TORQUE/PBS
+get_resource_manager(){
+    # Detect what resource manager is used
+    if get_command sbatch >/dev/null; then
+        # Slurm is installed. Use this as the resource manager.
+        resource_manager="slurm"
+    elif get_command qsub >/dev/null; then
+        # TORQUE/PBS is installed. Use this as the resource manager.
+        resource_manager="torque"
+    else
+        # No resource manager found
+        resource_manager=""
+    fi
+    echo "${resource_manager}"
+}
 
 # Default values of command-line arguments
 interactive_default="False"
@@ -507,7 +583,8 @@ def time(value):
     units['day'] = units['days'] = units['d']
     units['y'] = 365.25*units['d']
     units['yr'] = units['year'] = units['years'] = units['y']
-    # If a pure number is provided, interpret this in seconds.
+    # If a pure number is provided, interpret this in seconds
+    value = value.replace(' ', '')
     try:
         value = int(value)*units['s']
     except:
@@ -610,7 +687,7 @@ parser.add_argument(
 )
 parser.add_argument(
     '--memory',
-    help='maximum total memory consumption for remote job',
+    help='total memory allocated for remote job',
     type=memory,
     default=${memory_default},
 )
@@ -645,7 +722,7 @@ parser.add_argument(
 )
 parser.add_argument(
     '-w', '--walltime',
-    help='wall time for remote job',
+    help='maxium allowed wall time for remote job',
     type=time,
     default='${walltime_default}',
 )
@@ -917,82 +994,6 @@ if     [ "${local}" == "False"               ] \
     && [ "${test}"  == "${test_unspecified}" ] \
     && [ "${ssh}"   == "True"                ]; then
     remote="True"
-fi
-
-# MPI implementation specifics
-mpiexec_args=""
-mpi_env=""
-if [ "${mpi_implementation}" == "openmpi" ]; then
-    # Disable aggregation of OpenMPI warnings
-    mpi_env="${mpi_env}
-export OMPI_MCA_orte_base_help_aggregate=0"
-    # Disable OpenMPI warning about forking
-    mpi_env="${mpi_env}
-export OMPI_MCA_mpi_warn_on_fork=0"
-    # By default, OpenMPI disallows any usage by the root user
-    mpi_env="${mpi_env}
-export OMPI_ALLOW_RUN_AS_ROOT=1
-export OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1"
-    # In OpenMPI 3 and 4, oversubscription (having more MPI processes
-    # than physical cores) is disallowed by default.
-    mpi_version_major="${mpi_version:0:1}"
-    if [ "${mpi_version_major}" -ge 3 2>/dev/null ]; then
-        mpi_env="${mpi_env}
-export OMPI_MCA_rmaps_base_oversubscribe=1"
-    fi
-    # In OpenMPI 4, infiniband ports are disabled by default in favour
-    # of UCX. If this leads to an error about not initializing an
-    # OpenFabrics device, we overwrite this default.
-    if [ -z "${OMPI_MCA_btl_openib_allow_ib}" ] \
-        && [ "${mpi_version_major}" -ge 4 2>/dev/null ]; then
-        mpi_warning="$("${python}" -B -c '
-import mpi4py.rc; mpi4py.rc.threads = False  # Do not use threads
-from mpi4py import MPI
-' 2>&1)"
-        if [ -n "${mpi_warning}" ]; then
-            if echo "${mpi_warning}" | grep "error" | grep "OpenFabrics" >/dev/null; then
-                if echo "${mpi_warning}" | grep "btl_openib_allow_ib" >/dev/null; then
-                    mpi_env="${mpi_env}
-export OMPI_MCA_btl_openib_allow_ib=1"
-                fi
-            fi
-        fi
-    fi
-    # Disable automatic process binding/affinity, allowing OpenMP
-    # threads to be assigned to cores in a one-to-one fashion.
-    # This is off by default prior to OpenMPI version 1.7.
-    # All of 1.7 -- 4.0 supports the --bind-to none option to mpiexec.
-    # Here we add this option if it is understood.
-    mpiexec_output="$("${mpiexec}" --bind-to none -n 1 echo "success" 2>&1 || :)"
-    if [ "${mpiexec_output}" == "success" ]; then
-        mpiexec_args="${mpiexec_args} --bind-to none"
-    fi
-    # For OpenMPI 1.8 -- 4.0 process binding can also be deactivated
-    # using the following environment variable.
-    mpi_env="${mpi_env}
-export OMPI_MCA_hwloc_base_binding_policy=none"
-elif [ "${mpi_implementation}" == "mpich" ]; then
-    # Though MPICH should not use process binding by default,
-    # it still supports a -bind-to none or --bind-to none option.
-    # Here we check if this is so, and apply it.
-    mpiexec_output="$("${mpiexec}" -bind-to none -n 1 echo "success" 2>&1 || :)"
-    if [ "${mpiexec_output}" == "success" ]; then
-        mpiexec_args="${mpiexec_args} -bind-to none"
-    else
-        mpiexec_output="$("${mpiexec}" --bind-to none -n 1 echo "success" 2>&1 || :)"
-        if [ "${mpiexec_output}" == "success" ]; then
-            mpiexec_args="${mpiexec_args} --bind-to none"
-        fi
-    fi
-elif [ "${mpi_implementation}" == "mvapich" ]; then
-    # Disable automatic process binding, allowing OpenMP threads to be
-    # assigned to cores in a one-to-one fashion.
-    mpi_env="${mpi_env}
-export MV2_ENABLE_AFFINITY=0"
-fi
-if [ -n "${mpi_env}" ]; then
-    eval "${mpi_env}"
-    mpi_env="# Environment variables${mpi_env}"
 fi
 
 # If a test is to be run, run it and exit
@@ -1557,7 +1558,7 @@ An almost complete job script has been saved to \"${jobscript}\"." "red"
     # unless --no-watching was supplied.
     if [ "${no_watching}" == "False" ]; then
         # Invoke the watch utility on the submitted job
-        echo "You can now kill (Ctrl-C) this script without cancelling the job"
+        echo "You can now kill (Ctrl+C) this script without cancelling the job"
         sleep 1
         "${concept}" -u watch "${jobid}"
     fi

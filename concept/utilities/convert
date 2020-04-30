@@ -270,7 +270,7 @@ if [ ${N_snapshots} -gt 1 ]; then
     plural="s"
 fi
 if [ "${remote}" == "True" ] && [ "${no_watching}" == "False" ]; then
-    printf "\nYou can now kill (Ctrl-C) this script without cancelling the job${plural}\n"
+    printf "\nYou can now kill (Ctrl+C) this script without cancelling the job${plural}\n"
     printf "\nWill now watch the submitted job${plural}\n\n"
     for jobid in "${jobids[@]}"; do
         "${concept}" -u=watch ${jobid}
