@@ -1945,7 +1945,7 @@ def construct_potential(
     being only the handling of deconvolutions needed for the
     interpolation to/from the grid. Both grids will contain the full
     potential due to all the supplier components. Which variables to
-    extrapolate to the grid(s) is determined by the quantities argument.
+    extrapolate to the grid(s) is determined by the quantity argument.
     For details on this argument, see the interpolate_components()
     function in the mesh module.
 
@@ -1967,9 +1967,8 @@ def construct_potential(
     In the case of normal gravity, we have
     φ(k) = -4πGa²ρ(k)/k² = -4πG a**(-3*w_eff - 1) ϱ(k)/k²,
     which can be signalled by passing
-    quantities = [('particles', a**(-3*w_eff - 1)*mass/Vcell),
-                  ('ϱ', a**(-3*w_eff - 1))],
-    potential = lambda k2: -4*π*G_Newton/k2
+      quantity = 'a²ρ',
+      potential = lambda k2: -4*π*G_Newton/k2,
     (note that it is not actally allowed to pass an untyped lambda
     function in compiled mode).
     """
@@ -2364,6 +2363,14 @@ def find_interactions(components, interaction_type='any', instantaneous='both'):
                             interaction.force, 'pm', interaction.receivers.copy(), [component],
                         )
                     )
+                    # Make sure that the receivers have a φ_gridsize set
+                    # for the newly added PM method. If not, the value
+                    # is inherited from the original method.
+                    for receiver in interaction.receivers:
+                        receiver.φ_gridsizes.setdefault(
+                            (interaction.force, 'pm'),
+                            receiver.φ_gridsizes[interaction.force, interaction.method],
+                        )
                     return True
         # Remove interactions with no suppliers or no receivers
         interactions_list = [interaction for interaction in interactions_list
@@ -2561,6 +2568,72 @@ def get_pairwise_quantities(receivers, suppliers, select_dict, name=''):
 cython.declare(pairwise_quantities=dict)
 pairwise_quantities = {}
 
+# Function for looking up φ_gridsize for the supplied receivers given
+# the force and method, and then adjusting these according to each other
+# and the suppliers.
+@cython.header(
+    # Arguments
+    receivers=list,
+    suppliers=list,
+    force=str,
+    method=str,
+    φ_gridsizes_receivers=list,
+    # Locals
+    gridsize_min_suppliers='Py_ssize_t',
+    key=tuple,
+    receiver='Component',
+    receiver_representations=set,
+    supplier='Component',
+    φ_gridsize_min_fluid_receivers='Py_ssize_t',
+    φ_gridsizes_receivers_retrieved=list,
+    returns=list,
+)
+def set_φ_gridsizes_receivers(receivers, suppliers, force, method, φ_gridsizes_receivers=None):
+    # Attempt lookup in cache
+    key = (
+        tuple([receiver.name for receiver in receivers]),
+        tuple([supplier.name for supplier in suppliers]),
+        force,
+        method,
+        None if φ_gridsizes_receivers is None else tuple(φ_gridsizes_receivers),
+    )
+    φ_gridsizes_receivers_retrieved = φ_gridsizes_receivers_cache.get(key)
+    if φ_gridsizes_receivers_retrieved is not None:
+        return φ_gridsizes_receivers_retrieved
+    # Set initial values if not supplied
+    if φ_gridsizes_receivers is None:
+        φ_gridsizes_receivers = [receiver.φ_gridsizes[force, method] for receiver in receivers]
+    # In the case of solely having fluid suppliers, there is no
+    # reason for particle receivers to ever have a φ_gridsize below
+    # the minimum fluid gridsize among the suppliers.
+    if 'particles' not in {supplier.representation for supplier in suppliers}:
+        gridsize_min_suppliers = np.min([supplier.gridsize for supplier in suppliers])
+        φ_gridsizes_receivers = [
+            np.max([φ_gridsize, gridsize_min_suppliers])
+            if receiver.representation == 'particles' else φ_gridsize
+            for receiver, φ_gridsize in zip(receivers, φ_gridsizes_receivers)
+        ]
+    # In the case of having both particle and fluid receivers, there
+    # is no reason to have φ_gridsize for the particle receivers be
+    # below the minimum φ_gridsize among the fluid receivers.
+    receiver_representations = {receiver.representation for receiver in receivers}
+    if 'particles' in receiver_representations and 'fluid' in receiver_representations:
+        φ_gridsize_min_fluid_receivers = np.min([
+            receiver.φ_gridsizes[force, method] for receiver in receivers
+            if receiver.representation == 'fluid'
+        ])
+        φ_gridsizes_receivers = [
+            np.max([φ_gridsize, φ_gridsize_min_fluid_receivers])
+            if receiver.representation == 'particles' else φ_gridsize
+            for receiver, φ_gridsize in zip(receivers, φ_gridsizes_receivers)
+        ]
+    # Store result in cache
+    φ_gridsizes_receivers_cache[key] = φ_gridsizes_receivers
+    return φ_gridsizes_receivers
+# Cache used by the above function
+cython.declare(φ_gridsizes_receivers_cache=dict)
+φ_gridsizes_receivers_cache = {}
+
 
 
 #########################################
@@ -2584,10 +2657,10 @@ register('gravity', ['ppnonperiodic', 'pp', 'p3m', 'pm'], 'gravitational')
     interlace=object,  # bool or NoneType
     differentiation_order='int',
     # Locals
+    extra_message=str,
     potential=func_potential,
     potential_name=str,
     quantity=str,
-    φ_gridsize_max_suppliers='Py_ssize_t',
     ᔑdt_key=object,  # str or tuple
 )
 def gravity(
@@ -2612,10 +2685,9 @@ def gravity(
             )
         # The long-range PM part
         if 𝔹['any' in interaction_type] or 𝔹['long' in interaction_type]:
-            if not φ_gridsizes_receivers:
-                φ_gridsizes_receivers = [
-                    component.φ_gridsizes['gravity', 'p3m'] for component in receivers
-                ]
+            φ_gridsizes_receivers = set_φ_gridsizes_receivers(
+                receivers, suppliers, 'gravity', 'p3m', φ_gridsizes_receivers,
+            )
             if interpolation_order == -1:
                 interpolation_order = ℤ[force_interpolations['gravity']['p3m']]
             if interlace is None:
@@ -2676,20 +2748,9 @@ def gravity(
         # in order to obtain Δmomⁱ.
         ᔑdt_key = ('a**(-3*w_eff)', 'component')
         # Execute the gravitational particle-mesh interaction
-        if not φ_gridsizes_receivers:
-            # It may happen that a receiver does not have an assgined
-            # φ_gridsize for gravity PM because it really wants to
-            # receiver gravity via another method (e.g. P³M), but this
-            # has been switched out with PM for interactions with fluid
-            # suppliers. Set φ_gridsize of such a receiver to the
-            # maximum φ_gridsize of the suppliers.
-            φ_gridsize_max_suppliers = np.max([
-                component.φ_gridsizes.get(('gravity', 'pm'), -1) for component in suppliers
-            ])
-            φ_gridsizes_receivers = [
-                component.φ_gridsizes.get(('gravity', 'pm'), φ_gridsize_max_suppliers)
-                for component in receivers
-            ]
+        φ_gridsizes_receivers = set_φ_gridsizes_receivers(
+            receivers, suppliers, 'gravity', 'pm', φ_gridsizes_receivers,
+        )
         if interpolation_order == -1:
             interpolation_order = ℤ[force_interpolations['gravity']['pm']]
         if interlace is None:
@@ -2799,9 +2860,7 @@ def lapse(method, receivers, suppliers, ᔑdt, interaction_type, printout):
         # As the lapse potential is exactly analogous to the
         # gravitational potential, we may reuse the gravity_potential
         # function implementing the Poisson equation for gravity.
-        φ_gridsizes_receivers = [
-            component.φ_gridsizes['lapse', 'pm'] for component in receivers
-        ]
+        φ_gridsizes_receivers = set_φ_gridsizes_receivers(receivers, suppliers, 'lapse', 'pm')
         interpolation_order   = ℤ[force_interpolations  ['lapse']['pm']]
         interlace             = ℤ[force_interlacings    ['lapse']['pm']]
         differentiation_order = ℤ[force_differentiations['lapse']['pm']]

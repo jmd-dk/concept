@@ -376,7 +376,7 @@ def interpolate_domaingrid_to_particles(grid, component, variable, dim, order, f
 def interpolate_components(
     component_or_components, quantity, gridsize, order, ᔑdt=None, include_shifted_particles=False,
 ):
-    """This function interpolates specified quantities of components to
+    """This function interpolates a specified quantity of components to
     a domain grid. A dict of the form
     {'particles': double[:, :, ::1], 'fluid': double[:, :, ::1]}
     is always returned, storing separate grids for particles and fluid
@@ -396,7 +396,7 @@ def interpolate_components(
 
     If include_shifted_particles is True, a third entrance in the
     returned dict will appear, 'particles_shifted', which will be yet
-    another grid of interpolated particle quantities, but with grid
+    another grid of the interpolated particle quantity, but with grid
     points shifted by half a grid cell (0.5*boxsize/gridsize) in every
     direction.
 
@@ -491,7 +491,7 @@ def interpolate_components(
         communicate_ghosts(grids['particles_shifted'], '+=')
     # Interpolate fluid components
     for component in fluid_components:
-        interpolate_fluid(component, gridsize, grids['fluid'], quantity, ᔑdt)
+        interpolate_fluid(component, grids['fluid'], quantity, ᔑdt)
     # Populate ghost points of all grids with correct values
     for grid in grids.values():
         communicate_ghosts(grid, '=')
@@ -555,28 +555,27 @@ def interpolate_particles(component, gridsize, grid, quantity, order, ᔑdt,
     # Always use the current time
     a = universals.a
     w_eff = component.w_eff(a=a)
-    # The shape of the local grid without ghost layers
     # Determine the contribution of each particle based on the quantity
+    contribution = 1
     if quantity == 'ρ':
         constant_contribution = True
         if ᔑdt:
             contribution = ᔑdt['a**(-3*(1+w_eff))', component.name]/ᔑdt['1']
         else:
             contribution = a**(-3*(1 + w_eff))
-        contribution *= (gridsize/boxsize)**3*component.mass
+        contribution *= component.mass
     elif quantity == 'a²ρ':
         constant_contribution = True
         if ᔑdt:
             contribution = ᔑdt['a**(-3*w_eff-1)', component.name]/ᔑdt['1']
         else:
             contribution = a**(-3*w_eff - 1)
-        contribution *= (gridsize/boxsize)**3*component.mass
+        contribution *= component.mass
     elif quantity == 'ϱ':
         constant_contribution = True
-        contribution = (gridsize/boxsize)**3*component.mass
+        contribution = component.mass
     elif quantity in {'Jx', 'Jy', 'Jz'}:
         constant_contribution = False
-        contribution_factor = (gridsize/boxsize)**3
         dim = 'xyz'.index(quantity[1])
         contribution_ptr = component.mom[dim]
     else:
@@ -584,6 +583,8 @@ def interpolate_particles(component, gridsize, grid, quantity, order, ᔑdt,
             f'interpolate_particles() called with '
             f'quantity = "{quantity}" ∉ {{"ρ", "a²ρ", "ϱ", "Jx", "Jy", "Jz"}}'
         )
+    contribution_factor = (gridsize/boxsize)**3
+    contribution *= contribution_factor
     # Offsets and scalings needed for the interpolation
     cellsize = boxsize/gridsize
     offset_x = domain_start_x - ℝ[(1 + machine_ϵ)*(nghosts - 0.5 + shift)*cellsize]
@@ -646,7 +647,6 @@ def interpolate_particles(component, gridsize, grid, quantity, order, ᔑdt,
 @cython.header(
     # Arguments
     component='Component',
-    gridsize='Py_ssize_t',
     grid='double[:, :, ::1]',
     quantity=str,
     ᔑdt=dict,
@@ -655,19 +655,17 @@ def interpolate_particles(component, gridsize, grid, quantity, order, ᔑdt,
     contribution_factor='double',
     dim='int',
     fluidscalar='FluidScalar',
-    gridsize_fluid='Py_ssize_t',
     w_eff='double',
     returns='void',
 )
-def interpolate_fluid(component, gridsize, grid, quantity, ᔑdt):
+def interpolate_fluid(component, grid, quantity, ᔑdt):
     """The component has to be a fluid component, and the passed grid is
     interpreted as having the same physical extent as that of the fluid
     (domain) grids. The grid passed should be a full local domain grid,
     including ghost points.
     The given quantity of the component will be added to current
-    content of the local grid with global gridsize given by gridsize.
-    For info about the quantity argument, see the
-    interpolate_components() function.
+    content of the local grid. For info about the quantity argument,
+    see the interpolate_components() function.
     Time dependent factors in the quantity are evaluated at the current
     time as defined by the universals struct. If ᔑdt is passed as a
     dict containing time step integrals, these factors will be
@@ -675,30 +673,27 @@ def interpolate_fluid(component, gridsize, grid, quantity, ᔑdt):
     Though ghost cells are required to exist, these are not actually
     touched by this function, and will not be properly set either.
     """
-    gridsize_fluid = component.gridsize
     # Always use the current time
     a = universals.a
     w_eff = component.w_eff(a=a)
-    # Determine the contribution of each particle based on the quantity
+    # Determine the contribution factor of each fluid cell
+    # based on the quantity.
+    contribution_factor = 1
     if quantity == 'ρ':
         if ᔑdt:
             contribution_factor = ᔑdt['a**(-3*(1+w_eff))', component.name]/ᔑdt['1']
         else:
             contribution_factor = a**(-3*(1 + w_eff))
-        contribution_factor *= (float(gridsize)/gridsize_fluid)**3
         fluidscalar = component.ϱ
     elif quantity == 'a²ρ':
         if ᔑdt:
             contribution_factor = ᔑdt['a**(-3*w_eff-1)', component.name]/ᔑdt['1']
         else:
             contribution_factor = a**(-3*w_eff - 1)
-        contribution_factor *= (float(gridsize)/gridsize_fluid)**3
         fluidscalar = component.ϱ
     elif quantity == 'ϱ':
-        contribution_factor = (float(gridsize)/gridsize_fluid)**3
         fluidscalar = component.ϱ
     elif quantity in {'Jx', 'Jy', 'Jz'}:
-        contribution_factor = (float(gridsize)/gridsize_fluid)**3
         dim = 'xyz'.index(quantity[1])
         fluidscalar = component.J[dim]
     else:
@@ -799,8 +794,6 @@ def interpolate_grid_to_grid(grid, buffer_or_buffer_name=0, gridsize_buffer=-1, 
     if not buffer_supplied:
         gridshape_buffer_local = get_gridshape_local(gridsize_buffer)
         buffer = get_buffer(gridshape_buffer_local, buffer_or_buffer_name, nullify=True)
-    else:
-        buffer = buffer_or_buffer_name
     # The scaling factor between the old and new gridsize. Note that
     # this is the same in all dimensions.
     scaling = float(gridsize_buffer)/gridsize_grid
@@ -2303,7 +2296,7 @@ def set_weights_CIC(x, weights):
     weights[0] = 1 - dist
     weights[1] = dist
     return index
-# Triangular shaped cloud (TSC) interpolation (order 3)
+# Triangular-shaped cloud (TSC) interpolation (order 3)
 @cython.header(
     # Arguments
     x='double',

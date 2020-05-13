@@ -3276,8 +3276,8 @@ cython.declare(process_seed='unsigned long int')
 process_seed = random_seed + rank + 1
 # Initialize the pseudo-random number generator and declare the
 # functions random and random_gaussian, returning random numbers from
-# the uniform distibution between 0 and 1 and a gaussian distribution
-# with variable mean and spread, respectively.
+# the uniform distibution between 0 (inclusive) and 1 (exclusive) and a
+# Gaussian distribution with variable mean and spread, respectively.
 # Both the pure Python and the compiled version of the functions use the
 # Mersenne Twister algorithm to generate the random numbers.
 # Despite of this, their exact implementations differ enough to make
@@ -3298,11 +3298,12 @@ else:
         gsl_rng_set(random_number_generator, seed)
     @cython.header(returns='double')
     def random():
-        return gsl_rng_uniform_pos(random_number_generator)
-    @cython.header(loc='double',
-                   scale='double',
-                   returns='double',
-                   )
+        return gsl_rng_uniform(random_number_generator)
+    @cython.header(
+        loc='double',
+        scale='double',
+        returns='double',
+    )
     def random_gaussian(loc=0, scale=1):
         return loc + gsl_ran_gaussian(random_number_generator, scale)
 # Seed the pseudo-random number generator

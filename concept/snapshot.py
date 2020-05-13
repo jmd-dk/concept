@@ -1094,6 +1094,9 @@ def load(filename, compare_params=True,
     snapshot = eval(input_type.capitalize() + 'Snapshot()')
     # Load the snapshot from disk
     snapshot.load(filename, only_params=only_params)
+    # Populate universals_dict['species_present']
+    # and universals_dict['class_species_present'].
+    update_species_present(snapshot.components)
     # Check if the parameters of the snapshot matches those of the
     # current simulation run. Display a warning if they do not.
     if compare_params:
