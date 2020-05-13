@@ -32,7 +32,7 @@ cimport('import analysis')
 cimport('from analysis import measure')
 cimport('from communication import domain_subdivisions, exchange, partition, smart_mpi')
 cimport('import graphics')
-cimport('from integration import init_time, remove_doppelgängers')
+cimport('from integration import cosmic_time, init_time, remove_doppelgängers')
 cimport(
     'from linear import                   '
     '    class_extra_perturbations_class, '
@@ -377,13 +377,16 @@ def locate_snapshots(path):
                 snapshot_filename=str,
                 )
 def powerspec():
-    # Initial cosmic time universals.t
-    # and scale factor a(universals.t) = universals.a.
     init_time()
     # Extract the snapshot filename
     snapshot_filename = special_params['snapshot_filename']
     # Read in the snapshot
     snapshot = load(snapshot_filename, compare_params=False)
+    # Set universal scale factor and cosmic time and to match
+    # that of the snapshot.
+    universals.a = snapshot.params['a']
+    if enable_Hubble:
+        universals.t = cosmic_time(universals.a)
     # Construct output filename based on the snapshot filename.
     # Importantly, remove any file extension signalling a snapshot.
     output_dir, basename = os.path.split(snapshot_filename)

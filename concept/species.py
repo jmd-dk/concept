@@ -1021,6 +1021,7 @@ class Component:
         # Check that the name does not conflict with
         # one of the special names used internally,
         # and that the name has not already been used.
+        name = name.strip()
         if name in internally_defined_names:
             masterwarn(
                 f'A component by the name of "{name}" is to be created. '
@@ -1160,8 +1161,7 @@ class Component:
                         f'Default CLASS species assignment failed because '
                         f'the species "{single_species}" does not map to any CLASS species'
                     )
-            class_species = class_species.strip('+')
-        self.class_species = class_species
+        self.class_species = class_species.strip(' +')
         # Set closure rule for the Boltzmann hierarchy
         if boltzmann_closure is None:
             boltzmann_closure = is_selected(self, select_boltzmann_closure)
@@ -4640,10 +4640,10 @@ internally_defined_names = {
     'all combinations',
     'buffer',
     'default',
-    'tmp',
-    'total',
     'fake',
     'linear power spectrum',
+    'tmp',
+    'total',
 }
 # Names of all implemented fluid variables in order.
 # Note that 𝒫 is not considered a seperate fluid variable,

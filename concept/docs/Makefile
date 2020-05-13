@@ -106,6 +106,12 @@ html: sphinx
 	        ;                                                                        \
 	    done                                                                         \
 	)
+	@# Replace "f r" in code blocks with "rf",
+	@# needed as Sphinx sometimes can't parse Python
+	@# string literals prefixed with both 'r' and 'f'.
+	@for filename in $$(find $(BUILDDIR)/html/ -name '*.html'); do                                                  \
+	    sed -i 's/<span class="n">f<\/span> <span class="sa">r<\/span>/<span class="n">rf<\/span>/g' $${filename} ; \
+	done
 .PHONY: html
 
 # HTML ready for publication
