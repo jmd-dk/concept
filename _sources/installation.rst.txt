@@ -421,23 +421,35 @@ and so may also be run at any time after the installation, whether or not the
 ``--tests`` option was used for th installation. See the ``concept``
 :ref:`test <test>` option for further details.
 
-
 .. raw:: html
 
    <h6>
-     Yes:
+     Yes to defaults:
      <code class="docutils literal notranslate"><span class="pre">
        -y
      </span></code>
      ,
      <code class="docutils literal notranslate"><span class="pre">
-       --yes
+       --yes-to-defaults
      </span></code>
    </h6>
 
-Assume "yes" as answer to all prompts and run non-interactively. Currently
-these include only the system-wide installations of system dependencies,
-should any be missing. Note that this requires root access.
+Assume "yes" as answer to all prompts (accept defaults) and run
+non-interactively. These include system-wide installations of system
+dependencies (should any be missing), which require root access.
+
+.. raw:: html
+
+   <h6>
+     Native optimizations:
+     <code class="docutils literal notranslate"><span class="pre">
+       --native-optimizations
+     </span></code>
+   </h6>
+
+This passes the
+:ref:`\\\\-\\\\-native-optimizations flag <native_optimizations>` on to the
+CO\ *N*\ CEPT compilation.
 
 .. raw:: html
 

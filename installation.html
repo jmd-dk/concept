@@ -748,17 +748,25 @@ is not recommended as it increases the installation time by a couple of hours.</
 <code class="docutils literal notranslate"><span class="pre">--tests</span></code> option was used for th installation. See the <code class="docutils literal notranslate"><span class="pre">concept</span></code>
 <a class="reference internal" href="command_line_options.html#test"><span class="std std-ref">test</span></a> option for further details.</p>
 <h6>
-  Yes:
+  Yes to defaults:
   <code class="docutils literal notranslate"><span class="pre">
     -y
   </span></code>
   ,
   <code class="docutils literal notranslate"><span class="pre">
-    --yes
+    --yes-to-defaults
   </span></code>
-</h6><p>Assume “yes” as answer to all prompts and run non-interactively. Currently
-these include only the system-wide installations of system dependencies,
-should any be missing. Note that this requires root access.</p>
+</h6><p>Assume “yes” as answer to all prompts (accept defaults) and run
+non-interactively. These include system-wide installations of system
+dependencies (should any be missing), which require root access.</p>
+<h6>
+  Native optimizations:
+  <code class="docutils literal notranslate"><span class="pre">
+    --native-optimizations
+  </span></code>
+</h6><p>This passes the
+<a class="reference internal" href="command_line_options.html#native-optimizations"><span class="std std-ref">--native-optimizations flag</span></a> on to the
+CO<em>N</em>CEPT compilation.</p>
 <h6>
   Fix ssh:
   <code class="docutils literal notranslate"><span class="pre">
