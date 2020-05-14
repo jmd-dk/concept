@@ -1315,7 +1315,7 @@ params_file_content += '\n'.join([
     '    h = H0/(100*km/(s*Mpc))',
     'except NameError:',
     '    h = 1',
-    'h = float(f"{h:.15f}")',
+    'h = float("{:.15f}".format(h))',
     'h = h',  # To ensure h gets flagged as used
 ])
 # All further handling of parameters defined in the parameter file
@@ -2516,7 +2516,7 @@ user_params['Δt_base_nonlinear_factor'] = Δt_base_nonlinear_factor
 user_params['Δt_rung_factor'] = Δt_rung_factor
 N_rungs = int(user_params.get('N_rungs', 10))
 user_params['N_rungs'] = N_rungs
-fftw_wisdom_rigor = user_params.get('fftw_wisdom_rigor', 'estimate').lower()
+fftw_wisdom_rigor = user_params.get('fftw_wisdom_rigor', 'measure').lower()
 user_params['fftw_wisdom_rigor'] = fftw_wisdom_rigor
 fftw_wisdom_reuse = bool(user_params.get('fftw_wisdom_reuse', True))
 user_params['fftw_wisdom_reuse'] = fftw_wisdom_reuse

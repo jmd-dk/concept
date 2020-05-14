@@ -89,11 +89,19 @@ fi
 
 # ANSI/VT100 escape sequences
 esc="\x1b"
+# Text formatting
 esc_normal="${esc}[0m"
 esc_bold="${esc}[1m"
 esc_italic="${esc}[3m"
 esc_no_italic="${esc}[23m"
 esc_red="${esc}[91m"
+# The name of the program, nicely typeset
+if [ -z "${esc_concept}" ]; then
+    esc_concept="CO${esc_italic}N${esc_no_italic}CEPT"
+else
+    esc_concept="${esc_concept//\$\{esc_italic\}/${esc_italic}}"
+    esc_concept="${esc_concept//\$\{esc_no_italic\}/${esc_no_italic}}"
+fi
 
 # Load paths from the .paths file
 curr="${this_dir}"
@@ -496,7 +504,7 @@ utility_unspecified="__none__"
 cd "${concept_dir}"
 
 # Use Python's argparse module to handle command-line arguments
-argparse_finished="no"
+argparse_finished="False"
 argparse_exit_code=""
 args=$("${python}" -B -c "
 import argparse, math, re, sys
@@ -652,7 +660,7 @@ def time(value):
 # Setup command-line arguments
 parser = argparse.ArgumentParser(
     prog='$(basename "${this_file}")',
-    description='Run the CO𝘕CEPT code',
+    description='Run the ${esc_concept} code',
 )
 parser.add_argument(
     '-c', '--command-line-params',
@@ -800,7 +808,7 @@ sys.stdout = stdout_copy
 # Print out the arguments.
 # These will be captured in the Bash 'args' variable
 print('; '.join([
-    \"argparse_finished=yes\",
+    \"argparse_finished=True\",
     \"command_line_params='{}'\".format(' ; '.join(args.command_line_params).replace(\"'\", '\"')),
     \"interactive={}\".format(args.interactive),
     \"job_directive='{}'\".format(' ; '.join(args.job_directive).replace(\"'\", '\"')),
@@ -827,7 +835,7 @@ print('; '.join([
 eval "${args}"
 
 # Exit if argparse exited without finishing
-if [ "${argparse_finished}" != "yes" ]; then
+if [ "${argparse_finished}" != "True" ]; then
     if [ -z "${argparse_exit_code}" ]; then
         argparse_exit_code=0
     fi
@@ -1189,7 +1197,7 @@ test:
             exit_code="$(echo "${make_output}" | grep "concept_exit_code" \
                 | awk '{print $NF}' || :)"
             if [ "${exit_code}" != "0" ]; then
-                colorprint "Failed to compile CO𝘕CEPT!" "red"
+                colorprint "Failed to compile ${esc_concept}!" "red"
                 exit 1
             fi
             if [[ "${make_output}" == *"Building modules"* ]]; then
@@ -1455,13 +1463,12 @@ pure_python='${pure_python}'
 cd \"\${logs_dir}\"
 
 # Print start messages
-if [ \"\${pure_python}\" == \"True\" ]; then
-    colorprint \"Running CO𝘕CEPT job \${jobid} in pure Python mode remotely on \$(hostname -f)\" \
-               \"yellow\" > \"\${logs_dir}/\${jobid}\"
-else
-    colorprint \"Running CO𝘕CEPT job \${jobid} remotely on \$(hostname -f)\" \
-               \"yellow\" > \"\${logs_dir}/\${jobid}\"
-fi
+pure_python_msg=\"\"
+[ \"\${pure_python}\" == \"True\" ] && pure_python_msg=\" in pure Python mode\"
+colorprint                                                                                   \\
+    \"Running \${esc_concept} job \${jobid}\${pure_python_msg} remotely on \$(hostname -f)\" \\
+    \"yellow\"                                                                               \\
+    > \"\${logs_dir}/\${jobid}\"
 echo \"Entry point:    \\\\\"\${main_rel}\\\\\"\" >> \"\${logs_dir}/\${jobid}\"
 if [ \"\${params_rel}\" == \"None\" ]; then
     echo \"Parameter file: \${params_rel}\" >> \"\${logs_dir}/\${jobid}\"
@@ -1519,12 +1526,18 @@ if [ -f \"\${logs_dir}/\${jobid}_err\" ] && [ ! -s \"\${logs_dir}/\${jobid}_err\
     # Remove error log if empty
     rm \"\${logs_dir}/\${jobid}_err\"
 else
-    colorprint \"\\\nSome warnings/errors occured during CO𝘕CEPT run!\" \"red\" \
-               >> \"\${logs_dir}/\${jobid}\" 2>&1
-    colorprint \"Check the following error log for more information:\"  \"red\" \
-               >> \"\${logs_dir}/\${jobid}\" 2>&1
-    colorprint \"\\\\\"\${logs_dir}/\${jobid}_err\\\\\"\"               \"red\" \
-               >> \"\${logs_dir}/\${jobid}\" 2>&1
+    colorprint                                                           \\
+        \"\\\nSome warnings/errors occured during \${esc_concept} run!\" \\
+        \"red\"                                                          \\
+        >> \"\${logs_dir}/\${jobid}\" 2>&1
+    colorprint                                                  \\
+        \"Check the following error log for more information:\" \\
+        \"red\"                                                 \\
+        >> \"\${logs_dir}/\${jobid}\" 2>&1
+    colorprint                                     \\
+        \"\\\\\"\${logs_dir}/\${jobid}_err\\\\\"\" \\
+        \"red\"                                    \\
+        >> \"\${logs_dir}/\${jobid}\" 2>&1
 fi
 " > "${jobscript}"
     # Exit now if no resource manager was found
@@ -1602,18 +1615,16 @@ print(f'{jobid:.0f}')
     fi
     # Print start message
     echo
-    if [ "${pure_python}" == "True" ]; then
-        colorprint "Running CO𝘕CEPT in pure Python mode" "yellow" | tee    "${logs_dir}/${jobid}"
-    else
-        colorprint "Running CO𝘕CEPT" "yellow"                     | tee    "${logs_dir}/${jobid}"
-    fi
-    echo "Entry point:    \"${main_rel}\""                        | tee -a "${logs_dir}/${jobid}"
+    pure_python_msg=""
+    [ "${pure_python}" == "True" ] && pure_python_msg=" in pure Python mode"
+    colorprint "Running ${esc_concept}${pure_python_msg}" "yellow" | tee    "${logs_dir}/${jobid}"
+    echo "Entry point:    \"${main_rel}\""                         | tee -a "${logs_dir}/${jobid}"
     if [ "${params_rel}" == "None" ]; then
-        echo "Parameter file: ${params_rel}"                      | tee -a "${logs_dir}/${jobid}"
+        echo "Parameter file: ${params_rel}"                       | tee -a "${logs_dir}/${jobid}"
     else
-        echo "Parameter file: \"${params_rel}\"${params_cp_info}" | tee -a "${logs_dir}/${jobid}"
+        echo "Parameter file: \"${params_rel}\"${params_cp_info}"  | tee -a "${logs_dir}/${jobid}"
     fi
-    echo "Log file:       \"${logs_dir_rel}/${jobid}\""           | tee -a "${logs_dir}/${jobid}"
+    echo "Log file:       \"${logs_dir_rel}/${jobid}\""            | tee -a "${logs_dir}/${jobid}"
     # Prepare Python options
     if [ "${main_as_command}" == "yes" ]; then
         # Run main as Python command
@@ -1686,7 +1697,7 @@ print(f'{jobid:.0f}')
             # Remove error log if empty
             rm "${logs_dir}/${jobid}_err"
         else
-            colorprint "\nSome warnings/errors occured during CO𝘕CEPT run!\n\
+            colorprint "\nSome warnings/errors occured during ${esc_concept} run!\n\
 Check the following error log for more information:\n\
 \"${logs_dir}/${jobid}_err\"" "red" 2>&1 | tee -a "${logs_dir}/${jobid}" 1>&2
         fi

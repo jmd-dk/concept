@@ -25,8 +25,8 @@ RUN : \
 
 # Set up:
 #  - CO𝘕CEPT and Python environment
-#  - bash autocompletion
-#  - bash history search with ↑↓
+#  - Bash autocompletion
+#  - Bash history search with ↑↓
 #  - color prompt
 RUN : \
     && sed -i "1i source \"${top_dir}/concept/concept\"" ~/.bashrc \
@@ -43,5 +43,6 @@ WORKDIR "${top_dir}/concept"
 # Cleanup
 RUN : \
     && rm -rf /var/lib/apt/lists/* \
-    && rm -rf /source
+    && rm -rf /source \
+    && rm -f ${top_dir}/install_log*
 

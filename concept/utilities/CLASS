@@ -58,7 +58,7 @@ if [ "${called_from_concept}" == "True" ]; then
 fi
 
 # Use Python's argparse module to handle command-line arguments
-argparse_finished="no"
+argparse_finished="False"
 argparse_exit_code=""
 args=$("${python}" -B -c "
 import argparse, sys
@@ -74,8 +74,10 @@ def gauge(value):
         raise_argparse_exception()
     return value
 # Setup command-line arguments
-parser = argparse.ArgumentParser(prog='$(basename "${this_file}")',
-                                 description='Run the CO𝘕CEPT $(basename "${this_file}") utility')
+parser = argparse.ArgumentParser(
+    prog='$(basename "${this_file}")',
+    description='Run the ${esc_concept} $(basename "${this_file}") utility',
+)
 parser.add_argument(
     'perturbations',
     default='',
@@ -121,7 +123,7 @@ else:
 sys.stdout = stdout_copy
 # Print out the arguments.
 # These will be captured in the Bash 'args' variable.
-print('argparse_finished=yes')
+print('argparse_finished=True')
 print(f'perturbations=\"{args.perturbations}\"')
 print(f'gauge={args.gauge}')
 print(f'ntimes={args.ntimes}')
@@ -129,7 +131,7 @@ print(f'ntimes={args.ntimes}')
 # Evaluate the handled arguments into this scope
 eval "${args}"
 # Exit if argparse exited without finishing
-if [ "${argparse_finished}" != "yes" ]; then
+if [ "${argparse_finished}" != "True" ]; then
     if [ -z "${argparse_exit_code}" ]; then
         argparse_exit_code=0
     fi
