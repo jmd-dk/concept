@@ -61,7 +61,7 @@ fi
 default_framerate=5
 
 # Use Python's argparse module to handle command-line arguments
-argparse_finished="no"
+argparse_finished="False"
 argparse_exit_code=""
 args=$("${python}" -B -c "
 import argparse, sys
@@ -81,8 +81,10 @@ def positive_float(value):
         raise_argparse_exception()
     return final_value
 # Setup command-line arguments
-parser = argparse.ArgumentParser(prog='$(basename "${this_file}")',
-                                 description='Run the CO𝘕CEPT $(basename "${this_file}") utility')
+parser = argparse.ArgumentParser(
+    prog='$(basename "${this_file}")',
+    description='Run the ${esc_concept} $(basename "${this_file}") utility',
+)
 parser.add_argument('path',
                     help='path to log file or log file name to play',
                     nargs='?',
@@ -114,7 +116,7 @@ else:
 sys.stdout = stdout_copy
 # Print out the arguments.
 # These will be captured in the Bash 'args' variable.
-print('argparse_finished=yes')
+print('argparse_finished=True')
 print('path=\"{}\"'.format(args.path))
 print('framerate={}'.format(args.frame_rate))
 print('component_combination=\"{}\"'.format(args.component))
@@ -122,7 +124,7 @@ print('component_combination=\"{}\"'.format(args.component))
 # Evaluate the handled arguments into this scope
 eval "${args}"
 # Exit if argparse exited without finishing
-if [ "${argparse_finished}" != "yes" ]; then
+if [ "${argparse_finished}" != "True" ]; then
     if [ -z "${argparse_exit_code}" ]; then
         argparse_exit_code=0
     fi
