@@ -2835,12 +2835,14 @@ def get_archived_k_parameters(gridsize, allow_decrease=False):
     posⁱ='double*',
     posʲ='double*',
     processed_specific_multi_index=object,  # tuple or str
+    reuse_slab_structure='bint',
     slab='double[:, :, ::1]',
     slab_jik='double*',
     sqrt_power='double',
     sqrt_power_common='double[::1]',
     slab_structure='double[:, :, ::1]',
     slab_structure_info=dict,
+    slab_structure_name=str,
     structure_jik='double*',
     tensor_rank='int',
     transfer='double',
@@ -2954,12 +2956,10 @@ def realize(
             'compoundorder',
         }:
             abort(f'realize() did not understand realization option "{option_key}"')
-    if options['structure'] not in ('primordial', 'nonlinear'):
-        abort('Unrecognized value "{}" for options["structure"]'
-            .format(options['structure']))
-    if options['compoundorder'] not in ('linear', 'nonlinear'):
-        abort('Unrecognized value "{}" for options["compound-order"]'
-            .format(options['compoundorder']))
+    if options['structure'] not in {'primordial', 'nonlinear'}:
+        abort(f'Unrecognized value "{options["structure"]}" for options["structure"]')
+    if options['compoundorder'] not in {'linear', 'nonlinear'}:
+        abort(f'Unrecognized value "{options["compoundorder"]}" for options["compound-order"]')
     options['velocitiesfromdisplacements'] = bool(options['velocitiesfromdisplacements'])
     # Get the index of the fluid variable to be realized
     # and print out progress message.
@@ -3150,32 +3150,30 @@ def realize(
     # real-space mean value of zero of the realized variable.
     sqrt_power_common[0] = 0
     # Fetch a slab decomposed grid for storing the entirety of what is
-    # to be inverse Fourier transformed. As we cannot reuse data from
-    # previous calls, we do not pass in a specific buffer name.
+    # to be inverse Fourier transformed.
     slab = get_fftw_slab(gridsize)
-    # Fetch a slab decomposed grid for storing the structure. If this is
-    # the first time we perform a realization of this size, the grid
-    # will be allocated, otherwise the previous grid will be returned,
-    # still containing the previous data.
-    slab_structure = get_fftw_slab(gridsize, 'slab_structure')
-    # Information about the data from the previous call
-    # is stored in the module level slab_structure_previous_info dict.
-    # To see if we can reuse the slab_structure as is, we compare this
-    # information with that of the current realization.
-    slab_structure_info = {
-        'structure': options['structure'],
-        'a': a,
-        'use_gridˣ': use_gridˣ,
-        'gridsize': gridsize,
-    }
-    if slab_structure_info['structure'] == 'primordial':
-        # The slab_structure contain no non-linear information,
-        # and so it is of no importance at what time slab_structure
-        # was made, or whether using the starred or unstarred grids.
-        slab_structure_info['a'] = None
-        slab_structure_info['use_gridˣ'] = None
-    if slab_structure_info != slab_structure_previous_info:
-        # Populate slab_structure with either ℛ(k⃗) or ℱₓ[ϱ(x⃗)]
+    # Fetch a slab decomposed grid for storing the structure
+    slab_structure_name = 'slab_structure'
+    if options['structure'] == 'primordial':
+        if fourier_structure_caching.get('primordial'):
+            slab_structure_name += '_primordial'
+        slab_structure_info = {'structure': 'primordial'}
+    elif options['structure'] == 'nonlinear':
+        if is_selected(component, fourier_structure_caching):
+            slab_structure_name += f'_nonlinear_{component.name}'
+        slab_structure_info = {
+            'structure': 'nonlinear',
+            'component': component.name,
+            'a'        : a,
+            'use_gridˣ': use_gridˣ,
+        }
+    reuse_slab_structure = (
+        slab_structure_infos.get((gridsize, slab_structure_name)) == slab_structure_info
+    )
+    slab_structure_infos[gridsize, slab_structure_name] = slab_structure_info
+    slab_structure = get_fftw_slab(gridsize, slab_structure_name)
+    # Repopulate the slab structure if we cannot reuse it
+    if not reuse_slab_structure:
         if options['structure'] == 'primordial':
             # Populate slab_structure with primordial noise ℛ(k⃗)
             generate_primordial_noise(slab_structure)
@@ -3184,15 +3182,16 @@ def realize(
             masterprint(
                 f'Extracting structure from ϱ{"ˣ" if use_gridˣ else ""} of {component.name} ...'
             )
-            slab_decompose(component.ϱ.gridˣ_mv if use_gridˣ else component.ϱ.grid_mv,
-                slab_structure)
+            slab_decompose(
+                component.ϱ.gridˣ_mv if use_gridˣ else component.ϱ.grid_mv,
+                slab_structure,
+            )
             fft(slab_structure, 'forward')
             masterprint('done')
         # Remove the k⃗ = 0⃗ mode, leaving ℱₓ[δϱ(x⃗)]
         if master:
             slab_structure[0, 0, 0] = 0  # Real part
             slab_structure[0, 0, 1] = 0  # Imag part
-    slab_structure_previous_info.update(slab_structure_info)
     # Allocate 3-vectors which will store components
     # of the k vector (in grid units).
     k_gridvec_arr = empty(3, dtype=C2np['Py_ssize_t'])
@@ -3560,8 +3559,8 @@ def realize(
     ):
         exchange(component, reset_buffers=True)
 # Module level variable used by the realize function
-cython.declare(slab_structure_previous_info=dict)
-slab_structure_previous_info = {}
+cython.declare(slab_structure_infos=dict)
+slab_structure_infos = {}
 
 # Function that populates the passed slab decomposed grid
 # with primordial noise ℛ(k⃗).
@@ -4011,7 +4010,7 @@ for class_extra_perturbation in class_extra_perturbations:
             perturbation_name = ''
         if not perturbation_name:
             abort(
-                f'Failed to generate CO𝘕CEPT name '
+                f'Failed to generate {esc_concept} name '
                 f'for CLASS peturbation "{class_extra_perturbation}"'
             )
         transferfunction_info = register(perturbation_name, class_extra_perturbation)

@@ -223,6 +223,10 @@ fftw_wisdom_reuse = True            # Reuse FFTW wisdom from earlier runs?
 random_seed = 1                     # Seed for pseudo-random numbers
 primordial_amplitude_fixed = False  # Replace Gaussian noise with noise of fixed amplitude and uniform random phase?
 primordial_phase_shift = 0          # Phase shift when using fixed amplitude (set to π for paired simulations)
+fourier_structure_caching = {       # Cache and reuse primordial and component-specific Fourier grids?
+    'primordial': True,
+    'all'       : True,
+}
 fluid_scheme_select = {             # Fluid evolution scheme for each component
     'all': 'MacCormack',
 }

@@ -499,7 +499,6 @@ else
     esc_concept="${esc_concept//\$\{esc_italic\}/${esc_italic}}"
     esc_concept="${esc_concept//\$\{esc_no_italic\}/${esc_no_italic}}"
 fi
-
 # Text colors
 esc_red="${esc}[91m"
 esc_green="${esc}[92m"

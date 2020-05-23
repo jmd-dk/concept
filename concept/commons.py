@@ -393,9 +393,25 @@ for func in ('tight_layout', 'savefig'):
 #############################
 # Print and abort functions #
 #############################
-# The ANSI ESC character used for ANSI/VT100 control sequences
-cython.declare(ANSI_ESC=str)
-ANSI_ESC = '\x1b'
+# ANSI/VT100 escape sequences (when blessings are not enough)
+cython.declare(
+    esc=str,
+    esc_normal=str,
+    esc_italic=str,
+    esc_no_italic=str,
+    esc_grey=str,
+    esc_background=str,
+    esc_concept=str,
+    esc_set_color=str,
+)
+esc = '\x1b'
+esc_normal     = f'{esc}[0m'
+esc_italic     = f'{esc}[3m'
+esc_no_italic  = f'{esc}[23m'
+esc_grey       = f'{esc}[37m'
+esc_background = f'{esc}[48;5;{{}}m'
+esc_set_color  = f'{esc}]4;{{}};rgb:{{}}/{{}}/{{}}{esc}\\'
+esc_concept    = f'CO{esc_italic}N{esc_no_italic}CEPT'
 # Function which takes in a previously saved time as input
 # and returns the time which has elapsed since then, nicely formatted.
 def time_since(initial_time):
@@ -476,7 +492,7 @@ def fancyprint(
         text = ' {{}}({}){{}}'.format(time_since(progressprint['time'].pop()))
         text_length = len(text) - 4
         if enable_terminal_formatting:
-            text = text.format(f'{ANSI_ESC}[37m', f'{ANSI_ESC}[0m')
+            text = text.format(esc_grey, esc_normal)
         else:
             text = text.format('', '')
         if len(args) > N_args_usual:
@@ -1985,6 +2001,7 @@ cython.declare(
     random_seed='unsigned long int',
     primordial_amplitude_fixed='bint',
     primordial_phase_shift='double',
+    fourier_structure_caching=dict,
     fluid_scheme_select=dict,
     fluid_options=dict,
     class_k_max=dict,
@@ -2526,6 +2543,18 @@ primordial_amplitude_fixed = bool(user_params.get('primordial_amplitude_fixed', 
 user_params['primordial_amplitude_fixed'] = primordial_amplitude_fixed
 primordial_phase_shift = np.mod(float(user_params.get('primordial_phase_shift', 0)), 2*π)
 user_params['primordial_phase_shift'] = primordial_phase_shift
+fourier_structure_caching = {'primordial': True, 'all': True}
+if user_params.get('fourier_structure_caching'):
+    if isinstance(user_params['fourier_structure_caching'], dict):
+        fourier_structure_caching = user_params['fourier_structure_caching']
+        replace_ellipsis(fourier_structure_caching)
+    else:
+        fourier_structure_caching = {
+            'primordial': user_params['fourier_structure_caching'],
+            'all'       : user_params['fourier_structure_caching'],
+        }
+fourier_structure_caching['default'] = True
+user_params['fourier_structure_caching'] = fourier_structure_caching
 fluid_scheme_select = {'all': 'MacCormack'}
 if user_params.get('fluid_scheme_select'):
     if isinstance(user_params['fluid_scheme_select'], dict):
@@ -3035,20 +3064,20 @@ for class_param in ('H0', 'h', 'theta_s'):
     if class_param in class_params:
         masterwarn(
             f'You have specified the Hubble constant by declaring "{class_param}" in '
-            f'class_params. You should instead define H0 as a normal CO𝘕CEPT parameter.'
+            f'class_params. You should instead define H0 as a normal {esc_concept} parameter.'
         )
 for class_param in ('Omega_b', 'omega_b'):
     if class_param in class_params:
         masterwarn(
             f'You have specified the baryon density parameter by declaring "{class_param}" in '
-            f'class_params. You should instead define Ωb as a normal CO𝘕CEPT parameter.'
+            f'class_params. You should instead define Ωb as a normal {esc_concept} parameter.'
         )
 for class_param in ('Omega_cdm', 'omega_cdm'):
     if class_param in class_params:
         masterwarn(
             f'You have specified the cold dark matter density parameter by declaring '
             f'"{class_param}" in class_params. You should instead define Ωcdm as a normal '
-            f'CO𝘕CEPT parameter.'
+            f'{esc_concept} parameter.'
         )
 # Update class_params with default values. This has already been done
 # before for the version of class_params inside of user_params.
@@ -3111,8 +3140,8 @@ def call_class(extra_params=None, sleep_time=0.1, mode='single node', class_call
         if param in params_specialized:
             masterwarn(
                 f'The CLASS parameter "{param}" was specified. This will not change the CLASS '
-                f'computation. To specify "{param}" for a CO𝘕CEPT simulation, specify it in the '
-                f'"primordial_spectrum" dict.'
+                f'computation. To specify "{param}" for a {esc_concept} simulation, '
+                f'specify it in the "primordial_spectrum" dict.'
             )
     # If non-cdm perturbations should be computed, the CLASS run
     # may take quite some time to finish. Class has been patched to

@@ -1892,8 +1892,11 @@ if jobid != -1:
         # Simulation done
         universals.any_warnings = allreduce(universals.any_warnings, op=MPI.LOR)
         if universals.any_warnings:
-            masterprint(f'CO𝘕CEPT run {jobid} finished')
+            masterprint(f'{esc_concept} run {jobid} finished')
         else:
-            masterprint(f'CO𝘕CEPT run {jobid} finished successfully', fun=terminal.bold_green)
+            masterprint(
+                f'{esc_concept} run {jobid} finished successfully',
+                fun=terminal.bold_green,
+            )
     # Shutdown CO𝘕CEPT properly
     abort(exit_code=0)
