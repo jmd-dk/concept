@@ -366,7 +366,7 @@ def plot_processed_perturbations(
     projection='double[:, ::1]',
     projection_terminal='double[:, ::1]',
     row='double[::1]',
-    terminal_projection_ANSI=list,
+    terminal_projection_ansi=list,
     value='double',
     vmax='double',
     vmax_terminal='double',
@@ -580,7 +580,7 @@ def render2D(components, filename):
             # We need to map the values between vmin and vmax to
             # the 238 higher integer color numbers 18–255 (the lowest 18
             # color numbers are already occupied).
-            terminal_projection_ANSI = []
+            terminal_projection_ansi = []
             for     i in range(ℤ[projection_terminal.shape[0]]):
                 for j in range(ℤ[projection_terminal.shape[1]]):
                     value = projection_terminal[i, j]
@@ -593,11 +593,11 @@ def render2D(components, filename):
                         'int',
                     )
                     # Insert a space with colored background
-                    terminal_projection_ANSI.append(f'{ANSI_ESC}[48;5;{colornumber}m ')
+                    terminal_projection_ansi.append(esc_background.format(colornumber) + ' ')
                 # Insert newline with no background color
-                terminal_projection_ANSI.append(f'{ANSI_ESC}[0m\n')
+                terminal_projection_ansi.append(f'{esc_normal}\n')
             # Print the ANSI image to the terminal
-            masterprint(''.join(terminal_projection_ANSI), end='', indent=-1, wrap=False)
+            masterprint(''.join(terminal_projection_ansi), end='', indent=-1, wrap=False)
         # Save colorized image to disk
         if is_selected(component_combination, render2D_image_select):
             # The filename should reflect the component combination
@@ -933,13 +933,10 @@ def set_terminal_colormap(colormap):
     """
     if not master:
         return
-    colormap_ANSI = getattr(matplotlib.cm, colormap)(linspace(0, 1, 238))[:, :3]
-    for i, rgb in enumerate(colormap_ANSI):
+    colormap_ansi = getattr(matplotlib.cm, colormap)(linspace(0, 1, 238))[:, :3]
+    for i, rgb in enumerate(colormap_ansi):
         colorhex = matplotlib.colors.rgb2hex(rgb)
-        statechange = (
-            f'{ANSI_ESC}]4;{18 + i};rgb:'
-            f'{colorhex[1:3]}/{colorhex[3:5]}/{colorhex[5:]}{ANSI_ESC}\\'
-        )
+        statechange = esc_set_color.format(18 + i, *[colorhex[c:c+2] for c in range(1, 7, 2)])
         # As this does not actually print anything on the screen,
         # we use the normal print function as to not mess with the
         # bookkeeping inside fancyprint.
