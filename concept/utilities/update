@@ -191,7 +191,13 @@ fi
 
 # Download the installer script from the specified version
 rm -rf "${top_dir}/tmp/installer"
-download "installer" "False" "${installer_url}" 2>/dev/null
+use_current_installer="False"
+if [ "${use_current_installer}" == "True" ]; then
+    mkdir -p "${top_dir}/tmp/installer"
+    cp "${installer}" "${top_dir}/tmp/installer/"
+else
+    download "installer" "False" "${installer_url}" 2>/dev/null
+fi
 
 # Get and print out update information
 current_version="$("${concept}" -v | tail -n 1 || :)"

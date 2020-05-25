@@ -460,6 +460,7 @@ def fancyprint(
     ensure_newline_after_ellipsis=True,
     is_warning=False,
     bullet='',
+    do_print=True,
     **kwargs,
 ):
     if bullet:
@@ -655,7 +656,10 @@ def fancyprint(
                 if re.search(pattern, text_linearized):
                     return
         # Print out message
-        print(text, flush=True, end='', **kwargs)
+        if do_print:
+            print(text, flush=True, end='', **kwargs)
+        else:
+            return text
 progressprint = {
     'maxintervallength'              : len(' (??? ms)'),
     'time'                           : [],
@@ -3271,13 +3275,28 @@ def call_class(extra_params=None, sleep_time=0.1, mode='single node', class_call
             )
     # Instantiate a classy.Class instance and populate it with the
     # CLASS parameters. Feed the Class instance with information about
-    # the local node (number) and current terminal indentation due to
-    # progress printing, enabling it to write out nice status updates.
-    # No line wrapping will be performed, but usually the progress print
-    # indentation level is not deep enough at this point to make the
-    # Class output exceed the terminal width.
-    cosmo = Class(node=node, num_threads=num_threads,
-        indentation=bcast(progressprint['indentation']))
+    # the local node (number) and number of threads (processes on the
+    # local node), as well as the progress message to write during
+    # perturbation computation.
+    message = ''
+    if 'k_output_values' in params_specialized:
+        if master:
+            modes_max = np.max([
+                len(k_output_values_other_node)
+                for k_output_values_other_node in k_output_values_nodes
+            ])
+            inserts = [
+                '%{}d'.format(len(str(nnodes - 1))),
+                '%{}d'.format(len(str(np.max(nprocs_nodes) - 1))),
+                '%.3e',
+                *(2*['%{}d'.format(len(str(modes_max + 1)))]),
+            ]
+            message = 'Node {}, thread {}: Evolving mode k = {}/Mpc ({}/{})\n'.format(*inserts)
+            message = fancyprint(message % ((0, )*len(inserts)), do_print=False)
+            for insert in inserts:
+                message = re.subn((insert%0).replace('+', '\+'), insert, message, 1)[0]
+        message = bcast(message)
+    cosmo = Class(node=node, num_threads=num_threads, message=message)
     cosmo.set(params_specialized)
     # Call cosmo.compute in such a way as to allow
     # for OpenMP parallelization.
@@ -3711,6 +3730,25 @@ def align_text(lines, alignat='$', indent=0, rstrip=True, handle_numbers=True):
     strip = ' ,:%\n'
     if handle_numbers:
         for i in range(n_parts_max):
+            # Only do number-alignment
+            # if all rows in the column are numbers.
+            all_are_nums = False
+            for j, parts in enumerate(lines):
+                if len(parts) <= i:
+                    continue
+                part = parts[i]
+                num = part.rstrip(strip)
+                if '×' in num:
+                    num = num[:num.index('×')]
+                try:
+                    float(num)
+                except:
+                    all_are_nums = False
+                    break
+                all_are_nums = True
+            if not all_are_nums:
+                continue
+            # All rows in this column are numbers
             dot_locations = {}
             for j, parts in enumerate(lines):
                 if len(parts) <= i:
@@ -4333,21 +4371,17 @@ def commons_flood():
 if jobid != -1:
     # Print out MPI process mapping
     if master:
-        masterprint('MPI layout:')
-        node_name_max_length = np.max(
-            [len(other_node_name) for other_node_name in node_names2numbers.keys()]
-        )
+        lines = []
         for other_node in range(nnodes):
             other_node_name = node_numbers2names[other_node]
-            spaces = ' '*(node_name_max_length - len(other_node_name))
             other_ranks = np.where(asarray(nodes) == other_node)[0]
-            masterprint(
-                f'Node {other_node} ({other_node_name}):{spaces}',
-                ('Process' if nnodes == 1 else 'Process  ')
-                if len(other_ranks) == 1 else 'Processes',
-                get_integerset_strrep(other_ranks),
-                indent=4,
-                )
+            lines.append(''.join([
+                f'Node ${other_node}: $({other_node_name}): ',
+                '$Process ' if len(other_ranks) == 1 else '$Processes ',
+                '$', get_integerset_strrep(other_ranks),
+            ]))
+        masterprint('MPI layout:')
+        masterprint('\n'.join(align_text(lines)), indent=4)
     # Print out proper inferred variables
     # (those which did not just get their default value).
     inferred_params_units = DictWithCounter(

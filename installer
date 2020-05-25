@@ -397,20 +397,20 @@ fi
 set_version "ncurses"           "6.2"     "6.2"
 set_version "openssl"           "1.1.1g"  "1.1.1f"
 set_version "perl"              "5.30.2"
-set_version "python"            "3.8.2"
+set_version "python"            "3.8.3"
 set_version "zlib"              "1.2.11"  "1.2.11"
 # Python packages
 set_version "blessings"         "1.7"
-set_version "cython"            "0.29.17"
+set_version "cython"            "0.29.19"
 set_version "cythongsl"         "0.2.2"
 set_version "h5py"              "2.10.0"
 set_version "matplotlib"        "3.2.1"
 set_version "mpi4py"            "3.0.3"
 set_version "numpy"             "1.18.4"
-set_version "pip"               "20.1"
+set_version "pip"               "20.1.1"
 set_version "pytest"            "5.4.2"
 set_version "scipy"             "1.4.1"
-set_version "setuptools"        "46.2.0"
+set_version "setuptools"        "46.4.0"
 set_version "sphinx"            "3.0.3"
 set_version "sphinx_copybutton" "0.2.11"
 set_version "sphinx_rtd_theme"  "0.4.3"
@@ -7945,14 +7945,14 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
         "if (0 == 1) {  /* (ppt->gauge == synchronous) { */" \
     )
     patch_class "${class_dir}/source/perturbations.c" ${linenr} "replace" "below" "${new_lines[@]}"
-    # Add integers 'node', 'num_threads' and 'indentation' to the
-    # classy.Class initializer as optional arguments and store them in
-    # the 'background' struct. Here 'node' and 'indentation' will be
-    # used to make CLASS print out correctly indented (with regard to
-    # CO𝘕CEPT) status updates during perturbation computations, when the
-    # perturbations_verbose parameter is negative. The 'num_threads'
-    # integer will hold the number of MPI processes on the local node,
-    # which signals the number of OpenMP threads to use.
+    # Add 'node', 'num_threads' and 'message' to the classy.Class
+    # initializer as optional arguments and store them in the
+    # 'background' struct. The 'num_threads' integer will hold the
+    # number of MPI processes on the local node, which signals the
+    # number of OpenMP threads to use. All three variables will be used
+    # to make CLASS print out status updates during perturbation
+    # computations, when the perturbations_verbose parameter
+    # is negative.
     linenr_1="$(grep -n 'struct background' "${class_dir}/include/background.h" | head -n 1)"
     linenr_1="${linenr_1%%:*}"
     i=0
@@ -7969,19 +7969,21 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
         " * Used to set number of OpenMP threads and to print" \
         " * status updates during perturbation computations."  \
         " */"                                                  \
-        "int node, num_threads, indentation;"                  \
+        "int node, num_threads;"                               \
+        "char* message;"                                       \
     )
     patch_class "${class_dir}/include/background.h" ${linenr_2} "insert" "below" "${new_lines[@]}"
     linenr="$(grep -n "__cinit__" "${class_dir}/python/classy.pyx")"
     linenr="${linenr%%:*}"
     sed -i "${linenr}s/.*/    def __cinit__(self, \
-        default=False, node=0, num_threads=1, indentation=0): \
+        default=False, node=0, num_threads=1, message=''): \
         # Changed for use with CONCEPT/" "${class_dir}/python/classy.pyx"
     ((linenr += 1))
-    new_lines=(                                  \
-        "self.ba.node = <int>node"               \
-        "self.ba.num_threads = <int>num_threads" \
-        "self.ba.indentation = <int>indentation" \
+    new_lines=(                                                            \
+        "self.ba.node = <int>node"                                         \
+        "self.ba.num_threads = <int>num_threads"                           \
+        "self.ba.message = <char*>malloc((len(message) + 1)*sizeof(char))" \
+        "strcpy(self.ba.message, message.encode())"                        \
     )
     patch_class "${class_dir}/python/classy.pyx" ${linenr} "insert" "below" "${new_lines[@]}"
     linenr_1="$(grep -n 'cdef struct background:' "${class_dir}/python/cclassy.pxd")"
@@ -8011,26 +8013,25 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
     new_lines=(           \
         "int node"        \
         "int num_threads" \
-        "int indentation" \
+        "char* message"   \
     )
     patch_class "${class_dir}/python/cclassy.pxd" ${linenr_2} "insert" "above" "${new_lines[@]}"
     linenr="$(grep -n 'for (index_k = ppt->k_size\[index_md\]-1; index_k >=0; index_k--)' \
         "${class_dir}/source/perturbations.c")"
     linenr="${linenr%%:*}"
     ((linenr += 1))
-    new_lines=(                                                                   \
-        "if ((abort == _FALSE_) && (ppt->perturbations_verbose < 0)) {"           \
-        "  printf("                                                               \
-        "    \"%*sNode %d, thread %d: Evolving mode k = %.3e/Mpc (%d/%d)\\\\n\"," \
-        "    pba->indentation, \"\","                                             \
-        "    pba->node,"                                                          \
-        "    thread,"                                                             \
-        "    ppt->k[index_md][index_k],"                                          \
-        "    index_k+1,"                                                          \
-        "    ppt->k_size[index_md]"                                               \
-        "  );"                                                                    \
-        "  fflush(stdout);"                                                       \
-        "}"                                                                       \
+    new_lines=(                                                         \
+        "if ((abort == _FALSE_) && (ppt->perturbations_verbose < 0)) {" \
+        "  printf("                                                     \
+        "    pba->message,"                                             \
+        "    pba->node,"                                                \
+        "    thread,"                                                   \
+        "    ppt->k[index_md][index_k],"                                \
+        "    index_k+1,"                                                \
+        "    ppt->k_size[index_md]"                                     \
+        "  );"                                                          \
+        "  fflush(stdout);"                                             \
+        "}"                                                             \
     )
     patch_class "${class_dir}/source/perturbations.c" ${linenr} "insert" "below" "${new_lines[@]}"
     pattern='#pragma *omp *parallel'
