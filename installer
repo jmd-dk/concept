@@ -5729,11 +5729,13 @@ install "libffi" compiler "${compiler_possibilities[@]}"
 
 # OpenBLAS
 blas_install_func() {
+    # Compile for multiple CPU architectures
+    openblas_make_options="DYNAMIC_ARCH=1 DYNAMIC_OLDER=1"
     # Due to the threading behaviour of Python,
     # we install a non-threaded version of OpenBLAS.
-    openblas_make_options="USE_THREAD=0"
-    # Disable AVX2 and AVX completely
-    openblas_make_options="${openblas_make_options} NO_AVX2=1 NO_AVX=1"
+    openblas_make_options="${openblas_make_options} USE_THREAD=0"
+    # Attempt build
+    openblas_make_options="${openblas_make_options} ${NO_AVX}"
     if [ "${openblas_gfortran}" == "True" ]; then
         export FC="gfortran"
         export F77="gfortran"
@@ -5757,10 +5759,11 @@ blas_install_func() {
     make PREFIX="${blas_dir}" install || return 1  # Should not be run in parallel
     # Note that OpenBLAS runs its test suite during the build
 }
-install "BLAS"                                  \
-    openblas_gfortran "True" "False"        ";" \
-    compiler "${compiler_possibilities[@]}" ";" \
-    openblas_BINARY "" "32"                 ";" \
+install "BLAS"                                                                           \
+    openblas_gfortran "True" "False"                                                 ";" \
+    compiler "${compiler_possibilities[@]}"                                          ";" \
+    openblas_BINARY "" "32"                                                          ";" \
+    NO_AVX "" "NO_AVX512=1" "NO_AVX2=1 NO_AVX512=1" "NO_AVX=1 NO_AVX2=1 NO_AVX512=1" ";" \
 
 # Python
 if [ "${python_install}" == "True" ]; then
