@@ -58,6 +58,9 @@ Options taken by this script:
 --native-optimizations Allow the compilation of the CO𝘕CEPT code to make use
                        of non-portable code optimizations targeted at
                        this machine.
+--slim                 Trim down the installation in order to save disk space.
+                       This removes uncritical content from all installed
+                       dependency programs and CO𝘕CEPT itself.
 
 The full invocation signature of this script thus looks like
   /path/to/installer [/path/to/concept] [-t] [-y]
@@ -357,7 +360,7 @@ env_file="__top_dir__/.env"
 paths_file="__top_dir__/.paths"
 
 # This function sets the variable "name_version" if not set already.
-# For preinstalled software, set "name_version" to "pre-installed".
+# For pre-installed software, set "name_version" to "pre-installed".
 # If a third argument is given, this is the version to fall back to,
 # in case of unsuccessful retrievel of the link to the first version.
 set_version(){
@@ -535,6 +538,138 @@ status_visible="${status_on}"
 status_finish="finish_successfully"
 status_installpid="installpid="
 
+# Set test_success variables
+blas_test_success="True"
+class_test_success="True"
+concept_test_success="True"
+fftw_test_success="True"
+fftw_for_gadget_test_success="True"
+freetype_test_success="True"
+gadget_test_success="True"
+gsl_test_success="True"
+hdf5_test_success="True"
+libffi_test_success="True"
+libpng_test_success="True"
+mpi_test_success="True"
+ncurses_test_success="True"
+openssl_test_success="True"
+perl_test_success="True"
+python_test_success="True"
+zlib_test_success="True"
+numpy_test_success="True"
+scipy_test_success="True"
+
+# Read in command-line arguments
+if [ -z "${do_tests}" ]; then
+    do_tests="False"
+fi
+if [ -z "${yes_to_defaults}" ]; then
+    yes_to_defaults="False"
+fi
+if [ -z "${fix_ssh}" ]; then
+    fix_ssh="False"
+fi
+if [ -z "${native_optimizations}" ]; then
+    native_optimizations="False"
+fi
+if [ -z "${slim}" ]; then
+    slim="False"
+fi
+if [ -z "${top_dir_specified}" ]; then
+    top_dir_specified="False"
+fi
+for var in "$@"; do
+    # Strip command-line argument for brackets, which may have been
+    # adeed by users not familiar with this syntax for
+    # specifying optional arguments.
+    var="${var//\[/}"
+    var="${var//\]/}"
+    # Parse command-line argument
+    if     [ "${var}" ==  "-t"     ] \
+        || [ "${var}" == "--t"     ] \
+        || [ "${var}" == "--te"    ] \
+        || [ "${var}" == "--tes"   ] \
+        || [ "${var}" == "--test"  ] \
+        || [ "${var}" == "--tests" ] \
+    ; then
+        do_tests="True"
+    elif   [ "${var}" ==  "-y"               ] \
+        || [ "${var}" == "--y"               ] \
+        || [ "${var}" == "--ye"              ] \
+        || [ "${var}" == "--yes"             ] \
+        || [ "${var}" == "--yes-"            ] \
+        || [ "${var}" == "--yes-t"           ] \
+        || [ "${var}" == "--yes-to"          ] \
+        || [ "${var}" == "--yes-to-"         ] \
+        || [ "${var}" == "--yes-to-d"        ] \
+        || [ "${var}" == "--yes-to-de"       ] \
+        || [ "${var}" == "--yes-to-def"      ] \
+        || [ "${var}" == "--yes-to-defa"     ] \
+        || [ "${var}" == "--yes-to-defau"    ] \
+        || [ "${var}" == "--yes-to-defaul"   ] \
+        || [ "${var}" == "--yes-to-default"  ] \
+        || [ "${var}" == "--yes-to-defaults" ] \
+    ; then
+        yes_to_defaults="True"
+    elif   [ "${var}" == "--f"       ] \
+        || [ "${var}" == "--fi"      ] \
+        || [ "${var}" == "--fix"     ] \
+        || [ "${var}" == "--fix-"    ] \
+        || [ "${var}" == "--fix-s"   ] \
+        || [ "${var}" == "--fix-ss"  ] \
+        || [ "${var}" == "--fix-ssh" ] \
+    ; then
+        fix_ssh="True"
+    elif   [ "${var}" == "--n"                    ] \
+        || [ "${var}" == "--na"                   ] \
+        || [ "${var}" == "--nat"                  ] \
+        || [ "${var}" == "--nati"                 ] \
+        || [ "${var}" == "--nativ"                ] \
+        || [ "${var}" == "--native"               ] \
+        || [ "${var}" == "--native-"              ] \
+        || [ "${var}" == "--native-o"             ] \
+        || [ "${var}" == "--native-op"            ] \
+        || [ "${var}" == "--native-opt"           ] \
+        || [ "${var}" == "--native-opti"          ] \
+        || [ "${var}" == "--native-optim"         ] \
+        || [ "${var}" == "--native-optimi"        ] \
+        || [ "${var}" == "--native-optimiz"       ] \
+        || [ "${var}" == "--native-optimiza"      ] \
+        || [ "${var}" == "--native-optimizat"     ] \
+        || [ "${var}" == "--native-optimizati"    ] \
+        || [ "${var}" == "--native-optimizatio"   ] \
+        || [ "${var}" == "--native-optimization"  ] \
+        || [ "${var}" == "--native-optimizations" ] \
+    ; then
+        native_optimizations="True"
+    elif   [ "${var}" == "--s"                    ] \
+        || [ "${var}" == "--sl"                   ] \
+        || [ "${var}" == "--sli"                  ] \
+        || [ "${var}" == "--slim"                 ] \
+    ; then
+        slim="True"
+    elif [ "${var}" == "--fast" ]; then
+        # This is a deprecated option for skipping tests,
+        # which is now the default. Allow it but do nothing.
+        :
+    elif [ "${top_dir_specified}" == "False" ]; then
+        top_dir="${var}"
+        top_dir_specified="True"
+    else
+        if [ "${var}" != "${top_dir}" ]; then
+            error "Got command-line argument \"${var}\", "\
+"but the installation path is already set to \"${top_dir}\""
+            exit 1
+        fi
+    fi
+done
+
+# Changes to initial environment variables due to command-line arguments
+if [ "${slim}" == "True" ]; then
+    export CFLAGS="${CFLAGS} -g0"
+    export LDFLAGS="${LDFLAGS} -Wl,--strip-all"
+fi
+
 # Backup of initial environment variables
 env_var_names=(      \
     BLAS             \
@@ -593,123 +728,6 @@ reset_environment(){
         fi
     done
 }
-
-# Set test_success variables
-blas_test_success="True"
-class_test_success="True"
-concept_test_success="True"
-fftw_test_success="True"
-fftw_for_gadget_test_success="True"
-freetype_test_success="True"
-gadget_test_success="True"
-gsl_test_success="True"
-hdf5_test_success="True"
-libffi_test_success="True"
-libpng_test_success="True"
-mpi_test_success="True"
-ncurses_test_success="True"
-openssl_test_success="True"
-perl_test_success="True"
-python_test_success="True"
-zlib_test_success="True"
-numpy_test_success="True"
-scipy_test_success="True"
-
-# Read in command line arguments
-if [ -z "${do_tests}" ]; then
-    do_tests="False"
-fi
-if [ -z "${yes_to_defaults}" ]; then
-    yes_to_defaults="False"
-fi
-if [ -z "${fix_ssh}" ]; then
-    fix_ssh="False"
-fi
-if [ -z "${native_optimizations}" ]; then
-    native_optimizations="False"
-fi
-if [ -z "${top_dir_specified}" ]; then
-    top_dir_specified="False"
-fi
-for var in "$@"; do
-    # Strip command line argument for brackets, which may have been
-    # adeed by users not familiar with this syntax for
-    # specifying optional arguments.
-    var="${var//\[/}"
-    var="${var//\]/}"
-    # Parse command line argument
-    if     [ "${var}" ==  "-t"     ] \
-        || [ "${var}" == "--t"     ] \
-        || [ "${var}" == "--te"    ] \
-        || [ "${var}" == "--tes"   ] \
-        || [ "${var}" == "--test"  ] \
-        || [ "${var}" == "--tests" ] \
-    ; then
-        do_tests="True"
-    elif   [ "${var}" ==  "-y"               ] \
-        || [ "${var}" == "--y"               ] \
-        || [ "${var}" == "--ye"              ] \
-        || [ "${var}" == "--yes"             ] \
-        || [ "${var}" == "--yes-"            ] \
-        || [ "${var}" == "--yes-t"           ] \
-        || [ "${var}" == "--yes-to"          ] \
-        || [ "${var}" == "--yes-to-"         ] \
-        || [ "${var}" == "--yes-to-d"        ] \
-        || [ "${var}" == "--yes-to-de"       ] \
-        || [ "${var}" == "--yes-to-def"      ] \
-        || [ "${var}" == "--yes-to-defa"     ] \
-        || [ "${var}" == "--yes-to-defau"    ] \
-        || [ "${var}" == "--yes-to-defaul"   ] \
-        || [ "${var}" == "--yes-to-default"  ] \
-        || [ "${var}" == "--yes-to-defaults" ] \
-    ; then
-        yes_to_defaults="True"
-    elif   [ "${var}" == "--f"       ] \
-        || [ "${var}" == "--fi"      ] \
-        || [ "${var}" == "--fix"     ] \
-        || [ "${var}" == "--fix-"    ] \
-        || [ "${var}" == "--fix-s"   ] \
-        || [ "${var}" == "--fix-ss"  ] \
-        || [ "${var}" == "--fix-ssh" ] \
-    ; then
-        fix_ssh="True"
-    elif   [ "${var}" == "--n"                    ] \
-        || [ "${var}" == "--na"                   ] \
-        || [ "${var}" == "--nat"                  ] \
-        || [ "${var}" == "--nati"                 ] \
-        || [ "${var}" == "--nativ"                ] \
-        || [ "${var}" == "--native"               ] \
-        || [ "${var}" == "--native-"              ] \
-        || [ "${var}" == "--native-o"             ] \
-        || [ "${var}" == "--native-op"            ] \
-        || [ "${var}" == "--native-opt"           ] \
-        || [ "${var}" == "--native-opti"          ] \
-        || [ "${var}" == "--native-optim"         ] \
-        || [ "${var}" == "--native-optimi"        ] \
-        || [ "${var}" == "--native-optimiz"       ] \
-        || [ "${var}" == "--native-optimiza"      ] \
-        || [ "${var}" == "--native-optimizat"     ] \
-        || [ "${var}" == "--native-optimizati"    ] \
-        || [ "${var}" == "--native-optimizatio"   ] \
-        || [ "${var}" == "--native-optimization"  ] \
-        || [ "${var}" == "--native-optimizations" ] \
-    ; then
-        native_optimizations="True"
-    elif [ "${var}" == "--fast" ]; then
-        # This is a deprecated option for skipping tests,
-        # which is now the default. Allow it but do nothing.
-        :
-    elif [ "${top_dir_specified}" == "False" ]; then
-        top_dir="${var}"
-        top_dir_specified="True"
-    else
-        if [ "${var}" != "${top_dir}" ]; then
-            error "Got command line argument \"${var}\", "\
-"but the installation path is already set to \"${top_dir}\""
-            exit 1
-        fi
-    fi
-done
 
 # Function for converting a path to its absolute form
 initial_dir="$(pwd)"  # It is crucial that this line is before any cd
@@ -1069,7 +1087,7 @@ build_sudo_func() {
 mpi_symlinkdir="${top_dir}/.mpi_symlinks"
 
 # Check whether system dependencies are installed and located on PATH
-current_step="check for preinstalled system dependencies"
+current_step="check for pre-installed system dependencies"
 # Check for package manager and set package names
 set_package_names(){
     # Arguments: Package name for awk, gcc, g++, gfortran, grep, gzip,
@@ -1118,7 +1136,7 @@ set_package_manager_and_names(){
             # Package names
             case "${package_manager}" in
                 "apt-get")
-                    install_command="${package_manager} -y install"
+                    install_command="${package_manager} -y install --no-install-recommends"
                     update_command="${package_manager} update"
                     set_package_names               \
                         "gawk"                      \
@@ -1137,7 +1155,7 @@ set_package_manager_and_names(){
                     break
                     ;;
                 "apt")
-                    install_command="${package_manager} install -y"
+                    install_command="${package_manager} install -y --no-install-recommends"
                     update_command="${package_manager} update"
                     set_package_names               \
                         "gawk"                      \
@@ -2781,8 +2799,7 @@ if [ "${concept_version_specified}" == "True" ]; then
             printf "\nCopying ${esc_concept} files from \"${top_dir_supplied}\" ...\n"
             rm -rf "${top_dir}/tmp/concept"
             mkdir -p "${top_dir}/tmp/concept/concept-supplied"
-            for f in         \
-                "COPYING"    \
+            files=(          \
                 "Dockerfile" \
                 "README.md"  \
                 "concept"    \
@@ -2791,7 +2808,11 @@ if [ "${concept_version_specified}" == "True" ]; then
                 ".github"    \
                 ".gitignore" \
                 ".paths"     \
-            ; do
+            )
+            if [ "${slim}" != "True" ]; then
+                files=("${files[@]}" "COPYING")
+            fi
+            for f in "${files[@]}"; do
                 f="${top_dir_supplied}/${f}"
                 if [ -f "${f}" ] || [ -d "${f}" ]; then
                     cp -r "${f}" "${top_dir}/tmp/concept/concept-supplied/"
@@ -5139,13 +5160,17 @@ install() {
     fi
     # Copy over license and readme files.
     # Get the directory from the test log path.
-    files_to_copy=(                                                                           \
-        "acknowledgement" "acknowledgements" "acknowledgment" "acknowledgments" "announce"    \
-        "announcement" "announcements" "author" "authors" "backers" "changelist"              \
-        "changelog" "changes" "contributing" "contributors" "copying" "copyright" "ftl" "gpl" \
-        "gplv2" "gplv3" "license" "new" "news" "readme" "thank" "thanks" "trademark"          \
-        "trademarks" "version"                                                                \
-    )
+    if [ "${slim}" == "True" ]; then
+        files_to_copy=()
+    else
+        files_to_copy=(                                                                           \
+            "acknowledgement" "acknowledgements" "acknowledgment" "acknowledgments" "announce"    \
+            "announcement" "announcements" "author" "authors" "backers" "changelist"              \
+            "changelog" "changes" "contributing" "contributors" "copying" "copyright" "ftl" "gpl" \
+            "gplv2" "gplv3" "license" "new" "news" "readme" "thank" "thanks" "trademark"          \
+            "trademarks" "version"                                                                \
+        )
+    fi
     if [ -n "${program_test_log}" ]; then
         program_dir="$(dirname "${program_test_log}")"
     else
@@ -5281,6 +5306,9 @@ zlib_install_func() {
         [ ${PIPESTATUS[0]} -eq 0 ] || test_success="False"
     fi
     make ${make_jobs} install 2>&1 || return 1
+    if [ "${slim}" == "True" ]; then
+        rm -rf "${zlib_dir}/share" || :
+    fi
 }
 install "zlib" compiler "${compiler_possibilities[@]}"
 
@@ -5297,6 +5325,9 @@ libpng_install_func() {
         [ ${PIPESTATUS[0]} -eq 0 ] || test_success="False"
     fi
     make ZLIBLIB="${ZLIBLIB}" ZLIBINC="${ZLIBINC}" ${make_jobs} install 2>&1 || return 1
+    if [ "${slim}" == "True" ]; then
+        rm -rf "${libpng_dir}/share" || :
+    fi
 }
 install "libpng" compiler "${compiler_possibilities[@]}"
 
@@ -5309,6 +5340,9 @@ gsl_install_func() {
         [ ${PIPESTATUS[0]} -eq 0 ] || test_success="False"
     fi
     make ${make_jobs} install 2>&1 || return 1
+    if [ "${slim}" == "True" ]; then
+        rm -rf "${gsl_dir}/share" || :
+    fi
 }
 install "GSL" compiler "${compiler_possibilities[@]}"
 
@@ -5395,6 +5429,9 @@ perl_install_func() {
         fi
     fi
     make ${make_jobs} install 2>&1 || return 1
+    if [ "${slim}" == "True" ]; then
+        rm -rf "${perl_dir}/man" || :
+    fi
 }
 libimf_dumped="False"
 install "Perl"                                  \
@@ -5430,6 +5467,9 @@ mpi_install_func() {
         [ ${PIPESTATUS[0]} -eq 0 ] || test_success="False"
     fi
     make ${make_jobs_mpi} install 2>&1 || return 1
+    if [ "${slim}" == "True" ]; then
+        rm -rf "${mpi_dir}/share" || :
+    fi
 }
 install "MPI" compiler "${compiler_possibilities_specified_mpi_last[@]}"
 
@@ -5554,6 +5594,9 @@ hdf5_install_func() {
             test_success="False"
         fi
     fi
+    if [ "${slim}" == "True" ]; then
+        rm -rf "${hdf5_dir}/share" || :
+    fi
 }
 compiler_possibilities_hdf5=("${compiler_possibilities[@]}")
 if [ -n "${mpi_dir}" ]; then
@@ -5640,6 +5683,9 @@ fftw_install_func() {
         ${simd_instructions} --prefix="${fftw_dir}" 2>&1 || return 1
     make         2>&1 || return 1  # Parallel builds fail on some systems
     make install 2>&1 || return 1  # Parallel builds fail on some systems
+    if [ "${slim}" == "True" ]; then
+        rm -rf "${fftw_dir}/share" || :
+    fi
 }
 compiler_possibilities_fftw=("${compiler_possibilities[@]}")
 if [ -n "${mpi_dir}" ]; then
@@ -5670,6 +5716,9 @@ freetype_install_func() {
     make ${make_jobs} 2>&1 || return 1
     # FreeType does not come with a test suite
     make ${make_jobs} install 2>&1 || return 1
+    if [ "${slim}" == "True" ]; then
+        rm -rf "${freetype_dir}/share" || :
+    fi
 }
 install "FreeType" compiler "${compiler_possibilities[@]}"
 
@@ -5759,11 +5808,20 @@ blas_install_func() {
     make PREFIX="${blas_dir}" install || return 1  # Should not be run in parallel
     # Note that OpenBLAS runs its test suite during the build
 }
-install "BLAS"                                                                           \
-    openblas_gfortran "True" "False"                                                 ";" \
-    compiler "${compiler_possibilities[@]}"                                          ";" \
-    openblas_BINARY "" "32"                                                          ";" \
-    NO_AVX "" "NO_AVX512=1" "NO_AVX2=1 NO_AVX512=1" "NO_AVX=1 NO_AVX2=1 NO_AVX512=1" ";" \
+NO_AVX_possibilities=(               \
+    ""                               \
+                       "NO_AVX512=1" \
+             "NO_AVX2=1 NO_AVX512=1" \
+    "NO_AVX=1 NO_AVX2=1 NO_AVX512=1" \
+)
+if [ "${blas_no_avx}" == "True" ]; then
+    NO_AVX_possibilities=("${NO_AVX_possibilities[${#NO_AVX_possibilities[@]}-1]}")
+fi
+install "BLAS"                                  \
+    openblas_gfortran "True" "False"        ";" \
+    compiler "${compiler_possibilities[@]}" ";" \
+    openblas_BINARY "" "32"                 ";" \
+    NO_AVX "${NO_AVX_possibilities[@]}"     ";" \
 
 # Python
 if [ "${python_install}" == "True" ]; then
@@ -5934,6 +5992,14 @@ python_install_func() {
     fi
     # Make install
     make install 2>&1 || return 1  # Should be run serially
+    # Cleanup if installing in slim mode.
+    # Note that this also cleans up e.g. OpenSSL.
+    if [ "${slim}" == "True" ]; then
+        # Blessings (curses) needs share/terminfo
+        mv "${python_dir}/share/terminfo" "${python_dir}/share/.terminfo" || :
+        rm -rf "${python_dir}/share/"* || :
+        mv "${python_dir}/share/.terminfo" "${python_dir}/share/terminfo" || :
+    fi
 }
 install "Python"                                                    \
     compiler "${compiler_possibilities_specified_mpi_last[@]}"  ";" \
@@ -8157,6 +8223,11 @@ sys.exit(int(cosmo.get_background()['proper time [Gyr]'][-1]) != 13)
                 echo "CLASS did not pass a simple background computation test" > "test_log"
             fi
         fi
+        # Cleanup if installing in slim mode
+        if [ "${slim}" == "True" ]; then
+            (cd "${class_dir}" && make clean) || :
+            rm -rf "${class_dir}/doc" || :
+        fi
     }
     install "CLASS" "no_init_install"               \
         gomp_in_extra_link_args "" "-gomp"      ";" \
@@ -8256,6 +8327,10 @@ fftw_for_gadget_install_func() {
         --disable-fortran ${with_pic} --prefix="${fftw_for_gadget_dir}" 2>&1 || return 1
     make         2>&1 || return 1  # Parallel builds fail on some systems
     make install 2>&1 || return 1  # Parallel builds fail on some systems
+    # Cleanup if installing in slim mode
+    if [ "${slim}" == "True" ]; then
+        rm -rf "${fftw_for_gadget_dir}/info" || :
+    fi
 }
 compiler_possibilities_fftw_for_gadget=("${compiler_possibilities[@]}")
 if [ -n "${mpi_dir}" ]; then
@@ -8337,6 +8412,14 @@ to match values used in ${esc_concept}\n"
     rm -rf "${top_dir}/tmp/gadget" || :
     # GADGET will be tested as part of the CO𝘕CEPT test suite
     install_notice "GADGET" "${gadget_dir}"
+    # Cleanup if installing in slim mode
+    if [ "${slim}" == "True" ]; then
+        rm -rf "${gadget_dir}/Analysis" || :
+        rm -rf "${gadget_dir}/Documentation" || :
+        rm -rf "${gadget_dir}/ICs" || :
+        rm -rf "${Gadget2_dir}/html" || :
+        rm -rf "${Gadget2_dir}/parameterfiles" || :
+    fi
 fi
 
 
@@ -8414,9 +8497,22 @@ if [ "${concept_install}" == "True" ] && [ "${concept_installed}" == "False" ]; 
     logo_printed=True "${concept}" ${native_optimizations_flag} --local 2>&1
     # Remove log and parameter copy file generated by the above run
     (source "${concept}" && make clean_logs clean_params_cp) || :
+    # Remove compilation artifacts if installing in slim mode
+    if [ "${slim}" == "True" ]; then
+        mkdir so
+        mv *.so so/
+        (source "${concept}" && make clean) || :
+        mv so/* .
+        rm -rf so || :
+        (source "${concept}" && make -t) || :
+    fi
     # Also build the documentation
-    echo
-    (source "${concept}" && make docs 2>/dev/null) || :
+    if [ "${slim}" == "True" ]; then
+        rm -f "${concept}/docs/_static/"*.pdf 2>/dev/null || :
+    else
+        echo
+        (source "${concept}" && make docs 2>/dev/null) || :
+    fi
     cd "${top_dir}"
 fi
 
@@ -8440,6 +8536,43 @@ rm -rf "${top_dir}/.pytest_cache" || :
 # by one of the installations.
 rm -rf "${top_dir}/_configtest"* || :
 rm -f "${top_dir}/gramA" "${top_dir}/gramB" || :
+# Further cleanups when installing in slim mode
+if [ "${slim}" == "True" ]; then
+    # Clean Python and Python packages
+    if [ "${python_install}" == "True" ] && [ "${python_installed}" == "False" ]; then
+        if get_command "find" >/dev/null; then
+            find "${python_dir}"           \
+                -type d -a \(              \
+                       -name "__pycache__" \
+                    -o -name "idle_test"   \
+                    -o -name "test"        \
+                    -o -name "tests"       \
+                \)                         \
+                -exec rm -rf '{}' +        \
+                || :
+            find "${python_dir}"       \
+                -type f -a \(          \
+                       -name "*.ipynb" \
+                    -o -name "*.pyc"   \
+                    -o -name "*.pyo"   \
+                \)                     \
+                -exec rm -f '{}' +     \
+                || :
+        else
+            echo "Could not slim down Python further as the 'find' command was not found" >&2
+        fi
+    fi
+    # We may even remove some of the dependencies entirely
+    removable_dependencies=("perl" "zlib")
+    for dependency in "${removable_dependencies[@]}"; do
+        eval "dependency_install=\"\${${dependency}_install}\""
+        eval "dependency_installed=\"\${${dependency}_installed}\""
+        if [ "${dependency_install}" == "True" ] && [ "${dependency_installed}" == "False" ]; then
+            eval "dependency_dir=\"\${${dependency}_dir}\""
+            rm -rf "${dependency_dir}" || :
+        fi
+    done
+fi
 # Copyright notice
 disable_status
 copyright_notice(){
@@ -8488,15 +8621,17 @@ if [ "${install_anything}" == "True" ] && [ "${say_copyright}" != "False" ]; the
     copyright_notice "sphinx_copybutton" "$(printf ${en_quad}%.s {1..4})Sphinx_copybutton"
     copyright_notice "sphinx_rtd_theme"  "$(printf ${en_quad}%.s {1..4})Sphinx_rtd_theme"
     copyright_notice "sphinx_tabs"       "$(printf ${en_quad}%.s {1..4})Sphinx_tabs"
-    printf "\nThese have been installed into separate directories in\n\"${top_dir}\"\n"
+    printf "\nThese have been installed into separate directories in\n\"${top_dir}\".\n"
     if [ "${concept_install}" == "True" ] && [ "${concept_installed}" == "False" ]; then
-        printf "Any use of ${esc_concept} must conform to the license terms of the above
-software in addition to its own. These can be found in the separate
-installation directories.\n"
+        printf "\nAny use of ${esc_concept} must conform to the license terms of the above \
+software in addition to its own."
     else
-        printf "Any use of the above software must conform to their license terms.
-These can be found in the separate installation directories.\n"
+        printf "\nAny use of the above software must conform to their license terms."
     fi
+    if [ "${slim}" != "True" ]; then
+        printf " These can be found in the separate installation directories."
+    fi
+    printf "\n"
 fi
 # Notice about test errors
 current_step="erroneous tests notice"
@@ -8666,6 +8801,12 @@ if [ ! -s "${log}" ]; then
 fi
 if [ ! -s "${log}_err" ]; then
     rm -f "${log}_err" || :
+fi
+if [ "${slim}" == "True" ]; then
+    if [ "${keep_install_logs}" != "True" ]; then
+        rm -f "${log}"     || :
+        rm -f "${log}_err" || :
+    fi
 fi
 if [ "${say_goodbye}" != "False" ]; then
     if [ "${concept_install}" == "True" ] && [ "${concept_installed}" == "False" ]; then

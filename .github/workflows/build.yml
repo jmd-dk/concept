@@ -20,7 +20,9 @@ jobs:
           - name: Checkout 🛎
             uses: actions/checkout@v2
           - name: Install 🔧
-            run: docker build -t concept .
+            run: |
+                rm -f concept/docs/_static/*.pdf
+                docker build -t concept .
           - name: Test suite 🤖
             run: docker run concept concept -t all
           - name: Build docs 📖

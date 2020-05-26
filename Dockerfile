@@ -1,48 +1,47 @@
 # Base
-FROM ubuntu:20.04
+FROM debian:10.4-slim
 SHELL ["/usr/bin/env", "bash", "-c"]
 
 # Installation options
 ARG concept_version=/source
 ARG top_dir="/concept"
+ARG slim=True
+ARG native_optimizations=False
 ARG mpi=mpich
 ARG mpi_configure_options="+= --with-device=ch3:sock"
-ARG native_optimizations=False
+ARG blas_no_avx=True
 
-# Update apt cache
+# Build
+COPY installer .env* COPYING* Dockerfile* README.md* .gitignore* /source/
+COPY concept* /source/concept/
+COPY .github* /source/.github/
 ARG DEBIAN_FRONTEND=noninteractive
 RUN : \
+    # Update APT cache
     && apt-get update \
     && apt-get install -y --no-install-recommends apt-utils \
-        2> >(grep -v 'apt-utils is not installed' >&2)
-
-# Install CO𝘕CEPT
-COPY installer COPYING* Dockerfile* README.md* .env .github* .gitignore* /source/
-COPY installer concept* /source/concept/
-RUN : \
-    && rm -f /source/concept/installer \
-    && concept_version=${concept_version} bash /source/installer -y "${top_dir}"
-
-# Set up:
-#  - CO𝘕CEPT and Python environment
-#  - Bash autocompletion
-#  - Bash history search with ↑↓
-#  - color prompt
-RUN : \
+        2> >(grep -v 'apt-utils is not installed' >&2) \
+    # Install CO𝘕CEPT
+    && concept_version=${concept_version} bash /source/installer -y "${top_dir}" \
+    && rm -rf /source \
+    # Set up CO𝘕CEPT and Python environment
+    && apt-get install -y --no-install-recommends less \
     && sed -i "1i source \"${top_dir}/concept/concept\"" ~/.bashrc \
     && ln -s "${top_dir}/python/bin/python3" "${top_dir}/python/bin/python" \
-    && apt-get install -y bash-completion \
+    # Set up Bash autocompletion
+    && apt-get install -y --no-install-recommends bash-completion \
     && echo "source /etc/bash_completion" >> ~/.bashrc \
+    # Set up Bash history search with ↑↓
     && echo "bind '\"\e[A\": history-search-backward'" >> ~/.bashrc \
     && echo "bind '\"\e[B\": history-search-forward'" >> ~/.bashrc \
-    && sed -i "s/xterm-color)/xterm-color|*-256color)/" ~/.bashrc
-ENV PATH="${PATH}:${top_dir}/concept:${top_dir}/python/bin"
-ENV TERM="xterm-256color"
-WORKDIR "${top_dir}/concept"
-
-# Cleanup
-RUN : \
+    # Set up color prompt
+    && echo "PS1='\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\\$ '" >> ~/.bashrc \
+    && echo "alias ls='ls --color=auto'" >> ~/.bashrc \
+    # Clean APT cache and remove unnecessary packages
     && rm -rf /var/lib/apt/lists/* \
-    && rm -rf /source \
-    && rm -f ${top_dir}/install_log*
+    && apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false
+ENV \
+    PATH="${PATH}:${top_dir}/concept:${top_dir}/python/bin" \
+    TERM="linux"
+WORKDIR "${top_dir}/concept"
 
