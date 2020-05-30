@@ -418,6 +418,7 @@ class FluidScalar:
         free(self.grid)
         if not self.is_linear:
             free(self.gridˣ)
+        free(self.Δ)
 
     # String representation
     def __repr__(self):
@@ -803,18 +804,18 @@ class Tiling:
     def __dealloc__(self):
         cython.declare(
             rung_index='signed char',
-            tile='Py_ssize_t**',
             tile_index='Py_ssize_t',
         )
         for tile_index in range(self.size):
-            tile = self.tiles[tile_index]
             for rung_index in range(N_rungs):
-                free(tile[rung_index])
-            free(tile)
-            free(self.tiles_rungs_sizes[tile_index])
-            free(self.tiles_rungs_N[tile_index])
+                free(self.tiles[tile_index][rung_index])
+            free(self.tiles[tile_index])
         free(self.tiles)
+        for tile_index in range(self.size):
+            free(self.tiles_rungs_sizes[tile_index])
         free(self.tiles_rungs_sizes)
+        for tile_index in range(self.size):
+            free(self.tiles_rungs_N[tile_index])
         free(self.tiles_rungs_N)
         free(self.contain_particles)
 
@@ -849,6 +850,7 @@ class Component:
         approximations=dict,
         softening_length=object,  # float or str
         realization_options=dict,
+        life=object,  # container
         # Locals
         i='Py_ssize_t',
     )
@@ -864,6 +866,7 @@ class Component:
         boltzmann_closure=None,
         approximations=None,
         softening_length=None,
+        life=None,
     ):
         # The keyword-only arguments are passed from dicts in the
         # initial_conditions user parameter. If not specified there
@@ -926,6 +929,7 @@ class Component:
         public dict forces
         public dict φ_gridsizes
         public str class_species
+        public tuple life
         # Particle attributes
         public Py_ssize_t N
         public Py_ssize_t N_allocated
@@ -1288,6 +1292,13 @@ class Component:
                     )
                 del realization_options_varname['velocitiesfromdisplacements']
         self.realization_options = realization_options
+        # Set life
+        if life is None:
+            life = is_selected(self, select_lives)
+        life = tuple([float(el) for el in sorted(any2list(life))])
+        if len(life) != 2:
+            abort(f'life = {life} of "{self.name}" not understood')
+        self.life = life
         # Set approximations. Ensure that all implemented approximations
         # get set to either True or False. If an approximation is not
         # set for this component, its value defaults to False.
@@ -1930,7 +1941,7 @@ class Component:
     )
     def resize(self, size_or_shape_noghosts):
         if self.representation == 'particles':
-            size = size_or_shape_noghosts
+            size = np.prod(any2list(size_or_shape_noghosts))
             size_old = self.N_allocated
             if size != size_old:
                 self.N_allocated = size
@@ -1993,7 +2004,9 @@ class Component:
                     )
                     self.rung_jumps_mv[size_old:size] = 0
         elif self.representation == 'fluid':
-            shape_noghosts = size_or_shape_noghosts
+            shape_noghosts = tuple(any2list(size_or_shape_noghosts))
+            if len(shape_noghosts) == 1:
+                shape_noghosts *= 3
             if not any([
                 s + 2*nghosts != s_old
                 for s, s_old in zip(shape_noghosts, self.shape)
@@ -2063,6 +2076,8 @@ class Component:
         """
         if a == -1:
             a = universals.a
+        if not self.is_active(a):
+            return
         if options is None:
             options = {}
         options = {key.lower().replace(' ', '').replace('-', ''):
@@ -2119,7 +2134,10 @@ class Component:
             if cosmoresults is not None:
                 masterwarn('The realize method was called without specifying a variable, '
                            'though a cosmoresults is passed. This cosmoresults will be ignored.')
-            # Realize all variables
+            # Realize all variables.
+            # Note that in the case of a completely linear component
+            # (Boltzmann order -1), no variables will be set and hence
+            # no realization will be performed.
             variables = list(arange(self.boltzmann_order + 1))
         else:
             # Realize one or more variables
@@ -2395,6 +2413,8 @@ class Component:
         """
         if a == -1:
             a = universals.a
+        if not self.is_active(a):
+            return
         if self.approximations['P=wρ']:
             # Set 𝒫 equal to the current ϱ times the current c²w
             if use_gridˣ:
@@ -2917,7 +2937,7 @@ class Component:
             )
             tiling_plural = '' if len(tiling_names) == 1 else 's'
             tiling_names = '/'.join([
-                tiling_name_i.rstrip(' (tiles)') for tiling_name_i in tiling_names
+                rstrip_exact(tiling_name_i, ' (tiles)') for tiling_name_i in tiling_names
             ])
             masterprint(
                 f'Reordering {self.name} particles in memory according to '
@@ -3963,6 +3983,28 @@ class Component:
             for fluidscalar in self.iterate_fluidscalars():
                 fluidscalar.nullify_Δ()
 
+    # Method for checking whether the component is active
+    @cython.header(
+        # Arguments
+        a='double',
+        # Locals
+        returns='bint',
+    )
+    def is_active(self, a=-1):
+        """A component exists in one of three states:
+          - "passive"   : Before it is activated, a < life[0].
+          - "active"    : Once it has been activated but before
+                          it is terminated, life[0] <= a < life[1].
+          - "terminated": Once it has been terminated
+                          after a period of activation, a >= life[1].
+        In the normal case, the entire simulation takes place within the
+        active period, and so no (explicit) activation
+        and termination takes place.
+        """
+        if a == -1:
+            a = universals.a
+        return self.life[0] <= a < self.life[1]
+
     # Method which copies the content of all unstarred non-linear grids
     # into the corresponding starred grids.
     @cython.header(fluidscalar='FluidScalar', operation=str)
@@ -3981,23 +4023,36 @@ class Component:
         for fluidscalar in self.iterate_nonlinear_fluidscalars():
             fluidscalar.copy_gridˣ_to_grid(operation)
 
+    # Method for cleaning up the memory associated with this component,
+    # without explicitly freeing it.
+    def cleanup(self):
+        # Cleanup Tiling instances on the component.
+        # This will free the associated memory, as no other references
+        # to the tilings should exist.
+        self.tilings.clear()
+        # We want to give back the allocated particle/fluid data memory
+        # of this component to the system, but as lots of objects
+        # potentially hold a reference to this component we cannot
+        # simply free its memory (that and freeing this memory
+        # explicitly does not play nicely with the automatic garbage
+        # collection implemented via Component.__dealloc__ and
+        # FluidScalar.__dealloc__ methods). Instead we resize the data,
+        # resulting in effective freeing via a call to realloc().
+        self.resize(1)
+
     # This method is automaticlly called when a Component instance
     # is garbage collected. All manually allocated memory is freed.
     def __dealloc__(self):
-        # Free particle data
-        # (fluid data lives on FluidScalar instances).
+        cython.declare(dim='int')
+        for dim in range(3):
+            free(self.pos[dim])
         free(self.pos)
-        free(self.posx)
-        free(self.posy)
-        free(self.posz)
+        for dim in range(3):
+            free(self.mom[dim])
         free(self.mom)
-        free(self.momx)
-        free(self.momy)
-        free(self.momz)
+        for dim in range(3):
+            free(self.Δmom[dim])
         free(self.Δmom)
-        free(self.Δmomx)
-        free(self.Δmomy)
-        free(self.Δmomz)
         free(self.rungs_N)
         free(self.rung_indices)
         free(self.rung_jumps)

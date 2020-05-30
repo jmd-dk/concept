@@ -46,6 +46,7 @@ cimport('from utilities import delegate')
 # Function containing the main time loop of CO𝘕CEPT
 @cython.header(
     # Locals
+    a='double',
     autosave_filename=str,
     autosave_time='double',
     bottleneck=str,
@@ -54,15 +55,17 @@ cimport('from utilities import delegate')
     dump_index='Py_ssize_t',
     dump_time=object,  # collections.namedtuple
     dump_times=list,
+    dump_times_a=set,
+    dump_times_t=set,
     interaction_name=str,
     output_filenames=dict,
-    period_frac='double',
     recompute_Δt_max='bint',
     subtiling='Tiling',
     subtiling_computation_times=object,  # collections.defaultdict
     subtiling_name=str,
     sync_at_dump='bint',
     sync_time='double',
+    t='double',
     tiling='Tiling',
     tiling_name=str,
     time_step='Py_ssize_t',
@@ -73,21 +76,8 @@ cimport('from utilities import delegate')
     Δt='double',
     Δt_backup='double',
     Δt_begin='double',
-    Δt_jump_fac='double',
-    Δt_increase_fac='double',
-    Δt_initial_fac='double',
     Δt_min='double',
     Δt_max='double',
-    Δt_new='double',
-    Δt_period='Py_ssize_t',
-    Δt_period_increase_max_fac='double',
-    Δt_period_increase_min_fac='double',
-    Δt_ratio='double',
-    Δt_ratio_abort='double',
-    Δt_ratio_warn='double',
-    Δt_reduce_fac='double',
-    Δt_reltol='double',
-    Δt_tmp='double',
     returns='void',
 )
 def timeloop():
@@ -103,8 +93,6 @@ def timeloop():
     # Determine and set the correct initial values for the cosmic time
     # universals.t and the scale factor universals.a = a(universals.t).
     init_time()
-    # Get the dump times and the output filename patterns
-    dump_times, output_filenames = prepare_for_output()
     # Get the initial components.
     # These may be loaded from a snapshot or generated from scratch.
     masterprint('Setting up initial conditions ...')
@@ -112,6 +100,16 @@ def timeloop():
     if not components:
         masterprint('done')
         return
+    # Get the dump times and the output filename patterns
+    dump_times, output_filenames = prepare_for_output(components)
+    # Stow away passive components into a separate (global) list.
+    # We should always keep it such that
+    #   components + passive_components
+    # results in a list of all components.
+    # We further store the original ordering of all components.
+    components_order[:] = [component.name for component in components]
+    passive_components[:] = [component for component in components if not component.is_active()]
+    components = [component for component in components if component not in passive_components]
     # Realize all linear fluid variables of all components
     for component in components:
         component.realize_if_linear(0, specific_multi_index=0)        # ϱ
@@ -129,55 +127,6 @@ def timeloop():
     # Re-seed the pseudo-random number generator,
     # using a separate seed on each process.
     seed_rng()
-    # The initial time step size Δt will be set to the maximum allowed
-    # value times this factor. At early times of almost homogeneity,
-    # it is preferable with a small Δt, and so
-    # this factor should be below unity.
-    Δt_initial_fac = 0.9
-    # When reducing Δt, set it to the maximum allowed value
-    # times this factor.
-    Δt_reduce_fac = 0.94
-    # When increasing Δt, set it to the maximum allowed value
-    # times this factor.
-    Δt_increase_fac = 0.96
-    # The maximum allowed fractional increase in Δt
-    # after Δt_period time steps with constant time step size.
-    Δt_period_increase_max_fac = 0.33
-    # The minimum fractional increase in Δt needed before it is deemed
-    # worth it to synchronize drifts/kicks and update Δt.
-    Δt_period_increase_min_fac = 0.01
-    # Ratios between old and new Δt, below which the program
-    # will show a warning or abort, respectively.
-    Δt_ratio_warn  = 0.7
-    Δt_ratio_abort = 0.01
-    # When using adaptive time stepping (N_rungs > 1), the particles may
-    # jump from their current rung to the rung just above or below,
-    # depending on their (short-range) acceleration and the time step
-    # size Δt. To ensure that particles with accelerations right at the
-    # border between two rungs does not jump between these rungs too
-    # often (which would degrade the symplecticity), we introduce
-    # Δt_jump_fac so that in order to jump up (get assigned a smaller
-    # individual time step size), a particle has to belong to the rung
-    # above even if the time step size had been Δt*Δt_jump_fac < Δt.
-    # Likewise, to jump down (get assigned a larger individual time step
-    # size), a particle has to belong to the rung below even if the time
-    # step size had been Δt/Δt_jump_fac > Δt. The factor Δt_jump_fac
-    # should then be somewhat below unity.
-    Δt_jump_fac = 0.95
-    # Due to floating point imprecisions, universals.t may not land
-    # exactly at sync_time when it should, which is needed to detect
-    # whether we are at a synchronization time or not. To fix this,
-    # we consider the universal time to be at the synchronization time
-    # if they differ by less than Δt_reltol times the
-    # base time step size Δt.
-    Δt_reltol = 1e-9
-    # The number of time steps before the base time step size Δt is
-    # allowed to increase. Choosing a multiple of 8 prevents the
-    # formation of spurious anisotropies when evolving fluids with the
-    # MacCormack method, as each of the 8 flux directions are then
-    # used with the same time step size (in the simple case of no
-    # reduction to Δt and no synchronizations due to dumps).
-    Δt_period = 1*8
     # Set initial time step size
     if Δt_begin_autosave == -1:
         # Set the initial time step size to the largest allowed value
@@ -204,18 +153,10 @@ def timeloop():
     autosave_time = time()
     # Populate the global ᔑdt_scalar and ᔑdt_rungs dicts
     # with integrand keys
-    get_time_step_integrals(0, 0, components)
-    # Construct initial rung populatation by carrying out a initial
+    get_time_step_integrals(0, 0, components + passive_components)
+    # Construct initial rung populatations by carrying out an initial
     # short kick, but without applying the momentum updates.
-    if any([component.use_rungs for component in components]):
-        masterprint('Determining initial rung population ...')
-        # Set rungs_N. At this point, all particles should be assigned
-        # to rung 0, resulting in rungs_N = [N_local, 0, 0, ...].
-        for component in components:
-            if component.use_rungs:
-                component.set_rungs_N()
-        kick_short(components, Δt, fake=True)
-        masterprint('done')
+    initialize_rung_populations(components, Δt)
     # Mapping from (short-range) interaction names
     # to (subtile) computation times.
     subtiling_computation_times = collections.defaultdict(lambda: collections.defaultdict(float))
@@ -277,7 +218,7 @@ def timeloop():
                 # Apply initial half kick to fluids, initial half
                 # long-range kick to particles and inital half
                 # application of internal sources.
-                kick_long(components, Δt, sync_time, 'init', Δt_reltol)
+                kick_long(components, Δt, sync_time, 'init')
                 # All short-range rungs are synchronized. Re-assign a
                 # short-range rung to each particle based on their
                 # short-range acceleration, disregarding their
@@ -349,14 +290,14 @@ def timeloop():
                 # The kicks will start and end half a time step ahead
                 # of the drifts.
                 # Drift fluids.
-                drift_fluids(components, Δt, sync_time, Δt_reltol)
+                drift_fluids(components, Δt, sync_time)
                 # Continually perform interlaced drift and kick
                 # operations of the short-range particle rungs, until
                 # the particles are drifted forward to the exact time of
                 # the next base time step (Δt away) and kicked half a
                 # sub-step (of size Δt/2**(rung_index + 1)) into the
                 # next base time step.
-                driftkick_short(components, Δt, sync_time, Δt_jump_fac, Δt_reltol)
+                driftkick_short(components, Δt, sync_time)
                 # All drifting is now exactly at the next base time
                 # step, while the long-range kicks are lagging behind.
                 # Before doing the long-range kicks, set the universal
@@ -369,7 +310,7 @@ def timeloop():
                 universals.a = scale_factor(universals.t)
                 # Apply full kick to fluids, full long-range kick to
                 # particles and fully apply internal sources.
-                kick_long(components, Δt, sync_time, 'full', Δt_reltol)
+                kick_long(components, Δt, sync_time, 'full')
                 # Set universal time and scale factor to match end of
                 # this base time step (the location of drifts).
                 universals.t += 0.5*Δt
@@ -394,45 +335,9 @@ def timeloop():
                     if recompute_Δt_max:
                         Δt_max, bottleneck = get_base_timestep_size(components)
                     recompute_Δt_max = True
-                    if Δt > Δt_max:
-                        # Reduce base time step size
-                        Δt_new = Δt_reduce_fac*Δt_max
-                        Δt_ratio = Δt_new/Δt
-                        if Δt_ratio < Δt_ratio_abort:
-                            abort(
-                                f'Due to {bottleneck}, the time step size needs to be rescaled '
-                                f'by a factor {Δt_ratio:.1g}. This extreme change is unacceptable.'
-                            )
-                        elif Δt_ratio < Δt_ratio_warn:
-                            masterwarn(
-                                f'Rescaling time step size by a '
-                                f'factor {Δt_ratio:.1g} due to {bottleneck}'
-                            )
-                        if Δt_new < Δt_min:
-                            abort(
-                                f'Time evolution effectively halted with a time step size '
-                                f'of {Δt_new} {unit_time} (at the start of the simulation '
-                                f'the time step size was {Δt_begin} {unit_time})'
-                        )
-                        Δt = Δt_new
-                    else:
-                        # The base time step size will be increased,
-                        # and so we have no bottleneck.
-                        bottleneck = ''
-                        # Set new, increased base time step Δt, making
-                        # sure that its relative change is not too big.
-                        Δt_new = Δt_increase_fac*Δt_max
-                        if Δt_new < Δt:
-                            Δt_new = Δt
-                        period_frac = (time_step + 1 - time_step_last_sync)*ℝ[1/Δt_period]
-                        if period_frac > 1:
-                            period_frac = 1
-                        elif period_frac < 0:
-                            period_frac = 0
-                        Δt_tmp = (1 + period_frac*Δt_period_increase_max_fac)*Δt
-                        if Δt_new > Δt_tmp:
-                            Δt_new = Δt_tmp
-                        Δt = Δt_new
+                    Δt, bottleneck = update_base_timestep_size(
+                        Δt, Δt_min, Δt_max, bottleneck, time_step, time_step_last_sync,
+                    )
                     # Update time step counters
                     time_step += 1
                     time_step_last_sync = time_step
@@ -444,7 +349,15 @@ def timeloop():
                                 autosave_time = time()
                     # Dump output if at dump time
                     if universals.t == dump_time.t:
-                        dump(components, output_filenames, dump_time)
+                        if dump(components, output_filenames, dump_time, Δt):
+                            # The "dump" was really the activation of a
+                            # component. This new component might need
+                            # a reduced time step size.
+                            Δt_max, bottleneck = get_base_timestep_size(components)
+                            Δt, bottleneck = update_base_timestep_size(
+                                Δt, Δt_min, Δt_max, bottleneck,
+                                allow_increase=False, tolerate_danger=True,
+                            )
                         # Ensure that we have at least 1.5
                         # base time steps before the next dump.
                         if dump_index != len(dump_times) - 1:
@@ -506,6 +419,22 @@ def timeloop():
         autosave_filename = f'{autosave_dir}/autosave_{jobid}.hdf5'
         if os.path.isfile(autosave_filename):
             os.remove(autosave_filename)
+# Dict containing list of scale factor values at which to activate or
+# terminate components (the 't' list is never used).
+# The list is populated by the prepare_for_output() function.
+cython.declare(activation_termination_times=dict)
+activation_termination_times = {'t': (), 'a': ()}
+# List of currently passive components,
+# and list of all component names in order.
+# These will be populated by the timeloop() function,
+# and passive_components will be mutated
+# by the activate_terminate() function.
+cython.declare(
+    passive_components=list,
+    components_order=list,
+)
+passive_components = []
+components_order = []
 
 # Function for computing the size of the base time step
 @cython.header(
@@ -584,7 +513,7 @@ def get_base_timestep_size(components):
         if component.representation == 'fluid' and component.is_linear(0):
             continue
         ρ_bar += a**(-3*(1 + component.w_eff(a=a)))*component.ϱ_bar
-    Δt_dynamical = fac_dynamical/sqrt(G_Newton*ρ_bar)
+    Δt_dynamical = fac_dynamical/(sqrt(G_Newton*ρ_bar) + machine_ϵ)
     if Δt_dynamical < Δt:
         Δt = Δt_dynamical
         bottleneck = 'the dynamical timescale'
@@ -723,6 +652,66 @@ def get_base_timestep_size(components):
     # Return maximum allowed base time step size and the bottleneck
     return Δt, bottleneck
 
+# Function for computing the updated value of Δt.
+# This has to be a pure Python function due to the use
+# of keyword-only arguments.
+def update_base_timestep_size(
+    Δt, Δt_min, Δt_max, bottleneck,
+    time_step=-1, time_step_last_sync=-1,
+    *, allow_increase=True, tolerate_danger=False,
+):
+    # Reduce base time step size Δt if necessary
+    if Δt > Δt_max:
+        Δt_new = Δt_reduce_fac*Δt_max
+        Δt_ratio = Δt_new/Δt
+        # Inform about reduction to the base time step
+        message = f'Rescaling time step size by a factor {Δt_ratio:.1g} due to {bottleneck}'
+        if Δt_ratio < Δt_ratio_abort:
+            if tolerate_danger:
+                masterwarn(message)
+            else:
+                message = (
+                    f'Due to {bottleneck}, the time step size '
+                    f'needs to be rescaled by a factor {Δt_ratio:.1g}. '
+                    f' This extreme change is unacceptable.'
+                )
+                abort(message)
+        elif Δt_ratio < Δt_ratio_warn:
+            if tolerate_danger:
+                masterprint(message)
+            else:
+                masterwarn(message)
+        if Δt_new < Δt_min:
+            # Never tolerate this
+            abort(
+                f'Time evolution effectively halted with a time step size '
+                f'of {Δt_new} {unit_time} (at the start of the simulation '
+                f'the time step size was {Δt_begin} {unit_time})'
+            )
+        # Apply reduction
+        Δt = Δt_new
+        return Δt, bottleneck
+    if not allow_increase:
+        return Δt, bottleneck
+    # Increase the base time step size Δt,
+    # making sure that its relative change is not too big.
+    Δt_new = Δt_increase_fac*Δt_max
+    if Δt_new < Δt:
+        Δt_new = Δt
+    period_frac = (time_step + 1 - time_step_last_sync)*ℝ[1/Δt_period]
+    if period_frac > 1:
+        period_frac = 1
+    elif period_frac < 0:
+        period_frac = 0
+    Δt_tmp = (1 + period_frac*Δt_period_increase_max_fac)*Δt
+    if Δt_new > Δt_tmp:
+        Δt_new = Δt_tmp
+    Δt = Δt_new
+    # As the base time step size has been increased,
+    # there are no bottleneck.
+    bottleneck = ''
+    return Δt, bottleneck
+
 # Function for computing all time step integrals
 # between two specified cosmic times.
 @cython.header(
@@ -844,7 +833,6 @@ cython.declare(ᔑdt_rungs=dict)
     Δt='double',
     sync_time='double',
     step_type=str,
-    Δt_reltol='double',
     # Locals
     a_start='double',
     a_end='double',
@@ -859,7 +847,7 @@ cython.declare(ᔑdt_rungs=dict)
     ᔑdt=dict,
     returns='void',
 )
-def kick_long(components, Δt, sync_time, step_type, Δt_reltol):
+def kick_long(components, Δt, sync_time, step_type):
     """We take into account three different cases of long-range kicks:
     - Internal source terms (fluid and particle components).
     - Interactions acting on fluids (only PM implemented).
@@ -1029,7 +1017,6 @@ def kick_short(components, Δt, fake=False):
     components=list,
     Δt='double',
     sync_time='double',
-    Δt_reltol='double',
     # Locals
     a_end='double',
     component='Component',
@@ -1039,7 +1026,7 @@ def kick_short(components, Δt, fake=False):
     ᔑdt=dict,
     returns='void',
 )
-def drift_fluids(components, Δt, sync_time, Δt_reltol):
+def drift_fluids(components, Δt, sync_time):
     """This function always drift over a full base time step.
     """
     # Collect all fluid components. Do nothing if none exists.
@@ -1068,8 +1055,6 @@ def drift_fluids(components, Δt, sync_time, Δt_reltol):
     components=list,
     Δt='double',
     sync_time='double',
-    Δt_jump_fac='double',
-    Δt_reltol='double',
     # Locals
     any_rung_jumps_arr='int[::1]',
     any_kicks='bint',
@@ -1108,7 +1093,7 @@ def drift_fluids(components, Δt, sync_time, Δt_reltol):
     ᔑdt_rung=dict,
     returns='void',
 )
-def driftkick_short(components, Δt, sync_time, Δt_jump_fac, Δt_reltol):
+def driftkick_short(components, Δt, sync_time):
     """Every rung is fully drifted and kicked over a complete base time
     step of size Δt. Rung rung_index will be kicked 2**rung_index times.
     All rungs will be drifted synchronously in steps
@@ -1229,10 +1214,10 @@ def driftkick_short(components, Δt, sync_time, Δt_jump_fac, Δt_reltol):
         # for which we need the time step integrals.
         index_end = 2*driftkick_index + 2
         t_start = universals.t + Δt*(float(index_start)/ℤ[2**N_rungs])
-        if t_start + ℝ[Δt_reltol*Δt + 2*machine_ϵ] > sync_time:
+        if t_start + ℝ[Δt_reltol*Δt + ℝ[2*machine_ϵ]] > sync_time:
             t_start = sync_time
         t_end = universals.t + Δt*(float(index_end)/ℤ[2**N_rungs])
-        if t_end + ℝ[Δt_reltol*Δt + 2*machine_ϵ] > sync_time:
+        if t_end + ℝ[Δt_reltol*Δt + ℝ[2*machine_ϵ]] > sync_time:
             t_end = sync_time
         # If the time step size is zero, meaning that we are already
         # at a sync time regarding the drifts, we skip the drift but
@@ -1271,10 +1256,10 @@ def driftkick_short(components, Δt, sync_time, Δt_jump_fac, Δt_reltol):
             )
             index_end = index_start + ℤ[2**(N_rungs - rung_index)]
             t_start = universals.t + Δt*(float(index_start)/ℤ[2**N_rungs])
-            if t_start + ℝ[Δt_reltol*Δt + 2*machine_ϵ] > sync_time:
+            if t_start + ℝ[Δt_reltol*Δt + ℝ[2*machine_ϵ]] > sync_time:
                 t_start = sync_time
             t_end = universals.t + Δt*(float(index_end)/ℤ[2**N_rungs])
-            if t_end + ℝ[Δt_reltol*Δt + 2*machine_ϵ] > sync_time:
+            if t_end + ℝ[Δt_reltol*Δt + ℝ[2*machine_ϵ]] > sync_time:
                 t_end = sync_time
             ᔑdt_rung = get_time_step_integrals(t_start, t_end, particle_components)
             for integrand, integral in ᔑdt_rung.items():
@@ -1290,7 +1275,7 @@ def driftkick_short(components, Δt, sync_time, Δt_jump_fac, Δt_reltol):
             ):
                 index_end = index_start + ℤ[2**(N_rungs - 1 - rung_index)]
                 t_end = universals.t + Δt*(float(index_end)/ℤ[2**N_rungs])
-                if t_end + ℝ[Δt_reltol*Δt + 2*machine_ϵ] > sync_time:
+                if t_end + ℝ[Δt_reltol*Δt + ℝ[2*machine_ϵ]] > sync_time:
                     t_end = sync_time
                 ᔑdt_rung = get_time_step_integrals(t_start, t_end, particle_components)
                 for integrand, integral in ᔑdt_rung.items():
@@ -1303,7 +1288,7 @@ def driftkick_short(components, Δt, sync_time, Δt_jump_fac, Δt_reltol):
             if rung_index < ℤ[N_rungs - 1]:
                 index_end = index_start + 3*2**(ℤ[N_rungs - 2] - rung_index)
                 t_end = universals.t + Δt*(float(index_end)/ℤ[2**N_rungs])
-                if t_end + ℝ[Δt_reltol*Δt + 2*machine_ϵ] > sync_time:
+                if t_end + ℝ[Δt_reltol*Δt + ℝ[2*machine_ϵ]] > sync_time:
                     t_end = sync_time
                 ᔑdt_rung = get_time_step_integrals(t_start, t_end, particle_components)
                 for integrand, integral in ᔑdt_rung.items():
@@ -1385,21 +1370,64 @@ def driftkick_short(components, Δt, sync_time, Δt_jump_fac, Δt_reltol):
         # Finish progress message
         masterprint('done')
 
+# Function for assigning initial rung populations
+@cython.header(
+    # Arguments
+    components=list,
+    Δt='double',
+    # Locals
+    component='Component',
+    i='Py_ssize_t',
+    plural=str,
+    rung_components=list,
+    returns='void',
+)
+def initialize_rung_populations(components, Δt):
+    if Δt == 0:
+        abort('Cannot initialize rung populations with Δt = 0')
+    # Collect all components that makes use of rungs.
+    # Do nothing if none exists.
+    rung_components = [component for component in components if component.use_rungs]
+    if not rung_components:
+        return
+    plural = ('' if len(rung_components) == 1 else 's')
+    masterprint(f'Determining rung population{plural} ...')
+    # Assign all particles to rung 0 and update rungs_N,
+    # resulting in rungs_N = [N_local, 0, 0, ...].
+    for component in rung_components:
+        for i in range(component.N_local):
+            component.rung_indices[i] = 0
+        component.set_rungs_N()
+    # Do a fake short kick, which computes momentum updates and use
+    # these to set the rungs, but does not apply these momentum updates.
+    kick_short(components, Δt, fake=True)
+    masterprint('done')
+
 # Function which dump all types of output
 @cython.header(
     # Arguments
     components=list,
     output_filenames=dict,
     dump_time=object,  # collections.namedtuple
+    Δt='double',
     # Locals
+    act=str,
+    any_activations='bint',
     filename=str,
     time_param=str,
     time_value='double',
-    returns='void',
+    returns='bint',
 )
-def dump(components, output_filenames, dump_time):
+def dump(components, output_filenames, dump_time, Δt=0):
     time_param = dump_time.time_param
     time_value = {'t': dump_time.t, 'a': dump_time.a}[time_param]
+    any_activations = False
+    # Activate or termiante component before dumps
+    for act in 𝕆[life_output_order[:life_output_order.index('dump')]]:
+        if time_value in activation_termination_times[time_param]:
+            any_activations |= (
+                activate_terminate(components, time_value, Δt, act) and act == 'activate'
+            )
     # Dump render2D
     if time_value in render2D_times[time_param]:
         filename = output_filenames['render2D'].format(time_param, time_value)
@@ -1424,6 +1452,109 @@ def dump(components, output_filenames, dump_time):
         if time_param == 't':
             filename += unit_time
         render3D(components, filename)
+    # Activate or terminate components after dumps
+    for act in 𝕆[life_output_order[life_output_order.index('dump')+1:]]:
+        if time_value in activation_termination_times[time_param]:
+            any_activations |= (
+                activate_terminate(components, time_value, Δt, act) and act == 'activate'
+            )
+    return any_activations
+
+# Function for terminating an existing component
+# or activating a new one.
+@cython.header(
+    # Arguments
+    components=list,
+    a='double',
+    Δt='double',
+    act=str,
+    # Locals
+    activated_components=list,
+    active_components=list,
+    active_components_order=list,
+    component='Component',
+    terminated_components=list,
+    universal_a_backup='double',
+    returns='bint',
+)
+def activate_terminate(components, a, Δt, act='activate terminate'):
+    """This function mutates the passed list of components
+    as well as the global passive_components, keeping their
+    collective contents constant.
+    The return value is a boolean signalling
+    whether any component was activated.
+    """
+    # Terminations
+    if 'terminate' in act:
+        terminated_components = [
+            component
+            for component in components
+            if component.life[1] == a
+        ]
+        if terminated_components:
+            for component in terminated_components:
+                masterprint(f'Terminating "{component.name}" ...')
+                component.cleanup()
+                masterprint('done')
+            # Remove terminated components
+            # from the list of current components.
+            components[:] = [
+                component
+                for component in components
+                if component not in terminated_components
+            ]
+            # Add terminated components
+            # to the list of passive components.
+            passive_components[:] = passive_components + terminated_components
+    # Activations
+    activated_components = []
+    if 'activate' in act:
+        activated_components = [
+            component
+            for component in passive_components
+            if component.life[0] == a
+        ]
+        if activated_components:
+            # For realization it is important that universals.a matches
+            # the given a exactly. These really ought to be idential,
+            # but may not be due to floating point imprecisions.
+            universal_a_backup = universals.a
+            universals.a = a
+            for component in activated_components:
+                masterprint(f'Activating "{component.name}" ...')
+                component.realize()
+                component.realize_if_linear(0, specific_multi_index=0)        # ϱ
+                component.realize_if_linear(1, specific_multi_index=0)        # J
+                component.realize_if_linear(2, specific_multi_index='trace')  # 𝒫
+                component.realize_if_linear(2, specific_multi_index=(0, 0))   # ς
+                masterprint('done')
+            universals.a = universal_a_backup
+            # Remove newly activated components from the list
+            # of passive components.
+            passive_components[:] = [
+                component
+                for component in passive_components
+                if component not in activated_components
+            ]
+            # Add newly activated components to the list of
+            # current components, keeping the original ordering.
+            active_components = components + activated_components
+            active_components_order = [component.name for component in active_components]
+            components[:] = [
+                active_components[active_components_order.index(name)]
+                for name in components_order
+                if name in active_components_order
+            ]
+            # If a particle component has been activated, we need to
+            # assign an initial rung population. Also, the current rung
+            # populations of old particle components needs to updated
+            # due to the new particle component.
+            if any([
+                component.representation == 'particles'
+                for component in activated_components
+            ]):
+                initialize_rung_populations(components, Δt)
+    return bool(activated_components)
 
 # Function which dump all types of output
 @cython.header(
@@ -1712,11 +1843,31 @@ imbalances = empty(nprocs, dtype=C2np['double']) if master else None
 # Function which checks the sanity of the user supplied output times,
 # creates output directories and defines the output filename patterns.
 @cython.header()
-def prepare_for_output():
+def prepare_for_output(components=None):
     """As this function uses universals.t and universals.a as the
     initial values of the cosmic time and the scale factor, you must
     initialize these properly before calling this function.
     """
+    output_times_all = output_times.copy()
+    # If a list of components is passed, we need to first run this
+    # Function without these components, processing the output times.
+    # Then we can insert 'life' times based on the 'life'
+    # attributes of the components, together with the current and the
+    # final output time.
+    if components:
+        dump_times, output_filenames = prepare_for_output()
+        a_final = dump_times[len(dump_times) - 1].a
+        if a_final is None:
+            a_final = ထ
+        output_times_all['t']['life'] = ()
+        output_times_all['a']['life'] = tuple(sorted({
+            a
+            for component in components
+            for a in component.life
+            if universals.a < a < a_final
+        }))
+        for time_param in ('a', 't'):
+            activation_termination_times[time_param] = output_times[time_param]['life']
     # Check that the output times are legal
     for time_param, at_begin in zip(('a', 't'), (universals.a, universals.t)):
         for output_kind, output_time in output_times[time_param].items():
@@ -1790,27 +1941,24 @@ def prepare_for_output():
             sep = '_' if output_base else ''
             output_filenames[output_kind] = f'{output_dir}/{output_base}{sep}{fmt}'
     # Lists of sorted dump times of both kinds
-    a_dumps = sorted(set([nr for val in output_times['a'].values() for nr in val]))
-    t_dumps = sorted(set([nr for val in output_times['t'].values() for nr in val]))
+    a_dumps = sorted(set([nr for val in output_times_all['a'].values() for nr in val]))
+    t_dumps = sorted(set([nr for val in output_times_all['t'].values() for nr in val]))
     # Combine a_dumps and t_dumps into a single list of named tuples
-    Dump_time = collections.namedtuple(
-        'Dump_time', ('time_param', 't', 'a')
-    )
-    dump_times =  [Dump_time('t', t=t_dump, a=None) for t_dump in t_dumps]
-    dump_times += [Dump_time('a', a=a_dump, t=None) for a_dump in a_dumps]
+    dump_times =  [DumpTime('t', t=t_dump, a=None) for t_dump in t_dumps]
+    dump_times += [DumpTime('a', a=a_dump, t=None) for a_dump in a_dumps]
     if enable_Hubble:
         a_lower = t_lower = machine_ϵ
         for i, dump_time in enumerate(dump_times):
             if dump_time.time_param == 't' and dump_time.a is None:
                 a = scale_factor(dump_time.t)
-                dump_time = Dump_time('t', t=dump_time.t, a=a)
+                dump_time = DumpTime('t', t=dump_time.t, a=a)
             elif dump_time.time_param == 'a' and dump_time.t is None:
                 t = cosmic_time(dump_time.a, a_lower, t_lower)
-                dump_time = Dump_time('a', a=dump_time.a, t=t)
+                dump_time = DumpTime('a', a=dump_time.a, t=t)
                 a_lower, t_lower = dump_time.a, dump_time.t
             dump_times[i] = dump_time
     # Sort the list according to the cosmic time
-    dump_times = sorted(dump_times, key=(lambda dump_time: dump_time.t))
+    dump_times = sorted(dump_times, key=operator.attrgetter('t'))
     # Two dump times at the same or very near the same time
     # should count as one.
     if len(dump_times) > 1:
@@ -1823,8 +1971,77 @@ def prepare_for_output():
                 t_previous = dump_time.t
         dump_times = dump_times_unique
     return dump_times, output_filenames
+# Container used by the prepare_for_output() and timeloop() function
+DumpTime = collections.namedtuple(
+    'DumpTime', ('time_param', 't', 'a'),
+)
 
 
+# Here we set various values used for the time integration. These are
+# purely numerical in character. For factors used to control the time
+# step size Δt based on various physical time scales, see the fac_*
+# variables further down.
+cython.declare(
+    Δt_initial_fac='double',
+    Δt_reduce_fac='double',
+    Δt_increase_fac='double',
+    Δt_period_increase_max_fac='double',
+    Δt_period_increase_min_fac='double',
+    Δt_ratio_warn='double',
+    Δt_ratio_abort='double',
+    Δt_jump_fac='double',
+    Δt_reltol='double',
+    Δt_period='Py_ssize_t',
+)
+# The initial time step size Δt will be set to the maximum allowed
+# value times this factor. At early times of almost homogeneity,
+# it is preferable with a small Δt, and so
+# this factor should be below unity.
+Δt_initial_fac = 0.9
+# When reducing Δt, set it to the maximum allowed value
+# times this factor.
+Δt_reduce_fac = 0.94
+# When increasing Δt, set it to the maximum allowed value
+# times this factor.
+Δt_increase_fac = 0.96
+# The maximum allowed fractional increase in Δt
+# after Δt_period time steps with constant time step size.
+Δt_period_increase_max_fac = 0.33
+# The minimum fractional increase in Δt needed before it is deemed
+# worth it to synchronize drifts/kicks and update Δt.
+Δt_period_increase_min_fac = 0.01
+# Ratios between old and new Δt, below which the program
+# will show a warning or abort, respectively.
+Δt_ratio_warn  = 0.7
+Δt_ratio_abort = 0.01
+# When using adaptive time stepping (N_rungs > 1), the particles may
+# jump from their current rung to the rung just above or below,
+# depending on their (short-range) acceleration and the time step
+# size Δt. To ensure that particles with accelerations right at the
+# border between two rungs does not jump between these rungs too
+# often (which would degrade the symplecticity), we introduce
+# Δt_jump_fac so that in order to jump up (get assigned a smaller
+# individual time step size), a particle has to belong to the rung
+# above even if the time step size had been Δt*Δt_jump_fac < Δt.
+# Likewise, to jump down (get assigned a larger individual time step
+# size), a particle has to belong to the rung below even if the time
+# step size had been Δt/Δt_jump_fac > Δt. The factor Δt_jump_fac
+# should then be somewhat below unity.
+Δt_jump_fac = 0.95
+# Due to floating point imprecisions, universals.t may not land
+# exactly at sync_time when it should, which is needed to detect
+# whether we are at a synchronization time or not. To fix this,
+# we consider the universal time to be at the synchronization time
+# if they differ by less than Δt_reltol times the
+# base time step size Δt.
+Δt_reltol = 1e-9
+# The number of time steps before the base time step size Δt is
+# allowed to increase. Choosing a multiple of 8 prevents the
+# formation of spurious anisotropies when evolving fluids with the
+# MacCormack method, as each of the 8 flux directions are then
+# used with the same time step size (in the simple case of no
+# reduction to Δt and no synchronizations due to dumps).
+Δt_period = 1*8
 
 # Here we set the values for the various factors used when determining
 # the time step size. The values given below has been tuned by hand as

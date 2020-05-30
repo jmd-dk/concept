@@ -828,11 +828,13 @@ def inline_iterators(lines, no_optimization):
 def constant_expressions(lines, no_optimization, first_call=True):
     sets = {
         '𝔹': 'bint',
+        '𝕆': 'object',
         'ℝ': 'double',
         '𝕊': 'str',
         'ℤ': 'Py_ssize_t',
     }
-    non_c_native = {'𝕊', }
+    non_c_native = {'𝕆', '𝕊'}
+    non_callable = {'𝕆', }
     # Handle nested constant expressions.
     # If first_call is True, this is the original call to this function.
     # Edit all nested occurrences of constant expressions so that only
@@ -1543,9 +1545,14 @@ def constant_expressions(lines, no_optimization, first_call=True):
                                 # Remember that this variable has been declared in this function
                                 declarations_placed[fname].append(expression_cython)
                         if blackboard_bold_symbol in non_c_native:
-                            new_lines.append(
-                                f'{expression_cython} = {ctype}({expressions[e]})\n'
-                            )
+                            if blackboard_bold_symbol in non_callable:
+                                new_lines.append(
+                                    f'{expression_cython} = ({expressions[e]})\n'
+                                )
+                            else:
+                                new_lines.append(
+                                    f'{expression_cython} = {ctype}({expressions[e]})\n'
+                                )
                         else:
                             new_lines.append(
                                 f'{expression_cython} = <{ctype}>({expressions[e]})\n'
@@ -1571,9 +1578,14 @@ def constant_expressions(lines, no_optimization, first_call=True):
                             # Remember that this variable has been declared in this function
                             declarations_placed[fname].append(expressions_cython[e])
                     if blackboard_bold_symbol in non_c_native:
-                        new_lines.append(
-                            f'{indentation}{expressions_cython[e]} = {ctype}({expressions[e]})\n'
-                        )
+                        if blackboard_bold_symbol in non_callable:
+                            new_lines.append(
+                                f'{indentation}{expressions_cython[e]} = ({expressions[e]})\n'
+                            )
+                        else:
+                            new_lines.append(
+                                f'{indentation}{expressions_cython[e]} = {ctype}({expressions[e]})\n'
+                            )
                     else:
                         new_lines.append(
                             f'{indentation}{expressions_cython[e]} = <{ctype}>({expressions[e]})\n'

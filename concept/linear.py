@@ -770,7 +770,7 @@ class CosmoResults:
               = k²γ(a)/(4πGa²)
         where the factor 3/(8πG) = 1 in CLASS units.
         Side-note: In this form (k²γ = 4πGa²δρ) it is clear that γ
-        indead is a potential. The missing sign stems from γ being
+        indeed is a potential. The missing sign stems from γ being
         defined with the opposite sign of usual potentials.
         Finally, since we want δ(a), we divide by the arbitrary but
         pre-defined background density ρ_metric:
@@ -3229,7 +3229,7 @@ def realize(
             )
     # The realized field will be interpolated onto the shifted particle
     # positions, using the interpolation order specified in the options.
-    interpolation_order = options.get('interpolation', 0)
+    interpolation_order = options['interpolation']
     # Loop over all fluid scalars of the fluid variable
     fluidvar = component.fluidvars[fluid_index]
     for multi_index in (

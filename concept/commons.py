@@ -586,7 +586,7 @@ def fancyprint(
             # If the text ends with '...', it is the start of a
             # progress message. In that case, the last line should
             # have some left over space to the right
-            # for the upcomming "done in ???".
+            # for the upcomming time delta.
             if is_progress_message:
                 maxlength = terminal_width - progressprint['maxintervallength'] - 1
                 # Separate the last line from the rest
@@ -620,7 +620,7 @@ def fancyprint(
             # If the text ends with '...', it is the start of a
             # progress message. In that case, the text should
             # have some left over space to the right
-            # for the upcomming "done in ???".
+            # for the upcomming time delta.
             if is_progress_message:
                 progressprint['length'] = len(text)
         # General progress message handling
@@ -803,13 +803,14 @@ if not cython.compiled:
             p.resize(size, refcheck=False)
         return p
     def free(a):
+        if a is None or len(a) == 0:
+            return
+        # Do nothing in the case of pointer arrays
         if isinstance(a, list):
-            # Do nothing in the case of pointer arrays
-            pass
-        else:
-            # NumPy arrays cannot be manually freed.
-            # Resize the array to the minimal size.
-            a.resize(0, refcheck=False)
+            return
+        # NumPy arrays cannot be manually freed.
+        # Resize the array to the minimal size.
+        a.resize(0, refcheck=False)
     # Casting
     def cast(a, dtype):
         if not isinstance(dtype, str):
@@ -856,13 +857,18 @@ if not cython.compiled:
     # Dummy functions and constants
     def dummy_func(*args, **kwargs):
         ...
-    # The 𝔹, ℝ, 𝕊, and ℤ dicts for constant expressions
+    # The BlackboardBold dicts for constant expressions
     class BlackboardBold(dict):
         def __init__(self, constant_type):
             self.constant_type = constant_type
         def __getitem__(self, key):
+            return self.convert(key)
+        def convert(self, key):
+            if self.constant_type is object:
+                return key
             return self.constant_type(key)
     𝔹 = BlackboardBold(bool)
+    𝕆 = BlackboardBold(object)
     ℝ = BlackboardBold(float)
     𝕊 = BlackboardBold(str)
     ℤ = BlackboardBold(int)
@@ -1466,7 +1472,7 @@ def construct_user_params_namespace(params_iteration):
         'rand'    : np.random.random,
         'random'  : np.random.random,
         'basename': os.path.basename,
-        'dirname' : os.path.basename,
+        'dirname' : os.path.dirname,
         # MPI variables and functions
         'master'         : master,
         'nprocs'         : nprocs,
@@ -1962,6 +1968,7 @@ cython.declare(
     powerspec_significant_figures='int',
     render2D_select=dict,
     render3D_select=dict,
+    life_output_order=tuple,
     class_plot_perturbations='bint',
     class_extra_background=set,
     class_extra_perturbations=set,
@@ -1993,6 +2000,7 @@ cython.declare(
     select_eos_w=dict,
     select_boltzmann_closure=dict,
     select_realization_options=dict,
+    select_lives=dict,
     select_approximations=dict,
     select_softening_length=dict,
     # Simlation options
@@ -2120,6 +2128,30 @@ if user_params.get('render3D_select'):
     else:
         render3D_select = {'all': user_params['render3D_select']}
 user_params['render3D_select'] = render3D_select
+life_output_order = tuple(user_params.get('life_output_order', ()))
+life_output_order = tuple([act.lower() for act in life_output_order])
+life_output_order = tuple([
+    'terminate'
+    if act.startswith('term') or act.startswith('deact') else act
+    for act in life_output_order
+])
+life_output_order = tuple([
+    'activate'
+    if act.startswith('act') else act
+    for act in life_output_order
+])
+life_output_order = tuple([
+    'dump'
+    if act.startswith('dump') or act.startswith('out') else act
+    for act in life_output_order
+])
+acts = ('terminate', 'activate', 'dump')
+for act in acts:
+    if act not in life_output_order:
+        life_output_order += (act,)
+if set(life_output_order) != set(acts):
+    abort(f'life_output_order = {life_output_order} not understood')
+user_params['life_output_order'] = life_output_order
 class_plot_perturbations = bool(user_params.get('class_plot_perturbations', False))
 user_params['class_plot_perturbations'] = class_plot_perturbations
 class_extra_background = set(
@@ -2506,6 +2538,23 @@ if user_params.get('select_realization_options'):
         for d in select_realization_options.values():
             replace_ellipsis(d)
 user_params['select_realization_options'] = select_realization_options
+select_lives = {}
+if user_params.get('select_lives'):
+    if isinstance(user_params['select_lives'], dict):
+        select_lives = user_params['select_lives']
+        replace_ellipsis(select_lives)
+    else:
+        select_lives = {'all': user_params['select_lives']}
+    replace_ellipsis(select_lives)
+else:
+    select_lives = {'all': (0, ထ)}
+for key, val in select_lives.copy().items():
+    val = tuple([float(el) for el in sorted(any2list(val))])
+    if len(val) != 2:
+        abort(f'select_lives["{key}"] = {select_lives[key]} not understood')
+    select_lives[key] = val
+select_lives['default'] = (0, ထ)
+user_params['select_lives'] = select_lives
 select_approximations = {}
 if user_params.get('select_approximations'):
     select_approximations = dict(user_params['select_approximations'])
@@ -3677,6 +3726,36 @@ def correct_float(val_raw):
         key=(lambda val: len(str(val))),
     )[0]
     return (val_new if len(str(val_new)) < len(str(val_raw)) - 2 else val_raw)
+
+# Functions for stripping the left-/right-most end off a string
+# if this entire end of the string matches the given end argument.
+@cython.header(
+    # Arguments
+    s=str,
+    end=str,
+    # Locals
+    returns=str,
+)
+def lstrip_exact(s, end):
+    return s[len(end):] if s.startswith(end) else s
+@cython.header(
+    # Arguments
+    s=str,
+    end=str,
+    # Locals
+    returns=str,
+)
+def rstrip_exact(s, end):
+    return s[:(len(s) - len(end))] if s.endswith(end) else s
+@cython.header(
+    # Arguments
+    s=str,
+    end=str,
+    # Locals
+    returns=str,
+)
+def strip_exact(s, end):
+    return rstrip_exact(lstrip_exact(s, end), end)
 
 # Function that aligns a list of str's by inserting spaces.
 # The alignment points are specified by the 'alignat' character.
