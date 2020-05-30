@@ -2032,6 +2032,8 @@ def construct_potential(
     # For each grid, multiply by the potential and deconvolution
     # factors. Do fluid slabs fist, then particle slabs.
     for representation_counter, (representation, slab) in enumerate(slabs.items()):
+        if slab is None:
+            continue
         # No need to process the fluid slab if it does not
         # contain any data.
         if representation == 'fluid' and not 𝔹[present['fluid', 'suppliers']]:

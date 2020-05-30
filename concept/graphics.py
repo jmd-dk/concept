@@ -47,7 +47,7 @@ from mpl_toolkits.mplot3d import proj3d  # Importing from mpl_toolkits.mplot3d e
 # and saving an image file to disk.
 @cython.header(
     # Arguments
-    powerspec_declaration=object,  # PowerspecDeclaration
+    powerspec_declaration=object,  # PowerspecDeclaration or list
     filename=str,
     # Locals
     a_str=str,
@@ -57,6 +57,7 @@ from mpl_toolkits.mplot3d import proj3d  # Importing from mpl_toolkits.mplot3d e
     k_bin_centers='double[::1]',
     power='double[::1]',
     power_linear='double[::1]',
+    powerspec_declarations=list,
     t_str=str,
     returns='void',
 )
@@ -64,15 +65,44 @@ def plot_powerspec(powerspec_declaration, filename):
     """It is expected that this function
     is called by the master process only.
     """
-    if not powerspec_declaration.do_plot:
+    # Recursive dispatch
+    if isinstance(powerspec_declaration, list):
+        powerspec_declarations = powerspec_declaration
+    else:
+        powerspec_declarations = [powerspec_declaration]
+    powerspec_declarations = [
+        powerspec_declaration
+        for powerspec_declaration in powerspec_declarations
+        if powerspec_declaration.do_plot
+    ]
+    if not powerspec_declarations:
         return
+    if len(powerspec_declarations) > 1:
+        for powerspec_declaration in powerspec_declarations:
+            # Since we have multiple plots --- one for each
+            # set of components --- we augment each filename
+            # with this information.
+            plot_powerspec(
+                powerspec_declaration,
+                augment_filename(
+                    filename,
+                    '_'.join([
+                        component.name.replace(' ', '-')
+                        for component in powerspec_declaration.components
+                    ]),
+                    '.png',
+                )
+            )
+        return
+    powerspec_declaration = powerspec_declarations[0]
+    # Ensure correct filename extension
+    if not filename.endswith('.png'):
+        filename += '.png'
+    # Extract variables
     components    = powerspec_declaration.components
     k_bin_centers = powerspec_declaration.k_bin_centers
     power         = powerspec_declaration.power
     power_linear  = powerspec_declaration.power_linear
-    # Attach missing extension to filename
-    if not filename.endswith('.png'):
-        filename += '.png'
     # Begin progress message
     if len(components) == 1:
         components_str = components[0].name
@@ -336,8 +366,6 @@ def plot_processed_perturbations(
     components=list,
     filename=str,
     # Locals
-    N_data_outputs='Py_ssize_t',
-    N_image_outputs='Py_ssize_t',
     axis=str,
     buffer_number='int',
     colormap=str,
@@ -362,6 +390,8 @@ def plot_processed_perturbations(
     i='Py_ssize_t',
     interpolation_order='int',
     j='Py_ssize_t',
+    n_data_outputs='Py_ssize_t',
+    n_image_outputs='Py_ssize_t',
     names_str=str,
     projection='double[:, ::1]',
     projection_terminal='double[:, ::1]',
@@ -390,13 +420,12 @@ def render2D(components, filename):
         [itertools.combinations(components, i) for i in range(1, len(components) + 1)]
     )
     # Count the number of output files
-    N_data_outputs = 0
-    N_image_outputs = 0
+    n_data_outputs = n_image_outputs = 0
     for component_combination in component_combinations:
         if is_selected(component_combination, render2D_data_select):
-            N_data_outputs += 1
+            n_data_outputs += 1
         if is_selected(component_combination, render2D_image_select):
-            N_image_outputs += 1
+            n_image_outputs += 1
     # Rebuild the generator
     component_combinations = itertools.chain.from_iterable(
         [itertools.combinations(components, i) for i in range(1, len(components) + 1)]
@@ -494,23 +523,18 @@ def render2D(components, filename):
         # Store projected image as an hdf5 file
         if is_selected(component_combination, render2D_data_select):
             # The filename should reflect the component combination
-            filename_combination = filename + '.hdf5'
-            if N_data_outputs > 1:
-                names_str = '_'.join(
-                    [component.name.replace(' ', '-') for component in component_combination]
+            filename_combination = filename
+            if not filename_combination.endswith('.hdf5'):
+                filename_combination += '.hdf5'
+            if n_data_outputs > 1:
+                filename_combination = augment_filename(
+                    filename_combination,
+                    '_'.join([
+                        component.name.replace(' ', '-')
+                        for component in component_combination
+                    ]),
+                    '.hdf5',
                 )
-                if '_t=' in filename_combination:
-                    filename_combination = (
-                        filename_combination.replace('_t=', f'_{names_str}_t=')
-                    )
-                elif '_a=' in filename_combination:
-                    filename_combination = (
-                        filename_combination.replace('_a=', f'_{names_str}_a=')
-                    )
-                else:
-                    filename_combination = (
-                        filename_combination.replace('.hdf5', f'_{names_str}.hdf5')
-                    )
             masterprint(f'Saving data to "{filename_combination}" ...')
             with open_hdf5(filename_combination, mode='w') as hdf5_file:
                 # Save used base unit
@@ -602,17 +626,15 @@ def render2D(components, filename):
         if is_selected(component_combination, render2D_image_select):
             # The filename should reflect the component combination
             filename_combination = filename + '.png'
-            if N_image_outputs > 1:
-                names_str = '_'.join(
-                    [component.name.replace(' ', '-') for component in component_combination]
+            if n_image_outputs > 1:
+                filename_combination = augment_filename(
+                    filename_combination,
+                    '_'.join([
+                        component.name.replace(' ', '-')
+                        for component in component_combination
+                    ]),
+                    '.png',
                 )
-                if '_t=' in filename_combination:
-                    filename_combination = filename_combination.replace('_t=', f'_{names_str}_t=')
-                elif '_a=' in filename_combination:
-                    filename_combination = filename_combination.replace('_a=', f'_{names_str}_a=')
-                else:
-                    filename_combination = filename_combination.replace(
-                        '.png', f'_{names_str}.png')
             masterprint(f'Saving image to "{filename_combination}" ...')
             plt.imsave(
                 filename_combination,
@@ -1201,19 +1223,12 @@ def render3D(components, filename, cleanup=True, tmp_dirname='.renders3D'):
     # Print out progress message
     names = tuple(render3D_dict.keys())
     if len(names) == 1:
-        masterprint('Rendering {} in 3D and saving to "{}" ...'.format(names[0], filename))
+        masterprint(f'Rendering {names[0]} in 3D and saving to "{filename}" ...')
     else:
         filenames_components = []
         for name in names:
-            name = name.replace(' ', '-')
-            filename_component = filename
-            if '_t=' in filename:
-                filename_component = filename.replace('_t=', '_{}_t='.format(name))
-            elif '_a=' in filename:
-                filename_component = filename.replace('_a=', '_{}_a='.format(name))
-            else:
-                filename_component = filename.replace('.png', '_{}.png'.format(name))
-            filenames_components.append('"{}"'.format(filename_component))
+            filename_component = augment_filename(filename, name, '.png')
+            filenames_components.append(f'"{filename_component}"')
         masterprint('3D rendering {} and saving to {} ...'
                     .format(', '.join(names), ', '.join(filenames_components)))
     # 3D render each component separately
@@ -1329,12 +1344,7 @@ def render3D(components, filename, cleanup=True, tmp_dirname='.renders3D'):
             # without transparency.
             filename_component = filename
             if len(names) > 1:
-                if '_t=' in filename:
-                    filename_component = filename.replace('_t=', '_{}_t='.format(name))
-                elif '_a=' in filename:
-                    filename_component = filename.replace('_a=', '_{}_a='.format(name))
-                else:
-                    filename_component = filename.replace('.png', '_{}.png'.format(name))
+                filename_component = augment_filename(filename, name, '.png')
             plt.imsave(filename_component, asarray(render3D_image))
         Barrier()
         masterprint('done')
@@ -1411,7 +1421,7 @@ def blend(filenames):
                 if render3D_image[i, j, rgbα] > 1:
                     render3D_image[i, j, rgbα] = 1
 
-# Add background color to render3D_image
+# Function for adding background color to render3D_image
 @cython.header(# Locals
                alpha='float',
                i='int',
@@ -1428,3 +1438,32 @@ def add_background():
                     alpha*render3D_image[i, j, rgb] + (1 - alpha)*render3D_bgcolor[rgb]
                 )
                 render3D_image[i, j, 3] = 1
+
+# Function for augmenting a filename with a given text
+def augment_filename(filename, text, ext=''):
+    """Example of use:
+    augment_filename('/path/to/powerspec_a=1.0.png', 'matter', 'png')
+      -> '/path/to/powerspec_matter_a=1.0.png'
+    """
+    text = text.lstrip('_')
+    ext = '.' + ext.lstrip('.')
+    dirname, basename = os.path.split(filename)
+    basename, baseext = os.path.splitext(basename)
+    if baseext != ext:
+        basename += baseext
+    time_param_indices = collections.defaultdict(int)
+    for time_param in ('t', 'a'):
+        try:
+            time_param_indices[time_param] = basename.index(f'_{time_param}=')
+        except ValueError:
+            continue
+    if time_param_indices['t'] == time_param_indices['a']:
+        basename += f'_{text}'
+    else:
+        time_param = sorted(time_param_indices.items(), key=lambda tup: tup[::-1])[-1][0]
+        basename = (f'_{text}_{time_param}='
+            .join(basename.rsplit(f'_{time_param}=', 1))
+        )
+    if ext != '.':
+        basename += ext
+    return os.path.join(dirname, basename)

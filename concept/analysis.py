@@ -46,9 +46,6 @@ cimport(
     components=list,
     filename=str,
     # Locals
-    filename_plot=str,
-    n_plots='int',
-    names_str=str,
     powerspec_declarations=list,
     powerspec_declaration=object,  # PowerspecDeclaration
     returns='void',
@@ -75,26 +72,7 @@ def powerspec(components, filename):
     # Dump power spectra to collective data file
     save_powerspec(powerspec_declarations, filename)
     # Dump power spectra to individual image files
-    n_plots = np.sum([
-        powerspec_declaration.do_plot for powerspec_declaration in powerspec_declarations
-    ])
-    filename_plot = filename
-    for powerspec_declaration in powerspec_declarations:
-        # If multiple power spectra is to be plotted, give each a unique
-        # filename containing the component names.
-        if n_plots > 1:
-            names_str = '_'.join([
-                component.name.replace(' ', '-')
-                for component in powerspec_declaration.components
-            ])
-            if '_t=' in filename:
-                filename_plot = filename.replace('_t=', f'_{names_str}_t=')
-            elif '_a=' in filename:
-                filename_plot = filename.replace('_a=', f'_{names_str}_a=')
-            else:
-                filename_plot = filename.rstrip('.png') + f'_{names_str}.png'
-        # Plot this power spectrum and save the image file to disk
-        plot_powerspec(powerspec_declaration, filename_plot)
+    plot_powerspec(powerspec_declaration, filename)
 
 # Function for getting declarations for all needed power spectra,
 # given a list of components.

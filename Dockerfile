@@ -25,8 +25,9 @@ RUN : \
     && concept_version=${concept_version} bash /source/installer -y "${top_dir}" \
     && rm -rf /source \
     # Set up CO𝘕CEPT and Python environment
-    && apt-get install -y --no-install-recommends less \
     && sed -i "1i source \"${top_dir}/concept/concept\"" ~/.bashrc \
+    && apt-get install -y --no-install-recommends less \
+    && echo "alias less='less -r'" >> ~/.bashrc \
     && ln -s "${top_dir}/python/bin/python3" "${top_dir}/python/bin/python" \
     # Set up Bash autocompletion
     && apt-get install -y --no-install-recommends bash-completion \

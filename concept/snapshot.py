@@ -1154,7 +1154,7 @@ def get_snapshot_type(filename):
             abort(f'The snapshot file "{filename}" does not exist')
         for snapshot_class in snapshot_classes:
             if snapshot_class.is_this_type(filename):
-                determined_type = snapshot_class.__name__.rstrip('Snapshot').lower()
+                determined_type = rstrip_exact(snapshot_class.__name__, 'Snapshot').lower()
                 break
     return bcast(determined_type)
 
@@ -1264,19 +1264,15 @@ def out_of_bounds_check(component, snapshot_boxsize=-1):
     # Arguments
     do_realization='bint',
     # Locals
-    N_components_from_snapshot='Py_ssize_t',
     component='Component',
     components=list,
     initial_condition_specifications=list,
     initial_conditions_list=list,
+    n_components_from_snapshot='Py_ssize_t',
     name=str,
     path_or_specifications=object,  # str or dict
-    representation=str,
-    specifications=dict,
     species=str,
-    ϱ_bbar_components='double',
-    ϱ_cdmbar_components='double',
-    ϱ_mbar_components='double',
+    specifications=dict,
     returns=list,
 )
 def get_initial_conditions(do_realization=True):
@@ -1303,7 +1299,7 @@ def get_initial_conditions(do_realization=True):
             initial_condition_specifications.append(path_or_specifications.copy())
         else:
             abort(f'Error parsing initial_conditions of type {type(path_or_dict)}')
-    N_components_from_snapshot = len(components)
+    n_components_from_snapshot = len(components)
     # Instantiate the component(s) given as
     # initial condition specifications.
     for specifications in initial_condition_specifications:
@@ -1323,44 +1319,8 @@ def get_initial_conditions(do_realization=True):
     # Realize all components instantiated from
     # initial condition specifications.
     if do_realization:
-        for component in components[N_components_from_snapshot:]:
+        for component in components[n_components_from_snapshot:]:
             component.realize()
-    # Issue warnings if the combined energy density of the components
-    # exceed those of the specified Ωcdm and Ωb,
-    # assuming a flat universe.
-    if enable_Hubble:
-        ϱ_bbar_components = 0
-        ϱ_cdmbar_components = 0
-        ϱ_mbar_components = 0
-        for component in components:
-            if component.species == 'baryons':
-                ϱ_bbar_components += component.ϱ_bar
-            elif component.species == 'cold dark matter':
-                ϱ_cdmbar_components += component.ϱ_bar
-            elif component.species == 'matter':
-                ϱ_mbar_components += component.ϱ_bar
-        ϱ_mbar_components += ϱ_bbar_components + ϱ_cdmbar_components
-        if ϱ_bbar_components > Ωb*ρ_crit and not isclose(
-            ϱ_bbar_components, Ωb*ρ_crit, 1e-6,
-        ):
-            masterwarn(
-                f'Though Ωb = {Ωb}, the energy density of the components '
-                f'add up to Ωb = {ϱ_bbar_components/ρ_crit}'
-            )
-        if ϱ_cdmbar_components > Ωcdm*ρ_crit and not isclose(
-            ϱ_cdmbar_components, Ωcdm*ρ_crit, 1e-6,
-        ):
-            masterwarn(
-                f'Though Ωcdm = {Ωcdm}, the energy density of the components '
-                f'add up to Ωcdm = {ϱ_cdmbar_components/ρ_crit}'
-            )
-        if ϱ_mbar_components > Ωm*ρ_crit and not isclose(
-            ϱ_mbar_components, Ωm*ρ_crit, 1e-6,
-        ):
-            masterwarn(
-                f'Though Ωm = {Ωm}, the energy density of the components '
-                f'add up to Ωm = {ϱ_mbar_components/ρ_crit}'
-            )
     return components
 
 

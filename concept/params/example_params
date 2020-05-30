@@ -85,6 +85,9 @@ render2D_select = {  # Toggle 2D rendering for individual and sets of components
 render3D_select = {  # Toggle rendering for each component
     'all': True,
 }
+life_output_order = (  # Ordering of component activations/terminations relative to output dumps
+    'terminate', 'activate', 'dump',
+)
 class_plot_perturbations = False  # Plot CLASS perturbations?
 class_extra_background = {}       # Extra CLASS background variables to dump
 class_extra_perturbations = {}    # Extra CLASS perturbations to dump
@@ -203,6 +206,9 @@ select_realization_options = {  # Realization options for each component and var
             'compound-order': 'linear',
         },
     },
+}
+select_lives = {  # Time (scale factor value) of birth and death for each component
+    'all': (0, inf),
 }
 select_approximations = {  # Toggle approximations for each component
     'all': {

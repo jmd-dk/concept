@@ -1026,6 +1026,19 @@ except NameError:
         | tail -n 1                                                 \
         | sed 's/^.\{12\}//'
     }
+    # If the logs directory is clean,
+    # we count any generated *_err file as a test failure.
+    test_check_err_logs() { :; }
+    if [ ! -d "${logs_dir}" ] || [ -z "$(ls -A "${logs_dir}")" ]; then
+        test_check_err_logs() {
+            if ls "${logs_dir}/"*err >/dev/null 2>&1; then
+                colorprint "It looks like ${test_name} test generated error messages.\n\
+This is counted as a test failure." "red"
+                exit 1
+            fi
+        }
+    fi
+    # Do the test(s)
     if [ "${test}" == "all" ]; then
         # Find and run all tests
         tests="$(cd "${tests_dir}" && "${python}" -B -c "
@@ -1095,6 +1108,7 @@ for test in sorted_tests:
             start_time_test=$("${python}" -B -c "import time; print(time.time())")
             colorprint "\nRunning ${test_name} test" "yellow"
             "${tests_dir}/${test_name}/run_test"
+            test_check_err_logs
             colorprint "${test_name} test ran successfully" "green"
             # Print out the execution time for this test
             "${python}" -B -c "from commons import *
@@ -1107,6 +1121,7 @@ print('Total execution time: {}'.format(time_since(${start_time_test})))"
         test_name="$(basename "${test}")"
         colorprint "Running ${test_name} test" "yellow"
         "${test}/run_test"
+        test_check_err_logs
         colorprint "${test_name} test ran successfully" "green"
     fi
     # Print out the total time it took to ran the test(s)
