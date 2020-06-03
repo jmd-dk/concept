@@ -27,17 +27,18 @@ RUN : \
     # Set up CO𝘕CEPT and Python environment
     && sed -i "1i source \"${top_dir}/concept/concept\"" ~/.bashrc \
     && apt-get install -y --no-install-recommends less \
-    && echo "[ -t 0 ] && alias less='less -r'" >> ~/.bashrc \
+    && echo "[ ! -t 0 ] || alias less='less -r'" >> ~/.bashrc \
     && ln -s "${top_dir}/python/bin/python3" "${top_dir}/python/bin/python" \
     # Set up Bash autocompletion
     && apt-get install -y --no-install-recommends bash-completion \
-    && echo "[ -t 0 ] && source /etc/bash_completion" >> ~/.bashrc \
+    && echo "[ ! -t 0 ] || source /etc/bash_completion" >> ~/.bashrc \
     # Set up Bash history search with ↑↓
-    && echo "[ -t 0 ] && bind '\"\e[A\": history-search-backward'" >> ~/.bashrc \
-    && echo "[ -t 0 ] && bind '\"\e[B\": history-search-forward'" >> ~/.bashrc \
+    && echo "[ ! -t 0 ] || bind '\"\e[A\": history-search-backward'" >> ~/.bashrc \
+    && echo "[ ! -t 0 ] || bind '\"\e[B\": history-search-forward'" >> ~/.bashrc \
     # Set up color prompt
-    && echo "[ -t 0 ] && PS1='\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\\$ '" >> ~/.bashrc \
-    && echo "[ -t 0 ] && alias ls='ls --color=auto'" >> ~/.bashrc \
+    && echo "[ ! -t 0 ] || PS1='\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\\$ '" >> ~/.bashrc \
+    && echo "[ ! -t 0 ] || alias ls='ls --color=auto'" >> ~/.bashrc \
+    && echo "[ ! -t 0 ] || alias grep='grep --color=auto'" >> ~/.bashrc \
     # Clean APT cache and remove unnecessary packages
     && rm -rf /var/lib/apt/lists/* \
     && apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false
