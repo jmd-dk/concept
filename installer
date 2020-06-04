@@ -8020,8 +8020,7 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
     # number of MPI processes on the local node, which signals the
     # number of OpenMP threads to use. All three variables will be used
     # to make CLASS print out status updates during perturbation
-    # computations, when the perturbations_verbose parameter
-    # is negative.
+    # computations.
     linenr_1="$(grep -n 'struct background' "${class_dir}/include/background.h" | head -n 1)"
     linenr_1="${linenr_1%%:*}"
     i=0
@@ -8045,7 +8044,7 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
     linenr="$(grep -n "__cinit__" "${class_dir}/python/classy.pyx")"
     linenr="${linenr%%:*}"
     sed -i "${linenr}s/.*/    def __cinit__(self, \
-        default=False, node=0, num_threads=1, message=''): \
+        default=False, node=0, num_threads=-1, message=''): \
         # Changed for use with CONCEPT/" "${class_dir}/python/classy.pyx"
     ((linenr += 1))
     new_lines=(                                                            \
@@ -8085,22 +8084,33 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
         "char* message"   \
     )
     patch_class "${class_dir}/python/cclassy.pxd" ${linenr_2} "insert" "above" "${new_lines[@]}"
+    linenr="$(grep -n "precision_file *\[ *0 *\] *= *'\\\\0' *;" \
+        "${class_dir}/source/input.c")"
+    linenr="${linenr%%:*}"
+    ((linenr += 1))
+    new_lines=(                                  \
+        "pba->node = 0;"                         \
+        "pba->num_threads = -1;"                 \
+        "pba->message = malloc(1*sizeof(char));" \
+        "pba->message[0] = '\\\\0';"             \
+    )
+    patch_class "${class_dir}/source/input.c" ${linenr} "insert" "below" "${new_lines[@]}"
     linenr="$(grep -n 'for (index_k = ppt->k_size\[index_md\]-1; index_k >=0; index_k--)' \
         "${class_dir}/source/perturbations.c")"
     linenr="${linenr%%:*}"
     ((linenr += 1))
-    new_lines=(                                                         \
-        "if ((abort == _FALSE_) && (ppt->perturbations_verbose < 0)) {" \
-        "  printf("                                                     \
-        "    pba->message,"                                             \
-        "    pba->node,"                                                \
-        "    thread,"                                                   \
-        "    ppt->k[index_md][index_k],"                                \
-        "    index_k+1,"                                                \
-        "    ppt->k_size[index_md]"                                     \
-        "  );"                                                          \
-        "  fflush(stdout);"                                             \
-        "}"                                                             \
+    new_lines=(                                                  \
+        "if ((abort == _FALSE_) && (pba->message[0] != '\0')) {" \
+        "  printf("                                              \
+        "    pba->message,"                                      \
+        "    pba->node,"                                         \
+        "    thread,"                                            \
+        "    ppt->k[index_md][index_k],"                         \
+        "    index_k+1,"                                         \
+        "    ppt->k_size[index_md]"                              \
+        "  );"                                                   \
+        "  fflush(stdout);"                                      \
+        "}"                                                      \
     )
     patch_class "${class_dir}/source/perturbations.c" ${linenr} "insert" "below" "${new_lines[@]}"
     pattern='#pragma *omp *parallel'

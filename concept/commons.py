@@ -3180,10 +3180,6 @@ def call_class(extra_params=None, sleep_time=0.1, mode='single node', class_call
             f'call_class called with mode = "{mode}", '
             f'but only "single node" and "mpi" are allowed'
         )
-    # Set the perturbations_verbose to some negative integer,
-    # which is not a standard CLASS value but is used to signal
-    # printout for the MPI class implementation.
-    extra_params.setdefault('perturbations_verbose', -1)
     # Merge global and extra CLASS parameters
     params_specialized = class_params.copy()
     params_specialized.update(extra_params)
