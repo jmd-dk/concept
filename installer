@@ -399,7 +399,7 @@ elif [ "${mpi}" == "openmpi" ]; then
 fi
 set_version "ncurses"           "6.2"     "6.2"
 set_version "openssl"           "1.1.1g"  "1.1.1f"
-set_version "perl"              "5.30.2"
+set_version "perl"              "5.30.3"
 set_version "python"            "3.8.3"
 set_version "zlib"              "1.2.11"  "1.2.11"
 # Python packages
@@ -409,12 +409,12 @@ set_version "cythongsl"         "0.2.2"
 set_version "h5py"              "2.10.0"
 set_version "matplotlib"        "3.2.1"
 set_version "mpi4py"            "3.0.3"
-set_version "numpy"             "1.18.4"
+set_version "numpy"             "1.18.5"
 set_version "pip"               "20.1.1"
-set_version "pytest"            "5.4.2"
+set_version "pytest"            "5.4.3"
 set_version "scipy"             "1.4.1"
-set_version "setuptools"        "46.4.0"
-set_version "sphinx"            "3.0.3"
+set_version "setuptools"        "47.1.1"
+set_version "sphinx"            "3.0.4"
 set_version "sphinx_copybutton" "0.2.11"
 set_version "sphinx_rtd_theme"  "0.4.3"
 set_version "sphinx_tabs"       "1.1.13"
@@ -8088,29 +8088,29 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
         "${class_dir}/source/input.c")"
     linenr="${linenr%%:*}"
     ((linenr += 1))
-    new_lines=(                                  \
-        "pba->node = 0;"                         \
-        "pba->num_threads = -1;"                 \
-        "pba->message = malloc(1*sizeof(char));" \
-        "pba->message[0] = '\\\\0';"             \
+    new_lines=(                                         \
+        "pba->node = 0;"                                \
+        "pba->num_threads = -1;"                        \
+        "pba->message = (char*)malloc(1*sizeof(char));" \
+        "pba->message[0] = '\\\\0';"                    \
     )
     patch_class "${class_dir}/source/input.c" ${linenr} "insert" "below" "${new_lines[@]}"
     linenr="$(grep -n 'for (index_k = ppt->k_size\[index_md\]-1; index_k >=0; index_k--)' \
         "${class_dir}/source/perturbations.c")"
     linenr="${linenr%%:*}"
     ((linenr += 1))
-    new_lines=(                                                  \
-        "if ((abort == _FALSE_) && (pba->message[0] != '\0')) {" \
-        "  printf("                                              \
-        "    pba->message,"                                      \
-        "    pba->node,"                                         \
-        "    thread,"                                            \
-        "    ppt->k[index_md][index_k],"                         \
-        "    index_k+1,"                                         \
-        "    ppt->k_size[index_md]"                              \
-        "  );"                                                   \
-        "  fflush(stdout);"                                      \
-        "}"                                                      \
+    new_lines=(                                                     \
+        "if ((abort == _FALSE_) && (pba->message[0] != '\\\\0')) {" \
+        "  printf("                                                 \
+        "    pba->message,"                                         \
+        "    pba->node,"                                            \
+        "    thread,"                                               \
+        "    ppt->k[index_md][index_k],"                            \
+        "    index_k+1,"                                            \
+        "    ppt->k_size[index_md]"                                 \
+        "  );"                                                      \
+        "  fflush(stdout);"                                         \
+        "}"                                                         \
     )
     patch_class "${class_dir}/source/perturbations.c" ${linenr} "insert" "below" "${new_lines[@]}"
     pattern='#pragma *omp *parallel'
