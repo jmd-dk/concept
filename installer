@@ -20,7 +20,7 @@
 # The latest version of CO𝘕CEPT is available at
 # https://github.com/jmd-dk/concept/
 
-# changed
+# changed 2
 
 # Help text which gets printed if invoked with -h or --help.
 help_text='This script downloads and installs the CO𝘕CEPT code with all its
