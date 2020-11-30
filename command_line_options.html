@@ -631,28 +631,28 @@ saved as “job directives” within a job script, which is then submitted to th
 job scheduler. If you desire further fine tuning of system resources, you may
 supply further such directives using this command-line option.</p>
 <p>What job directives are available depend on the job scheduler, as well as the
-local configuration of the cluster and queue. As an example, imagine that the
-cluster/queue makes available both Intel and AMD nodes, and that it is set up
-so that we may request either type using Slurm’s <code class="docutils literal notranslate"><span class="pre">constraint</span></code> directive. To
-select AMD then;</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept -j<span class="o">=</span><span class="s2">&quot;--constraint=AMD&quot;</span>
+local configuration of the cluster and queue. As an example, consider</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept -j<span class="o">=</span><span class="s2">&quot;--exclusive&quot;</span>
 </pre></div>
 </div>
+<p>which tells Slurm to give the job exclusive access to the allocated nodes, so
+that the nodes will not be shared with other running jobs which could otherwise
+make use of still available resources.</p>
 <p>The effect of this is simply to place the line</p>
 <blockquote>
-<div><p>#SBATCH \-\-constraint=AMD</p>
+<div><p>#SBATCH --exclusive</p>
 </div></blockquote>
 <p>in the header of the job script, assuming Slurm, or</p>
 <blockquote>
-<div><p>#PBS \-\-constraint=AMD</p>
+<div><p>#PBS --exclusive</p>
 </div></blockquote>
-<p>in the case of TORQUE/PBS (the specific example of <code class="docutils literal notranslate"><span class="pre">--constraint</span></code>
+<p>in the case of TORQUE/PBS (the specific example of <code class="docutils literal notranslate"><span class="pre">--exclusive</span></code>
 does not mean anything to TORQUE/PBS, though).</p>
 <div class="admonition caution">
 <p class="admonition-title">Caution</p>
-<p>Since the value <code class="docutils literal notranslate"><span class="pre">--constraint=AMD</span></code> starts with ‘<code class="docutils literal notranslate"><span class="pre">-</span></code>‘, using
-<code class="docutils literal notranslate"><span class="pre">-j</span> <span class="pre">--constraint=AMD</span></code> or <code class="docutils literal notranslate"><span class="pre">-j</span> <span class="pre">&quot;--constraint=AMD&quot;</span></code> is not legal as the
-parser registres <code class="docutils literal notranslate"><span class="pre">--constraint=AMD</span></code> as a whole new (and non-existent)
+<p>Since the value <code class="docutils literal notranslate"><span class="pre">--exclusive</span></code> starts with ‘<code class="docutils literal notranslate"><span class="pre">-</span></code>‘, using
+<code class="docutils literal notranslate"><span class="pre">-j</span> <span class="pre">--exclusive</span></code> or <code class="docutils literal notranslate"><span class="pre">-j</span> <span class="pre">&quot;--exclusive&quot;</span></code> is not legal as the
+parser registres <code class="docutils literal notranslate"><span class="pre">--exclusive</span></code> as a whole new (and non-existent)
 option.</p>
 </div>
 <p>The <code class="docutils literal notranslate"><span class="pre">-j</span></code> option may be specified multiple times.</p>
