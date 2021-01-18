@@ -360,7 +360,7 @@
 already been demonstrated. We would like our simulation to be able to compute
 gravity in a manner that is both accurate and efficient. In CO<em>N</em>CEPT, the
 details of the gravitational computation is controlled by a large set of
-parameters, enabling us to tune this tradeoff between accuracy and efficiency
+parameters, enabling us to tune this trade-off between accuracy and efficiency
 to our heart’s desire.</p>
 <p>In order to learn how to control gravity within CO<em>N</em>CEPT we shall run
 some sample simulations. The parameter specifications below are very similar
@@ -518,7 +518,7 @@ directory, say <code class="docutils literal notranslate"><span class="pre">outp
 <p>The <code class="docutils literal notranslate"><span class="pre">-m</span></code> command-line option redirects <code class="docutils literal notranslate"><span class="pre">concept</span></code> to run the specified
 Python script, rather than launching a CO<em>N</em>CEPT simulation. In this
 case, this is almost equivalent to just running the script using Python
-directly, but using <code class="docutils literal notranslate"><span class="pre">./concept</span> <span class="pre">-m</span></code> we are guarenteed that the environment
+directly, but using <code class="docutils literal notranslate"><span class="pre">./concept</span> <span class="pre">-m</span></code> we are guaranteed that the environment
 is set up correctly, according to the CO<em>N</em>CEPT installation.</p>
 </div>
 <p>The script will produce the output <code class="docutils literal notranslate"><span class="pre">output/tutorial/plot.png</span></code>. Investigating
@@ -537,8 +537,8 @@ different from matter.</p>
 <p>A different gravitational method is the particle-particle-particle-mesh (P³M)
 method. This method also makes use of a potential grid, but here the grid is
 used only to get the gravitational force between particles separated by a
-distance much greater than the potential cell size, minimizing discretization
-errors. The remaning — so-called <em>short-range</em> — component of gravity
+distance much greater than the potential cell size, minimizing discretisation
+errors. The remaining — so-called <em>short-range</em> — component of gravity
 between nearby particles is then computed separately, by directly pairing up
 particles and computing the force between them (no potential grid required).</p>
 <p>To switch out PM for P³M, simply replace <code class="docutils literal notranslate"><span class="pre">'pm'</span></code> in the <code class="docutils literal notranslate"><span class="pre">select_forces</span></code>
@@ -599,7 +599,7 @@ which various details of the (PM and P³M)
 <a class="reference internal" href="../parameters/numerical_parameters.html"><span class="doc">potential can be controlled</span></a>.</p>
 <h3>The PP method</h3><p>Finally, let it be known that CO<em>N</em>CEPT also supports the bare
 particle-particle (PP) method, which simply performs the naïve pairwise
-force computation between all particles, effecively computing “short”-range
+force computation between all particles, effectively computing “short”-range
 forces as in the P³M method, but now across the entire simulation box.</p>
 <p>As expected, the PP method may be specified using</p>
 <div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">select_forces</span> <span class="o">=</span> <span class="p">{</span>
@@ -612,7 +612,7 @@ simulation with <span class="math notranslate nohighlight">\(N = 64^3\)</span> p
 slightly more accurate than the P³M method, the PP method should never be
 used for running production simulations and is only included in CO<em>N</em>CEPT
 for use with internal testing. Running (well, starting) a small PP simulation
-at least once will help any user of <em>N</em>-body codes appreciate the enourmous
+at least once will help any user of <em>N</em>-body codes appreciate the enormous
 performance gains achieved by the more sophisticated methods.</p>
 </div>
 </div>
