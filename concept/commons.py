@@ -214,14 +214,14 @@ if master:
     nodes = empty(nprocs, dtype=C2np['int'])
     node_names2numbers = {node_name: master_node}
     node_i = -1
-    cython.declare(other_rank='int')
-    for other_rank, other_node_name in enumerate(node_names):
+    cython.declare(rank_other='int')
+    for rank_other, other_node_name in enumerate(node_names):
         if other_node_name not in node_names2numbers:
             node_i += 1
             if node_i == master_node:
                 node_i += 1
             node_names2numbers[other_node_name] = node_i
-        nodes[other_rank] = node_names2numbers[other_node_name]
+        nodes[rank_other] = node_names2numbers[other_node_name]
     node_numbers2names = {val: key for key, val in node_names2numbers.items()}
 nodes = bcast(asarray(nodes) if master else None)
 node = nodes[rank]
@@ -824,16 +824,12 @@ if not cython.compiled:
         match = re.search(r'(.*)\[', dtype)
         if match:
             # Pointer to array cast assumed
+            frame = inspect.stack()[1][0]
             shape = dtype.replace(':', '')
             shape = shape[(shape.index('[') + 1):]
-            shape = shape.rstrip()[:-1]
-            if shape[-1] != ',':
-                shape += ','
-            shape = '(' + shape + ')'
-            try:
-                shape = eval(shape, inspect.stack()[1][0].f_locals)
-            except:
-                shape = eval(shape, inspect.stack()[1][0].f_globals)
+            shape = shape.rstrip(' \t\n,')[:-1] + ','
+            shape = f'({shape})'
+            shape = eval(shape, frame.f_globals, frame.f_locals)
             a = np.ctypeslib.as_array(a, shape)
             a = np.reshape(a[:np.prod(shape)], shape)
             return a
@@ -954,7 +950,7 @@ def build_struct(**kwargs):
             # Type and value given
             ctype, val = val
         else:
-            # Only type given. Initialize value to None
+            # Only type given. Initialise value to None
             # for pointer type or 0 for non-pointer type.
             ctype, val = val, '__build_struct_undefined__'
         try:
@@ -2049,7 +2045,8 @@ snapshot_type = (str(user_params.get('snapshot_type', 'standard'))
 user_params['snapshot_type'] = snapshot_type
 output_dirs = dict(user_params.get('output_dirs', {}))
 replace_ellipsis(output_dirs)
-for kind in ('snapshot', 'powerspec', 'render2D', 'render3D'):
+output_kinds = ('snapshot', 'powerspec', 'render2D', 'render3D')
+for kind in output_kinds:
     output_dirs[kind] = str(output_dirs.get(kind, paths['output_dir']))
     if not output_dirs[kind]:
         output_dirs[kind] = paths['output_dir']
@@ -2060,7 +2057,7 @@ output_dirs = {key: sensible_path(path) for key, path in output_dirs.items()}
 user_params['output_dirs'] = output_dirs
 output_bases = dict(user_params.get('output_bases', {}))
 replace_ellipsis(output_bases)
-for kind in ('snapshot', 'powerspec', 'render2D', 'render3D'):
+for kind in output_kinds:
     output_bases[kind] = str(output_bases.get(kind, kind))
 user_params['output_bases'] = output_bases
 output_times = dict(user_params.get('output_times', {}))
@@ -3130,7 +3127,7 @@ for key, val in output_times.items():
         )
 for time_param in ('a', 't'):
     output_times[time_param] = dict(output_times.get(time_param, {}))
-    for kind in ('snapshot', 'powerspec', 'render2D', 'render3D'):
+    for kind in output_kinds:
         output_times[time_param][kind] = output_times[time_param].get(kind, ())
 output_times = {
     time_param: {
@@ -4390,11 +4387,16 @@ os.makedirs = tryexcept_wrapper(os.makedirs, 'os.makedirs() failed')
 # Abort on unrecognised snapshot_type
 if snapshot_type not in ('standard', 'gadget2'):
     abort('Unrecognised snapshot type "{}"'.format(user_params['snapshot_type']))
-# Abort on unrecognised output types
-keys = {'snapshot', 'powerspec', 'render2D', 'render3D'}
+# Abort on unrecognised output kinds
+for key in output_dirs:
+    if key not in (output_kinds + ('autosave',)):
+        abort(f'Unrecognised output type "{key}"')
+for key in output_bases:
+    if key not in output_kinds:
+        abort(f'Unrecognised output type "{key}"')
 for d in output_times.values():
     for key in d:
-        if key not in keys:
+        if key not in output_kinds:
             abort(f'Unrecognised output type "{key}"')
 # Warn about odd force differentiation
 for force, d in potential_options['differentiation'].items():

@@ -672,16 +672,17 @@ def flux_limiter_koren(r):
 # Function which evolve the fluid variables of a component
 # due to internal source terms. This function should be used
 # together with the kurganov_tadmor function.
-@cython.header(# Arguments
-               component='Component',
-               ᔑdt=dict,
-               a='double',
-               # Locals
-               i='Py_ssize_t',
-               w='double',
-               ϱ_ptr='double*',
-               𝒫_ptr='double*',
-               )
+@cython.header(
+    # Arguments
+    component='Component',
+    ᔑdt=dict,
+    a='double',
+    # Locals
+    index='Py_ssize_t',
+    w='double',
+    ϱ_ptr='double*',
+    𝒫_ptr='double*',
+)
 def kurganov_tadmor_internal_sources(component, ᔑdt, a=-1):
     """By "internal sources" is meant source terms which do not arise
     due to interactions, such as the Hubble term in the continuity
@@ -700,8 +701,8 @@ def kurganov_tadmor_internal_sources(component, ᔑdt, a=-1):
         w = component.w(a=a)
         ϱ_ptr = component.ϱ.grid
         𝒫_ptr = component.𝒫.grid
-        for i in range(component.size):
-            ϱ_ptr[i] += ℝ[3*ᔑdt['ȧ/a']]*(w*ϱ_ptr[i] - ℝ[light_speed**(-2)]*𝒫_ptr[i])
+        for index in range(component.size):
+            ϱ_ptr[index] += ℝ[3*ᔑdt['ȧ/a']]*(w*ϱ_ptr[index] - ℝ[light_speed**(-2)]*𝒫_ptr[index])
         masterprint('done')
 
 # The MacCormack method
@@ -801,37 +802,39 @@ maccormack_steps = generate_maccormack_steps()
 
 # Function which evolve the fluid variables of a component,
 # disregarding all source terms.
-@cython.header(# Arguments
-               component='Component',
-               ᔑdt=dict,
-               steps='Py_ssize_t[::1]',
-               mc_step='int',
-               a_next='double',
-               # Locals
-               J_div='double[:, :, ::1]',
-               J_el='double[:, :, ::1]',
-               Jˣ_el='double[:, :, ::1]',
-               dim_div='int',
-               dim_el='int',
-               fluidscalar='FluidScalar',
-               grid='double*',
-               gridˣ='double*',
-               indices_local_end='Py_ssize_t[::1]',
-               indices_local_start='Py_ssize_t[::1]',
-               view=str,
-               viewˣ=str,
-               Δ='double',
-               i='Py_ssize_t',
-               j='Py_ssize_t',
-               k='Py_ssize_t',
-               step_i='Py_ssize_t',
-               step_j='Py_ssize_t',
-               step_k='Py_ssize_t',
-               Δx='double',
-               ϱ='double[:, :, ::1]',
-               ϱˣ='double[:, :, ::1]',
-               𝒫='double[:, :, ::1]',
-               )
+@cython.header(
+    # Arguments
+    component='Component',
+    ᔑdt=dict,
+    steps='Py_ssize_t[::1]',
+    mc_step='int',
+    a_next='double',
+    # Locals
+    J_div='double[:, :, ::1]',
+    J_el='double[:, :, ::1]',
+    Jˣ_el='double[:, :, ::1]',
+    dim_div='int',
+    dim_el='int',
+    fluidscalar='FluidScalar',
+    grid='double*',
+    gridˣ='double*',
+    i='Py_ssize_t',
+    index='Py_ssize_t',
+    indices_local_end='Py_ssize_t[::1]',
+    indices_local_start='Py_ssize_t[::1]',
+    j='Py_ssize_t',
+    k='Py_ssize_t',
+    step_i='Py_ssize_t',
+    step_j='Py_ssize_t',
+    step_k='Py_ssize_t',
+    view=str,
+    viewˣ=str,
+    Δ='double',
+    Δx='double',
+    ϱ='double[:, :, ::1]',
+    ϱˣ='double[:, :, ::1]',
+    𝒫='double[:, :, ::1]',
+)
 def maccormack_step(component, ᔑdt, steps, mc_step, a_next=-1):
     """It is assumed that the unstarred and starred grids have
     correctly populated ghost points.
@@ -856,12 +859,12 @@ def maccormack_step(component, ᔑdt, steps, mc_step, a_next=-1):
     for fluidscalar in component.iterate_nonlinear_fluidscalars():
         grid  = fluidscalar.grid
         gridˣ = fluidscalar.gridˣ
-        for i in range(component.size):
+        for index in range(component.size):
             with unswitch:
                 if mc_step == 0:
-                    gridˣ[i] = grid[i]
+                    gridˣ[index] = grid[index]
                 else:  # mc_step == 1
-                    grid[i] += gridˣ[i]
+                    grid[index] += gridˣ[index]
     # Attribute names of the data in fluidscalars.
     # In the second MacCormack step, the roles of the
     # starred and the unstarred grids should be swapped.
@@ -1061,14 +1064,15 @@ def maccormack_internal_sources(component, ᔑdt, a_next=-1):
         masterprint('done')
 
 # Function which checks and warn about vacuum in a fluid component
-@cython.header(# Arguments
-               component='Component',
-               mc_step='int',
-               # Locals
-               any_vacuum='bint',
-               i='Py_ssize_t',
-               ϱ='double*',
-               )
+@cython.header(
+    # Arguments
+    component='Component',
+    mc_step='int',
+    # Locals
+    any_vacuum='bint',
+    index='Py_ssize_t',
+    ϱ='double*',
+)
 def check_vacuum(component, mc_step):
     # Grab pointer to the density. After the first MacCormack step,
     # the starred buffers have been updated from the non-starred
@@ -1084,8 +1088,8 @@ def check_vacuum(component, mc_step):
         ϱ = component.ϱ.gridˣ
     # Check for vacuum
     any_vacuum = False
-    for i in range(component.size):
-        if ϱ[i] < ρ_vacuum:
+    for index in range(component.size):
+        if ϱ[index] < ρ_vacuum:
             any_vacuum = True
             break
     # Show a warning if any vacuum elements were found
@@ -1117,6 +1121,7 @@ def check_vacuum(component, mc_step):
     fac_time='double',
     foresight='double',
     i='Py_ssize_t',
+    index='Py_ssize_t',
     indices_local_start='Py_ssize_t[::1]',
     indices_local_end='Py_ssize_t[::1]',
     j='Py_ssize_t',
@@ -1322,14 +1327,14 @@ def correct_vacuum(component, mc_step):
         # Apply vacuum corrections.
         # Note that no further communication is needed as we also apply
         # vacuum corrections to the ghost points.
-        for i in range(component.size):
-            ϱ_ptr [i] += Δϱ_ptr [i]
-        for i in range(component.size):
-            Jx_ptr[i] += ΔJx_ptr[i]
-        for i in range(component.size):
-            Jy_ptr[i] += ΔJy_ptr[i]
-        for i in range(component.size):
-            Jz_ptr[i] += ΔJz_ptr[i]
+        for index in range(component.size):
+            ϱ_ptr [index] += Δϱ_ptr [index]
+        for index in range(component.size):
+            Jx_ptr[index] += ΔJx_ptr[index]
+        for index in range(component.size):
+            Jy_ptr[index] += ΔJy_ptr[index]
+        for index in range(component.size):
+            Jz_ptr[index] += ΔJz_ptr[index]
     # The return value should indicate whether or not
     # vacuum corrections have been carried out.
     return vacuum_imminent

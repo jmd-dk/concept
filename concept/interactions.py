@@ -99,9 +99,9 @@ ctypedef void (*func_interaction)(
     judgement_period='Py_ssize_t',
     lowest_active_rung='signed char',
     only_supply='bint',
-    other_rank='int',
     pair=set,
     pairs=list,
+    rank_other='int',
     receiver='Component',
     refinement_offset='Py_ssize_t',
     refinement_period='Py_ssize_t',
@@ -318,13 +318,13 @@ def component_component(
         # and print out any positive results.
         Gather(subtiling_shape_judged, subtiling_shapes_judged)
         if master:
-            for other_rank in range(nprocs):
-                index = 3*other_rank
+            for rank_other in range(nprocs):
+                index = 3*rank_other
                 if subtiling_shapes_judged[index] == 0:
                     continue
                 subtiling_shape_judged = subtiling_shapes_judged[index:index+3]
                 masterprint(
-                    f'Rank {other_rank}: Refined subtile decomposition ({interaction_name}):',
+                    f'Rank {rank_other}: Refined subtile decomposition ({interaction_name}):',
                     '×'.join(list(map(str, subtiling_shape_judged)))
                 )
 # Containers and array used by the component_component() function.
@@ -1222,7 +1222,6 @@ def get_subtile_pairings(subtiling, forcerange, only_supply):
                     # particular receiver subtile.
                     # We give it the maximum possible needed memory.
                     pairings_r = malloc(size*sizeof('Py_ssize_t'))
-                    pairings[subtile_index_r] = pairings_r
                     # Pair receiver subtile with every supplier subtile,
                     # unless the tile is being paired with itself.
                     # In that case, we need to not double count the
@@ -1257,9 +1256,10 @@ def get_subtile_pairings(subtiling, forcerange, only_supply):
                     # All pairs found for this receiver subtile.
                     # Truncate the allocated memory as to only contain
                     # the used chunk.
-                    pairings[subtile_index_r] = realloc(
+                    pairings_r = realloc(
                         pairings_r, pairing_index*sizeof('Py_ssize_t'),
                     )
+                    pairings[subtile_index_r] = pairings_r
                     # Record the size of this pairing array
                     pairings_N[subtile_index_r] = pairing_index
     # Store results in global caches
@@ -1368,6 +1368,7 @@ def particle_particle(
         dim='int',
         highest_populated_rung_r='signed char',
         highest_populated_rung_s='signed char',
+        indexᵖ_i='Py_ssize_t',
         local_interaction_flag_0='bint',
         local_interaction_flag_1='bint',
         local_interaction_flag_2='bint',
@@ -1377,12 +1378,8 @@ def particle_particle(
         lowest_populated_rung_s='signed char',
         only_supply_communication='bint',
         periodic_offset_ptr='double*',
-        posx_r='double*',
-        posx_s='double*',
-        posy_r='double*',
-        posy_s='double*',
-        posz_r='double*',
-        posz_s='double*',
+        pos_r='double*',
+        pos_s='double*',
         rung_particle_index_r='Py_ssize_t',
         rung_particle_index_s='Py_ssize_t',
         rung_particle_index_s_start='Py_ssize_t',
@@ -1448,18 +1445,14 @@ def particle_particle(
         zi='double',
     )
     # Extract particle variables from the receiver component
-    posx_r = receiver.posx
-    posy_r = receiver.posy
-    posz_r = receiver.posz
+    pos_r = receiver.pos
     lowest_active_rung_r     = receiver.lowest_active_rung
     lowest_populated_rung_r  = receiver.lowest_populated_rung
     highest_populated_rung_r = receiver.highest_populated_rung
     rung_indices_jumped_r = receiver.rung_indices_jumped
     # Extract particle variables from the supplier
     # (the external) component.
-    posx_s = supplier.posx
-    posy_s = supplier.posy
-    posz_s = supplier.posz
+    pos_s = supplier.pos
     lowest_active_rung_s     = supplier.lowest_active_rung
     lowest_populated_rung_s  = supplier.lowest_populated_rung
     highest_populated_rung_s = supplier.highest_populated_rung
@@ -1474,7 +1467,7 @@ def particle_particle(
     # Extract tiling variables from receiver
     tiling_r = receiver.tilings[tiling_name]
     tiling_location_r         = cython.address(tiling_r.location[:])
-    tile_extent               = cython.address(tiling_r.tile_extent[:])  # The same for receiver and supplier
+    tile_extent               = cython.address(tiling_r.tile_extent[:])  # the same for receiver and supplier
     tiles_r                   = tiling_r.tiles
     tiles_contain_particles_r = tiling_r.contain_particles
     # Extract subtiling variables from receiver
@@ -1727,7 +1720,7 @@ def particle_particle(
                             # in the receiver rung.
                             for rung_particle_index_r in range(rung_N_r):
                                 # Get receiver particle index
-                                i = rung_r[rung_particle_index_r]
+                                indexᵖ_i = rung_r[rung_particle_index_r]
                                 # Get the jumped rung index for
                                 # particle i, which is given by
                                 # rung_indices_jumped_r[i]. In the
@@ -1743,15 +1736,16 @@ def particle_particle(
                                     if apply_to_i:
                                         with unswitch(4):
                                             if subtile_contain_jumping_r:
-                                                rung_index_i = rung_indices_jumped_r[i]
+                                                rung_index_i = rung_indices_jumped_r[indexᵖ_i]
                                             else:
                                                 rung_index_i = rung_index_r
                                         # Fetch the corresponding factor
                                         factor_i = factors[rung_index_i]
                                 # Get coordinates of receiver particle
-                                xi = posx_r[i]
-                                yi = posy_r[i]
-                                zi = posz_r[i]
+                                indexˣ_i = 3*indexᵖ_i
+                                xi = pos_r[indexˣ_i + 0]
+                                yi = pos_r[indexˣ_i + 1]
+                                zi = pos_r[indexˣ_i + 2]
                                 # We need to make sure not to double
                                 # count the particle pairs for local
                                 # interactions. Here, local means that
@@ -1768,14 +1762,15 @@ def particle_particle(
                                     rung_particle_index_s_start, rung_N_s,
                                 ):
                                     # Get supplier particle index
-                                    j = rung_s[rung_particle_index_s]
+                                    indexᵖ_j = rung_s[rung_particle_index_s]
                                     # "Vector" from particle j
                                     # to particle i.
-                                    x_ji = xi - posx_s[j]
-                                    y_ji = yi - posy_s[j]
-                                    z_ji = zi - posz_s[j]
+                                    indexˣ_j = 3*indexᵖ_j
+                                    x_ji = xi - pos_s[indexˣ_j + 0]
+                                    y_ji = yi - pos_s[indexˣ_j + 1]
+                                    z_ji = zi - pos_s[indexˣ_j + 2]
                                     # Yield the needed variables
-                                    yield i, j, rung_index_i, rung_index_s, x_ji, y_ji, z_ji, periodic_offset_x, periodic_offset_y, periodic_offset_z, apply_to_i, apply_to_j, factor_i, subtile_contain_jumping_s, particle_particle_t_begin, subtiling_r
+                                    yield indexˣ_i, indexᵖ_j, indexˣ_j, rung_index_i, rung_index_s, x_ji, y_ji, z_ji, periodic_offset_x, periodic_offset_y, periodic_offset_z, apply_to_i, apply_to_j, factor_i, subtile_contain_jumping_s, particle_particle_t_begin, subtiling_r
 # Variables used by the particle_particle() function
 cython.declare(
     periodic_offset='double[::1]',

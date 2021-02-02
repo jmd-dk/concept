@@ -77,7 +77,7 @@ cdef extern from "fft.c":
 
 
 
-# Function for initializing and tabulating a cubic grid
+# Function for initialising and tabulating a cubic grid
 # with vector values.
 @cython.header(# Arguments
                gridsize='Py_ssize_t',
@@ -136,7 +136,7 @@ def tabulate_vectorgrid(gridsize, func, factor, filename=''):
     size_edge = gridsize*3
     size_face = gridsize*size_edge
     size      = gridsize*size_face
-    # Initialize the global grid to be
+    # Initialise the global grid to be
     # of shape gridsize*gridsize*gridsize*3.
     # That is, grid is not really cubic, but rather four-dimensional.
     grid = empty([gridsize, gridsize, gridsize, 3], dtype=C2np['double'])
@@ -263,18 +263,19 @@ vector = malloc(3*sizeof('double'))
     # Locals
     cellsize='double',
     i='Py_ssize_t',
-    index='Py_ssize_t',
     index_i='Py_ssize_t',
     index_j='Py_ssize_t',
     index_k='Py_ssize_t',
+    indexˣ='Py_ssize_t',
     j='Py_ssize_t',
     k='Py_ssize_t',
+    mv_dim='double[::1]',
     offset_x='double',
     offset_y='double',
     offset_z='double',
-    posx='double*',
-    posy='double*',
-    posz='double*',
+    posxˣ='double*',
+    posyˣ='double*',
+    poszˣ='double*',
     ptr_dim='double*',
     value='double',
     x='double',
@@ -288,37 +289,40 @@ def interpolate_domaingrid_to_particles(grid, component, variable, dim, order, f
     of a given order. If the grid values should be multiplied by a
     factor prior to adding them to the variable, this may be specified.
     """
-    if variable == 'pos':
-        ptr_dim = component.pos[dim]
-    elif variable == 'mom':
-        ptr_dim = component.mom[dim]
-    elif variable == 'Δmom':
-        ptr_dim = component.Δmom[dim]
-    else:
-        abort(
-            f'interpolate_domaingrid_to_particles() called with variable = "{variable}" '
-            f'∉ {{"pos", "mom"}}'
-        )
     if not (1 <= order <= 4):
         abort(
             f'interpolate_domaingrid_to_particles() called '
             f'with order = {order} ∉ {{1, 2, 3, 4}}'
         )
+    # Extract pointer to particle data,
+    # indexed as ptr_dim[indexˣ] regardless of dim.
+    if variable == 'pos':
+        mv_dim = component.pos_mv[dim:]
+    elif variable == 'mom':
+        mv_dim = component.mom_mv[dim:]
+    elif variable == 'Δmom':
+        mv_dim = component.Δmom_mv[dim:]
+    else:
+        abort(
+            f'interpolate_domaingrid_to_particles() called with variable = "{variable}" '
+            f'∉ {{"pos", "mom"}}'
+        )
+    ptr_dim = cython.address(mv_dim[:])
     # Offsets needed for the interpolation
     cellsize = domain_size_x/(grid.shape[0] - ℤ[2*nghosts])  # We have cubic grid cells
     offset_x = domain_start_x - ℝ[(1 + machine_ϵ)*(nghosts - 0.5*cell_centered)*cellsize]
     offset_y = domain_start_y - ℝ[(1 + machine_ϵ)*(nghosts - 0.5*cell_centered)*cellsize]
     offset_z = domain_start_z - ℝ[(1 + machine_ϵ)*(nghosts - 0.5*cell_centered)*cellsize]
     # Interpolate onto each particle
-    posx = component.posx
-    posy = component.posy
-    posz = component.posz
-    for index in range(component.N_local):
+    posxˣ = component.posxˣ
+    posyˣ = component.posyˣ
+    poszˣ = component.poszˣ
+    for indexˣ in range(0, 3*component.N_local, 3):
         # Get, translate and scale the coordinates so that
         # nghosts - ½ < r < shape[r] - nghosts - ½ for r ∈ {x, y, z}.
-        x = (posx[index] - offset_x)*ℝ[1/cellsize]
-        y = (posy[index] - offset_y)*ℝ[1/cellsize]
-        z = (posz[index] - offset_z)*ℝ[1/cellsize]
+        x = (posxˣ[indexˣ] - offset_x)*ℝ[1/cellsize]
+        y = (posyˣ[indexˣ] - offset_y)*ℝ[1/cellsize]
+        z = (poszˣ[indexˣ] - offset_z)*ℝ[1/cellsize]
         # Set interpolation weights and get grid indices
         with unswitch:
             if order == 1:  # NGP interpolation
@@ -350,7 +354,7 @@ def interpolate_domaingrid_to_particles(grid, component, variable, dim, order, f
         with unswitch:
             if factor != 1:
                 value *= factor
-        ptr_dim[index] += value
+        ptr_dim[indexˣ] += value
 
 # Function for interpolating a certain quantity from components
 # (particles and fluids) onto global domain grids using intermediate
@@ -463,7 +467,7 @@ def interpolate_upstream(
     # downstream grid size equal to the global grid size to be
     # the first, if indeed such a group exist.
     groups = group_components(components, gridsizes_upstream, [gridsize_global, ...])
-    # The global Fourier slabs will be properly initialized below
+    # The global Fourier slabs will be properly initialised below
     slab_global = None
     # For each group, interpolate the components onto upstream grids,
     # Fourier transform these upstream grids and add them
@@ -550,7 +554,7 @@ def add_upstream_to_global_slabs(
     grid_upstream, slab_global, gridsize_upstream, gridsize_global,
     deconv_order=0, interlace_flag=0,
 ):
-    # If the global slabs have yet to be initialized, we must do so
+    # If the global slabs have yet to be initialised, we must do so
     # within this function. If at the same time the global and upstream
     # grid sizes are equal, we will use the upstream slabs directly as
     # the global slabs, rather than performing a copy.
@@ -576,7 +580,7 @@ def add_upstream_to_global_slabs(
     else:
         # Add upstream slabs to the global slabs,
         # performing deconvolution and interlacing on the way.
-        # If the global slabs have yet to be initialized,  we set the
+        # If the global slabs have yet to be initialised,  we set the
         # values directly, rather than adding to existing ones.
         operation = '+='
         if slab_global is None:
@@ -1265,10 +1269,10 @@ def get_subslabs(gridsize_small, gridsize_large):
         nyquist = gridsize//2
         slab_size_j = gridsize//nprocs
         kj_sets = []
-        for other_rank in range(nprocs):
+        for rank_other in range(nprocs):
             kj_set = set()
             for j in range(slab_size_j):
-                j_global = slab_size_j*other_rank + j
+                j_global = slab_size_j*rank_other + j
                 kj = j_global - gridsize*(j_global >= nyquist)
                 # Ignore Nyquist planes
                 if kj == -nyquist:
@@ -1282,13 +1286,13 @@ def get_subslabs(gridsize_small, gridsize_large):
     def construct_subslabs_kj_dict(kj_set, kj_sets, sign):
         subslabs_dict_kj = {}
         for ℓ in range(nprocs):
-            other_rank = (rank + sign*ℓ)%nprocs  # determines rank communication order
-            other_kj_set = kj_sets[other_rank]
+            rank_other = (rank + sign*ℓ)%nprocs  # determines rank communication order
+            other_kj_set = kj_sets[rank_other]
             overlap = sorted(kj_set & other_kj_set)
             if not overlap:
                 continue
             subslabs_kj_ranges = []
-            subslabs_dict_kj[other_rank] = subslabs_kj_ranges
+            subslabs_dict_kj[rank_other] = subslabs_kj_ranges
             for _, groups in itertools.groupby(enumerate(overlap), lambda el: el[1] - el[0]):
                 subrange = [group[1] for group in groups]
                 kj_bgn, kj_end = subrange[0], subrange[-1]
@@ -1309,11 +1313,11 @@ def get_subslabs(gridsize_small, gridsize_large):
         def kj_to_j(kj):
             return kj + gridsize*(kj < 0) - slab_size_j*rank
         subslabs_j_dict = {
-            other_rank: [
+            rank_other: [
                 (kj_to_j(kj_bgn), kj_to_j(kj_end) + 1)  # use exclusive end point
                 for kj_bgn, kj_end in subslabs_kj_ranges
             ]
-            for other_rank, subslabs_kj_ranges in subslabs_kj_dict.items()
+            for rank_other, subslabs_kj_ranges in subslabs_kj_dict.items()
         }
         return subslabs_j_dict
     subslabs_dict_j_small = convert_subslabs_kj_to_j(subslabs_dict_kj_small, gridsize_small)
@@ -1364,21 +1368,22 @@ subslabs_cache = {}
     constant_contribution='bint',
     contribution='double',
     contribution_factor='double',
+    contribution_mv='double[::1]',
     contribution_ptr='double*',
     dim='int',
     i='Py_ssize_t',
-    index='Py_ssize_t',
     index_i='Py_ssize_t',
     index_j='Py_ssize_t',
     index_k='Py_ssize_t',
+    indexˣ='Py_ssize_t',
     j='Py_ssize_t',
     k='Py_ssize_t',
     offset_x='double',
     offset_y='double',
     offset_z='double',
-    posx='double*',
-    posy='double*',
-    posz='double*',
+    posxˣ='double*',
+    posyˣ='double*',
+    poszˣ='double*',
     w_eff='double',
     x='double',
     y='double',
@@ -1436,8 +1441,11 @@ def interpolate_particles(component, gridsize, grid, quantity, order, ᔑdt,
         contribution = component.mass
     elif quantity in {'Jx', 'Jy', 'Jz'}:
         constant_contribution = False
+        # Extract pointer to momentum data,
+        # indexed as contribution_ptr[indexˣ] regardless of dim.
         dim = 'xyz'.index(quantity[1])
-        contribution_ptr = component.mom[dim]
+        contribution_mv = component.mom_mv[dim:]
+        contribution_ptr = cython.address(contribution_mv[:])
     else:
         abort(
             f'interpolate_particles() called with '
@@ -1451,19 +1459,19 @@ def interpolate_particles(component, gridsize, grid, quantity, order, ᔑdt,
     offset_y = domain_start_y - ℝ[(1 + machine_ϵ)*(nghosts - 0.5*cell_centered + shift)*cellsize]
     offset_z = domain_start_z - ℝ[(1 + machine_ϵ)*(nghosts - 0.5*cell_centered + shift)*cellsize]
     # Interpolate each particle
-    posx = component.posx
-    posy = component.posy
-    posz = component.posz
-    for index in range(component.N_local):
+    posxˣ = component.posxˣ
+    posyˣ = component.posyˣ
+    poszˣ = component.poszˣ
+    for indexˣ in range(0, 3*component.N_local, 3):
         # Get the total contribution from this particle
         with unswitch:
             if not constant_contribution:
-                contribution = contribution_factor*contribution_ptr[index]
+                contribution = contribution_factor*contribution_ptr[indexˣ]
         # Get, translate and scale the coordinates so that
         # nghosts - ½ < r < shape[r] - nghosts - ½ for r ∈ {x, y, z}.
-        x = (posx[index] - offset_x)*ℝ[1/cellsize]
-        y = (posy[index] - offset_y)*ℝ[1/cellsize]
-        z = (posz[index] - offset_z)*ℝ[1/cellsize]
+        x = (posxˣ[indexˣ] - offset_x)*ℝ[1/cellsize]
+        y = (posyˣ[indexˣ] - offset_y)*ℝ[1/cellsize]
+        z = (poszˣ[indexˣ] - offset_z)*ℝ[1/cellsize]
         # Set interpolation weights and get grid indices
         with unswitch:
             if order == 1:  # NGP interpolation
@@ -2694,7 +2702,7 @@ def get_fftw_slab(gridsize, buffer_name='slab_global', nullify=False):
     else:
         # Get path to FFTW wisdom file
         wisdom_filename = get_wisdom_filename(gridsize)
-        # Initialize fftw_mpi, allocate the grid, initialize the
+        # Initialise fftw_mpi, allocate the grid, initialise the
         # local grid sizes and start indices and do FFTW planning.
         acquire = False
         if master:

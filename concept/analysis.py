@@ -976,16 +976,20 @@ cython.declare(σ2_integrand_arr=object)
     fluidscalar='FluidScalar',
     h='double',
     i='Py_ssize_t',
+    index='Py_ssize_t',
+    indexʳ='Py_ssize_t',
+    indexˣ='Py_ssize_t',
+    indexˣʸᶻ='Py_ssize_t',
     j='Py_ssize_t',
     k='Py_ssize_t',
     mom='double*',
     mom2='double',
     mom2_max='double',
     mom2_i='double',
-    momx='double*',
-    momy='double*',
-    momz='double*',
     mom_i='double',
+    momxˣ='double*',
+    momyˣ='double*',
+    momzˣ='double*',
     names=list,
     t='double',
     v_rms='double',
@@ -1032,11 +1036,15 @@ def measure(component, quantity, communicate=True):
     t = universals.t
     a = universals.a
     # Extract variables
-    N = component.N if communicate else component.N_local
-    N_elements = component.gridsize**3 if communicate else component.size_noghosts
+    N = (component.N if communicate else component.N_local)
+    N_elements = (component.gridsize**3 if communicate else component.size_noghosts)
     Vcell = boxsize**3/N_elements
     w     = component.w    (a=a)
     w_eff = component.w_eff(a=a)
+    mom   = component.mom
+    momxˣ = component.momxˣ
+    momyˣ = component.momyˣ
+    momzˣ = component.momzˣ
     ϱ = component.ϱ
     ϱ_noghosts = asarray(ϱ.grid_noghosts)
     # Quantities exhibited by both particle and fluid components
@@ -1060,11 +1068,8 @@ def measure(component, quantity, communicate=True):
         # v = mom/(a**(2 - 3*w_eff)*mass)
         if component.representation == 'particles':
             mom2_max = 0
-            momx = component.momx
-            momy = component.momy
-            momz = component.momz
-            for i in range(component.N_local):
-                mom2_i = momx[i]**2 + momy[i]**2 + momz[i]**2
+            for indexˣ in range(0, 3*component.N_local, 3):
+                mom2_i = momxˣ[indexˣ]**2 + momyˣ[indexˣ]**2 + momzˣ[indexˣ]**2
                 if mom2_i > mom2_max:
                     mom2_max = mom2_i
             if communicate:
@@ -1084,8 +1089,8 @@ def measure(component, quantity, communicate=True):
                 ϱ_ptr  = component.ϱ .grid
                 Jx_ptr = component.Jx.grid
                 J_over_ϱ_2_max = 0
-                for i in range(component.size):
-                    J_over_ϱ_2_i = (Jx_ptr[i]/ϱ_ptr[i])**2
+                for index in range(component.size):
+                    J_over_ϱ_2_i = (Jx_ptr[index]/ϱ_ptr[index])**2
                     if J_over_ϱ_2_i > J_over_ϱ_2_max:
                         J_over_ϱ_2_max = J_over_ϱ_2_i
                 if communicate:
@@ -1105,10 +1110,10 @@ def measure(component, quantity, communicate=True):
                 Jy_ptr = component.Jy.grid
                 Jz_ptr = component.Jz.grid
                 J_over_ϱ_plus_𝒫_2_max = 0
-                for i in range(component.size):
+                for index in range(component.size):
                     J_over_ϱ_plus_𝒫_2_i = (
-                        (Jx_ptr[i]**2 + Jy_ptr[i]**2 + Jz_ptr[i]**2)
-                        /(ϱ_ptr[i] + ℝ[light_speed**(-2)]*𝒫_ptr[i])**2
+                        (Jx_ptr[index]**2 + Jy_ptr[index]**2 + Jz_ptr[index]**2)
+                        /(ϱ_ptr[index] + ℝ[light_speed**(-2)]*𝒫_ptr[index])**2
                     )
                     if J_over_ϱ_plus_𝒫_2_i > J_over_ϱ_plus_𝒫_2_max:
                         J_over_ϱ_plus_𝒫_2_max = J_over_ϱ_plus_𝒫_2_i
@@ -1127,11 +1132,8 @@ def measure(component, quantity, communicate=True):
     elif quantity == 'v_rms':
         if component.representation == 'particles':
             mom2 = 0
-            momx = component.momx
-            momy = component.momy
-            momz = component.momz
-            for i in range(component.N_local):
-                mom2 += momx[i]**2 + momy[i]**2 + momz[i]**2
+            for indexʳ in range(3*component.N_local):
+                mom2 += mom[indexʳ]**2
             if communicate:
                 mom2 = allreduce(mom2, op=MPI.SUM)
             v_rms = sqrt(mom2/N)/(a**(2 - 3*component.w_eff(a=a))*component.mass)
@@ -1193,11 +1195,10 @@ def measure(component, quantity, communicate=True):
         if component.representation == 'particles':
             # Total momentum of all particles, for each dimension
             for dim in range(3):
-                mom = component.mom[dim]
                 Σmom_dim = Σmom2_dim = 0
                 # Add up local particle momenta
-                for i in range(component.N_local):
-                    mom_i = mom[i]
+                for indexˣʸᶻ in range(dim, 3*component.N_local, 3):
+                    mom_i = mom[indexˣʸᶻ]
                     Σmom_dim  += mom_i
                     Σmom2_dim += mom_i**2
                 # Add up local particle momenta sums

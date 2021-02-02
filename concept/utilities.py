@@ -56,7 +56,7 @@ def delegate():
 
 # Context manager which temporarily sets the
 # allow_similarly_named_components flag in the species module to True,
-# allowing for the initialization of many component instances
+# allowing for the initialisation of many component instances
 # with the same name.
 @contextlib.contextmanager
 def allow_similarly_named_components():
@@ -709,9 +709,9 @@ def info():
     k_gridsize='Py_ssize_t',
     k_magnitudes='double[::1]',
     ntimes='Py_ssize_t',
-    other_rank='int',
     perturbations=object,  # PerturbationDict
     powerspec_gridsize='Py_ssize_t',
+    rank_other='int',
     size='Py_ssize_t',
     transfer='double[:, ::1]',
     transferfunction_info=object,  # TransferFunctionInfo
@@ -725,7 +725,7 @@ def CLASS():
     # being too high, as the components are not used to perform a
     # simulation anyway.
     suppress_output['err'].add('the energy density of the components add up to')
-    # Initialize components, but do not realise them
+    # Initialise components, but do not realise them
     init_time()
     components = get_initial_conditions(do_realization=False)
     # Should we compute and store perturbations (or only background)?
@@ -942,14 +942,14 @@ def CLASS():
             all_a_values[index:index+size] = a_values
             index += size
         # The a values of the slaves
-        for other_rank in range(nprocs):
-            if other_rank == rank:
+        for rank_other in range(nprocs):
+            if rank_other == rank:
                 continue
             while True:
-                size = recv(source=other_rank)
+                size = recv(source=rank_other)
                 if size == 0:
                     break
-                Recv(all_a_values[index:], source=other_rank)
+                Recv(all_a_values[index:], source=rank_other)
                 index += size
         # Sort and remove duplicate a values
         asarray(all_a_values).sort()

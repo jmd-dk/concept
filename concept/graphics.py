@@ -1315,6 +1315,7 @@ def set_terminal_colormap(colormap):
     gridsize='Py_ssize_t',
     i='Py_ssize_t',
     index='Py_ssize_t',
+    indexᵖ='Py_ssize_t',
     j='Py_ssize_t',
     k='Py_ssize_t',
     label_props=list,
@@ -1322,8 +1323,11 @@ def set_terminal_colormap(colormap):
     name=str,
     names=tuple,
     part='int',
+    posx='double*',
     posx_mv='double[::1]',
+    posy='double*',
     posy_mv='double[::1]',
+    posz='double*',
     posz_mv='double[::1]',
     render3D_dir=str,
     rgbα='double[:, ::1]',
@@ -1353,10 +1357,10 @@ def render3D(components, filename, cleanup=True, tmp_dirname='.renders3D'):
         filename += '.png'
     # The directory for storing the temporary 3D renders
     render3D_dir = '{}/{}'.format(os.path.dirname(filename), tmp_dirname)
-    # Initialize figures by building up render3D_dict, if this is the
+    # Initialise figures by building up render3D_dict, if this is the
     # first time this function is called.
     if not render3D_dict:
-        masterprint('Initializing 3D renders ...')
+        masterprint('Initialising 3D renders ...')
         # Make cyclic default colours as when doing multiple plots in
         # one figure. Make sure that none of the colours are identical
         # to the background colour.
@@ -1413,22 +1417,25 @@ def render3D(components, filename, cleanup=True, tmp_dirname='.renders3D'):
                 posx_mv = empty(size, dtype='double')
                 posy_mv = empty(size, dtype='double')
                 posz_mv = empty(size, dtype='double')
+                posx = cython.address(posx_mv[:])
+                posy = cython.address(posy_mv[:])
+                posz = cython.address(posz_mv[:])
                 # Fill the arrays
                 gridsize = component.gridsize
                 domain_start_i = domain_layout_local_indices[0]*size_i
                 domain_start_j = domain_layout_local_indices[1]*size_j
                 domain_start_k = domain_layout_local_indices[2]*size_k
-                index = 0
+                indexᵖ = 0
                 for i in range(size_i):
                     xi = (ℝ[domain_start_i + 0.5*cell_centered] + i)*ℝ[boxsize/gridsize]
                     for j in range(size_j):
                         yj = (ℝ[domain_start_j + 0.5*cell_centered] + j)*ℝ[boxsize/gridsize]
                         for k in range(size_k):
                             zk = (ℝ[domain_start_k + 0.5*cell_centered] + k)*ℝ[boxsize/gridsize]
-                            posx_mv[index] = xi
-                            posy_mv[index] = yj
-                            posz_mv[index] = zk
-                            index += 1
+                            posx[indexᵖ] = xi
+                            posy[indexᵖ] = yj
+                            posz[indexᵖ] = zk
+                            indexᵖ += 1
                 # 2D array with rgbα rows, one row for each
                 # fluid element. This is the only array which will be
                 # updated for each new 3D render, and only the α column
@@ -1538,9 +1545,9 @@ def render3D(components, filename, cleanup=True, tmp_dirname='.renders3D'):
             # Update particle positions on the figure
             N_local = component.N_local
             artist_component._offsets3d = (
-                component.posx_mv[:N_local],
-                component.posy_mv[:N_local],
-                component.posz_mv[:N_local],
+                component.posx[:N_local],
+                component.posy[:N_local],
+                component.posz[:N_local],
             )
         elif component.representation == 'fluid':
             rgbα     = component_dict['rgbα']
@@ -1660,12 +1667,12 @@ def render3D(components, filename, cleanup=True, tmp_dirname='.renders3D'):
         shutil.rmtree(render3D_dir)
 # Declare global variables used in the render3D() function
 cython.declare(
-    render3D_dict=object,  # OrderedDict
+    render3D_dict=dict,
     render3D_image='float[:, :, ::1]',
 )
 # (Ordered) dictionary containing the figure, axes, component
 # artist and text artist for each component.
-render3D_dict = collections.OrderedDict()
+render3D_dict = {}
 # The array storing the 3D render
 render3D_image = empty((render3D_resolution, render3D_resolution, 4), dtype=C2np['float'])
 # Dummy function

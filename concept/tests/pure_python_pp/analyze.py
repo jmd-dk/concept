@@ -62,12 +62,12 @@ for i in range(N_snapshots):
                     dz += boxsize
                 D2[k] = dx**2 + dy**2 + dz**2
             ID[j] = np.argmin(D2)
-        components['python'][n][i].posx = components['python'][n][i].posx[ID]
-        components['python'][n][i].posy = components['python'][n][i].posy[ID]
-        components['python'][n][i].posz = components['python'][n][i].posz[ID]
-        components['python'][n][i].momx = components['python'][n][i].momx[ID]
-        components['python'][n][i].momy = components['python'][n][i].momy[ID]
-        components['python'][n][i].momz = components['python'][n][i].momz[ID]
+        components['python'][n][i].posx[:] = components['python'][n][i].posx[ID]
+        components['python'][n][i].posy[:] = components['python'][n][i].posy[ID]
+        components['python'][n][i].posz[:] = components['python'][n][i].posz[ID]
+        components['python'][n][i].momx[:] = components['python'][n][i].momx[ID]
+        components['python'][n][i].momy[:] = components['python'][n][i].momy[ID]
+        components['python'][n][i].momz[:] = components['python'][n][i].momz[ID]
 
 # Compute distance between particles in the two snapshots
 dist = collections.OrderedDict((n, []) for n in nprocs_list)

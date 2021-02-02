@@ -37,7 +37,7 @@ pxd('ctypedef double (*func_d_dd) (double, double)')
 # pure Python mode. The behaviour is identical.
 @cython.cclass
 class Spline:
-    # Initialization method
+    # Initialisation method
     @cython.header(
         # Arguments
         x='double[::1]',
@@ -128,7 +128,7 @@ class Spline:
         self.abs_tol_max = abs_tol + 0.5*(self.xmax - x[x.shape[0] - 2])
         # Use SciPy in pure Python and GSL when compiled
         if not cython.compiled:
-            # Initialize the spline.
+            # Initialise the spline.
             # Here we simply overwrite the spline attribute.
             # The boundary condition type is set to 'natural'
             # as to match the default of GSL.
@@ -139,7 +139,7 @@ class Spline:
             # and a (cubic) spline object.
             self.acc = gsl_interp_accel_alloc()
             self.spline = gsl_spline_alloc(gsl_interp_cspline, x.shape[0])
-            # Initialize the spline
+            # Initialise the spline
             gsl_spline_init(self.spline, cython.address(x[:]), cython.address(y[:]), x.shape[0])
 
     # Method for doing spline evaluation
@@ -642,7 +642,7 @@ def cosmic_time(a=-1, a_lower=machine_ϵ, t_lower=machine_ϵ, t_upper=-1):
     if isclose(t, t_max):
         return cosmic_time(a, a_test, t_max, 2*t_max)
     return t
-# Initialize t_max_ever, a cosmic time later than what will
+# Initialise t_max_ever, a cosmic time later than what will
 # ever be reached (if exceeded, it dynamically grows).
 cython.declare(t_max_ever='double')
 t_max_ever = 20*units.Gyr

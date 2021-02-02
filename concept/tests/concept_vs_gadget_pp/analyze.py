@@ -59,12 +59,12 @@ for i in range(N_snapshots):
                 dz += boxsize
             D2[k] = dx**2 + dy**2 + dz**2
         ID[j] = np.argmin(D2)
-    components_gadget[i].posx = components_gadget[i].posx[ID]
-    components_gadget[i].posy = components_gadget[i].posy[ID]
-    components_gadget[i].posz = components_gadget[i].posz[ID]
-    components_gadget[i].momx = components_gadget[i].momx[ID]
-    components_gadget[i].momy = components_gadget[i].momy[ID]
-    components_gadget[i].momz = components_gadget[i].momz[ID]
+    components_gadget[i].posx[:] = components_gadget[i].posx[ID]
+    components_gadget[i].posy[:] = components_gadget[i].posy[ID]
+    components_gadget[i].posz[:] = components_gadget[i].posz[ID]
+    components_gadget[i].momx[:] = components_gadget[i].momx[ID]
+    components_gadget[i].momy[:] = components_gadget[i].momy[ID]
+    components_gadget[i].momz[:] = components_gadget[i].momz[ID]
 
 # Compute distance between particles in the two snapshots
 dist = []

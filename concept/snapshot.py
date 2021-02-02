@@ -64,10 +64,10 @@ class StandardSnapshot:
                 hdf5_file.attrs[unicode('Ωcdm')]
                 return True
         except:
-            ...
+            pass
         return False
 
-    # Initialization method
+    # Initialisation method
     @cython.header
     def __init__(self):
         # The triple quoted string below serves as the type declaration
@@ -91,6 +91,9 @@ class StandardSnapshot:
         # Argument
         filename=str,
         # Locals
+        N='Py_ssize_t',
+        N_lin='double',
+        N_local='Py_ssize_t',
         N_str=str,
         component='Component',
         end_local='Py_ssize_t',
@@ -114,54 +117,42 @@ class StandardSnapshot:
         masterprint(f'Saving standard snapshot "{filename}" ...')
         with open_hdf5(filename, mode='w', driver='mpio', comm=comm) as hdf5_file:
             # Save used base units
-            hdf5_file.attrs['unit time'    ] = self.units['time']
-            hdf5_file.attrs['unit length'  ] = self.units['length']
-            hdf5_file.attrs['unit mass'    ] = self.units['mass']
+            hdf5_file.attrs['unit time']   = self.units['time']
+            hdf5_file.attrs['unit length'] = self.units['length']
+            hdf5_file.attrs['unit mass']   = self.units['mass']
             # Save global attributes
-            hdf5_file.attrs['H0'           ] = correct_float(self.params['H0'])
-            hdf5_file.attrs['a'            ] = correct_float(self.params['a'])
-            hdf5_file.attrs['boxsize'      ] = correct_float(self.params['boxsize'])
+            hdf5_file.attrs['H0']            = correct_float(self.params['H0'])
+            hdf5_file.attrs['a']             = correct_float(self.params['a'])
+            hdf5_file.attrs['boxsize']       = correct_float(self.params['boxsize'])
             hdf5_file.attrs[unicode('Ωcdm')] = correct_float(self.params['Ωcdm'])
-            hdf5_file.attrs[unicode('Ωb')  ] = correct_float(self.params['Ωb'])
+            hdf5_file.attrs[unicode('Ωb')]   = correct_float(self.params['Ωb'])
             # Store each component as a separate group
             # within /components.
             for component in self.components:
-                component_h5 = hdf5_file.create_group('components/' + component.name)
+                component_h5 = hdf5_file.create_group(f'components/{component.name}')
                 component_h5.attrs['species'] = component.species
                 if component.representation == 'particles':
-                    if component.N > 1 and isint(ℝ[cbrt(component.N)]):
-                        N_str = str(int(round(ℝ[cbrt(component.N)]))) + '³'
+                    N, N_local = component.N, component.N_local
+                    N_lin = cbrt(N)
+                    if N > 1 and isint(N_lin):
+                        N_str = str(int(round(N_lin))) + '³'
                     else:
-                        N_str = str(component.N)
+                        N_str = str(N)
                     masterprint(
                         f'Writing out {component.name} '
                         f'({N_str} {component.species} particles) ...'
                     )
                     # Save particle attributes
                     component_h5.attrs['mass'] = correct_float(component.mass)
-                    component_h5.attrs['N'] = component.N
+                    component_h5.attrs['N'] = N
                     # Get local indices of the particle data
-                    start_local = int(np.sum(smart_mpi(component.N_local,
-                                                       mpifun='allgather')[:rank]))
+                    start_local = int(np.sum(smart_mpi(N_local, mpifun='allgather')[:rank]))
                     end_local = start_local + component.N_local
                     # Save particle data
-                    shape = (component.N, )
-                    posx_h5 = component_h5.create_dataset('posx', shape, dtype=C2np['double'])
-                    posy_h5 = component_h5.create_dataset('posy', shape, dtype=C2np['double'])
-                    posz_h5 = component_h5.create_dataset('posz', shape, dtype=C2np['double'])
-                    momx_h5 = component_h5.create_dataset('momx', shape, dtype=C2np['double'])
-                    momy_h5 = component_h5.create_dataset('momy', shape, dtype=C2np['double'])
-                    momz_h5 = component_h5.create_dataset('momz', shape, dtype=C2np['double'])
-                    posx_h5[start_local:end_local] = component.posx_mv[:component.N_local]
-                    posy_h5[start_local:end_local] = component.posy_mv[:component.N_local]
-                    posz_h5[start_local:end_local] = component.posz_mv[:component.N_local]
-                    momx_h5[start_local:end_local] = component.momx_mv[:component.N_local]
-                    momy_h5[start_local:end_local] = component.momy_mv[:component.N_local]
-                    momz_h5[start_local:end_local] = component.momz_mv[:component.N_local]
-                    # Done saving this particle component
-                    hdf5_file.flush()
-                    Barrier()
-                    masterprint('done')
+                    pos_h5 = component_h5.create_dataset('pos', (N, 3), dtype=C2np['double'])
+                    mom_h5 = component_h5.create_dataset('mom', (N, 3), dtype=C2np['double'])
+                    pos_h5[start_local:end_local, :] = component.pos_mv3[:N_local, :]
+                    mom_h5[start_local:end_local, :] = component.mom_mv3[:N_local, :]
                 elif component.representation == 'fluid':
                     # Write out progress message
                     masterprint(
@@ -221,7 +212,7 @@ class StandardSnapshot:
                                 fluidvar_h5 = component_h5['fluidvar_{}'.format(indices)]
                                 component_h5[name] = fluidvar_h5
                             except:
-                                ...
+                                pass
                         else:  # indices is a tuple
                             # "name" is a fluid scalar name (e.g. ϱ, Jx)
                             index, multi_index = indices
@@ -230,16 +221,16 @@ class StandardSnapshot:
                                 fluidscalar_h5 = fluidvar_h5['fluidscalar_{}'.format(multi_index)]
                                 component_h5[name] = fluidscalar_h5
                             except:
-                                ...
-                    # Done saving this fluid component
-                    hdf5_file.flush()
-                    Barrier()
-                    masterprint('done')
-                elif master:
+                                pass
+                else:
                     abort(
                         f'Does not know how to save {component.name} '
                         f'with representation "{component.representation}"'
                     )
+                # Done saving this component
+                hdf5_file.flush()
+                Barrier()
+                masterprint('done')
         # Done saving the snapshot
         masterprint('done')
         # Return the filename of the saved file
@@ -252,6 +243,7 @@ class StandardSnapshot:
         only_params='bint',
         # Locals
         N='Py_ssize_t',
+        N_lin='double',
         N_local='Py_ssize_t',
         N_str=str,
         boltzmann_order='Py_ssize_t',
@@ -263,17 +255,13 @@ class StandardSnapshot:
         fluidscalar='FluidScalar',
         grid='double*',
         gridsize='Py_ssize_t',
-        i='Py_ssize_t',
         index='Py_ssize_t',
+        indexʳ='Py_ssize_t',
         mass='double',
-        momx='double*',
-        momy='double*',
-        momz='double*',
+        mom='double*',
         multi_index=tuple,
         name=str,
-        posx='double*',
-        posy='double*',
-        posz='double*',
+        pos='double*',
         representation=str,
         size='Py_ssize_t',
         slab='double[:, :, ::1]',
@@ -297,18 +285,18 @@ class StandardSnapshot:
         # Load all components
         with open_hdf5(filename, mode='r', driver='mpio', comm=comm) as hdf5_file:
             # Load used base units
-            self.units['time'  ] = hdf5_file.attrs['unit time']
+            self.units['time']   = hdf5_file.attrs['unit time']
             self.units['length'] = hdf5_file.attrs['unit length']
-            self.units['mass'  ] = hdf5_file.attrs['unit mass']
+            self.units['mass']   = hdf5_file.attrs['unit mass']
             snapshot_unit_time   = eval_unit(self.units['time'])
             snapshot_unit_length = eval_unit(self.units['length'])
             snapshot_unit_mass   = eval_unit(self.units['mass'])
             # Load global attributes
-            self.params['H0'     ] = hdf5_file.attrs['H0']*(1/snapshot_unit_time)
-            self.params['a'      ] = hdf5_file.attrs['a']
+            self.params['H0']      = hdf5_file.attrs['H0']*(1/snapshot_unit_time)
+            self.params['a']       = hdf5_file.attrs['a']
             self.params['boxsize'] = hdf5_file.attrs['boxsize']*snapshot_unit_length
-            self.params['Ωcdm'   ] = hdf5_file.attrs[unicode('Ωcdm')]
-            self.params['Ωb'     ] = hdf5_file.attrs[unicode('Ωb')]
+            self.params['Ωcdm']    = hdf5_file.attrs[unicode('Ωcdm')]
+            self.params['Ωb']      = hdf5_file.attrs[unicode('Ωb')]
             # Load component data
             for name, component_h5 in hdf5_file['components'].items():
                 species = component_h5.attrs['species']
@@ -331,18 +319,15 @@ class StandardSnapshot:
                     # Done loading component attributes
                     if only_params:
                         continue
-                    if N > 1 and isint(ℝ[cbrt(N)]):
-                        N_str = str(int(round(ℝ[cbrt(N)]))) + '³'
+                    N_lin = cbrt(N)
+                    if N > 1 and isint(N_lin):
+                        N_str = str(int(round(N_lin))) + '³'
                     else:
                         N_str = str(N)
                     masterprint(f'Reading in {name} ({N_str} {species} particles) ...')
                     # Extract HDF5 datasets
-                    posx_h5 = component_h5['posx']
-                    posy_h5 = component_h5['posy']
-                    posz_h5 = component_h5['posz']
-                    momx_h5 = component_h5['momx']
-                    momy_h5 = component_h5['momy']
-                    momz_h5 = component_h5['momz']
+                    pos_h5 = component_h5['pos']
+                    mom_h5 = component_h5['mom']
                     # Compute a fair distribution of
                     # particle data to the processes.
                     start_local, N_local = partition(N)
@@ -351,53 +336,29 @@ class StandardSnapshot:
                     # have the correct size.
                     component.N_local = N_local
                     component.resize(N_local)
-                    posx = component.posx
-                    posy = component.posy
-                    posz = component.posz
-                    momx = component.momx
-                    momy = component.momy
-                    momz = component.momz
                     # Read particle data directly into
                     # the particle data arrays.
                     if N_local > 0:
-                        posx_h5.read_direct(asarray(component.posx_mv),
-                            source_sel=np.s_[start_local:end_local],
-                            dest_sel=np.s_[:N_local],
+                        pos_h5.read_direct(asarray(component.pos_mv3),
+                            source_sel=np.s_[start_local:end_local, :],
+                            dest_sel=np.s_[:N_local, :],
                         )
-                        posy_h5.read_direct(asarray(component.posy_mv),
-                            source_sel=np.s_[start_local:end_local],
-                            dest_sel=np.s_[:N_local],
+                        mom_h5.read_direct(asarray(component.mom_mv3),
+                            source_sel=np.s_[start_local:end_local, :],
+                            dest_sel=np.s_[:N_local, :],
                         )
-                        posz_h5.read_direct(asarray(component.posz_mv),
-                            source_sel=np.s_[start_local:end_local],
-                            dest_sel=np.s_[:N_local],
-                        )
-                        momx_h5.read_direct(asarray(component.momx_mv),
-                            source_sel=np.s_[start_local:end_local],
-                            dest_sel=np.s_[:N_local],
-                        )
-                        momy_h5.read_direct(asarray(component.momy_mv),
-                            source_sel=np.s_[start_local:end_local],
-                            dest_sel=np.s_[:N_local],
-                        )
-                        momz_h5.read_direct(asarray(component.momz_mv),
-                            source_sel=np.s_[start_local:end_local],
-                            dest_sel=np.s_[:N_local],
-                        )
-                    # If the snapshot and the current run uses different
-                    # systems of units, multiply the component positions
-                    # and momenta by the snapshot units.
-                    if snapshot_unit_length != 1:
-                        for i in range(N_local):
-                            posx[i] *= snapshot_unit_length
-                            posy[i] *= snapshot_unit_length
-                            posz[i] *= snapshot_unit_length
-                    unit = snapshot_unit_length/snapshot_unit_time*snapshot_unit_mass
-                    if unit != 1:
-                        for i in range(N_local):
-                            momx[i] *= unit
-                            momy[i] *= unit
-                            momz[i] *= unit
+                        # If the snapshot and the current run uses
+                        # different systems of units, multiply the
+                        # positions and momenta by the snapshot units.
+                        pos = component.pos
+                        mom = component.mom
+                        if snapshot_unit_length != 1:
+                            for indexʳ in range(3*N_local):
+                                pos[indexʳ] *= snapshot_unit_length
+                        unit = snapshot_unit_length/snapshot_unit_time*snapshot_unit_mass
+                        if unit != 1:
+                            for indexʳ in range(3*N_local):
+                                mom[indexʳ] *= unit
                     # Done reading in particle component
                     masterprint('done')
                 elif representation == 'fluid':
@@ -461,8 +422,8 @@ class StandardSnapshot:
                             continue
                         for fluidscalar in fluidvar:
                             grid = fluidscalar.grid
-                            for i in range(size):
-                                grid[i] *= unit
+                            for index in range(size):
+                                grid[index] *= unit
                     # Done reading in fluid component
                     masterprint('done')
                 elif master:
@@ -521,7 +482,7 @@ class Gadget2Snapshot:
     components list will always contain this single component only. For
     ease of access, the component attribute is also defined, referring
     directly to this component. Finally, the ID attribute holds the
-    GADGET-2 IDs of particles. When constructing a Gadget2Snapshot
+    GADGET-2 ID's of particles. When constructing a Gadget2Snapshot
     instance by other means than by loading from a snapshot on disk,
     these are generated in a somewhat arbitrary (but consistent)
     fashion.
@@ -531,6 +492,8 @@ class Gadget2Snapshot:
     name = 'GADGET-2'
     # The filename extension for this type of snapshot
     extension = ''
+    # Sizes of low level types and the total header, in bytes
+    sizes = {'I': 4, 'i': 4, 'f': 4, 'd': 8, 's': 1, 'header': 256}
 
     # Static method for identifying a file to be a snapshot of this type
     @staticmethod
@@ -547,7 +510,7 @@ class Gadget2Snapshot:
             pass
         return False
 
-    # Initialization method
+    # Initialisation method
     @cython.header
     def __init__(self):
         # The triple quoted string below serves as the type declaration
@@ -576,38 +539,53 @@ class Gadget2Snapshot:
         filename=str,
         # Locals
         N='Py_ssize_t',
+        N_lin='double',
         N_local='Py_ssize_t',
         N_str=str,
-        i='int',
+        block=dict,
+        block_name=str,
+        blocks=dict,
+        boxsize_gadget='float',
         component='Component',
+        chunk='double[::1]',
+        chunk_ptr='double*',
+        chunk_singleprec='float[::1]',
+        chunk_singleprec_ptr='float*',
+        chunk_size='Py_ssize_t',
+        data=object,  # np.ndarray
+        data_mv='double[::1]',
+        index_chunk='Py_ssize_t',
+        indexʳ='Py_ssize_t',
+        itemsize='int',
+        ndim='int',
+        rank_writer='int',
+        sizes=dict,
         unit='double',
         returns=str,
     )
     def save(self, filename):
         """The snapshot data (positions and velocities) are stored in
-        single precision. Only GADGET-2 type 1 (halo) particles,
+        single-precision. Only GADGET-2 type 1 (halo) particles,
         corresponding to cold dark matter particles, are supported.
         """
         masterprint(f'Saving GADGET-2 snapshot "{filename}" ...')
         component = self.component
-        if master and component.representation != 'particles':
+        if component.representation != 'particles':
             abort(
                 f'The GAGDET-2 snapshot type can only store particles, '
-                f'but {self.component.name} is a {component.representation} component.'
+                f'but {component.name} is a {component.representation} component.'
             )
-        N = component.N
-        N_local = component.N_local
+        N, N_local = component.N, component.N_local
         header = self.params['header']
         # The master process write the HEAD block
+        sizes = self.sizes
         if master:
             with open(filename, 'wb') as f:
-                # 8 = 4*1 + 4 = 4*sizeof(s) + sizeof(i)
-                f.write(struct.pack('I', 8))
+                f.write(struct.pack('I', 4*sizes['s'] + sizes['I']))
                 f.write(struct.pack('4s', b'HEAD'))
-                # sizeof(i) + 256 + sizeof(i)
-                f.write(struct.pack('I', 4 + 256 + 4))
-                f.write(struct.pack('I', 8))
-                f.write(struct.pack('I', 256))
+                f.write(struct.pack('I', sizes['I'] + sizes['header'] + sizes['I']))
+                f.write(struct.pack('I', sizes['I'] + 4*sizes['s']))
+                f.write(struct.pack('I', sizes['header']))
                 f.write(struct.pack('6I', *             (header['Npart'        ])))
                 f.write(struct.pack('6d', *correct_float(header['Massarr'      ])))
                 f.write(struct.pack('d',   correct_float(header['Time'         ])))
@@ -627,84 +605,93 @@ class Gadget2Snapshot:
                 f.write(struct.pack('i',                (header['flag_entr_ics'])))
                 # Padding to fill out the 256 bytes
                 f.write(struct.pack('60s', b' '*60))
-                f.write(struct.pack('I', 256))
-        if component.N > 1 and isint(ℝ[cbrt(component.N)]):
-            N_str = str(int(round(ℝ[cbrt(component.N)]))) + '³'
+                f.write(struct.pack('I', sizes['header']))
+        # Write out the position, velocity and ID blocks
+        N_lin = cbrt(N)
+        if N > 1 and isint(N_lin):
+            N_str = str(int(round(N_lin))) + '³'
         else:
-            N_str = str(component.N)
-        masterprint(
-            f'Writing out {component.name} ({N_str} {component.species} particles) ...'
-        )
-        # Write the POS block in serial, one process at a time
-        unit = units.kpc/header['HubbleParam']
-        for i in range(nprocs):
-            Barrier()
-            if i != rank:
-                continue
-            with open(filename, 'ab') as f:
-                # The identifier
-                if i == 0:
-                    # 8 = 4*1 + 4 = 4*sizeof(s) + sizeof(i)
-                    f.write(struct.pack('I', 8))
-                    f.write(struct.pack('4s', b'POS '))
-                    # sizeof(i) + 3*N*sizeof(f) + sizeof(i)
-                    f.write(struct.pack('I', 4 + 3*N*4 + 4))
-                    f.write(struct.pack('I', 8))
-                    f.write(struct.pack('I', 3*N*4))
-                # The data
-                (np.mod(asarray(np.vstack((component.posx_mv[:N_local],
-                                           component.posy_mv[:N_local],
-                                           component.posz_mv[:N_local])
-                                          ).T.flatten(),
-                                dtype=C2np['float'])/unit, boxsize/unit)).tofile(f)
-                # The closing int
-                if i == nprocs - 1:
-                    f.write(struct.pack('I', 3*N*4))
-        # Write the VEL block in serial, one process at a time
-        unit = units.km/units.s*component.mass*header['Time']**1.5
-        for i in range(nprocs):
-            Barrier()
-            if i != rank:
-                continue
-            with open(filename, 'ab') as f:
-                # The identifier
-                if i == 0:
-                    # 8 = 4*1 + 4 = 4*sizeof(s) + sizeof(i)
-                    f.write(struct.pack('I', 8))
-                    f.write(struct.pack('4s', b'VEL '))
-                    # sizeof(i) + 3*N*sizeof(f) + sizeof(i)
-                    f.write(struct.pack('I', 4 + 3*N*4 + 4))
-                    f.write(struct.pack('I', 8))
-                    f.write(struct.pack('I', 3*N*4))
-                # The data
-                (asarray(np.vstack((component.momx_mv[:N_local],
-                                    component.momy_mv[:N_local],
-                                    component.momz_mv[:N_local])
-                                   ).T.flatten(),
-                         dtype=C2np['float'])/unit).tofile(f)
-                # The closing int
-                if i == nprocs - 1:
-                    f.write(struct.pack('i', 3*N*4))
-        # Write the ID block in serial, one process at a time
-        for i in range(nprocs):
-            Barrier()
-            if i != rank:
-                continue
-            with open(filename, 'ab') as f:
-                # The identifier
-                if i == 0:
-                    # 8 = 4*1 + 4 = 4*sizeof(s) + sizeof(i)
-                    f.write(struct.pack('I', 8))
-                    f.write(struct.pack('4s', b'ID  '))
-                    # sizeof(i) + N*sizeof(I) + sizeof(i)
-                    f.write(struct.pack('I', 4 + N*4 + 4))
-                    f.write(struct.pack('I', 8))
-                    f.write(struct.pack('I', N*4))
-                # The data
-                asarray(self.ID, dtype=C2np['unsigned int']).tofile(f)
-                # The closing int
-                if i == nprocs - 1:
-                    f.write(struct.pack('I', N*4))
+            N_str = str(N)
+        masterprint(f'Writing out {component.name} ({N_str} {component.species} particles) ...')
+        blocks = {
+            'POS': {
+                'data': component.pos_mv3,
+                # Comoving coordinates in kpc/h
+                'unit': units.kpc/header['HubbleParam'],
+            },
+            'VEL': {
+                'data': component.mom_mv3,
+                # Peculiar velocities u=a*dx/dt
+                # divided by sqrt(a), in km/s.
+                'unit': units.km/units.s*component.mass*header['Time']**1.5,
+            },
+            'ID': {'data': self.ID},
+        }
+        chunk_size = pairmin(ℤ[3*N_local], 2**20)
+        chunk_singleprec = empty(chunk_size, dtype=C2np['float'])
+        chunk_singleprec_ptr = cython.address(chunk_singleprec[:])
+        boxsize_gadget = boxsize/blocks['POS']['unit']
+        for block_name, block in blocks.items():
+            data = asarray(block['data'])
+            unit = block.get('unit', 1)
+            # Size in bytes of each element
+            itemsize = data.itemsize
+            if block_name in {'POS', 'VEL'}:
+                itemsize = asarray(chunk_singleprec).itemsize
+            if itemsize != 4:
+                masterwarn(
+                    f'Expected "{block_name}" elements to be of size 4 '
+                    f'but they are of size {itemsize}'
+                )
+            # Get dimensionality of data and then flatten it
+            ndim = 1
+            if data.ndim == 2:
+                ndim = 3
+            data = data.ravel()[:ndim*N_local]
+            # Write the block in serial, one process at a time
+            for rank_writer in range(nprocs):
+                Barrier()
+                if rank != rank_writer:
+                    continue
+                with open(filename, 'ab') as f:
+                    # The identifier
+                    if rank_writer == 0:
+                        f.write(struct.pack('I', 4*sizes['s'] + sizes['I']))
+                        f.write(struct.pack('4s', block_name.ljust(4).encode('ascii')))
+                        f.write(struct.pack('I', 2*sizes['I'] + ndim*N*itemsize))
+                        f.write(struct.pack('I', sizes['I'] + 4*sizes['s']))
+                        f.write(struct.pack('I', ndim*N*itemsize))
+                    # The data
+                    if block_name in {'POS', 'VEL'}:
+                        data_mv = data
+                        # Write positions and velocities in chunks
+                        chunk_size = pairmin(ℤ[3*N_local], 2**20)
+                        for indexʳ in range(0, ℤ[3*N_local], chunk_size):
+                            if indexʳ + chunk_size > ℤ[3*N_local]:
+                                chunk_size = ℤ[3*N_local] - indexʳ
+                            chunk = data_mv[indexʳ:(indexʳ + chunk_size)]
+                            chunk_ptr = cython.address(chunk[:])
+                            # Copy chunk into single-precision chunk
+                            # while applying unit conversion.
+                            for index_chunk in range(chunk_size):
+                                chunk_singleprec_ptr[index_chunk] = (
+                                    chunk_ptr[index_chunk]*ℝ[1/unit]
+                                )
+                                # In the case of positions,
+                                # safeguard against round-off errors.
+                                with unswitch(2):
+                                    if block_name == 'POS':
+                                        if chunk_singleprec_ptr[index_chunk] >= boxsize_gadget:
+                                            chunk_singleprec_ptr[index_chunk] -= boxsize_gadget
+                            # Write out chunk
+                            asarray(chunk_singleprec[:chunk_size]).tofile(f)
+                    elif block_name == 'ID':
+                        data.tofile(f)
+                    else:
+                        abort(f'Does not know how to write GADGET block "{block_name}"')
+                    # The closing int
+                    if rank_writer == nprocs - 1:
+                        f.write(struct.pack('I', ndim*N*itemsize))
         # Finalize progress messages
         masterprint('done')
         masterprint('done')
@@ -718,24 +705,41 @@ class Gadget2Snapshot:
         only_params='bint',
         # Locals
         N='Py_ssize_t',
+        N_lin='double',
         N_local='Py_ssize_t',
         N_str=str,
-        blockname=str,
-        file_position='Py_ssize_t',
-        header=object,  # collections.OrderedDict
+        block=dict,
+        block_name=str,
+        blocks=dict,
+        blocks_read=set,
+        chunk='double[::1]',
+        chunk_ptr='double*',
+        chunk_singleprec='float[::1]',
+        chunk_singleprec_ptr='float*',
+        chunk_size='Py_ssize_t',
+        component='Component',
+        data=object,  # np.ndarray
+        data_mv='double[::1]',
+        eof='bint',
+        header=dict,
+        index_chunk='Py_ssize_t',
+        indexʳ='Py_ssize_t',
         mass='double',
         name=str,
         offset='Py_ssize_t',
+        rank_reader='int',
         size='unsigned int',
+        size_expected='unsigned int',
+        sizes=dict,
         species=str,
         start_local='Py_ssize_t',
         unit='double',
     )
     def load(self, filename, only_params=False):
         """It is assumed that the snapshot on the disk is a GADGET-2
-        snapshot of type 2 and that it uses single precision. The
+        snapshot of type 2 and that it uses single-precision. The
         Gadget2Snapshot instance stores the data (positions and
-        velocities) in double precision. Only GADGET-2 type 1 (halo)
+        velocities) in double-precision. Only GADGET-2 type 1 (halo)
         particles, corresponding to cold dark matter particles,
         are supported.
         """
@@ -754,30 +758,42 @@ class Gadget2Snapshot:
         offset = 0
         with open(filename, 'rb') as f:
             # Read the HEAD block into a params['header'] dict.
+            # All processes read this, but in turn as to not overload
+            # the file system.
             # No unit conversion will be done.
-            offset = self.new_block(f, offset)
-            blockname = self.read(f, '4s').decode('utf8')  # "HEAD"
-            size = self.read(f, 'I')  # 264
-            offset = self.new_block(f, offset)
-            self.params['header'] = collections.OrderedDict()
-            header = self.params['header']
-            header['Npart']         = self.read(f, '6I')
-            header['Massarr']       = self.read(f, '6d')
-            header['Time']          = self.read(f, 'd')
-            header['Redshift']      = self.read(f, 'd')
-            header['FlagSfr']       = self.read(f, 'i')
-            header['FlagFeedback']  = self.read(f, 'i')
-            header['Nall']          = self.read(f, '6i')
-            header['FlagCooling']   = self.read(f, 'i')
-            header['NumFiles']      = self.read(f, 'i')
-            header['BoxSize']       = self.read(f, 'd')
-            header['Omega0']        = self.read(f, 'd')
-            header['OmegaLambda']   = self.read(f, 'd')
-            header['HubbleParam']   = self.read(f, 'd')
-            header['FlagAge']       = self.read(f, 'i')
-            header['FlagMetals']    = self.read(f, 'i')
-            header['NallHW']        = self.read(f, '6i')
-            header['flag_entr_ics'] = self.read(f, 'i')
+            for rank_reader in range(nprocs):
+                Barrier()
+                if rank != rank_reader:
+                    continue
+                offset = self.new_block(f, offset)
+                block_name = self.read(f, '4s').decode('utf8').rstrip()
+                if block_name != 'HEAD':
+                    abort(f'Expected block "HEAD" but found "{block_name}"')
+                size = self.read(f, 'I')
+                sizes = self.sizes
+                size_expected = sizes['I'] + sizes['header'] + sizes['I']
+                if size != size_expected:
+                    masterwarn(f'The "HEAD" block has size {size} but expected {size_expected}')
+                offset = self.new_block(f, offset)
+                header = {}
+                self.params['header'] = header
+                header['Npart']         = self.read(f, '6I')
+                header['Massarr']       = self.read(f, '6d')
+                header['Time']          = self.read(f, 'd')
+                header['Redshift']      = self.read(f, 'd')
+                header['FlagSfr']       = self.read(f, 'i')
+                header['FlagFeedback']  = self.read(f, 'i')
+                header['Nall']          = self.read(f, '6i')
+                header['FlagCooling']   = self.read(f, 'i')
+                header['NumFiles']      = self.read(f, 'i')
+                header['BoxSize']       = self.read(f, 'd')
+                header['Omega0']        = self.read(f, 'd')
+                header['OmegaLambda']   = self.read(f, 'd')
+                header['HubbleParam']   = self.read(f, 'd')
+                header['FlagAge']       = self.read(f, 'i')
+                header['FlagMetals']    = self.read(f, 'i')
+                header['NallHW']        = self.read(f, '6i')
+                header['flag_entr_ics'] = self.read(f, 'i')
             # Also include some of the header fields as parameters
             # directly in the params dict. These are the same as
             # those included in the params dict of
@@ -794,71 +810,102 @@ class Gadget2Snapshot:
             N = header['Npart'][1]
             unit = 1e+10*units.m_sun/header['HubbleParam']
             mass = header['Massarr'][1]*unit
-            self.component = Component(name, species, N=N, mass=mass)
-            self.components = [self.component]
+            component = Component(name, species, N=N, mass=mass)
+            self.component = component
+            self.components = [component]
             # Done loading component attributes
             if only_params:
                 masterprint('done')
                 return
-            if N > 1 and isint(ℝ[cbrt(N)]):
-                N_str = str(int(round(ℝ[cbrt(N)]))) + '³'
+            N_lin = cbrt(N)
+            if N > 1 and isint(N_lin):
+                N_str = str(int(round(N_lin))) + '³'
             else:
                 N_str = str(N)
             masterprint(f'Reading in {name} ({N_str} {species} particles) ...')
             # Compute a fair distribution
             # of component data to the processes.
             start_local, N_local = partition(N)
-            # Read in the POS block. The positions are given in kpc/h.
-            offset = self.new_block(f, offset)
-            unit = units.kpc/header['HubbleParam']
-            blockname = self.read(f, '4s').decode('utf8')  # "POS "
-            size = self.read(f, 'I')
-            offset = self.new_block(f, offset)
-            f.seek(12*start_local, 1)  # 12 = sizeof(float)*3
-            file_position = f.tell()
-            self.component.populate(asarray(np.fromfile(f, dtype=C2np['float'], count=3*N_local)
-                                            [0::3], dtype=C2np['double'])*unit,
-                                    'posx')
-            f.seek(file_position)
-            self.component.populate(asarray(np.fromfile(f, dtype=C2np['float'], count=3*N_local)
-                                            [1::3], dtype=C2np['double'])*unit,
-                                    'posy')
-            f.seek(file_position)
-            self.component.populate(asarray(np.fromfile(f, dtype=C2np['float'], count=3*N_local)
-                                            [2::3], dtype=C2np['double'])*unit,
-                                    'posz')
-            # Read in the VEL block. The velocities are peculiar
-            # velocities u=a*dx/dt divided by sqrt(a), given in km/s.
-            offset = self.new_block(f, offset)
-            unit = units.km/units.s*mass*header['Time']**1.5
-            blockname = self.read(f, '4s').decode('utf8')  # "VEL "
-            size = self.read(f, 'I')
-            offset = self.new_block(f, offset)
-            f.seek(12*start_local, 1)  # 12 = sizeof(float)*3
-            file_position = f.tell()
-            self.component.populate(asarray(np.fromfile(f, dtype=C2np['float'], count=3*N_local)
-                                            [0::3], dtype=C2np['double'])*unit,
-                                    'momx')
-            f.seek(file_position)
-            self.component.populate(asarray(np.fromfile(f, dtype=C2np['float'], count=3*N_local)
-                                            [1::3], dtype=C2np['double'])*unit,
-                                    'momy')
-            f.seek(file_position)
-            self.component.populate(asarray(np.fromfile(f, dtype=C2np['float'], count=3*N_local)
-                                            [2::3], dtype=C2np['double'])*unit,
-                                    'momz')
-            # Read in the ID block.
-            # The ID's will be distributed among all processes.
-            offset = self.new_block(f, offset)
-            blockname = self.read(f, '4s').decode('utf8')  # "ID  "
-            size = self.read(f, 'I')
-            offset = self.new_block(f, offset)
-            f.seek(4*start_local, 1)  # 4 = sizeof(unsigned int)
-            file_position = f.tell()
-            self.ID = np.fromfile(f, dtype=C2np['unsigned int'], count=N_local)
+            component.N_local = N_local
+            if component.N_allocated < N_local:
+                component.resize(N_local)
+            # Read in blocks. We again do this one process at a time.
+            blocks_read = {'HEAD'}
+            blocks = {
+                'POS': {
+                    'data': component.pos_mv,
+                    # Comoving coordinates in kpc/h
+                    'unit': units.kpc/header['HubbleParam'],
+                },
+                'VEL': {
+                    'data': component.mom_mv,
+                    # Peculiar velocities u=a*dx/dt
+                    # divided by sqrt(a), in km/s.
+                    'unit': units.km/units.s*mass*header['Time']**1.5,
+                },
+                'ID': {'data': self.ID},
+            }
+            eof = False
+            while not eof:
+                for rank_reader in range(nprocs):
+                    Barrier()
+                    if rank != rank_reader:
+                        continue
+                    if eof:
+                        continue
+                    offset = self.new_block(f, offset)
+                    if offset == -1:
+                        # End of file
+                        eof = True
+                        continue
+                    block_name = self.read(f, '4s').decode('utf8').rstrip()
+                    if block_name in blocks_read:
+                        continue
+                    size = self.read(f, 'I')
+                    offset = self.new_block(f, offset)
+                    block = blocks.get(block_name, {})
+                    data = asarray(block.get('data', ()))
+                    unit = block.get('unit', 1)
+                    if block_name in {'POS', 'VEL'}:
+                        blocks_read.add(block_name)
+                        f.seek(3*sizes['f']*start_local, 1)
+                        data_mv = data
+                        chunk_size = pairmin(ℤ[3*N_local], 2**20)
+                        for indexʳ in range(0, ℤ[3*N_local], chunk_size):
+                            if indexʳ + chunk_size > ℤ[3*N_local]:
+                                chunk_size = ℤ[3*N_local] - indexʳ
+                            chunk = data_mv[indexʳ:(indexʳ + chunk_size)]
+                            chunk_ptr = cython.address(chunk[:])
+                            # Read in single-precision chunk
+                            chunk_singleprec = np.fromfile(
+                                f,
+                                dtype=C2np['float'],
+                                count=chunk_size,
+                            )
+                            chunk_singleprec_ptr = cython.address(chunk_singleprec[:])
+                            # Copy single-precision chunk into chunk
+                            # while applying unit conversion.
+                            for index_chunk in range(chunk_size):
+                                chunk_ptr[index_chunk] = chunk_singleprec_ptr[index_chunk]*unit
+                                # In the case of positions,
+                                # safeguard against round-off errors.
+                                with unswitch(2):
+                                    if block_name == 'POS':
+                                        if chunk_ptr[index_chunk] >= boxsize:
+                                            chunk_ptr[index_chunk] -= boxsize
+                    elif block_name == 'ID':
+                        blocks_read.add(block_name)
+                        f.seek(sizes['I']*start_local, 1)
+                        self.ID = np.fromfile(f, dtype=C2np['unsigned int'], count=N_local)
+                    else:
+                        masterprint(f'Skipping block {block_name}')
+                        continue
             # Done reading in particles
+            if 'POS' not in blocks_read:
+                masterwarn('No POS block found')
+            if 'VEL' not in blocks_read:
+                masterwarn('No VEL block found')
             masterprint('done')
-            # Possible additional meta data ignored
         # Done loading the snapshot
         masterprint('done')
 
@@ -917,19 +964,20 @@ class Gadget2Snapshot:
 
     # Method for constructing the GADGET-2 header from the other
     # parameters in the params dict.
-    @cython.header(# Locals
-                   component='Component',
-                   h='double',
-                   header=object,  # collections.OrderedDict
-                   params=dict,
-                   unit='double',
-                   )
+    @cython.header(
+        # Locals
+        component='Component',
+        h='double',
+        header=dict,
+        params=dict,
+        unit='double',
+    )
     def update_header(self):
         # Extract variables
         component = self.component
         params = self.params
         # The GADGET-2 header is constructed from scratch
-        params['header'] = collections.OrderedDict()
+        params['header'] = {}
         header = params['header']
         # Fill the header
         header['Npart'] = [0, component.N, 0, 0, 0, 0]
@@ -955,16 +1003,21 @@ class Gadget2Snapshot:
         header['flag_entr_ics'] = 1
 
     # Method used for reading series of bytes from the snapshot file
-    @cython.header(# Arguments
-                   f=object,
-                   fmt=str,
-                   # Locals
-                   t=tuple,
-                   returns=object,
-                   )
+    @cython.header(
+        # Arguments
+        f=object,
+        fmt=str,
+        # Locals
+        payload=object,  # bytes
+        t=tuple,
+        returns=object,
+    )
     def read(self, f, fmt):
         # Convert bytes to Python objects and store them in a tuple
-        t = struct.unpack(fmt, f.read(struct.calcsize(fmt)))
+        payload = f.read(struct.calcsize(fmt))
+        if not payload:
+            return None
+        t = struct.unpack(fmt, payload)
         # If the tuple contains just a single element, return this
         # element rather than the tuple.
         if len(t) == 1:
@@ -974,35 +1027,43 @@ class Gadget2Snapshot:
 
     # Method that handles the file object's position in the snapshot
     # file during loading. Call it when the next block should be read.
-    @cython.header(offset='Py_ssize_t',
-                   f=object,
-                   returns='Py_ssize_t',
-                   )
+    @cython.header(
+        # Arguments
+        f=object,
+        offset='Py_ssize_t',
+        # Locals
+        size=object,  # unsigned int or NoneType,
+        returns='Py_ssize_t',
+    )
     def new_block(self, f, offset):
         # Set the current position in the file
         f.seek(offset)
-        # Each block is bracketed with a 4-byte int
-        # containing the size of the block
-        offset += 8 + self.read(f, 'I')
+        # Each block is bracketed with an unsigned int
+        # containing the size of the block.
+        size = self.read(f, 'I')
+        if size is None:
+            return -1
+        offset += self.sizes['I'] + size + self.sizes['I']
         return offset
 
 # Function that saves the current state of the simulation
 # - consisting of global parameters as well as the list of components -
 # to a snapshot file. Note that since we want this function to be
 # exposed to pure Python, a pheader is used.
-@cython.pheader(# Argument
-                one_or_more_components=object,  # Component or container of Components
-                filename=str,
-                params=dict,
-                snapshot_type=str,
-                save_all_components='bint',
-                # Locals
-                component='Component',
-                components=list,
-                components_selected=list,
-                snapshot=object,  # Any implemented snapshot type
-                returns=str,
-                )
+@cython.pheader(
+    # Argument
+    one_or_more_components=object,  # Component or container of Components
+    filename=str,
+    params=dict,
+    snapshot_type=str,
+    save_all_components='bint',
+    # Locals
+    component='Component',
+    components=list,
+    components_selected=list,
+    snapshot=object,  # Any implemented snapshot type
+    returns=str,
+)
 def save(one_or_more_components, filename, params=None, snapshot_type=snapshot_type,
          save_all_components=False):
     """The type of snapshot to be saved may be given as the
@@ -1050,26 +1111,26 @@ def save(one_or_more_components, filename, params=None, snapshot_type=snapshot_t
 
 # Function that loads a snapshot file.
 # The type of snapshot can be any of the implemented.
-@cython.pheader(# Argument
-                filename=str,
-                compare_params='bint',
-                only_params='bint',
-                only_components='bint',
-                do_exchange='bint',
-                as_if=str,
-                # Locals
-                component='Component',
-                i='Py_ssize_t',
-                input_type=str,
-                snapshot=object,          # Some snapshot type
-                snapshot_newtype=object,  # Some snapshot type
-                returns=object,           # Snapshot or list
-                )
-def load(filename, compare_params=True,
-                   only_params=False,
-                   only_components=False,
-                   do_exchange=True,
-                   as_if=''):
+@cython.pheader(
+    # Argument
+    filename=str,
+    compare_params='bint',
+    only_params='bint',
+    only_components='bint',
+    do_exchange='bint',
+    as_if=str,
+    # Locals
+    component='Component',
+    input_type=str,
+    snapshot=object,          # Some snapshot type
+    snapshot_newtype=object,  # Some snapshot type
+    returns=object,           # Snapshot or list
+)
+def load(
+    filename,
+    compare_params=True, only_params=False, only_components=False,
+    do_exchange=True, as_if='',
+):
     """When only_params is False and only_components is False,
     the return type is simply a snapshot object containing all the
     data in the snapshot on disk.
@@ -1113,12 +1174,9 @@ def load(filename, compare_params=True,
     # Scatter particles to the correct domain-specific process.
     # Also communicate ghost points of fluid variables.
     if not only_params and do_exchange:
-        # Do exchanges for all components. Reset the communication
-        # buffers after the last exchange, as these initial exchanges
-        # are not representable for those to come during the
-        # actual simulation.
-        for i, component in enumerate(snapshot.components):
-            exchange(component, reset_buffers=(i == len(snapshot.components) - 1))
+        # Do exchanges for all components
+        for component in snapshot.components:
+            exchange(component, progress_msg=True)
         # Communicate the ghost points of all fluid variables
         # in fluid components.
         for component in snapshot.components:
@@ -1213,15 +1271,20 @@ def compare_parameters(params, filename):
 
 # Function which does a sanity check of particle components,
 # ensuring that they are within the box.
-@cython.header(# Arguments
-               component='Component',
-               snapshot_boxsize='double',
-               # Locals
-               i='Py_ssize_t',
-               posx='double*',
-               posy='double*',
-               posz='double*',
-               )
+@cython.header(
+    # Arguments
+    component='Component',
+    snapshot_boxsize='double',
+    # Locals
+    indexᵖ='Py_ssize_t',
+    indexʳ='Py_ssize_t',
+    indexˣ='Py_ssize_t',
+    pos='double*',
+    value='double',
+    x='double',
+    y='double',
+    z='double',
+)
 def out_of_bounds_check(component, snapshot_boxsize=-1):
     """If any particles are outside of the box, the program
     will terminate. Particles located exactly at the upper box
@@ -1236,29 +1299,22 @@ def out_of_bounds_check(component, snapshot_boxsize=-1):
     # If no boxsize is passed, use the global boxsize
     if snapshot_boxsize == -1:
         snapshot_boxsize = boxsize
-    # Extract position variables
-    posx = component.posx
-    posy = component.posy
-    posz = component.posz
-    # Do the check for each particle in the component
-    for i in range(component.N_local):
-        # Move particles at the very upper boundaries of the box
-        # to the lower boundaries instead.
-        if posx[i] == snapshot_boxsize:
-            posx[i] = 0
-        if posy[i] == snapshot_boxsize:
-            posy[i] = 0
-        if posz[i] == snapshot_boxsize:
-            posz[i] = 0
-        # Abort on out of bounds
-        if (   not (0 <= posx[i] < snapshot_boxsize)
-            or not (0 <= posy[i] < snapshot_boxsize)
-            or not (0 <= posz[i] < snapshot_boxsize)):
+    pos = component.pos
+    for indexʳ in range(3*component.N_local):
+        value = pos[indexʳ]
+        if value == snapshot_boxsize:
+            pos[indexʳ] = 0
+        elif not (0 <= value < snapshot_boxsize):
+            indexᵖ = indexʳ//3
+            indexˣ = 3*indexᵖ
+            x = pos[indexˣ + 0]
+            y = pos[indexˣ + 1]
+            z = pos[indexˣ + 2]
             abort(
-                f'Particle number {i} of {component.name} has position '
-                f'({posx[i]:.9g}, {posy[i]:.9g}, {posz[i]:.9g}) {unit_length}, '
+                f'Particle number {indexᵖ} of {component.name} has position '
+                f'({x}, {y}, {z}) {unit_length}, '
                 f'which is outside of the cubic box '
-                f'of side length {snapshot_boxsize:.9g} {unit_length}'
+                f'of side length {snapshot_boxsize} {unit_length}'
             )
 
 # Function that either loads existing initial conditions from a snapshot

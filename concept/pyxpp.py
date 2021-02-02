@@ -480,7 +480,7 @@ def cython_structs(lines, no_optimization):
                     if value[-1] == ')':
                         value = value[:-1]
                 else:
-                    # Only type given. Initialize pointer type to None,
+                    # Only type given. Initialise pointer type to None,
                     # non-pointer type to 0.
                     if decl.count('"') == 2:
                         ctype = re.search('(".*")', decl).group(1)
@@ -493,7 +493,7 @@ def cython_structs(lines, no_optimization):
             # The name of the struct type is eg. struct_double_double_int
             struct_kind = '_'.join([t[1] for t in struct_content]).replace('*', 'star')
             # Insert modified version of the build_struct function,
-            # initializing all pointer values to None
+            # initialising all pointer values to None
             # and non-pointer values to 0.
             if not build_struct_code:
                 build_struct_code = get_build_struct()
@@ -1317,20 +1317,20 @@ def constant_expressions(lines, no_optimization, first_call=True):
         return len(line) - len(line_lstrip)
     def variable_changed(var, line):
         line_ori = line
-        line = line.replace(' ', '')
+        line = line.strip()
         if line.startswith('#'):
+            return False
+        line = line.replace(' ', '')
+        if not line:
             return False
         def multi_assign_in_for(var, line):
             line = line.strip()
-            if not line or line.startswith('#'):
-                return
             line = line.replace(',', ' ').replace('(', ' ').replace(')', ' ')
             if not (line.startswith('for ') and ' {} '.format(var) in line and ' in ' in line):
                 return
             if line.index(' {} '.format(var)) < line.index(' in '):
                 return True
         def multi_assign_in_line(var, line):
-            line_ori = line
             line = line.replace(' ', '')
             # Remove function calls
             removed_args = True
@@ -1605,42 +1605,42 @@ def constant_expressions(lines, no_optimization, first_call=True):
         expressions_cython = []
         declaration_linenrs = []
         declaration_placements = []
-        operators = collections.OrderedDict([
-            ('.' , 'DOT' ),
-            ('+' , 'PLS' ),
-            ('-' , 'MIN' ),
-            ('**', 'POW' ),
-            ('*' , 'TIM' ),
-            ('/' , 'DIV' ),
-            ('\\', 'BSL' ),
-            ('^' , 'CAR' ),
-            ('&' , 'AND' ),
-            ('|' , 'BAR' ),
-            ('@' , 'AT'  ),
-            (',' , 'COM' ),
-            ('(' , 'OPAR'),
-            (')' , 'CPAR'),
-            ('[' , 'OBRA'),
-            (']' , 'CBRA'),
-            ('{' , 'OCUR'),
-            ('}' , 'CCUR'),
-            ("'" , 'QTE' ),
-            ('"' , 'DQTE'),
-            (':' , 'COL' ),
-            (';' , 'SCOL'),
-            ('==', 'CMP' ),
-            ('!=', 'NCMP'),
-            ('=' , 'EQ'  ),
-            ('!' , 'BAN' ),
-            ('<' , 'LTH' ),
-            ('>' , 'GTH' ),
-            ('#' , 'SHA' ),
-            ('$' , 'DOL' ),
-            ('%' , 'PER' ),
-            ('?' , 'QUE' ),
-            ('`' , 'GRA' ),
-            ('~' , 'TIL' ),
-        ])
+        operators = {
+            '.': 'DOT',
+            '+': 'PLS',
+            '-': 'MIN',
+            '**': 'POW',
+            '*': 'TIM',
+            '/': 'DIV',
+            '\\': 'BSL',
+            '^': 'CAR',
+            '&': 'AND',
+            '|': 'BAR',
+            '@': 'AT',
+            ',': 'COM',
+            '(': 'OPAR',
+            ')': 'CPAR',
+            '[': 'OBRA',
+            ']': 'CBRA',
+            '{': 'OCUR',
+            '}': 'CCUR',
+            "'": 'QTE',
+            '"': 'DQTE',
+            ':': 'COL',
+            ';': 'SCOL',
+            '==': 'CMP',
+            '!=': 'NCMP',
+            '=': 'EQ',
+            '!': 'BAN',
+            '<': 'LTH',
+            '>': 'GTH',
+            '#': 'SHA',
+            '$': 'DOL',
+            '%': 'PER',
+            '?': 'QUE',
+            '`': 'GRA',
+            '~': 'TIL',
+        }
         while True:
             no_blackboard_bold_symbol = True
             module_scope = True
@@ -1715,16 +1715,15 @@ def constant_expressions(lines, no_optimization, first_call=True):
                     if op != '.':
                         variables = list(itertools.chain(*[var.split(op) for var in variables]))
                 # When a variable is really an instance attribute,
-                # only the instance itself is considered a variable.
-                # The 'attributes' dict will map any such instance
-                # variable to its attributes used.
-                attributes = {}
-                for v, var in enumerate(variables):
-                    # Variable attributes are not considered variables
+                # the attribute as well as the instance itself are
+                # considered variables.
+                for v, var in enumerate(variables.copy()):
                     if '.' in var:
-                        dot_index = var.index('.')
-                        variables[v] = var[:dot_index]
-                        attributes[variables[v]] = var[(dot_index + 1):]
+                        obj = var.partition('.')[0]
+                        variables[v] = obj
+                        for attr in var.split('.')[1:]:
+                            obj += f'.{attr}'
+                            variables.append(obj)
                 variables = [var for var in list(set(variables))
                              if var and var[0] not in '.0123456789']
                 # Remove non-variables
@@ -2668,14 +2667,15 @@ def remove_duplicate_declarations(lines, no_optimization):
     declarations_locals = {}
     for j, line in enumerate(lines):
         # Get function variable declarations within cython.locals()
-        if line.startswith('@cython.locals('):
+        line_lstripped = line.lstrip()
+        if line_lstripped.startswith('@cython.locals('):
             in_locals = True
             locals_begin = j
             declarations_locals = {}
         if in_locals:
             valid = False
             try:
-                ast.parse(''.join(lines[locals_begin:j+1])[1:])
+                ast.parse(''.join(lines[locals_begin:j+1]).strip()[1:])
                 valid = True
             except:
                 pass
@@ -2694,16 +2694,21 @@ def remove_duplicate_declarations(lines, no_optimization):
                     vartype = vartype.strip()
                     declarations_locals[varname] = vartype
                 in_locals = False
-        if line.startswith('def '):
+        if line.startswith('def ') or (not in_function and line.startswith('    def ')):
             in_function = True
             declarations_inner = declarations_locals
             declarations_locals = {}
             first_linenr_of_function = len(new_lines) + 1
-        elif line and line[0] not in ' #\n':
+            n_indentation_def = len(line) - len(line_lstripped)
+            indentation_def = ' '*n_indentation_def
+        elif line and (
+            (line[0] not in ' #\n')
+            or (in_function and (set(line[:n_indentation_def+1]) - set(' #\n')))
+        ):
             in_function = False
         declarations = declarations_inner if in_function else declarations_outer
-        if line.lstrip().startswith('cython.declare('):
-            indentation = ' '*(len(line) - len(line.lstrip()))
+        if line_lstripped.startswith('cython.declare('):
+            indentation = ' '*(len(line) - len(line_lstripped))
             info = re.search(r'cython\.declare\((.*)\)', line).group(1).split('=')
             for i, (varname, vartype) in enumerate(zip(info[:-1], info[1:])):
                 if i > 0:
@@ -2721,13 +2726,14 @@ def remove_duplicate_declarations(lines, no_optimization):
                         vartype_bare      = vartype_bare     .replace(char, '')
                         vartype_prev_bare = vartype_prev_bare.replace(char, '')
                     if vartype_bare != vartype_prev_bare:
-                        print('Warning: {} declared as both {} and {}'
-                              .format(varname, vartype_prev, vartype),
-                              file=sys.stderr)
+                        print(
+                            f'Warning: {varname} declared as both {vartype_prev} and {vartype}',
+                            file=sys.stderr,
+                        )
                 else:
                     if in_function and first_linenr_of_function < len(new_lines):
                         # Move declaration to top of function
-                        new_line = f'    cython.declare({varname}={vartype})\n'
+                        new_line = f'{indentation_def}    cython.declare({varname}={vartype})\n'
                         new_lines.insert(first_linenr_of_function, new_line)
                     else:
                         new_line = f'{indentation}cython.declare({varname}={vartype})\n'
@@ -2836,7 +2842,7 @@ def cython_decorators(lines, no_optimization):
                     header = []
                 # Add in all the other decorators.
                 # A @cython.header should transform into @cython.cfunc
-                # whiel a @cython.pheader should transform into a
+                # while a @cython.pheader should transform into a
                 # @cython.ccall. Additional decorators should be placed
                 # below. The @cython.inline decorator should not be
                 # placed on top of:

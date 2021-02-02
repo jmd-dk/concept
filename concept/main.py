@@ -267,7 +267,7 @@ def timeloop():
                             ).most_common(1)[0][0]
                         tiling_name    = f'{interaction_name} (tiles)'
                         subtiling_name = f'{interaction_name} (subtiles)'
-                        component.tile_sort(tiling_name, None, -1, subtiling_name)
+                        component.tile_sort(tiling_name, subtiling_name)
                         # Reset subtile computation time
                         subtiling_computation_times[component].clear()
                 # Initial half short-range kick of particles on
@@ -1160,7 +1160,7 @@ def kick_short(components, Δt, fake=False):
             getattr(interactions, force)(
                 method, receivers, suppliers, ᔑdt_rungs, 'short-range', printout,
             )
-        # Ensure nullified Δ buffers on all particle components
+        # Ensure a nullified Δmom buffer on all particle components
         for component in particle_components:
             component.nullify_Δ('mom')
         # Carry out non-instantaneous short-range interactions
@@ -1491,7 +1491,7 @@ def driftkick_short(components, Δt, sync_time):
             for receiver in receivers:
                 for supplier_name, n in receiver.n_interactions.items():
                     n_interactions[force, receiver][supplier_name] += n
-        # Ensure nullified Δ buffers on all particle components
+        # Ensure a nullified Δmom buffer on all particle components
         for component in particle_components:
             component.nullify_Δ('mom')
         # Carry out non-instantaneous short-range interactions
@@ -1541,14 +1541,15 @@ def driftkick_short(components, Δt, sync_time):
     Δt='double',
     # Locals
     component='Component',
-    i='Py_ssize_t',
+    indexᵖ='Py_ssize_t',
     plural=str,
     rung_components=list,
+    rung_indices='signed char*',
     returns='void',
 )
 def initialize_rung_populations(components, Δt):
     if Δt == 0:
-        abort('Cannot initialize rung populations with Δt = 0')
+        abort('Cannot initialise rung populations with Δt = 0')
     # Collect all components that makes use of rungs.
     # Do nothing if none exists.
     rung_components = [component for component in components if component.use_rungs]
@@ -1559,8 +1560,9 @@ def initialize_rung_populations(components, Δt):
     # Assign all particles to rung 0 and update rungs_N,
     # resulting in rungs_N = [N_local, 0, 0, ...].
     for component in rung_components:
-        for i in range(component.N_local):
-            component.rung_indices[i] = 0
+        rung_indices = component.rung_indices
+        for indexᵖ in range(component.N_local):
+            rung_indices[indexᵖ] = 0
         component.set_rungs_N()
     # Do a fake short kick, which computes momentum updates and use
     # these to set the rungs, but does not apply these momentum updates.
@@ -1929,8 +1931,8 @@ def print_timestep_heading(time_step, Δt, bottleneck, components, end=False):
     line=str,
     lines=list,
     message=list,
-    other_rank='int',
     rank_max_load='int',
+    rank_other='int',
     sign=str,
     tiling='Tiling',
     value_bad='double',
@@ -1956,9 +1958,9 @@ def print_timestep_footer(components):
             if master:
                 direct_summation_time_total = sum(direct_summation_times)
                 direct_summation_time_mean = direct_summation_time_total/nprocs
-                for other_rank in range(nprocs):
-                    imbalances[other_rank] = (
-                        direct_summation_times[other_rank]/direct_summation_time_mean - 1
+                for rank_other in range(nprocs):
+                    imbalances[rank_other] = (
+                        direct_summation_times[rank_other]/direct_summation_time_mean - 1
                     )
                 rank_max_load = np.argmax(imbalances)
                 if 𝔹[print_load_imbalance == 'full']:
@@ -1966,18 +1968,18 @@ def print_timestep_footer(components):
                     # for each process individually.
                     masterprint('Load imbalance:')
                     lines = []
-                    for other_rank in range(nprocs):
-                        imbalance = imbalances[other_rank]
+                    for rank_other in range(nprocs):
+                        imbalance = imbalances[rank_other]
                         sign = '+' if imbalance >= 0 else '-'
                         lines.append(
-                            f'Process ${other_rank}: ${sign}${{:.{decimals}f}}%'
+                            f'Process ${rank_other}: ${sign}${{:.{decimals}f}}%'
                             .format(abs(100*imbalance))
                         )
                     lines = align_text(lines, indent=4)
-                    for other_rank, line in enumerate(lines):
-                        if other_rank != rank_max_load:
+                    for rank_other, line in enumerate(lines):
+                        if rank_other != rank_max_load:
                             continue
-                        imbalance = imbalances[other_rank]
+                        imbalance = imbalances[rank_other]
                         first, last = line.split(':')
                         if imbalance >= value_miserable:
                             last = terminal.bold_red(last)
@@ -1985,7 +1987,7 @@ def print_timestep_footer(components):
                             last = terminal.bold_yellow(last)
                         else:
                             last = terminal.bold(last)
-                        lines[other_rank] = f'{first}:{last}'
+                        lines[rank_other] = f'{first}:{last}'
                     masterprint('\n'.join(lines))
                 else:
                     # We want to print out only the
@@ -2010,7 +2012,7 @@ imbalances = empty(nprocs, dtype=C2np['double']) if master else None
 def prepare_for_output(components=None):
     """As this function uses universals.t and universals.a as the
     initial values of the cosmic time and the scale factor, you must
-    initialize these properly before calling this function.
+    initialise these properly before calling this function.
     """
     output_times_all = output_times.copy()
     # If a list of components is passed, we need to first run this

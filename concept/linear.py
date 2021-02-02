@@ -67,7 +67,7 @@ class PseudoRandomNumberGenerator:
             continue
         streams[name] = attr
 
-    # Initialization method
+    # Initialisation method
     @cython.pheader(
         # Arguments
         seed=object,  # Python int or None
@@ -104,7 +104,7 @@ class PseudoRandomNumberGenerator:
             )
         # Instantiate a seeded pseudo-random number generator
         self.generator = np.random.Generator(generator(self.seed))
-        # Initialize caches
+        # Initialise caches
         self.cache_uniform  = None
         self.cache_gaussian = None
         self.cache_rayleigh = None
@@ -259,7 +259,7 @@ class CosmoResults:
             except KeyError:
                 pass
             return value
-    # Initialize instance
+    # Initialise instance
     def __init__(self, params, k_magnitudes, cosmo=None, filename='', class_call_reason=''):
         """If no cosmo object is passed, all results should be loaded
         from disk, if possible. The first time this fails, CLASS will be
@@ -345,7 +345,7 @@ class CosmoResults:
             )
         for var_name in transferfunctions_registered:
             setattr(self, var_name, construct_func(var_name))
-        # Initialize the hdf5 file on disk, if it does not
+        # Initialise the hdf5 file on disk, if it does not
         # already exist. If it exist, 'params' and 'k_magnitudes' are
         # guaranteed to be stored there correctly already, as the
         # filename depends on the content of 'params', which also
@@ -821,18 +821,18 @@ class CosmoResults:
                         indices_proc.append(index)
                     indices_procs = [asarray(sorted(indices), dtype=C2np['Py_ssize_t'])
                         for indices in indices_procs]
-                    for other_rank, indices in enumerate(indices_procs):
-                        if other_rank == rank:
+                    for rank_other, indices in enumerate(indices_procs):
+                        if rank_other == rank:
                             continue
                         # Send the global perturbation indices
-                        send(indices.size, dest=other_rank)
-                        Send(indices, dest=other_rank)
+                        send(indices.size, dest=rank_other)
+                        Send(indices, dest=rank_other)
                         # Send the perturbation data
                         for index in indices:
                             perturbation = self._perturbations[index]
                             for key in keys:
-                                send(perturbation[key].size, dest=other_rank)
-                                Send(perturbation[key], dest=other_rank)
+                                send(perturbation[key].size, dest=rank_other)
+                                Send(perturbation[key], dest=rank_other)
                                 # Once the data has been communicated,
                                 # delete it from the master process.
                                 perturbation[key].resize(0, refcheck=False)
@@ -1476,7 +1476,7 @@ class CosmoResults:
 # No gauge transformation etc. will be carried out.
 @cython.cclass
 class TransferFunction:
-    # Initialization method
+    # Initialisation method
     @cython.header(# Arguments
                    cosmoresults=object,  # CosmoResults
                    component='Component',
@@ -1583,7 +1583,6 @@ class TransferFunction:
         largest_trusted_k='Py_ssize_t',
         missing_perturbations_warning=str,
         n_outliers='Py_ssize_t',
-        other_rank='int',
         outlier='Py_ssize_t',
         outliers='Py_ssize_t[::1]',
         outliers_first='Py_ssize_t',
@@ -1600,6 +1599,7 @@ class TransferFunction:
         perturbations_detrended='double[::1]',
         perturbations_detrended_largest_trusted_k=object,  # np.ndarray of dtype object
         rank_largest_trusted_k='int',
+        rank_other='int',
         size='Py_ssize_t',
         spline='Spline',
         transferfunction_info=object,  # TransferFunctionInfo
@@ -1963,21 +1963,21 @@ class TransferFunction:
             # largest trusted perturbations to all processes which
             # contain untrusted perturbations.
             if rank == rank_largest_trusted_k:
-                for other_rank in range(nprocs):
-                    if other_rank == rank or not recv(source=other_rank):
+                for rank_other in range(nprocs):
+                    if rank_other == rank or not recv(source=rank_other):
                         continue
-                    send(interval_boarders_largest_trusted_k.shape[0], dest=other_rank)
-                    Send(interval_boarders_largest_trusted_k, dest=other_rank)
+                    send(interval_boarders_largest_trusted_k.shape[0], dest=rank_other)
+                    Send(interval_boarders_largest_trusted_k, dest=rank_other)
                     n_intervals = 0
                     for i in range(self.n_intervals):
                         if a_values_largest_trusted_k[i] is None:
                             break
                         n_intervals += 1
-                    send(n_intervals, dest=other_rank)
+                    send(n_intervals, dest=rank_other)
                     for i in range(n_intervals):
-                        send(a_values_largest_trusted_k[i].shape[0], dest=other_rank)
-                        Send(a_values_largest_trusted_k[i], dest=other_rank)
-                        Send(perturbations_detrended_largest_trusted_k[i], dest=other_rank)
+                        send(a_values_largest_trusted_k[i].shape[0], dest=rank_other)
+                        Send(a_values_largest_trusted_k[i], dest=rank_other)
+                        Send(perturbations_detrended_largest_trusted_k[i], dest=rank_other)
             else:
                 send(contains_untrusted_perturbations, dest=rank_largest_trusted_k)
                 if contains_untrusted_perturbations:
@@ -2051,32 +2051,32 @@ class TransferFunction:
         if class_plot_perturbations:
             masterprint(f'Plotting detrended transfer functions ...')
             if master:
-                for other_rank in range(nprocs):
-                    if other_rank == rank:
+                for rank_other in range(nprocs):
+                    if rank_other == rank:
                         n_plots = self.k_gridsize_local
                     else:
-                        n_plots = recv(source=other_rank)
+                        n_plots = recv(source=rank_other)
                     factors   = empty(self.n_intervals, dtype=C2np['double'])
                     exponents = empty(self.n_intervals, dtype=C2np['double'])
                     for k_local in range(n_plots):
-                        if other_rank == rank:
+                        if rank_other == rank:
                             k = self.k_indices[k_local]
                             factors   = asarray(self.factors  [k_local, :]).copy()
                             exponents = asarray(self.exponents[k_local, :]).copy()
                             splines = self.splines[k_local, :]
                         else:
-                            k = recv(source=other_rank)
-                            Recv(factors, source=other_rank)
-                            Recv(exponents, source=other_rank)
+                            k = recv(source=rank_other)
+                            Recv(factors, source=rank_other)
+                            Recv(exponents, source=rank_other)
                             splines = empty(self.n_intervals, dtype=object)
                             for i in range(self.n_intervals):
-                                if recv(source=other_rank):
+                                if recv(source=rank_other):
                                     continue
-                                size = recv(source=other_rank)
+                                size = recv(source=rank_other)
                                 interval_a_values = get_buffer(size, 'x')
-                                Recv(interval_a_values, source=other_rank)
+                                Recv(interval_a_values, source=rank_other)
                                 interval_perturbations_detrended = get_buffer(size, 'y')
-                                Recv(interval_perturbations_detrended, source=other_rank)
+                                Recv(interval_perturbations_detrended, source=rank_other)
                                 # Recreate spline at the master process
                                 splines[i] = Spline(interval_a_values,
                                     interval_perturbations_detrended,
@@ -2949,7 +2949,6 @@ k_safety_factor = 2*10**float(-k_str_n_decimals)
     cosmoresults_δ=object,  # CosmoResults
     deconv_order='int',
     dim='int',
-    dim2='int',
     domain_start_i='Py_ssize_t',
     domain_start_j='Py_ssize_t',
     domain_start_k='Py_ssize_t',
@@ -2960,10 +2959,15 @@ k_safety_factor = 2*10**float(-k_str_n_decimals)
     fluidvar=object,  # Tensor
     fluidvar_name=str,
     gridsize='Py_ssize_t',
+    i='Py_ssize_t',
     index='Py_ssize_t',
+    indexʳ='Py_ssize_t',
+    indexˣ='Py_ssize_t',
+    indexˣʸᶻ='Py_ssize_t',
     index0='Py_ssize_t',
     index1='Py_ssize_t',
     interpolation_order='int',
+    j='Py_ssize_t',
     k='Py_ssize_t',
     k_factor='double',
     k_index0='Py_ssize_t',
@@ -2975,7 +2979,7 @@ k_safety_factor = 2*10**float(-k_str_n_decimals)
     kj='Py_ssize_t',
     kk='Py_ssize_t',
     mass='double',
-    momⁱ='double*',
+    mom='double*',
     multi_index=object,  # tuple or str
     nyquist='Py_ssize_t',
     option_key=str,
@@ -2986,11 +2990,10 @@ k_safety_factor = 2*10**float(-k_str_n_decimals)
     particle_shift='double',
     particle_shifts='double[::1]',
     particle_var_name=str,
-    posx='double*',
-    posy='double*',
-    posz='double*',
-    posⁱ='double*',
-    posʲ='double*',
+    pos='double*',
+    posxˣ='double*',
+    posyˣ='double*',
+    poszˣ='double*',
     processed_specific_multi_index=object,  # tuple or str
     reuse_slab_structure='bint',
     slab='double[:, :, ::1]',
@@ -3010,8 +3013,7 @@ k_safety_factor = 2*10**float(-k_str_n_decimals)
     x_gridpoint='double',
     y_gridpoint='double',
     z_gridpoint='double',
-    Δmomⁱ='double*',
-    Δmomʲ='double*',
+    Δmom='double*',
     δ_min='double',
     θ='double',
     ςⁱⱼ_ptr='double*',
@@ -3343,7 +3345,7 @@ def realize(
             )
             fft(slab_structure, 'forward')
             masterprint('done')
-    # Initialize index0 and index1.
+    # Initialise index0 and index1.
     # The actual values are not important.
     index0 = index1 = 0
     # When multiple particle components are to be realised, it is
@@ -3495,10 +3497,10 @@ def realize(
                 # Print a warning if min(δ) < -1.
                 δ_min = ထ
                 ϱ_ptr = fluidscalar.gridˣ if use_gridˣ else fluidscalar.grid
-                for i in range(component.size):
-                    if ℝ[ϱ_ptr[i]] < δ_min:
-                        δ_min = ℝ[ϱ_ptr[i]]
-                    ϱ_ptr[i] = ϱ_bar*(1 + ℝ[ϱ_ptr[i]])
+                for index in range(component.size):
+                    if ℝ[ϱ_ptr[index]] < δ_min:
+                        δ_min = ℝ[ϱ_ptr[index]]
+                    ϱ_ptr[index] = ϱ_bar*(1 + ℝ[ϱ_ptr[index]])
                 δ_min = allreduce(δ_min, op=MPI.MIN)
                 if δ_min < -1:
                     masterwarn(f'The realised ϱ of {component.name} has min(δ) = {δ_min:.4g} < -1')
@@ -3509,33 +3511,35 @@ def realize(
                     #         = a**(1 - 3w_eff)(ϱ + c⁻²𝒫) * uⁱ
                     ϱ_ptr  = component.ϱ.gridˣ if use_gridˣ else component.ϱ.grid
                     𝒫_ptr  = component.𝒫.gridˣ if use_gridˣ else component.𝒫.grid
-                    for i in range(component.size):
-                        Jⁱ_ptr[i] *= ℝ[a**(1 - 3*w_eff)]*(ϱ_ptr[i] + ℝ[light_speed**(-2)]*𝒫_ptr[i])
+                    for index in range(component.size):
+                        Jⁱ_ptr[index] *= ℝ[a**(1 - 3*w_eff)]*(
+                            ϱ_ptr[index] + ℝ[light_speed**(-2)]*𝒫_ptr[index]
+                        )
                 else:
                     # uⁱ → Jⁱ = a**4(ρ + c⁻²P)uⁱ
                     #         = a**(1 - 3w_eff)(ϱ + c⁻²𝒫) * uⁱ
                     #         ≈ a**(1 - 3w_eff)ϱ_bar(1 + w) * uⁱ
-                    for i in range(component.size):
-                        Jⁱ_ptr[i] *= ℝ[a**(1 - 3*w_eff)*ϱ_bar*(1 + w)]
+                    for index in range(component.size):
+                        Jⁱ_ptr[index] *= ℝ[a**(1 - 3*w_eff)*ϱ_bar*(1 + w)]
             elif fluid_index == 2 and multi_index == 'trace':
                 # δP → 𝒫 = 𝒫_bar + a**(3*(1 + w_eff)) * δP
                 #        = c²*w*ϱ_bar + a**(3*(1 + w_eff)) * δP
                 𝒫_ptr = fluidscalar.gridˣ if use_gridˣ else fluidscalar.grid
-                for i in range(component.size):
-                    𝒫_ptr[i] = ℝ[light_speed**2*w*ϱ_bar] + ℝ[a**(3*(1 + w_eff))]*𝒫_ptr[i]
+                for index in range(component.size):
+                    𝒫_ptr[index] = ℝ[light_speed**2*w*ϱ_bar] + ℝ[a**(3*(1 + w_eff))]*𝒫_ptr[index]
             elif fluid_index == 2:
                 ςⁱⱼ_ptr = fluidscalar.gridˣ if use_gridˣ else fluidscalar.grid
                 if options['compoundorder'] == 'nonlinear':
                     # σⁱⱼ → ςⁱⱼ = (ϱ + c⁻²𝒫) * σⁱⱼ
                     ϱ_ptr  = component.ϱ.gridˣ if use_gridˣ else component.ϱ.grid
                     𝒫_ptr  = component.𝒫.gridˣ if use_gridˣ else component.𝒫.grid
-                    for i in range(component.size):
-                       ςⁱⱼ_ptr[i] *= ϱ_ptr[i] + ℝ[light_speed**(-2)]*𝒫_ptr[i]
+                    for index in range(component.size):
+                       ςⁱⱼ_ptr[index] *= ϱ_ptr[index] + ℝ[light_speed**(-2)]*𝒫_ptr[index]
                 else:
                     # σⁱⱼ → ςⁱⱼ = (ϱ + c⁻²𝒫) * σⁱⱼ
                     #           ≈ ϱ_bar(1 + w) * σⁱⱼ
-                    for i in range(component.size):
-                        ςⁱⱼ_ptr[i] *= ℝ[ϱ_bar*(1 + w)]
+                    for index in range(component.size):
+                        ςⁱⱼ_ptr[index] *= ℝ[ϱ_bar*(1 + w)]
             # Continue with the next fluidscalar
             continue
         # Domain-decompose the realised field stored in the slabs.
@@ -3554,20 +3558,24 @@ def realize(
         # Below follows the Zel'dovich approximation
         # for particle components.
         dim = multi_index[0]
+        pos   = component.pos
+        posxˣ = component.posxˣ
+        posyˣ = component.posyˣ
+        poszˣ = component.poszˣ
+        mom   = component.mom
+        Δmom  = component.Δmom
         if particle_var_name == 'mom':
             if dim == 0:
-                # This is the realisation of momx, which should be the
-                # first variable to be realised out of
-                # {momx, momy, momz, posx, posy, posz}. Position the
-                # particles at the grid points, possibly shifted
-                # in accordance with particle_shift.
-                posx = component.posx
-                posy = component.posy
-                posz = component.posz
+                # This is the realisation of the x momenta, which should
+                # be the first variable to be realised out of
+                # {x momenta, y momenta, z momenta, x positions,
+                # y positions, z positions}.
+                # Position the particles at the grid points,
+                # possibly shifted in accordance with particle_shift.
                 domain_start_i = domain_layout_local_indices[0]*(uⁱ.shape[0] - ℤ[2*nghosts])
                 domain_start_j = domain_layout_local_indices[1]*(uⁱ.shape[1] - ℤ[2*nghosts])
                 domain_start_k = domain_layout_local_indices[2]*(uⁱ.shape[2] - ℤ[2*nghosts])
-                index = 0
+                indexˣ = 0
                 for i in range(ℤ[uⁱ.shape[0] - ℤ[2*nghosts]]):
                     x_gridpoint = (
                         ℝ[domain_start_i + 0.5*cell_centered + particle_shift] + i
@@ -3580,15 +3588,14 @@ def realize(
                             z_gridpoint = (
                                 ℝ[domain_start_k + 0.5*cell_centered + particle_shift] + k
                             )*ℝ[boxsize/gridsize]
-                            posx[index] = x_gridpoint
-                            posy[index] = y_gridpoint
-                            posz[index] = z_gridpoint
-                            index += 1
+                            posxˣ[indexˣ] = x_gridpoint
+                            posyˣ[indexˣ] = y_gridpoint
+                            poszˣ[indexˣ] = z_gridpoint
+                            indexˣ += 3
             # Assign dim'th momenta.
             # First we nullify it.
-            momⁱ = component.mom[dim]
-            for index in range(component.N_local):
-                momⁱ[index] = 0
+            for indexˣʸᶻ in range(dim, 3*component.N_local, 3):
+                mom[indexˣʸᶻ] = 0
             if options['velocitiesfromdisplacements']:
                 # Interpolate the displacement field ψⁱ onto the particle
                 # (grid) positions and assign the displacements as
@@ -3609,26 +3616,22 @@ def realize(
                     factor=a*mass,
                 )
         else:  # particle_var_name == 'pos'
-            # Copy pos[dim] (currently containing the grid positions)
-            # into Δmom[dim].
-            posⁱ  = component. pos[dim]
-            Δmomⁱ = component.Δmom[dim]
-            for index in range(component.N_local):
-                Δmomⁱ[index] = posⁱ[index]
+            # Copy pos (currently containing the grid positions)
+            #  into Δmom.
+            for indexˣʸᶻ in range(dim, 3*component.N_local, 3):
+                Δmom[indexˣʸᶻ] = pos[indexˣʸᶻ]
             # Apply displacement of dim'th positions by interpolating
             # the displacement field ψⁱ onto the particle (grid)
-            # positions. The update is carried out on Δmom[dim],
-            # not pos[dim], as this is needed for further interpolation.
+            # positions. The update is carried out on Δmom,
+            # not pos, as this is needed for further interpolation.
             interpolate_domaingrid_to_particles(ψⁱ, component, 'Δmom', dim, interpolation_order)
-            # After posz (dim == 2), the Δmom arrays contain the fully
-            # displaced positions. Copy these back to the pos arrays.
+            # After the z positions (dim == 2), the Δmom array contain
+            # the fully displaced positions.
+            # Copy these back to the pos array.
             if dim == 2:
-                for dim2 in range(3):
-                    posʲ  = component. pos[dim2]
-                    Δmomʲ = component.Δmom[dim2]
-                    for index in range(component.N_local):
-                        # Ensure toroidal boundaries
-                        posʲ[index] = mod(Δmomʲ[index], boxsize)
+                for indexʳ in range(3*component.N_local):
+                    # Ensure toroidal boundaries
+                    pos[indexʳ] = mod(Δmom[indexʳ], boxsize)
     # Done realising this variable
     masterprint('done')
     # After realising particles, most of them will be on the correct
@@ -3641,7 +3644,7 @@ def realize(
             particle_var_name == 'pos'
         or (particle_var_name == 'mom' and options['velocitiesfromdisplacements'])
     ):
-        exchange(component, reset_buffers=True)
+        exchange(component)
 # Module level variable used by the realize() function
 cython.declare(slab_structure_infos=dict)
 slab_structure_infos = {}
@@ -3797,7 +3800,7 @@ def generate_primordial_noise(slab):
             # but at least in Cython 0.29 such a loop transpiles to
             # unoptimized code (the step value needs to be known at
             # cythonisation time for proper transpilation). Below we
-            # write out this loop by manually initializing and
+            # write out this loop by manually initialising and
             # incrementing the loop variable.
             kj = kj_start - kj_step
             for iterate in range(ℤ[((kj_stop - kj_start) + (kj_step - 1))//kj_step]):
