@@ -424,28 +424,33 @@ def time_since(initial_time):
     # Construct the time interval with a sensible amount of
     # significant figures.
     milliseconds = 0
-    # More than a millisecond; use whole milliseconds
     if seconds >= 1e-3:
+        # More than a millisecond; use whole milliseconds
         milliseconds = round(1e+3*seconds)
     interval = datetime.timedelta(milliseconds=milliseconds)
-    # More than a second; use whole deciseconds
-    if interval.total_seconds() >= 1e+0:
+    total_seconds = interval.total_seconds()
+    if total_seconds >= 60:
+        # More than a minute; use whole seconds
+        seconds = round(1e-3*milliseconds)
+        interval = datetime.timedelta(seconds=seconds)
+    elif total_seconds >= 10:
+        # More than 10 seconds; use whole deciseconds
         seconds = 1e-1*round(1e-2*milliseconds)
         interval = datetime.timedelta(seconds=seconds)
-    # More than 10 seconds; use whole seconds
-    if interval.total_seconds() >= 1e+1:
-        seconds = round(1e-3*milliseconds)
+    elif total_seconds >= 1:
+        # More than a second; use whole centiseconds
+        seconds = 1e-2*round(1e-1*milliseconds)
         interval = datetime.timedelta(seconds=seconds)
     # Return a fitting string representation of the interval
     total_seconds = interval.total_seconds()
     if total_seconds == 0:
         return '< 1 ms'
     if total_seconds < 1:
-        return '{} ms'.format(int(1e+3*total_seconds))
+        return f'{int(1e+3*total_seconds)} ms'
     if total_seconds < 10:
-        return '{} s'.format(total_seconds)
+        return f'{total_seconds:.2f} s'
     if total_seconds < 60:
-        return '{} s'.format(int(total_seconds))
+        return f'{total_seconds} s'
     if total_seconds < 3600:
         return str(interval)[2:]
     return str(interval)
