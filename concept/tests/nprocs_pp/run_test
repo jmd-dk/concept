@@ -49,12 +49,5 @@ done
 # Analyse the output snapshots
 "${concept}" -n 1 -p "${this_dir}/params" -m "${this_dir}/analyze.py" --pure-python --local
 
-# Copy the tabulated Ewald corrections to the Gadget2 directory if it does not
-# already exist there, to save time later.
-if    [ ! -f "${Gadget2_dir}/ewald_spc_table_64.dat"       ] \
-   && [   -f "${Gadget2_local_dir}/ewald_spc_table_64.dat" ]; then
-    cp "${Gadget2_local_dir}/ewald_spc_table_64.dat" "${Gadget2_dir}/ewald_spc_table_64.dat"
-fi
-
 # Test ran successfully. Deactivate traps.
 trap : 0

@@ -38,7 +38,10 @@ set -e
 Gadget2_local_dir="${this_dir}/Gadget2"
 mkdir -p "${Gadget2_local_dir}"
 cp "${Gadget2_dir}/"* "${Gadget2_local_dir}" 2>/dev/null || :
-rm -f "${Gadget2_local_dir}/ewald_spc_table_64.dat"  # Remove tabulated Ewald grid
+for suffix in "64" "64_dbl"; do
+    # Remove tabulated Ewald grid
+    rm -f "${Gadget2_local_dir}/ewald_spc_table_${suffix}.dat"
+done
 for n in 0 1 2; do
     dim=$(echo "xyz" | head -c $((n + 1)) | tail -c 1)
     sed -i "/fcorr${dim}\[i\]\[j\]\[k\] = force\[${n}\];/c\fcorr${dim}\[i\]\[j\]\[k\] = 0.0;" \

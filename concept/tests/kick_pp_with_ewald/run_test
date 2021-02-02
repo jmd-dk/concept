@@ -36,7 +36,11 @@ set -e
 Gadget2_local_dir="${this_dir}/Gadget2"
 mkdir -p "${Gadget2_local_dir}"
 cp "${Gadget2_dir}/"* "${Gadget2_local_dir}" 2>/dev/null || :
-rm -f "${Gadget2_dir}/ewald_spc_table_64.dat"  # Remove tabulated Ewald grid
+for suffix in "64" "64_dbl"; do
+    # Remove tabulated Ewald grid
+    rm -f "${Gadget2_local_dir}/ewald_spc_table_${suffix}.dat"
+done
+
 "${concept}" -u gadget "${Gadget2_local_dir}" -p "${this_dir}/params"
 (                             \
     cd "${Gadget2_local_dir}" \
@@ -47,13 +51,6 @@ rm -f "${Gadget2_dir}/ewald_spc_table_64.dat"  # Remove tabulated Ewald grid
 
 # Analyse the output snapshots
 "${concept}" -n 1 -p "${this_dir}/params" -m "${this_dir}/analyze.py" --pure-python --local
-
-# Copy the tabulated Ewald corrections to the Gadget2 directory if it does not
-# already exist there, to save time later.
-if    [ ! -f "${Gadget2_dir}/ewald_spc_table_64.dat"       ] \
-   && [   -f "${Gadget2_local_dir}/ewald_spc_table_64.dat" ]; then
-    cp "${Gadget2_local_dir}/ewald_spc_table_64.dat" "${Gadget2_dir}/ewald_spc_table_64.dat"
-fi
 
 # Test ran successfully. Deactivate traps.
 trap : 0
