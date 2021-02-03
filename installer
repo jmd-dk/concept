@@ -4901,7 +4901,7 @@ extract() {
     fi
 }
 
-# Function which initializes installations (extracts the pre-
+# Function which initialises installations (extracts the pre-
 # downloaded archive and change to the extracted directory).
 init_install() {
     # Arguments: Program name, ["Attempting to install" text]
@@ -5163,7 +5163,7 @@ install_loop() {
     # If we are in the innermost recursive call,
     # call the supplied function and return.
     if [ "${varnum}" == "${nvars}" ]; then
-        # Initialize installation
+        # Initialise installation
         reset_environment
         if [ -n "${compiler}" ]; then
             "use_${compiler}_compilers" || return
@@ -5556,6 +5556,14 @@ hdf5_install_func() {
         export CFLAGS="-I${zlib_dir}/include ${CFLAGS}"
         with_zlib=--with-zlib="${zlib_dir}/include","${zlib_dir}/lib"
     fi
+    # As part of the installation the program H5detect is built and run,
+    # which amongst other things tests the signal handling capabilities
+    # of the system. On some systems, some deliberately raised signals
+    # are not caught as intended, leading to a crash. As verification of
+    # signal handling is not crucial, we can simply skip this.
+    if [ "${ignore_signal_handling_verification}" == "True" ]; then
+        sed -i 's/if *( *verify_signal_handler.*!= *0/if(0 != 0/' "src/H5detect.c" || return 1
+    fi
     # On some systems an explicit architecture must be set
     # for the compilation to succeed.
     if [ -n "${hdf5_arch}" ]; then
@@ -5574,11 +5582,8 @@ hdf5_install_func() {
     # Newer versions of gcc (e.g. 8.1.0) do not allow attributes to
     # be specified after the declarator in function definitions.
     # At least in some versions of HDF5 (e.g. 1.10.2), this rule is
-    # broken by src/H5detect.c. If the original build fail, we edit
-    # src/H5detect.c to be compliant with this rule and try again.
-    hdf5_make_success="True"
-    make 2>&1 || hdf5_make_success="False"  # Building in parallel takes up a lot of resources
-    if [ "${hdf5_make_success}" == "False" ]; then
+    # broken by src/H5detect.c.
+    if [ "${fix_attributes_declarator_order}" == "True" ]; then
         mv "src/H5detect.c" "src/H5detect.c_cp"
         if [ -z "${IFS+x}" ]; then
             IFS_ori="__unset__"
@@ -5601,8 +5606,8 @@ hdf5_install_func() {
         rm -f "src/H5detect.c_cp" || :
         sed -i 's/^static void \(.*\) HDF_NO_UBSAN/static void HDF_NO_UBSAN \1/' "src/H5detect.c"
         sed -i 's/^int \(.*\) HDF_NO_UBSAN/int HDF_NO_UBSAN \1/' "src/H5detect.c"
-        make 2>&1 || return 1  # Building in parallel takes up a lot of resources
     fi
+    make 2>&1 || return 1  # Building in parallel takes up a lot of resources
     # On some systems, the HDF5 test (make check) hangs indefinitely.
     # To counteract this, kill the process if it still
     # runs after ${hdf5_test_max_time} seconds.
@@ -5675,10 +5680,12 @@ compiler_possibilities_hdf5=("${compiler_possibilities[@]}")
 if [ -n "${mpi_dir}" ]; then
     compiler_possibilities_hdf5=("specified_mpi")
 fi
-install "HDF5"                                       \
-    compiler "${compiler_possibilities_hdf5[@]}" ";" \
-    buildmode "production" "debug"               ";" \
-    hdf5_arch "" "x86-64" "native"               ";" \
+install "HDF5"                                             \
+    compiler "${compiler_possibilities_hdf5[@]}"       ";" \
+    buildmode "production" "debug"                     ";" \
+    fix_attributes_declarator_order "False" "True"     ";" \
+    hdf5_arch "" "x86-64"                              ";" \
+    ignore_signal_handling_verification "False" "Trye" ";" \
 
 # FFTW
 fftw_install_func() {
@@ -8209,7 +8216,7 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
     )
     patch_class "${class_dir}/source/perturbations.c" ${linenr} "replace" "below" "${new_lines[@]}"
     # Add 'node', 'num_threads' and 'message' to the classy.Class
-    # initializer as optional arguments and store them in the
+    # initialiser as optional arguments and store them in the
     # 'background' struct. The 'num_threads' integer will hold the
     # number of MPI processes on the local node, which signals the
     # number of OpenMP threads to use. All three variables will be used
