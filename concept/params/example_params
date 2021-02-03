@@ -383,5 +383,4 @@ print_load_imbalance = True    # Print the CPU load imbalance after each time st
 particle_reordering = True     # Allow in-memory particle reordering?
 enable_Hubble = True           # Enable Hubble expansion?
 enable_class_background = True # Use CLASS to compute the evolution of the background?
-enable_debugging = False       # Enable debugging mode?
 

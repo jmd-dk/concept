@@ -2033,7 +2033,6 @@ cython.declare(
     particle_reordering=object,
     enable_Hubble='bint',
     enable_class_background='bint',
-    enable_debugging='bint',
     # Hidden parameters
     special_params=dict,
     output_times_full=dict,
@@ -3047,8 +3046,6 @@ enable_Hubble = bool(user_params.get('enable_Hubble', True))
 user_params['enable_Hubble'] = enable_Hubble
 enable_class_background = bool(user_params.get('enable_class_background', enable_Hubble))
 user_params['enable_class_background'] = enable_class_background
-enable_debugging = bool(user_params.get('enable_debugging', False))
-user_params['enable_debugging'] = enable_debugging
 # Additional, hidden parameters (parameters not supplied by the user)
 special_params = dict(user_params.get('special_params', {}))
 user_params['special_params'] = special_params

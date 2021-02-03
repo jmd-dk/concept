@@ -26,7 +26,7 @@ from commons import *
 
 # Cython imports
 import interactions
-cimport('from analysis import debug, measure, powerspec')
+cimport('from analysis import measure, powerspec')
 cimport('from communication import domain_subdivisions')
 cimport('from graphics import render2D, render3D')
 cimport(
@@ -208,10 +208,6 @@ def timeloop():
                 # Print out message at the beginning of each time step
                 print_timestep_heading(time_step, Δt,
                     bottleneck if time_step_type == 'init' else '', components)
-            # Analyse and print out debugging information, if required
-            with unswitch:
-                if enable_debugging:
-                    debug(components)
             # Handle the time step.
             # This is either of type "init" or "full".
             if time_step_type == 'init':
@@ -1941,7 +1937,8 @@ def print_timestep_heading(time_step, Δt, bottleneck, components, end=False):
 )
 def print_timestep_footer(components):
     # Print out the load imbalance, measured purely over
-    # direct summation interactions and stored on the Tiling's.
+    # direct summation interactions and stored
+    # on the Tiling instances.
     if 𝔹[print_load_imbalance and nprocs > 1]:
         # Decimals to show (of percentage)
         decimals = 1
