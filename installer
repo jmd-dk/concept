@@ -370,11 +370,16 @@ paths_file="__top_dir__/.paths"
 # in case of unsuccessful retrieval of the link to the first version.
 set_version() {
     # Arguments: Program name, version, [fallback version]
-    eval "[ -z \"\${${1}_version}\" ] || ${1}_version_specifiedbyuser=\"True\""
-    eval "[ -n \"\${${1}_version}\" ] || ${1}_version=\"${2}\""
-    eval "[ \"\${${1}_preinstalled}\" != \"True\" ] || ${1}_version=\"pre-installed\""
-    if [ -n "${3}" ]; then
-        eval "${1}_version_fallback=\"${3}\""
+    progname="$1"
+    version="$2"
+    fallback_version="$3"
+    version="${version/v/}"
+    fallback_version="${fallback_version/v/}"
+    eval "[ -z \"\${${progname}_version}\" ] || ${progname}_version_specifiedbyuser=\"True\""
+    eval "[ -n \"\${${progname}_version}\" ] || ${progname}_version=\"${version}\""
+    eval "[ \"\${${progname}_preinstalled}\" != \"True\" ] || ${progname}_version=\"pre-installed\""
+    if [ -n "${fallback_version}" ]; then
+        eval "${progname}_version_fallback=\"${fallback_version}\""
     fi
 }
 # Specification of software versions.
@@ -2827,7 +2832,6 @@ if [ "${concept_install}" == "True" ]; then
         if [ "${concept_version}" == "master" ]; then
             concept_url="https://github.com/jmd-dk/concept/archive/${concept_version}.tar.gz"
         else
-            concept_version="${concept_version/v/}"
             concept_url="https://github.com/jmd-dk/concept/archive/v${concept_version}.tar.gz"
         fi
     fi
@@ -2847,17 +2851,18 @@ fi
 # CLASS
 if [ "${class_install}" == "True" ]; then
     # Either download specific release or specific branch
-    current_step="processing of CLASS link"
-    dots="${class_version//[^.]}"
-    ndots="${#dots}"
-    if [ "${ndots}" == 1 ]; then
-        class_url="https://github.com/lesgourg/class_public/archive/${class_version}.tar.gz"
-    elif [ "${ndots}" == 2 ]; then
-        class_version=${class_version/v/}
-        class_url="https://github.com/lesgourg/class_public/archive/v${class_version}.tar.gz"
-    else
-        error "No CLASS URL known for version ${class_version}"
-        exit 1
+    if [ -z "${class_url}" ]; then
+        current_step="processing of CLASS link"
+        dots="${class_version//[^.]}"
+        ndots="${#dots}"
+        if [ "${ndots}" == 1 ]; then
+            class_url="https://github.com/lesgourg/class_public/archive/${class_version}.tar.gz"
+        elif [ "${ndots}" == 2 ]; then
+            class_url="https://github.com/lesgourg/class_public/archive/v${class_version}.tar.gz"
+        else
+            error "No CLASS URL known for version ${class_version}"
+            exit 1
+        fi
     fi
     # Check if already installed/downloaded
     check_progress "CLASS"
@@ -2874,7 +2879,9 @@ fi
 
 # FFTW
 if [ "${fftw_install}" == "True" ]; then
-    fftw_url="http://www.fftw.org/fftw-${fftw_version}.tar.gz"
+    if [ -z "${fftw_url}" ]; then
+        fftw_url="http://www.fftw.org/fftw-${fftw_version}.tar.gz"
+    fi
     # Check if already installed and/or downloaded
     check_progress "FFTW"
     # If not yet downloaded, validate the URL
@@ -2897,7 +2904,9 @@ fi
 
 # FFTW for GADGET
 if [ "${fftw_for_gadget_install}" == "True" ]; then
-    fftw_for_gadget_url="http://www.fftw.org/fftw-${fftw_for_gadget_version}.tar.gz"
+    if [ -z "${fftw_for_gadget_url}" ]; then
+        fftw_for_gadget_url="http://www.fftw.org/fftw-${fftw_for_gadget_version}.tar.gz"
+    fi
     # Check if already installed and/or downloaded
     check_progress "FFTW for GADGET"
     # If not yet downloaded, validate the URL
@@ -2921,8 +2930,10 @@ fi
 
 # FreeType
 if [ "${freetype_install}" == "True" ]; then
-    freetype_url="https://download.savannah.gnu.org/releases/freetype/\
+    if [ -z "${freetype_url}" ]; then
+        freetype_url="https://download.savannah.gnu.org/releases/freetype/\
 freetype-${freetype_version}.tar.gz"
+    fi
     # Check if already installed and/or downloaded
     check_progress "FreeType"
     # If not yet downloaded, validate the URL
@@ -2946,7 +2957,9 @@ fi
 
 # GADGET
 if [ "${gadget_install}" == "True" ]; then
-    gadget_url="https://www.mpa-garching.mpg.de/gadget/gadget-${gadget_version}.tar.gz"
+    if [ -z "${gadget_url}" ]; then
+        gadget_url="https://www.mpa-garching.mpg.de/gadget/gadget-${gadget_version}.tar.gz"
+    fi
     # Check if already installed/downloaded
     check_progress "GADGET"
     # If not yet downloaded, validate the URL
@@ -2962,7 +2975,9 @@ fi
 
 # GSL
 if [ "${gsl_install}" == "True" ]; then
-    gsl_url="ftp://ftp.gnu.org/gnu/gsl/gsl-${gsl_version}.tar.gz"
+    if [ -z "${gsl_url}" ]; then
+        gsl_url="ftp://ftp.gnu.org/gnu/gsl/gsl-${gsl_version}.tar.gz"
+    fi
     # Check if already installed and/or downloaded
     check_progress "GSL"
     # If not yet downloaded, validate the URL
@@ -2985,9 +3000,11 @@ fi
 
 # HDF5
 if [ "${hdf5_install}" == "True" ]; then
-    hdf5_version_major="$(echo "${hdf5_version}" | grep -o '[0-9]\.[0-9]*')"
-    hdf5_url="https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-${hdf5_version_major}/\
+    if [ -z "${hdf5_url}" ]; then
+        hdf5_version_major="$(echo "${hdf5_version}" | grep -o '[0-9]\.[0-9]*')"
+        hdf5_url="https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-${hdf5_version_major}/\
 hdf5-${hdf5_version}/src/hdf5-${hdf5_version}.tar.gz"
+    fi
     # Check if already installed and/or downloaded
     check_progress "HDF5"
     # If not yet downloaded, validate the URL
@@ -3005,7 +3022,9 @@ fi
 if [ "${mpi_install}" == "True" ]; then
     if [ "${mpi}" == "mpich" ]; then
         # MPICH
-        mpi_url="https://www.mpich.org/static/downloads/${mpi_version}/mpich-${mpi_version}.tar.gz"
+        if [ -z "${mpi_url}" ]; then
+            mpi_url="https://www.mpich.org/static/downloads/${mpi_version}/mpich-${mpi_version}.tar.gz"
+        fi
         # Check if already installed and/or downloaded
         check_progress "MPI"
         # If not yet downloaded, validate the URL
@@ -3026,10 +3045,12 @@ if [ "${mpi_install}" == "True" ]; then
         fi
     elif [ "${mpi}" == "openmpi" ]; then
         # OpenMPI
-        mpi_version_major_dot_minor="${mpi_version%.*}"
-        mpi_version_major="${mpi_version_major_dot_minor%.*}"
-        mpi_url="https://www.open-mpi.org/software/ompi/v${mpi_version_major_dot_minor}/\
+        if [ -z "${mpi_url}" ]; then
+            mpi_version_major_dot_minor="${mpi_version%.*}"
+            mpi_version_major="${mpi_version_major_dot_minor%.*}"
+            mpi_url="https://www.open-mpi.org/software/ompi/v${mpi_version_major_dot_minor}/\
 downloads/openmpi-${mpi_version}.tar.gz"
+        fi
         # Check if already installed and/or downloaded
         check_progress "MPI"
         # If not yet downloaded, validate the URL
@@ -3046,7 +3067,9 @@ fi
 
 # ncurses
 if [ "${ncurses_install}" == "True" ]; then
-    ncurses_url="https://ftp.gnu.org/gnu/ncurses/ncurses-${ncurses_version}.tar.gz"
+    if [ -z "${ncurses_url}" ]; then
+        ncurses_url="https://ftp.gnu.org/gnu/ncurses/ncurses-${ncurses_version}.tar.gz"
+    fi
     # Check if already installed and/or downloaded
     check_progress "ncurses"
     # If not yet downloaded, validate the URL
@@ -3069,7 +3092,9 @@ fi
 
 # BLAS
 if [ "${blas_install}" == "True" ]; then
-    blas_url="https://github.com/xianyi/OpenBLAS/archive/v${blas_version}.tar.gz"
+    if [ -z "${blas_url}" ]; then
+        blas_url="https://github.com/xianyi/OpenBLAS/archive/v${blas_version}.tar.gz"
+    fi
     # Check if already installed and/or downloaded
     check_progress "BLAS"
     # If not yet downloaded, validate the URL
@@ -3093,8 +3118,10 @@ fi
 
 # OpenSSL
 if [ "${openssl_install}" == "True" ]; then
-    openssl_url="https://github.com/openssl/openssl/archive/\
+    if [ -z "${openssl_url}" ]; then
+        openssl_url="https://github.com/openssl/openssl/archive/\
 OpenSSL_${openssl_version//./_}.tar.gz"
+    fi
     # Check if already installed and/or downloaded
     check_progress "OpenSSL"
     # If not yet downloaded, validate the URL
@@ -3118,7 +3145,9 @@ fi
 
 # libffi
 if [ "${libffi_install}" == "True" ]; then
-    libffi_url="ftp://sourceware.org/pub/libffi/libffi-${libffi_version}.tar.gz"
+    if [ -z "${libffi_url}" ]; then
+        libffi_url="ftp://sourceware.org/pub/libffi/libffi-${libffi_version}.tar.gz"
+    fi
     # Check if already installed and/or downloaded
     check_progress "libffi"
     # If not yet downloaded, validate the URL
@@ -3141,7 +3170,9 @@ fi
 
 # Perl
 if [ "${perl_install}" == "True" ]; then
-    perl_url="https://www.cpan.org/src/5.0/perl-${perl_version}.tar.gz"
+    if [ -z "${perl_url}" ]; then
+        perl_url="https://www.cpan.org/src/5.0/perl-${perl_version}.tar.gz"
+    fi
     # Check if already installed and/or downloaded
     check_progress "Perl"
     # If not yet downloaded, validate the URL
@@ -3157,7 +3188,10 @@ fi
 
 # Python
 if [ "${python_install}" == "True" ]; then
-    python_url="https://www.python.org/ftp/python/${python_version}/Python-${python_version}.tgz"
+    if [ -z "${python_url}" ]; then
+        python_url="https://www.python.org/ftp/python/\
+${python_version}/Python-${python_version}.tgz"
+    fi
     # Check if already installed and/or downloaded
     check_progress "Python"
     # If not yet downloaded, validate the URL
@@ -3173,7 +3207,9 @@ fi
 
 # zlib
 if [ "${zlib_install}" == "True" ]; then
-    zlib_url="https://github.com/madler/zlib/archive/v${zlib_version}.tar.gz"
+    if [ -z "${zlib_url}" ]; then
+        zlib_url="https://github.com/madler/zlib/archive/v${zlib_version}.tar.gz"
+    fi
     # Check if already installed and/or downloaded
     check_progress "zlib"
     # If not yet downloaded, validate the URL
@@ -3430,7 +3466,7 @@ if [ "${install_any_software}" == "True" ]; then
             "${blas_version}$(insert_footnote_patch 'blas')" \
             "\"${blas_dir}\"")
     fi
-    # CLASS (which will be patched)
+    # CLASS
     if [ "${class_install}" == "True" ]; then
         table=("${table[@]}"                                   \
             "CLASS$(insert_footnote_installed 'class')"        \
@@ -3458,7 +3494,7 @@ if [ "${install_any_software}" == "True" ]; then
             "${freetype_version}$(insert_footnote_patch 'freetype')" \
             "\"${freetype_dir}\"")
     fi
-    # GADGET (which will be patched)
+    # GADGET
     if [ "${gadget_install}" == "True" ]; then
         table=("${table[@]}"                                     \
             "GADGET$(insert_footnote_installed 'gadget')"        \
@@ -5889,6 +5925,12 @@ blas_install_func() {
     if [ -d "${perl_dir}" ]; then
         export PATH="${perl_dir}/bin:${PATH}"
     fi
+    # There is an issue with at least GCC 10 where cross-compilation
+    # is erroneously detected. This is fixed here:
+    #   https://github.com/xianyi/OpenBLAS/pull/3038
+    # This will probably be included with OpenBLAS 0.3.14.
+    # For now we apply the patch ourselves.
+    sed -i 's/\(.*x86.*\)chop.*/\1/' "c_check" || :
     # Specify MAKE_NB_JOBS instead of explicit -j. By default this is
     # set to the number of hardware threads. As this takes up
     # a lot of resources we always set this to a low number,
