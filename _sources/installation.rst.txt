@@ -547,6 +547,8 @@ All other influential environment variables may be set in similar ways.
 
 
 
+.. _making_use_of_preinstalled_libraries:
+
 Making use of pre-installed libraries
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 To make the ``installer`` make use of a pre-installed library rather than
@@ -558,7 +560,7 @@ complete list of such variables is: ``blas_dir``, ``class_dir``,
 
 Note that if using a pre-installed Python distribution ---
 ``python_dir=/path/to/python`` --- OpenSSL, libffi and ncurses are assumed to
-be already installed and build into the Python distribution, as these cannot
+be already installed and built into the Python distribution, as these cannot
 be tacked on after Python is build. Also, Python should come with at least pip
 built-in. The ``installer`` will install any other missing Python packages.
 
@@ -566,16 +568,19 @@ If e.g. ``mpi_dir`` is set, the value of ``mpi_version`` is not used.
 
 
 
+.. _specifying_dependency_versions:
+
 Specifying dependency versions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 The version of each dependency (and CO\ *N*\ CEPT itself) to install is
 specified near the top of the ``installer`` script (look for 'Specification
 of software versions'). You may direct the ``installer`` to use other versions
-through the ``*_version`` variables. As with the ``*_dir`` variables, these
-include ``blas_version``, ``class_version``, ``concept_version``,
-``fftw_version``, ``fftw_for_gadget_version``, ``freetype_version``,
-``gadget_version``, ``gsl_version``, ``hdf5_version``, ``libffi_version``,
-``mpi_version``, ``ncurses_version``, ``openssl_version``, ``perl_version``,
+through the ``*_version`` variables. As with the ``*_dir``
+:ref:`variables <making_use_of_preinstalled_libraries>`, these include
+``blas_version``, ``class_version``, ``concept_version``, ``fftw_version``,
+``fftw_for_gadget_version``, ``freetype_version``, ``gadget_version``,
+``gsl_version``, ``hdf5_version``, ``libffi_version``, ``mpi_version``,
+``ncurses_version``, ``openssl_version``, ``perl_version``,
 ``python_version``, ``zlib_version``. Furthermore, each Python package also
 has a version, specified by ``blessings_version``, ``cython_version``,
 ``cythongsl_version``, ``h5py_version``, ``matplotlib_version``,
@@ -583,6 +588,24 @@ has a version, specified by ``blessings_version``, ``cython_version``,
 ``scipy_version``, ``setuptools_version``, ``sphinx_version``,
 ``sphinx_copybutton_version``, ``sphinx_rtd_theme_version``,
 ``sphinx_tabs_version``, ``wheel_version``.
+
+
+
+Specifying dependency URL's
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+When a ``*_dir`` :ref:`variable <making_use_of_preinstalled_libraries>` is
+not set for a dependency (or CO\ *N*\ CEPT itself), the ``installer`` will
+download the source code of the dependency using a pre-defined URL. Of course
+the exact URL needs to factor in the version of the dependency, and so this
+depends on the corresponding ``*_version``
+:ref:`variable <specifying_dependency_versions>`. If you wish to install some
+non-standard version of a given dependency, you can provide the corresponding
+``*_url`` variable yourself. This should point to some downloadable archive
+(``.tar.gz``, ``.zip``, etc.). The complete list of ``*_url`` variables is:
+``blas_url``, ``class_url``, ``concept_url``, ``fftw_url``,
+``fftw_for_gadget_url``, ``freetype_url``, ``gadget_url``, ``gsl_url``,
+``hdf5_url``, ``libffi_url``, ``mpi_url``, ``ncurses_url``, ``openssl_url``,
+``perl_url``, ``python_url``, ``zlib_url``.
 
 
 
