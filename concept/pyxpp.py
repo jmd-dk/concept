@@ -1355,15 +1355,17 @@ def constant_expressions(lines, no_optimization, first_call=True):
                                     removed_args = True
                                 in_func_call = False
                                 break
+            # Remove parens
+            line = line.replace('(', ' ')
+            line = line.replace(')', ' ')
             # Now do the searching
-            match1 = re.search(r' {}( *[,=] *[^\W0-9]\w*)+ *=?'.format(var),
-                              ' {} '.format(line))
-            match2 = re.search(r' ( *[^\W0-9]\w* *[,=])+ *{} *[,=]'.format(var),
-                              ' {} '.format(line))
-            if match1:
-                return ('=' in match1.group())
-            if match2:
-                return ('=' in match2.group()) and ('=' in line[match2.end() - 2:])
+            if re.search(rf'^{var},[^=]*=[^=]', line):  # var in front
+                return True
+            if re.search(rf',{var},[^=]*=[^=]', line):  # var somewhere in the middle
+                return True
+            if re.search(rf',{var}=[^=]',       line):  # var at the end
+                return True
+            return False
         def used_as_function_arg(var, line):
             # This function checks whether the variable var is used as
             # a function argument in the line, the idea being that if

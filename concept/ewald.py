@@ -131,11 +131,12 @@ ewald_force = malloc(3*sizeof('double'))
     y='double',
     z='double',
     # Locals
-    dim='int',
+    factor='double',
     force='double*',
     isnegative_x='bint',
     isnegative_y='bint',
     isnegative_z='bint',
+    order='int',
     returns='double*',
 )
 def ewald(x, y, z):
@@ -172,12 +173,15 @@ def ewald(x, y, z):
     # scaling of (ewald_gridsize - 1) is applied to achieve
     # 0 <= x, y, z < grid.shape - 1, as required by
     # interpolate_in_vectorgrid().
+    order = 2  # CIC interpolation
+    factor = ℝ[1/boxsize**2] # the tabulated force is for a unit box
     force = interpolate_in_vectorgrid(
         grid,
         x*ℝ[2/boxsize*(ewald_gridsize - 1)*(1 - machine_ϵ)],
         y*ℝ[2/boxsize*(ewald_gridsize - 1)*(1 - machine_ϵ)],
         z*ℝ[2/boxsize*(ewald_gridsize - 1)*(1 - machine_ϵ)],
-        2,  # CIC interpolation
+        order,
+        factor,
     )
     # Put the sign back in for negative input
     if isnegative_x:
@@ -186,9 +190,6 @@ def ewald(x, y, z):
         force[1] *= -1
     if isnegative_z:
         force[2] *= -1
-    # The tabulated force is for a unit box. Do rescaling.
-    for dim in range(3):
-        force[dim] *= ℝ[1/boxsize**2]
     return force
 
 # Function for loading the Ewald grid from disk.

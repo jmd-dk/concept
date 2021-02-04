@@ -177,22 +177,22 @@ def tabulate_vectorgrid(gridsize, func, factor, filename=''):
 # Function for doing lookup in a grid with vector values
 @cython.header(
     # Argument
-    grid='double[:, :, :, :]',
+    grid='double[:, :, :, ::1]',
     x='double',
     y='double',
     z='double',
     order='int',
+    factor='double',
     # Locals
-    dim='int',
-    i='Py_ssize_t',
-    j='Py_ssize_t',
-    k='Py_ssize_t',
-    index_i='Py_ssize_t',
-    index_j='Py_ssize_t',
-    index_k='Py_ssize_t',
+    dim='Py_ssize_t',
+    grid_ptr='double*',
+    index='Py_ssize_t',
+    size_j='Py_ssize_t',
+    size_k='Py_ssize_t',
+    weight='double',
     returns='double*',
 )
-def interpolate_in_vectorgrid(grid, x, y, z, order):
+def interpolate_in_vectorgrid(grid, x, y, z, order, factor=1):
     """This function looks up tabulated vectors in a grid and
     interpolates to (x, y, z).
     Input arguments must be normalized so that
@@ -202,48 +202,30 @@ def interpolate_in_vectorgrid(grid, x, y, z, order):
     It is assumed that the grid is non-periodic (that is, the first and
     the last gridpoint in any dimension are physically distinct). The
     grid is not (necessarily) a domain grid and has no ghost points.
-    This means that the interpolation will fail if using a high order
-    and the coordinates are close to the boundary of the grid
-    (grid.shape[dim] - 1). For coordinates within the legal range,
-    first-order (NGP) and second-order (CIC) interpolation is
-    always safe.
+    This means that the interpolation will fail if using higher than
+    second-order (CIC) interpolation.
     """
-    # Set interpolation weights and get grid indices
-    if order == 1:  # NGP interpolation
-        index_i = set_weights_NGP(x, weights_x)
-        index_j = set_weights_NGP(y, weights_y)
-        index_k = set_weights_NGP(z, weights_z)
-    elif order == 2:  # CIC interpolation
-        index_i = set_weights_CIC(x, weights_x)
-        index_j = set_weights_CIC(y, weights_y)
-        index_k = set_weights_CIC(z, weights_z)
-    elif order == 3:  # TSC interpolation
-        index_i = set_weights_TSC(x, weights_x)
-        index_j = set_weights_TSC(y, weights_y)
-        index_k = set_weights_TSC(z, weights_z)
-    elif order == 4:  # PCS interpolation
-        index_i = set_weights_PCS(x, weights_x)
-        index_j = set_weights_PCS(y, weights_y)
-        index_k = set_weights_PCS(z, weights_z)
-    else:
-        abort(
-            f'interpolate_in_vectorgrid() called with order = {order} '
-            f'∉ {{1 (NGP), 2 (CIC), 3 (TSC), 4 (PCS)}}'
-        )
-        index_i = index_j = index_k = 0  # To satisfy the compiler
-    # Assign the weighted grid values to the vector components
+    size_j, size_k = grid.shape[1], grid.shape[2]
+    grid_ptr = cython.address(grid[:, :, :, :])
     for dim in range(3):
         vector[dim] = 0
-    for         i in range(order):
-        for     j in range(order):
-            for k in range(order):
-                for dim in range(3):
-                    vector[dim] += grid[
-                        ℤ[index_i + i],
-                        ℤ[index_j + j],
-                        ℤ[index_k + k],
-                        dim,
-                    ]*ℝ[ℝ[ℝ[weights_x[i]]*weights_y[j]]*weights_z[k]]
+    # Assign the weighted grid values to the vector components
+    if order == 1:  # NGP interpolation
+        for index, weight in particle_interpolation_loop_NGP(
+            x, y, z, size_j, size_k,
+            factor, apply_factor=True,
+        ):
+            index *= 3
+            for dim in range(3):
+                vector[dim] += grid_ptr[index + dim]*weight
+    else:  # order == 2:  # CIC interpolation
+        for index, weight in particle_interpolation_loop_CIC(
+            x, y, z, size_j, size_k,
+            factor, apply_factor=True,
+        ):
+            index *= 3
+            for dim in range(3):
+                vector[dim] += grid_ptr[index + dim]*weight
     return vector
 # Vector used as the return value of the
 # interpolate_in_vectorgrid() function.
@@ -262,13 +244,9 @@ vector = malloc(3*sizeof('double'))
     factor='double',
     # Locals
     cellsize='double',
-    i='Py_ssize_t',
-    index_i='Py_ssize_t',
-    index_j='Py_ssize_t',
-    index_k='Py_ssize_t',
+    grid_ptr='double*',
+    index='Py_ssize_t',
     indexˣ='Py_ssize_t',
-    j='Py_ssize_t',
-    k='Py_ssize_t',
     mv_dim='double[::1]',
     offset_x='double',
     offset_y='double',
@@ -277,7 +255,10 @@ vector = malloc(3*sizeof('double'))
     posyˣ='double*',
     poszˣ='double*',
     ptr_dim='double*',
+    size_j='Py_ssize_t',
+    size_k='Py_ssize_t',
     value='double',
+    weight='double',
     x='double',
     y='double',
     z='double',
@@ -317,40 +298,37 @@ def interpolate_domaingrid_to_particles(grid, component, variable, dim, order, f
     posxˣ = component.posxˣ
     posyˣ = component.posyˣ
     poszˣ = component.poszˣ
+    size_j, size_k = grid.shape[1], grid.shape[2]
+    grid_ptr = cython.address(grid[:, :, :])
     for indexˣ in range(0, 3*component.N_local, 3):
         # Get, translate and scale the coordinates so that
         # nghosts - ½ < r < shape[r] - nghosts - ½ for r ∈ {x, y, z}.
         x = (posxˣ[indexˣ] - offset_x)*ℝ[1/cellsize]
         y = (posyˣ[indexˣ] - offset_y)*ℝ[1/cellsize]
         z = (poszˣ[indexˣ] - offset_z)*ℝ[1/cellsize]
-        # Set interpolation weights and get grid indices
+        # Carry out the interpolation according to the order
+        value = 0
         with unswitch:
             if order == 1:  # NGP interpolation
-                index_i = set_weights_NGP(x, weights_x)
-                index_j = set_weights_NGP(y, weights_y)
-                index_k = set_weights_NGP(z, weights_z)
+                for index, weight in particle_interpolation_loop_NGP(
+                    x, y, z, size_j, size_k,
+                ):
+                    value += grid_ptr[index]*weight
             elif order == 2:  # CIC interpolation
-                index_i = set_weights_CIC(x, weights_x)
-                index_j = set_weights_CIC(y, weights_y)
-                index_k = set_weights_CIC(z, weights_z)
+                for index, weight in particle_interpolation_loop_CIC(
+                    x, y, z, size_j, size_k,
+                ):
+                    value += grid_ptr[index]*weight
             elif order == 3:  # TSC interpolation
-                index_i = set_weights_TSC(x, weights_x)
-                index_j = set_weights_TSC(y, weights_y)
-                index_k = set_weights_TSC(z, weights_z)
+                for index, weight in particle_interpolation_loop_TSC(
+                    x, y, z, size_j, size_k,
+                ):
+                    value += grid_ptr[index]*weight
             else:  # order == 4  # PCS interpolation
-                index_i = set_weights_PCS(x, weights_x)
-                index_j = set_weights_PCS(y, weights_y)
-                index_k = set_weights_PCS(z, weights_z)
-        # Apply the update
-        value = 0
-        for         i in range(order):
-            for     j in range(order):
-                for k in range(order):
-                    value += grid[
-                        ℤ[index_i + i],
-                        ℤ[index_j + j],
-                        ℤ[index_k + k],
-                    ]*ℝ[ℝ[weights_x[i]]*weights_y[j]]*weights_z[k]
+                for index, weight in particle_interpolation_loop_PCS(
+                    x, y, z, size_j, size_k,
+                ):
+                    value += grid_ptr[index]*weight
         with unswitch:
             if factor != 1:
                 value *= factor
@@ -1370,20 +1348,19 @@ subslabs_cache = {}
     contribution_factor='double',
     contribution_mv='double[::1]',
     contribution_ptr='double*',
+    contribution_weighted='double',
     dim='int',
-    i='Py_ssize_t',
-    index_i='Py_ssize_t',
-    index_j='Py_ssize_t',
-    index_k='Py_ssize_t',
+    grid_ptr='double*',
+    index='Py_ssize_t',
     indexˣ='Py_ssize_t',
-    j='Py_ssize_t',
-    k='Py_ssize_t',
     offset_x='double',
     offset_y='double',
     offset_z='double',
     posxˣ='double*',
     posyˣ='double*',
     poszˣ='double*',
+    size_j='Py_ssize_t',
+    size_k='Py_ssize_t',
     w_eff='double',
     x='double',
     y='double',
@@ -1462,6 +1439,8 @@ def interpolate_particles(component, gridsize, grid, quantity, order, ᔑdt,
     posxˣ = component.posxˣ
     posyˣ = component.posyˣ
     poszˣ = component.poszˣ
+    size_j, size_k = grid.shape[1], grid.shape[2]
+    grid_ptr = cython.address(grid[:, :, :])
     for indexˣ in range(0, 3*component.N_local, 3):
         # Get the total contribution from this particle
         with unswitch:
@@ -1472,33 +1451,32 @@ def interpolate_particles(component, gridsize, grid, quantity, order, ᔑdt,
         x = (posxˣ[indexˣ] - offset_x)*ℝ[1/cellsize]
         y = (posyˣ[indexˣ] - offset_y)*ℝ[1/cellsize]
         z = (poszˣ[indexˣ] - offset_z)*ℝ[1/cellsize]
-        # Set interpolation weights and get grid indices
+        # Carry out the interpolation according to the order
         with unswitch:
             if order == 1:  # NGP interpolation
-                index_i = set_weights_NGP(x, weights_x)
-                index_j = set_weights_NGP(y, weights_y)
-                index_k = set_weights_NGP(z, weights_z)
+                for index, contribution_weighted in particle_interpolation_loop_NGP(
+                    x, y, z, size_j, size_k,
+                    contribution, apply_factor=True,
+                ):
+                    grid_ptr[index] += contribution_weighted
             elif order == 2:  # CIC interpolation
-                index_i = set_weights_CIC(x, weights_x)
-                index_j = set_weights_CIC(y, weights_y)
-                index_k = set_weights_CIC(z, weights_z)
+                for index, contribution_weighted in particle_interpolation_loop_CIC(
+                    x, y, z, size_j, size_k,
+                    contribution, apply_factor=True,
+                ):
+                    grid_ptr[index] += contribution_weighted
             elif order == 3:  # TSC interpolation
-                index_i = set_weights_TSC(x, weights_x)
-                index_j = set_weights_TSC(y, weights_y)
-                index_k = set_weights_TSC(z, weights_z)
+                for index, contribution_weighted in particle_interpolation_loop_TSC(
+                    x, y, z, size_j, size_k,
+                    contribution, apply_factor=True,
+                ):
+                    grid_ptr[index] += contribution_weighted
             else:  # order == 4  # PCS interpolation
-                index_i = set_weights_PCS(x, weights_x)
-                index_j = set_weights_PCS(y, weights_y)
-                index_k = set_weights_PCS(z, weights_z)
-        # Assign weighted contributions to grid points
-        for         i in range(order):
-            for     j in range(order):
-                for k in range(order):
-                    grid[
-                        ℤ[index_i + i],
-                        ℤ[index_j + j],
-                        ℤ[index_k + k],
-                    ] += ℝ[ℝ[contribution*weights_x[i]]*weights_y[j]]*weights_z[k]
+                for index, contribution_weighted in particle_interpolation_loop_PCS(
+                    x, y, z, size_j, size_k,
+                    contribution, apply_factor=True,
+                ):
+                    grid_ptr[index] += contribution_weighted
     # All particles interpolated. Some may have gotten interpolated
     # partly onto ghost points, which then need to be communicated.
     if do_ghost_communication:
@@ -2200,10 +2178,14 @@ def fourier_loop(
         deconv_order='int',
         interlace_flag='int',
         # Locals
-        _deconv_i='double',
-        _deconv_ij='double',
-        _deconv_j='double',
-        _deconv_k='double',
+        _deconv_i_denom='double',
+        _deconv_i_numer='double',
+        _deconv_ij_denom='double',
+        _deconv_ij_numer='double',
+        _deconv_j_denom='double',
+        _deconv_j_numer='double',
+        _deconv_k_denom='double',
+        _deconv_k_numer='double',
         _i='Py_ssize_t',
         _i_chunk='int',
         _i_chunk_bgn='Py_ssize_t',
@@ -2309,8 +2291,8 @@ def fourier_loop(
                 # factor is obtained through exponentiation with the
                 # power given by the deconvolution order (**1 → NGP,
                 # **2 → CIC, **3 → TSC, **4 → PCS).
-                _deconv_j = kj*ℝ[π/gridsize_corrections] + machine_ϵ
-                _deconv_j /= sin(_deconv_j)
+                _deconv_j_numer = kj*ℝ[π/gridsize_corrections] + machine_ϵ
+                _deconv_j_denom = sin(_deconv_j_numer)
                 # Loop over the i chunk
                 _index_ij = (_i_chunk_bgn + _index_j)*_slab_size_k
                 for _i in range(_i_chunk_bgn, _i_chunk_end):
@@ -2324,9 +2306,10 @@ def fourier_loop(
                                 continue
                     # The product of the i- and the j-components
                     # of the 1D NGP deconvolution factor.
-                    _deconv_i = ki*ℝ[π/gridsize_corrections] + machine_ϵ
-                    _deconv_i /= sin(_deconv_i)
-                    _deconv_ij = _deconv_i*_deconv_j
+                    _deconv_i_numer = ki*ℝ[π/gridsize_corrections] + machine_ϵ
+                    _deconv_i_denom = sin(_deconv_i_numer)
+                    _deconv_ij_numer = _deconv_i_numer*_deconv_j_numer
+                    _deconv_ij_denom = _deconv_i_denom*_deconv_j_denom
                     # The origin is the first element encountered on the
                     # master process. If the partial index _index_ij has
                     # a value of 0, then this is the first i iteration,
@@ -2376,9 +2359,12 @@ def fourier_loop(
                         with unswitch(5):
                             if deconv_order:
                                 # The 3D NGP deconvolution factor
-                                _deconv_k = kk*ℝ[π/gridsize_corrections] + machine_ϵ
-                                _deconv_k /= sin(_deconv_k)
-                                factor = _deconv_ij*_deconv_k
+                                _deconv_k_numer = kk*ℝ[π/gridsize_corrections] + machine_ϵ
+                                _deconv_k_denom = sin(_deconv_k_numer)
+                                factor = (
+                                     (_deconv_ij_numer*_deconv_k_numer)
+                                    /(_deconv_ij_denom*_deconv_k_denom)
+                                )
                                 # The full deconvolution factor
                                 factor **= deconv_order
                         # Include factor from interlacing
@@ -3639,21 +3625,31 @@ def slabs_check_symmetry(
     direction=str,
     do_ghost_communication='bint',
     # Locals
-    i='Py_ssize_t',
-    indices_i_m='Py_ssize_t*',
-    indices_i_p='Py_ssize_t*',
-    indices_j_m='Py_ssize_t*',
-    indices_j_p='Py_ssize_t*',
-    indices_k_m='Py_ssize_t*',
-    indices_k_p='Py_ssize_t*',
-    j='Py_ssize_t',
-    k='Py_ssize_t',
-    step='Py_ssize_t',
-    steps_i='Py_ssize_t*',
-    steps_j='Py_ssize_t*',
-    steps_k='Py_ssize_t*',
-    value='double',
+    grid_mv='double[::1]',
+    grid_ptr_lower_1='double*',
+    grid_ptr_lower_2='double*',
+    grid_ptr_lower_3='double*',
+    grid_ptr_lower_4='double*',
+    grid_ptr_upper_1='double*',
+    grid_ptr_upper_2='double*',
+    grid_ptr_upper_3='double*',
+    grid_ptr_upper_4='double*',
+    index='Py_ssize_t',
+    index_i='Py_ssize_t',
+    index_i_end='Py_ssize_t',
+    index_j='Py_ssize_t',
+    index_j_end='Py_ssize_t',
+    offset_1='Py_ssize_t',
+    offset_2='Py_ssize_t',
+    offset_3='Py_ssize_t',
+    offset_4='Py_ssize_t',
+    offset_ghosts='Py_ssize_t',
+    size_i='Py_ssize_t',
+    size_j='Py_ssize_t',
+    size_k='Py_ssize_t',
     ᐁgrid_dim='double[:, :, ::1]',
+    ᐁgrid_dim_mv='double[::1]',
+    ᐁgrid_dim_ptr='double*',
     returns='double[:, :, ::1]',
 )
 def diff_domaingrid(
@@ -3684,14 +3680,9 @@ def diff_domaingrid(
     if dim not in (0, 1, 2):
         abort(f'diff_domaingrid() called with dim = {dim} ∉ {{0, 1, 2}}')
     if order not in (1, 2, 4, 6, 8):
-        abort(
-            f'diff_domaingrid() called with order = {order} ∉ {{1, 2, 4, 6, 8}}'
-        )
-    if direction not in ('forward', 'backward'):
-        abort(
-            f'diff_domaingrid() called with direction = {direction} '
-            f'∉ {{"forward", "backward"}}'
-        )
+        abort(f'diff_domaingrid() called with order = {order} ∉ {{1, 2, 4, 6, 8}}')
+    if order == 1 and direction not in ('forward', 'backward'):
+        abort(f'diff_domaingrid() called with direction = {direction} ∉ {{"forward", "backward"}}')
     # If no buffer is supplied, fetch the buffer with the name
     # given by buffer_or_buffer_name.
     if isinstance(buffer_or_buffer_name, (int, str)):
@@ -3703,139 +3694,374 @@ def diff_domaingrid(
                 f'diff_domaingrid() called with grid of shape {asarray(grid).shape}'
                 f'and buffer of different shape {asarray(ᐁgrid_dim).shape}'
             )
-    # Reuse global arrays
-    steps_i     = diff_steps_i
-    steps_j     = diff_steps_j
-    steps_k     = diff_steps_k
-    indices_i_m = diff_indices_i_m
-    indices_i_p = diff_indices_i_p
-    indices_j_m = diff_indices_j_m
-    indices_j_p = diff_indices_j_p
-    indices_k_m = diff_indices_k_m
-    indices_k_p = diff_indices_k_p
-    # Set steps along each dimension
-    for step in range(1, ℤ[order//2 + 1]):
-        steps_i[step] = step*ℤ[dim == 0]
-        steps_j[step] = step*ℤ[dim == 1]
-        steps_k[step] = step*ℤ[dim == 2]
-    # Loop over the local bulk (i.e. not ghosts) of the grid
-    for i in range(nghosts, ℤ[grid.shape[0] - nghosts]):
-        # Set grid indices along the x direction
-        with unswitch:
-            if order == 1:
-                indices_i_p[0] = i + ℤ[ℤ[dim == 0] and ℤ[direction == 'forward' ]]
-                indices_i_m[0] = i - ℤ[ℤ[dim == 0] and ℤ[direction == 'backward']]
-            else:
-                for step in range(1, ℤ[order//2 + 1]):
-                    indices_i_p[step] = i + ℤ[steps_i[step]]
-                    indices_i_m[step] = i - ℤ[steps_i[step]]
-        for j in range(nghosts, ℤ[grid.shape[1] - nghosts]):
-            # Set grid indices along the y direction
-            with unswitch:
-                if order == 1:
-                    indices_j_p[0] = j + ℤ[ℤ[dim == 1] and ℤ[direction == 'forward' ]]
-                    indices_j_m[0] = j - ℤ[ℤ[dim == 1] and ℤ[direction == 'backward']]
-                else:
-                    for step in range(1, ℤ[order//2 + 1]):
-                        indices_j_p[step] = j + ℤ[steps_j[step]]
-                        indices_j_m[step] = j - ℤ[steps_j[step]]
-            for k in range(nghosts, ℤ[grid.shape[2] - nghosts]):
-                # Set grid indices along the z direction
+    # Extract pointer of ᐁgrid_dim, offset to take care of ghost points
+    size_i, size_j, size_k = asarray(grid).shape
+    offset_ghosts = nghosts*((size_j + 1)*size_k + 1)
+    ᐁgrid_dim_mv = asarray(ᐁgrid_dim).ravel()
+    ᐁgrid_dim_ptr = cython.address(ᐁgrid_dim_mv[offset_ghosts:])
+    # Extract pointers of grid, offset to take care of ghost points and
+    # steps along direction dim.
+    grid_mv = asarray(grid).ravel()
+    offset_1 = (1*ℤ[(dim == 0)*size_j] + 1*ℤ[dim == 1])*size_k + 1*ℤ[dim == 2]
+    offset_2 = (2*ℤ[(dim == 0)*size_j] + 2*ℤ[dim == 1])*size_k + 2*ℤ[dim == 2]
+    offset_3 = (3*ℤ[(dim == 0)*size_j] + 3*ℤ[dim == 1])*size_k + 3*ℤ[dim == 2]
+    offset_4 = (4*ℤ[(dim == 0)*size_j] + 4*ℤ[dim == 1])*size_k + 4*ℤ[dim == 2]
+    if order == 1:
+        # Order 1 (odd)
+        grid_ptr_upper_1 = cython.address(
+            grid_mv[(offset_ghosts + offset_1*ℤ[direction == 'forward']):]
+        )
+        grid_ptr_lower_1 = cython.address(
+            grid_mv[(offset_ghosts - offset_1*ℤ[direction == 'backward']):]
+        )
+    else:
+        # Even orders
+        grid_ptr_upper_1 = cython.address(grid_mv[(offset_ghosts + offset_1):])
+        grid_ptr_lower_1 = cython.address(grid_mv[(offset_ghosts - offset_1):])
+        if order >= 4:
+            grid_ptr_upper_2 = cython.address(grid_mv[(offset_ghosts + offset_2):])
+            grid_ptr_lower_2 = cython.address(grid_mv[(offset_ghosts - offset_2):])
+            if order >= 6:
+                grid_ptr_upper_3 = cython.address(grid_mv[(offset_ghosts + offset_3):])
+                grid_ptr_lower_3 = cython.address(grid_mv[(offset_ghosts - offset_3):])
+                if order >= 8:
+                    grid_ptr_upper_4 = cython.address(grid_mv[(offset_ghosts + offset_4):])
+                    grid_ptr_lower_4 = cython.address(grid_mv[(offset_ghosts - offset_4):])
+    # Loop over the 3D grid. Cython does not produce optimal code when
+    # using a stepped range, so we write out the looping by hand.
+    index_i = 0
+    index_i_end = (size_i - ℤ[2*nghosts + 1])*ℤ[size_j*size_k]
+    while True:
+        index_j     = index_i
+        index_j_end = index_i + ℤ[(size_j - ℤ[2*nghosts + 1])*size_k]
+        while True:
+            index     = index_j
+            index_end = index_j + ℤ[size_k - ℤ[2*nghosts + 1]]
+            while True:
                 with unswitch:
                     if order == 1:
-                        indices_k_p[0] = k + ℤ[ℤ[dim == 2] and ℤ[direction == 'forward' ]]
-                        indices_k_m[0] = k - ℤ[ℤ[dim == 2] and ℤ[direction == 'backward']]
-                    else:
-                        for step in range(1, ℤ[order//2 + 1]):
-                            indices_k_p[step] = k + ℤ[steps_k[step]]
-                            indices_k_m[step] = k - ℤ[steps_k[step]]
-                # Do the finite differencing
-                with unswitch:
-                    if order == 1:
-                        value = ℝ[1/Δx]*(
-                            + grid[indices_i_p[0], indices_j_p[0], indices_k_p[0]]
-                            - grid[indices_i_m[0], indices_j_m[0], indices_k_m[0]]
+                        ᐁgrid_dim_ptr[index] = ℝ[1/Δx]*(
+                            + grid_ptr_upper_1[index]
+                            - grid_ptr_lower_1[index]
                         )
                     elif order == 2:
-                        value = ℝ[1/(2*Δx)]*(
-                            + grid[indices_i_p[1], indices_j_p[1], indices_k_p[1]]
-                            - grid[indices_i_m[1], indices_j_m[1], indices_k_m[1]]
+                        ᐁgrid_dim_ptr[index] = ℝ[(1/2)/Δx]*(
+                            + grid_ptr_upper_1[index]
+                            - grid_ptr_lower_1[index]
                         )
                     elif order == 4:
-                        value = ℝ[1/(12*Δx)]*(
-                            + 8*(
-                                + grid[indices_i_p[1], indices_j_p[1], indices_k_p[1]]
-                                - grid[indices_i_m[1], indices_j_m[1], indices_k_m[1]]
+                        ᐁgrid_dim_ptr[index] = (
+                            + ℝ[(2/3)/Δx]*(
+                                + grid_ptr_upper_1[index]
+                                - grid_ptr_lower_1[index]
                             )
-                            - (
-                                + grid[indices_i_p[2], indices_j_p[2], indices_k_p[2]]
-                                - grid[indices_i_m[2], indices_j_m[2], indices_k_m[2]]
+                            - ℝ[(1/12)/Δx]*(
+                                + grid_ptr_upper_2[index]
+                                - grid_ptr_lower_2[index]
                             )
                         )
                     elif order == 6:
-                        value = ℝ[1/(60*Δx)]*(
-                            45*(
-                                + grid[indices_i_p[1], indices_j_p[1], indices_k_p[1]]
-                                - grid[indices_i_m[1], indices_j_m[1], indices_k_m[1]]
+                        ᐁgrid_dim_ptr[index] = (
+                            ℝ[(3/4)/Δx]*(
+                                + grid_ptr_upper_1[index]
+                                - grid_ptr_lower_1[index]
                             )
-                            - 9*(
-                                + grid[indices_i_p[2], indices_j_p[2], indices_k_p[2]]
-                                - grid[indices_i_m[2], indices_j_m[2], indices_k_m[2]]
+                            - ℝ[(3/20)/Δx]*(
+                                + grid_ptr_upper_2[index]
+                                - grid_ptr_lower_2[index]
                             )
-                            + (
-                                + grid[indices_i_p[3], indices_j_p[3], indices_k_p[3]]
-                                - grid[indices_i_m[3], indices_j_m[3], indices_k_m[3]]
+                            + ℝ[(1/60)/Δx]*(
+                                + grid_ptr_upper_3[index]
+                                - grid_ptr_lower_3[index]
                             )
                         )
                     else:  # order == 8
-                        value = ℝ[1/(280*Δx)]*(
-                            224*(
-                                + grid[indices_i_p[1], indices_j_p[1], indices_k_p[1]]
-                                - grid[indices_i_m[1], indices_j_m[1], indices_k_m[1]]
+                        ᐁgrid_dim_ptr[index] = (
+                            ℝ[(4/5)/Δx]*(
+                                + grid_ptr_upper_1[index]
+                                - grid_ptr_lower_1[index]
                             )
-                            - 56*(
-                                + grid[indices_i_p[2], indices_j_p[2], indices_k_p[2]]
-                                - grid[indices_i_m[2], indices_j_m[2], indices_k_m[2]]
+                            - ℝ[(1/5)/Δx]*(
+                                + grid_ptr_upper_2[index]
+                                - grid_ptr_lower_2[index]
                             )
-                            + 32./3.*(
-                                + grid[indices_i_p[3], indices_j_p[3], indices_k_p[3]]
-                                - grid[indices_i_m[3], indices_j_m[3], indices_k_m[3]]
+                            + ℝ[(4/105)/Δx]*(
+                                + grid_ptr_upper_3[index]
+                                - grid_ptr_lower_3[index]
                             )
-                            - (
-                                + grid[indices_i_p[4], indices_j_p[4], indices_k_p[4]]
-                                - grid[indices_i_m[4], indices_j_m[4], indices_k_m[4]]
+                            - ℝ[(1/280)/Δx]*(
+                                + grid_ptr_upper_4[index]
+                                - grid_ptr_lower_4[index]
                             )
                         )
-                # Write result of differentiation to buffer
-                ᐁgrid_dim[i, j, k] = value
+                # Breakouts and loop counter incrementations
+                if index == index_end:
+                    break
+                index += 1
+            if index_j == index_j_end:
+                break
+            index_j += size_k
+        if index_i == index_i_end:
+            break
+        index_i += ℤ[size_j*size_k]
     # Populate the ghost points with copies of their
     # corresponding actual points.
     if do_ghost_communication:
         communicate_ghosts(ᐁgrid_dim, '=')
     return ᐁgrid_dim
-# Allocate global arrays used by the diff_domaingrid() function
-cython.declare(
-    highest_differentiation_order_implemented='int',
-    diff_steps_i='Py_ssize_t*',
-    diff_steps_j='Py_ssize_t*',
-    diff_steps_k='Py_ssize_t*',
-    diff_indices_i_m='Py_ssize_t*',
-    diff_indices_i_p='Py_ssize_t*',
-    diff_indices_j_m='Py_ssize_t*',
-    diff_indices_j_p='Py_ssize_t*',
-    diff_indices_k_m='Py_ssize_t*',
-    diff_indices_k_p='Py_ssize_t*',
+
+# Below we define iterators for looping over grid cells within particle
+# interpolation regions. Each function takes in coordinates which must
+# be pre-scaled so that they lie in the interval
+#   nghosts - ½ < {x, y z} < shape[dim] - nghosts - ½
+# where shape is the full shape (with ghost layers) of the grid taking
+# part in the interpolation. This j (y) and k (z) size of the grid must
+# also be given. The iterators return the linear index into the grid as
+# well as the weight of the given grid point. If the weight should be
+# applied to (multiplied by) some number, you can pass this number as an
+# optional argument and specify apply_factor=True.
+#
+# Nearest grid point (NGP) interpolation (order 1)
+@cython.iterator(
+    depends=[
+        # Global variables used by particle_interpolation_loop_NGP()
+        'weights_x',
+        'weights_y',
+        'weights_z',
+    ]
 )
-highest_differentiation_order_implemented = 8
-diff_steps_i     = malloc((highest_differentiation_order_implemented//2 + 1)*sizeof('Py_ssize_t'))
-diff_steps_j     = malloc((highest_differentiation_order_implemented//2 + 1)*sizeof('Py_ssize_t'))
-diff_steps_k     = malloc((highest_differentiation_order_implemented//2 + 1)*sizeof('Py_ssize_t'))
-diff_indices_i_m = malloc((highest_differentiation_order_implemented//2 + 1)*sizeof('Py_ssize_t'))
-diff_indices_i_p = malloc((highest_differentiation_order_implemented//2 + 1)*sizeof('Py_ssize_t'))
-diff_indices_j_m = malloc((highest_differentiation_order_implemented//2 + 1)*sizeof('Py_ssize_t'))
-diff_indices_j_p = malloc((highest_differentiation_order_implemented//2 + 1)*sizeof('Py_ssize_t'))
-diff_indices_k_m = malloc((highest_differentiation_order_implemented//2 + 1)*sizeof('Py_ssize_t'))
-diff_indices_k_p = malloc((highest_differentiation_order_implemented//2 + 1)*sizeof('Py_ssize_t'))
+def particle_interpolation_loop_NGP(
+    x, y, z, size_j, size_k, multiplier=1,
+    *,
+    apply_factor=False,
+):
+    # Cython declarations for variables used for the iteration,
+    # including all arguments and variables to yield.
+    # Do not write these using the decorator syntax above this function.
+    cython.declare(
+        # Arguments
+        x='double',
+        y='double',
+        z='double',
+        size_j='Py_ssize_t',
+        size_k='Py_ssize_t',
+        multiplier='double',
+        apply_factor='bint',
+        # Locals
+        _i='Py_ssize_t',
+        _index_weights_i='Py_ssize_t',
+        _index_weights_j='Py_ssize_t',
+        _index_weights_k='Py_ssize_t',
+        # Yielded
+        _index='Py_ssize_t',
+        weight='double',
+    )
+    # Set interpolation weights and get grid indices
+    _index_weights_i = set_weights_NGP(x, weights_x)
+    _index_weights_j = set_weights_NGP(y, weights_y)
+    _index_weights_k = set_weights_NGP(z, weights_z)
+    # "Iterate" over the single interpolation point,
+    # yielding the grid index and associated weight.
+    for _i in range(1):
+        with unswitch(1):
+            if apply_factor:
+                weight = multiplier
+            else:
+                weight = 1
+        _index = (_index_weights_i*size_j + _index_weights_j)*size_k + _index_weights_k
+        yield _index, weight
+# Cloud-in-cell (CIC) interpolation (order 2)
+@cython.iterator(
+    depends=[
+        # Global variables used by particle_interpolation_loop_CIC()
+        'weights_x',
+        'weights_y',
+        'weights_z',
+    ]
+)
+def particle_interpolation_loop_CIC(
+    x, y, z, size_j, size_k, multiplier=1,
+    *,
+    apply_factor=False,
+):
+    # Cython declarations for variables used for the iteration,
+    # including all arguments and variables to yield.
+    # Do not write these using the decorator syntax above this function.
+    cython.declare(
+        # Arguments
+        x='double',
+        y='double',
+        z='double',
+        size_j='Py_ssize_t',
+        size_k='Py_ssize_t',
+        multiplier='double',
+        apply_factor='bint',
+        # Locals
+        _i='Py_ssize_t',
+        _index_i='Py_ssize_t',
+        _index_j='Py_ssize_t',
+        _index_weights_i='Py_ssize_t',
+        _index_weights_j='Py_ssize_t',
+        _index_weights_k='Py_ssize_t',
+        _j='Py_ssize_t',
+        _k='Py_ssize_t',
+        _weight_i='double',
+        # Yielded
+        _index='Py_ssize_t',
+        weight='double',
+    )
+    # Set interpolation weights and get grid indices
+    _index_weights_i = set_weights_CIC(x, weights_x)
+    _index_weights_j = set_weights_CIC(y, weights_y)
+    _index_weights_k = set_weights_CIC(z, weights_z)
+    # Iterate efficiently over the interpolation region,
+    # yielding the grid index and associated weight.
+    _index_i = (
+        ((_index_weights_i - 1)*size_j + (_index_weights_j - 1))*size_k
+        + _index_weights_k - 1
+    )
+    for _i in range(2):
+        _weight_i = weights_x[_i]
+        with unswitch(1):
+            if apply_factor:
+                _weight_i *= multiplier
+        _index_i += ℤ[size_j*size_k]
+        _index_j = _index_i
+        for _j in range(2):
+            _index_j += size_k
+            _index = _index_j
+            for _k in range(2):
+                _index += 1
+                weight = ℝ[_weight_i*weights_y[_j]]*weights_z[_k]
+                yield _index, weight
+# Triangular-shaped cloud (TSC) interpolation (order 3)
+@cython.iterator(
+    depends=[
+        # Global variables used by particle_interpolation_loop_TSC()
+        'weights_x',
+        'weights_y',
+        'weights_z',
+    ]
+)
+def particle_interpolation_loop_TSC(
+    x, y, z, size_j, size_k, multiplier=1,
+    *,
+    apply_factor=False,
+):
+    # Cython declarations for variables used for the iteration,
+    # including all arguments and variables to yield.
+    # Do not write these using the decorator syntax above this function.
+    cython.declare(
+        # Arguments
+        x='double',
+        y='double',
+        z='double',
+        size_j='Py_ssize_t',
+        size_k='Py_ssize_t',
+        multiplier='double',
+        apply_factor='bint',
+        # Locals
+        _i='Py_ssize_t',
+        _index_i='Py_ssize_t',
+        _index_j='Py_ssize_t',
+        _index_weights_i='Py_ssize_t',
+        _index_weights_j='Py_ssize_t',
+        _index_weights_k='Py_ssize_t',
+        _j='Py_ssize_t',
+        _k='Py_ssize_t',
+        _weight_i='double',
+        # Yielded
+        _index='Py_ssize_t',
+        weight='double',
+    )
+    # Set interpolation weights and get grid indices
+    _index_weights_i = set_weights_TSC(x, weights_x)
+    _index_weights_j = set_weights_TSC(y, weights_y)
+    _index_weights_k = set_weights_TSC(z, weights_z)
+    # Iterate efficiently over the interpolation region,
+    # yielding the grid index and associated weight.
+    _index_i = (
+        ((_index_weights_i - 1)*size_j + (_index_weights_j - 1))*size_k
+        + _index_weights_k - 1
+    )
+    for _i in range(3):
+        _weight_i = weights_x[_i]
+        with unswitch(1):
+            if apply_factor:
+                _weight_i *= multiplier
+        _index_i += ℤ[size_j*size_k]
+        _index_j = _index_i
+        for _j in range(3):
+            _index_j += size_k
+            _index = _index_j
+            for _k in range(3):
+                _index += 1
+                weight = ℝ[_weight_i*weights_y[_j]]*weights_z[_k]
+                yield _index, weight
+# Piecewise cubic spline (PCS) interpolation (order 4)
+@cython.iterator(
+    depends=[
+        # Global variables used by particle_interpolation_loop_PCS()
+        'weights_x',
+        'weights_y',
+        'weights_z',
+    ]
+)
+def particle_interpolation_loop_PCS(
+    x, y, z, size_j, size_k, multiplier=1,
+    *,
+    apply_factor=False,
+):
+    # Cython declarations for variables used for the iteration,
+    # including all arguments and variables to yield.
+    # Do not write these using the decorator syntax above this function.
+    cython.declare(
+        # Arguments
+        x='double',
+        y='double',
+        z='double',
+        size_j='Py_ssize_t',
+        size_k='Py_ssize_t',
+        multiplier='double',
+        apply_factor='bint',
+        # Locals
+        _i='Py_ssize_t',
+        _index_i='Py_ssize_t',
+        _index_j='Py_ssize_t',
+        _index_weights_i='Py_ssize_t',
+        _index_weights_j='Py_ssize_t',
+        _index_weights_k='Py_ssize_t',
+        _j='Py_ssize_t',
+        _k='Py_ssize_t',
+        _weight_i='double',
+        # Yielded
+        _index='Py_ssize_t',
+        weight='double',
+    )
+    # Set interpolation weights and get grid indices
+    _index_weights_i = set_weights_PCS(x, weights_x)
+    _index_weights_j = set_weights_PCS(y, weights_y)
+    _index_weights_k = set_weights_PCS(z, weights_z)
+    # Iterate efficiently over the interpolation region,
+    # yielding the grid index and associated weight.
+    _index_i = (
+        ((_index_weights_i - 1)*size_j + (_index_weights_j - 1))*size_k
+        + _index_weights_k - 1
+    )
+    for _i in range(4):
+        _weight_i = weights_x[_i]
+        with unswitch(1):
+            if apply_factor:
+                _weight_i *= multiplier
+        _index_i += ℤ[size_j*size_k]
+        _index_j = _index_i
+        for _j in range(4):
+            _index_j += size_k
+            _index = _index_j
+            for _k in range(4):
+                _index += 1
+                weight = ℝ[_weight_i*weights_y[_j]]*weights_z[_k]
+                yield _index, weight
 
 # Below we define weight functions for one-dimensional particle
 # interpolation. Each function takes in a coordinate x which must be
@@ -3884,16 +4110,22 @@ def set_weights_CIC(x, weights):
     weights='double*',
     # Locals
     dist='double',
+    dist2='double',
     index='Py_ssize_t',
+    weight0='double',
+    weight1='double',
     returns='Py_ssize_t',
 )
 def set_weights_TSC(x, weights):
     index = int(x + 0.5)
     dist = x - index  # Distance between centre grid point and x; -0.5 <= dist < 0.5
     index -= 1
-    weights[0] = 0.5*(0.5 - dist)**2
-    weights[1] = 0.75 - dist**2
-    weights[2] = 1 - (weights[0] + weights[1])
+    dist2 = dist**2
+    weight0 = 0.125 + 0.5*(dist2 - dist)
+    weight1 = 0.75 - dist2
+    weights[0] = weight0
+    weights[1] = weight1
+    weights[2] = 1 - weight0 - weight1
     return index
 # Piecewise cubic spline (PCS) interpolation (order 4)
 @cython.header(
@@ -3906,6 +4138,9 @@ def set_weights_TSC(x, weights):
     tmp='double',
     tmp2='double',
     tmp3='double',
+    weight0='double',
+    weight2='double',
+    weight3='double',
     returns='Py_ssize_t',
 )
 def set_weights_PCS(x, weights):
@@ -3915,10 +4150,13 @@ def set_weights_PCS(x, weights):
     tmp = 2 - dist
     tmp2 = tmp**2
     tmp3 = tmp*tmp2
-    weights[0] = 1./6.*tmp3
-    weights[2] = 2./3. - tmp2 + 0.5*tmp3
-    weights[3] = 1./6.*(dist - 1)**3
-    weights[1] = 1 - (weights[0] + weights[2] + weights[3])
+    weight0 = 1./6.*tmp3
+    weight2 = 2./3. - tmp2 + 0.5*tmp3
+    weight3 = 1./6.*(dist - 1)**3
+    weights[0] = weight0
+    weights[1] = 1 - weight0 - weight2 - weight3
+    weights[2] = weight2
+    weights[3] = weight3
     return index
 # Allocate global weights arrays to be used with the above functions
 cython.declare(
