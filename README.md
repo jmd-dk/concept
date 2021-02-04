@@ -29,7 +29,7 @@ decaying cold dark matter &mdash; are fully supported.
 CO*N*CEPT comes with a sophisticated initial condition generator built in, and
 can output snapshots, power spectra and several kinds of renders.
 
-The [CLASS] code is fully integrated into CONCEPT, supplying the needed
+The [CLASS] code is fully integrated into CO*N*CEPT, supplying the needed
 information for e.g. initial condition generation and
 general relativistic corrections.
 
