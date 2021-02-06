@@ -7725,13 +7725,14 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
     }
     # Change the values of some preprocessing directives
     # in header files, allowing larger inputs and outputs.
+    # Careful though, as values too large will not fit on the stack.
     redefine_class() {
         filename="$1"
         name="$2"
         value="$3"
         sed -i "s/^\(\s*#define\s\+${name}\s\+\)\(\S*\)\(.*\)$/\1${value}\3/" "${filename}"
     }
-    redefine_class "${class_dir}/include/common.h"        _MAXTITLESTRINGLENGTH_  1000000  # 10⁶
+    redefine_class "${class_dir}/include/common.h"        _MAXTITLESTRINGLENGTH_   100000  # 10⁵
     redefine_class "${class_dir}/include/parser.h"        _LINE_LENGTH_MAX_         10000  # 10⁴
     redefine_class "${class_dir}/include/parser.h"        _ARGUMENT_LENGTH_MAX_     10000  # 10⁴
     redefine_class "${class_dir}/include/perturbations.h" _MAX_NUMBER_OF_K_FILES_  100000  # 10⁵
