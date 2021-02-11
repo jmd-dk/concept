@@ -227,32 +227,58 @@ class CosmoResults:
     attribute_names = ('h', )
     # Class used instead of regular dict to store the CLASS
     # perturbations. The only difference is that the class below will
-    # instantiate perturbations missing from the CLASS output,
+    # instantiate implicit perturbations missing from the CLASS output,
     # such as the squared photon sound speed perturbation "cs2_g" which
     # is always equal to 1/3.
     class PerturbationDict(dict):
-        missing_CLASS_perturbations = {'cs2_g', 'cs2_ur', 'cs2_dr', 'shear_fld'}
         def __getitem__(self, key):
-            if key in self.missing_CLASS_perturbations:
-                # Attempt normal lookup.
-                # On failure, add the missing perturbations.
-                try:
-                    return super().__getitem__(key)
-                except KeyError:
-                    pass
-                if key in {'cs2_g', 'cs2_ur', 'cs2_dr'}:
-                    # Ultrarelativistic species have a
-                    # squared sound speed equal to 1/3.
-                    value = 1/3*ones(self['a'].size, dtype=C2np['double'])
-                elif key == 'shear_fld':
-                    # Dark energy fluid have no shear
+            # Attempt normal lookup
+            try:
+                return super().__getitem__(key)
+            except KeyError:
+                pass
+            # Normal lookup failed; the perturbation is missing
+            match = re.search('_(.*)', key)
+            if not match:
+                abort(
+                    f'Non-existing perturbation "{key}" required. '
+                    f'The CLASS species could not be determined.'
+                )
+            class_species = match.group(1)
+            species_info = species_registered.get(
+                species_canonical.get(class_species, class_species)
+            )
+            if species_info is None:
+                abort(
+                    f'Non-existing perturbation "{key}" required. The CLASS species '
+                    f'"{species_info}" is not registered with linear.register_species().'
+                )
+            # If this perturbation can be inferred, add it
+            if key.startswith('cs2_'):
+                # The cs2 perturbation is zero for w = 0 and 1/3 for
+                # w = 1/3. For other values of w this cannot be
+                # easily determined.
+                if species_info.w == 0:
                     value = zeros(self['a'].size, dtype=C2np['double'])
+                elif species_info.w == 1/3:
+                    value = 1/3*ones(self['a'].size, dtype=C2np['double'])
                 else:
-                    abort(f'Key "{key}" not implemented in PerturbationDict')
-                self[key] = value
-                return value
-            # Normal lookup
-            return super().__getitem__(key)
+                    abort(
+                        f'Non-existing perturbation "{key}" required. The CLASS species '
+                        f'"{species_info}" is registered to have w = {species_info.w}, '
+                        f'from which with "{key}" cannot be inferred.'
+                    )
+            elif key.startswith('shear_'):
+                # Missing shear perturbations typically imply that this
+                # is zero. Assume so hear.
+                value = zeros(self['a'].size, dtype=C2np['double'])
+            else:
+                abort(
+                    f'Non-existing perturbation "{key}" required. '
+                    f'This perturbation could not be inferred.'
+                )
+            self[key] = value
+            return value
         def get(self, key, value=None):
             try:
                 value = self.__getitem__(key)
@@ -485,60 +511,46 @@ class CosmoResults:
                         self._background[key] = asarray(buffer).copy()
             else:
                 self._background = {}
-            # CLASS does not give the background pressure for cold
-            # cold dark matter, baryons, ultra relativistic species
-            # or the cosmological constant, as these are always
-            # proportional to their densities with a constant
-            # proportionality factor w. Here we add these missing
-            # pressures explicitly.
-            constant_eos_w = {
-                'b'     :  0,
-                'cdm'   :  0,
-                'dcdm'  :  0,
-                'g'     :  1/3,
-                'ur'    :  1/3,
-                'dr'    :  1/3,
-                'lambda': -1,
-            }
-            for class_species, w in constant_eos_w.items():
-                if (    f'(.)rho_{class_species}'   in self._background
-                    and f'(.)p_{class_species}' not in self._background):
-                    self._background[f'(.)p_{class_species}'] = (
-                        w*self._background[f'(.)rho_{class_species}']
-                    )
-            # For the 'fld' CLASS species, '(.)p_fld' is never given.
-            # For time varying equation of state, w is given
-            # as '(.)w_fld', from which we construct '(.)p_fld'.
-            # If neither '(.)p_fld' nor '(.)w_fld' is given, it means
-            # that w = -1 throughout time.
-            if '(.)rho_fld' in self._background:
-                if '(.)w_fld' in self._background:
-                    self._background['(.)p_fld'] = (
-                        self._background['(.)w_fld']*self._background['(.)rho_fld']
-                    )
-                else:
-                    self._background['(.)p_fld'] = (
-                        -1*ones(self._background['(.)rho_fld'].shape, dtype=C2np['double'])
-                    )
-            # We need the total background density and pressure.
-            # We get these by simply summing over all CLASS species.
+            # CLASS does not give the background pressure for species
+            # with constant equation of state w, and for some species
+            # with time varying w this is given instead of the
+            # background pressure. Here we add these missing pressures.
             def get_tot_contributing_class_species():
-                for class_species in ('g', 'ur', 'dr'):
-                    if f'(.)rho_{class_species}' in self._background:
-                        yield class_species
-                for n_ncdm in itertools.count():
-                    class_species = f'ncdm[{n_ncdm}]'
-                    if f'(.)rho_{class_species}' not in self._background:
-                        break
+                for key in tuple(self._background.keys()):
+                    match = re.search(r'^\(\.\)rho_(.+)', key)
+                    if not match:
+                        continue
+                    class_species = match.group(1)
+                    if class_species in ('crit', 'tot'):
+                        continue
                     yield class_species
-                for class_species in ('b', 'cdm', 'dcdm', 'lambda', 'fld'):
-                    if f'(.)rho_{class_species}' in self._background:
-                        yield class_species
-            self._background['(.)rho_tot'] = 0
-            self._background['(.)p_tot'] = 0
             for class_species in get_tot_contributing_class_species():
-                self._background['(.)rho_tot'] += self._background[f'(.)rho_{class_species}']
-                self._background['(.)p_tot']   += self._background[f'(.)p_{class_species}']
+                if f'(.)p_{class_species}' in self._background:
+                    continue
+                w = self._background.get(f'(.)w_{class_species}')
+                if w is None:
+                    species_info = species_registered.get(
+                        species_canonical.get(class_species, class_species)
+                    )
+                    if species_info is not None:
+                        w = species_info.w
+                if w is None:
+                    masterwarn(
+                        f'Could not determine background pressure for CLASS species '
+                        f'"{class_species}". This will be set to zero. Has this species '
+                        f'been registered with linear.register_species()?'
+                    )
+                    w = 0
+                self._background[f'(.)p_{class_species}'] = (
+                    w*self._background[f'(.)rho_{class_species}']
+                )
+            # We need the total background density and pressure
+            if '(.)rho_tot' not in self._background:
+                self._background['(.)rho_tot'] = 0
+                self._background['(.)p_tot'] = 0
+                for class_species in get_tot_contributing_class_species():
+                    self._background['(.)rho_tot'] += self._background[f'(.)rho_{class_species}']
+                    self._background['(.)p_tot']   += self._background[f'(.)p_{class_species}']
             # The special "metric" CLASS species needs to be assigned
             # some background density, but since we get δρ directly
             # from CLASS and neither δ nor ρ_bar has any
@@ -552,15 +564,21 @@ class CosmoResults:
             # pressure. However, it turns out that δρ(k, a) (at least on
             # large scales) approximately follows the behaviour of the
             # other species, which simply comes about because the metric
-            # is built from all physical species which do not have
-            # ρ + P = 0, i.e. all but Λ. Thus, we choose the background
-            # density and pressure for the metric species to equal the
-            # sum of all physical species except Λ. As p_tot does not
-            # exist in the CLASS background data, we loop over each
-            # species manually.
+            # is built from the other species. We thus defien the
+            # background density and pressure of the metric to the the
+            # sum of background densities and pressures of all physical
+            # species. To ensure a nice, positive density and pressure,
+            # we exclude any species with negative density or pressure.
             def get_metric_contributing_class_species():
                 for class_species in get_tot_contributing_class_species():
-                    if class_species == 'lambda':
+                    species_info = species_registered.get(
+                        species_canonical.get(class_species, class_species)
+                    )
+                    if species_info is None or not species_info.is_physical:
+                        continue
+                    if np.any(asarray(self._background[f'(.)rho_{class_species}']) <= 0):
+                        continue
+                    if np.any(asarray(self._background[f'(.)p_{class_species}']) <= 0):
                         continue
                     yield class_species
             self._background['(.)rho_metric'] = 0
@@ -616,6 +634,11 @@ class CosmoResults:
                         # Shear stress
                         rf'^shear_{class_species_present}$',
                     }
+                    # For decaying cold dark matter we perform a
+                    # transformation of θ, for which the conformal time
+                    # derivative of H_T in N-body gauge is required.
+                    if class_species_present == 'dcdm':
+                        self.needed_keys['perturbations'] |= {r'^H_T_prime$'}
             if not self.load('perturbations'):
                 # Get perturbations from CLASS
                 self._perturbations = self.cosmo.get_perturbations()
@@ -1125,12 +1148,8 @@ class CosmoResults:
             # A few exceptions are the constant pressure of the cdm, b
             # and lambda CLASS species, as well as the density, pressure
             # and equation of state w for the fld CLASS species.
-            if y in {'(.)p_b', '(.)p_cdm', '(.)p_dcdm',
-                '(.)p_lambda', '(.)rho_lambda', '(.)p_tot', '(.)p_metric', '(.)p_lapse'}:
-                logx, logy = True, False
-            elif y in {'(.)rho_fld', '(.)p_fld', '(.)w_fld'}:
-                logx, logy = False, False
-            elif y.startswith('(.)rho_') or y.startswith('(.)p_') or y in {
+            match = re.search(r'^\(\.\)(rho|p|w)_(.+)$', y)
+            if y in {
                 'z',
                 'a',
                 'H [1/Mpc]',
@@ -1140,9 +1159,38 @@ class CosmoResults:
                 'gr.fac. f',
             }:
                 logx, logy = True, True
-            else:
+            elif y in {
+                '(.)p_tot',
+            }:
                 logx = True
-                logy = not np.any(asarray(self.background[y]) <= 0)
+                logy = (not np.any(asarray(self.background[y]) <= 0))
+            elif match:
+                quantity = match.group(1)
+                class_species = match.group(2)
+                species_info = species_registered.get(
+                    species_canonical.get(class_species, class_species)
+                )
+                if species_info is None:
+                    # ρ, p or w from some non-registered species.
+                    # Assume power law.
+                    logx, logy = True, True
+                else:
+                    # ρ, p or w from registered species. Look up.
+                    if quantity == 'w':
+                        logx_ρ, logy_ρ = species_info.logs['rho']
+                        logx_p, logy_p = species_info.logs['p']
+                        logx = (logx_ρ or logx_p)
+                        logy = (logy_ρ or logy_p)
+                    else:
+                        logx, logy = species_info.logs[quantity]
+                    # If not specified, assume power law
+                    if logx is None:
+                        logx = True
+                    if logy is None:
+                        logy = True
+            if logx is None or logy is None:
+                logx = True
+                logy = (not np.any(asarray(self.background[y]) <= 0))
                 masterwarn(
                     f'A spline over the unknown CLASS background variable "{y}"(a) '
                     f'has been made with logx = {logx}, logy = {logy}. '
@@ -2469,7 +2517,7 @@ cython.declare(missing_background_quantities=set)
 missing_background_quantities = set()
 
 # Function which finds critical moments in the cosmic history,
-# like that of matter-radiation equality
+# like that of matter-radiation equality.
 @lru_cache(copy=True)
 def find_critical_times():
     # List storing the critical scale factor values
@@ -2482,55 +2530,43 @@ def find_critical_times():
     cosmoresults = compute_cosmo(class_call_reason=f'in order to find critical times')
     background = cosmoresults.background
     a = background['a']
-    # Compute radiation background density
-    ρ_radiation = 0
-    for class_species in ('g', 'ur', 'dr'):
-        ρ_class_species = background.get(f'(.)rho_{class_species}')
-        if ρ_class_species is not None:
-            ρ_radiation += ρ_class_species
-    for n in itertools.count():
-        ρ_ncdm = background.get(f'(.)rho_ncdm[{n}]')
-        if ρ_ncdm is None:
-            break
-        P_ncdm = background[f'(.)p_ncdm[{n}]']
-        w_ncdm = P_ncdm/ρ_ncdm
-        ρ_radiation += ρ_ncdm*(3*w_ncdm)
-    # Compute matter background density
-    ρ_matter = 0
-    for class_species in ('b', 'cdm', 'dcdm'):
-        ρ_class_species = background.get(f'(.)rho_{class_species}')
-        if ρ_class_species is not None:
-            ρ_matter += ρ_class_species
-    for n in itertools.count():
-        ρ_ncdm = background.get(f'(.)rho_ncdm[{n}]')
-        if ρ_ncdm is None:
-            break
-        P_ncdm = background[f'(.)p_ncdm[{n}]']
-        w_ncdm = P_ncdm/ρ_ncdm
-        ρ_matter += ρ_ncdm*(1 - 3*w_ncdm)
-    # Compute dark energy background density
-    ρ_darkenergy = 0
-    for class_species in ('lambda', 'fld'):
-        ρ_class_species = background.get(f'(.)rho_{class_species}')
-        if ρ_class_species is not None:
-            ρ_darkenergy += ρ_class_species
-    # Find matter-radiation and darkenergy-matter equality
-    a_matter_radiation  = a[np.argmin(np.abs(np.log(ρ_matter)     - np.log(ρ_radiation)))]
-    a_darkenergy_matter = a[np.argmin(np.abs(np.log(ρ_darkenergy) - np.log(ρ_matter)))   ]
-    a_criticals.append(a_matter_radiation)
-    a_criticals.append(a_darkenergy_matter)
-    # Find relativistic to non-relativistic transition times
-    # for massive neutrinos.
-    ncdm_transitions = []
-    for n in itertools.count():
-        ρ_ncdm = background.get(f'(.)rho_ncdm[{n}]')
-        if ρ_ncdm is None:
-            break
-        P_ncdm = background[f'(.)p_ncdm[{n}]']
-        w_ncdm = P_ncdm/ρ_ncdm
-        ncdm_transitions.append(a[np.argmin(np.abs(w_ncdm - 0.5*1./3.))])
-    a_criticals += ncdm_transitions
-    # Return critical times as a sorted array or unique times
+    t = background['proper time [Gyr]']
+    H = background['H [1/Mpc]']
+    # Find local extrema in dlog(H)/dlog(t). This usually corresponds
+    # roughly to matter-radiation and darkenergy-matter equality.
+    dlogH_dlogt = np.gradient(np.log(H), np.log(t))
+    loga = np.log(a)
+    distance = (
+        + np.argmin(np.abs(loga - np.log(1.0)))
+        - np.argmin(np.abs(loga - np.log(0.8)))
+    )
+    if distance < 5:
+        distance = 5
+    a_criticals += list(a[scipy.signal.find_peaks(+dlogH_dlogt, distance=distance)[0]])
+    a_criticals += list(a[scipy.signal.find_peaks(-dlogH_dlogt, distance=distance)[0]])
+    # Find time of average value of w(a) for each species.
+    # For massive neutrinos this corresponds to the relativistic to
+    # non-relativistic transition time.
+    for key, arr in background.items():
+        match = re.search(r'^\(\.\)rho_(.+)', key)
+        if not match:
+            continue
+        class_species = match.group(1)
+        species_info = species_registered.get(
+            species_canonical.get(class_species, class_species)
+        )
+        if species_info is None or not species_info.is_physical:
+            continue
+        ρ = arr
+        p = background.get(f'(.)p_{class_species}')
+        if p is None:
+            continue
+        w = p/ρ
+        w_min, w_max = np.min(w), np.max(w)
+        if np.isclose(w_min, w_max):
+            continue
+        a_criticals.append(a[np.argmin(np.abs(w - 0.5*(w_max - w_min)))])
+    # Return critical times as a sorted array or unique values
     return np.unique(a_criticals)
 
 # Function which solves the linear cosmology using CLASS,
@@ -2651,7 +2687,6 @@ cosmoresults_cache = {}
     H='double',
     aH_transfer_θ_totʹ='double[::1]',
     class_species=str,
-    class_species_present_list=list,
     cosmoresults=object,  # CosmoResults
     k='Py_ssize_t',
     k_gridsize='Py_ssize_t',
@@ -2720,13 +2755,14 @@ def compute_transfer(
             # δᴺᵇ = δˢ + c⁻²(3aH(1 + w) - a*source/ρ_bar)θˢₜₒₜ/k²,
             # where source is any source term in the homogeneous proper
             # time continuity equation for the given CLASS species.
-            # All such source terms should be specified below.
             source = 0
             for class_species in component.class_species.split('+'):
-                if class_species == 'dcdm':
-                    source += -cosmoresults.Γ_dcdm*cosmoresults.ρ_bar(a, 'dcdm')
-                elif class_species == 'dr':
-                    source += +cosmoresults.Γ_dcdm*cosmoresults.ρ_bar(a, 'dcdm')
+                species_info = species_registered.get(
+                    species_canonical.get(class_species, class_species)
+                )
+                if species_info is None:
+                    continue
+                source += species_info.source_continuity(cosmoresults, a)
             # Do the gauge transformation
             ρ_bar = cosmoresults.ρ_bar(a, component)
             transfer_θ_tot = cosmoresults.θ(a)
@@ -2769,12 +2805,7 @@ def compute_transfer(
             # θ_CO𝘕CEPT = θ_CLASS + θ_weight*Γ_dcdm/(3H)*H_Tʹ,
             # θ_weight = (ρ_dcdm_bar + c⁻²P_dcdm_bar)/(
             #   ∑_α (ρ_α_bar + c⁻²P_α_bar)).
-            # When running without a lapse potential/species/component,
-            # we do not perform this additional transformation.
-            class_species_present_list = (universals_dict['class_species_present']
-                .decode().replace('[', r'\[').replace(']', r'\]').split('+'))
-            if ('lapse' in class_species_present_list
-                and 'dcdm' in component.class_species.split('+')):
+            if 'dcdm' in component.class_species.split('+'):
                 θ_weight = (               cosmoresults.ρ_bar(a, 'dcdm')
                     + ℝ[light_speed**(-2)]*cosmoresults.P_bar(a, 'dcdm')
                     )/(                    cosmoresults.ρ_bar(a, component)
@@ -3967,8 +3998,128 @@ def ζ(k):
         *exp(ℝ[primordial_spectrum['α_s']/4]*(log(k) - ℝ[log(primordial_spectrum['pivot'])])**2)
     )
 
+# Function for registering species
+def register_species(
+    name, class_species, nicknames=None, *,
+    w=None, Γ=0, logs=None, source_continuity=0, is_physical=True,
+):
+    """Calling this function will register a species globally.
+    The arguments are:
+    - name: Canonical CO𝘕CEPT name of the species. May contain spaces
+      and should be lower-case.
+    - class_species: Corresponding name used within CLASS, e.g. "b"
+      for baryons. Adding species with "+", i.e. "b+cdm" for matter.
+    - nicknames: List of alternative CO𝘕CEPT names which may be used
+      to refer to this species. E.g. "dark matter"
+      for "cold dark matter".
+    - w: Equation of state parameter if this is a constant. If not a
+      constant, leave it as None and it will be obtained from CLASS.
+    - Γ: Function taking in the arguments (cosmoresults, a) and
+      returning the decay rate of this species. Note that this is
+      negative for species which acts as a sink for a decaying species.
+    - logs: Dictionary of the form
+      {'rho': (logx, logy), 'p': (logx, logy)}
+      with each logx and logy a boolean specifying whether splines of
+      the background density and pressure (as function of the scale
+      factor) should be carried out logarithmically or not.
+    - source_continuity: Function taking in the arguments
+      (cosmoresults, a) and returning any source term in the homogeneous
+      proper time continuity equation for the species.
+    - is_physical: Boolean specifying whether this species is an actual
+      physcial species or some fictitious species.
+    """
+    # Canonicalize the CLASS species if this is
+    # a sum of fundamental CLASS species.
+    class_species = '+'.join(sorted([
+        class_species_fundamental.strip()
+        for class_species_fundamental in class_species.split('+')
+    ]))
+    # Prepend the canonical name and append the CLASS name
+    # to list of nicknames.
+    if nicknames is None:
+        nicknames = []
+    nicknames_unique = [name]
+    for nickname in nicknames:
+        if nickname == class_species:
+            continue
+        if nickname not in nicknames_unique:
+            nicknames_unique.append(nickname)
+    nicknames_unique.append(class_species)
+    nicknames = nicknames_unique
+    # Transform Γ to function
+    if isinstance(Γ, (int, float)):
+        Γ = (lambda cosmoresults, a, Γ=Γ: Γ)
+    # Default log behaviour
+    if logs is None:
+        if w == 0:
+            logs = {'rho': (True, True), 'p': (True, False)}
+        elif w == 1/3:
+            logs = {'rho': (True, True), 'p': (True, True)}
+        else:
+            logs = {'rho': (None, None), 'p': (None, None)}
+    # Transform source_continuity to function
+    if isinstance(source_continuity, (int, float)):
+        source_continuity = (lambda cosmoresults, a, source_continuity=source_continuity: source_continuity)
+    # Pack the information into a SpeciesInfo instance
+    species_info = SpeciesInfo(
+        name, class_species, nicknames, w, Γ, logs, source_continuity, is_physical,
+    )
+    # Store the species info globally
+    if name in species_registered:
+        abort(f'Multiple species registrations under the same name "{name}"')
+    species_registered[name] = species_info
+    return species_info
+# Create the SpeciesInfo type used in the above function
+SpeciesInfo = collections.namedtuple(
+    'SpeciesInfo', (
+        'name', 'class_species', 'nicknames',
+        'w', 'Γ', 'logs', 'source_continuity', 'is_physical',
+    ),
+)
+# Global dict-like container of species infos
+# populated by the above function.
+class SpeciesRegisteredDict(dict):
+    def __getitem__(self, key):
+        key = key.strip()
+        # Attempt normal lookup
+        try:
+            return super().__getitem__(key)
+        except KeyError:
+            pass
+        match = re.search(r'(.+?) *(\d+)$', key)
+        if not match:
+            # Trigger the exception again
+            super().__getitem__(key)
+        # Key is a numbered species, e.g. "neutrinos 0".
+        # Lookup base species.
+        key_base, n = match.group(1), int(match.group(2))
+        species_info = super().__getitem__(key_base)
+        # Insert and return proper SpeciesInfo instance
+        class_species = re.sub(r'\[.*?\]', '', species_info.class_species.split('+')[0]) + f'{[n]}'
+        nicknames = [f'{nickname} {n}' for nickname in species_info.nicknames]
+        nicknames[-1] = class_species
+        species_info = SpeciesInfo(
+            key, class_species, nicknames,
+            species_info.w, species_info.Γ, species_info.logs,
+            species_info.source_continuity, species_info.is_physical,
+        )
+        self[key] = species_info
+        return species_info
+    def __contains__(self, key):
+        try:
+            self[key]
+        except KeyError:
+            return False
+        return True
+    def get(self, key, default=None):
+        if key in self:
+            return self[key]
+        return default
+cython.declare(species_registered=object)
+species_registered = SpeciesRegisteredDict()
+
 # Function for registering transfer functions / perturbations
-def register(
+def register_perturbation(
     name, name_class, name_latex=None, name_ascii=None,
     units_class=1, units_latex='',
     weighting='1',
@@ -4002,13 +4153,10 @@ def register(
         weighting, total,
     )
     # Store the transfer function info globally
-    if transferfunction_info in transferfunctions_registered:
+    if name in transferfunctions_registered:
         abort(f'Multiple transfer function registrations under the same name "{name}"')
     transferfunctions_registered[name] = transferfunction_info
     return transferfunction_info
-# Global dict of transfer function infos populated by the above function
-cython.declare(transferfunctions_registered=dict)
-transferfunctions_registered = {}
 # Create the TransferFunctionInfo type used in the above function
 TransferFunctionInfo = collections.namedtuple(
     'TransferFunctionInfo',
@@ -4018,53 +4166,128 @@ TransferFunctionInfo = collections.namedtuple(
         'weighting', 'total',
     ),
 )
+# Global dict of transfer function infos populated by the above function
+cython.declare(transferfunctions_registered=dict)
+transferfunctions_registered = {}
 
 
 
-# Register all implemented transfer functions
-register(
+# Register all implemented species
+register_species(
+    'baryons', 'b', ['baryon', 'baryonic', 'baryonic matter'], w=0,
+)
+register_species(
+    'cold dark matter', 'cdm', ['dark matter', 'dm'], w=0,
+)
+register_species(
+    'matter', matter_class_species, ['total matter', 'm'], w=0,
+)
+register_species(
+    'photons', 'g', ['photon', 'gamma', unicode('γ'), asciify('γ')], w=1/3,
+)
+register_species(
+    'massless neutrinos', 'ur', ['massless neutrino'], w=1/3,
+)
+register_species(
+    'massive neutrinos', massive_neutrinos_class_species, ['massive neutrino', 'ncdm'],
+    logs={'rho': (True, True), 'p': (True, True)},
+)
+register_species(
+    'neutrinos', neutrinos_class_species, ['neutrino', 'nu', unicode('ν'), asciify('ν')],
+    logs={'rho': (True, True), 'p': (True, True)},
+)
+register_species(
+    'radiation', radiation_class_species, ['rad', 'r'], w=1/3,
+)
+register_species(
+    'cosmological constant', 'lambda', [unicode('Λ'), asciify('Λ'), 'Lambda'], w=-1,
+    logs={'rho': (True, False), 'p': (True, False)},
+)
+register_species(
+    'dark energy', 'fld', ['dark energy fluid', 'dynamical dark energy'],
+    logs={'rho': (False, False), 'p': (False, False)},
+)
+register_species(
+    'decaying cold dark matter', 'dcdm', ['decaying dark matter', 'decaying matter', 'ddm'], w=0,
+    Γ=(lambda cosmoresults, a: cosmoresults.Γ_dcdm),
+    source_continuity=(lambda cosmoresults, a: -cosmoresults.Γ_dcdm*cosmoresults.ρ_bar(a, 'dcdm')),
+)
+register_species(
+    'decay radiation', 'dr', ['dark radiation'], w=1/3,
+    Γ=(lambda cosmoresults, a: -cosmoresults.ρ_bar(a, 'dcdm')/cosmoresults.ρ_bar(a, 'dr')*cosmoresults.Γ_dcdm),
+    source_continuity=(lambda cosmoresults, a: +cosmoresults.Γ_dcdm*cosmoresults.ρ_bar(a, 'dcdm')),
+)
+register_species(
+    'metric', 'metric', logs={'rho': (True, True), 'p': (True, True)}, is_physical=False,
+)
+register_species(
+    'lapse', 'lapse', logs={'rho': (True, True), 'p': (True, True)}, is_physical=False,
+)
+register_species(
+    'none', 'none', is_physical=False,
+)
+
+# Mapping from allowed species specifications to their canonical names
+cython.declare(species_canonical=dict)
+species_canonical = {}
+for name, species_info in species_registered.items():
+    for nickname in species_info.nicknames:
+        if nickname in species_canonical:
+            species_info2 = species_registered[species_canonical[nickname]]
+            if species_info.class_species != species_info2.class_species:
+                abort(
+                    f'Both "{species_info2.name}" and "{name}" referred to '
+                    f'as "{nickname}", but they relate to different CLASS species '
+                    f'("{species_info2.class_species}" and "{species_info.class_species}", '
+                    f'respectively)'
+                )
+            continue
+        species_canonical[nickname] = name
+
+# Register all implemented perturbations
+register_perturbation(
     'δ', 'delta_{}', r'{\delta}',
     weighting='ρ',
 )
-register(
+register_perturbation(
     'θ', 'theta_{}', r'{\theta}',
     units_class=light_speed/units.Mpc,
     units_latex=r'time^{-1}',
     weighting='ρ + P',
 )
-register(  # δP from cs2 = c⁻²δP/δρ
+register_perturbation(  # δP from cs2 = c⁻²δP/δρ
     'δP', 'cs2_{}', r'{\delta}P', 'deltaP_{}',
     units_class=light_speed**2,
     units_latex=r'mass\, length^{-1}\, time^{-2}',
     weighting='δρ',
 )
-register(
+register_perturbation(
     'σ', 'shear_{}', r'{\sigma}', 'sigma_{}',
     units_class=light_speed**2,
     units_latex=r'length^2\, time^{-2}',
     weighting='ρ + P',
 )
-register(
+register_perturbation(
     'θ_tot', 'theta_tot', r'{\theta}_{\mathrm{tot}}',
     units_class=light_speed/units.Mpc,
     units_latex=r'time^{-1}',
 )
-register(
+register_perturbation(
     'ϕ', 'phi', r'{\phi}',
     units_class=light_speed**2,
     units_latex=r'length^2\, time^{-2}',
 )
-register(
+register_perturbation(
     'ψ', 'psi', r'{\psi}',
     units_class=light_speed**2,
     units_latex=r'length^2\, time^{-2}',
 )
-register(
+register_perturbation(
     'hʹ', 'h_prime', r'h^{\prime}',
     units_class=light_speed/units.Mpc,
     units_latex=r'time^{-1}',
 )
-register(
+register_perturbation(
     'H_Tʹ', 'H_T_prime', r'H_{\mathrm{T}}^{\prime}',
     units_class=light_speed/units.Mpc,
     units_latex=r'time^{-1}',

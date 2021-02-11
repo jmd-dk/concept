@@ -26,16 +26,22 @@ from commons import *
 
 # Cython imports
 cimport('from analysis import measure')
-cimport('from communication import '
-    'communicate_ghosts, domain_subdivisions, exchange, smart_mpi, '
-    'domain_size_x, domain_size_y, domain_size_z, domain_start_x, domain_start_y, domain_start_z, '
-    'rung_indices_arr, '
+cimport(
+    'from communication import                                         '
+    '    communicate_ghosts, domain_subdivisions, exchange, smart_mpi, '
+    '    domain_size_x, domain_size_y, domain_size_z,                  '
+    '    domain_start_x, domain_start_y, domain_start_z,               '
+    '    rung_indices_arr,                                             '
 )
 cimport('from fluid import maccormack, maccormack_internal_sources, '
     'kurganov_tadmor, kurganov_tadmor_internal_sources'
 )
 cimport('from integration import Spline, cosmic_time, scale_factor, ȧ')
-cimport('from linear import compute_cosmo, compute_transfer, realize')
+cimport(
+    'from linear import                            '
+    '    compute_cosmo, compute_transfer, realize, '
+    '    species_canonical, species_registered,    '
+)
 
 
 
@@ -1202,8 +1208,8 @@ class Component:
             if self.species == 'none':
                 abort(f'Neither "species" nor "class species" specified for {self.name} component')
             for single_species in self.species.split('+'):
-                if single_species in default_class_species:
-                    class_species += '+' + default_class_species[single_species]
+                if single_species in species_registered:
+                    class_species += '+' + species_registered[single_species].class_species
                 else:
                     abort(
                         f'Default CLASS species assignment failed because '
@@ -1803,19 +1809,11 @@ class Component:
         # Sum up ρ_bar and Γ*ρ_bar
         ρ_bar = Γρ_bar = 0
         for class_species in self.class_species.split('+'):
+            species_info = species_registered.get(
+                species_canonical.get(class_species, class_species)
+            )
+            Γ_class_species = species_info.Γ(cosmoresults, a)
             ρ_bar_class_species = cosmoresults.ρ_bar(a, class_species)
-            if class_species == 'dcdm':
-                Γ_class_species = cosmoresults.Γ_dcdm
-            elif class_species == 'dr':
-                # Note that dr does not decay by itself but is the
-                # decay product of dcdm. We should then use
-                # Γ_dr = - ρ_bar_dcdm/ρ_bar_dr*Γ_dcdm
-                Γ_class_species = (
-                    -cosmoresults.ρ_bar(a, 'dcdm')/ρ_bar_class_species*cosmoresults.Γ_dcdm
-                )
-            else:
-                # CLASS species not implemented above are assumed stable
-                Γ_class_species = 0
             ρ_bar += ρ_bar_class_species
             Γρ_bar += Γ_class_species*ρ_bar_class_species
         return Γρ_bar/ρ_bar
@@ -3362,7 +3360,7 @@ class Component:
                       of w will be stored as self.w_tabulated[1, :].
                       The self.w_type will be set to 'tabulated (a)'.
                       If w == 'default', a constant w will be assigned
-                      based on default_w and the species.
+                      based on the species.
                       If w is a filename, the file should contain
                       tabulated values of w and either t or a. The file
                       must be in a format understood by np.loadtxt,
@@ -3453,9 +3451,8 @@ class Component:
             # w should be passed in as 'class'. For w == 'default',
             # we simply do not handle this case.
             self.w_type = 'constant'
-            w_constant = is_selected(self, default_w)
             try:
-                self.w_constant = float(w_constant)
+                self.w_constant = float(species_registered[self.species].w)
             except:
                 if self.representation == 'particles':
                     self.w_constant = 0
@@ -3599,7 +3596,7 @@ class Component:
             self.w_tabulated = smart_mpi(self.w_tabulated if master else (), mpifun='bcast')
             # If the tabulated w is constant, treat it as such
             w_values = asarray(tuple(set(self.w_tabulated[1, :])))
-            if isclose(min(w_values), max(w_values)):
+            if isclose(min(w_values), max(w_values), abs_tol=1e-9):
                 self.w_type = 'constant'
                 self.w_constant = self.w_tabulated[1, 0]
             else:
@@ -4557,121 +4554,6 @@ subtiling_shape_rejected = zeros(3, dtype=C2np['Py_ssize_t'])
 
 
 
-# Mapping from allowed species specifications to their canonical names
-cython.declare(species_canonical=dict)
-species_canonical = {
-    # Baryons
-    'baryons': 'baryons',
-    'baryon' : 'baryons',
-    'b'      : 'baryons',
-    # Cold dark matter
-    'cold dark matter': 'cold dark matter',
-    'dark matter'     : 'cold dark matter',
-    'cdm'             : 'cold dark matter',
-    'dm'              : 'cold dark matter',
-    # Matter
-    'matter': 'matter',
-    'mat'   : 'matter',
-    'm'     : 'matter',
-    # Photons
-    'photons'   : 'photons',
-    'photon'    : 'photons',
-    'g'         : 'photons',
-    'gamma'     : 'photons',
-    unicode('γ'): 'photons',
-    asciify('γ'): 'photons',
-    # Massless neutrinos
-    'massless neutrinos': 'massless neutrinos',
-    'massless neutrino' : 'massless neutrinos',
-    'ur'                : 'massless neutrinos',
-    # Massive neutrinos
-    'massive neutrinos': 'massive neutrinos',
-    'massive neutrino' : 'massive neutrinos',
-    'ncdm'             : 'massive neutrinos',
-    # Neutrinos
-    'neutrinos' : 'neutrinos',
-    'neutrino'  : 'neutrinos',
-    'nu'        : 'neutrinos',
-    unicode('ν'): 'neutrinos',
-    asciify('ν'): 'neutrinos',
-    # Radiation
-    'radiation': 'radiation',
-    'rad      ': 'radiation',
-    'r'        : 'radiation',
-    # Dark energy
-    'dark energy': 'dark energy',
-    'fld'        : 'dark energy',
-    # Decaying cold dark matter
-    'decaying cold dark matter': 'decaying cold dark matter',
-    'decay cold dark matter'   : 'decaying cold dark matter',
-    'decaying dark matter'     : 'decaying cold dark matter',
-    'decay dark matter'        : 'decaying cold dark matter',
-    'decaying matter'          : 'decaying cold dark matter',
-    'decay matter'             : 'decaying cold dark matter',
-    'dcdm'                     : 'decaying cold dark matter',
-    # Decay radiation
-    'decay radiation'   : 'decay radiation',
-    'decaying radiation': 'decay radiation',
-    'dark radiation'    : 'decay radiation',
-    'dr'                : 'decay radiation',
-    # Metric
-    'metric': 'metric',
-    # Lapse
-    'lapse': 'lapse',
-    # No specific species
-    'none': 'none',
-}
-
-# Mapping from (CO𝘕CEPT) species names to default
-# CLASS species names. Note that combination species
-# (e.g. matter) is expressed as e.g. 'cdm+b'.
-class ClassSpeciesDict(dict):
-    # Massive neutrinos are handled separately, so that "neutrinos 0",
-    # "neutrinos 1", "neutrinos 2" etc. is valid and maps to "ncdm[0]",
-    # "ncdm[1]", "ncdm[2]", etc.
-    def __getitem__(self, key):
-        match = re.search(r'neutrinos *(\d+)', key)
-        if match:
-            return f'ncdm[{match.group(1)}]'
-        return super().__getitem__(key)
-    def __contains__(self, key):
-        try:
-            self[key]
-        except KeyError:
-            return False
-        return True
-default_class_species = ClassSpeciesDict({
-    'baryons'                  : 'b',
-    'cold dark matter'         : 'cdm',
-    'matter'                   : matter_class_species,
-    'photons'                  : 'g',
-    'massless neutrinos'       : 'ur',
-    'massive neutrinos'        : massive_neutrinos_class_species,
-    'neutrinos'                : neutrinos_class_species,
-    'radiation'                : radiation_class_species,
-    'dark energy'              : 'fld',
-    'decaying cold dark matter': 'dcdm',
-    'decay radiation'          : 'dr',
-    'metric'                   : 'metric',
-    'lapse'                    : 'lapse',
-})
-# Mapping from species to default w values
-cython.declare(default_w=dict)
-default_w = {
-    'baryons'                  : 0,
-    'cold dark matter'         : 0,
-    'matter'                   : 0,
-    'photons'                  : 1/3,
-    'massless neutrinos'       : 1/3,
-    'massive neutrinos'        : 1/3,
-    'neutrinos'                : 1/3,
-    'radiation'                : 1/3,
-    'dark energy'              : -1,
-    'decaying cold dark matter': 0,
-    'decay radiation'          : 1/3,
-    'metric'                   : 0,
-    'lapse'                    : 0,
-}
 # Set of all approximations implemented on Component objects
 cython.declare(approximations_implemented=set)
 approximations_implemented = {
