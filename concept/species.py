@@ -4214,7 +4214,14 @@ tiling_shapes = {}
     coarse_tiling='Tiling',
     extent='double[::1]',
     force=str,
+    i='int',
+    j='int',
+    k='int',
     location='double[::1]',
+    particles_per_subtile='double',
+    particles_per_subtile_max='double',
+    particles_per_subtile_min='double',
+    ratio='double',
     refine='bint',
     refinement_period='Py_ssize_t',
     rung_index='signed char',
@@ -4307,22 +4314,15 @@ def init_subtiling(component, subtiling_name, initial_rung_size=-1):
                                 /np.min(subtiling_global_shape)**3,
                         ))
                         key.append(noncubicness)
-                        ratio = particles_per_subtile/(
-                            (particles_per_subtile_min*particles_per_subtile_max)**0.5
-                        )
+                        ratio = particles_per_subtile*ℝ[
+                            1/sqrt(particles_per_subtile_min*particles_per_subtile_max)
+                        ]
                         if ratio < 1:
                             ratio = 1/ratio
                         key.append(ratio)
                         shape_candidates[tuple(key)] = shape
             # Pick the shape with the smallest key
             shape = shape_candidates[sorted(shape_candidates)[0]]
-            # Always use a subtile decomposition of at least 2
-            # in each direction, unless this leads to more
-            # subtiles than particles.
-            shape_atleast2 = shape.copy()
-            shape_atleast2[shape_atleast2 == 1] = 2
-            if np.prod(tiling_global_shape*shape_atleast2) < component.N:
-                shape = shape_atleast2
         shape = asarray(shape, dtype=C2np['Py_ssize_t'])
         masterprint(f'Subtile decomposition ({force}): {shape[0]}×{shape[1]}×{shape[2]}')
         tiling_shapes[subtiling_name] = shape
@@ -4356,6 +4356,7 @@ def init_subtiling(component, subtiling_name, initial_rung_size=-1):
     key=tuple,
     key2=tuple,
     refinement_offset='Py_ssize_t',
+    refinement_threshold='double',
     shape='Py_ssize_t[::1]',
     subtile_extent='double[::1]',
     subtile_extent_max='double',
@@ -4403,13 +4404,23 @@ def tentatively_refine_subtiling(interaction_name):
                     component.tilings[subtiling_name_2] = subtiling_rejected_2
             tiling_shapes[subtiling_name] = asarray(subtiling_rejected.shape).copy()
             continue
-        # Refine the subtiling shape
+        # Refine the subtiling shape. The dimension with the largest
+        # length will be divided into one more section than before. For
+        # very eccentric subtile shapes this is what we want. Usually
+        # though, subtiles are either exactly cubic or close to cubic.
+        # In the exactly cubic case, all dimensions are refined, and so
+        # the subtiles stay cubic. In the case of near cubic subtiles,
+        # refining only the largest dimension will lead to eccentric
+        # subtiles, and so it is preferable to refine all dimensions
+        # with lengths close to the maximum length. The threshold is set
+        # by the refinement_threshold constant.
+        refinement_threshold = 0.85
         if shape is None:
             shape = tiling_shapes[subtiling_name]
             subtile_extent = subtiling.tile_extent
             subtile_extent_max = max(subtile_extent)
             for dim in range(3):
-                if subtile_extent[dim] == subtile_extent_max:
+                if subtile_extent[dim] > refinement_threshold*subtile_extent_max:
                     shape[dim] += 1
         # Initialise new subtiling
         subtiling = component.init_tiling(subtiling_name)

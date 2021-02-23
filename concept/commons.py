@@ -2437,7 +2437,7 @@ shortrange_params_defaults = {
 }
 for force, d in shortrange_params_defaults.items():
     shortrange_params.setdefault(force, d)
-subtiling_refinement_period_default = 32
+subtiling_refinement_period_default = 16
 for force, d in shortrange_params.items():
     for key, val in shortrange_params_defaults.get(force, {}).items():
         d.setdefault(key, val)
