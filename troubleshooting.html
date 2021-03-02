@@ -266,6 +266,7 @@
 <li class="toctree-l2"><a class="reference internal" href="#terminal-colour-output-looks-weird">Terminal colour output looks weird</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#problems-related-to-python-libraries-and-packages">Problems related to Python libraries and packages</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#error-messages-containing-read-1">Error messages containing ‘Read -1’</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#problems-due-to-large-mpi-messages">Problems due to large MPI messages</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#the-simulation-hangs-when-calling-class">The simulation hangs when calling CLASS</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#crashes-or-other-bad-behaviour">Crashes or other bad behaviour</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#problems-when-running-remotely">Problems when running remotely</a><ul>
@@ -376,11 +377,12 @@ author at
 <li><p><a class="reference internal" href="#terminal-colour-output-looks-weird" id="id7">Terminal colour output looks weird</a></p></li>
 <li><p><a class="reference internal" href="#problems-related-to-python-libraries-and-packages" id="id8">Problems related to Python libraries and packages</a></p></li>
 <li><p><a class="reference internal" href="#error-messages-containing-read-1" id="id9">Error messages containing ‘Read -1’</a></p></li>
-<li><p><a class="reference internal" href="#the-simulation-hangs-when-calling-class" id="id10">The simulation hangs when calling CLASS</a></p></li>
-<li><p><a class="reference internal" href="#crashes-or-other-bad-behaviour" id="id11">Crashes or other bad behaviour</a></p></li>
-<li><p><a class="reference internal" href="#problems-when-running-remotely" id="id12">Problems when running remotely</a></p></li>
-<li><p><a class="reference internal" href="#bad-performance-when-using-multiple-processes-nodes" id="id13">Bad performance when using multiple processes/nodes</a></p></li>
-<li><p><a class="reference internal" href="#problems-when-using-multiple-nodes" id="id14">Problems when using multiple nodes</a></p></li>
+<li><p><a class="reference internal" href="#problems-due-to-large-mpi-messages" id="id10">Problems due to large MPI messages</a></p></li>
+<li><p><a class="reference internal" href="#the-simulation-hangs-when-calling-class" id="id11">The simulation hangs when calling CLASS</a></p></li>
+<li><p><a class="reference internal" href="#crashes-or-other-bad-behaviour" id="id12">Crashes or other bad behaviour</a></p></li>
+<li><p><a class="reference internal" href="#problems-when-running-remotely" id="id13">Problems when running remotely</a></p></li>
+<li><p><a class="reference internal" href="#bad-performance-when-using-multiple-processes-nodes" id="id14">Bad performance when using multiple processes/nodes</a></p></li>
+<li><p><a class="reference internal" href="#problems-when-using-multiple-nodes" id="id15">Problems when using multiple nodes</a></p></li>
 </ul>
 </div>
 <div class="section" id="installation-failed">
@@ -537,8 +539,31 @@ otherwise produces correct results, you can silence these messages by placing</p
 directory, i.e. at <code class="docutils literal notranslate"><span class="pre">/path/to/concept_installation/.env</span></code>) of your
 CO<em>N</em>CEPT installation.</p>
 </div>
+<div class="section" id="problems-due-to-large-mpi-messages">
+<h2><a class="toc-backref" href="#id10">Problems due to large MPI messages</a><a class="headerlink" href="#problems-due-to-large-mpi-messages" title="Permalink to this headline">¶</a></h2>
+<p>If CO<em>N</em>CEPT crashes with error messages like</p>
+<blockquote>
+<div><p>OSError: Can’t read data (can’t convert from size to size_i)</p>
+</div></blockquote>
+<p>or</p>
+<blockquote>
+<div><p>OverflowError: integer &lt;value&gt; does not fit in ‘int’</p>
+</div></blockquote>
+<p>(typically emitted by <code class="docutils literal notranslate"><span class="pre">h5py</span></code> or <code class="docutils literal notranslate"><span class="pre">mpi4py</span></code>) the internal arrays being
+communicated between processes are larger than what MPI can handle.
+Unfortunately, the MPI-3.1 standard still uses a signed <code class="docutils literal notranslate"><span class="pre">int</span></code> to store at
+least some message sizes (in bytes), introducing an upper limit to the size of
+what can be communicated.</p>
+<p>One could guard against this by introducing chunked communication everywhere
+in the code, though this is not done in CO<em>N</em>CEPT. Instead we recommend
+that you simply increase the number of processes used for the job, should you
+run into this issue. With more processes handling the same amount of data,
+each local array will be smaller.</p>
+<p>Note that typically you would not want to run such large simulations with very
+few processes anyway, as the computation time becomes impractically long.</p>
+</div>
 <div class="section" id="the-simulation-hangs-when-calling-class">
-<h2><a class="toc-backref" href="#id10">The simulation hangs when calling CLASS</a><a class="headerlink" href="#the-simulation-hangs-when-calling-class" title="Permalink to this headline">¶</a></h2>
+<h2><a class="toc-backref" href="#id11">The simulation hangs when calling CLASS</a><a class="headerlink" href="#the-simulation-hangs-when-calling-class" title="Permalink to this headline">¶</a></h2>
 <p>If the simulation hangs right at the beginning of the simulation, at the</p>
 <blockquote>
 <div><p>Calling CLASS in order to set the cosmic clock …</p>
@@ -550,7 +575,7 @@ CO<em>N</em>CEPT in pure Python mode using the <code class="docutils literal not
 <a class="reference internal" href="command_line_options.html#pure-python"><span class="std std-ref">command-line option</span></a>.</p>
 </div>
 <div class="section" id="crashes-or-other-bad-behaviour">
-<h2><a class="toc-backref" href="#id11">Crashes or other bad behaviour</a><a class="headerlink" href="#crashes-or-other-bad-behaviour" title="Permalink to this headline">¶</a></h2>
+<h2><a class="toc-backref" href="#id12">Crashes or other bad behaviour</a><a class="headerlink" href="#crashes-or-other-bad-behaviour" title="Permalink to this headline">¶</a></h2>
 <p>This entry is concerned with problems encountered when using CO<em>N</em>CEPT
 <em>locally</em>. If your problem occurs only for remote jobs, please see the
 ‘<a class="reference internal" href="#id3">Problems when running remotely</a>’ entry instead.</p>
@@ -572,7 +597,7 @@ used the first time around.</p>
 you may have found a bug. Please report this.</p>
 </div>
 <div class="section" id="problems-when-running-remotely">
-<span id="id3"></span><h2><a class="toc-backref" href="#id12">Problems when running remotely</a><a class="headerlink" href="#problems-when-running-remotely" title="Permalink to this headline">¶</a></h2>
+<span id="id3"></span><h2><a class="toc-backref" href="#id13">Problems when running remotely</a><a class="headerlink" href="#problems-when-running-remotely" title="Permalink to this headline">¶</a></h2>
 <p>This entry is concerned with problems encountered specifically with remote
 CO<em>N</em>CEPT jobs. If you have not tried out CO<em>N</em>CEPT locally, please do
 this first. If you encounter problems here as well, please see the
@@ -794,7 +819,7 @@ in order to minimize the possibility of wrong MPI identification and linking.</p
 </div>
 </div>
 <div class="section" id="bad-performance-when-using-multiple-processes-nodes">
-<h2><a class="toc-backref" href="#id13">Bad performance when using multiple processes/nodes</a><a class="headerlink" href="#bad-performance-when-using-multiple-processes-nodes" title="Permalink to this headline">¶</a></h2>
+<h2><a class="toc-backref" href="#id14">Bad performance when using multiple processes/nodes</a><a class="headerlink" href="#bad-performance-when-using-multiple-processes-nodes" title="Permalink to this headline">¶</a></h2>
 <p>If you are running CO<em>N</em>CEPT on a cluster and experiences a significant
 drop in performance as you increase the number of processes from e.g. 1 to 2
 or 2 to 4, or when using 2 nodes instead of 1 with the same total number of
@@ -806,7 +831,7 @@ If you are observing bad network behaviour even so, you should try changing
 the MPI executor, as described <a class="reference internal" href="#chosing-an-mpi-executor"><span class="std std-ref">here</span></a>.</p>
 </div>
 <div class="section" id="problems-when-using-multiple-nodes">
-<span id="id4"></span><h2><a class="toc-backref" href="#id14">Problems when using multiple nodes</a><a class="headerlink" href="#problems-when-using-multiple-nodes" title="Permalink to this headline">¶</a></h2>
+<span id="id4"></span><h2><a class="toc-backref" href="#id15">Problems when using multiple nodes</a><a class="headerlink" href="#problems-when-using-multiple-nodes" title="Permalink to this headline">¶</a></h2>
 <p>If you observe a wrong process binding (i.e. it appears as though several
 copies of CO<em>N</em>CEPT are running on top of each other, rather than all of
 the MPI processes working together as a collective) when running CO<em>N</em>CEPT
