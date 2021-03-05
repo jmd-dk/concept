@@ -1896,20 +1896,30 @@ decomposition_info = {}
     # Locals
     N_domain2slabs_communications='Py_ssize_t',
     buffer_name=object,  # int or str
+    chunk_recv_bgn='Py_ssize_t',
+    chunk_recv_end='Py_ssize_t',
+    chunk_send_bgn='Py_ssize_t',
+    chunk_send_end='Py_ssize_t',
     domain_sendrecv_i_end='int[::1]',
     domain_sendrecv_i_start='int[::1]',
     domain2slabs_recvsend_ranks='int[::1]',
     grid='double[:, :, ::1]',
     grid_noghosts='double[:, :, :]',
     gridsize='Py_ssize_t',
-    key=str,
+    i_chunk='Py_ssize_t',
+    n_chunks='Py_ssize_t',
+    rank_recv='int',
+    rank_send='int',
     request=object,  # mpi4py.MPI.Request
     shape=tuple,
+    should_recv='bint',
+    should_send='bint',
     slab_sendrecv_j_end='int[::1]',
     slab_sendrecv_j_start='int[::1]',
     slab_sendrecv_k_end='int[::1]',
     slab_sendrecv_k_start='int[::1]',
     slabs2domain_sendrecv_ranks='int[::1]',
+    thickness_chunk='Py_ssize_t',
     ℓ='Py_ssize_t',
     returns='double[:, :, ::1]',
 )
@@ -1953,39 +1963,62 @@ def domain_decompose(slab, grid_or_buffer_name=0, do_ghost_communication=True):
         slab_sendrecv_k_start,
         slab_sendrecv_k_end,
     ) = prepare_decomposition(grid, slab)
-    # Communicate the slabs to the domain grid
+    # Communicate the slabs to the domain grid in chunks
+    n_chunks, thickness_chunk = get_slab_domain_decomposition_chunk_size(slab, grid_noghosts)
     for ℓ in range(N_domain2slabs_communications):
-        # The lower ranks storing the slabs sends part of their slab
-        if ℓ < domain2slabs_recvsend_ranks.shape[0]:
-            # A non-blocking send is used, because the communication
-            # is not pairwise.
-            # In the x-dimension, the slabs are always thinner than (or
-            # at least as thin as) the domain.
-            request = smart_mpi(slab[:,
-                                     slab_sendrecv_j_start[ℓ]:slab_sendrecv_j_end[ℓ],
-                                     slab_sendrecv_k_start[ℓ]:slab_sendrecv_k_end[ℓ],
-                                     ],
-                                dest=domain2slabs_recvsend_ranks[ℓ],
-                                mpifun='Isend')
-        # The corresponding process receives the message.
-        # Since the slabs extend throughout the entire yz-plane,
-        # we receive into the entire yz-part of the domain grid
-        # (excluding ghost points).
-        if ℓ < slabs2domain_sendrecv_ranks.shape[0]:
-            smart_mpi(
-                grid_noghosts[
-                    domain_sendrecv_i_start[ℓ]:domain_sendrecv_i_end[ℓ],
-                    :grid_noghosts.shape[1],
-                    :grid_noghosts.shape[2],
-                ],
-                source=slabs2domain_sendrecv_ranks[ℓ],
-                mpifun='Recv',
-            )
-        # Wait for the non-blocking send to be complete before
-        # continuing. Otherwise, data in the send buffer - which is
-        # still in use by the non-blocking send - might get overwritten
-        # by the next (non-blocking) send.
-        request.wait()
+        should_send = (ℓ < ℤ[domain2slabs_recvsend_ranks.shape[0]])
+        should_recv = (ℓ < ℤ[slabs2domain_sendrecv_ranks.shape[0]])
+        if not should_send and not should_recv:
+            continue
+        if should_send:
+            rank_send = domain2slabs_recvsend_ranks[ℓ]
+        if should_recv:
+            rank_recv = slabs2domain_sendrecv_ranks[ℓ]
+        # Communicate the chunks
+        for i_chunk in range(n_chunks):
+            # The lower ranks storing the slabs sends part of their slab
+            if should_send:
+                # A non-blocking send is used, because the communication
+                # is not pairwise.
+                # In the x-dimension, the slabs are always thinner than
+                # (or at least as thin as) the domain.
+                chunk_send_bgn = i_chunk*thickness_chunk
+                chunk_send_end = chunk_send_bgn + thickness_chunk
+                if chunk_send_end > ℤ[slab.shape[0]]:
+                    chunk_send_end = ℤ[slab.shape[0]]
+                request = smart_mpi(
+                    slab[
+                        chunk_send_bgn:chunk_send_end,
+                        ℤ[slab_sendrecv_j_start[ℓ]]:ℤ[slab_sendrecv_j_end[ℓ]],
+                        ℤ[slab_sendrecv_k_start[ℓ]]:ℤ[slab_sendrecv_k_end[ℓ]],
+                    ],
+                    dest=rank_send,
+                    mpifun='Isend',
+                )
+            # The corresponding process receives the message.
+            # Since the slabs extend throughout the entire yz-plane,
+            # we receive into the entire yz-part of the domain grid
+            # (excluding ghost points).
+            if should_recv:
+                chunk_recv_bgn = ℤ[domain_sendrecv_i_start[ℓ]] + i_chunk*thickness_chunk
+                chunk_recv_end = chunk_recv_bgn + thickness_chunk
+                if chunk_recv_end > ℤ[domain_sendrecv_i_end[ℓ]]:
+                    chunk_recv_end = ℤ[domain_sendrecv_i_end[ℓ]]
+                smart_mpi(
+                    grid_noghosts[
+                        chunk_recv_bgn:chunk_recv_end,
+                        :ℤ[grid_noghosts.shape[1]],
+                        :ℤ[grid_noghosts.shape[2]],
+                    ],
+                    source=rank_recv,
+                    mpifun='Recv',
+                )
+            # Wait for the non-blocking send to be complete before
+            # continuing. Otherwise, data in the send buffer - which is
+            # still in use by the non-blocking send - might get
+            # overwritten by the next (non-blocking) send.
+            if should_send:
+                request.wait()
     # Populate ghost layers
     if do_ghost_communication:
         communicate_ghosts(grid, '=')
@@ -2000,21 +2033,31 @@ def domain_decompose(slab, grid_or_buffer_name=0, do_ghost_communication=True):
     # Locals
     N_domain2slabs_communications='Py_ssize_t',
     buffer_name=object,  # int or str
+    chunk_recv_bgn='Py_ssize_t',
+    chunk_recv_end='Py_ssize_t',
+    chunk_send_bgn='Py_ssize_t',
+    chunk_send_end='Py_ssize_t',
     domain_sendrecv_i_end='int[::1]',
     domain_sendrecv_i_start='int[::1]',
     domain2slabs_recvsend_ranks='int[::1]',
     grid_noghosts='double[:, :, :]',
     grids=dict,
     gridsize='Py_ssize_t',
-    representation=str,
+    i_chunk='Py_ssize_t',
+    n_chunks='Py_ssize_t',
+    rank_recv='int',
+    rank_send='int',
     request=object,  # mpi4py.MPI.Request object
     shape=tuple,
+    should_send='bint',
+    should_recv='bint',
     slab='double[:, :, ::1]',
     slab_sendrecv_j_end='int[::1]',
     slab_sendrecv_j_start='int[::1]',
     slab_sendrecv_k_end='int[::1]',
     slab_sendrecv_k_start='int[::1]',
     slabs2domain_sendrecv_ranks='int[::1]',
+    thickness_chunk='Py_ssize_t',
     ℓ='Py_ssize_t',
     returns='double[:, :, ::1]',
 )
@@ -2088,44 +2131,109 @@ def slab_decompose(grid, slab_or_buffer_name='slab_global', prepare_fft=False):
         slab_sendrecv_k_start,
         slab_sendrecv_k_end,
     ) = prepare_decomposition(grid, slab)
-    # Communicate the domain grid to the slabs
+    # Communicate the domain grid to the slabs in chunks
+    n_chunks, thickness_chunk = get_slab_domain_decomposition_chunk_size(slab, grid_noghosts)
     for ℓ in range(N_domain2slabs_communications):
-        # Send part of the local domain
-        # grid to the corresponding process.
-        if ℓ < slabs2domain_sendrecv_ranks.shape[0]:
-            # A non-blocking send is used, because the communication
-            # is not pairwise.
-            # Since the slabs extend throughout the entire yz-plane,
-            # we should send the entire yz-part of domain
-            # (excluding ghost points).
-            request = smart_mpi(
-                grid_noghosts[
-                    domain_sendrecv_i_start[ℓ]:domain_sendrecv_i_end[ℓ],
-                    :grid_noghosts.shape[1],
-                    :grid_noghosts.shape[2],
-                ],
-                dest=slabs2domain_sendrecv_ranks[ℓ],
-                mpifun='Isend',
-            )
-        # The lower ranks storing the slabs receives the message.
-        # In the x-dimension, the slabs are always thinner than (or at
-        # least as thin as) the domain.
-        if ℓ < domain2slabs_recvsend_ranks.shape[0]:
-            smart_mpi(
-                slab[
-                    :,
-                    slab_sendrecv_j_start[ℓ]:slab_sendrecv_j_end[ℓ],
-                    slab_sendrecv_k_start[ℓ]:slab_sendrecv_k_end[ℓ],
-                ],
-                source=domain2slabs_recvsend_ranks[ℓ],
-                mpifun='Recv',
-            )
-        # Wait for the non-blocking send to be complete before
-        # continuing. Otherwise, data in the send buffer - which is
-        # still in use by the non-blocking send - might get overwritten
-        # by the next (non-blocking) send.
-        request.wait()
+        should_send = (ℓ < ℤ[slabs2domain_sendrecv_ranks.shape[0]])
+        should_recv = (ℓ < ℤ[domain2slabs_recvsend_ranks.shape[0]])
+        if not should_send and not should_recv:
+            continue
+        if should_send:
+            rank_send = slabs2domain_sendrecv_ranks[ℓ]
+        if should_recv:
+            rank_recv = domain2slabs_recvsend_ranks[ℓ]
+        # Communicate the chunks
+        for i_chunk in range(n_chunks):
+            # Send part of the local domain
+            # grid to the corresponding process.
+            if should_send:
+                # A non-blocking send is used, because the communication
+                # is not pairwise.
+                # Since the slabs extend throughout the entire yz-plane,
+                # we should send the entire yz-part of domain
+                # (excluding ghost points).
+                chunk_send_bgn = ℤ[domain_sendrecv_i_start[ℓ]] + i_chunk*thickness_chunk
+                chunk_send_end = chunk_send_bgn + thickness_chunk
+                if chunk_send_end > ℤ[domain_sendrecv_i_end[ℓ]]:
+                    chunk_send_end = ℤ[domain_sendrecv_i_end[ℓ]]
+                request = smart_mpi(
+                    grid_noghosts[
+                        chunk_send_bgn:chunk_send_end,
+                        :ℤ[grid_noghosts.shape[1]],
+                        :ℤ[grid_noghosts.shape[2]],
+                    ],
+                    dest=rank_send,
+                    mpifun='Isend',
+                )
+            # The lower ranks storing the slabs receives the message.
+            # In the x-dimension, the slabs are always thinner than
+            # (or at least as thin as) the domain.
+            if should_recv:
+                chunk_recv_bgn = i_chunk*thickness_chunk
+                chunk_recv_end = chunk_recv_bgn + thickness_chunk
+                if chunk_recv_end > ℤ[slab.shape[0]]:
+                    chunk_recv_end = ℤ[slab.shape[0]]
+                smart_mpi(
+                    slab[
+                        chunk_recv_bgn:chunk_recv_end,
+                        ℤ[slab_sendrecv_j_start[ℓ]]:ℤ[slab_sendrecv_j_end[ℓ]],
+                        ℤ[slab_sendrecv_k_start[ℓ]]:ℤ[slab_sendrecv_k_end[ℓ]],
+                    ],
+                    source=rank_recv,
+                    mpifun='Recv',
+                )
+            # Wait for the non-blocking send to be complete before
+            # continuing. Otherwise, data in the send buffer - which is
+            # still in use by the non-blocking send - might get
+            # overwritten by the next (non-blocking) send.
+            if should_send:
+                request.wait()
     return slab
+
+# Helper function for slab and domain decomposition
+@cython.header(
+    # Arguments
+    slab='double[:, :, ::1]',
+    grid_noghosts='double[:, :, :]',
+    # Locals
+    area='Py_ssize_t',
+    n_chunks='Py_ssize_t',
+    n_send='Py_ssize_t',
+    n_send_max_allowed='Py_ssize_t',
+    thickness='Py_ssize_t',
+    thickness_chunk='Py_ssize_t',
+    returns=tuple,
+)
+def get_slab_domain_decomposition_chunk_size(slab, grid_noghosts):
+    """The communicating of the grid/slab data for slab/domain
+    decomposition is done in chunks. These chunks are the full domain
+    size in the y and z direction, and smaller or equal to the slab size
+    in the x direction. This function computes and returns the number of
+    chunks and their size along long x direction for such communication.
+    """
+    # Maximum number of elements (grid values) to communicate at a time
+    n_send_max_allowed = 2**20
+    # Compute number of chunks and their thickness
+    thickness = slab.shape[0]
+    area = grid_noghosts.shape[1]*grid_noghosts.shape[2]
+    n_send = thickness*area
+    if n_send <= n_send_max_allowed:
+        n_chunks = 1
+        thickness_chunk = thickness
+    else:
+        n_chunks = n_send//n_send_max_allowed
+        thickness_chunk = thickness//n_chunks
+        if thickness_chunk*area > n_send_max_allowed:
+            n_chunks += 1
+            thickness_chunk = thickness//n_chunks
+        if thickness_chunk < 1:
+            thickness_chunk = 1
+            n_chunks = thickness
+        else:
+            n_chunks = thickness//thickness_chunk
+            if n_chunks*thickness_chunk < thickness:
+                n_chunks += 1
+    return n_chunks, thickness_chunk
 
 # Iterator implementing looping over Fourier space slabs.
 # The yielded values are the linear index into the slab, the physical
