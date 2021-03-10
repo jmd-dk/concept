@@ -478,7 +478,7 @@ get_resource_manager(){
 interactive_default="False"
 local_default="False"
 main_default="${concept_dir}/main.py"
-memory_default=0  # 0 implies unset
+memory_default="-1"  # -1 implies unset
 native_optimizations_default="False"
 no_optimizations_default="False"
 no_recompilation_default="False"
@@ -1356,8 +1356,10 @@ if ${nnodes}:
     lines.append(f'{directive_prefix} --ntasks-per-node=${nprocs_per_node}')
 else:
     lines.append(f'{directive_prefix} --ntasks=${nprocs}')
-if ${memory}:
+if ${memory} > 0:
     lines.append(f'{directive_prefix} --mem-per-cpu=${mb_per_process}M')
+elif ${memory} == 0:
+    lines.append(f'{directive_prefix} --mem=0')
 if '${walltime}' != '00:00:00':
     lines.append(f'{directive_prefix} --time=${walltime}')
 lines.append(f'{directive_prefix} --output=/dev/null')
@@ -1394,8 +1396,10 @@ lines = []
 lines.append(f'{directive_prefix} -N ${jobname}')
 lines.append(f'{directive_prefix} -q ${queue}')
 lines.append(f'{directive_prefix} -l nodes=${nnodes}:ppn=${nprocs_per_node}')
-if ${memory}:
+if ${memory} > 0:
     lines.append(f'{directive_prefix} -l pmem=${mb_per_process}mb')
+elif ${memory} == 0:
+    lines.append(f'{directive_prefix} -l mem=0')
 if '${walltime}' != '00:00:00':
     lines.append(f'{directive_prefix} -l walltime=${walltime}')
 lines.append(f'{directive_prefix} -o /dev/null')

@@ -246,17 +246,22 @@ class StandardSnapshot:
         N_lin='double',
         N_local='Py_ssize_t',
         N_str=str,
+        arr=object,  # np.ndarray
         boltzmann_order='Py_ssize_t',
+        chunk_size='Py_ssize_t',
         component='Component',
         domain_size_i='Py_ssize_t',
         domain_size_j='Py_ssize_t',
         domain_size_k='Py_ssize_t',
-        end_local='Py_ssize_t',
         fluidscalar='FluidScalar',
         grid='double*',
         gridsize='Py_ssize_t',
         index='Py_ssize_t',
+        index_i='Py_ssize_t',
+        index_i_file='Py_ssize_t',
         indexʳ='Py_ssize_t',
+        indexˣ='Py_ssize_t',
+        indexˣ_file='Py_ssize_t',
         mass='double',
         mom='double*',
         multi_index=tuple,
@@ -265,7 +270,6 @@ class StandardSnapshot:
         representation=str,
         size='Py_ssize_t',
         slab='double[:, :, ::1]',
-        slab_end='Py_ssize_t',
         slab_start='Py_ssize_t',
         snapshot_unit_length='double',
         snapshot_unit_mass='double',
@@ -331,7 +335,6 @@ class StandardSnapshot:
                     # Compute a fair distribution of
                     # particle data to the processes.
                     start_local, N_local = partition(N)
-                    end_local = start_local + N_local
                     # Make sure that the particle data arrays
                     # have the correct size.
                     component.N_local = N_local
@@ -339,14 +342,23 @@ class StandardSnapshot:
                     # Read particle data directly into
                     # the particle data arrays.
                     if N_local > 0:
-                        pos_h5.read_direct(asarray(component.pos_mv3),
-                            source_sel=np.s_[start_local:end_local, :],
-                            dest_sel=np.s_[:N_local, :],
-                        )
-                        mom_h5.read_direct(asarray(component.mom_mv3),
-                            source_sel=np.s_[start_local:end_local, :],
-                            dest_sel=np.s_[:N_local, :],
-                        )
+                        # Load in using chunks. Large chunks are fine as
+                        # no temporary buffer is used. The maximum
+                        # possible chunk size is limited by MPI, though.
+                        chunk_size = pairmin(N_local, 2**30//8//3)  # max a GB of doubles
+                        for dset, arr in [
+                            (pos_h5, asarray(component.pos_mv3)),
+                            (mom_h5, asarray(component.mom_mv3)),
+                        ]:
+                            for indexˣ in range(0, N_local, chunk_size):
+                                if indexˣ + chunk_size > N_local:
+                                    chunk_size = N_local - indexˣ
+                                indexˣ_file = start_local + indexˣ
+                                dset.read_direct(
+                                    arr,
+                                    source_sel=np.s_[indexˣ_file:(indexˣ_file + chunk_size), :],
+                                    dest_sel=np.s_[indexˣ:(indexˣ + chunk_size), :],
+                                )
                         # If the snapshot and the current run uses
                         # different systems of units, multiply the
                         # positions and momenta by the snapshot units.
@@ -385,9 +397,10 @@ class StandardSnapshot:
                     if master and (   gridsize != domain_subdivisions[0]*domain_size_i
                                    or gridsize != domain_subdivisions[1]*domain_size_j
                                    or gridsize != domain_subdivisions[2]*domain_size_k):
-                        abort('The gridsize of the {} component is {} '
-                              'which cannot be equally shared among {} processes'
-                              .format(name, gridsize, nprocs))
+                        abort(
+                            f'The gridsize of the {name} component is {gridsize} '
+                            f'which cannot be equally shared among {nprocs} processes'
+                        )
                     # Make sure that the fluid grids
                     # have the correct size.
                     component.resize((domain_size_i, domain_size_j, domain_size_k))
@@ -396,16 +409,29 @@ class StandardSnapshot:
                     for index, fluidvar in enumerate(
                         component.fluidvars[:component.boltzmann_order + 1]
                     ):
-                        fluidvar_h5 = component_h5['fluidvar_{}'.format(index)]
+                        fluidvar_h5 = component_h5[f'fluidvar_{index}']
                         for multi_index in fluidvar.multi_indices:
-                            fluidscalar_h5 = fluidvar_h5['fluidscalar_{}'.format(multi_index)]
-                            # Read fluid scalar directly into slab
+                            fluidscalar_h5 = fluidvar_h5[f'fluidscalar_{multi_index}']
                             slab = get_fftw_slab(gridsize)
                             slab_start = slab.shape[0]*rank
-                            slab_end = slab_start + slab.shape[0]
-                            fluidscalar_h5.read_direct(asarray(slab),
-                                                       source_sel=np.s_[slab_start:slab_end, :, :],
-                                                       dest_sel=np.s_[:, :, :gridsize])
+                            # Load in using chunks. Large chunks are
+                            # fine as no temporary buffer is used. The
+                            # maximum possible chunk size is limited
+                            # by MPI, though.
+                            chunk_size = pairmin(ℤ[slab.shape[0]], ℤ[2**30//8//gridsize**2])  # max a GB of doubles
+                            if chunk_size == 0:
+                                masterwarn('The input seems surprisingly large and may not be read in correctly')
+                                chunk_size = 1
+                            arr = asarray(slab)
+                            for index_i in range(0, ℤ[slab.shape[0]], chunk_size):
+                                if index_i + chunk_size > ℤ[slab.shape[0]]:
+                                    chunk_size = ℤ[slab.shape[0]] - index_i
+                                index_i_file = slab_start + index_i
+                                fluidscalar_h5.read_direct(
+                                    arr,
+                                    source_sel=np.s_[index_i_file:(index_i_file + chunk_size), :, :],
+                                    dest_sel=np.s_[index_i:(index_i + chunk_size), :, :gridsize],
+                                )
                             # Communicate the slabs directly to the
                             # domain decomposed fluid grids.
                             domain_decompose(slab, component.fluidvars[index][multi_index].grid_mv)
