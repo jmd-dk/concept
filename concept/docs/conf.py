@@ -15,6 +15,9 @@ extensions = [
     'sphinx_tabs.tabs',
 ]
 
+# Never hide tab contents
+sphinx_tabs_disable_tab_closing = True
+
 # Theme
 html_theme = 'sphinx_rtd_theme'
 html_theme_options = {

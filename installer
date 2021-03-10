@@ -425,7 +425,7 @@ set_version "setuptools"        "51.3.3"
 set_version "sphinx"            "3.4.3"
 set_version "sphinx_copybutton" "0.3.1"
 set_version "sphinx_rtd_theme"  "0.5.1"
-set_version "sphinx_tabs"       "1.3.0"
+set_version "sphinx_tabs"       "2.1.0"
 set_version "wheel"             "0.36.2"
 # Note that the versions may be changed further down due to known
 # compatibility issues between specific versions of the above programs
