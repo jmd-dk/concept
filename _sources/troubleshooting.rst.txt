@@ -207,33 +207,6 @@ CO\ *N*\ CEPT installation.
 
 
 
-Problems due to large MPI messages
-----------------------------------
-If CO\ *N*\ CEPT crashes with error messages like
-
-   OSError: Can't read data (can't convert from size to size_i)
-
-or
-
-   OverflowError: integer <value> does not fit in 'int'
-
-(typically emitted by ``h5py`` or ``mpi4py``) the internal arrays being
-communicated between processes are larger than what MPI can handle.
-Unfortunately, the MPI-3.1 standard still uses a C signed ``int`` to store at
-least some message sizes, introducing an upper limit to the size of what can
-be communicated.
-
-One could guard against this by introducing chunked communication everywhere
-in the code, though this is not yet done in CO\ *N*\ CEPT. Instead we
-recommend that you simply increase the number of processes used for the job,
-should you face this issue. With more processes handling the same amount of
-data, each local array will be smaller.
-
-Note that typically you would not want to run such large simulations with very
-few processes anyway, as the computation time becomes impractically long.
-
-
-
 The simulation hangs when calling CLASS
 ---------------------------------------
 If the simulation hangs right at the beginning of the simulation, at the
