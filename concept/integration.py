@@ -976,7 +976,7 @@ def init_time(reinitialize=False):
             background = cosmo.get_background()
             # What we need to store is the cosmic time t and the Hubble
             # parameter H, both as functions of the scale factor a.
-            # Since the time stepping is done in t, we furthermore want
+            # Since the time-stepping is done in t, we furthermore want
             # the scale factor a as a function of cosmic time t.
             # We do this by defining global Spline objects.
             a_values = smart_mpi(1/(background['z'] + 1), 0, mpifun='bcast')

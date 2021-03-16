@@ -469,6 +469,11 @@ def prepare_static_timestepping():
         pass
     elif isinstance(static_timestepping, str):
         if os.path.exists(static_timestepping):
+            if os.path.isdir(static_timestepping):
+                abort(
+                    f'Supplied static_timestepping = "{static_timestepping}" '
+                    f'is a directory, not a file'
+                )
             # The static_timestepping parameter holds the path to an
             # existing file. This file should have been produced by
             # a previous simulation and store (a, Δa) data.
@@ -544,12 +549,22 @@ def prepare_static_timestepping():
                 a_next = a + Δa
                 Δt = cosmic_time(a_next) - t if a_next <= 1 else ထ
                 return bcast(Δt)
+            masterprint(
+                f'Static time-stepping information will '
+                f'be read from "{static_timestepping}"'
+            )
         else:
             # The static_timestepping parameter does not refer to an
             # existing path. Interpret it as a path to a not yet
-            # existing file. The time stepping of this simulation
+            # existing file. The time-stepping of this simulation
             # will be written to this file.
-            pass
+            static_timestepping_dir = os.path.dirname(static_timestepping)
+            if static_timestepping_dir:
+                os.makedirs(static_timestepping_dir, exist_ok=True)
+            masterprint(
+                f'Static time-stepping information will '
+                f'be written to "{static_timestepping}"'
+            )
     elif callable(static_timestepping):
         # Create function Δt(a) implementing the static
         # time-stepping using the callable.
@@ -565,6 +580,7 @@ def prepare_static_timestepping():
             a_next = a + Δa
             Δt = cosmic_time(a_next) - t if a_next <= 1 else ထ
             return bcast(Δt)
+        masterprint('Static time-stepping configured using supplied function')
     else:
         abort(
             f'Could not interpret static_timestepping = {static_timestepping} '
@@ -2178,7 +2194,7 @@ cython.declare(
 # will show a warning or abort, respectively.
 Δt_ratio_warn  = 0.7
 Δt_ratio_abort = 0.01
-# When using adaptive time stepping (N_rungs > 1), the particles may
+# When using adaptive time-stepping (N_rungs > 1), the particles may
 # jump from their current rung to the rung just above or below,
 # depending on their (short-range) acceleration and the time step
 # size Δt. To ensure that particles with accelerations right at the
@@ -2250,7 +2266,7 @@ fac_pm = 0.13*Δt_base_nonlinear_factor
 # further than the long/short-range force split scale times this factor
 # in a single time step.
 fac_p3m = 0.14*Δt_base_nonlinear_factor
-# When using adaptive time stepping (N_rungs > 1), the individual time
+# When using adaptive time-stepping (N_rungs > 1), the individual time
 # step size for a given particle must not be so large that it drifts
 # further than its softening length times this factor, due to its
 # (short-range) acceleration (i.e. its current velocity is not
