@@ -342,14 +342,15 @@ class StandardSnapshot:
                     # Read particle data directly into
                     # the particle data arrays.
                     if N_local > 0:
-                        # Load in using chunks. Large chunks are fine as
-                        # no temporary buffer is used. The maximum
-                        # possible chunk size is limited by MPI, though.
-                        chunk_size = pairmin(N_local, 2**30//8//3)  # max a GB of doubles
                         for dset, arr in [
                             (pos_h5, asarray(component.pos_mv3)),
                             (mom_h5, asarray(component.mom_mv3)),
                         ]:
+                            # Load in using chunks. Large chunks are
+                            # fine as no temporary buffer is used.
+                            # The maximum possible chunk size
+                            # is limited by MPI, though.
+                            chunk_size = pairmin(N_local, 2**30//8//3)  # max a GB of doubles
                             for indexˣ in range(0, N_local, chunk_size):
                                 if indexˣ + chunk_size > N_local:
                                     chunk_size = N_local - indexˣ
