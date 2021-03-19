@@ -478,13 +478,22 @@ def prepare_static_timestepping():
             # existing file. This file should have been produced by
             # a previous simulation and store (a, Δa) data.
             apply_static_timestepping = True
-            # Load and clean up data
+            # Load static time-stepping information
             static_timestepping_a, static_timestepping_Δa = np.loadtxt(
                 static_timestepping,
                 unpack=True,
             )
             static_timestepping_a  = static_timestepping_a .copy()  # ensure contiguousness
             static_timestepping_Δa = static_timestepping_Δa.copy()  # ensure contiguousness
+            # Some scale factor values may have more than one Δa due
+            # to synchronizations. To faithfully replicate these,
+            # we pack all Δa for each a into its own list.
+            static_timestepping_data = collections.defaultdict(list)
+            for a, Δa in zip(static_timestepping_a, static_timestepping_Δa):
+                static_timestepping_data[a].append(Δa)
+            for Δa_list in static_timestepping_data.values():
+                Δa_list.reverse()
+            # Clean up the data, removing duplicates
             static_timestepping_a, static_timestepping_Δa = remove_doppelgängers(
                 static_timestepping_a, static_timestepping_Δa,
                 rel_tol=Δt_reltol,
@@ -518,34 +527,44 @@ def prepare_static_timestepping():
                 )
                 index_left = index_right
             # Create function Δt(a) implementing the static
-            # time-stepping using the above splines.
+            # time-stepping using the above data and splines.
             def static_timestepping_func(a=-1):
                 if a == -1:
                     a, t = universals.a, universals.t
                 else:
                     t = cosmic_time(a)
-                # Find the scale factor tabulation interval
-                # and look up the interpolated function.
-                # As the number of intervals ought always to
-                # be small, a simple linear search is sufficient.
-                for (a_left, a_right), static_timestepping_interp in zip(
-                    a_intervals, static_timestepping_interps,
-                ):
-                    # With a very close to a_right, it is a good guess
-                    # that we really ought to have a == a_right, but
-                    # that floating-point imprecisions have ruined the
-                    # exact equality. If so, this a really belongs to
-                    # the next interval.
-                    if a_right != ထ and isclose(float(a), float(a_right)):
-                        continue
-                    if isclose(float(a), float(a_left + machine_ϵ)):
-                        a = a_left
-                    if a_left <= a < a_right:
-                        break
+                # If this exact scale factor is present in the time
+                # stepping data, look up the corresponding Δa.
+                # Otherwise make use of the splines.
+                n = int(ceil(log10(1/Δt_reltol) + 0.5))
+                Δa_list = static_timestepping_data.get(float(f'{{:.{n}e}}'.format(a)))
+                if Δa_list:
+                    Δa = Δa_list.pop()
                 else:
-                    abort(f'static_timestepping_func(): a = {a} not in any interval')
-                # Do the interpolation and convert Δa to Δt
-                Δa = static_timestepping_interp(a)
+                    # Find the scale factor tabulation interval
+                    # and look up the interpolated function.
+                    # As the number of intervals ought always to
+                    # be small, a simple linear search is sufficient.
+                    for (a_left, a_right), static_timestepping_interp in zip(
+                        a_intervals, static_timestepping_interps,
+                    ):
+                        # With a very close to a_right, it is a good
+                        # guess that we really ought to have
+                        # a == a_right, but that floating-point
+                        # imprecisions have ruined the exact equality.
+                        # If so, this a really belongs
+                        # to the next interval.
+                        if a_right != ထ and isclose(float(a), float(a_right)):
+                            continue
+                        if isclose(float(a), float(a_left + machine_ϵ)):
+                            a = a_left
+                        if a_left <= a < a_right:
+                            break
+                    else:
+                        abort(f'static_timestepping_func(): a = {a} not in any interval')
+                    # Do the interpolation
+                    Δa = static_timestepping_interp(a)
+                # Convert Δa to Δt
                 a_next = a + Δa
                 Δt = cosmic_time(a_next) - t if a_next <= 1 else ထ
                 return bcast(Δt)
