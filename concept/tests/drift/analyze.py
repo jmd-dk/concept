@@ -23,7 +23,7 @@ for fname in sorted(glob(this_dir + '/output/snapshot_a=*'),
     x_std.append(np.std(posx))
 N_snapshots = len(a)
 
-# Read in data from the GADGET-2 snapshots
+# Read in data from the GADGET snapshots
 x_gadget = []
 x_std_gadget = []
 for fname in sorted(glob(this_dir + '/Gadget2/output/snapshot_*'))[:N_snapshots]:

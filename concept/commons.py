@@ -1962,6 +1962,7 @@ cython.declare(
     # Input/output
     initial_conditions=object,  # str or container of str's
     snapshot_type=str,
+    snapshot_gadget_hw=str,
     output_dirs=dict,
     output_bases=dict,
     output_times=dict,
@@ -1991,7 +1992,7 @@ cython.declare(
     class_params=dict,
     # Physics
     select_forces=dict,
-    select_class_species=dict,
+    select_species=dict,
     select_eos_w=dict,
     select_boltzmann_order=dict,
     select_boltzmann_closure=dict,
@@ -2030,6 +2031,7 @@ cython.declare(
     render3D_resolution='int',
     # Debugging options
     print_load_imbalance=object,
+    allow_snapshot_multifile_singleload='bint',
     particle_reordering=object,
     enable_Hubble='bint',
     enable_class_background='bint',
@@ -2043,10 +2045,16 @@ cython.declare(
 # Input/output
 initial_conditions = user_params.get('initial_conditions', '')
 user_params['initial_conditions'] = initial_conditions
-snapshot_type = (str(user_params.get('snapshot_type', 'standard'))
-    .lower().replace(' ', '').replace('-', '')
+snapshot_type = (str(user_params.get('snapshot_type', 'concept'))
+    .replace(unicode('𝘕'), 'N').replace(asciify('𝘕'), 'N')
+    .replace(' ', '').replace('-', '')
+    .lower()
 )
 user_params['snapshot_type'] = snapshot_type
+snapshot_gadget_hw = (str(user_params.get('snapshot_gadget_hw', 'NallHW'))
+    .lower().replace(' ', '').replace('-', '').replace('[', '').replace(']', '')
+)
+user_params['snapshot_gadget_hw'] = snapshot_gadget_hw
 output_dirs = dict(user_params.get('output_dirs', {}))
 replace_ellipsis(output_dirs)
 output_kinds = ('snapshot', 'powerspec', 'render2D', 'render3D')
@@ -2072,13 +2080,27 @@ autosave_interval = float(
       else   user_params.get('autosave_interval', 0)
 )
 user_params['autosave_interval'] = autosave_interval
-snapshot_select = {'all': True}
-if user_params.get('snapshot_select'):
+snapshot_select = {}
+if 'snapshot_select' in user_params:
     if isinstance(user_params['snapshot_select'], dict):
         snapshot_select = user_params['snapshot_select']
         replace_ellipsis(snapshot_select)
+        if 'save' not in snapshot_select and 'load' not in snapshot_select:
+            snapshot_select = {'save': snapshot_select, 'load': snapshot_select}
     else:
-        snapshot_select = {'all': user_params['snapshot_select']}
+        snapshot_select = {
+            'save': {'all': user_params['snapshot_select']},
+            'load': {'all': user_params['snapshot_select']},
+        }
+snapshot_select.setdefault('save', {'all': True})
+snapshot_select.setdefault('load', {'all': True})
+for key in ('save', 'load'):
+    if isinstance(snapshot_select[key], dict):
+        replace_ellipsis(snapshot_select[key])
+    else:
+        snapshot_select[key] = {'all': bool(snapshot_select[key])}
+    for key2, val2 in snapshot_select[key].items():
+        snapshot_select[key][key2] = bool(val2)
 user_params['snapshot_select'] = snapshot_select
 if 'powerspec_select' in user_params:
     if isinstance(user_params['powerspec_select'], dict):
@@ -2681,15 +2703,15 @@ if not select_forces:
 select_forces.setdefault('metric', {'gravity': 'pm'})
 select_forces.setdefault('lapse', {'lapse': 'pm'})
 user_params['select_forces'] = select_forces
-select_class_species = {}
-if user_params.get('select_class_species'):
-    if isinstance(user_params['select_class_species'], dict):
-        select_class_species = user_params['select_class_species']
-        replace_ellipsis(select_class_species)
+select_species = {}
+if user_params.get('select_species'):
+    if isinstance(user_params['select_species'], dict):
+        select_species = user_params['select_species']
+        replace_ellipsis(select_species)
     else:
-        select_class_species = {'all': str(user_params['select_class_species'])}
-select_class_species['default'] = 'default'
-user_params['select_class_species'] = select_class_species
+        select_species = {'all': str(user_params['select_species'])}
+select_species.setdefault('default', 'matter')
+user_params['select_species'] = select_species
 select_eos_w = {}
 if user_params.get('select_eos_w'):
     if isinstance(user_params['select_eos_w'], dict):
@@ -2836,7 +2858,7 @@ fluid_options_defaults = {
         'smoothing_select'             : {
             'default': 1.0,
             # Matter fluids require a lot of smoothing
-            'baryons'                  : 2.0,
+            'baryon'                   : 2.0,
             'cold dark matter'         : 2.0,
             'decaying cold dark matter': 2.0,
             'matter'                   : 2.0,
@@ -2848,7 +2870,7 @@ fluid_options_defaults = {
             'default': 'mc',
             # Matter fluids require a lot
             # of artificial viscosity (smoothing).
-            'baryons'                  : 'minmod',
+            'baryon'                   : 'minmod',
             'cold dark matter'         : 'minmod',
             'decaying cold dark matter': 'minmod',
             'matter'                   : 'minmod',
@@ -3038,6 +3060,10 @@ print_load_imbalance = user_params.get('print_load_imbalance', True)
 if isinstance(print_load_imbalance, str):
     print_load_imbalance = print_load_imbalance.lower()
 user_params['print_load_imbalance'] = print_load_imbalance
+allow_snapshot_multifile_singleload = user_params.get(
+    'allow_snapshot_multifile_singleload', False,
+)
+user_params['allow_snapshot_multifile_singleload'] = allow_snapshot_multifile_singleload
 particle_reordering = user_params.get('particle_reordering', True)
 if isinstance(particle_reordering, str):
     particle_reordering = particle_reordering.lower()
@@ -3112,8 +3138,8 @@ cython.declare(
     ρ_mbar='double',
     matter_class_species=str,
     radiation_class_species=str,
-    neutrinos_class_species=str,
-    massive_neutrinos_class_species=str,
+    neutrino_class_species=str,
+    massive_neutrino_class_species=str,
 )
 # Output times not explicitly written as either of type 'a' or 't'
 # is understood as being of type 'a' when Hubble expansion is enabled
@@ -3234,39 +3260,39 @@ matter_class_species = '+'.join([class_species
 # The average, comoving matter density
 ρ_mbar = Ωm*ρ_crit
 # Specification of which CLASS species together constitute "radiation",
-# "neutrinos" and "massive neutrinos" in the current simulation.
-radiation_class_species = 'g'  # Photons always present in CLASS
-neutrinos_class_species = ''
-massive_neutrinos_class_species = ''
+# "neutrino" and "massive neutrino" in the current simulation.
+radiation_class_species = 'g'  # photons always present in CLASS
+neutrino_class_species = ''
+massive_neutrino_class_species = ''
 if 'N_ur' in class_params:
     if class_params['N_ur'] > 0:
         radiation_class_species += '+ur'
-        neutrinos_class_species += '+ur'
+        neutrino_class_species += '+ur'
 elif 'N_eff' in class_params:
     if class_params['N_eff'] > 0:
         radiation_class_species += '+ur'
-        neutrinos_class_species += '+ur'
+        neutrino_class_species += '+ur'
 elif 'Omega_ur' in class_params:
     if class_params['Omega_ur'] > 0:
         radiation_class_species += '+ur'
-        neutrinos_class_species += '+ur'
+        neutrino_class_species += '+ur'
 elif 'Omega_ur' in class_params:
     if class_params['Omega_ur'] > 0:
         radiation_class_species += '+ur'
-        neutrinos_class_species += '+ur'
+        neutrino_class_species += '+ur'
 else:
     # Massless neutrinos present in CLASS by default
     radiation_class_species += '+ur'
-    neutrinos_class_species += '+ur'
+    neutrino_class_species += '+ur'
 N_ncdm = int(round(class_params.get('N_ncdm', 0)))
 if N_ncdm > 0:
-    massive_neutrinos_class_species += '+'.join([f'ncdm[{i}]' for i in range(N_ncdm)])
-    neutrinos_class_species += f'+{massive_neutrinos_class_species}'
+    massive_neutrino_class_species += '+'.join([f'ncdm[{i}]' for i in range(N_ncdm)])
+    neutrino_class_species += f'+{massive_neutrino_class_species}'
 if Ωdcdm > 1e-9 and class_params.get('Gamma_dcdm', 0) > 0:
     radiation_class_species += '+dr'
 radiation_class_species = radiation_class_species.strip('+')
-neutrinos_class_species = neutrinos_class_species.strip('+')
-massive_neutrinos_class_species = massive_neutrinos_class_species.strip('+')
+neutrino_class_species = neutrino_class_species.strip('+')
+massive_neutrino_class_species = massive_neutrino_class_species.strip('+')
 # Handle optional values in special_params
 if 'ntimes' in special_params:
     ntimes = str(special_params['ntimes'])
@@ -3777,7 +3803,7 @@ def isclose(a, b, rel_tol=1e-9, abs_tol=0):
         )
     return answer
 
-# Function that checks if a (floating point) number
+# Function that checks if a (floating-point) number
 # is actually an integer.
 @cython.header(
     x='double',
@@ -3805,7 +3831,7 @@ def isint(x, abs_tol=1e-6):
     returns=object,  # String or list of strings
 )
 def significant_figures(numbers, nfigs, fmt='', incl_zeros=True, scientific=False):
-    """This function formats a floating point number to have nfigs
+    """This function formats a floating-point number to have nfigs
     significant figures.
     Set fmt to 'TeX' to format to TeX math code
     (e.g. '1.234\times 10^{-5}') or 'Unicode' to format to superscript
@@ -3874,7 +3900,7 @@ def significant_figures(numbers, nfigs, fmt='', incl_zeros=True, scientific=Fals
     else:
         return return_list
 
-# Function for correcting floating point numbers
+# Function for correcting floating-point numbers
 def correct_float(val_raw):
     """Example: correct_float(1.234499999999998) -> 1.2345
     """
@@ -4387,8 +4413,11 @@ os.makedirs = tryexcept_wrapper(os.makedirs, 'os.makedirs() failed')
 # Sanity checks and corrections/additions to user parameters #
 ##############################################################
 # Abort on unrecognised snapshot_type
-if snapshot_type not in ('standard', 'gadget2'):
-    abort('Unrecognised snapshot type "{}"'.format(user_params['snapshot_type']))
+if snapshot_type not in ('concept', 'gadget'):
+    abort(f'Unrecognised snapshot type "{snapshot_type}" ∉ {{"concept", "gadget"}}')
+# Abort on unrecognised snapshot_gadget_hw
+if snapshot_gadget_hw not in ('nallhw', 'nall'):
+    abort(f'Unrecognised snapshot_gadget_hw "{snapshot_gadget_hw}" ∉ {{"NallHW", "Nall"}}')
 # Abort on unrecognised output kinds
 for key in output_dirs:
     if key not in (output_kinds + ('autosave',)):

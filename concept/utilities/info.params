@@ -1,4 +1,8 @@
 # This is the default parameter file used by the info utility
 
-# Unit system
+# System of units
 unit_length = 'Mpc'
+
+# Debugging options
+allow_snapshot_multifile_singleload = True
+

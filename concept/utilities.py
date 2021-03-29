@@ -334,23 +334,24 @@ def convert():
     universals.a = a
 
 # Function for finding all snapshots in a directory
-@cython.pheader(# Arguments
-                path=str,
-                # Locals
-                filenames=list,
-                msg=str,
-                snapshot_filenames=list,
-                returns=list,
-                )
+@cython.pheader(
+    # Arguments
+    path=str,
+    # Locals
+    filenames=list,
+    snapshot_filenames=list,
+    returns=list,
+)
 def locate_snapshots(path):
-    # Get all files from the path
-    if master and not os.path.exists(path):
-        msg = f'Path "{path}" does not exist'
-        abort(msg)
-    if os.path.isdir(path):
-        filenames = [os.path.join(path, filename)
-                     for filename in os.listdir(path)
-                     if os.path.isfile(os.path.join(path, filename))]
+    # Get all files and directories from the path
+    if get_snapshot_type(path):
+        filenames = [path]
+    elif os.path.isdir(path):
+        filenames = []
+        for filename in os.listdir(path):
+            filename = os.path.join(path, filename)
+            if os.path.isfile(filename) or os.path.isdir(filename):
+                filenames.append(filename)
     else:
         filenames = [path]
     # Only use snapshots
@@ -358,10 +359,11 @@ def locate_snapshots(path):
     # Abort if none of the files where snapshots
     if master and not snapshot_filenames:
         if os.path.isdir(path):
-            msg = f'The directory "{path}" does not contain any snapshots'
+            abort(f'The directory "{path}" does not contain any snapshots')
+        elif os.path.exists(path):
+            abort(f'The file "{path}" is not recognized as a snapshot')
         else:
-            msg = f'The file "{path}" is not a valid snapshot'
-        abort(msg)
+            abort(f'Path "{path}" does not exist')
     return snapshot_filenames
 
 # Function that produces a power spectrum of the file
@@ -561,7 +563,7 @@ def info():
                             'a_begin = {}'.format(correct_float(params['a'])),
                             file=file, wrap=False,
                         )
-                    if snapshot_type == 'standard':
+                    if snapshot_type == 'concept':
                         masterprint(
                             'Ωcdm = {}'.format(correct_float(params['Ωcdm'])),
                             file=file, wrap=False,
@@ -584,8 +586,8 @@ def info():
         masterprint(terminal.bold(heading))
         # Print out snapshot type
         masterprint('{:<20} {}'.format('Snapshot type', snapshot_type))
-        # Print out unit system for standard snapshots
-        if snapshot_type == 'standard':
+        # Print out unit system for CO𝘕CEPT snapshots
+        if snapshot_type == 'concept':
             masterprint('{:<20} {}'.format('unit_length', snapshot.units['length']))
             masterprint('{:<20} {}'.format('unit_time',   snapshot.units['time']))
             # The mass is typically some large number written in
@@ -611,13 +613,18 @@ def info():
             .format('boxsize', correct_float(params['boxsize']), unit_length, alt_str)
         )
         # Print out the cosmological density parameters Ωcdm and Ωb.
-        # These are only present in the standard snapshots. In GADGET-2
+        # These are only present in the CO𝘕CEPT snapshots. In GADGET
         # snapshots, instead we have ΩΛ and Ωm. We do not print these
         # out here, as these will be printed as part
-        # of the GADGET-2 header.
-        if snapshot_type == 'standard':
+        # of the GADGET header.
+        if snapshot_type == 'concept':
             masterprint('{:<20} {}'.format(unicode('Ωcdm'), correct_float(params['Ωcdm'])))
             masterprint('{:<20} {}'.format(unicode('Ωb'), correct_float(params['Ωb'])))
+        # Print out GADGET header for GADGET snapshots
+        if snapshot_type == 'gadget':
+            masterprint('GADGET header:')
+            for key, val in snapshot.header.items():
+                masterprint(f'{key:<16} {val}', indent=4)
         # Print out component information
         for component in snapshot.components:
             masterprint('{}:'.format(component.name))
@@ -676,11 +683,6 @@ def info():
                                                                                  scientific=True),
                                                             'm☉ {} {}⁻¹'.format(unit_length, unit_time)),
                             indent=4)
-        # Print out GADGET-2 header for GADGET-2 snapshots
-        if snapshot_type == 'gadget2':
-            masterprint('GADGET-2 header:')
-            for key, val in params['header'].items():
-                masterprint('{:<16} {}'.format(key, val), indent=4)
         # End of information
         masterprint('')
 

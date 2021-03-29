@@ -24,11 +24,12 @@ as e.g. ``params/tutorial``:
 .. code-block:: python3
    :caption: params/tutorial
    :name: params-gadget
-   :emphasize-lines: 12, 40
+   :emphasize-lines: 4, 13, 41
 
    # Input/output
    if _gen:
        initial_conditions = {
+           'name'   : 'GADGET halo',
            'species': 'matter',
            'N'      : _size**3,
        }
@@ -37,7 +38,7 @@ as e.g. ``params/tutorial``:
            paths['ics_dir'] + '/'
            + basename(paths['params']) + f'_a={a_begin}'
        )
-   snapshot_type = 'gadget2'
+   snapshot_type = 'gadget'
    output_dirs = {
        'snapshot': (
            paths['ics_dir'] if _gen
@@ -80,6 +81,13 @@ snapshot when ``_gen`` is ``True``. To create the snapshot then, do
 
 (as always, feel free to tack on the number of processes you want
 with ``-n``). The snapshot will be dumped to the ``ICs`` directory.
+
+As we have ``snapshot_type = 'gadget'``, the snapshot will be in
+GADGET format. Furthermore, naming the matter component ``'GADGET halo'``
+ensures that this component gets mapped to GADGET particle type 1
+(conventionally used for cold dark matter, see table 3 in the
+`user guide for GADGET-2 <https://wwwmpa.mpa-garching.mpg.de/gadget/users-guide.pdf>`_
+).
 
 Starting from this snapshot we can now perform the CO\ *N*\ CEPT simulation by
 running with ``-c "_gen = False"``. As this is also the value set in the

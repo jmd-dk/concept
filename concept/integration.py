@@ -880,7 +880,7 @@ def scalefactor_integral(key, t_ini, Δt, all_components):
                         integrand_tab_spline[i] = hubble(a)
                     elif master:
                         abort(
-                            f'The scalefactor integral with "{integrand}" as the integrand '
+                            f'The scale factor integral with "{integrand}" as the integrand '
                             f'is not implemented'
                         )
             elif ℤ[len(key)] == 2:
@@ -910,7 +910,7 @@ def scalefactor_integral(key, t_ini, Δt, all_components):
                                 integrand_tab_spline[i] = component.Γ(a)
                     elif master:
                         abort(
-                            f'The scalefactor integral with "{integrand}" as the integrand '
+                            f'The scale factor integral with "{integrand}" as the integrand '
                             f'is not implemented'
                         )
             elif ℤ[len(key)] == 3:
@@ -923,7 +923,7 @@ def scalefactor_integral(key, t_ini, Δt, all_components):
                         integrand_tab_spline[i] = a**(-3*w_eff_0 - 3*w_eff_1 - 1)
                     elif master:
                         abort(
-                            f'The scalefactor integral with "{integrand}" as the integrand '
+                            f'The scale factor integral with "{integrand}" as the integrand '
                             f'is not implemented'
                         )
             else:
@@ -933,7 +933,7 @@ def scalefactor_integral(key, t_ini, Δt, all_components):
     if enable_class_background:
         spline_t_integrands[key] = spline
     return spline.integrate(t_ini, t_ini + Δt)
-# Global dict of Spline objects defined by scalefactor_integral
+# Global dict of Spline objects defined by scalefactor_integral()
 cython.declare(spline_t_integrands=dict)
 spline_t_integrands = {}
 

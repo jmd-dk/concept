@@ -1828,9 +1828,9 @@ def autosave(components, time_step, Δt, Δt_begin):
         with open(autosave_params_filename, 'w', encoding='utf-8') as autosave_params_file:
             print('\n'.join(param_lines), file=autosave_params_file)
         masterprint('done')
-    # Save standard snapshot. Include all components regardless
-    # of the snapshot_select user parameter.
-    save(components, autosave_filename, snapshot_type='standard', save_all_components=True)
+    # Save CO𝘕CEPT snapshot. Include all components regardless
+    # of the snapshot_select['save'] user parameter.
+    save(components, autosave_filename, snapshot_type='concept', save_all_components=True)
     # If this simulation run was started from an autosave snapshot
     # with a different name from the one just saved, remove this
     # now superfluous autosave snapshot.
@@ -2095,7 +2095,7 @@ def prepare_for_output(components=None):
                     os.makedirs(output_dir, exist_ok=True)
     Barrier()
     # Construct the patterns for the output file names. This involves
-    # determining the number of digits of the scalefactor in the output
+    # determining the number of digits of the scale factor in the output
     # filenames. There should be enough digits so that adjacent dumps do
     # not overwrite each other, and so that the name of the first dump
     # differs from that of the IC, should it use the same

@@ -38,10 +38,10 @@ for r, path, params in zip((render3D, render3D_0),
 # and some completely white pixels in the second (and third) 3D render
 # due to the text.
 if not np.any(render3D[:, :, :3] > [0.99]*3):
-    abort('The scalefactor text do not seem to '
+    abort('The scale factor text do not seem to '
           'be white on 3D render "{}".'.format(render3D_path))
 if not np.any(render3D_0[:, :, :3] < [0.01]*3):
-    abort('The scalefactor text do not seem to '
+    abort('The scale factor text do not seem to '
           'be black on 3D render "{}".'.format(render3D_0_path))
 
 # Done analysing

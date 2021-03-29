@@ -30,7 +30,7 @@ set -e
 ############################################
 # Upstream/global (power spectrum) subtest #
 ############################################
-# This subtests computes three power spectra from a snapshot using the
+# This subtest computes three power spectra from a snapshot using the
 # same upstream grid size, but using a global grid size smaller than,
 # equal to and greater than the upstream grid size. This should give
 # exactly the same power for all modes below the Nyquist frequency
@@ -170,7 +170,7 @@ potential_downstream_p3m=$((1*size))
 potential_downstream_pm=$((4*size))
 output_upstream=$((2*size))
 output_global_matter=$((3*size))
-output_global_neutrinos=$((4*size))
+output_global_neutrino=$((4*size))
 output_global_combination=$((5*size))
 # Run simulation using different number of processes
 rm -rf "${this_dir}/output"
@@ -184,7 +184,7 @@ for n in ${nprocs_list[@]}; do
                     'N'      : ${size}**3,                                                  \
                 },                                                                          \
                 {                                                                           \
-                    'species'          : 'neutrinos',                                       \
+                    'species'          : 'neutrino',                                        \
                     'gridsize'         : ${size},                                           \
                     'boltzmann order'  : 1,                                                 \
                     'boltzmann closure': 'class',                                           \
@@ -213,9 +213,9 @@ for n in ${nprocs_list[@]}; do
             }"                                                                              \
         -c "powerspec_options['upstream gridsize'] = {'matter': ${output_upstream}}"        \
         -c "powerspec_options['global gridsize'] = {                                        \
-                'matter'               : ${output_global_matter},                           \
-                'neutrinos'            : ${output_global_neutrinos},                        \
-                ('matter', 'neutrinos'): ${output_global_combination},                      \
+                'matter'              : ${output_global_matter},                            \
+                'neutrino'            : ${output_global_neutrino},                          \
+                ('matter', 'neutrino'): ${output_global_combination},                       \
             }"                                                                              \
         -c "class_params = {                                                                \
                 'N_ur'                    : 0,                                              \

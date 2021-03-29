@@ -45,8 +45,8 @@ select_boltzmann_order = {
     'all': 1,
 }
 select_boltzmann_closure = {
-    'matter'   : 'truncate',
-    'neutrinos': 'class',
+    'matter'  : 'truncate',
+    'neutrino': 'class',
 }
 select_approximations = {
     'matter': {

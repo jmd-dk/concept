@@ -11,7 +11,7 @@ initial_conditions = [
     },
     # Neutrinos
     {
-        'species'          : 'neutrinos',
+        'species'          : 'neutrino',
         'gridsize'         : _size,
         'boltzmann_closure': 'class',
     },
@@ -29,7 +29,7 @@ powerspec_select = {
     'all combinations': ...,
 }
 render2D_select = {
-    'neutrinos': {'image': True, 'terminal image': True},
+    'neutrino': {'image': True, 'terminal image': True},
 }
 
 # Numerical parameters

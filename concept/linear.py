@@ -998,7 +998,7 @@ class CosmoResults:
             k = self.k_indices[k_local]
             k_magnitude = self.k_magnitudes[k]
             # Extract needed perturbations along with
-            # the scalefactor at which they are tabulated.
+            # the scale factor at which they are tabulated.
             a     = perturbation['a'        ]
             ϕ     = perturbation['phi'      ]*ℝ[light_speed**2]
             ψ     = perturbation['psi'      ]*ℝ[light_speed**2]
@@ -1074,7 +1074,7 @@ class CosmoResults:
             k = self.k_indices[k_local]
             k_magnitude = self.k_magnitudes[k]
             # Extract needed perturbations along with
-            # the scalefactor at which they are tabulated.
+            # the scale factor at which they are tabulated.
             a     = perturbation['a'        ]
             H_Tʹ  = perturbation['H_T_prime']*ℝ[light_speed/units.Mpc]
             θ_tot = perturbation['theta_tot']*ℝ[light_speed/units.Mpc]
@@ -4090,7 +4090,7 @@ class SpeciesRegisteredDict(dict):
         if not match:
             # Trigger the exception again
             super().__getitem__(key)
-        # Key is a numbered species, e.g. "neutrinos 0".
+        # Key is a numbered species, e.g. "neutrino 0".
         # Lookup base species.
         key_base, n = match.group(1), int(match.group(2))
         species_info = super().__getitem__(key_base)
@@ -4174,7 +4174,7 @@ transferfunctions_registered = {}
 
 # Register all implemented species
 register_species(
-    'baryons', 'b', ['baryon', 'baryonic', 'baryonic matter'], w=0,
+    'baryon', 'b', ['baryons', 'baryonic', 'baryonic matter'], w=0,
 )
 register_species(
     'cold dark matter', 'cdm', ['dark matter', 'dm'], w=0,
@@ -4183,17 +4183,17 @@ register_species(
     'matter', matter_class_species, ['total matter', 'm'], w=0,
 )
 register_species(
-    'photons', 'g', ['photon', 'gamma', unicode('γ'), asciify('γ')], w=1/3,
+    'photon', 'g', ['photons', 'gamma', unicode('γ'), asciify('γ')], w=1/3,
 )
 register_species(
-    'massless neutrinos', 'ur', ['massless neutrino'], w=1/3,
+    'massless neutrino', 'ur', ['massless neutrinos'], w=1/3,
 )
 register_species(
-    'massive neutrinos', massive_neutrinos_class_species, ['massive neutrino', 'ncdm'],
+    'massive neutrino', massive_neutrino_class_species, ['massive neutrinos', 'ncdm'],
     logs={'rho': (True, True), 'p': (True, True)},
 )
 register_species(
-    'neutrinos', neutrinos_class_species, ['neutrino', 'nu', unicode('ν'), asciify('ν')],
+    'neutrino', neutrino_class_species, ['neutrinos', 'nu', unicode('ν'), asciify('ν')],
     logs={'rho': (True, True), 'p': (True, True)},
 )
 register_species(

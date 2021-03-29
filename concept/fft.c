@@ -40,7 +40,7 @@ https://github.com/jmd-dk/concept/
  *   grid[i, j, k] --> grid[
  *       ((i - gridstart_local_i)*gridsize_j + j)*gridsize_padding + k
  *   ]
- * That is, each process can acces every element in its slab by
+ * That is, each process can access every element in its slab by
  *   for (i = 0; i < gridsize_local_i; i++) {
  *       for (j = 0; j < gridsize_j; j++) {
  *           for (k = 0; k < gridsize_k; k++) {
@@ -59,7 +59,7 @@ https://github.com/jmd-dk/concept/
  *   grid[i, j, k] --> grid[
  *       ((j - gridstart_local_j)*gridsize_i + i)*gridsize_padding + k
  *   ]
- * That is, each process can acces every element in its slab by
+ * That is, each process can access every element in its slab by
  *   for (i = 0; i < gridsize_i; i++) {
  *       for (j = 0; j < gridsize_local_j; j++) {
  *           for (k = 0; k < gridsize_k; k++) {

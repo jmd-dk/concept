@@ -9,7 +9,7 @@ initial_conditions = [
         'N'      : _size**3,
     },
     {
-        'species'        : 'neutrinos',
+        'species'        : 'neutrino',
         'gridsize'       : _size,
         'boltzmann_order': 1,
     },
@@ -31,7 +31,7 @@ powerspec_select = {
     'all combinations': ...,
 }
 render2D_select = {
-    ('matter', 'neutrinos'): {'data': True},
+    ('matter', 'neutrino'): {'data': True},
 }
 
 # Numerical parameters

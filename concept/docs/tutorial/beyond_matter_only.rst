@@ -290,7 +290,7 @@ a photon component. This could look like (do not change the parameter file)
        },
        # Linear photon fluid
        {
-           'species'        : 'photons',
+           'species'        : 'photon',
            'gridsize'       : _size,
            'boltzmann order': -1,
        },
@@ -365,7 +365,7 @@ with the inclusion of linear photons, run
 
    ./concept \
        -p params/tutorial \
-       -c "_lin = 'photons'"
+       -c "_lin = 'photon'"
 
 .. tip::
    Note that the ``_lin`` helper variable is defined at the bottom of the
@@ -391,7 +391,7 @@ which includes both linear photons and linear massless neutrinos:
 
    ./concept \
        -p params/tutorial \
-       -c "_lin = 'photons, massless neutrinos'"
+       -c "_lin = 'photon, massless neutrino'"
 
 Redoing the plot, we discover that including the neutrinos made the
 disagreement between the simulation and linear theory even larger!
@@ -429,7 +429,7 @@ photons and neutrinos in their entirety, run
 
    ./concept \
        -p params/tutorial \
-       -c "_lin = 'photons, massless neutrinos, metric'"
+       -c "_lin = 'photon, massless neutrino, metric'"
 
 Re-plotting, you should see a much better behaved simulation power spectrum at
 large scales, agreeing with linear theory to well within 0.1%.
@@ -456,7 +456,7 @@ normally write e.g.
        },
        # Linear fluid component
        {
-           'species'        : 'photons + massless neutrinos + metric',
+           'species'        : 'photon + massless neutrino + metric',
            'gridsize'       : _size,
            'boltzmann order': -1,
        },
@@ -469,10 +469,10 @@ specify this directly at the command-line using
 
    ./concept \
        -p params/tutorial \
-       -c "_lin = 'photons + massless neutrinos + metric'"
+       -c "_lin = 'photon + massless neutrino + metric'"
 
 This idea of combining species is embraced fully by CO\ *N*\ CEPT. As such,
-the species ``'photons + massless neutrinos'`` may be collectively referred to
+the species ``'photon + massless neutrino'`` may be collectively referred to
 simply as ``'radiation'``. Thus,
 
 .. code-block:: bash
@@ -483,11 +483,11 @@ works just as well. You should run one of the above and check that you obtain
 the same result as before.
 
 You are in fact already very familiar with the idea of combining species, as
-``'matter'`` really means ``'baryons + cold dark matter'``.
+``'matter'`` really means ``'baryon + cold dark matter'``.
 
 .. tip::
    When performing simulaitons in a cosmology without massless neutrinos,
-   specifying ``'photons + massless neutrinos'`` as the species of a component
+   specifying ``'photon + massless neutrino'`` as the species of a component
    will produce an error. However, specfying ``'radiation'`` is always safe,
    as this dynamically maps to the set of all radiation species present in the
    current cosmology, whatever this may be. Similarly, ``'matter'`` is safe to
@@ -748,10 +748,10 @@ plot, while we trust the linear results at the low-:math:`k` end.
 
 The hope is now to be able to correct the simulated relative power spectrum at
 low :math:`k` by including the missing species to the simulation, without this
-altering the high-:math:`k` behaviour. Besides ``'massive neutrinos'``, we
-should not forget about ``'photons'`` and the ``'metric'``. Note that
-``'massive neutrinos'`` are not considered part of ``'radiation'``. We can
-however just write ``'neutrinos'``, as this refers to all neutrinos (massive
+altering the high-:math:`k` behaviour. Besides ``'massive neutrino'``, we
+should not forget about ``'photon'`` and ``'metric'``. Note that
+``'massive neutrino'`` is not considered part of ``'radiation'``. We can
+however just write ``'neutrino'``, as this refers to all neutrinos (massive
 ('ncdm') as well as massless ('ur')) present in the cosmology. To rerun both
 cosmologies with all linear species included, we might call ``concept`` within
 a Bash for-loop:
@@ -762,7 +762,7 @@ a Bash for-loop:
        ./concept \
            -p params/tutorial \
            -c "_mass = $mass" \
-           -c "_lin = 'photons + neutrinos + metric'"
+           -c "_lin = 'photon + neutrino + metric'"
    done
 
 Once completed, redo the plot. You should find that including the linear
@@ -1226,7 +1226,7 @@ you should save as e.g. ``params/tutorial``:
            {
                'name'   : 'total matter',
                'species': (
-                   'baryons + cold dark matter'
+                   'baryon + cold dark matter'
                    + (' + decaying cold dark matter' if _frac else '')
                ),
                'N'      : _size**3,
@@ -1235,10 +1235,10 @@ you should save as e.g. ``params/tutorial``:
    else:
        # Assume 0 < _frac < 1
        initial_conditions = [
-           # Non-linear baryons and (stable) cold dark matter particles
+           # Non-linear baryon and (stable) cold dark matter particles
            {
                'name'   : 'stable matter',
-               'species': 'baryons + cold dark matter',
+               'species': 'baryon + cold dark matter',
                'N'      : _size**3,
            },
            # Non-linear decaying cold dark matter particles
@@ -1346,7 +1346,7 @@ specify ``_frac``:
 
 This new simulation still consists of just a single particle component, now
 with a species of
-``'baryons + cold dark matter + decaying cold dark matter'``. The decay is
+``'baryon + cold dark matter + decaying cold dark matter'``. The decay is
 taken into effect by continuously reducing the mass of each *N*-body particle
 according to the decay rate, without changing the particle velocity. As the
 component now represents three fundamental species, the effective "*N*-body
@@ -1472,7 +1472,7 @@ the simulation:
    for frac in 0 0.7; do
        ./concept \
            -p params/tutorial \
-           -c "_lin = 'photons + neutrinos + metric'" \
+           -c "_lin = 'photon + neutrino + metric'" \
            -c "_frac = $frac"
    done
 
@@ -1487,7 +1487,7 @@ radiation, of course only applicable for the dcdm simulation:
 
    ./concept \
        -p params/tutorial \
-       -c "_lin = 'photons + neutrinos + decay radiation + metric'" \
+       -c "_lin = 'photon + neutrino + decay radiation + metric'" \
        -c "_frac = 0.7"
 
 Re-plotting after running the above, you should now see excellent agreement
@@ -1495,17 +1495,17 @@ with the linear result at large scales.
 
 Studying :ref:`the parameter file <params-decaying-cold-dark-matter>`, we see
 that the ``'species'`` of the ``'total matter'`` component gets set to
-``'baryons + cold dark matter'`` when ``_frac`` equals ``0`` (corresponding to
-unset) and ``'baryons + cold dark matter + decaying cold dark matter'``
+``'baryon + cold dark matter'`` when ``_frac`` equals ``0`` (corresponding to
+unset) and ``'baryon + cold dark matter + decaying cold dark matter'``
 otherwise. (Do not worry about the case of the variable ``_combine`` being
 falsy. We shall make use of this special flag later.) We are used to
-``'matter'`` being an alias for ``'baryons + cold dark matter'``, but really
+``'matter'`` being an alias for ``'baryon + cold dark matter'``, but really
 it functions as a stand-in for *all* matter within the given cosmology,
 including decaying cold dark matter. Go ahead and replace this needlessly
 complicated expression for the ``'species'`` of ``'total matter'`` in
 :ref:`the parameter file <params-decaying-cold-dark-matter>` with just
-``'matter'``. Likewise, ``'radiation'`` includes not just ``'photons'`` and
-(massless) ``'neutrinos'``, but also ``'decay radiation'``, when present. With
+``'matter'``. Likewise, ``'radiation'`` includes not just ``'photon'`` and
+(massless) ``'neutrino'``, but also ``'decay radiation'``, when present. With
 the aforementioned change to
 :ref:`the parameter file <params-decaying-cold-dark-matter>` in place, try
 rerunning both the dcdm and the reference simulation using simply
@@ -1614,7 +1614,7 @@ additional correction terms, we once again refer to the paper on
 To tackle this problem --- or at least confirm that it is indeed caused by
 combining decaying and stable matter --- we may run a simulation which makes
 use of two separate particle components; one for stable matter
-(``'baryons + cold dark matter'``) and one for decaying matter
+(``'baryon + cold dark matter'``) and one for decaying matter
 (``'decaying cold dark matter'``). This is done simply by listing each
 particle component separately in the ``initial_conditions`` parameter in
 :ref:`the parameter file <params-decaying-cold-dark-matter>`. Specifying

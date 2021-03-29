@@ -34,13 +34,14 @@ initial_conditions = [  # Initial condition snapshot file or container of compon
     },
     # Neutrino component
     {
-        'species'          : 'neutrinos',
+        'species'          : 'neutrino',
         'gridsize'         : _size,
         'boltzmann order'  : 1,
         'boltzmann closure': 'class',
     },
 ]
-snapshot_type = 'standard'  # Type of output snapshots
+snapshot_type = 'concept'  # Type of output snapshots
+snapshot_gadget_hw = 'NallHW'
 output_dirs = {  # Directories for storing output
     'snapshot' : paths['output_dir'] + '/' + basename(paths['params']),
     'powerspec': ...,
@@ -69,16 +70,21 @@ output_times = {
      },
 }
 autosave_interval = 12*hr  # How often to dump autosave snapshot
-snapshot_select = {  # Select which components to save in snapshots
-    'all': True,
+snapshot_select = {  # Select which components to save to and load from snapshots
+    'save': {
+        'all': True,
+    },
+    'load': {
+        'all': True,
+    },
 }
 powerspec_select = {  # Toggle power spectra computation for individual and sets of components
     'all'             : {'data': True, 'linear': True, 'plot': True},
     'all combinations': {'data': True, 'linear': True, 'plot': False},
 }
 render2D_select = {  # Toggle 2D rendering for individual and sets of components
-    'matter'   : {'data': False, 'image': True,  'terminal image': True},
-    'neutrinos': {'data': False, 'image': False, 'terminal image': False},
+    'matter'  : {'data': False, 'image': True,  'terminal image': True},
+    'neutrino': {'data': False, 'image': False, 'terminal image': False},
 }
 render3D_select = {  # Toggle rendering for each component
     'all': True,
@@ -106,7 +112,7 @@ potential_options = {  # Specifications for potential computations
                 'p3m': (2*_size, 2*_size),
             },
         },
-        'neutrinos': {
+        'neutrino': {
             'gravity': {
                 'pm': _size,
             },
@@ -213,8 +219,8 @@ select_forces = {  # Forces and methods which act on each component
     'particles': {'gravity': 'p3m'},
     'fluid'    : {'gravity': 'pm'},
 }
-select_class_species = {  # CLASS species to use for each component
-    'all': 'default',
+select_species = {  # Species of components
+    'default': 'matter',
 }
 select_eos_w = {  # Equation of state parameter w for each component
     'all': 'class',
@@ -367,8 +373,8 @@ render2D_options = {  # Specifications of 2D renders for individual and sets of 
     },
 }
 render3D_colors = {  # Colour to use in 3D renders for each component
-    'matter'   : 'lime',
-    'neutrinos': 'r',
+    'matter'  : 'lime',
+    'neutrino': 'r',
 }
 render3D_bgcolor = 'black'  # Background colour of 3D renders
 render3D_resolution = 1080  # The height and width of 3D renders
@@ -379,8 +385,9 @@ unit_time = 'Gyr'      # Physical time   corresponding to a numerical value of 1
 unit_mass = '10¹⁰ m☉'  # Physical mass   corresponding to a numerical value of 1.0
 
 # Debugging options
-print_load_imbalance = True    # Print the CPU load imbalance after each time step?
-particle_reordering = True     # Allow in-memory particle reordering?
-enable_Hubble = True           # Enable Hubble expansion?
-enable_class_background = True # Use CLASS to compute the evolution of the background?
+print_load_imbalance = True                   # Print the CPU load imbalance after each time step?
+allow_snapshot_multifile_singleload = False  # Allow loading in just a single file of multi-file snapshots?
+particle_reordering = True                    # Allow in-memory particle reordering?
+enable_Hubble = True                          # Enable Hubble expansion?
+enable_class_background = True                # Use CLASS to compute the evolution of the background?
 

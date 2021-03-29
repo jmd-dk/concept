@@ -8350,8 +8350,8 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
         "    pba->node,"                                            \
         "    thread,"                                               \
         "    ppt->k[index_md][index_k],"                            \
-        "    index_k+1,"                                            \
-        "    ppt->k_size[index_md]"                                 \
+        "    ppt->k_size[index_md] - 1 - index_k,"                  \
+        "    ppt->k_size[index_md] - 1"                             \
         "  );"                                                      \
         "  fflush(stdout);"                                         \
         "}"                                                         \

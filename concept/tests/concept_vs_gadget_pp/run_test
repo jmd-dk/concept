@@ -30,6 +30,7 @@ output_dirs  = {'snapshot': '${this_dir}'}
 output_bases = {'snapshot': 'IC'}
 output_times = {'snapshot': a_begin}
 initial_conditions = {
+    'name'   : 'GADGET halo',
     'species': 'matter',
     'N'      : 8**3,
 }

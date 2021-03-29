@@ -1048,21 +1048,6 @@ class Component:
             component_names.add(name)
         # General attributes
         self.name = name
-        self.species = ''
-        for single_species in str(species).split('+'):
-            single_species = single_species.replace('[', ' ').replace(']', ' ').strip()
-            match = re.search(r'(.+?) *(\d+) *$', single_species)
-            if match:
-                single_species = match.group(1)
-            self.species += '+' + species_canonical.get(single_species.lower(), '')
-            if match:
-                self.species += ' ' + match.group(2)
-            if self.species.endswith('+'):
-                abort(
-                    f'Species "{single_species}" not supported. The supported species are:',
-                    sorted(set(species_canonical.values())),
-                )
-        self.species = self.species.strip(' +')
         if N != -1:
             self.N = N
             self.gridsize = 1
@@ -1078,6 +1063,24 @@ class Component:
                 )
         else:
             abort(f'Neither N nor gridsize set for {self.name}')
+        if species is None or species.lower() == 'none':
+            self.species = ''
+            species = is_selected(self, select_species)
+        self.species = ''
+        for single_species in str(species).split('+'):
+            single_species = single_species.replace('[', ' ').replace(']', ' ').strip()
+            match = re.search(r'(.+?) *(\d+) *$', single_species)
+            if match:
+                single_species = match.group(1)
+            self.species += '+' + species_canonical.get(single_species.lower(), '')
+            if match:
+                self.species += ' ' + match.group(2)
+            if self.species.endswith('+'):
+                abort(
+                    f'Species "{single_species}" not supported. The supported species are:',
+                    sorted(set(species_canonical.values())),
+                )
+        self.species = self.species.strip(' +')
         # Set forces (and force methods)
         if forces is None:
             forces = is_selected(self, select_forces, accumulate=True)
@@ -1187,9 +1190,9 @@ class Component:
                         if method == 'pm':
                             abort(
                                 f'Upstream and downstream potential grid sizes of fluid component '
-                                f'"{self.name}" for force {force} with method {method} was set to '
-                                f'{tuple(dict_method[method])} but both need to equal the fluid '
-                                f'grid size {self.gridsize}'
+                                f'"{self.name}" for force "{force}" with method "{method}" was set'
+                                f'to {tuple(dict_method[method])} but both need to equal the '
+                                f'fluid grid size {self.gridsize}'
                             )
                         else:
                             # Allow wrong specification
@@ -1199,14 +1202,21 @@ class Component:
         # (instantaneous) interactions that have taken place.
         self.n_interactions = collections.defaultdict(int)
         # Set the CLASS species
-        if class_species is None:
-            class_species = is_selected(self, select_class_species)
-        elif not isinstance(class_species, str):
+        if class_species is not None and not isinstance(class_species, str):
             class_species = '+'.join(class_species)
-        if class_species == 'default':
+        if class_species is None or class_species == '':
             class_species = ''
             if self.species == 'none':
-                abort(f'Neither "species" nor "class species" specified for {self.name} component')
+                if self.name:
+                    abort(
+                        f'Neither "species" nor "class species" '
+                        f'specified for component "{self.name}"'
+                    )
+                else:
+                    abort(
+                        f'Neither "species" nor "class species" '
+                        f'specified for unnamed component'
+                    )
             for single_species in self.species.split('+'):
                 if single_species in species_registered:
                     class_species += '+' + species_registered[single_species].class_species

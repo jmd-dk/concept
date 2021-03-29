@@ -215,7 +215,7 @@ ifneq ($(no_optimizations),True)
     # General optimizations
     optimizations        += -DNDEBUG -O3 -funroll-loops
     optimizations_linker += -O3
-    # Floating point optimizations
+    # Floating-point optimizations
     ifeq ($(compiler),gcc)
         optimizations += -ffast-math
     else ifeq ($(compiler),icc)

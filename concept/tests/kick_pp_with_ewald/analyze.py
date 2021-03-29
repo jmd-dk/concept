@@ -27,14 +27,18 @@ for fname in sorted(glob(this_dir + '/output/snapshot_a=*'),
     x1_std.append(np.std(posx[4:])/np.mean(posx[4:]))
 N_snapshots = len(a)
 
-# Read in data from the GADGET-2 snapshots
+# Read in data from the GADGET snapshots
 x0_gadget = []
 x0_std_gadget = []
 x1_gadget = []
 x1_std_gadget = []
+order = None
 for fname in sorted(glob(this_dir + '/Gadget2/output/snapshot_*'))[:N_snapshots]:
     snapshot = load(fname, compare_params=False)
-    posx_gadget = snapshot.components[0].posx[np.argsort(snapshot.ID)]
+    posx_gadget = snapshot.components[0].posx
+    if order is None:
+        order = np.argsort(posx_gadget)
+    posx_gadget = posx_gadget[order]
     x0_gadget.append(np.mean(posx_gadget[:4]))
     x0_std_gadget.append(np.std(posx_gadget[:4])/np.mean(posx_gadget[:4]))
     x1_gadget.append(np.mean(posx_gadget[4:]))

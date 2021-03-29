@@ -20,7 +20,7 @@ for fname in sorted(glob(this_dir + '/output/snapshot_a=*'),
     components.append(snapshot.components[0])
 N_snapshots = len(a)
 
-# Read in data from the GADGET-2 snapshots
+# Read in data from the GADGET snapshots
 components_gadget = []
 for fname in sorted(glob(this_dir + '/Gadget2/output/snapshot_*'))[:N_snapshots]:
     components_gadget.append(load(fname, compare_params=False, only_components=True)[0])
@@ -29,7 +29,7 @@ for fname in sorted(glob(this_dir + '/Gadget2/output/snapshot_*'))[:N_snapshots]
 masterprint('Analysing {} data ...'.format(this_test))
 
 # Using the particle order of CO𝘕CEPT as the standard,
-# find the corresponding ID's in the GADGET-2 snapshots
+# find the corresponding ID's in the GADGET snapshots
 # and order these particles accordingly.
 N = components[0].N
 D2 = zeros(N, dtype=float)

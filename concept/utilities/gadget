@@ -347,9 +347,9 @@ clean:
 
 
 
-##################################
+####################################
 # Generate GADGET-2 parameter file #
-##################################
+####################################
 # A GADGET-2 parameter file is only generated
 # if a corresponding CO𝘕CEPT parameter file is given.
 if [ "${params}" != "None" ]; then
