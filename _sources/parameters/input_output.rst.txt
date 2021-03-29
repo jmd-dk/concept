@@ -54,7 +54,7 @@ ______________________________________________________________________________
                            },
                            {
                                'name'   : 'baryonic component',
-                               'species': 'baryons',
+                               'species': 'baryon',
                                'N'      : 64**3,
                            },
                        ]
@@ -76,9 +76,9 @@ ______________________________________________________________________________
                            },
                            {
                                'name'           : 'linear component',
-                               'species'        : 'photons + neutrinos + metric',
+                               'species'        : 'photon + neutrino + metric',
                                'gridsize'       : 64,
-                               'boltzmann order': -1,  # Completely linear
+                               'boltzmann order': -1,  # completely linear
                            },
                        ]
 
@@ -89,7 +89,7 @@ ______________________________________________________________________________
                     ':doc:`beyond matter-only </tutorial/beyond_matter_only>`'
                     part of the tutorial.
 
-                    Load initial conditions from an existng snapshot:
+                    Load initial conditions from an existing snapshot:
 
                     .. code-block:: python3
 
@@ -104,15 +104,14 @@ ______________________________________________________________________________
 === =============== =
 \ \ **Type**        ``str``
 --- --------------- -
-\ \ **Default**     ``'standard'``
+\ \ **Default**     ``'concept'``
 --- --------------- -
 \ \ **Description** Specifies the snapshot format to use when dumping
-                    snapshots. CO\ *N*\ CEPT currently understands two
-                    snapshot formats; ``'standard'``, which is its own,
-                    well-structured
+                    snapshots. CO\ *N*\ CEPT understands two snapshot formats;
+                    ``'concept'``, which is its own, well-structured
                     `HDF5 <https://www.hdfgroup.org/solutions/hdf5/>`_ format,
-                    and ``'gadget2'``, which is the binary Fortran format of
-                    `GADGET-2 <https://wwwmpa.mpa-garching.mpg.de/gadget/>`_,
+                    and ``'gadget'``, which is the binary Fortran format of
+                    `GADGET <https://wwwmpa.mpa-garching.mpg.de/gadget/>`_,
                     specifically the *second* type (``SnapFormat = 2`` in
                     GADGET-2). Note that the value of ``snapshot_type`` does
                     not affect which snapshots may be *read*, e.g. used as
@@ -122,7 +121,7 @@ ______________________________________________________________________________
 
                     .. code-block:: python3
 
-                       snapshot_type = 'gadget2'
+                       snapshot_type = 'gadget'
 
 === =============== =
 

@@ -14,10 +14,7 @@
   <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
   <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
   <link rel="stylesheet" href="../_static/copybutton.css" type="text/css" />
-  <link rel="stylesheet" href="../_static/sphinx_tabs/semantic-ui-2.4.1/segment.min.css" type="text/css" />
-  <link rel="stylesheet" href="../_static/sphinx_tabs/semantic-ui-2.4.1/menu.min.css" type="text/css" />
-  <link rel="stylesheet" href="../_static/sphinx_tabs/semantic-ui-2.4.1/tab.min.css" type="text/css" />
-  <link rel="stylesheet" href="../_static/sphinx_tabs/tabs.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/tabs.css" type="text/css" />
   <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
 
   
@@ -421,7 +418,7 @@ components, each comprised of <span class="math notranslate nohighlight">\(64^3\
     <span class="p">},</span>
     <span class="p">{</span>
         <span class="s1">&#39;name&#39;</span>   <span class="p">:</span> <span class="s1">&#39;baryonic component&#39;</span><span class="p">,</span>
-        <span class="s1">&#39;species&#39;</span><span class="p">:</span> <span class="s1">&#39;baryons&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;species&#39;</span><span class="p">:</span> <span class="s1">&#39;baryon&#39;</span><span class="p">,</span>
         <span class="s1">&#39;N&#39;</span>      <span class="p">:</span> <span class="mi">64</span><span class="o">**</span><span class="mi">3</span><span class="p">,</span>
     <span class="p">},</span>
 <span class="p">]</span>
@@ -441,9 +438,9 @@ thus <span class="math notranslate nohighlight">\(64^3\)</span> fluid elements):
     <span class="p">},</span>
     <span class="p">{</span>
         <span class="s1">&#39;name&#39;</span>           <span class="p">:</span> <span class="s1">&#39;linear component&#39;</span><span class="p">,</span>
-        <span class="s1">&#39;species&#39;</span>        <span class="p">:</span> <span class="s1">&#39;photons + neutrinos + metric&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;species&#39;</span>        <span class="p">:</span> <span class="s1">&#39;photon + neutrino + metric&#39;</span><span class="p">,</span>
         <span class="s1">&#39;gridsize&#39;</span>       <span class="p">:</span> <span class="mi">64</span><span class="p">,</span>
-        <span class="s1">&#39;boltzmann order&#39;</span><span class="p">:</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span>  <span class="c1"># Completely linear</span>
+        <span class="s1">&#39;boltzmann order&#39;</span><span class="p">:</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span>  <span class="c1"># completely linear</span>
     <span class="p">},</span>
 <span class="p">]</span>
 </pre></div>
@@ -454,7 +451,7 @@ be omitted. For further examples on the
 possible component specifications, check out the
 ‘<a class="reference internal" href="../tutorial/beyond_matter_only.html"><span class="doc">beyond matter-only</span></a>’
 part of the tutorial.</p>
-<p>Load initial conditions from an existng snapshot:</p>
+<p>Load initial conditions from an existing snapshot:</p>
 <div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">initial_conditions</span> <span class="o">=</span> <span class="s1">&#39;/path/to/snapshot&#39;</span>
 </pre></div>
 </div>
@@ -478,17 +475,16 @@ part of the tutorial.</p>
 </tr>
 <tr class="row-even"><td><p></p></td>
 <td><p><strong>Default</strong></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">'standard'</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">'concept'</span></code></p></td>
 </tr>
 <tr class="row-odd"><td><p></p></td>
 <td><p><strong>Description</strong></p></td>
 <td><p>Specifies the snapshot format to use when dumping
-snapshots. CO<em>N</em>CEPT currently understands two
-snapshot formats; <code class="docutils literal notranslate"><span class="pre">'standard'</span></code>, which is its own,
-well-structured
+snapshots. CO<em>N</em>CEPT understands two snapshot formats;
+<code class="docutils literal notranslate"><span class="pre">'concept'</span></code>, which is its own, well-structured
 <a class="reference external" href="https://www.hdfgroup.org/solutions/hdf5/">HDF5</a> format,
-and <code class="docutils literal notranslate"><span class="pre">'gadget2'</span></code>, which is the binary Fortran format of
-<a class="reference external" href="https://wwwmpa.mpa-garching.mpg.de/gadget/">GADGET-2</a>,
+and <code class="docutils literal notranslate"><span class="pre">'gadget'</span></code>, which is the binary Fortran format of
+<a class="reference external" href="https://wwwmpa.mpa-garching.mpg.de/gadget/">GADGET</a>,
 specifically the <em>second</em> type (<code class="docutils literal notranslate"><span class="pre">SnapFormat</span> <span class="pre">=</span> <span class="pre">2</span></code> in
 GADGET-2). Note that the value of <code class="docutils literal notranslate"><span class="pre">snapshot_type</span></code> does
 not affect which snapshots may be <em>read</em>, e.g. used as
@@ -497,7 +493,7 @@ not affect which snapshots may be <em>read</em>, e.g. used as
 <tr class="row-even"><td><p></p></td>
 <td><p><strong>Example</strong></p></td>
 <td><p>Dump output snapshots in GADGET-2 format:</p>
-<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">snapshot_type</span> <span class="o">=</span> <span class="s1">&#39;gadget2&#39;</span>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">snapshot_type</span> <span class="o">=</span> <span class="s1">&#39;gadget&#39;</span>
 </pre></div>
 </div>
 </td>

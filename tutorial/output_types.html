@@ -14,10 +14,7 @@
   <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
   <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
   <link rel="stylesheet" href="../_static/copybutton.css" type="text/css" />
-  <link rel="stylesheet" href="../_static/sphinx_tabs/semantic-ui-2.4.1/segment.min.css" type="text/css" />
-  <link rel="stylesheet" href="../_static/sphinx_tabs/semantic-ui-2.4.1/menu.min.css" type="text/css" />
-  <link rel="stylesheet" href="../_static/sphinx_tabs/semantic-ui-2.4.1/tab.min.css" type="text/css" />
-  <link rel="stylesheet" href="../_static/sphinx_tabs/tabs.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/tabs.css" type="text/css" />
   <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
 
   
@@ -542,24 +539,24 @@ parameter file:</p>
 </div>
 <p>You may also want to use CO<em>N</em>CEPT purely as an initial condition
 generator, and perform the actual simulation using some other code. If so, the
-standard CO<em>N</em>CEPT snapshot format is of little use. To this end,
+default CO<em>N</em>CEPT snapshot format is of little use. To this end,
 CO<em>N</em>CEPT also supports the binary Fortran format of
-<a class="reference external" href="https://wwwmpa.mpa-garching.mpg.de/gadget/">GADGET-2</a>, specifically the
+<a class="reference external" href="https://wwwmpa.mpa-garching.mpg.de/gadget/">GADGET</a>, specifically the
 <em>second</em> type (<code class="docutils literal notranslate"><span class="pre">SnapFormat</span> <span class="pre">=</span> <span class="pre">2</span></code> in GADGET-2), which is understood by several
 other simulation codes and tools. To use this snapshot format in place of the
-standard one, add <code class="docutils literal notranslate"><span class="pre">snapshot_type</span> <span class="pre">=</span> <span class="pre">'gadget2'</span></code> to your parameter file.</p>
+CO<em>N</em>CEPT format, add <code class="docutils literal notranslate"><span class="pre">snapshot_type</span> <span class="pre">=</span> <span class="pre">'gadget'</span></code> to your parameter file.</p>
 <h3>The info utility</h3><p>We mentioned <a class="reference external" href="https://vitables.org/">ViTables</a> as a great way to peek inside
 the default CO<em>N</em>CEPT (HDF5) snapshots. It would be nice to have a general
-tool which worked for the supported GADGET-2 snapshots as well. Luckily,
+tool which worked for the supported GADGET snapshots as well. Luckily,
 CO<em>N</em>CEPT comes with just such a tool: the <em>info utility</em>. To try it out,
 simply do</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept -u info output/tutorial
 </pre></div>
 </div>
-<p>The content of all snapshots — standard (HDF5) or GADGET-2 format — in the
-<code class="docutils literal notranslate"><span class="pre">output/tutorial</span></code> directory will now be printed to the screen. Should you
-want information about just a specific snapshot, simply provide its entire
-path.</p>
+<p>The content of all snapshots — CO<em>N</em>CEPT (HDF5) or GADGET format — in
+the <code class="docutils literal notranslate"><span class="pre">output/tutorial</span></code> directory will now be printed to the screen. Should
+you want information about just a specific snapshot, simply provide its
+entire path.</p>
 </div>
 </div>
 

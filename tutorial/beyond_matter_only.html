@@ -14,10 +14,7 @@
   <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
   <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
   <link rel="stylesheet" href="../_static/copybutton.css" type="text/css" />
-  <link rel="stylesheet" href="../_static/sphinx_tabs/semantic-ui-2.4.1/segment.min.css" type="text/css" />
-  <link rel="stylesheet" href="../_static/sphinx_tabs/semantic-ui-2.4.1/menu.min.css" type="text/css" />
-  <link rel="stylesheet" href="../_static/sphinx_tabs/semantic-ui-2.4.1/tab.min.css" type="text/css" />
-  <link rel="stylesheet" href="../_static/sphinx_tabs/tabs.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/tabs.css" type="text/css" />
   <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
 
   
@@ -588,7 +585,7 @@ a photon component. This could look like (do not change the parameter file)</p>
     <span class="p">},</span>
     <span class="c1"># Linear photon fluid</span>
     <span class="p">{</span>
-        <span class="s1">&#39;species&#39;</span>        <span class="p">:</span> <span class="s1">&#39;photons&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;species&#39;</span>        <span class="p">:</span> <span class="s1">&#39;photon&#39;</span><span class="p">,</span>
         <span class="s1">&#39;gridsize&#39;</span>       <span class="p">:</span> <span class="n">_size</span><span class="p">,</span>
         <span class="s1">&#39;boltzmann order&#39;</span><span class="p">:</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span>
     <span class="p">},</span>
@@ -661,7 +658,7 @@ components, using the <code class="docutils literal notranslate"><span class="pr
 with the inclusion of linear photons, run</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept <span class="se">\</span>
     -p params/tutorial <span class="se">\</span>
-    -c <span class="s2">&quot;_lin = &#39;photons&#39;&quot;</span>
+    -c <span class="s2">&quot;_lin = &#39;photon&#39;&quot;</span>
 </pre></div>
 </div>
 <div class="admonition tip">
@@ -685,7 +682,7 @@ also contain massless neutrinos. With our hope renewed, let’s run a simulation
 which includes both linear photons and linear massless neutrinos:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept <span class="se">\</span>
     -p params/tutorial <span class="se">\</span>
-    -c <span class="s2">&quot;_lin = &#39;photons, massless neutrinos&#39;&quot;</span>
+    -c <span class="s2">&quot;_lin = &#39;photon, massless neutrino&#39;&quot;</span>
 </pre></div>
 </div>
 <p>Redoing the plot, we discover that including the neutrinos made the
@@ -720,7 +717,7 @@ gauge only becomes aparrent at very large scales.</p>
 photons and neutrinos in their entirety, run</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept <span class="se">\</span>
     -p params/tutorial <span class="se">\</span>
-    -c <span class="s2">&quot;_lin = &#39;photons, massless neutrinos, metric&#39;&quot;</span>
+    -c <span class="s2">&quot;_lin = &#39;photon, massless neutrino, metric&#39;&quot;</span>
 </pre></div>
 </div>
 <p>Re-plotting, you should see a much better behaved simulation power spectrum at
@@ -738,7 +735,7 @@ normally write e.g.</p>
     <span class="p">},</span>
     <span class="c1"># Linear fluid component</span>
     <span class="p">{</span>
-        <span class="s1">&#39;species&#39;</span>        <span class="p">:</span> <span class="s1">&#39;photons + massless neutrinos + metric&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;species&#39;</span>        <span class="p">:</span> <span class="s1">&#39;photon + massless neutrino + metric&#39;</span><span class="p">,</span>
         <span class="s1">&#39;gridsize&#39;</span>       <span class="p">:</span> <span class="n">_size</span><span class="p">,</span>
         <span class="s1">&#39;boltzmann order&#39;</span><span class="p">:</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span>
     <span class="p">},</span>
@@ -749,11 +746,11 @@ normally write e.g.</p>
 specify this directly at the command-line using</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept <span class="se">\</span>
     -p params/tutorial <span class="se">\</span>
-    -c <span class="s2">&quot;_lin = &#39;photons + massless neutrinos + metric&#39;&quot;</span>
+    -c <span class="s2">&quot;_lin = &#39;photon + massless neutrino + metric&#39;&quot;</span>
 </pre></div>
 </div>
 <p>This idea of combining species is embraced fully by CO<em>N</em>CEPT. As such,
-the species <code class="docutils literal notranslate"><span class="pre">'photons</span> <span class="pre">+</span> <span class="pre">massless</span> <span class="pre">neutrinos'</span></code> may be collectively referred to
+the species <code class="docutils literal notranslate"><span class="pre">'photon</span> <span class="pre">+</span> <span class="pre">massless</span> <span class="pre">neutrino'</span></code> may be collectively referred to
 simply as <code class="docutils literal notranslate"><span class="pre">'radiation'</span></code>. Thus,</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept -p params/tutorial -c <span class="s2">&quot;_lin = &#39;radiation + metric&#39;&quot;</span>
 </pre></div>
@@ -761,11 +758,11 @@ simply as <code class="docutils literal notranslate"><span class="pre">'radiatio
 <p>works just as well. You should run one of the above and check that you obtain
 the same result as before.</p>
 <p>You are in fact already very familiar with the idea of combining species, as
-<code class="docutils literal notranslate"><span class="pre">'matter'</span></code> really means <code class="docutils literal notranslate"><span class="pre">'baryons</span> <span class="pre">+</span> <span class="pre">cold</span> <span class="pre">dark</span> <span class="pre">matter'</span></code>.</p>
+<code class="docutils literal notranslate"><span class="pre">'matter'</span></code> really means <code class="docutils literal notranslate"><span class="pre">'baryon</span> <span class="pre">+</span> <span class="pre">cold</span> <span class="pre">dark</span> <span class="pre">matter'</span></code>.</p>
 <div class="admonition tip">
 <p class="admonition-title">Tip</p>
 <p>When performing simulaitons in a cosmology without massless neutrinos,
-specifying <code class="docutils literal notranslate"><span class="pre">'photons</span> <span class="pre">+</span> <span class="pre">massless</span> <span class="pre">neutrinos'</span></code> as the species of a component
+specifying <code class="docutils literal notranslate"><span class="pre">'photon</span> <span class="pre">+</span> <span class="pre">massless</span> <span class="pre">neutrino'</span></code> as the species of a component
 will produce an error. However, specfying <code class="docutils literal notranslate"><span class="pre">'radiation'</span></code> is always safe,
 as this dynamically maps to the set of all radiation species present in the
 current cosmology, whatever this may be. Similarly, <code class="docutils literal notranslate"><span class="pre">'matter'</span></code> is safe to
@@ -984,10 +981,10 @@ regime. We thus trust the simulated results at the high-<span class="math notran
 plot, while we trust the linear results at the low-<span class="math notranslate nohighlight">\(k\)</span> end.</p>
 <h3>Adding gravitation from massive neutrinos</h3><p>The hope is now to be able to correct the simulated relative power spectrum at
 low <span class="math notranslate nohighlight">\(k\)</span> by including the missing species to the simulation, without this
-altering the high-<span class="math notranslate nohighlight">\(k\)</span> behaviour. Besides <code class="docutils literal notranslate"><span class="pre">'massive</span> <span class="pre">neutrinos'</span></code>, we
-should not forget about <code class="docutils literal notranslate"><span class="pre">'photons'</span></code> and the <code class="docutils literal notranslate"><span class="pre">'metric'</span></code>. Note that
-<code class="docutils literal notranslate"><span class="pre">'massive</span> <span class="pre">neutrinos'</span></code> are not considered part of <code class="docutils literal notranslate"><span class="pre">'radiation'</span></code>. We can
-however just write <code class="docutils literal notranslate"><span class="pre">'neutrinos'</span></code>, as this refers to all neutrinos (massive
+altering the high-<span class="math notranslate nohighlight">\(k\)</span> behaviour. Besides <code class="docutils literal notranslate"><span class="pre">'massive</span> <span class="pre">neutrino'</span></code>, we
+should not forget about <code class="docutils literal notranslate"><span class="pre">'photon'</span></code> and <code class="docutils literal notranslate"><span class="pre">'metric'</span></code>. Note that
+<code class="docutils literal notranslate"><span class="pre">'massive</span> <span class="pre">neutrino'</span></code> is not considered part of <code class="docutils literal notranslate"><span class="pre">'radiation'</span></code>. We can
+however just write <code class="docutils literal notranslate"><span class="pre">'neutrino'</span></code>, as this refers to all neutrinos (massive
 (‘ncdm’) as well as massless (‘ur’)) present in the cosmology. To rerun both
 cosmologies with all linear species included, we might call <code class="docutils literal notranslate"><span class="pre">concept</span></code> within
 a Bash for-loop:</p>
@@ -995,7 +992,7 @@ a Bash for-loop:</p>
     ./concept <span class="se">\</span>
         -p params/tutorial <span class="se">\</span>
         -c <span class="s2">&quot;_mass = </span><span class="nv">$mass</span><span class="s2">&quot;</span> <span class="se">\</span>
-        -c <span class="s2">&quot;_lin = &#39;photons + neutrinos + metric&#39;&quot;</span>
+        -c <span class="s2">&quot;_lin = &#39;photon + neutrino + metric&#39;&quot;</span>
 <span class="k">done</span>
 </pre></div>
 </div>
@@ -1363,14 +1360,14 @@ you should save as e.g. <code class="docutils literal notranslate"><span class="
 <span class="k">if</span> <span class="n">_combine</span><span class="p">:</span>
     <span class="n">initial_conditions</span> <span class="o">=</span> <span class="p">[</span>
         <span class="c1"># Non-linear (total) matter particles</span>
-        <span class="p">{</span><span class="hll">            <span class="s1">&#39;name&#39;</span>   <span class="p">:</span> <span class="s1">&#39;total matter&#39;</span><span class="p">,</span></span><span class="hll">            <span class="s1">&#39;species&#39;</span><span class="p">:</span> <span class="p">(</span></span><span class="hll">                <span class="s1">&#39;baryons + cold dark matter&#39;</span></span><span class="hll">                <span class="o">+</span> <span class="p">(</span><span class="s1">&#39; + decaying cold dark matter&#39;</span> <span class="k">if</span> <span class="n">_frac</span> <span class="k">else</span> <span class="s1">&#39;&#39;</span><span class="p">)</span></span><span class="hll">            <span class="p">),</span></span>            <span class="s1">&#39;N&#39;</span>      <span class="p">:</span> <span class="n">_size</span><span class="o">**</span><span class="mi">3</span><span class="p">,</span>
+        <span class="p">{</span><span class="hll">            <span class="s1">&#39;name&#39;</span>   <span class="p">:</span> <span class="s1">&#39;total matter&#39;</span><span class="p">,</span></span><span class="hll">            <span class="s1">&#39;species&#39;</span><span class="p">:</span> <span class="p">(</span></span><span class="hll">                <span class="s1">&#39;baryon + cold dark matter&#39;</span></span><span class="hll">                <span class="o">+</span> <span class="p">(</span><span class="s1">&#39; + decaying cold dark matter&#39;</span> <span class="k">if</span> <span class="n">_frac</span> <span class="k">else</span> <span class="s1">&#39;&#39;</span><span class="p">)</span></span><span class="hll">            <span class="p">),</span></span>            <span class="s1">&#39;N&#39;</span>      <span class="p">:</span> <span class="n">_size</span><span class="o">**</span><span class="mi">3</span><span class="p">,</span>
         <span class="p">}</span>
     <span class="p">]</span>
 <span class="k">else</span><span class="p">:</span>
     <span class="c1"># Assume 0 &lt; _frac &lt; 1</span>
     <span class="n">initial_conditions</span> <span class="o">=</span> <span class="p">[</span>
-        <span class="c1"># Non-linear baryons and (stable) cold dark matter particles</span>
-        <span class="p">{</span><span class="hll">            <span class="s1">&#39;name&#39;</span>   <span class="p">:</span> <span class="s1">&#39;stable matter&#39;</span><span class="p">,</span></span><span class="hll">            <span class="s1">&#39;species&#39;</span><span class="p">:</span> <span class="s1">&#39;baryons + cold dark matter&#39;</span><span class="p">,</span></span>            <span class="s1">&#39;N&#39;</span>      <span class="p">:</span> <span class="n">_size</span><span class="o">**</span><span class="mi">3</span><span class="p">,</span>
+        <span class="c1"># Non-linear baryon and (stable) cold dark matter particles</span>
+        <span class="p">{</span><span class="hll">            <span class="s1">&#39;name&#39;</span>   <span class="p">:</span> <span class="s1">&#39;stable matter&#39;</span><span class="p">,</span></span><span class="hll">            <span class="s1">&#39;species&#39;</span><span class="p">:</span> <span class="s1">&#39;baryon + cold dark matter&#39;</span><span class="p">,</span></span>            <span class="s1">&#39;N&#39;</span>      <span class="p">:</span> <span class="n">_size</span><span class="o">**</span><span class="mi">3</span><span class="p">,</span>
         <span class="p">},</span><span class="hll">        <span class="c1"># Non-linear decaying cold dark matter particles</span></span><span class="hll">        <span class="p">{</span></span><span class="hll">            <span class="s1">&#39;name&#39;</span>   <span class="p">:</span> <span class="s1">&#39;decaying matter&#39;</span><span class="p">,</span></span><span class="hll">            <span class="s1">&#39;species&#39;</span><span class="p">:</span> <span class="s1">&#39;decaying cold dark matter&#39;</span><span class="p">,</span></span><span class="hll">            <span class="s1">&#39;N&#39;</span>      <span class="p">:</span> <span class="n">_size</span><span class="o">**</span><span class="mi">3</span><span class="p">,</span></span><span class="hll">        <span class="p">},</span></span>    <span class="p">]</span>
 <span class="k">for</span> <span class="n">_species</span> <span class="ow">in</span> <span class="n">_lin</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;,&#39;</span><span class="p">):</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="n">_species</span><span class="p">:</span>
@@ -1446,7 +1443,7 @@ specify <code class="docutils literal notranslate"><span class="pre">_frac</span
 </div>
 <p>This new simulation still consists of just a single particle component, now
 with a species of
-<code class="docutils literal notranslate"><span class="pre">'baryons</span> <span class="pre">+</span> <span class="pre">cold</span> <span class="pre">dark</span> <span class="pre">matter</span> <span class="pre">+</span> <span class="pre">decaying</span> <span class="pre">cold</span> <span class="pre">dark</span> <span class="pre">matter'</span></code>. The decay is
+<code class="docutils literal notranslate"><span class="pre">'baryon</span> <span class="pre">+</span> <span class="pre">cold</span> <span class="pre">dark</span> <span class="pre">matter</span> <span class="pre">+</span> <span class="pre">decaying</span> <span class="pre">cold</span> <span class="pre">dark</span> <span class="pre">matter'</span></code>. The decay is
 taken into effect by continuously reducing the mass of each <em>N</em>-body particle
 according to the decay rate, without changing the particle velocity. As the
 component now represents three fundamental species, the effective “<em>N</em>-body
@@ -1556,7 +1553,7 @@ the simulation:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="k">for</span> frac <span class="k">in</span> <span class="m">0</span> <span class="m">0</span>.7<span class="p">;</span> <span class="k">do</span>
     ./concept <span class="se">\</span>
         -p params/tutorial <span class="se">\</span>
-        -c <span class="s2">&quot;_lin = &#39;photons + neutrinos + metric&#39;&quot;</span> <span class="se">\</span>
+        -c <span class="s2">&quot;_lin = &#39;photon + neutrino + metric&#39;&quot;</span> <span class="se">\</span>
         -c <span class="s2">&quot;_frac = </span><span class="nv">$frac</span><span class="s2">&quot;</span>
 <span class="k">done</span>
 </pre></div>
@@ -1568,7 +1565,7 @@ large-scale power needed to reach agreement with the linear prediction.</p>
 radiation, of course only applicable for the dcdm simulation:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept <span class="se">\</span>
     -p params/tutorial <span class="se">\</span>
-    -c <span class="s2">&quot;_lin = &#39;photons + neutrinos + decay radiation + metric&#39;&quot;</span> <span class="se">\</span>
+    -c <span class="s2">&quot;_lin = &#39;photon + neutrino + decay radiation + metric&#39;&quot;</span> <span class="se">\</span>
     -c <span class="s2">&quot;_frac = 0.7&quot;</span>
 </pre></div>
 </div>
@@ -1576,17 +1573,17 @@ radiation, of course only applicable for the dcdm simulation:</p>
 with the linear result at large scales.</p>
 <p>Studying <a class="reference internal" href="#params-decaying-cold-dark-matter"><span class="std std-ref">the parameter file</span></a>, we see
 that the <code class="docutils literal notranslate"><span class="pre">'species'</span></code> of the <code class="docutils literal notranslate"><span class="pre">'total</span> <span class="pre">matter'</span></code> component gets set to
-<code class="docutils literal notranslate"><span class="pre">'baryons</span> <span class="pre">+</span> <span class="pre">cold</span> <span class="pre">dark</span> <span class="pre">matter'</span></code> when <code class="docutils literal notranslate"><span class="pre">_frac</span></code> equals <code class="docutils literal notranslate"><span class="pre">0</span></code> (corresponding to
-unset) and <code class="docutils literal notranslate"><span class="pre">'baryons</span> <span class="pre">+</span> <span class="pre">cold</span> <span class="pre">dark</span> <span class="pre">matter</span> <span class="pre">+</span> <span class="pre">decaying</span> <span class="pre">cold</span> <span class="pre">dark</span> <span class="pre">matter'</span></code>
+<code class="docutils literal notranslate"><span class="pre">'baryon</span> <span class="pre">+</span> <span class="pre">cold</span> <span class="pre">dark</span> <span class="pre">matter'</span></code> when <code class="docutils literal notranslate"><span class="pre">_frac</span></code> equals <code class="docutils literal notranslate"><span class="pre">0</span></code> (corresponding to
+unset) and <code class="docutils literal notranslate"><span class="pre">'baryon</span> <span class="pre">+</span> <span class="pre">cold</span> <span class="pre">dark</span> <span class="pre">matter</span> <span class="pre">+</span> <span class="pre">decaying</span> <span class="pre">cold</span> <span class="pre">dark</span> <span class="pre">matter'</span></code>
 otherwise. (Do not worry about the case of the variable <code class="docutils literal notranslate"><span class="pre">_combine</span></code> being
 falsy. We shall make use of this special flag later.) We are used to
-<code class="docutils literal notranslate"><span class="pre">'matter'</span></code> being an alias for <code class="docutils literal notranslate"><span class="pre">'baryons</span> <span class="pre">+</span> <span class="pre">cold</span> <span class="pre">dark</span> <span class="pre">matter'</span></code>, but really
+<code class="docutils literal notranslate"><span class="pre">'matter'</span></code> being an alias for <code class="docutils literal notranslate"><span class="pre">'baryon</span> <span class="pre">+</span> <span class="pre">cold</span> <span class="pre">dark</span> <span class="pre">matter'</span></code>, but really
 it functions as a stand-in for <em>all</em> matter within the given cosmology,
 including decaying cold dark matter. Go ahead and replace this needlessly
 complicated expression for the <code class="docutils literal notranslate"><span class="pre">'species'</span></code> of <code class="docutils literal notranslate"><span class="pre">'total</span> <span class="pre">matter'</span></code> in
 <a class="reference internal" href="#params-decaying-cold-dark-matter"><span class="std std-ref">the parameter file</span></a> with just
-<code class="docutils literal notranslate"><span class="pre">'matter'</span></code>. Likewise, <code class="docutils literal notranslate"><span class="pre">'radiation'</span></code> includes not just <code class="docutils literal notranslate"><span class="pre">'photons'</span></code> and
-(massless) <code class="docutils literal notranslate"><span class="pre">'neutrinos'</span></code>, but also <code class="docutils literal notranslate"><span class="pre">'decay</span> <span class="pre">radiation'</span></code>, when present. With
+<code class="docutils literal notranslate"><span class="pre">'matter'</span></code>. Likewise, <code class="docutils literal notranslate"><span class="pre">'radiation'</span></code> includes not just <code class="docutils literal notranslate"><span class="pre">'photon'</span></code> and
+(massless) <code class="docutils literal notranslate"><span class="pre">'neutrino'</span></code>, but also <code class="docutils literal notranslate"><span class="pre">'decay</span> <span class="pre">radiation'</span></code>, when present. With
 the aforementioned change to
 <a class="reference internal" href="#params-decaying-cold-dark-matter"><span class="std std-ref">the parameter file</span></a> in place, try
 rerunning both the dcdm and the reference simulation using simply</p>
@@ -1677,7 +1674,7 @@ additional correction terms, we once again refer to the paper on
 <p>To tackle this problem — or at least confirm that it is indeed caused by
 combining decaying and stable matter — we may run a simulation which makes
 use of two separate particle components; one for stable matter
-(<code class="docutils literal notranslate"><span class="pre">'baryons</span> <span class="pre">+</span> <span class="pre">cold</span> <span class="pre">dark</span> <span class="pre">matter'</span></code>) and one for decaying matter
+(<code class="docutils literal notranslate"><span class="pre">'baryon</span> <span class="pre">+</span> <span class="pre">cold</span> <span class="pre">dark</span> <span class="pre">matter'</span></code>) and one for decaying matter
 (<code class="docutils literal notranslate"><span class="pre">'decaying</span> <span class="pre">cold</span> <span class="pre">dark</span> <span class="pre">matter'</span></code>). This is done simply by listing each
 particle component separately in the <code class="docutils literal notranslate"><span class="pre">initial_conditions</span></code> parameter in
 <a class="reference internal" href="#params-decaying-cold-dark-matter"><span class="std std-ref">the parameter file</span></a>. Specifying

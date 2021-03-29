@@ -14,10 +14,7 @@
   <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
   <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
   <link rel="stylesheet" href="_static/copybutton.css" type="text/css" />
-  <link rel="stylesheet" href="_static/sphinx_tabs/semantic-ui-2.4.1/segment.min.css" type="text/css" />
-  <link rel="stylesheet" href="_static/sphinx_tabs/semantic-ui-2.4.1/menu.min.css" type="text/css" />
-  <link rel="stylesheet" href="_static/sphinx_tabs/semantic-ui-2.4.1/tab.min.css" type="text/css" />
-  <link rel="stylesheet" href="_static/sphinx_tabs/tabs.css" type="text/css" />
+  <link rel="stylesheet" href="_static/tabs.css" type="text/css" />
   <link rel="stylesheet" href="_static/custom.css" type="text/css" />
 
   
@@ -44,8 +41,7 @@
         <script src="_static/doctools.js"></script>
         <script src="_static/clipboard.min.js"></script>
         <script src="_static/copybutton.js"></script>
-        <script src="_static/sphinx_tabs/semantic-ui-2.4.1/tab.min.js"></script>
-        <script src="_static/sphinx_tabs/tabs.js"></script>
+        <script src="_static/tabs.js"></script>
         <script async="async" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.7/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
     
     <script type="text/javascript" src="_static/js/theme.js"></script>
@@ -596,20 +592,7 @@ i.e. at <code class="docutils literal notranslate"><span class="pre">/path/to/co
 choice of MPI executor depends on the job scheduler in use (Slurm or
 TORQUE/PBS).</p>
 <div class="sphinx-tabs docutils container">
-<div class="ui top attached tabular menu sphinx-menu docutils container">
-<div class="active item sphinx-data-tab-U2x1cm0= docutils container">
-<div class="docutils container">
-<p>Slurm</p>
-</div>
-</div>
-<div class="item sphinx-data-tab-VE9SUVVFL1BCUw== docutils container">
-<div class="docutils container">
-<p>TORQUE/PBS</p>
-</div>
-</div>
-</div>
-<div style="padding-bottom: 0;" class="ui bottom attached sphinx-tab tab segment sphinx-data-tab-U2x1cm0= active docutils container">
-<div class="admonition note">
+<div aria-label="Tabbed content" role="tablist"><button aria-controls="panel-0-U2x1cm0=" aria-selected="true" class="sphinx-tabs-tab group-tab" id="tab-0-U2x1cm0=" name="U2x1cm0=" role="tab" tabindex="0">Slurm</button><button aria-controls="panel-0-VE9SUVVFL1BCUw==" aria-selected="false" class="sphinx-tabs-tab group-tab" id="tab-0-VE9SUVVFL1BCUw==" name="VE9SUVVFL1BCUw==" role="tab" tabindex="-1">TORQUE/PBS</button></div><div aria-labelledby="tab-0-U2x1cm0=" class="sphinx-tabs-panel group-tab" id="panel-0-U2x1cm0=" name="U2x1cm0=" role="tabpanel" tabindex="0"><div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>Even if you are using Slurm, it may be that your MPI library is not
 configured appropriately for <code class="docutils literal notranslate"><span class="pre">srun</span></code> to be able to correctly launch
@@ -644,9 +627,7 @@ supports, run</p>
 supported MPI implementations. If you find one that works, do remember
 to test if it also works with the added <code class="docutils literal notranslate"><span class="pre">--cpu_bind=none</span></code> option, as
 this is preferred.</p>
-</div>
-<div style="padding-bottom: 0;" class="ui bottom attached sphinx-tab tab segment sphinx-data-tab-VE9SUVVFL1BCUw== docutils container">
-<p>When TORQUE or PBS is used as the job scheduler, the MPI executor will be
+</div><div aria-labelledby="tab-0-VE9SUVVFL1BCUw==" class="sphinx-tabs-panel group-tab" hidden="true" id="panel-0-VE9SUVVFL1BCUw==" name="VE9SUVVFL1BCUw==" role="tabpanel" tabindex="0"><p>When TORQUE or PBS is used as the job scheduler, the MPI executor will be
 set to one of <code class="docutils literal notranslate"><span class="pre">mpiexec</span></code> or <code class="docutils literal notranslate"><span class="pre">mpirun</span></code> by default, possibly with
 additional options. The first thing to try is to leave out these options,
 i.e. setting</p>
@@ -672,8 +653,7 @@ e.g. by running</p>
 </pre></div>
 </div>
 <p>(other possible MPI executors include <code class="docutils literal notranslate"><span class="pre">mpiexec.hydra</span></code> and <code class="docutils literal notranslate"><span class="pre">orterun</span></code>).</p>
-</div>
-</div>
+</div></div>
 </div>
 <div class="section" id="different-hardware-architecture-on-front-end-and-remote-node">
 <h3>Different hardware architecture on front-end and remote node<a class="headerlink" href="#different-hardware-architecture-on-front-end-and-remote-node" title="Permalink to this headline">¶</a></h3>
@@ -714,20 +694,7 @@ installing CO<em>N</em>CEPT. In both cases you may wish to change
 environment changes, and/or make use of a pre-installed MPI library as
 described <a class="reference internal" href="installation.html#optimal-network-performance-on-clusters"><span class="std std-ref">here</span></a>.</p>
 <div class="sphinx-tabs docutils container">
-<div class="ui top attached tabular menu sphinx-menu docutils container">
-<div class="active item sphinx-data-tab-U2x1cm0= docutils container">
-<div class="docutils container">
-<p>Slurm</p>
-</div>
-</div>
-<div class="item sphinx-data-tab-VE9SUVVFL1BCUw== docutils container">
-<div class="docutils container">
-<p>TORQUE/PBS</p>
-</div>
-</div>
-</div>
-<div style="padding-bottom: 0;" class="ui bottom attached sphinx-tab tab segment sphinx-data-tab-U2x1cm0= active docutils container">
-<p>To submit a remote Slurm job for installing CO<em>N</em>CEPT, save the code
+<div aria-label="Tabbed content" role="tablist"><button aria-controls="panel-1-U2x1cm0=" aria-selected="true" class="sphinx-tabs-tab group-tab" id="tab-1-U2x1cm0=" name="U2x1cm0=" role="tab" tabindex="0">Slurm</button><button aria-controls="panel-1-VE9SUVVFL1BCUw==" aria-selected="false" class="sphinx-tabs-tab group-tab" id="tab-1-VE9SUVVFL1BCUw==" name="VE9SUVVFL1BCUw==" role="tab" tabindex="-1">TORQUE/PBS</button></div><div aria-labelledby="tab-1-U2x1cm0=" class="sphinx-tabs-panel group-tab" id="panel-1-U2x1cm0=" name="U2x1cm0=" role="tabpanel" tabindex="0"><p>To submit a remote Slurm job for installing CO<em>N</em>CEPT, save the code
 below to e.g. <code class="docutils literal notranslate"><span class="pre">jobscript</span></code> (replacing <code class="docutils literal notranslate"><span class="pre">&lt;queue&gt;</span></code> with the partition in
 question) and execute <code class="docutils literal notranslate"><span class="pre">sbatch</span> <span class="pre">jobscript</span></code>.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="ch">#!/usr/bin/env bash</span>
@@ -747,9 +714,7 @@ question) and execute <code class="docutils literal notranslate"><span class="pr
 <span class="nv">make_jobs</span><span class="o">=</span><span class="s2">&quot;-j&quot;</span> bash &lt;<span class="o">(</span>wget -O- <span class="s2">&quot;</span><span class="si">${</span><span class="nv">installer</span><span class="si">}</span><span class="s2">&quot;</span><span class="o">)</span> <span class="s2">&quot;</span><span class="si">${</span><span class="nv">install_path</span><span class="si">}</span><span class="s2">&quot;</span>
 </pre></div>
 </div>
-</div>
-<div style="padding-bottom: 0;" class="ui bottom attached sphinx-tab tab segment sphinx-data-tab-VE9SUVVFL1BCUw== docutils container">
-<p>To submit a remote TORQUE/PBS job for installing CO<em>N</em>CEPT, save the
+</div><div aria-labelledby="tab-1-VE9SUVVFL1BCUw==" class="sphinx-tabs-panel group-tab" hidden="true" id="panel-1-VE9SUVVFL1BCUw==" name="VE9SUVVFL1BCUw==" role="tabpanel" tabindex="0"><p>To submit a remote TORQUE/PBS job for installing CO<em>N</em>CEPT, save the
 code below to e.g. <code class="docutils literal notranslate"><span class="pre">jobscript</span></code> (replacing <code class="docutils literal notranslate"><span class="pre">&lt;queue&gt;</span></code> with the queue
 in question) and execute <code class="docutils literal notranslate"><span class="pre">qsub</span> <span class="pre">jobscript</span></code>.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="ch">#!/usr/bin/env bash</span>
@@ -767,8 +732,7 @@ in question) and execute <code class="docutils literal notranslate"><span class=
 <span class="nv">make_jobs</span><span class="o">=</span><span class="s2">&quot;-j&quot;</span> bash &lt;<span class="o">(</span>wget -O- <span class="s2">&quot;</span><span class="si">${</span><span class="nv">installer</span><span class="si">}</span><span class="s2">&quot;</span><span class="o">)</span> <span class="s2">&quot;</span><span class="si">${</span><span class="nv">install_path</span><span class="si">}</span><span class="s2">&quot;</span>
 </pre></div>
 </div>
-</div>
-</div>
+</div></div>
 <p>Once a CO<em>N</em>CEPT installation job has begun, you can follow the
 installation process by executing</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>tail -f &lt;install_path&gt;/install_log

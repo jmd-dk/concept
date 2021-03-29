@@ -254,12 +254,12 @@ parameter file:
 
 You may also want to use CO\ *N*\ CEPT purely as an initial condition
 generator, and perform the actual simulation using some other code. If so, the
-standard CO\ *N*\ CEPT snapshot format is of little use. To this end,
+default CO\ *N*\ CEPT snapshot format is of little use. To this end,
 CO\ *N*\ CEPT also supports the binary Fortran format of
-`GADGET-2 <https://wwwmpa.mpa-garching.mpg.de/gadget/>`_, specifically the
+`GADGET <https://wwwmpa.mpa-garching.mpg.de/gadget/>`_, specifically the
 *second* type (``SnapFormat = 2`` in GADGET-2), which is understood by several
 other simulation codes and tools. To use this snapshot format in place of the
-standard one, add ``snapshot_type = 'gadget2'`` to your parameter file.
+CO\ *N*\ CEPT format, add ``snapshot_type = 'gadget'`` to your parameter file.
 
 
 
@@ -269,7 +269,7 @@ standard one, add ``snapshot_type = 'gadget2'`` to your parameter file.
 
 We mentioned `ViTables <https://vitables.org/>`_ as a great way to peek inside
 the default CO\ *N*\ CEPT (HDF5) snapshots. It would be nice to have a general
-tool which worked for the supported GADGET-2 snapshots as well. Luckily,
+tool which worked for the supported GADGET snapshots as well. Luckily,
 CO\ *N*\ CEPT comes with just such a tool: the *info utility*. To try it out,
 simply do
 
@@ -277,8 +277,8 @@ simply do
 
    ./concept -u info output/tutorial
 
-The content of all snapshots --- standard (HDF5) or GADGET-2 format --- in the
-``output/tutorial`` directory will now be printed to the screen. Should you
-want information about just a specific snapshot, simply provide its entire
-path.
+The content of all snapshots --- CO\ *N*\ CEPT (HDF5) or GADGET format --- in
+the ``output/tutorial`` directory will now be printed to the screen. Should
+you want information about just a specific snapshot, simply provide its
+entire path.
 
