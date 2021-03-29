@@ -583,8 +583,12 @@ class GadgetSnapshot:
         sizes[fmt] = struct.calcsize(fmt)
     # The maximum number of particles within a single GADGET
     # snapshot file is limited by the largest number representable
-    # by an unsigned int.
-    num_particles_file_max = ((2**32 - 1) - 2*sizes['I'])//(3*sizes['f'])
+    # by an int. As we never deal with negative particle numbers, we use
+    # unsigned ints in this implementation. In e.g. the GADGET-2 code
+    # however, a signed int is used, and so we subtract the sign bit in
+    # the calculation below, cutting the maximum number of particles per
+    # snapshot roughly in half, compared to what is really needed.
+    num_particles_file_max = ((2**(sizes['i']*8 - 1) - 1) - 2*sizes['I'])//(3*sizes['f'])
 
     # Static method for identifying a file to be a snapshot of this type
     @staticmethod
@@ -768,10 +772,18 @@ class GadgetSnapshot:
         num_files = len(num_write_files)
         # If the snapshot is to be saved over several files,
         # create a directory for storing these.
-        if num_files > 1 and master:
-            if os.path.isfile(filename):
-                os.remove(filename)
-            os.makedirs(filename, exist_ok=True)
+        if master:
+            if num_files == 1:
+                if os.path.isdir(filename):
+                    abort(
+                        f'Refuses to replace directory "{filename}" with snapshot. '
+                        f'Remove this directory or select different snapshot '
+                        f'output directory or base name.'
+                    )
+            else:
+                if os.path.isfile(filename):
+                    os.remove(filename)
+                os.makedirs(filename, exist_ok=True)
         # Progress messages
         msg = filename
         if num_files > 1:

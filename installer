@@ -8663,6 +8663,14 @@ to match values used in ${esc_concept}\n"
             redefine_gadget "${Gadget2_dir}/allvars.h" ${name} "${value}"
         done
     fi
+    # Patch GADGET so that it does not dump restart files
+    # at the end of each simulation.
+    n=$(grep -n "restart(0)" "${Gadget2_dir}/run.c" | tail -n 1 | awk '{print $1}')
+    n="${n//:}"
+    sed -i "${n}i\  /*" "${Gadget2_dir}/run.c"
+    ((n += 2))
+    sed -i "${n}i\  */" "${Gadget2_dir}/run.c"
+    # Done patching GADGET
     cd "${top_dir}"
     rm -rf "${top_dir}/tmp/gadget" || :
     # GADGET will be tested as part of the CO𝘕CEPT test suite
