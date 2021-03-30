@@ -67,6 +67,10 @@ html: sphinx
 	    done;                                                                            \
 	    sed -i 's/CONCEPT/CO<em>N<\/em>CEPT/g' "$${filename}";                           \
 	done
+	@# Change search placeholder text
+	@for filename in $$(find $(BUILDDIR)/html/ -name '*.html'); do                                \
+	    sed -i 's/placeholder="Search docs"/placeholder="Search documentation"/g' "$${filename}"; \
+	done
 	@# Remove HTML tags from titles
 	@for filename in $$(find $(BUILDDIR)/html/ -name '*.html'); do                  \
 	    sed                                                                         \
