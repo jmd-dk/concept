@@ -381,11 +381,13 @@ sleep 1
 # Wait until job is running
 if [ "${state}" != "${state_running}" ]; then
     check_suddenly_finished
-    for check in 0 1 2; do
+    slept=0
+    while [ ${slept} -lt $((2*sleep_little)) ]; do
         if [ "${state}" == "${state_running}" ]; then
             break
         fi
         sleep ${sleep_barely}
+        ((slept += ${sleep_barely}))
         check_suddenly_finished
     done
     if [ "${state}" != "${state_running}" ]; then
@@ -409,9 +411,9 @@ slept=0
 message_printed="no"
 while [ ! -f "${logs_dir}/${jobid}" ]; do
     sleep ${sleep_little}
+    ((slept += ${sleep_little}))
     # After having slept for a long time, check that the job
     # has not just finished without producing a log file.
-    ((slept += ${sleep_little}))
     if [ ${slept} -ge ${sleep_much} ]; then
         check_suddenly_finished
         slept=0

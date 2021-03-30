@@ -1454,6 +1454,15 @@ Using mpiexec instead." "red"
             fi
         fi
     fi
+    # Add additional environment variables to mpi_env
+    # depending on the resource manager.
+    if [ "${resource_manager}" == "slurm" ]; then
+        # Disable additional output stream buffering by Slurm.
+        # With this buffering enabled, Slurm does not respect
+        # stream flushing but only flushes after a newline.
+        mpi_env="${mpi_env}
+export SLURM_UNBUFFEREDIO=1"
+    fi
     # Write job script file
     jobscript="${this_dir}/jobscript"
     printf "#!/usr/bin/env bash
