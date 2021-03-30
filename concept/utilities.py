@@ -368,21 +368,22 @@ def locate_snapshots(path):
 
 # Function that produces a power spectrum of the file
 # specified by the special_params['snapshot_filename'] parameter.
-@cython.pheader(# Locals
-                basename=str,
-                index='int',
-                ext=str,
-                output_dir=str,
-                output_filename=str,
-                snapshot=object,
-                snapshot_filename=str,
-                )
+@cython.pheader(
+    # Locals
+    basename=str,
+    index='int',
+    ext=str,
+    output_dir=str,
+    output_filename=str,
+    snapshot=object,
+    snapshot_filename=str,
+)
 def powerspec():
     init_time()
     # Extract the snapshot filename
     snapshot_filename = special_params['snapshot_filename']
     # Read in the snapshot
-    snapshot = load(snapshot_filename, compare_params=False)
+    snapshot = load(snapshot_filename, compare_params=True)
     # Set universal scale factor and cosmic time and to match
     # that of the snapshot.
     universals.a = snapshot.params['a']
@@ -481,10 +482,12 @@ def info():
     for snapshot_filename in snapshot_filenames:
         # Load parameters from the snapshot
         with allow_similarly_named_components():
-            snapshot = load(snapshot_filename, compare_params=False,
-                                               only_params=(not special_params['stats']),
-                                               do_exchange=False,
-                                               )
+            snapshot = load(
+                snapshot_filename,
+                compare_params=False,
+                only_params=(not special_params['stats']),
+                do_exchange=False,
+            )
         params = snapshot.params
         snapshot_type = get_snapshot_type(snapshot_filename)
         # If a parameter file should be generated from the snapshot,

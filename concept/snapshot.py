@@ -1973,7 +1973,7 @@ def load(
     # Check if the parameters of the snapshot matches those of the
     # current simulation run. Display a warning if they do not.
     if compare_params:
-        compare_parameters(snapshot.params, filename)
+        compare_parameters(snapshot, filename)
     # Check that all particles are positioned within the box.
     # Particles exactly on the upper boundaries will be moved to the
     # physically equivalent lower boundaries.
@@ -2033,40 +2033,101 @@ def get_snapshot_type(filename):
 # a warning is emitted.
 @cython.header(
     # Arguments
-    params=dict,
+    snapshot=object,
     filename=str,
     # Locals
+    a='double',
+    component='Component',
+    component_group=list,
+    components=list,
+    factor='double',
+    factors=list,
     line_fmt=str,
-    msg=list,
+    msg=str,
+    msg_list=list,
+    params=dict,
     rel_tol='double',
     unit='double',
-    vs=str,
+    ρ_bar_background='double',
+    ρ_bar_backgrounds=list,
+    ρ_bar_component='double',
 )
-def compare_parameters(params, filename):
+def compare_parameters(snapshot, filename):
+    params = snapshot.params
+    components = snapshot.components
     # The relative tolerance by which the parameters are compared
     rel_tol = 1e-6
     # Format strings
     line_fmt = '    {{}}: {{:.{num}g}} vs {{:.{num}g}}'.format(num=int(1 - log10(rel_tol)))
-    msg = [f'Mismatch between current parameters and those in the snapshot "{filename}":']
-    # Do the comparisons one by one
+    msg_list = [f'Mismatch between current parameters and those in the snapshot "{filename}":']
+    # Compare parameters one by one
     if enable_Hubble and not isclose(a_begin, float(params['a']), rel_tol):
-        msg.append(line_fmt.format('a_begin', a_begin, params['a']))
+        msg_list.append(line_fmt.format('a_begin', a_begin, params['a']))
     if not isclose(boxsize, float(params['boxsize']), rel_tol):
-        msg.append(line_fmt.format('boxsize', boxsize, params['boxsize']) + f' [{unit_length}]')
+        msg_list.append(line_fmt.format('boxsize', boxsize, params['boxsize']) + f' [{unit_length}]')
     if not isclose(H0, float(params['H0']), rel_tol):
         unit = units.km/(units.s*units.Mpc)
-        msg.append(line_fmt.format('H0', H0/unit, params['H0']/unit) + ' [km s⁻¹ Mpc⁻¹]')
-    if 'Ωb' in params:
-        if not isclose(Ωb, float(params['Ωb']), rel_tol):
-            msg.append(line_fmt.format('Ωb', Ωb, params['Ωb']))
-    if 'Ωcdm' in params:
-        if not isclose(Ωcdm, float(params['Ωcdm']), rel_tol):
-            msg.append(line_fmt.format('Ωcdm', Ωcdm, params['Ωcdm']))
-    if 'Ωm' in params:
-        if not isclose(Ωm, float(params['Ωm']), rel_tol):
-            msg.append(line_fmt.format('Ωm', Ωm, params['Ωm']))
-    if len(msg) > 1:
-        masterwarn('\n'.join(msg))
+        msg_list.append(line_fmt.format('H0', H0/unit, params['H0']/unit) + ' [km s⁻¹ Mpc⁻¹]')
+    if not isclose(Ωb, float(params.get('Ωb', Ωb)), rel_tol):
+        msg_list.append(line_fmt.format('Ωb', Ωb, params['Ωb']))
+    if not isclose(Ωcdm, float(params.get('Ωcdm', Ωcdm)), rel_tol):
+        msg_list.append(line_fmt.format('Ωcdm', Ωcdm, params['Ωcdm']))
+    if not isclose(Ωm, float(params.get('Ωm', Ωm)), rel_tol):
+        msg_list.append(line_fmt.format('Ωm', Ωm, params['Ωm']))
+    # Check if the totoal mass of each species within components
+    # adds up to the correct value as set by the CLASS background.
+    if enable_class_background:
+        # One species may be distributed over several components.
+        # Group components together according to their species.
+        species_components = collections.defaultdict(list)
+        for component in components:
+            species_components[component.species].append(component)
+        # Do the check for each species
+        a = correct_float(params['a'])
+        for component_group in species_components.values():
+            factors = [a**(-3*(1 + component.w_eff(a=a))) for component in component_group]
+            if len(set(factors)) > 1:
+                # Different w_eff despite same species.
+                # This is presumably caused by the user having some
+                # weird specifications. Skip check for this species.
+                continue
+            ρ_bar_backgrounds = [
+                factor*component.ϱ_bar
+                for component, factor in zip(component_group, factors)
+            ]
+            if len(set(ρ_bar_backgrounds)) > 1:
+                # Different ρ_bar_background despite same species.
+                # This is presumably caused by the user having some
+                # weird specifications. Skip check for this species.
+                continue
+            factor = factors[0]
+            ρ_bar_background = ρ_bar_backgrounds[0]
+            ϱ_bar_component = 0
+            for component in component_group:
+                if component.representation == 'particles':
+                    ϱ_bar_component += component.N*component.mass/boxsize**3
+                elif component.representation == 'fluid':
+                    ϱ_bar_component += (
+                        allreduce(np.sum(component.ϱ.grid_noghosts), op=MPI.SUM)
+                        /component.gridsize**3
+                    )
+                else:
+                    continue
+            ρ_bar_component = factor*ϱ_bar_component
+            if not isclose(ρ_bar_background, ρ_bar_component, rel_tol):
+                msg = ', '.join([f'"{component.name}"' for component in component_group])
+                if len(component_group) > 1:
+                    msg = f'{{{msg}}}'
+                msg_list.append(
+                    line_fmt.format(
+                        f'̅ρ(a = {a}) of {msg} (species: {component.species})',
+                        ρ_bar_background,
+                        ρ_bar_component,
+                    ) + f' [{unit_mass} {unit_length}⁻³]'
+                )
+    # Print out accumulated warning messages
+    if len(msg_list) > 1:
+        masterwarn('\n'.join(msg_list))
 
 # Function which does a sanity check of particle components,
 # ensuring that they are within the box.

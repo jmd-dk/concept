@@ -25,7 +25,6 @@
 from commons import *
 
 # Cython imports
-cimport('from analysis import measure')
 cimport(
     'from communication import                                         '
     '    communicate_ghosts, domain_subdivisions, exchange, smart_mpi, '
@@ -1770,18 +1769,19 @@ class Component:
                         f'Cannot determine ϱ_bar for {self.name} because its (particle) '
                         f'mass is not (yet?) set and enable_class_background is False'
                     )
-                # This does not hold for decaying species
                 self._ϱ_bar = self.N*self.mass/boxsize**3
             elif self.representation == 'fluid':
                 if self.mass == -1:
-                    self._ϱ_bar, σϱ, ϱ_min = measure(self, 'ϱ')
+                    self._ϱ_bar = (
+                        allreduce(np.sum(self.ϱ.grid_noghosts), op=MPI.SUM)
+                        /self.gridsize**3
+                    )
                     if self._ϱ_bar == 0:
                         masterwarn(
                             f'Failed to measure ̅ϱ of {self.name}. '
                             f'Try specifying the (fluid element) mass.'
                         )
                 else:
-                    # This does not hold for decaying species
                     self._ϱ_bar = (self.gridsize/boxsize)**3*self.mass
         return self._ϱ_bar
 
