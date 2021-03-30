@@ -810,7 +810,7 @@ def CLASS():
                     class_species = key.split('(.)rho_')[1]
                     arr = cosmoresults.ρ_bar(cosmoresults.background['a'], class_species)
                     # Now, the "(.)" prefix should be dropped
-                    key = lstrip_exact(key, '(.)')
+                    key = key.removeprefix('(.)')
                     # Add the present background density to ρ_bars
                     ρ_bars[class_species] = arr[arr.shape[0] - 1]
                 elif key.startswith('(.)p'):
@@ -821,7 +821,7 @@ def CLASS():
                     class_species = key.split('(.)p_')[1]
                     arr = cosmoresults.P_bar(cosmoresults.background['a'], class_species)
                     # Now, the "(.)" prefix should be dropped
-                    key = lstrip_exact(key, '(.)')
+                    key = key.removeprefix('(.)')
                 elif key in {'a', 'z'}:
                     # Unitless
                     pass

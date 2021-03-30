@@ -2648,8 +2648,7 @@ def compute_cosmo(gridsize=-1, gauge='synchronous', filename='', class_call_reas
             'P_k_max_1/Mpc': 0,
         }
     # Merge global and extra CLASS parameters
-    params_specialized = class_params.copy()
-    params_specialized.update(extra_params)
+    params_specialized = class_params | extra_params
     # Transform all CLASS container parameters to str's of
     # comma-separated values. All other CLASS parameters will also
     # be converted to their str representation.

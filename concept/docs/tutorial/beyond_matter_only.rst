@@ -1302,10 +1302,10 @@ you should save as e.g. ``params/tutorial``:
        'fluid'    : {'gravity': 'pm'},
    }
    if 'lapse' in _lin:
-       select_forces.update({
+       select_forces |= {
            'decaying matter': 'lapse',
            'total matter'   : 'lapse',
-       })
+       }
 
    # Simulation options
    primordial_amplitude_fixed = True

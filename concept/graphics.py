@@ -1118,7 +1118,7 @@ def save_render2D_data(declaration, filename, n_dumps):
     projection = declaration.projections['data']
     # Set filename extension to hdf5
     for ext in ('hdf5', 'png'):
-        filename = rstrip_exact(filename, f'.{ext}')
+        filename = filename.removesuffix(f'.{ext}')
     filename += '.hdf5'
     # The filename should reflect the components
     # if multiple renders should be dumped.
@@ -1176,7 +1176,7 @@ def save_render2D_image(declaration, filename, n_dumps):
     projection = declaration.projections['image']
     # Set filename extension to png
     for ext in ('hdf5', 'png'):
-        filename = rstrip_exact(filename, f'.{ext}')
+        filename = filename.removesuffix(f'.{ext}')
     filename += '.png'
     # The filename should reflect the components
     # if multiple renders should be dumped.

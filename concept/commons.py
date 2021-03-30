@@ -3935,36 +3935,6 @@ def correct_float(val_raw):
         val_new = np.nextafter(val_new, ထ)
     return (val_correct if len(str(val_correct)) < len(str(val_raw)) - 2 else val_raw)
 
-# Functions for stripping the left-/right-most end off a string
-# if this entire end of the string matches the given end argument.
-@cython.header(
-    # Arguments
-    s=str,
-    end=str,
-    # Locals
-    returns=str,
-)
-def lstrip_exact(s, end):
-    return s[len(end):] if s.startswith(end) else s
-@cython.header(
-    # Arguments
-    s=str,
-    end=str,
-    # Locals
-    returns=str,
-)
-def rstrip_exact(s, end):
-    return s[:(len(s) - len(end))] if s.endswith(end) else s
-@cython.header(
-    # Arguments
-    s=str,
-    end=str,
-    # Locals
-    returns=str,
-)
-def strip_exact(s, end):
-    return rstrip_exact(lstrip_exact(s, end), end)
-
 # Function that aligns a list of str's by inserting spaces.
 # The alignment points are specified by the 'alignat' character.
 @cython.pheader(

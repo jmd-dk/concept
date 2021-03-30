@@ -42,9 +42,7 @@ def monkeypatch_pygments(name, base_name='default', attrs={}):
     def name_to_class_name(name):
         return name.capitalize() + 'Style'
     base_class = getattr(base_module, name_to_class_name(base_name))
-    styles = getattr(base_class, 'styles', {}).copy()
-    styles.update(attrs.pop('styles', {}))
-    attrs['styles'] = styles
+    attrs['styles'] = getattr(base_class, 'styles', {}) | attrs.pop('styles', {})
     class_name = name_to_class_name(name)
     Style = type(class_name, (base_class,), attrs)
     module = type(base_module)(name)

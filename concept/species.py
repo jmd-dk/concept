@@ -2927,7 +2927,7 @@ class Component:
             )
             tiling_plural = '' if len(tiling_names) == 1 else 's'
             tiling_names = '/'.join([
-                rstrip_exact(tiling_name_i, ' (tiles)') for tiling_name_i in tiling_names
+                tiling_name_i.removesuffix(' (tiles)') for tiling_name_i in tiling_names
             ])
             masterprint(
                 f'Reordering {self.name} particles in memory according to '

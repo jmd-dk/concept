@@ -600,7 +600,7 @@ class GadgetSnapshot:
             if len(filenames) != 1:
                 return False
         else:
-            filename_stripped = rstrip_exact(filename, '.0').rstrip('.*')
+            filename_stripped = filename.removesuffix('.0').rstrip('.*')
             filenames = [filename, f'{filename}.0', f'{filename_stripped}.0', filename_stripped]
         # Test for GADGET format by checking the existence
         # of the 'HEAD' identifier.
@@ -1311,7 +1311,7 @@ class GadgetSnapshot:
                             f'first {self.name} snapshot file: {msg}'
                         )
                     filename = filenames[0]
-                filename = rstrip_exact(filename, '.0').rstrip('.*')
+                filename = filename.removesuffix('.0').rstrip('.*')
                 filenames = []
                 for i in itertools.count():
                     filename_candidate = f'{filename}.{i}'
@@ -1333,7 +1333,7 @@ class GadgetSnapshot:
             filename = filenames[0]
             masterprint(f'Loading {msg}snapshot "{filename}" ...')
         else:
-            filename_glob = rstrip_exact(filenames[0], '.0') + '*'
+            filename_glob = filenames[0].removesuffix('.0') + '*'
             masterprint(f'Loading {msg}snapshot "{filename_glob}" ...')
         # Read in the header of each file in the snapshot and check that
         # they are consistent. Keep information about the number of
@@ -2022,7 +2022,7 @@ def get_snapshot_type(filename):
     if master:
         for snapshot_class in snapshot_classes:
             if snapshot_class.is_this_type(filename):
-                determined_type = rstrip_exact(snapshot_class.__name__, 'Snapshot').lower()
+                determined_type = snapshot_class.__name__.removesuffix('Snapshot').lower()
                 break
         if determined_type is None and not os.path.exists(filename):
             abort(f'The snapshot file "{filename}" does not exist')

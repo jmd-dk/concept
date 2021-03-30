@@ -30,8 +30,7 @@ for kind, powerspecs in powerspecs_all.items():
 # Compute and plot power spectrum from CLASS
 a = a_begin
 z = 1/a - 1
-class_params_specialized = class_params.copy()
-class_params_specialized.update({
+class_params_specialized = class_params | {
     'A_s'    : primordial_spectrum['A_s'  ],
     'n_s'    : primordial_spectrum['n_s'  ],
     'alpha_s': primordial_spectrum['α_s'  ],
@@ -42,7 +41,7 @@ class_params_specialized.update({
         min(k_values)/units.Mpc**(-1),
         max(k_values)/units.Mpc**(-1),
     ),
-})
+}
 cosmo = Class()
 cosmo.set(class_params_specialized)
 cosmo.compute()

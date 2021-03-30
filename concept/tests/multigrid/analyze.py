@@ -63,7 +63,7 @@ render2Ds = {}
 for f in glob(f'{subtest_dir}/render2D*'):
     if f.endswith('.png'):
         continue
-    gridsize = int(rstrip_exact(os.path.basename(f).split('_')[1], '.hdf5'))
+    gridsize = int(os.path.basename(f).split('_')[1].removesuffix('.hdf5'))
     with open_hdf5(f, mode='r') as hdf5_file:
         render2Ds[gridsize] = hdf5_file['data'][...]
     # Convert from image to data coordinates
