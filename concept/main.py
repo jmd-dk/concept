@@ -825,8 +825,13 @@ def get_base_timestep_size(components, static_timestepping_func=None):
             n = int(ceil(log10(1/Δt_reltol) + 0.5))
             with open(static_timestepping, 'a', encoding='utf-8') as f:
                 if f.tell() == 0:
+                    static_timestepping_header = [
+                        f'Time-stepping recorded by CO𝘕CEPT job {jobid}',
+                        '',
+                        '{}a{}Δa'.format(' '*((n + 3)//2), ' '*(n + 5)),
+                    ]
                     f.write(unicode(
-                        '#{}a{}Δa\n'.format(' '*((n + 3)//2), ' '*(n + 6))
+                        '\n'.join([f'# {line}' for line in static_timestepping_header]) + '\n'
                     ))
                 f.write(f'{{:.{n}e}} {{:.{n}e}}\n'.format(a, Δa_max))
     # Return maximum allowed base time step size and the bottleneck
