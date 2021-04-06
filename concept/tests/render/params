@@ -7,9 +7,9 @@ _size = 64
 
 # Input/output
 initial_conditions = _this_dir + '/output/snapshot.hdf5'
-snapshot_type      = 'concept'
 output_times       = {'render2D': logspace(log(a_begin), log(1), 30, base=e)}
 render2D_select    = {'matter': {'terminal image': True}}
+snapshot_type      = 'concept'
 
 # Numerical parameters
 boxsize = 80*Mpc

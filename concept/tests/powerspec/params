@@ -3,9 +3,9 @@ _this_dir = os.path.dirname(paths['params'])
 
 # Input/output
 initial_conditions = _this_dir + '/snapshot.hdf5'
-snapshot_type      = 'concept'
 output_bases       = {'powerspec': 'powerspec'}
 powerspec_select   = {'all': {'data': True, 'plot': True}}
+snapshot_type      = 'concept'
 
 # Numerical parameters
 boxsize = 512*Mpc

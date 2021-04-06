@@ -41,7 +41,7 @@ cimport(
     '    transferfunctions_registered,    '
 )
 cimport('from mesh import convert_particles_to_fluid')
-cimport('from snapshot import get_snapshot_type, snapshot_extensions')
+cimport('from snapshot import compare_parameters, get_snapshot_type, snapshot_extensions')
 cimport('import species')
 cimport('from snapshot import get_initial_conditions, load, save')
 
@@ -382,13 +382,15 @@ def powerspec():
     init_time()
     # Extract the snapshot filename
     snapshot_filename = special_params['snapshot_filename']
-    # Read in the snapshot
-    snapshot = load(snapshot_filename, compare_params=True)
+    # Read in the snapshot, postponing the parameter comparison
+    snapshot = load(snapshot_filename, compare_params=False)
     # Set universal scale factor and cosmic time and to match
     # that of the snapshot.
     universals.a = snapshot.params['a']
     if enable_Hubble:
         universals.t = cosmic_time(universals.a)
+    # Now do the parameter comparison
+    compare_parameters(snapshot, snapshot_filename)
     # Construct output filename based on the snapshot filename.
     # Importantly, remove any file extension signalling a snapshot.
     output_dir, basename = os.path.split(snapshot_filename)
@@ -589,6 +591,9 @@ def info():
         masterprint(terminal.bold(heading))
         # Print out snapshot type
         masterprint('{:<20} {}'.format('Snapshot type', snapshot_type))
+        if snapshot_type == 'gadget':
+            # Also print out SnapFormat in case of GADGET snapshot
+            masterprint('{:<20} {}'.format('GADGET SnapFormat', snapshot.snapformat))
         # Print out unit system for CO𝘕CEPT snapshots
         if snapshot_type == 'concept':
             masterprint('{:<20} {}'.format('unit_length', snapshot.units['length']))

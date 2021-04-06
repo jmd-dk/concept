@@ -388,13 +388,16 @@ if isinstance(initial_conditions, str) and initial_conditions:
 else:
     print('${ic_unspecified}')
 " -n 1 -p "${params}" --pure-python --local | tail -n 1)"
-    # Get number of particles
+    # Extract information from snapshot
     if [ "${gadget_ic}" == "${ic_unspecified}" ]; then
         gadget_ic="<path to initial condition file>"
         ((N_all = 128**3))
+        ICFormat=2
     else
         gadget_ic_info="$("${concept}" -u info "${gadget_ic}" --pure-python --local)"
         N_all="$(echo "${gadget_ic_info}" | grep " N " | awk '{print $2}')"
+        ICFormat="$(echo "${gadget_ic_info}" | grep "SnapFormat " \
+            | awk '{print $NF}' | head -n 1)"
     fi
     N_all="$("${python}" -c "print([int(N) for N in '''${N_all}'''.split()])")"
     N_tot="$("${python}" -c "print(sum(${N_all}))")"
@@ -418,6 +421,8 @@ np.savetxt(
     outputlist,
     fmt='%.15e',
 )
+# The snapshot format to use for output
+print('SnapFormat =', gadget_snapshot_params['snapformat'])
 # Instantiate snapshot with components,
 # used to extract values further down.
 snapshot = GadgetSnapshot()
@@ -482,8 +487,8 @@ ResubmitOn      0
 ResubmitCommand scriptfile
 
 % Code options
-ICFormat                2
-SnapFormat              2
+ICFormat                ${ICFormat}
+SnapFormat              $(get_gadget_param SnapFormat)
 ComovingIntegrationOn   1
 TypeOfTimestepCriterion 0
 OutputListOn            1

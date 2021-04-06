@@ -1912,24 +1912,7 @@ user_params['params_iteration'] = 'final'
 exec_params(params_file_content, user_params, suppress_exceptions=False)
 # Backup of originally supplied user parameter names
 user_params_keys_raw = set(user_params.keys())
-# The parameters are now being processed as follows:
-# - All parameters are explicitly cast to their appropriate type.
-# - Parameters which should be integer are rounded before being cast.
-# - Parameters not present in the parameter file
-#   will be given default values.
-# - Spaces are removed from the 'snapshot_type' parameter, and all
-#   characters are converted to lower-case.
-# - The 'output_times' are sorted and duplicates (for each type of
-#   output) are removed.
-# - Ellipses used as dictionary values will be replaced by whatever
-#   non-ellipsis value also present in the same dictionary. If using
-#   Python ≥ 3.6.0, where dictionaries are ordered, ellipses will be
-#   replaced by their nearest, previous non-ellipsis value. Below is the
-#   function replace_ellipsis which takes care of this replacement.
-# - Paths below or just one level above the concept directory are made
-#   relative to this directory in order to reduce screen clutter.
-# - Colours are transformed to (r, g, b) arrays. Below is the function
-#   to_rgb which handles this transformation.
+# Read in all parameters
 def to_int(value):
     return int(round(float(value)))
 def to_rgb(value):
@@ -1961,8 +1944,6 @@ def to_rgbα(value, α=1):
 cython.declare(
     # Input/output
     initial_conditions=object,  # str or container of str's
-    snapshot_type=str,
-    snapshot_gadget_hw=str,
     output_dirs=dict,
     output_bases=dict,
     output_times=dict,
@@ -1971,6 +1952,8 @@ cython.declare(
     powerspec_select=dict,
     render2D_select=dict,
     render3D_select=dict,
+    snapshot_type=str,
+    gadget_snapshot_params=dict,
     life_output_order=tuple,
     class_plot_perturbations='bint',
     class_extra_background=set,
@@ -2045,16 +2028,6 @@ cython.declare(
 # Input/output
 initial_conditions = user_params.get('initial_conditions', '')
 user_params['initial_conditions'] = initial_conditions
-snapshot_type = (str(user_params.get('snapshot_type', 'concept'))
-    .replace(unicode('𝘕'), 'N').replace(asciify('𝘕'), 'N')
-    .replace(' ', '').replace('-', '')
-    .lower()
-)
-user_params['snapshot_type'] = snapshot_type
-snapshot_gadget_hw = (str(user_params.get('snapshot_gadget_hw', 'NallHW'))
-    .lower().replace(' ', '').replace('-', '').replace('[', '').replace(']', '')
-)
-user_params['snapshot_gadget_hw'] = snapshot_gadget_hw
 output_dirs = dict(user_params.get('output_dirs', {}))
 replace_ellipsis(output_dirs)
 output_kinds = ('snapshot', 'powerspec', 'render2D', 'render3D')
@@ -2148,6 +2121,99 @@ if user_params.get('render3D_select'):
     else:
         render3D_select = {'all': user_params['render3D_select']}
 user_params['render3D_select'] = render3D_select
+snapshot_type = (str(user_params.get('snapshot_type', 'concept'))
+    .replace(unicode('𝘕'), 'N').replace(asciify('𝘕'), 'N')
+    .replace(' ', '').replace('-', '')
+    .lower()
+)
+user_params['snapshot_type'] = snapshot_type
+gadget_snapshot_params_defaults = {
+    'snapformat': 2,
+    'dataformat': {
+        'POS': 32,
+        'VEL': 32,
+        'ID' : 'automatic',
+    },
+    'Nall high word': 'NallHW',
+    'header': {},
+}
+gadget_snapshot_params = dict(user_params.get('gadget_snapshot_params', {}))
+for key, val in gadget_snapshot_params.copy().items():
+    key_transformed = (
+        str(key).lower().replace(' ', '').replace('_', '').replace('-', '')
+    )
+    for key_default in gadget_snapshot_params_defaults.keys():
+        key_default_transformed = (
+            str(key_default).lower().replace(' ', '').replace('_', '').replace('-', '')
+        )
+        if key_transformed == key_default_transformed:
+            gadget_snapshot_params[key_default] = gadget_snapshot_params.pop(key)
+            break
+for key, val in gadget_snapshot_params_defaults.items():
+    gadget_snapshot_params.setdefault(key, val)
+gadget_snapshot_params['snapformat'] = int(gadget_snapshot_params['snapformat'])
+if gadget_snapshot_params['snapformat'] not in (1, 2):
+    abort(
+        f'gadget_snapshot_params["snapformat"] = '
+        f'{gadget_snapshot_params["snapformat"]} but must be 1 or 2'
+    )
+gadget_snapshot_params_dataformat = {}
+for key, val in gadget_snapshot_params['dataformat'].items():
+    for valid_key in gadget_snapshot_params_defaults['dataformat'].keys():
+        if key.upper().startswith(valid_key):
+            break
+    else:
+        abort(
+            f'Unknown GADGET snapshot block "{key}" '
+            f'listed in gadget_snapshot_params["dataformat"]'
+        )
+    gadget_snapshot_params_dataformat[valid_key] = val
+for key, val in gadget_snapshot_params_defaults['dataformat'].items():
+    gadget_snapshot_params_dataformat.setdefault(key, val)
+for key, val in gadget_snapshot_params_dataformat.items():
+    val_transformed = str(val).lower()
+    if 'auto' in val_transformed:
+        if key.lower() == 'id':
+            val = 'automatic'
+        else:
+            val = 32
+    elif any([
+        pattern in val_transformed
+        for pattern in ['64', '8', 'long', 'double', 'big']
+    ]) or val_transformed in {'d', }:
+        val = 64
+    elif any([
+        pattern in val_transformed
+        for pattern in ['32', '4', 'int', 'uint', 'single', 'float', 'small', 'short']
+    ]) or val_transformed in {'i', 'f'}:
+        val = 32
+    else:
+        abort(
+            f'Unknown format "{val}" specified as '
+            f'gadget_snapshot_params["dataformat"]["{key}"]'
+        )
+    gadget_snapshot_params_dataformat[key] = val
+gadget_snapshot_params['dataformat'] = gadget_snapshot_params_dataformat
+for key in gadget_snapshot_params.copy():
+    key_transformed = (
+        key.lower().replace(' ', '').replace('-', '').replace('[', '').replace(']', '')
+    )
+    if any([pattern in key_transformed for pattern in ['nall', 'nallhw', 'high', 'word', 'hw']]):
+        val = gadget_snapshot_params.pop(key)
+        val_transformed = (
+            val.lower().replace(' ', '').replace('-', '').replace('[', '').replace(']', '')
+            .replace('nall', 'Nall').replace('hw', 'HW')
+        )
+        if val_transformed not in ('NallHW', 'Nall'):
+            abort(
+                f'Unrecognised gadget_snapshot_params["Nall high word"] = '
+                f'"{val}" ∉ {{"NallHW", "Nall"}}'
+            )
+        gadget_snapshot_params['Nall high word'] = val_transformed
+        break
+if not gadget_snapshot_params['header']:
+    gadget_snapshot_params['header'] = {}
+user_params['gadget_snapshot_params'] = gadget_snapshot_params
 life_output_order = tuple(user_params.get('life_output_order', ()))
 life_output_order = tuple([act.lower() for act in life_output_order])
 life_output_order = tuple([
@@ -4385,9 +4451,6 @@ os.makedirs = tryexcept_wrapper(os.makedirs, 'os.makedirs() failed')
 # Abort on unrecognised snapshot_type
 if snapshot_type not in ('concept', 'gadget'):
     abort(f'Unrecognised snapshot type "{snapshot_type}" ∉ {{"concept", "gadget"}}')
-# Abort on unrecognised snapshot_gadget_hw
-if snapshot_gadget_hw not in ('nallhw', 'nall'):
-    abort(f'Unrecognised snapshot_gadget_hw "{snapshot_gadget_hw}" ∉ {{"NallHW", "Nall"}}')
 # Abort on unrecognised output kinds
 for key in output_dirs:
     if key not in (output_kinds + ('autosave',)):

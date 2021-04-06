@@ -3,8 +3,8 @@ _this_dir = os.path.dirname(paths['params'])
 
 # Input/output
 initial_conditions = _this_dir + '/IC'
-snapshot_type      = 'GADGET'
 output_times       = {'snapshot': [a_begin, 0.5]}
+snapshot_type      = 'GADGET'
 
 # Numerical parameters
 boxsize = 32*Mpc/h

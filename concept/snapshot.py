@@ -58,9 +58,9 @@ class ConceptSnapshot:
     # The maximum possible chunk size is limited by MPI, though.
     chunk_size_max = 2**30  # 1 GB
 
-    # Static method for identifying a file to be a snapshot of this type
-    @staticmethod
-    def is_this_type(filename):
+    # Class method for identifying a file to be a snapshot of this type
+    @classmethod
+    def is_this_type(cls, filename):
         if not os.path.isfile(filename):
             return False
         # Test for CO𝘕CEPT format by looking up the 'Ωcdm' attribute
@@ -577,10 +577,20 @@ class GadgetSnapshot:
             fmt=f'{num_particle_types}{val.fmt}',
             default=[val.default]*num_particle_types,
         )
-    # Sizes of low level types and the total header, in bytes
-    sizes = {'header': 2**8}
-    for fmt in ['s', 'i', 'I', 'f', 'd']:
-        sizes[fmt] = struct.calcsize(fmt)
+    # Low level types and their sizes
+    fmts = {
+        's': 'signed char',
+        'i': 'int',
+        'I': 'unsigned int',
+        'Q': 'unsigned long long int',
+        'f': 'float',
+        'd': 'double',
+    }
+    sizes = {fmt: struct.calcsize(fmt) for fmt in fmts}
+    # Block name format, head block name and size
+    block_name_fmt = '4s'
+    block_name_header = 'HEAD'
+    sizes['header'] = 2**8
     # The maximum number of particles within a single GADGET
     # snapshot file is limited by the largest number representable
     # by an int. As we never deal with negative particle numbers, we use
@@ -588,11 +598,21 @@ class GadgetSnapshot:
     # however, a signed int is used, and so we subtract the sign bit in
     # the calculation below, cutting the maximum number of particles per
     # snapshot roughly in half, compared to what is really needed.
-    num_particles_file_max = ((2**(sizes['i']*8 - 1) - 1) - 2*sizes['I'])//(3*sizes['f'])
+    num_particles_file_max = (
+        ((2**(sizes['i']*8 - 1) - 1) - 2*sizes['I'])
+        //(
+            3*(
+                np.max((
+                    gadget_snapshot_params['dataformat']['POS'],
+                    gadget_snapshot_params['dataformat']['VEL'],
+                ))//8
+            )
+        )
+    )
 
-    # Static method for identifying a file to be a snapshot of this type
-    @staticmethod
-    def is_this_type(filename):
+    # Class method for identifying a file to be a snapshot of this type
+    @classmethod
+    def is_this_type(cls, filename):
         # Construct list of possible file names
         # for the first snapshot file.
         if os.path.isdir(filename):
@@ -602,19 +622,42 @@ class GadgetSnapshot:
         else:
             filename_stripped = filename.removesuffix('.0').rstrip('.*')
             filenames = [filename, f'{filename}.0', f'{filename_stripped}.0', filename_stripped]
-        # Test for GADGET format by checking the existence
-        # of the 'HEAD' identifier.
+        # Test for GADGET format, either SnapFormat 1 or SnapFormat 2
         for filename in filenames:
-            if not os.path.isfile(filename):
-                continue
-            try:
-                with open(filename, 'rb') as f:
-                    f.seek(4)
-                    if struct.unpack('4s', f.read(struct.calcsize('4s')))[0] == b'HEAD':
-                        return True
-            except:
-                pass
+            snapformat = cls.get_snapformat(filename)
+            if snapformat != -1:
+                return True
         return False
+
+    # Class method for identifying the GADGET SnapFormat of a file
+    @classmethod
+    def get_snapformat(cls, filename):
+        """Identifies whether a file is a GADGET snapshot of SnapFormat
+        1 or SnapFormat 2. If neither, -1 is returned.
+        """
+        if not os.path.isfile(filename):
+            return -1
+        # Test for SnapFormat 2 by checking for the existence
+        # of the 'HEAD' identifier.
+        try:
+            with open(filename, 'rb') as f:
+                f.seek(cls.sizes['I'])
+                if cls.block_name_header == struct.unpack(
+                    cls.block_name_fmt,
+                    f.read(struct.calcsize(cls.block_name_fmt)),
+                )[0].decode('utf8').rstrip():
+                    return 2
+        except:
+            pass
+        # Test for SnapFormat 1 by checking the size
+        # of the header block.
+        try:
+            with open(filename, 'rb') as f:
+                if cls.sizes['header'] == struct.unpack('I', f.read(cls.sizes['I']))[0]:
+                    return 1
+        except:
+            pass
+        return -1
 
     # Static method for distributing particles from processes to
     # files or from files to processes.
@@ -629,6 +672,7 @@ class GadgetSnapshot:
         being the number of particles to write/read
         for the local process.
         """
+        num_particles_files = deepcopy(num_particles_files)
         num_files = len(num_particles_files)
         num_components = len(num_local)
         # Inform all processes about the local particle content
@@ -690,7 +734,9 @@ class GadgetSnapshot:
         """
         public dict params
         public list components
+        public int snapformat
         public dict header
+        object block_names
         Component misnamed_halo_component
         Py_ssize_t current_block_size
         """
@@ -698,8 +744,12 @@ class GadgetSnapshot:
         self.params = {}
         # List of Component instances
         self.components = []
+        # GADGET SnapFormat
+        self.snapformat = -1
         # Header corresponding to the HEAD block
         self.header = {}
+        # Iterator yielding block names to load in case of SnapFormat 1
+        self.block_names = iter(())
         # Rogue component used as the GADGET halo component
         # though it is not named accordingly.
         self.misnamed_halo_component = None
@@ -707,7 +757,7 @@ class GadgetSnapshot:
         self.current_block_size = -1
         # Check on low level type sizes
         for fmt, size in self.sizes.items():
-            size_expected = {'s': 1, 'i': 4, 'I': 4, 'f': 4, 'd': 8}.get(fmt)
+            size_expected = {'s': 1, 'i': 4, 'I': 4, 'Q': 8, 'f': 4, 'd': 8}.get(fmt)
             if size_expected is not None and size != size_expected:
                 masterwarn(
                     f'Expected C type \'{fmt}\' to be {size_expected} bytes large, '
@@ -723,11 +773,16 @@ class GadgetSnapshot:
         N_lin='double',
         N_str=str,
         block=dict,
+        block_fmt=str,
         block_name=str,
         block_size='Py_ssize_t',
+        block_type=str,
         blocks=dict,
-        boxsize_gadget='float',
+        boxsize_gadget_doubleprec='double',
+        boxsize_gadget_singleprec='float',
         chunk='double[::1]',
+        chunk_doubleprec='double[::1]',
+        chunk_doubleprec_ptr='double*',
         chunk_ptr='double*',
         chunk_singleprec='float[::1]',
         chunk_singleprec_ptr='float*',
@@ -736,12 +791,13 @@ class GadgetSnapshot:
         component='Component',
         data='double[::1]',
         data_components=list,
-        data_value='float',
+        data_value_doubleprec='double',
+        data_value_singleprec='float',
+        doubleprec_needed='bint',
         filename_i=str,
         i='Py_ssize_t',
         id_counter='Py_ssize_t',
         id_counters='Py_ssize_t[::1]',
-        id_data=object,  # np.ndarray
         indexᵖ='Py_ssize_t',
         indexᵖ_bgn='Py_ssize_t',
         indexᵖ_end='Py_ssize_t',
@@ -758,15 +814,15 @@ class GadgetSnapshot:
         num_write='Py_ssize_t',
         plural=str,
         rank_writer='int',
+        singleprec_needed='bint',
         size_write='Py_ssize_t',
         unit='double',
         unit_components=list,
         returns=str,
     )
     def save(self, filename):
-        """The snapshot data (positions and velocities) are stored in
-        single-precision.
-        """
+        # Set the GADGET SnapFormat based on user parameters
+        self.snapformat = gadget_snapshot_params['snapformat']
         # Divvy up the particles between the files and processes
         num_write_files = self.divvy()
         num_files = len(num_write_files)
@@ -803,18 +859,24 @@ class GadgetSnapshot:
         masterprint(f'Writing out {msg} ...')
         # Get information about the blocks to be written out
         blocks = self.get_blocks_info('save')
-        # The boxsize in GADGET units and in single-precision,
-        # used for safeguarding against out-of-bounds particles
-        # after cast from double-precision to single-precision.
-        boxsize_gadget = C2np['float'](boxsize/blocks['POS']['unit'][0])
-        # Instantiate chunk buffer for particle data
+        # The boxsize in GADGET units, used for safeguarding against
+        # out-of-bounds particles after converting to GADGET units.
+        boxsize_gadget_singleprec = C2np['float' ](boxsize/blocks['POS']['unit'][0])
+        boxsize_gadget_doubleprec = C2np['double'](boxsize/blocks['POS']['unit'][0])
+        # Instantiate chunk buffers for particle data
         num_write_max = 0
         for num_write in itertools.chain(*num_write_files):
             if num_write > num_write_max:
                 num_write_max = num_write
         chunk_size_max_needed = np.min((3*num_write_max, ℤ[self.chunk_size_max//8]))
-        chunk_singleprec = empty(chunk_size_max_needed, dtype=C2np['float'])
-        chunk_singleprec_ptr = cython.address(chunk_singleprec[:])
+        singleprec_needed = any([block['type'].endswith('f') for block in blocks.values()])
+        doubleprec_needed = any([block['type'].endswith('d') for block in blocks.values()])
+        if singleprec_needed:
+            chunk_singleprec = empty(chunk_size_max_needed, dtype=C2np['float'])
+            chunk_singleprec_ptr = cython.address(chunk_singleprec[:])
+        if doubleprec_needed:
+            chunk_doubleprec = empty(chunk_size_max_needed, dtype=C2np['double'])
+            chunk_doubleprec_ptr = cython.address(chunk_doubleprec[:])
         # Counters keeping track of the unique particles ID's of each
         # particle type. The particle ID's are generated consecutively,
         # with all particles of a given type receiving ID's following
@@ -843,9 +905,11 @@ class GadgetSnapshot:
             for block_name, block in blocks.items():
                 data_components = block.get('data')
                 unit_components = block.get('unit')
+                block_type = block['type']
+                block_fmt = block_type[len(block_type) - 1]
                 # Begin block
                 if master:
-                    block_size = np.sum(num_particles_file_tot)*struct.calcsize(block['type'])
+                    block_size = np.sum(num_particles_file_tot)*struct.calcsize(block_type)
                     self.write_block_bgn(filename_i, block_size, block_name)
                 # Write out the block contents
                 if block_name in {'POS', 'VEL'}:
@@ -870,21 +934,34 @@ class GadgetSnapshot:
                                         chunk_size = size_write - indexʳ
                                     chunk = data[indexʳ:(indexʳ + chunk_size)]
                                     chunk_ptr = cython.address(chunk[:])
-                                    # Copy chunk into single-precision
-                                    # chunk while applying
-                                    # unit conversion.
-                                    for index_chunk in range(chunk_size):
-                                        data_value = chunk_ptr[index_chunk]*ℝ[1/unit]
-                                        # In the case of positions,
-                                        # safeguard against
-                                        # round-off errors.
-                                        with unswitch(4):
-                                            if block_name == 'POS':
-                                                if data_value >= boxsize_gadget:
-                                                    data_value -= boxsize_gadget
-                                        chunk_singleprec_ptr[index_chunk] = data_value
-                                    # Write out chunk
-                                    asarray(chunk_singleprec[:chunk_size]).tofile(f)
+                                    # Copy chunk while applying unit
+                                    # conversion, then write this copy
+                                    # to the file. For positions,
+                                    # safeguard against
+                                    # round-off errors.
+                                    if 𝔹[block_fmt == 'f']:
+                                        for index_chunk in range(chunk_size):
+                                            data_value_singleprec = chunk_ptr[index_chunk]*ℝ[1/unit]
+                                            with unswitch(4):
+                                                if block_name == 'POS':
+                                                    if data_value_singleprec >= boxsize_gadget_singleprec:
+                                                        data_value_singleprec -= boxsize_gadget_singleprec
+                                            chunk_singleprec_ptr[index_chunk] = data_value_singleprec
+                                        asarray(chunk_singleprec[:chunk_size]).tofile(f)
+                                    elif 𝔹[block_fmt == 'd']:
+                                        for index_chunk in range(chunk_size):
+                                            data_value_doubleprec = chunk_ptr[index_chunk]*ℝ[1/unit]
+                                            with unswitch(4):
+                                                if block_name == 'POS':
+                                                    if data_value_doubleprec >= boxsize_gadget_doubleprec:
+                                                        data_value_doubleprec -= boxsize_gadget_doubleprec
+                                            chunk_doubleprec_ptr[index_chunk] = data_value_doubleprec
+                                        asarray(chunk_doubleprec[:chunk_size]).tofile(f)
+                                    else:
+                                        abort(
+                                            f'Block format "{block_fmt}" not implemented '
+                                            f'for block "{block_name}"'
+                                        )
                             # Crop the now written data
                             # away from the memory view.
                             data_components[j] = data[size_write:]
@@ -907,12 +984,11 @@ class GadgetSnapshot:
                                 for indexᵖ in range(indexᵖ_bgn, indexᵖ_end, chunk_size):
                                     if indexᵖ + chunk_size > indexᵖ_end:
                                         chunk_size = indexᵖ_end - indexᵖ
-                                    id_data = arange(
+                                    arange(
                                         indexᵖ,
                                         indexᵖ + chunk_size,
-                                        dtype=C2np['unsigned int'],
-                                    )
-                                    id_data.tofile(f)
+                                        dtype=𝕆[C2np[self.fmts[block_fmt]]],
+                                    ).tofile(f)
                 else:
                     abort(f'Does not know how to write {self.name} block "{block_name}"')
                 # End block
@@ -1028,15 +1104,16 @@ class GadgetSnapshot:
 
     # Method returning information about required file blocks
     def get_blocks_info(self, io):
-        # All blocks
+        # All blocks except the header
         blocks = {
             'POS': {
                 'data': [
                     (None if component is None else component.pos_mv)
                     for component in self.components
                 ],
-                # Stored as single-precision in file
-                'type': '3f',
+                # Three-dimensional positions.
+                # Data type will be added below.
+                'type': '3',
                 # Comoving coordinates
                 'unit': [
                     self.unit_length
@@ -1048,8 +1125,9 @@ class GadgetSnapshot:
                     (None if component is None else component.mom_mv)
                     for component in self.components
                 ],
-                # Stored as single-precision in file
-                'type': '3f',
+                # Three-dimensional velocities.
+                # Data type will be added below.
+                'type': '3',
                 # Peculiar velocities u = a*dx/dt divided by sqrt(a)
                 'unit': [
                     (
@@ -1060,18 +1138,59 @@ class GadgetSnapshot:
                 ],
             },
             'ID': {
-                # Data will be generated at write-out
-                'type': 'I',
+                # Scalar. Data type will be added below.
+                'type': '1',
             },
         }
+        # Add data types to format specifications
+        for block_name, block in blocks.items():
+            num_bits = gadget_snapshot_params['dataformat'][block_name]
+            if num_bits == 'automatic':
+                if block_name != 'ID':
+                    abort(
+                        f'Got gadget_snapshot_params["dataformat"][{block_name}] = "{num_bits}", '
+                        f'but this can not be determined automatically'
+                    )
+                # Determine whether to use 32 or 64 bit unsigned
+                # integers for the ID's.
+                num_bits = 32
+                num_particles_tot = np.sum([
+                    component.N
+                    for component in self.components
+                    if component is not None
+                ])
+                if num_particles_tot > 2**32 - 1:
+                    num_bits = 64
+            elif isinstance(num_bits, str):
+                abort(
+                    f'Could not understand '
+                    f'gadget_snapshot_params["dataformat"][{block_name}] = {num_bits}'
+                )
+            num_bytes = num_bits//8
+            if block_name in {'POS', 'VEL'}:  # floating
+                fmts = ['f', 'd']
+            elif block_name in {'ID', }:  # unsigned integral
+                fmts = ['I', 'Q']
+            else:
+                abort(f'Block "{block_name}" not given a data type in get_blocks_info()')
+            for fmt in fmts:
+                if self.sizes[fmt] == num_bytes:
+                    block['type'] += fmt
+                    break
+            else:
+                abort(f'No {num_bytes} byte type found in {fmts} (needed for "{block_name}")')
         # Return required blocks
-        if io == 'save':
-            keys = ['POS', 'VEL', 'ID']
+        if io == 'names':
+            # Return names of all blocks (including the header) in order
+            block_names = [self.block_name_header] + list(blocks.keys())
+            return block_names
+        elif io == 'save':
+            block_names = ['POS', 'VEL', 'ID']
         elif io == 'load':
-            keys = ['POS', 'VEL']
+            block_names = ['POS', 'VEL']
         else:
             abort(f'get_blocks_info() got io = "{io}" ∉ {{"save", "load"}}')
-        blocks = {key: blocks[key] for key in keys}
+        blocks = {block_name: blocks[block_name] for block_name in block_names}
         return blocks
 
     # Method returning the GADGET snapshot index
@@ -1122,7 +1241,7 @@ class GadgetSnapshot:
         # Initialize file with HEAD block
         with open(filename, 'wb') as f:
             # Start the HEAD block
-            self.write_block_bgn(f, self.sizes['header'], 'HEAD')
+            self.write_block_bgn(f, self.sizes['header'], self.block_name_header)
             # Write out header, tallying up its size
             size = 0
             for key, val in self.header_fields.items():
@@ -1133,7 +1252,7 @@ class GadgetSnapshot:
                 self.write(f, 's', b' '*size_padding)
             elif size_padding < 0:
                 abort(
-                    f'The HEAD block took up {size} bytes '
+                    f'The "{self.block_name_header}" block took up {size} bytes '
                     f'but was specified to {self.current_block_size}'
                 )
             # Close the HEAD block
@@ -1147,15 +1266,17 @@ class GadgetSnapshot:
         """
         if not master:
             return
-        if len(block_name) > 4:
-            abort(f'Block name "{block_name}" larger than 4 characters')
+        block_name_length = int(self.block_name_fmt.rstrip('s'))
+        if len(block_name) > block_name_length:
+            abort(f'Block name "{block_name}" larger than {block_name_length} characters')
         # Closure for doing the actual writing
         def writeout(f):
             # The initial block meta data
-            self.write(f, 'I', 4*self.sizes['s'] + self.sizes['I'])
-            self.write(f, 's', block_name.ljust(4).encode('ascii'))
-            self.write(f, 'I', self.sizes['I'] + block_size + self.sizes['I'])
-            self.write(f, 'I', self.sizes['I'] + 4*self.sizes['s'])
+            if self.snapformat == 2:
+                self.write(f, 'I', block_name_length*self.sizes['s'] + self.sizes['I'])
+                self.write(f, 's', block_name.ljust(block_name_length).encode('ascii'))
+                self.write(f, 'I', self.sizes['I'] + block_size + self.sizes['I'])
+                self.write(f, 'I', self.sizes['I'] + block_name_length*self.sizes['s'])
             self.write(f, 'I', block_size)
         # Call writeout() in accordance with the supplied f
         if isinstance(f, str):
@@ -1229,10 +1350,17 @@ class GadgetSnapshot:
         N_str=str,
         block=dict,
         block_name=str,
+        block_size='Py_ssize_t',
+        block_type=str,
         blocks=dict,
         blocks_required=set,
+        bytes_per_particle='int',
+        bytes_per_particle_dim='int',
         check='int',
         chunk='double[::1]',
+        chunk_arr=object,  # np.ndarray
+        chunk_doubleprec='double[::1]',
+        chunk_doubleprec_ptr='double*',
         chunk_ptr='double*',
         chunk_singleprec='float[::1]',
         chunk_singleprec_ptr='float*',
@@ -1242,6 +1370,8 @@ class GadgetSnapshot:
         data='double[::1]',
         data_components=list,
         data_value='double',
+        dtype=object,
+        end_of_file='bint',
         filename_candidate=str,
         filename_glob=str,
         filename_i=str,
@@ -1259,11 +1389,13 @@ class GadgetSnapshot:
         msg=str,
         msg_list=list,
         name=str,
+        ndim='int',
         num_files='Py_ssize_t',
         num_local=list,
         num_particles_component='Py_ssize_t',
         num_particles_component_header='Py_ssize_t',
         num_particles_components=list,
+        num_particles_file='Py_ssize_t',
         num_particles_files=list,
         num_particles_proc='Py_ssize_t',
         num_particle_files=list,
@@ -1275,18 +1407,20 @@ class GadgetSnapshot:
         offset_nextblock='Py_ssize_t',
         plural=str,
         representation=str,
-        size='Py_ssize_t',
         size_read='Py_ssize_t',
         species=object,  # str or None
         unit='double',
         unit_components=list,
     )
     def load(self, filename, only_params=False):
-        """It is assumed that the snapshot on the disk is a GADGET
-        snapshot of type 2 (SnapFormat = 2) and that it uses
-        single-precision. The GadgetSnapshot instance stores the data
-        (positions and velocities) in double-precision.
-        """
+        # Determine the GADGET SnapFormat of the file
+        self.snapformat = self.get_snapformat(filename)
+        if self.snapformat not in (1, 2):
+            abort(f'Could not determine GADGET SnapFormat of "{filename}"')
+        if self.snapformat == 1:
+            # For SnapFormat 1 the block names are left out of the
+            # snapshot, but they occur in a specific order.
+            self.block_names = iter(self.get_blocks_info('names'))
         # Determine which files are part of this snapshot
         if master:
             if (
@@ -1408,11 +1542,11 @@ class GadgetSnapshot:
             else:
                 break
         else:
-            if not allow_snapshot_multifile_singleload:
-                abort(
+            if num_files == header['NumFiles']:
+                masterwarn(
                     f'Inconsistent particle counts in header. Got Nall = {header_backup["Nall"]} '
                     f'and NallHW = {header_backup["NallHW"]} while Npart summed over all files '
-                    f'is {num_particles_components}'
+                    f'is {num_particles_components}. Will use the values from Npart.'
                 )
         header = header_backup
         # From now on the header stays the same
@@ -1516,25 +1650,25 @@ class GadgetSnapshot:
         for i, filename_i in enumerate(filenames):
             if num_files > 1:
                 masterprint(f'Reading snapshot file {i}/{num_files - 1} ...')
+            num_particles_file = np.sum(num_particles_files[i])
             num_read_file = num_read_files[i]
             # Iterate over required blocks. The order is not important
             # and will be determined from the file. All files should
             # contain all of the required blocks.
             offset_nextblock = offset_header
             blocks_required = set(blocks.keys())
-            while blocks_required:
+            end_of_file = False
+            while True:
                 # Find next required block
                 if rank == 0:
                     with open(filename_i, 'rb') as f:
                         while True:
-                            # Seek to next block. Note that its size may
-                            # be wrongly specified in the file, and so
-                            # we should not rely on this value.
-                            offset_nextblock, block_name, size = (
+                            # Seek to next block
+                            offset_nextblock, block_size, block_name = (
                                 self.read_block_bgn(f, offset_nextblock)
                             )
                             if offset_nextblock == -1:
-                                # End of file
+                                end_of_file = True
                                 break
                             if block_name not in blocks:
                                 masterprint(f'Skipping block "{block_name}"')
@@ -1542,35 +1676,70 @@ class GadgetSnapshot:
                             if block_name not in blocks_required:
                                 masterwarn(f'Skipping repeated block "{block_name}"')
                                 continue
+                            if block_size%num_particles_file:
+                                abort(
+                                    f'File {filename_i} contains {num_particles_file} particles '
+                                    f'but its "{block_name}" block has a size of {block_size} '
+                                    f'bytes, which does not divide the particle number.'
+                                )
                             # Arrived at required block
                             offset = f.tell()
                             break
-                    if not block_name:
-                        plural = ('s' if len(blocks_required) > 1 else '')
-                        abort(
-                            f'Could not find required block{plural}',
-                            ', '.join([f'"{block_name}"' for block_name in blocks_required]),
-                        )
-                    bcast(block_name)
+                    bcast(end_of_file)
+                    if end_of_file:
+                        if blocks_required:
+                            plural = ('s' if len(blocks_required) > 1 else '')
+                            abort(
+                                f'Could not find required block{plural}',
+                                ', '.join([f'"{block_name}"' for block_name in blocks_required]),
+                            )
+                        break
+                    bcast((block_name, block_size))
                 else:
-                    block_name = bcast()
+                    end_of_file = bcast()
+                    if end_of_file:
+                        break
+                    block_name, block_size = bcast()
                 blocks_required.remove(block_name)
                 block = blocks[block_name]
                 data_components = block.get('data')
                 unit_components = block.get('unit')
+                block_type = block['type']
+                # Figure out the size of the data type
+                # used by this block.
+                bytes_per_particle = block_size//num_particles_file
+                ndim = int(re.search(r'^\d+', block_type).group())
+                bytes_per_particle_dim = bytes_per_particle//ndim
+                if bytes_per_particle_dim*ndim != bytes_per_particle:
+                    abort(
+                        f'Block "{block_name}" stores {ndim}-dimensional data '
+                        f'but contains {bytes_per_particle} bytes per particle, '
+                        f'which is not divisible by {ndim}.'
+                    )
                 # Iterate over all components. The block is organised
                 # so that all data belonging to a given component
                 # is provided consecutively.
                 if block_name in {'POS', 'VEL'}:
+                    if bytes_per_particle_dim == 4:
+                        # Single-precision floating point format
+                        dtype = C2np['float']
+                    elif bytes_per_particle_dim == 8:
+                        # Double-precision floating point format
+                        dtype = C2np['double']
+                    else:
+                        abort(
+                            f'No data format with a size of {bytes_per_particle_dim} bytes '
+                            f'implemented for block "{block_name}"'
+                        )
                     for j, (num_read, component, data, unit) in enumerate(
                         zip(num_read_file, self.components, data_components, unit_components)
                     ):
+                        size_read = 3*num_read
                         # Get file offset from previous process
                         if rank > 0 or (nprocs > 1 and j > 0):
                             offset = recv(source=mod(rank - 1, nprocs))
                         # Read in block data
                         if component is not None and num_read > 0:
-                            size_read = 3*num_read
                             with open(filename_i, 'rb') as f:
                                 # Seek to where the previous
                                 # process left off.
@@ -1582,18 +1751,33 @@ class GadgetSnapshot:
                                         chunk_size = size_read - indexʳ
                                     chunk = data[indexʳ:(indexʳ + chunk_size)]
                                     chunk_ptr = cython.address(chunk[:])
-                                    # Read in single-precision chunk
-                                    chunk_singleprec = np.fromfile(
+                                    # Read in chunk, then copy it to
+                                    # double precision chunk while
+                                    # applying unit conversion. In the
+                                    # case of positions, safeguard
+                                    # against round-off errors.
+                                    chunk_arr = np.fromfile(
                                         f,
-                                        dtype=C2np['float'],
+                                        dtype=dtype,
                                         count=chunk_size,
                                     )
-                                    chunk_singleprec_ptr = cython.address(chunk_singleprec[:])
+                                    if chunk_arr.shape[0] < chunk_size:
+                                        abort(f'Ran out of bytes in block "{block_name}"')
+                                    if 𝔹[dtype is C2np['float']]:
+                                        chunk_singleprec = chunk_arr
+                                        chunk_singleprec_ptr = cython.address(chunk_singleprec[:])
+                                    else:  # dtype is C2np['double']:
+                                        chunk_doubleprec = chunk_arr
+                                        chunk_doubleprec_ptr = cython.address(chunk_doubleprec[:])
                                     # Copy single-precision chunk
                                     # into chunk while applying
                                     # unit conversion.
                                     for index_chunk in range(chunk_size):
-                                        data_value = chunk_singleprec_ptr[index_chunk]*unit
+                                        with unswitch(1):
+                                            if 𝔹[dtype is C2np['float']]:
+                                                data_value = chunk_singleprec_ptr[index_chunk]*unit
+                                            else:  # dtype is C2np['double']
+                                                data_value = chunk_doubleprec_ptr[index_chunk]*unit
                                         # In the case of positions,
                                         # safeguard against
                                         # round-off errors.
@@ -1606,7 +1790,7 @@ class GadgetSnapshot:
                             # away from the memory view.
                             data_components[j] = data[size_read:]
                         # Update offset, to be used by the next process
-                        offset += num_read*struct.calcsize(block['type'])
+                        offset += size_read*dtype().itemsize
                         # Inform the next process about the file offset
                         if rank < nprocs - 1 or (nprocs > 1 and j < len(self.components) - 1):
                             send(offset, dest=mod(rank + 1, nprocs))
@@ -1635,29 +1819,27 @@ class GadgetSnapshot:
         already opened file. The heading information will be returned
         as is, with no unit conversion performed.
         """
-        block_name_head = 'HEAD'
         # Closure for doing the actual reading
         def readin(f):
             header = {}
             offset = 0
             f.seek(offset)
-            offset, block_name, size = self.read_block_bgn(f, offset)
+            offset, size, block_name = self.read_block_bgn(f, offset)
             if size == -1:
                 abort(
-                    f'Expected block "{block_name_head}" at the '
+                    f'Expected block "{self.block_name_header}" at the '
                     f'beginning of the file but found nothing'
                 )
-            if block_name != block_name_head:
+            if block_name != self.block_name_header:
                 abort(
-                    f'Expected block "{block_name_head}" at the '
+                    f'Expected block "{self.block_name_header}" at the '
                     f'beginning of the file but found "{block_name}"'
                 )
-            size_bare = size - 2*self.sizes['I']
-            size_bare_expected = self.sizes['header']
-            if size_bare != size_bare_expected:
+            size_expected = self.sizes['header']
+            if size != size_expected:
                 warn(
-                    f'Block "{block_name_head}" has size {size_bare} '
-                    f'but expected {size_bare_expected}'
+                    f'Block "{self.block_name_header}" has size {size} '
+                    f'but expected {size_expected}'
                 )
             for key, val in self.header_fields.items():
                 header[key] = self.read(f, val.fmt)
@@ -1680,17 +1862,41 @@ class GadgetSnapshot:
             # containing the size of the block.
             size = self.read(f, 'I')
             if size is None:
-                return -1
-            offset += self.sizes['I'] + size + self.sizes['I']
-            return offset
-        offset = read_size(f, offset)
+                offset = size = -1
+            else:
+                offset += self.sizes['I'] + size + self.sizes['I']
+            return offset, size
+        offset, size = read_size(f, offset)
         block_name = ''
-        size = -1
+        if self.snapformat == 1:
+            # In the case of SnapFormat 1 we are already done.
+            # Which block is up is not specified explicitly in the file,
+            # so we rely on the ordered block_names.
+            try:
+                block_name = next(self.block_names)
+            except StopIteration:
+                # No more blocks to read in
+                offset = size = -1
+            return offset, size, block_name
+        size_bare = -1
         if offset != -1:
-            block_name = self.read(f, '4s').decode('utf8').rstrip()
+            block_name = self.read(f, self.block_name_fmt).decode('utf8').rstrip()
             size = self.read(f, 'I')
-            offset = read_size(f, offset)
-        return offset, block_name, size
+            offset, size_bare = read_size(f, offset)
+            size_bare_2 = size - 2*self.sizes['I']
+            if size_bare != size_bare_2:
+                # The two sizes do not agree.
+                # We arbitrarily go with the largest.
+                msg = (
+                    f'Size of block "{block_name}" not consistent: '
+                    f'{size} - {2*self.sizes["I"]} = {size_bare_2} ≠ {size_bare}.'
+                )
+                if size_bare_2 > size_bare:
+                    offset += size_bare_2 - size_bare
+                    size_bare = size_bare_2
+                msg += f' Assuming {size_bare} is the actual size.'
+                warn(msg)
+        return offset, size_bare, block_name
 
     # Method for reading series of bytes from the snapshot file
     def read(self, f, fmt):
@@ -1699,8 +1905,8 @@ class GadgetSnapshot:
         if not payload:
             return None
         t = struct.unpack(fmt, payload)
-        # If the tuple contains just a single element, return this
-        # element rather than the tuple.
+        # If the tuple contains just a single element,
+        # return this element rather than the tuple.
         if len(t) == 1:
             return t[0]
         # It is nicer to use mutable lists than immutable tuples
@@ -1794,13 +2000,13 @@ class GadgetSnapshot:
             num - 2**32*num_hw
             for num, num_hw in zip(num_particles, num_particles_hw)
         ]
-        if snapshot_gadget_hw == 'nall':
+        if gadget_snapshot_params['Nall high word'] == 'Nall':
             # The "Nall" convention should be used in place of the
             # standard "NallHW" convention for storing the highest 32
-            # bytes of the total number of particles. In this scheme,
+            # bits of the total number of particles. In this scheme,
             # Nall[j] = 0 for all j but j = 1, which then store the
-            # lower 32 bytes of the total number of particles of type 1.
-            # The 32 higher bytes of particle type 1 is then stored
+            # lower 32 bits of the total number of particles of type 1.
+            # The 32 higher bits of particle type 1 is then stored
             # in Nall[2]. This scheme is used by at least some versions
             # of N-genIC.
             for j, num in enumerate(num_particles):
@@ -1811,7 +2017,7 @@ class GadgetSnapshot:
                         if num != 0
                     ])
                     abort(
-                        f'The "Nall" convention for storing the higher 32 bytes '
+                        f'The "Nall" convention for storing the higher 32 bits '
                         f'can only be used when you have a single component, '
                         f'specifically type 1 ({self.component_names[1]}), '
                         f'but you have {msg}.'
@@ -1820,14 +2026,13 @@ class GadgetSnapshot:
             num_particles_hw[1] = 0
         self.header.clear()
         for key, val in self.header_fields.items():
-            self.header[key] = val.default
+            self.header[key] = deepcopy(val.default)
         self.header['HubbleParam'] = (  # should be set before using units
             self.params['H0']/(100*units.km/(units.s*units.Mpc))
         )
-        self.header['Massarr'] = [
-            (0.0 if component is None else component.mass/self.unit_mass)
-            for component in components_possible
-        ]
+        for j, component in enumerate(components_possible):
+            if component is not None:
+                self.header['Massarr'][j] = component.mass/self.unit_mass
         self.header['Time'       ] = self.params['a']
         self.header['Redshift'   ] = 1/self.params['a'] - 1
         self.header['Nall'       ] = num_particles_lw
@@ -1836,6 +2041,49 @@ class GadgetSnapshot:
         self.header['Omega0'     ] = self.params['Ωm']
         self.header['OmegaLambda'] = self.params['ΩΛ']
         self.header['NallHW'     ] = num_particles_hw
+        # Overwrite header fields according to user specifications
+        def transform(key):
+            return key.lower().replace(' ', '').replace('-', '').replace('_', '')
+        for key, val in gadget_snapshot_params['header'].items():
+            key_in_header = key
+            if key not in self.header:
+                key_simple = transform(key)
+                for key_in_header in self.header.keys():
+                    key_in_header_simple = transform(key_in_header)
+                    if key_simple == key_in_header_simple:
+                        break
+                else:
+                    masterwarn(f'Unknown {self.name} header field "{key}" will not be set')
+                    continue
+            val_in_header = self.header[key_in_header]
+            if isinstance(val_in_header, list):
+                val = any2list(val)
+                if len(val) < len(val_in_header):
+                    val.extend(val_in_header[len(val):])
+                elif len(val) > len(val_in_header):
+                    masterwarn(
+                        f'Too many elements in {self.name} header field "{key}": {val}. '
+                        f'Only the first {len(val_in_header)} elements will be used.'
+                    )
+                    val = val[:len(val_in_header)]
+                val = [type(el_in_header)(el) for el, el_in_header in zip(val, val_in_header)]
+                overwriting_set_value = any([
+                    el != el_in_header != el_in_field
+                    for el, el_in_header, el_in_field in zip(
+                        val, val_in_header, self.header_fields[key_in_header].default,
+                    )
+                ])
+            else:
+                val = type(val_in_header)(val)
+                overwriting_set_value = (
+                    val != val_in_header != self.header_fields[key_in_header].default
+                )
+            if overwriting_set_value:
+                masterwarn(
+                    f'Overwriting header field "{key_in_header}": '
+                    f'{val_in_header} → {val}'
+                )
+            self.header[key_in_header] = val
 
     # Method for getting the number of files over which
     # this snapshot is or will be distributed.
@@ -2061,8 +2309,8 @@ def compare_parameters(snapshot, filename):
     line_fmt = '    {{}}: {{:.{num}g}} vs {{:.{num}g}}'.format(num=int(1 - log10(rel_tol)))
     msg_list = [f'Mismatch between current parameters and those in the snapshot "{filename}":']
     # Compare parameters one by one
-    if enable_Hubble and not isclose(a_begin, float(params['a']), rel_tol):
-        msg_list.append(line_fmt.format('a_begin', a_begin, params['a']))
+    if enable_Hubble and not isclose(universals.a, float(params['a']), rel_tol):
+        msg_list.append(line_fmt.format('a', universals.a, params['a']))
     if not isclose(boxsize, float(params['boxsize']), rel_tol):
         msg_list.append(line_fmt.format('boxsize', boxsize, params['boxsize']) + f' [{unit_length}]')
     if not isclose(H0, float(params['H0']), rel_tol):

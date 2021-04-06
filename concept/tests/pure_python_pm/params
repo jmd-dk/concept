@@ -3,10 +3,10 @@ _this_dir = os.path.dirname(paths['params'])
 
 # Input/output
 initial_conditions = _this_dir + '/IC.hdf5'
-snapshot_type      = 'concept'
 output_dirs        = {'snapshot': _this_dir + '/output'}
 output_bases       = {'snapshot': 'snapshot'}
 output_times       = {'snapshot': (0.1, 0.5, 1)}
+snapshot_type      = 'concept'
 
 # Numerical parameters
 boxsize = 8*Mpc

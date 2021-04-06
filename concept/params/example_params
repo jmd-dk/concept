@@ -40,8 +40,6 @@ initial_conditions = [  # Initial condition snapshot file or container of compon
         'boltzmann closure': 'class',
     },
 ]
-snapshot_type = 'concept'  # Type of output snapshots
-snapshot_gadget_hw = 'NallHW'
 output_dirs = {  # Directories for storing output
     'snapshot' : paths['output_dir'] + '/' + basename(paths['params']),
     'powerspec': ...,
@@ -88,6 +86,17 @@ render2D_select = {  # Toggle 2D rendering for individual and sets of components
 }
 render3D_select = {  # Toggle rendering for each component
     'all': True,
+}
+snapshot_type = 'concept'  # Type of output snapshots
+gadget_snapshot_params = {  # Specifications for output GADGET snapshots
+    'snapformat': 2,  # GADGET snapshot format
+    'dataformat': {   # Data type sizes
+        'POS': 32,
+        'VEL': 32,
+        'ID' : 'automatic',
+    },
+    'Nall high word': 'NallHW',  # Place to store high word part of Nall
+    'header': {},                # Header field values
 }
 life_output_order = (  # Ordering of component activations/terminations relative to output dumps
     'terminate', 'activate', 'dump',
@@ -385,9 +394,9 @@ unit_time = 'Gyr'      # Physical time   corresponding to a numerical value of 1
 unit_mass = '10¹⁰ m☉'  # Physical mass   corresponding to a numerical value of 1.0
 
 # Debugging options
-print_load_imbalance = True                   # Print the CPU load imbalance after each time step?
-allow_snapshot_multifile_singleload = False  # Allow loading in just a single file of multi-file snapshots?
-particle_reordering = True                    # Allow in-memory particle reordering?
-enable_Hubble = True                          # Enable Hubble expansion?
-enable_class_background = True                # Use CLASS to compute the evolution of the background?
+print_load_imbalance = True                  # Print the CPU load imbalance after each time step?
+allow_snapshot_multifile_singleload = False  # Allow loading just a single file of multi-file snapshots?
+particle_reordering = True                   # Allow in-memory particle reordering?
+enable_Hubble = True                         # Enable Hubble expansion?
+enable_class_background = True               # Use CLASS to compute the evolution of the background?
 
