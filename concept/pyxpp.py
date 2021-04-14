@@ -143,115 +143,6 @@ def cimport_cython(lines, no_optimization):
 
 
 
-def oneline(lines, no_optimization=None):
-    # Maybe replace with
-    # def oneline(s):
-    #    return re.sub('\n+', '\n', re.sub(r'([{\[\(,\.]|(?:\\))\s+', r'\1', s, flags=re.M))
-    # The no_optimization argument is not used by this function
-    in_quotes = [False, False]
-    in_triple_quotes = [False, False]
-    paren_counts = {'paren': 0, 'brack': 0, 'curly': 0}
-    def count_parens(line):
-        if line.lstrip().startswith('#'):
-            return line
-        for j, ch in enumerate(line):
-            # Inside quotations?
-            if ch in ("'", '"'):
-                if ch == "'" and not in_quotes[1]:
-                    in_quotes[0] = not in_quotes[0]
-                elif ch == '"' and not in_quotes[0]:
-                    in_quotes[1] = not in_quotes[1]
-                if j >= 2 and line[(j-2):(j + 1)] == "'''":
-                    in_quotes[0] = not in_quotes[0]
-                    in_triple_quotes[0] = not in_triple_quotes[0]
-                    if not in_triple_quotes[0]:
-                        in_quotes[0] = in_quotes[1] = False
-                elif j >= 2 and line[(j-2):(j + 1)] == '"""':
-                    in_quotes[1] = not in_quotes[1]
-                    in_triple_quotes[1] = not in_triple_quotes[1]
-                    if not in_triple_quotes[1]:
-                        in_quotes[0] = in_quotes[1] = False
-            # Break at # and remove inline comment
-            if ch == '#' and not in_quotes[0] and not in_quotes[1]:
-                line = line[:j].rstrip() + '\n'
-                break
-            # Count parentheses outside quotes
-            if (    not in_quotes[0]
-                and not in_quotes[1]
-                and not in_triple_quotes[0]
-                and not in_triple_quotes[1]
-                ):
-                if ch == '(':
-                    paren_counts['paren'] += 1
-                elif ch == ')':
-                    paren_counts['paren'] -= 1
-                elif ch == '[':
-                    paren_counts['brack'] += 1
-                elif ch == ']':
-                    paren_counts['brack'] -= 1
-                elif ch == '{':
-                    paren_counts['curly'] += 1
-                elif ch == '}':
-                    paren_counts['curly'] -= 1
-        return line
-    new_lines = []
-    multiline_statement = []
-    multiline = False
-    stay_as_multiline = False
-    for i, line in enumerate(lines):
-        line = count_parens(line)
-        if (paren_counts['paren'] > 0 or
-            paren_counts['brack'] > 0 or
-            paren_counts['curly'] > 0) and not multiline:
-            # Multi-line statement begins
-            multiline = True
-            line_lstripped = line.lstrip()
-            if (
-                line_lstripped.startswith('@')
-                and not line_lstripped.startswith('@cython.iterator')
-            ):
-                stay_as_multiline = True
-                new_lines.append(line)
-                continue
-            if line.count('"""') == 1 or line.count("'''") == 1:
-                stay_as_multiline = True
-                new_lines.append(line)
-                continue
-            if line_lstripped.startswith('#'):
-                # Delete full-line comment
-                # within multi-line statement.
-                line = ''
-            if line:
-                multiline_statement.append(line.rstrip())
-        elif (paren_counts['paren'] > 0 or
-              paren_counts['brack'] > 0 or
-              paren_counts['curly'] > 0) and multiline:
-            # Multi-line statement continues
-            if stay_as_multiline:
-                new_lines.append(line)
-                continue
-            if line.lstrip().startswith('#'):
-                # Delete full-line comment
-                # within multi-line statement.
-                line = ''
-            if line:
-                multiline_statement.append(' ' + line.strip())
-        elif multiline:
-            # Multi-line statement ends
-            multiline = False
-            if stay_as_multiline:
-                stay_as_multiline = False
-                new_lines.append(line)
-                continue
-            multiline_statement.append(' ' + line.lstrip())
-            new_lines.append(''.join(multiline_statement))
-            multiline_statement = []
-        else:
-            new_lines.append(line)
-    return new_lines
-
-
-
 def remove_functions(lines, no_optimization):
     new_lines = []
     remove = False
@@ -599,7 +490,7 @@ def cimport_function(lines, no_optimization):
                 continue
             if not iterator_lines[0].startswith('@'):
                 continue
-            iterator_lines = oneline(iterator_lines, no_optimization)
+            iterator_lines = commons.onelinerize(iterator_lines)
             for j, iterator_line in enumerate(iterator_lines):
                 iterator_line_stripped = iterator_line.strip(' \n')
                 if not iterator_line_stripped.startswith('@'):
@@ -841,11 +732,12 @@ def inline_iterators(lines, no_optimization):
         except:
             new_lines.append(line)
             continue
-        iterator_lines = oneline(iterator_lines)
+        iterator_lines = commons.onelinerize(iterator_lines)
         for iterator_line in iterator_lines:
-            if iterator_line.lstrip().startswith('#'):
+            iterator_line_lstripped = iterator_line.lstrip()
+            if iterator_line_lstripped.startswith('#'):
                 continue
-            if '@cython.iterator' in iterator_line:
+            if iterator_line_lstripped.startswith('@cython.iterator'):
                 break
         else:
             new_lines.append(line)
@@ -1027,10 +919,11 @@ def inline_iterators(lines, no_optimization):
         if skip:
             skip -= 1
             continue
-        if line.lstrip().startswith('#'):
+        line_lstripped = line.lstrip()
+        if line_lstripped.startswith('#'):
             new_lines.append(line)
             continue
-        if '@cython.iterator' in line:
+        if line_lstripped.startswith('@cython.iterator'):
             indentation = len(line) - len(line.lstrip())
             def_encountered = False
             parens = 0
@@ -1884,12 +1777,30 @@ def constant_expressions(lines, no_optimization, first_call=True):
                 if i + 1 < len(lines) and ('"""' in lines[i + 1] or "'''" in lines[i + 1]):
                     linenr_unrecognized = i + 1
                     continue
+                # Make sure that we are not inside a function or class
+                indentation_level_i = indentation_level(line)
+                if indentation_level_i > 0:
+                    inside_func_or_class = False
+                    for line in reversed(lines[:i]):
+                        if line and line[0] not in ' #':
+                            # Reached indentation level 0
+                            break
+                        line_lstripped = line.lstrip()
+                        if line_lstripped.startswith('def ') or line_lstripped.startswith('class '):
+                            indentation_level_above = indentation_level(line)
+                            if indentation_level_above < indentation_level_i:
+                                # Import inside function or class
+                                inside_func_or_class = True
+                                break
+                    if inside_func_or_class:
+                        continue
                 # Go down until indentation level 0 is reached
                 for j, line in enumerate(lines[(i + 1):]):
                     if (len(line) > 0
                         and line[0] not in '# '
                         and not line.startswith('"""')
-                        and not line.startswith("'''")):
+                        and not line.startswith("'''")
+                    ):
                         linenr_unrecognized = i + j
                         break
         # Insert Cython declarations of constant expressions
@@ -3652,7 +3563,7 @@ if __name__ == '__main__':
                 lines = pyfile.readlines()
             # Apply transformations on the lines
             lines = cimport_cython               (lines, no_optimization)
-            lines = oneline                      (lines, no_optimization)
+            lines = commons.onelinerize          (lines                 )
             lines = remove_functions             (lines, no_optimization)
             lines = walrus                       (lines, no_optimization)
             lines = format_pxdhints              (lines, no_optimization)

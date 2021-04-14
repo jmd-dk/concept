@@ -132,6 +132,7 @@ class Spline:
             # Here we simply overwrite the spline attribute.
             # The boundary condition type is set to 'natural'
             # as to match the default of GSL.
+            import scipy.interpolate
             self.spline = scipy.interpolate.CubicSpline(
                 asarray(x).copy(), asarray(y).copy(), bc_type='natural')
         else:

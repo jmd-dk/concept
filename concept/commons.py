@@ -52,38 +52,16 @@ from copy import deepcopy
 # global namespace, as this does not play well with Cython).
 import numpy as np
 from numpy import arange, asarray, empty, linspace, logspace, ones, zeros
-import scipy
-import scipy.interpolate
-import scipy.ndimage
-import scipy.optimize
-import scipy.signal
-import scipy.special
-# Plotting
-import matplotlib
-matplotlib.use('agg')  # Use a Matplotlib back-end that does not require a running X-server
-import matplotlib.mathtext
-import matplotlib.pyplot as plt
 # MPI
 import mpi4py.rc; mpi4py.rc.threads = False  # Do not use threads
 from mpi4py import MPI
 # I/O
 from glob import glob
-import h5py
-# CLASS.
-# We do not exit on missing classy. This allows the update utility
-# to be used to install and patch CLASS+classy even when no
-# CLASS+classy is already installed.
-try:
-    from classy import Class
-except ModuleNotFoundError:
-    traceback.print_exc()
 # For fancy terminal output
 import blessings
 # For timing
 from time import sleep, time
 import datetime
-# The pyxpp preprocessor module
-import pyxpp
 
 
 
@@ -329,65 +307,88 @@ np.compat.py3k .asunicode = asstr
 np.lib   .npyio.asbytes   = asbytes
 np.lib   .npyio.asstr     = asstr
 np.lib   .npyio.asunicode = asstr
-# Customize Matplotlib
-matplotlib.rcParams.update({
-    # Use a nice font that ships with Matplotlib
-    'text.usetex'       : False,
-    'font.family'       : 'serif',
-    'font.serif'        : 'cmr10',
-    'mathtext.fontset'  : 'cm',
-    'axes.unicode_minus': False,
-    # Use outward pointing ticks
-    'xtick.direction': 'out',
-    'ytick.direction': 'out',
-})
-# Function used to set the minor tick formatting in log plots
-def fix_minor_tick_labels(fig=None):
-    # In Matplotlib 2.x and 3.x, tick labels are automatically placed
-    # at minor ticks in log plots if the axis range is less than a
-    # full decade. Here, a \times glyph is used, which is not handled
-    # correctly due to it being inclosed in \mathdefault{}, leading to
-    # a MathTextWarning and the \times being replaced
-    # with a dummy symbol. The problem is fully described here:
-    #   https://stackoverflow.com/questions/47253462
-    # This function serves as a workaround. To avoid the warning,
-    # you must call this function before calling tight_layout().
-    if fig is None:
-        fig = plt.gcf()
-    # Force the figure to be drawn, ignoring the warning about \times
-    # not being recognised. Prior to Matplotlib 3.1.0, the warning is
-    # emitted through the warnings module, whereas later versions uses
-    # the logging module.
-    logger = logging.getLogger('matplotlib.mathtext')
-    original_level = logger.getEffectiveLevel()
-    logger.setLevel(logging.ERROR)
-    with warnings.catch_warnings():
-        warnings.simplefilter('ignore', category=matplotlib.mathtext.MathTextWarning)
-        fig.canvas.draw()
-    logger.setLevel(original_level)
-    # Remove \mathdefault from all minor tick labels
-    for ax in fig.axes:
-        for xy in 'xy':
-            labels = [
-                label.get_text().replace(r'\mathdefault', '')
-                for label in getattr(ax, f'get_{xy}minorticklabels')()
-            ]
-            # In at least Matplotlib 3.3, setting the tick labels can
-            # throw an erroneous UserWarning:
-            #   FixedFormatter should only be used together with FixedLocator
-            with warnings.catch_warnings():
-                warnings.simplefilter('ignore', category=UserWarning)
-                getattr(ax, f'set_{xy}ticklabels')(labels, minor=True)
-# Overwrite plt.tight_layout and plt.savefig so that these call the
-# fix_minor_tick_labels function before executing their usual code.
-def fix_minor_tick_labels_decorator(f):
-    @functools.wraps(f)
-    def wrapper(*args, **kwargs):
-        fix_minor_tick_labels()
-        f(*args, **kwargs)
-    return wrapper
-for func in ('tight_layout', 'savefig'):
-    setattr(plt, func, fix_minor_tick_labels_decorator(getattr(plt, func)))
+
+
+
+############
+# Plotting #
+############
+# We use Matplotlib for various plotting tasks.
+# To avoid importing mMtplotlib unnecessarily, we do not simply import
+# it here in the global scope. Instead, the below function will do the
+# import and return the Matplolib module object. This function should
+# then be called whenever matplotlib is needed.
+# In addition to importing matplotlib and its pyplot interface,
+# the function additionally:
+#   - Ensures that we use the agg back-end.
+#   - Sets some custom preferences.
+#   - Patches a bug.
+def get_matplotlib():
+    if matplotlib_cache:
+        return matplotlib_cache[0]
+    # Use a Matplotlib back-end that does not require a running X-server
+    import matplotlib
+    matplotlib.use('agg')
+    # Now import the pyplot interface
+    import matplotlib.pyplot as plt
+    # Customize Matplotlib
+    matplotlib.rcParams.update({
+        # Use a nice font that ships with Matplotlib
+        'text.usetex'       : False,
+        'font.family'       : 'serif',
+        'font.serif'        : 'cmr10',
+        'mathtext.fontset'  : 'cm',
+        'axes.unicode_minus': False,
+        # Use outward pointing ticks
+        'xtick.direction': 'out',
+        'ytick.direction': 'out',
+    })
+    # Patch a bug about automatic minor tick labels by monkey patching
+    # plt.tight_layout() and plt.savefig().
+    # The bug is reported here:
+    #   https://github.com/matplotlib/matplotlib/issues/10029
+    import matplotlib.mathtext
+    def fix_minor_tick_labels(fig=None):
+        if fig is None:
+            fig = plt.gcf()
+        # Force the figure to be drawn, ignoring the warning about
+        # \times not being recognised. Prior to Matplotlib 3.1.0,
+        # the warning is emitted through the warnings module,
+        # whereas later versions uses the logging module.
+        logger = logging.getLogger('matplotlib.mathtext')
+        original_level = logger.getEffectiveLevel()
+        logger.setLevel(logging.ERROR)
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore', category=matplotlib.mathtext.MathTextWarning)
+            fig.canvas.draw()
+        logger.setLevel(original_level)
+        # Remove \mathdefault from all minor tick labels
+        for ax in fig.axes:
+            for xy in 'xy':
+                labels = [
+                    label.get_text().replace(r'\mathdefault', '')
+                    for label in getattr(ax, f'get_{xy}minorticklabels')()
+                ]
+                # In at least Matplotlib 3.3, setting the tick labels
+                # can throw an erroneous UserWarning:
+                #   FixedFormatter should only be used together with FixedLocator
+                with warnings.catch_warnings():
+                    warnings.simplefilter('ignore', category=UserWarning)
+                    getattr(ax, f'set_{xy}ticklabels')(labels, minor=True)
+    def fix_minor_tick_labels_decorator(f):
+        @functools.wraps(f)
+        def wrapper(*args, **kwargs):
+            fix_minor_tick_labels()
+            f(*args, **kwargs)
+        return wrapper
+    for func in ('tight_layout', 'savefig'):
+        setattr(plt, func, fix_minor_tick_labels_decorator(getattr(plt, func)))
+    # Add the matplotlib module to the global store for future lookups
+    matplotlib_cache.append(matplotlib)
+    # Return the matplotlib module itself
+    return matplotlib
+# Global store for the matplotlib module
+matplotlib_cache = []
 
 
 
@@ -755,6 +756,115 @@ def abort(*args, exit_code=1, prefix='Aborting', **kwargs):
         # Exit Python
         sys.exit(exit_code)
 
+# Function for converting lines of Python code to equivalent lines
+# but with multi-line expressions rewritten into single lines.
+def onelinerize(lines):
+    # Maybe replace with
+    # def onelinerize(s):
+    #    return re.sub('\n+', '\n', re.sub(r'([{\[\(,\.]|(?:\\))\s+', r'\1', s, flags=re.M))
+    in_quotes = [False, False]
+    in_triple_quotes = [False, False]
+    paren_counts = {'paren': 0, 'brack': 0, 'curly': 0}
+    def count_parens(line):
+        if line.lstrip().startswith('#'):
+            return line
+        for j, ch in enumerate(line):
+            # Inside quotes?
+            if ch in ("'", '"'):
+                if ch == "'" and not in_quotes[1]:
+                    in_quotes[0] = not in_quotes[0]
+                elif ch == '"' and not in_quotes[0]:
+                    in_quotes[1] = not in_quotes[1]
+                if j >= 2 and line[(j-2):(j + 1)] == "'"*3:
+                    in_quotes[0] = not in_quotes[0]
+                    in_triple_quotes[0] = not in_triple_quotes[0]
+                    if not in_triple_quotes[0]:
+                        in_quotes[0] = in_quotes[1] = False
+                elif j >= 2 and line[(j-2):(j + 1)] == '"'*3:
+                    in_quotes[1] = not in_quotes[1]
+                    in_triple_quotes[1] = not in_triple_quotes[1]
+                    if not in_triple_quotes[1]:
+                        in_quotes[0] = in_quotes[1] = False
+            # Break at # and remove inline comment
+            if ch == '#' and not in_quotes[0] and not in_quotes[1]:
+                line = line[:j].rstrip() + '\n'
+                break
+            # Count parentheses outside quotes
+            if (    not in_quotes[0]
+                and not in_quotes[1]
+                and not in_triple_quotes[0]
+                and not in_triple_quotes[1]
+            ):
+                if ch == '(':
+                    paren_counts['paren'] += 1
+                elif ch == ')':
+                    paren_counts['paren'] -= 1
+                elif ch == '[':
+                    paren_counts['brack'] += 1
+                elif ch == ']':
+                    paren_counts['brack'] -= 1
+                elif ch == '{':
+                    paren_counts['curly'] += 1
+                elif ch == '}':
+                    paren_counts['curly'] -= 1
+        return line
+    new_lines = []
+    multiline_statement = []
+    multiline = False
+    stay_as_multiline = False
+    for i, line in enumerate(lines):
+        line = count_parens(line)
+        if (
+               paren_counts['paren'] > 0
+            or paren_counts['brack'] > 0
+            or paren_counts['curly'] > 0
+        ):
+            if not multiline:
+                # Multi-line statement begins
+                multiline = True
+                line_lstripped = line.lstrip()
+                if (
+                    line_lstripped.startswith('@')
+                    and not line_lstripped.startswith('@cython.iterator')
+                ):
+                    stay_as_multiline = True
+                    new_lines.append(line)
+                    continue
+                if line.count('"'*3) == 1 or line.count("'"*3) == 1:
+                    stay_as_multiline = True
+                    new_lines.append(line)
+                    continue
+                if line_lstripped.startswith('#'):
+                    # Delete full-line comment
+                    # within multi-line statement.
+                    line = ''
+                if line:
+                    multiline_statement.append(line.rstrip())
+            else:
+                # Multi-line statement continues
+                if stay_as_multiline:
+                    new_lines.append(line)
+                    continue
+                if line.lstrip().startswith('#'):
+                    # Delete full-line comment
+                    # within multi-line statement.
+                    line = ''
+                if line:
+                    multiline_statement.append(' ' + line.strip())
+        elif multiline:
+            # Multi-line statement ends
+            multiline = False
+            if stay_as_multiline:
+                stay_as_multiline = False
+                new_lines.append(line)
+                continue
+            multiline_statement.append(' ' + line.lstrip())
+            new_lines.append(''.join(multiline_statement))
+            multiline_statement = []
+        else:
+            new_lines.append(line)
+    return new_lines
+
 
 
 #####################
@@ -909,7 +1019,7 @@ if not cython.compiled:
     dummypxd = DummyPxd()
     def pxd(s):
         # Remove comments
-        lines = pyxpp.oneline(s.split('\n'))
+        lines = onelinerize(s.split('\n'))
         code_lines = []
         for line in lines:
             if not line.lstrip().startswith('#'):
@@ -1529,7 +1639,7 @@ for key, val in inferred_params.items():
 def exec_params(content, d_in, suppress_exceptions=True):
     d = dict(d_in)
     # Perform execution
-    lines = pyxpp.oneline(content.split('\n'))
+    lines = onelinerize(content.split('\n'))
     lines_executed = set()
     lines_executed_prev = {-1}
     while lines_executed != lines_executed_prev:
@@ -1737,6 +1847,19 @@ def stringify_dict(d):
             pass
         d_modified[key] = val
     return d_modified
+# Function which calls CLASS with given parameters
+# and returns the background.
+def get_class_background(class_params, class_call_reason=''):
+    from classy import Class
+    cosmo = Class()
+    cosmo.set(class_params)
+    if class_call_reason:
+        class_call_reason = class_call_reason.strip() + ' '
+    masterprint(f'Calling CLASS {class_call_reason}...')
+    cosmo.compute()
+    masterprint('done')
+    background = cosmo.get_background()
+    return background
 # Function that updates given CLASS parameters with default values
 # matching the CO𝘕CEPT parameters.
 def update_class_params(class_params, namespace=None):
@@ -1886,17 +2009,14 @@ if inferred_params_set['Ων']:
 else:
     N_ncdm = int(user_params.get('class_params', {}).get('N_ncdm', 0))
     if N_ncdm != 0:
-        cosmo = Class()
-        cosmo.set(user_params.get('class_params', {}))
-        masterprint(
-            'Calling CLASS in order to determine Ων =',
-            ' + '.join(['Ων' + unicode_subscript(str(i)) for i in range(N_ncdm)]),
-            '...'
-        )
-        call_openmp_lib(cosmo.compute)
-        masterprint('done')
-        background = cosmo.get_background()
         if master:
+            background = get_class_background(
+                user_params.get('class_params', {}),
+                class_call_reason=(
+                    f'in order to determine Ων = '
+                    + ' + '.join(['Ων' + unicode_subscript(str(i)) for i in range(N_ncdm)])
+                ),
+            )
             Ων = 0
             for i in range(N_ncdm):
                 Ων += background[f'(.)rho_ncdm[{i}]'][-1]
@@ -1915,16 +2035,23 @@ user_params_keys_raw = set(user_params.keys())
 # Read in all parameters
 def to_int(value):
     return int(round(float(value)))
-def to_rgb(value):
-    if isinstance(value, int) or isinstance(value, float):
-        value = str(value)
-    try:
-        rgb = asarray(matplotlib.colors.ColorConverter().to_rgb(value), dtype=C2np['double'])
-    except:
-        # Could not convert value to colour
-        return asarray([-1, -1, -1])
+def to_rgb(value, *, collective=False):
+    # If called with collective=True, only the master process
+    # does the work, the result of which is then broadcast.
+    # This is just to avoid importing matplotlib on all processes.
+    if not collective or master:
+        matplotlib = get_matplotlib()
+        if isinstance(value, int) or isinstance(value, float):
+            value = str(value)
+        try:
+            rgb = asarray(matplotlib.colors.ColorConverter().to_rgb(value), dtype=C2np['double'])
+        except:
+            # Could not convert value to colour
+            rgb = asarray([-1, -1, -1])
+    if collective:
+        rgb = bcast(rgb if master else None)
     return rgb
-def to_rgbα(value, α=1):
+def to_rgbα(value, α=1, *, collective=False):
     if isinstance(value, str):
         rgb = value
     else:
@@ -1940,7 +2067,7 @@ def to_rgbα(value, α=1):
         else:
             # Value not understood
             rgb = asarray([-1, -1, -1])
-    return to_rgb(rgb), α
+    return to_rgb(rgb, collective=collective), α
 cython.declare(
     # Input/output
     initial_conditions=object,  # str or container of str's
@@ -3115,9 +3242,12 @@ if 'render3D_colors' in user_params:
         replace_ellipsis(render3D_colors)
     else:
         render3D_colors = {'all': user_params['render3D_colors']}
-render3D_colors = {key.lower(): to_rgbα(val, 0.2) for key, val in render3D_colors.items()}
+render3D_colors = {
+    key.lower(): to_rgbα(val, 0.2, collective=True)
+    for key, val in render3D_colors.items()
+}
 user_params['render3D_colors'] = render3D_colors
-render3D_bgcolor = to_rgb(user_params.get('render3D_bgcolor', 'black'))
+render3D_bgcolor = to_rgb(user_params.get('render3D_bgcolor', 'black'), collective=True)
 user_params['render3D_bgcolor'] = render3D_bgcolor
 render3D_resolution = to_int(user_params.get('render3D_resolution', 1080))
 user_params['render3D_resolution'] = render3D_resolution
@@ -3307,15 +3437,11 @@ if any([key in class_params for key in
     # The only critical use of this is in the computation of the
     # dynamical time scale. Late time steps may thus be smaller than
     # necessary, but that is OK.
-    cosmo = Class()
-    class_params_dcdm = class_params.copy()
-    class_params_dcdm['Gamma_dcdm'] = 0
-    cosmo.set(class_params_dcdm)
-    masterprint('Calling CLASS in order to determine Ωdcdm ...')
-    call_openmp_lib(cosmo.compute)
-    masterprint('done')
-    background = cosmo.get_background()
     if master:
+        background = get_class_background(
+            class_params | {'Gamma_dcdm': 0},
+            class_call_reason='in order to determine Ωdcdm',
+        )
         Ωdcdm = background['(.)rho_dcdm'][-1]/background['(.)rho_crit'][-1]
     Ωdcdm = bcast(Ωdcdm)
 Ωm = Ωb + Ωcdm + Ωdcdm
@@ -3497,8 +3623,7 @@ def call_class(extra_params=None, sleep_time=0.1, mode='single node', class_call
             f'but only "single node" and "mpi" are allowed'
         )
     # Merge global and extra CLASS parameters
-    params_specialized = class_params.copy()
-    params_specialized.update(extra_params)
+    params_specialized = class_params | extra_params
     # Print warnings when CLASS parameters are given which does not
     # affect the linear computation which is to take place.
     for param in ('A_s', 'n_s', 'alpha_s', 'k_pivot'):
@@ -3638,8 +3763,7 @@ def call_class(extra_params=None, sleep_time=0.1, mode='single node', class_call
                 f'The environment contains OMP_NUM_THREADS={OMP_NUM_THREADS}. '
                 f'This will be ignored.'
             )
-    # Instantiate a classy.Class instance and populate it with the
-    # CLASS parameters. Feed the Class instance with information about
+    # The Class instance shall be fed with information about
     # the local node (number) and number of threads (processes on the
     # local node), as well as the progress message to write during
     # perturbation computation.
@@ -3666,12 +3790,26 @@ def call_class(extra_params=None, sleep_time=0.1, mode='single node', class_call
             for insert in inserts:
                 message = re.subn((insert%0).replace(r'+', r'\+'), insert, message, 1)[0]
         message = bcast(message)
-    cosmo = Class(node=node, num_threads=num_threads, message=message)
-    cosmo.set(params_specialized)
+    # Depending on the mode, initialize a Class instance
+    # on the master or node masters.
+    # the other precesses will not run CLASS.
+    cosmo = func = None
+    if (mode == 'single node' and master) or (mode == 'mpi' and node_master):
+        from classy import Class
+        cosmo = Class(node=node, num_threads=num_threads, message=message)
+        cosmo.set(params_specialized)
+        func = cosmo.compute
+    # The background should be available to all processes.
+    # Broadcast the background and instantiate fake classy.Class
+    # instances on slave processes, with the get_background() method
+    # in place.
+    fake_cosmo = get_fake_cosmo(cosmo)
+    if cosmo is None:
+        cosmo = fake_cosmo
     # Call cosmo.compute in such a way as to allow
     # for OpenMP parallelization.
     Barrier()
-    call_openmp_lib(cosmo.compute, sleep_time=sleep_time, mode=mode)
+    call_openmp_lib(func, sleep_time=sleep_time, mode=mode)
     Barrier()
     masterprint('done')
     # Always return the cosmo object. If perturbations have
@@ -3681,6 +3819,21 @@ def call_class(extra_params=None, sleep_time=0.1, mode='single node', class_call
         return cosmo, k_output_values_node_indices
     else:
         return cosmo
+# Helper function for the call_class() function
+def get_fake_cosmo(cosmo=None):
+    background = bcast(cosmo.get_background() if master else None)
+    h = bcast(cosmo.h() if master else None)
+    perturbations = {}
+    return FakeClass(
+        lambda: background,
+        lambda: perturbations,
+        lambda: h,
+        lambda: None,
+    )
+FakeClass = collections.namedtuple(
+    'FakeClass',
+    ['get_background', 'get_perturbations', 'h', 'struct_cleanup'],
+)
 
 
 
@@ -4354,6 +4507,7 @@ def open_hdf5(filename, **kwargs):
     It is an error to call non-collectively from any process but the
     master mode.
     """
+    import h5py
     # Minimum and maximum time to wait between checks on the file
     sleep_time_min = 1
     sleep_time_max = 300

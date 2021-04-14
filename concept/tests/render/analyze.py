@@ -2,6 +2,7 @@
 
 # Imports from the CO𝘕CEPT code
 from commons import *
+plt = get_matplotlib().pyplot
 
 # Absolute path and name of the directory of this file
 this_dir  = os.path.dirname(os.path.realpath(__file__))

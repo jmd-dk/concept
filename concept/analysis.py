@@ -314,6 +314,7 @@ powerspec_bins_cache = {}
 
 # Helper function to get_powerspec_bins()
 def construct_k_bin_centers(k_min, k_max, binsize, gridsize, nyquist):
+    import scipy.interpolate
     # A bin size below binsize_min is guaranteed to never bin
     # separate k² together in the same bin, and so binsize_min is the
     # smallest bin size allowed.

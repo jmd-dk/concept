@@ -4,6 +4,7 @@
 from commons import *
 from snapshot import load
 import species
+plt = get_matplotlib().pyplot
 
 # Absolute path and name of the directory of this file
 this_dir  = os.path.dirname(os.path.realpath(__file__))

@@ -3711,6 +3711,7 @@ class Component:
             # best spline is achieved from log(a) but linear w_eff.
             logx, logy = True, False
         # Extrapolate to get the value at a = 1
+        import scipy.interpolate
         w_eff_tabulated_end = scipy.interpolate.interp1d(
             np.log(     a_tabulated    [:a_tabulated.shape[0] - 1]) if logx else
                 asarray(a_tabulated    [:a_tabulated.shape[0] - 1]),

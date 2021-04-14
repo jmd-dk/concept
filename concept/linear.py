@@ -2177,6 +2177,7 @@ class TransferFunction:
         returns='double[::1]',
     )
     def detrend(self, x, y, k, k_local, i):
+        import scipy.optimize
         # Maximum (absolute) allowed exponent in the trend.
         # If an exponent greater than this is found,
         # the program will terminate.
@@ -2520,6 +2521,7 @@ missing_background_quantities = set()
 # like that of matter-radiation equality.
 @lru_cache(copy=True)
 def find_critical_times():
+    import scipy.signal
     # List storing the critical scale factor values
     a_criticals = []
     # If the CLASS background is disabled,
@@ -2867,6 +2869,7 @@ def compute_transfer(
     k_min='double',
     logk='double',
     logk_magnitudes=object,  # list, np.ndarray
+    logk_modes_per_decade_interp=object,  # scipy.interpolate.interp1d
     logk_max='double',
     logk_min='double',
     nyquist='Py_ssize_t',
@@ -2891,6 +2894,7 @@ def get_k_magnitudes(gridsize):
     # using a running number of modes/decade.
     logk = logk_min
     logk_magnitudes = [logk]
+    logk_modes_per_decade_interp = get_logk_modes_per_decade_interp()
     while logk <= logk_max:
         logk += 1/logk_modes_per_decade_interp(logk)
         logk_magnitudes.append(logk)
@@ -2942,16 +2946,19 @@ cython.declare(
     k_safety_factor='double',
 )
 k_magnitudes_cache = {}
-logk_modes_per_decade_interp = lambda logk, *, f=scipy.interpolate.interp1d(
-    np.log10(tuple(k_modes_per_decade.keys())),
-    tuple(k_modes_per_decade.values()),
-    'linear',
-    bounds_error=False,
-    fill_value=(
-        k_modes_per_decade[np.min(tuple(k_modes_per_decade.keys()))],
-        k_modes_per_decade[np.max(tuple(k_modes_per_decade.keys()))],
-    ),
-): float(f(logk))
+def get_logk_modes_per_decade_interp():
+    import scipy.interpolate
+    logk_modes_per_decade_interp = lambda logk, *, f=scipy.interpolate.interp1d(
+        np.log10(tuple(k_modes_per_decade.keys())),
+        tuple(k_modes_per_decade.values()),
+        kind='linear',
+        bounds_error=False,
+        fill_value=(
+            k_modes_per_decade[np.min(tuple(k_modes_per_decade.keys()))],
+            k_modes_per_decade[np.max(tuple(k_modes_per_decade.keys()))],
+        ),
+    ): float(f(logk))
+    return logk_modes_per_decade_interp
 def k_float2str(k_float):
     k_str = 𝕊['{{:.{}e}}'.format(k_str_n_decimals)].format(k_float)
     k_str = k_str.replace('+0', '+').replace('-0', '-').replace('e+0', '')

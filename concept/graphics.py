@@ -40,9 +40,6 @@ cimport(
     '    resize_grid,              '
 )
 
-# Pure Python imports
-from mpl_toolkits.mplot3d import proj3d  # Importing from mpl_toolkits.mplot3d enables 3D plotting
-
 
 
 # Function for plotting an already computed power spectrum
@@ -96,6 +93,8 @@ def plot_powerspec(powerspec_declaration, filename):
             )
         return
     powerspec_declaration = powerspec_declarations[0]
+    # Fetch Matplotlib
+    plt = get_matplotlib().pyplot
     # Ensure correct filename extension
     if not filename.endswith('.png'):
         filename += '.png'
@@ -189,6 +188,8 @@ def plot_powerspec(powerspec_declaration, filename):
 )
 def plot_detrended_perturbations(k, k_magnitude, transferfunction_info, class_species,
     factors, exponents, splines, largest_trusted_k_magnitude, crossover):
+    # Fetch Matplotlib
+    plt = get_matplotlib().pyplot
     # All processes could carry out this work, but as it involves I/O,
     # we only allow the master process to do so.
     if not master:
@@ -311,6 +312,8 @@ def plot_processed_perturbations(
     indexed as transfer[a, k], with the values of a and k given by
     a_values and k_magnitudes.
     """
+    # Fetch Matplotlib
+    plt = get_matplotlib().pyplot
     # All processes could carry out this work, but as it involved I/O,
     # we only allow the master process to do so.
     if not master:
@@ -1170,6 +1173,8 @@ def save_render2D_image(declaration, filename, n_dumps):
         return
     if not declaration.do_image:
         return
+    # Fetch Matplotlib
+    plt = get_matplotlib().pyplot
     # Extract some variables from the 2D render declaration
     components = declaration.components
     colormap   = declaration.colormap
@@ -1279,6 +1284,7 @@ def set_terminal_colormap(colormap):
     """
     if not master:
         return
+    matplotlib = get_matplotlib()
     colormap_ansi = getattr(matplotlib.cm, colormap)(linspace(0, 1, 238))[:, :3]
     for i, rgb in enumerate(colormap_ansi):
         colorhex = matplotlib.colors.rgb2hex(rgb)
@@ -1352,6 +1358,9 @@ def render3D(components, filename, cleanup=True, tmp_dirname='.renders3D'):
     # render3D_select does not contain any True values.
     if not any(render3D_select.values()):
         return
+    # Fetch Matplotlib
+    matplotlib = get_matplotlib()
+    plt = matplotlib.pyplot
     # Attach missing extension to filename
     if not filename.endswith('.png'):
         filename += '.png'
@@ -1374,7 +1383,7 @@ def render3D(components, filename, cleanup=True, tmp_dirname='.renders3D'):
                 continue
             # This component should be 3D rendered.
             # Prepare a figure for the 3D render of the i'th component.
-            figname = 'render3D_{}'.format(component.name)
+            figname = f'render3D_{component.name}'
             dpi = 100  # This only affects the font size relative to the figure
             fig = plt.figure(figname, figsize=[render3D_resolution/dpi]*2, dpi=dpi)
             ax = fig.gca(projection='3d', facecolor=render3D_bgcolor)
@@ -1488,15 +1497,12 @@ def render3D(components, filename, cleanup=True, tmp_dirname='.renders3D'):
                     transform=ax.transAxes,
                 )
             # Configure axis options
-            ax.dist = 9  # Zoom level
             ax.set_proj_type('ortho')
             ax.set_xlim(0, boxsize)
             ax.set_ylim(0, boxsize)
             ax.set_zlim(0, boxsize)
+            ax.set_box_aspect((1, 1, 1), zoom=1.1)
             ax.axis('off')  # Remove panes, gridlines, axes, ticks, etc.
-            for spine in ax.spines.values():
-                # Needed due to bug in Matplotlib 3.0.0
-                spine.set_visible(False)
             plt.tight_layout(pad=-1)  # Extra tight layout, to prevent white frame
             # Store the figure, axes and the component
             # and text artists in the render3D_dict.
@@ -1694,6 +1700,8 @@ def dummy_func(*args, **kwargs):
                tmp_image='float[:, :, ::1]',
                )
 def blend(filenames):
+    # Fetch Matplotlib
+    plt = get_matplotlib().pyplot
     # Make render3D_image black and transparent
     render3D_image[...] = 0
     for filename in filenames:
@@ -1740,6 +1748,7 @@ def blend(filenames):
 )
 def alpha_blend(N, α_homogeneous, fig=None):
     if fig is None:
+        plt = get_matplotlib().pyplot
         fig = plt.gcf()
     # The particle (fluid element) size on the figure.
     # The size is chosen such that the particles stand side

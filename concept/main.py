@@ -516,6 +516,7 @@ def prepare_static_timestepping():
             # Create linear spline for each interval
             static_timestepping_interps = []
             index_left = 0
+            import scipy.interpolate
             for index_right in interval_indices:
                 static_timestepping_interps.append(
                     lambda a, *, f=scipy.interpolate.interp1d(
