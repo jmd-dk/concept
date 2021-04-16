@@ -1413,14 +1413,6 @@ class GadgetSnapshot:
         unit_components=list,
     )
     def load(self, filename, only_params=False):
-        # Determine the GADGET SnapFormat of the file
-        self.snapformat = self.get_snapformat(filename)
-        if self.snapformat not in (1, 2):
-            abort(f'Could not determine GADGET SnapFormat of "{filename}"')
-        if self.snapformat == 1:
-            # For SnapFormat 1 the block names are left out of the
-            # snapshot, but they occur in a specific order.
-            self.block_names = iter(self.get_blocks_info('names'))
         # Determine which files are part of this snapshot
         if master:
             if (
@@ -1469,6 +1461,15 @@ class GadgetSnapshot:
         else:
             filename_glob = filenames[0].removesuffix('.0') + '*'
             masterprint(f'Loading {msg}snapshot "{filename_glob}" ...')
+        # Determine the GADGET SnapFormat of the first file
+        # (we assume that they are all stored in the same SnapFormat).
+        self.snapformat = bcast(self.get_snapformat(filenames[0]) if master else None)
+        if self.snapformat not in (1, 2):
+            abort(f'Could not determine GADGET SnapFormat of "{filename}"')
+        if self.snapformat == 1:
+            # For SnapFormat 1 the block names are left out of the
+            # snapshot, but they occur in a specific order.
+            self.block_names = iter(self.get_blocks_info('names'))
         # Read in the header of each file in the snapshot and check that
         # they are consistent. Keep information about the number of
         # particles of each type within eacch snapshot.
