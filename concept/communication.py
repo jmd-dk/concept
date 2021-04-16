@@ -55,56 +55,6 @@ def partition(size):
         start_local += rank - rank_transition
     return start_local, size_local
 
-# Function for communicating sizes of receive buffers
-@cython.header(
-    # Arguments
-    N_send_mv='Py_ssize_t[::1]',
-    # Locals
-    N_recv='Py_ssize_t[::1]',
-    N_recv_max='Py_ssize_t',
-    i='int',
-    rank_send='int',
-    rank_recv='int',
-    same_N_send='bint',
-    max_bfore_rank='Py_ssize_t',
-    max_after_rank='Py_ssize_t',
-    returns='Py_ssize_t[::1]',
-)
-def find_N_recv(N_send_mv):
-    """Given the size of arrays to send, N_send_mv, which itself has a
-    length of either 1 (same data size to send to every process) or
-    n_procs (individual data sizes to send to the processes), this
-    function communicates this to all processes, so that everyone knows
-    how much to receive from every process. The entrance number rank is
-    unused (the process do not send to itself). The maximum number to
-    receive is useful when allocating receive buffers, so this number is
-    stored in this otherwise unused entrance.
-    """
-    N_recv = empty(nprocs, dtype=C2np['Py_ssize_t'])
-    # Check whether N_send_mv is the same for each process to send to
-    same_N_send = (N_send_mv.size == 1)
-    # If N_send is the same for each process, an Allgather will suffice
-    if same_N_send:
-        Allgather(N_send_mv, N_recv)
-        # Store the max N_recv_in the unused entrance in N_recv
-        max_bfore_rank = (0 if rank == 0          else max(N_recv[:rank]))
-        max_after_rank = (0 if rank == nprocs - 1 else max(N_recv[(rank + 1):]))
-        N_recv[rank] = (max_bfore_rank if max_bfore_rank > max_after_rank else max_after_rank)
-        return N_recv
-    # Find out how many particles will be received from each process
-    N_recv_max = 0
-    for i in range(1, nprocs):
-        # Process ranks to send/receive to/from
-        rank_send = mod(rank + i, nprocs)
-        rank_recv = mod(rank - i, nprocs)
-        # Send and receive nr of particles to be exchanged
-        N_recv[rank_recv] = sendrecv(N_send_mv[rank_send], dest=rank_send, source=rank_recv)
-        if N_recv[rank_recv] > N_recv_max:
-            N_recv_max = N_recv[rank_recv]
-    # Store N_recv_max in the unused entrance in N_recv
-    N_recv[rank] = N_recv_max
-    return N_recv
-
 # This function examines every particle of the supplied component and
 # communicates them to the process governing the domain in which the
 # particle is located.
@@ -113,71 +63,114 @@ def find_N_recv(N_send_mv):
     component='Component',
     progress_msg='bint',
     # Locals
-    N_local='Py_ssize_t',
-    N_local_extra='Py_ssize_t',
-    N_needed='Py_ssize_t',
-    N_recv='Py_ssize_t[::1]',
-    N_recv_i='Py_ssize_t',
-    N_recv_max='Py_ssize_t',
-    N_recv_tot='Py_ssize_t',
-    N_send_i='Py_ssize_t',
-    N_send_max='Py_ssize_t',
-    N_send_max_allowed='Py_ssize_t',
-    N_send_tot='Py_ssize_t',
-    N_send_tot_global='Py_ssize_t',
-    buffer_name=object,  # int or str
     data_mv='double[::1]',
     data_mvs=list,
-    data_ptr='double*',
-    dim='Py_ssize_t',
-    i='int',
-    index='Py_ssize_t',
-    index_recv_i='Py_ssize_t',
+    dim='int',
     indexᵖ='Py_ssize_t',
-    indexᵖ_hole='Py_ssize_t',
-    indexᵖ_particle='Py_ssize_t',
-    indexʳ_recv_i='Py_ssize_t',
+    indexᵖ_end_i='Py_ssize_t',
+    indexᵖ_hole_bgn='Py_ssize_t',
+    indexᵖ_hole_end='Py_ssize_t',
+    indexᵖ_i='Py_ssize_t',
+    indexᵖ_j='Py_ssize_t',
+    indexᵖ_left='Py_ssize_t',
+    indexᵖ_recv_bgn_ℓ='Py_ssize_t',
+    indexᵖ_right='Py_ssize_t',
+    indexᵖ_send_bgn_i='Py_ssize_t',
+    indexᵖ_send_bgn_ℓ='Py_ssize_t',
+    indexᵖ_send_end_i='Py_ssize_t',
+    indexᵖ_send_end_ℓ='Py_ssize_t',
+    indexʳ_i='Py_ssize_t',
+    indexʳ_j='Py_ssize_t',
+    indexʳ_left='Py_ssize_t',
+    indexʳ_recv_bgn_ℓ='Py_ssize_t',
+    indexʳ_right='Py_ssize_t',
+    indexʳ_send_bgn_ℓ='Py_ssize_t',
+    indexʳ_send_end_ℓ='Py_ssize_t',
     indexˣ='Py_ssize_t',
     indexˣ_hole='Py_ssize_t',
-    indexˣ_particle='Py_ssize_t',
-    indices_mv='Py_ssize_t[::1]',
-    indices_ptr='Py_ssize_t*',
+    indexˣ_i='Py_ssize_t',
+    indexˣ_j='Py_ssize_t',
+    indexˣ_left='Py_ssize_t',
+    indexˣ_right='Py_ssize_t',
     mom='double*',
     mom_mv='double[::1]',
-    n_send='Py_ssize_t',
+    n_particles_recv_tot='Py_ssize_t',
+    n_particles_recv_ℓ='Py_ssize_t',
+    n_particles_send_max='Py_ssize_t',
+    n_particles_send_tot='Py_ssize_t',
+    n_particles_send_tot_global='Py_ssize_t',
+    n_particles_send_ℓ='Py_ssize_t',
+    n_particles_store='Py_ssize_t',
     particles_leftover='bint',
     pos='double*',
+    pos_mv='double[::1]',
     posxˣ='double*',
     posyˣ='double*',
     poszˣ='double*',
-    pos_mv='double[::1]',
+    rank_left='int',
     rank_other='int',
-    rank_owner='int',
+    rank_other_i='int',
+    rank_other_i_known='bint',
+    rank_other_j='int',
     rank_recv='int',
+    rank_right='int',
     rank_send='int',
     rung_index='signed char',
+    rung_index_i='signed char',
+    rung_index_j='signed char',
+    rung_index_left='signed char',
+    rung_index_right='signed char',
     rung_indices='signed char*',
-    rung_indices_buf='signed char[::1]',
-    rung_indices_buf_ptr='signed char*',
     rung_indices_jumped='signed char*',
     rung_indices_mv='signed char[::1]',
     rungs_N='Py_ssize_t*',
-    sendbuf_mv='double[::1]',
-    sendbuf_ptr='double*',
-    Δmemory='Py_ssize_t',
     Δmom='double*',
     Δmom_mv='double[::1]',
+    ℓ='int',
     returns='void',
 )
 def exchange(component, progress_msg=False):
     """This function will do an exchange of particles between processes,
     so that every particle ends up on the process in charge of the
-    domain where the particle is located. The variable indices_send
-    holds arrays of indices of particles to send to the different
-    processes, while particle data is copied to sendbuf before it is
-    send. These two variables will grow in size if needed.
+    domain where the particle is located.
+    The particle data to be exchanged is:
+      - pos
+      - mom
+      - Δmom
+      - rung_indices (if rungs are used by the component)
+    We do not communicate rung jumps, as it is expected that no such
+    jumps are flagged when calling this function.
+    The overall scheme for the particle exchange is this:
+      - Locate non-local particles at the left end of the particle array
+        and swap them with local particles at the right end. This leaves
+        all non-local particles to the right of all local particles.
+        Keep track of the total number of non-local particles
+        to send to each process.
+      - Go over the now contiguous sub-list of non-local particles and
+        swap them so that they are ordered by the process
+        they belong to.
+      - Send the non-local particles to each non-local process.
+        When receiving, do so directly into the component data arrays,
+        to the right of even the non-local particles.
+        The data arrays then need to be expanded first.
+      - Once particles have been exchanged to all processes,
+        move the received data to the left where the
+        non-local particles used to be.
+      - In all of the above, the only particle buffer memory needed
+        (not counting buffers of size nprocs) are that which is used to
+        receive the particle data. Still, to keep this to a minimum,
+        a maximum number of particles to be sent to each process
+        is introduced. If more particles should be exchanged than this,
+        the above steps are simply repeated in a second round
+        of exchange. Note that after the first step, the left part of
+        the particles are guaranteed to be local, so we start at the end
+        of these when searching for non-local particles.
+        Likewise, particles appearing further to the right than already
+        dealt with will have to be have come there by receiving them
+        from other processes, implying that they are local. The window
+        of particles to check then shrinks from both sides
+        as more and more exchanges take place.
     """
-    global ranks_send, indices_send, indices_send_sorted, indices_send_sorted_mv, size_sendbuffers
     # No need to consider exchange of particles if running serially
     if 𝔹[nprocs == 1]:
         return
@@ -186,109 +179,211 @@ def exchange(component, progress_msg=False):
         return
     if progress_msg:
         masterprint(f'Exchanging {component.name} particles between processes ...')
-    # Maximum total number of particles allowed to be sent
-    # by each process at a time.
-    N_send_max_allowed = 2**20
+    # Maximum number of particles allowed to be sent
+    # to each process at a time.
+    n_particles_send_max = 2**17
     # Carry out exchanges as long as we have particles to communicate
     particles_leftover = True
+    indexᵖ_left = 0
+    indexᵖ_right = component.N_local - 1
     while particles_leftover:
         particles_leftover = False
-        N_local = component.N_local
-        # The size of ranks_send and indices_send increases
-        # by this amount at a time.
-        Δmemory = 2 + cast(0.01*N_local, 'Py_ssize_t')
-        # Find out where to send which particle
+        # Extract pointers
+        posxˣ               = component.posxˣ
+        posyˣ               = component.posyˣ
+        poszˣ               = component.poszˣ
+        pos                 = component.pos
+        mom                 = component.mom
+        Δmom                = component.Δmom
+        rung_indices        = component.rung_indices
+        rung_indices_jumped = component.rung_indices_jumped
+        # Sweep over the particles from the left and right
+        # simultaneously, matching a left non-local particle with a
+        # right local particle and swapping them. Keep a tally of the
+        # total number of non-local particles belonging to each process.
         for rank_other in range(nprocs):
-            N_send[rank_other] = 0
-        N_send_tot = 0
-        posxˣ = component.posxˣ
-        posyˣ = component.posyˣ
-        poszˣ = component.poszˣ
-        for indexᵖ in range(N_local):
-            # Rank of the process that this particle belongs to
-            indexˣ = 3*indexᵖ
-            rank_owner = which_domain(posxˣ[indexˣ], posyˣ[indexˣ], poszˣ[indexˣ])
-            if rank_owner == rank:
+            n_particles_send[rank_other] = 0
+        indexˣ_left  = 3*indexᵖ_left
+        indexˣ_right = 3*indexᵖ_right
+        while indexᵖ_left <= indexᵖ_right and not particles_leftover:
+            rank_left = which_domain(
+                posxˣ[indexˣ_left],
+                posyˣ[indexˣ_left],
+                poszˣ[indexˣ_left],
+            )
+            if rank_left == rank:
+                # Local left particle found
+                indexᵖ_left += 1
+                indexˣ_left += 3
                 continue
-            # Particle owned by non-local process. Record information.
-            ranks_send  [N_send_tot] = rank_owner
-            indices_send[N_send_tot] = indexᵖ
-            # Break out if there is no room
-            # for further particles to be sent.
-            N_send[rank_owner] += 1
-            N_send_tot += 1
-            if N_send_tot == N_send_max_allowed:
-                particles_leftover = True  # probably
+            # Non-local left particle found
+            if n_particles_send[rank_left] == n_particles_send_max:
+                # Send limit reached for left process
+                particles_leftover = True
                 break
-            # Enlarge global buffers if necessary
-            with unswitch(1):
-                if size_sendbuffers < N_send_max_allowed:
-                    if N_send_tot == size_sendbuffers:
-                        size_sendbuffers += Δmemory
-                        if size_sendbuffers > N_send_max_allowed:
-                           size_sendbuffers = N_send_max_allowed
-                        ranks_send = realloc(
-                            ranks_send,
-                            size_sendbuffers*sizeof('int'),
-                        )
-                        indices_send = realloc(
-                            indices_send,
-                            size_sendbuffers*sizeof('Py_ssize_t'),
-                        )
-                        indices_send_sorted = realloc(
-                            indices_send_sorted,
-                            size_sendbuffers*sizeof('Py_ssize_t'),
-                        )
-                        indices_send_sorted_mv = cast(
-                            indices_send_sorted,
-                            'Py_ssize_t[:size_sendbuffers]',
-                        )
-        # No need to continue if no particles should be exchanged
-        N_send_tot_global = allreduce(N_send_tot, op=MPI.SUM)
-        if N_send_tot_global == 0:
-            break
-        # Sort the indices to be sent
-        # according to their destination process.
-        if N_send_tot > 0:
-            for i in range(2):
-                n_send = 0
-                for rank_other in range(nprocs):
-                    N_send_cumulative[rank_other] = n_send
-                    n_send += N_send[rank_other]
-                if i == 1:
+            # Pair non-local left particle with local right particle
+            while indexᵖ_left <= indexᵖ_right:
+                rank_right = which_domain(
+                    posxˣ[indexˣ_right],
+                    posyˣ[indexˣ_right],
+                    poszˣ[indexˣ_right],
+                )
+                if rank_right == rank:
+                    # Local right particle found.
+                    # Increment send tally of left process.
+                    n_particles_send[rank_left] += 1
+                    # Swap non-local left with local right particle.
+                    for dim in range(3):
+                        indexʳ_left  = indexˣ_left  + dim
+                        indexʳ_right = indexˣ_right + dim
+                        pos[indexʳ_left], pos[indexʳ_right] = pos[indexʳ_right], pos[indexʳ_left]
+                    for dim in range(3):
+                        indexʳ_left  = indexˣ_left  + dim
+                        indexʳ_right = indexˣ_right + dim
+                        mom[indexʳ_left], mom[indexʳ_right] = mom[indexʳ_right], mom[indexʳ_left]
+                    for dim in range(3):
+                        indexʳ_left  = indexˣ_left  + dim
+                        indexʳ_right = indexˣ_right + dim
+                        Δmom[indexʳ_left], Δmom[indexʳ_right] = Δmom[indexʳ_right], Δmom[indexʳ_left]
+                    with unswitch(2):
+                        if component.use_rungs:
+                            rung_index_left  = rung_indices[indexᵖ_left]
+                            rung_index_right = rung_indices[indexᵖ_right]
+                            rung_indices[indexᵖ_left ] = rung_index_right
+                            rung_indices[indexᵖ_right] = rung_index_left
+                            # The jumped rung indices are equal to the
+                            # rung indices as we cannot have
+                            # upcoming jumps.
+                            rung_indices_jumped[indexᵖ_left ] = rung_index_right
+                            rung_indices_jumped[indexᵖ_right] = rung_index_left
+                    # Go to next left and right particles
+                    indexᵖ_left  += 1
+                    indexˣ_left  += 3
+                    indexᵖ_right -= 1
+                    indexˣ_right -= 3
                     break
-                for index in range(N_send_tot):
-                    rank_owner = ranks_send[index]
-                    index_sorted = N_send_cumulative[rank_owner]
-                    indices_send_sorted[index_sorted] = indices_send[index]
-                    N_send_cumulative[rank_owner] += 1
+                else:
+                    # Non-local right particle found
+                    if n_particles_send[rank_right] == n_particles_send_max:
+                        # Send limit reached for right process
+                        particles_leftover = True
+                        break
+                    # Increment send tally of right process,
+                    # leaving the left non-local particle hanging.
+                    n_particles_send[rank_right] += 1
+                    # Go to next right particle
+                    indexᵖ_right -= 1
+                    indexˣ_right -= 3
+                    continue
+        # No need to continue if no particles should be exchanged
+        n_particles_send_tot = sum(n_particles_send_mv)
+        n_particles_send_tot_global = allreduce(n_particles_send_tot, op=MPI.SUM)
+        if n_particles_send_tot_global == 0:
+            break
         # If any process have more non-local particles than can be
         # sent in one go, every process should know about it.
         particles_leftover = allreduce(particles_leftover, op=MPI.LOR)
-        # Grab a buffer for holding the data to be sent.
-        # The 'send' buffer is also used internally by smart_mpi.
-        N_send_max = max(N_send_mv)
-        buffer_name = 'send'
-        sendbuf_mv = get_buffer(3*N_send_max, buffer_name)
-        sendbuf_ptr = cython.address(sendbuf_mv[:])
-        # We additionally need a buffer storing signed char,
-        # for the rung indices.
-        if component.use_rungs:
-            if rung_indices_arr.shape[0] < N_send_max:
-                rung_indices_arr.resize(N_send_max, refcheck=False)
-            rung_indices_buf = rung_indices_arr
-            rung_indices_buf_ptr = cython.address(rung_indices_buf[:])
+        # Sort non-local right particles in order of rank
+        if n_particles_send_tot > 0:
+            # Construct beginning particle indices of each rank.
+            # The non-local particles of each rank should then end up
+            # in range(indicesᵖ_send_bgn[rank], indicesᵖ_send_bgn[rank] + n_particles_send[rank]).
+            indexᵖ = indexᵖ_right + 1
+            for rank_other in range(nprocs):
+                indicesᵖ_send_bgn[rank_other] = indexᵖ
+                indexᵖ += n_particles_send[rank_other]
+            # The running tally of the number of sorted particles will
+            # be stored in this array.
+            for rank_other in range(nprocs):
+                n_particles_sorted[rank_other] = 0
+            # Sweep over the non-local particles, swapping particles
+            # situated at wrong indices with the particle
+            # at their destination index.
+            indexᵖ_i = indexᵖ_right + 1
+            indexᵖ_end_i = indexᵖ_i + n_particles_send_tot
+            indexˣ_i = 3*indexᵖ_i
+            rank_other_i_known = False
+            while indexᵖ_i < indexᵖ_end_i:
+                if not rank_other_i_known:
+                    rank_other_i = which_domain(
+                        posxˣ[indexˣ_i],
+                        posyˣ[indexˣ_i],
+                        poszˣ[indexˣ_i],
+                    )
+                indexᵖ_send_bgn_i = indicesᵖ_send_bgn[rank_other_i]
+                indexᵖ_send_end_i = indexᵖ_send_bgn_i + n_particles_send[rank_other_i]
+                if indexᵖ_send_bgn_i <= indexᵖ_i < indexᵖ_send_end_i:
+                    # Particle already situated correctly
+                    n_particles_sorted[rank_other_i] += 1
+                    indexᵖ_i += 1
+                    indexˣ_i += 3
+                    rank_other_i_known = False
+                    continue
+                # Locate index j where particle currently at i
+                # should be moved to.
+                while True:
+                    indexᵖ_j = indexᵖ_send_bgn_i + n_particles_sorted[rank_other_i]
+                    indexˣ_j = 3*indexᵖ_j
+                    rank_other_j = which_domain(
+                        posxˣ[indexˣ_j],
+                        posyˣ[indexˣ_j],
+                        poszˣ[indexˣ_j],
+                    )
+                    if rank_other_i != rank_other_j:
+                        break
+                    # Particle at j belongs to the same process as the
+                    # one at i. Skip along, counting the particle at j
+                    # as being sorted.
+                    n_particles_sorted[rank_other_i] += 1
+                # Swap particle i and j
+                for dim in range(3):
+                    indexʳ_i = indexˣ_i + dim
+                    indexʳ_j = indexˣ_j + dim
+                    pos[indexʳ_i], pos[indexʳ_j] = pos[indexʳ_j], pos[indexʳ_i]
+                for dim in range(3):
+                    indexʳ_i = indexˣ_i + dim
+                    indexʳ_j = indexˣ_j + dim
+                    mom[indexʳ_i], mom[indexʳ_j] = mom[indexʳ_j], mom[indexʳ_i]
+                for dim in range(3):
+                    indexʳ_i = indexˣ_i + dim
+                    indexʳ_j = indexˣ_j + dim
+                    Δmom[indexʳ_i], Δmom[indexʳ_j] = Δmom[indexʳ_j], Δmom[indexʳ_i]
+                with unswitch(1):
+                    if component.use_rungs:
+                        rung_index_i = rung_indices[indexᵖ_i]
+                        rung_index_j = rung_indices[indexᵖ_j]
+                        rung_indices[indexᵖ_i] = rung_index_j
+                        rung_indices[indexᵖ_j] = rung_index_i
+                        # The jumped rung indices are equal to the rung
+                        # indices as we cannot have upcoming jumps.
+                        rung_indices_jumped[indexᵖ_i] = rung_index_i
+                        rung_indices_jumped[indexᵖ_j] = rung_index_j
+                # The particle previous at i is now situated correctly,
+                # but the swapped in particle (the one previously at j)
+                # may now be incorrectly placed.
+                # Continue without incrementing indexᵖ_i and indexˣ_i.
+                n_particles_sorted[rank_other_i] += 1
+                rank_other_i = rank_other_j
+                rank_other_i_known = True
+                continue
         # Find out how many particles to receive
-        N_recv = find_N_recv(N_send_mv)
-        # The maximum number of particles to
-        # receive is stored in entrance rank.
-        N_recv_max = N_recv[rank]
-        N_recv_tot = sum(N_recv) - N_recv_max
-        # Enlarge the component data attributes if needed
-        N_needed = N_local + N_recv_tot
-        if component.N_allocated < N_needed:
-            component.resize(N_needed)
-        # Extract pointers and memory views
+        n_particles_recv_tot = 0
+        for ℓ in range(1, nprocs):
+            rank_send = mod(rank + ℓ, nprocs)
+            rank_recv = mod(rank - ℓ, nprocs)
+            n_particles_recv_ℓ = sendrecv(
+                n_particles_send[rank_send],
+                dest=rank_send,
+                source=rank_recv,
+            )
+            n_particles_recv[rank_recv] = n_particles_recv_ℓ
+            n_particles_recv_tot += n_particles_recv_ℓ
+        # The particles to be received will be so directly into the
+        # component particle arrays. Enlarge these if necessary.
+        n_particles_store = component.N_local + n_particles_recv_tot
+        if component.N_allocated < n_particles_store:
+            component.resize(n_particles_store)
+        # Extract particle data pointers and memory views
         pos     = component. pos
         mom     = component. mom
         Δmom    = component.Δmom
@@ -303,135 +398,106 @@ def exchange(component, progress_msg=False):
         # Particle data to be exchanged
         data_mvs = [pos_mv, mom_mv, Δmom_mv]
         # Exchange particles between processes
-        index_recv_i = N_local  # start index for received data
-        for i in range(1, nprocs):
-            # Process ranks to send to / receive from
-            rank_send = mod(rank + i, nprocs)
-            rank_recv = mod(rank - i, nprocs)
-            # Number of particles to send/receive
-            N_send_i = N_send[rank_send]
-            N_recv_i = N_recv[rank_recv]
-            # Communicate particle data
-            n_send = 3*N_send_i
-            indexʳ_recv_i = 3*index_recv_i
+        indexᵖ_recv_bgn_ℓ = component.N_local  # start index for received data
+        for ℓ in range(1, nprocs):
+            rank_send = mod(rank + ℓ, nprocs)
+            rank_recv = mod(rank - ℓ, nprocs)
+            n_particles_send_ℓ = n_particles_send[rank_send]
+            n_particles_recv_ℓ = n_particles_recv[rank_recv]
+            # Exchange particle data
+            indexᵖ_send_bgn_ℓ = indicesᵖ_send_bgn[rank_send]
+            indexᵖ_send_end_ℓ = indexᵖ_send_bgn_ℓ + n_particles_send_ℓ
+            indexᵖ_recv_end_ℓ = indexᵖ_recv_bgn_ℓ + n_particles_recv_ℓ
+            indexʳ_send_bgn_ℓ = 3*indexᵖ_send_bgn_ℓ
+            indexʳ_send_end_ℓ = 3*indexᵖ_send_end_ℓ
+            indexʳ_recv_bgn_ℓ = 3*indexᵖ_recv_bgn_ℓ
             for data_mv in data_mvs:
-                if N_send_i > 0:
-                    indices_mv = indices_send_sorted_mv[N_send_cumulative[rank_send]:]
-                    indices_ptr = cython.address(indices_mv[:])
-                    data_ptr = cython.address(data_mv[:])
-                    n_send = 0
-                    for index in range(N_send_i):
-                        indexᵖ = indices_ptr[index]
-                        indexˣ = 3*indexᵖ
-                        for dim in range(3):
-                            sendbuf_ptr[n_send + dim] = data_ptr[indexˣ + dim]
-                        n_send += 3
                 Sendrecv(
-                    sendbuf_mv[:n_send],
+                    data_mv[indexʳ_send_bgn_ℓ:indexʳ_send_end_ℓ],
                     dest=rank_send,
-                    recvbuf=data_mv[indexʳ_recv_i:],
+                    recvbuf=data_mv[indexʳ_recv_bgn_ℓ:],
                     source=rank_recv,
                 )
             # If using rungs we also exchange the rung indices
             with unswitch(1):
                 if component.use_rungs:
-                    if N_send_i > 0:
-                        indices_mv = indices_send_sorted_mv[N_send_cumulative[rank_send]:]
-                        indices_ptr = cython.address(indices_mv[:])
-                        n_send = 0
-                        for index in range(N_send_i):
-                            indexᵖ = indices_ptr[index]
-                            # Add rung_index to buffer
-                            rung_index = rung_indices[indexᵖ]
-                            rung_indices_buf_ptr[n_send] = rung_index
-                            n_send += 1
-                            # Decrement rung population
-                            rungs_N[rung_index] -= 1
                     Sendrecv(
-                        rung_indices_buf[:N_send_i],
+                        rung_indices_mv[indexᵖ_send_bgn_ℓ:indexᵖ_send_end_ℓ],
                         dest=rank_send,
-                        recvbuf=rung_indices_mv[index_recv_i:],
+                        recvbuf=rung_indices_mv[indexᵖ_recv_bgn_ℓ:],
                         source=rank_recv,
                     )
+                    # Decrement rung population due to sent particles
+                    for indexᵖ in range(indexᵖ_send_bgn_ℓ, indexᵖ_send_end_ℓ):
+                        rung_index = rung_indices[indexᵖ]
+                        rungs_N[rung_index] -= 1
                     # Increment rung population due to received
-                    # particles and set the jumped rung indices.
-                    for indexᵖ in range(index_recv_i, index_recv_i + N_recv_i):
+                    # particles and set their jumped rung indices.
+                    for indexᵖ in range(indexᵖ_recv_bgn_ℓ, indexᵖ_recv_end_ℓ):
                         rung_index = rung_indices[indexᵖ]
                         rungs_N[rung_index] += 1
                         # Set the jumped rung index equal to
                         # the rung index, signalling no upcoming jump.
                         rung_indices_jumped[indexᵖ] = rung_index
             # Update the start index for received data
-            index_recv_i += N_recv_i
-        N_local_extra = index_recv_i
-        # Mark holes in the data by setting their x positions to -1
-        for index in range(N_send_tot):
-            indexᵖ_hole = indices_send[index]
-            indexˣ_hole = 3*indexᵖ_hole
-            pos[indexˣ_hole] = -1
-        # Loop forwards over holes
-        component.N_local = N_needed - N_send_tot
-        indexᵖ_particle = N_local_extra
-        for index in range(N_send_tot):
-            indexᵖ_hole = indices_send[index]
-            if indexᵖ_hole >= ℤ[component.N_local]:
-                # All holes within particle data have been filled
-                break
-            indexˣ_hole = 3*indexᵖ_hole
-            # Loop backwards over particles
-            for indexᵖ_particle in range(indexᵖ_particle - 1, -1, -1):
-                indexˣ_particle = 3*indexᵖ_particle
-                if pos[indexˣ_particle] == -1:
-                    # This is a hole, not a particle
-                    continue
-                # Particle and hole found.
-                # Fill the hole with the particle.
-                for dim in range(3):
-                    pos [indexˣ_hole + dim] = pos [indexˣ_particle + dim]
-                for dim in range(3):
-                    mom [indexˣ_hole + dim] = mom [indexˣ_particle + dim]
-                for dim in range(3):
-                    Δmom[indexˣ_hole + dim] = Δmom[indexˣ_particle + dim]
-                with unswitch(2):
-                    if component.use_rungs:
-                        rung_index = rung_indices[indexᵖ_particle]
-                        rung_indices       [indexᵖ_hole] = rung_index
-                        rung_indices_jumped[indexᵖ_hole] = rung_index  # no jump
-                # Hole has been filled
-                break
-        # Update the rung flags
-        if component.use_rungs:
-            # Find and set lowest and highest populated rung
-            component.set_lowest_highest_populated_rung()
-            # There is no need to have the lowest active rung
-            # be below the lowest populated rung.
-            if component.lowest_active_rung < component.lowest_populated_rung:
-                component.lowest_active_rung = component.lowest_populated_rung
-        else:
-            # When not using rungs, all particles occupy rung 0
-            rungs_N[0] = component.N_local
+            indexᵖ_recv_bgn_ℓ += n_particles_recv_ℓ
+        # Move particles into the holes left by the sent particles
+        indexᵖ_hole_bgn = indexᵖ_right + 1
+        indexᵖ_hole_end = pairmin(indexᵖ_hole_bgn + n_particles_send_tot, component.N_local)
+        indexˣ_hole = 3*(indexᵖ_hole_bgn - 1)
+        indexᵖ = indexᵖ_recv_bgn_ℓ
+        indexˣ = 3*indexᵖ
+        for indexᵖ_hole in range(indexᵖ_hole_bgn, indexᵖ_hole_end):
+            indexˣ_hole += 3
+            indexˣ -= 3
+            for dim in range(3):
+                pos [indexˣ_hole + dim] = pos [indexˣ + dim]
+            for dim in range(3):
+                mom [indexˣ_hole + dim] = mom [indexˣ + dim]
+            for dim in range(3):
+                Δmom[indexˣ_hole + dim] = Δmom[indexˣ + dim]
+            with unswitch(1):
+                if component.use_rungs:
+                    indexᵖ -= 1
+                    rung_index = rung_indices[indexᵖ]
+                    rung_indices       [indexᵖ_hole] = rung_index
+                    rung_indices_jumped[indexᵖ_hole] = rung_index  # no jump
+        # With the holes filled, update the N_local attribute
+        component.N_local -= n_particles_send_tot
+        component.N_local += n_particles_recv_tot
+    # Exchange completed.
+    # Update the rung flags.
+    if component.use_rungs:
+        # Find and set lowest and highest populated rung
+        component.set_lowest_highest_populated_rung()
+        # There is no need to have the lowest active rung
+        # be below the lowest populated rung.
+        if component.lowest_active_rung < component.lowest_populated_rung:
+            component.lowest_active_rung = component.lowest_populated_rung
+    else:
+        # When not using rungs, all particles occupy rung 0
+        component.rungs_N[0] = component.N_local
     if progress_msg:
         masterprint('done')
-
-# Initialise variables used in the exchange() function
+# Buffers used by the exchange() function
 cython.declare(
-    N_send='Py_ssize_t*',
-    N_send_mv='Py_ssize_t[::1]',
-    N_send_cumulative='Py_ssize_t*',
-    size_sendbuffers='Py_ssize_t',
-    ranks_send='int*',
-    indices_send='Py_ssize_t*',
-    indices_send_sorted='Py_ssize_t*',
-    indices_send_sorted_mv='Py_ssize_t[::1]',
+    n_particles_send_mv='Py_ssize_t[::1]',
+    n_particles_recv_mv='Py_ssize_t[::1]',
+    n_particles_sorted_mv='Py_ssize_t[::1]',
+    indicesᵖ_send_bgn_mv='Py_ssize_t[::1]',
+    n_particles_send='Py_ssize_t*',
+    n_particles_recv='Py_ssize_t*',
+    n_particles_sorted='Py_ssize_t*',
+    indicesᵖ_send_bgn='Py_ssize_t*',
 )
-N_send = malloc(nprocs*sizeof('Py_ssize_t'))
-N_send_mv = cast(N_send, 'Py_ssize_t[:nprocs]')
-N_send_cumulative = malloc(nprocs*sizeof('Py_ssize_t'))
-size_sendbuffers = 1
-ranks_send = malloc(size_sendbuffers*sizeof('int'))
-indices_send = malloc(size_sendbuffers*sizeof('Py_ssize_t'))
-indices_send_sorted = malloc(size_sendbuffers*sizeof('Py_ssize_t'))
-indices_send_sorted_mv = cast(indices_send_sorted, 'Py_ssize_t[:size_sendbuffers]')
+n_particles_send_mv   = zeros(nprocs, dtype=C2np['Py_ssize_t'])
+n_particles_recv_mv   = zeros(nprocs, dtype=C2np['Py_ssize_t'])
+n_particles_sorted_mv = zeros(nprocs, dtype=C2np['Py_ssize_t'])
+indicesᵖ_send_bgn_mv  = zeros(nprocs, dtype=C2np['Py_ssize_t'])
+n_particles_send   = cython.address(n_particles_send_mv[:])
+n_particles_recv   = cython.address(n_particles_recv_mv[:])
+n_particles_sorted = cython.address(n_particles_sorted_mv[:])
+indicesᵖ_send_bgn  = cython.address(indicesᵖ_send_bgn_mv[:])
 
 # Function for communicating ghost values
 # of domain grids between processes.
