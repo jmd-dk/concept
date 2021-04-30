@@ -360,7 +360,9 @@ def gravity_pairwise_shortrange(
     softening='double',
     # Locals
     i='Py_ssize_t',
+    r='double',
     r2='double',
+    r3_inv='double',
     r3_inv_softened='double',
     r_tabulation='double[::1]',
     table='double[::1]',
@@ -371,11 +373,14 @@ def gravity_pairwise_shortrange(
 def get_shortrange_table(softening):
     # This function tabulates the short-range factor
     #   -r⁻³(x/sqrt(π)exp(-x²/4) + erfc(x/2)),
-    # with the front factor r⁻³ softened according to the passed
-    # softening length.
+    # though in a softened version.
     # The tabulation is quadratic in r, which is the distance
     # between two particles, while x = r/scale with scale the
     # long/short-range force split scale.
+    # Softening for small r is applied to the Newtonian part only,
+    # so that the tabulation becomes
+    #     -r⁻³(x/sqrt(π)exp(-x²/4) + erfc(x/2)) - (r⁻³_softened - r⁻³)
+    #   = -r⁻³(x/sqrt(π)exp(-x²/4) + erfc(x/2) - 1) - r⁻³_softened
     # We only need the tabulation for 0 <= r <= range, where range
     # is the maximum reach of the short-range force.
     # All tables are cached.
@@ -400,10 +405,13 @@ def get_shortrange_table(softening):
     table = empty(shortrange_table_size, dtype=C2np['double'])
     for i in range(shortrange_table_size - 1):
         r2 = 0.5*(r_tabulation[i]**2 + r_tabulation[i+1]**2)
-        x = sqrt(r2)*ℝ[1/shortrange_scale]
+        r = sqrt(r2)
+        x = r*ℝ[1/shortrange_scale]
+        r3_inv = 1/(r2*r)
         r3_inv_softened = get_softened_r3inv(r2, softening)
-        table[i] = -r3_inv_softened*(
-            1/sqrt(π)*x*exp(-ℝ[0.5*x]**2) + erfc(ℝ[0.5*x])
+        table[i] = (
+            - r3_inv*(1/sqrt(π)*x*exp(-ℝ[0.5*x]**2) + (erfc(ℝ[0.5*x]) - 1))
+            - r3_inv_softened
         )
     # The last element in table is not populated above.
     # This element is guaranteed to never be accessed as it would
