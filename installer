@@ -392,7 +392,7 @@ if [ -n "${concept_version}" ]; then
     concept_version_specified="True"
 fi
 set_version "concept"           "master"
-set_version "blas"              "0.3.13"  "0.3.13"
+set_version "blas"              "0.3.14"  "0.3.14"
 set_version "class"             "2.7.2"
 set_version "fftw"              "3.3.9"   "3.3.9"
 set_version "fftw_for_gadget"   "2.1.5"   "2.1.5"   # Do not change
@@ -402,14 +402,14 @@ set_version "gsl"               "2.6"     "2.6"
 set_version "hdf5"              "1.12.0"
 set_version "libffi"            "3.3"     "3.3"
 if [ "${mpi}" == "mpich" ]; then
-    set_version "mpi"           "3.4"     "3.4"
+    set_version "mpi"           "3.4.1"   "3.4.1"
 elif [ "${mpi}" == "openmpi" ]; then
-    set_version "mpi"           "4.1.0"
+    set_version "mpi"           "4.1.1"
 fi
 set_version "ncurses"           "6.2"     "6.2"
-set_version "openssl"           "1.1.1i"  "1.1.1h"
-set_version "perl"              "5.32.0"
-set_version "python"            "3.9.2"
+set_version "openssl"           "1.1.1k"  "1.1.1j"
+set_version "perl"              "5.32.1"
+set_version "python"            "3.9.4"
 set_version "zlib"              "1.2.11"  "1.2.11"
 # Python packages
 set_version "blessings"         "1.7"
