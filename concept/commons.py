@@ -3000,7 +3000,7 @@ static_timestepping = user_params.get('static_timestepping')
 if static_timestepping == '':
     static_timestepping = None
 user_params['static_timestepping'] = static_timestepping
-N_rungs = int(user_params.get('N_rungs', 10))
+N_rungs = int(user_params.get('N_rungs', 8))
 user_params['N_rungs'] = N_rungs
 fftw_wisdom_rigor = user_params.get('fftw_wisdom_rigor', 'measure').lower()
 user_params['fftw_wisdom_rigor'] = fftw_wisdom_rigor
