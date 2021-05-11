@@ -97,6 +97,7 @@ gadget_snapshot_params = {  # Specifications for output GADGET snapshots
     },
     'Nall high word': 'NallHW',  # Place to store high word part of Nall
     'header': {},                # Header field values
+    'settle': 0,
 }
 life_output_order = (  # Ordering of component activations/terminations relative to output dumps
     'terminate', 'activate', 'dump',

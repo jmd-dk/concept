@@ -2263,6 +2263,7 @@ gadget_snapshot_params_defaults = {
     },
     'Nall high word': 'NallHW',
     'header': {},
+    'settle': 0,
 }
 gadget_snapshot_params = dict(user_params.get('gadget_snapshot_params', {}))
 for key, val in gadget_snapshot_params.copy().items():
@@ -2284,6 +2285,7 @@ if gadget_snapshot_params['snapformat'] not in (1, 2):
         f'gadget_snapshot_params["snapformat"] = '
         f'{gadget_snapshot_params["snapformat"]} but must be 1 or 2'
     )
+gadget_snapshot_params['settle'] = int(gadget_snapshot_params['settle'])%2
 gadget_snapshot_params_dataformat = {}
 for key, val in gadget_snapshot_params['dataformat'].items():
     for valid_key in gadget_snapshot_params_defaults['dataformat'].keys():

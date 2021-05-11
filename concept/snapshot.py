@@ -703,10 +703,18 @@ class GadgetSnapshot:
     def h(self):
         value = self.header.get('HubbleParam', 0)
         if value == 0:
-            abort(
-                f'Attempted to access h on a {self.name} snapshot '
-                f'prior to setting HubbleParam in the header'
-            )
+            if 'HubbleParam' in self.header and H0 > 0:
+                value = correct_float(H0/(100*units.km/(units.s*units.Mpc)))
+                self.header['HubbleParam'] = value
+                masterwarn(
+                    f'Attempted to access h on a {self.name} snapshot '
+                    f'with a set value of h = 0. Will reassign h = {value}.'
+                )
+            else:
+                abort(
+                    f'Attempted to access h on a {self.name} snapshot '
+                    f'prior to setting HubbleParam in the header'
+                )
         return value
 
     # Properties for the numerical GADGET values of units
@@ -1550,9 +1558,10 @@ class GadgetSnapshot:
                     f'is {num_particles_components}. Will use the values from Npart.'
                 )
         header = header_backup
-        # From now on the header stays the same
         self.header = header
-        # Set parameters
+        self.h  # To ensure non-zero h
+        # From now on the header stays the same.
+        # Set parameters.
         self.params['H0'     ] = self.header['HubbleParam']*(100*units.km/(units.s*units.Mpc))
         self.params['a'      ] = self.header['Time']
         self.params['boxsize'] = self.header['BoxSize']*self.unit_length
@@ -1887,15 +1896,26 @@ class GadgetSnapshot:
             size_bare_2 = size - 2*self.sizes['I']
             if size_bare != size_bare_2:
                 # The two sizes do not agree.
-                # We arbitrarily go with the largest.
+                # Pick one according to the 'settle'
+                # gadget_snapshot_params parameter.
                 msg = (
                     f'Size of block "{block_name}" not consistent: '
-                    f'{size} - {2*self.sizes["I"]} = {size_bare_2} ≠ {size_bare}.'
+                    f'{size} - {2*self.sizes["I"]} = {size_bare_2} ≠ {size_bare}. '
                 )
-                if size_bare_2 > size_bare:
+                if gadget_snapshot_params['settle'] == 0:
+                    msg += (
+                        f'Choosing to go with a block size of {size_bare}. '
+                        f'To instead pick {size_bare_2}, rerun with '
+                        f'gadget_snapshot_params["settle"] = 1.'
+                    )
+                else:
+                    msg += (
+                        f'Choosing to go with a block size of {size_bare_2}. '
+                        f'To instead pick {size_bare}, rerun with '
+                        f'gadget_snapshot_params["settle"] = 0.'
+                    )
                     offset += size_bare_2 - size_bare
                     size_bare = size_bare_2
-                msg += f' Assuming {size_bare} is the actual size.'
                 warn(msg)
         return offset, size_bare, block_name
 
