@@ -4501,7 +4501,20 @@ def accept_or_reject_subtiling_refinement(
     # subtile refinement), we use mean + sigmas*std rather than just
     # the mean, where sigmas sets the number of standard deviations
     # we wish to exaggerate with.
-    sigmas = 0.25
+    subtiling_name   = f'{interaction_name} (subtiles)'
+    subtiling_name_2 = f'{interaction_name} (subtiles 2)'
+    subtiling_names = {subtiling_name, subtiling_name_2}
+    for key, subtiling in stored_subtilings.items():
+        if key[1] in subtiling_names:
+            # Assign sigmas a value using some appropriate sigmoid,
+            # starting out large for small subtilings and decreasing
+            # for already large subtilings.
+            sigmas = 0.7 - 0.5*erf(0.42*cbrt(np.prod(subtiling.shape)) - 2.3)
+            break
+    else:
+        # For some reason, the original subtiling was not found.
+        # Use a generic value for sigmas.
+        sigmas = 0.25
     computation_time_total_old = 0
     for index in range(N_rungs, ℤ[2*N_rungs]):
         if computation_times_N[index] == 0 or computation_times_N[-N_rungs + index] == 0:
@@ -4520,9 +4533,6 @@ def accept_or_reject_subtiling_refinement(
         )
     # Accept the recent subtiling refinement if it outperforms the
     # old one. Otherwise reject it.
-    subtiling_name   = f'{interaction_name} (subtiles)'
-    subtiling_name_2 = f'{interaction_name} (subtiles 2)'
-    subtiling_names = {subtiling_name, subtiling_name_2}
     if computation_time_total_new < computation_time_total_old:
         # Accept recent subtiling refinement.
         # The old subtilings should be cleaned up. Here we remove the
