@@ -1440,7 +1440,13 @@ print('\n'.join(lines))
             if get_command "srun" >/dev/null; then
                 # Use the Slurm srun command as the MPI executor.
                 # We further disable process binding/affinity in Slurm.
-                mpi_executor="srun --cpu_bind=none"
+                mpi_executor="srun"
+                srun_output="$(srun --help 2>&1 || :)"
+                if echo "${srun_output}" | grep "\-\-cpu\-bind" > /dev/null; then
+                    mpi_executor="${mpi_executor} --cpu-bind=none"
+                elif echo "${srun_output}" | grep "\-\-cpu_bind" > /dev/null; then
+                    mpi_executor="${mpi_executor} --cpu_bind=none"
+                fi
                 # When using OpenMPI with Slurm, it's often necessary to
                 # additionally pass the --mpi=openmpi to srun. Here we
                 # add this option if it is supported by srun.
