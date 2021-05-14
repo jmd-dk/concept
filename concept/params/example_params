@@ -97,7 +97,12 @@ gadget_snapshot_params = {  # Specifications for output GADGET snapshots
     },
     'Nall high word': 'NallHW',  # Place to store high word part of Nall
     'header': {},                # Header field values
-    'settle': 0,
+    'units': {                   # Unit system used when reading/writing Gadget snapshots
+        'length'  : 'kpc/h',
+        'velocity': 'km/s',
+        'mass'    : '10¹⁰ m☉/h',
+    },
+    'settle': 0,                 # Settle for one or the other reported block sizes in case of disagreement
 }
 life_output_order = (  # Ordering of component activations/terminations relative to output dumps
     'terminate', 'activate', 'dump',

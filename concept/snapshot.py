@@ -698,6 +698,55 @@ class GadgetSnapshot:
                         break
         return num_io_files
 
+    # Initialisation method
+    @cython.header
+    def __init__(self):
+        # The triple quoted string below serves as the type declaration
+        # for the data attributes of the GadgetSnapshot type.
+        # It will get picked up by the pyxpp script
+        # and included in the .pxd file.
+        """
+        public dict params
+        public list components
+        public int snapformat
+        public dict header
+        public double _unit_length
+        public double _unit_velocity
+        public double _unit_mass
+        object block_names
+        Component misnamed_halo_component
+        Py_ssize_t current_block_size
+        """
+        # Dict containing all the parameters of the snapshot
+        self.params = {}
+        # List of Component instances
+        self.components = []
+        # GADGET SnapFormat
+        self.snapformat = -1
+        # Header corresponding to the HEAD block
+        self.header = {}
+        # Unit system employed by this snapshot relative to the system
+        # of units currently in use by CO𝘕CEPT. These will be set by the
+        # corresponingly named methods.
+        self._unit_length = -1
+        self._unit_velocity = -1
+        self._unit_mass = -1
+        # Iterator yielding block names to load in case of SnapFormat 1
+        self.block_names = iter(())
+        # Rogue component used as the GADGET halo component
+        # though it is not named accordingly.
+        self.misnamed_halo_component = None
+        # Size of the current block in bytes, when writing
+        self.current_block_size = -1
+        # Check on low level type sizes
+        for fmt, size in self.sizes.items():
+            size_expected = {'s': 1, 'i': 4, 'I': 4, 'Q': 8, 'f': 4, 'd': 8}.get(fmt)
+            if size_expected is not None and size != size_expected:
+                masterwarn(
+                    f'Expected C type \'{fmt}\' to be {size_expected} bytes large, '
+                    f'but it is {size}'
+                )
+
     # Property for the dimensionless Hubble parameter
     @property
     def h(self):
@@ -721,56 +770,28 @@ class GadgetSnapshot:
     # with respect to the unit system currently in use by CO𝘕CEPT.
     @property
     def unit_length(self):
-        # kpc/h
-        return units.kpc/self.h
+        if self._unit_length == -1:
+            self._unit_length = eval_unit(
+                gadget_snapshot_params['units']['length'],
+                units_dict | {'h': self.h},
+            )
+        return self._unit_length
     @property
     def unit_velocity(self):
-        # km/s
-        return units.km/units.s
+        if self._unit_velocity == -1:
+            self._unit_velocity = eval_unit(
+                gadget_snapshot_params['units']['velocity'],
+                units_dict | {'h': self.h},
+            )
+        return self._unit_velocity
     @property
     def unit_mass(self):
-        # 10¹⁰ m☉/h
-        return 1e+10*units.m_sun/self.h
-
-    # Initialisation method
-    @cython.header
-    def __init__(self):
-        # The triple quoted string below serves as the type declaration
-        # for the data attributes of the GadgetSnapshot type.
-        # It will get picked up by the pyxpp script
-        # and included in the .pxd file.
-        """
-        public dict params
-        public list components
-        public int snapformat
-        public dict header
-        object block_names
-        Component misnamed_halo_component
-        Py_ssize_t current_block_size
-        """
-        # Dict containing all the parameters of the snapshot
-        self.params = {}
-        # List of Component instances
-        self.components = []
-        # GADGET SnapFormat
-        self.snapformat = -1
-        # Header corresponding to the HEAD block
-        self.header = {}
-        # Iterator yielding block names to load in case of SnapFormat 1
-        self.block_names = iter(())
-        # Rogue component used as the GADGET halo component
-        # though it is not named accordingly.
-        self.misnamed_halo_component = None
-        # Size of the current block in bytes, when writing
-        self.current_block_size = -1
-        # Check on low level type sizes
-        for fmt, size in self.sizes.items():
-            size_expected = {'s': 1, 'i': 4, 'I': 4, 'Q': 8, 'f': 4, 'd': 8}.get(fmt)
-            if size_expected is not None and size != size_expected:
-                masterwarn(
-                    f'Expected C type \'{fmt}\' to be {size_expected} bytes large, '
-                    f'but it is {size}'
-                )
+        if self._unit_mass == -1:
+            self._unit_mass = eval_unit(
+                gadget_snapshot_params['units']['mass'],
+                units_dict | {'h': self.h},
+            )
+        return self._unit_mass
 
     # Method for saving a GADGET snapshot to disk
     @cython.pheader(

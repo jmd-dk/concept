@@ -2263,6 +2263,11 @@ gadget_snapshot_params_defaults = {
     },
     'Nall high word': 'NallHW',
     'header': {},
+    'units': {
+        'length'  : 'kpc/h',
+        'velocity': 'km/s',
+        'mass'    : '10¹⁰ m☉/h',
+    },
     'settle': 0,
 }
 gadget_snapshot_params = dict(user_params.get('gadget_snapshot_params', {}))
@@ -2285,7 +2290,6 @@ if gadget_snapshot_params['snapformat'] not in (1, 2):
         f'gadget_snapshot_params["snapformat"] = '
         f'{gadget_snapshot_params["snapformat"]} but must be 1 or 2'
     )
-gadget_snapshot_params['settle'] = int(gadget_snapshot_params['settle'])%2
 gadget_snapshot_params_dataformat = {}
 for key, val in gadget_snapshot_params['dataformat'].items():
     for valid_key in gadget_snapshot_params_defaults['dataformat'].keys():
@@ -2342,6 +2346,18 @@ for key in gadget_snapshot_params.copy():
         break
 if not gadget_snapshot_params['header']:
     gadget_snapshot_params['header'] = {}
+gadget_snapshot_params_units = {}
+for key, val in gadget_snapshot_params['units'].items():
+    for valid_key in gadget_snapshot_params_defaults['units'].keys():
+        if key == valid_key:
+            break
+    else:
+        abort(f'Unknown GADGET unit "{key}"')
+    gadget_snapshot_params_units[key] = val
+for key, val in gadget_snapshot_params_defaults['units'].items():
+    gadget_snapshot_params_units.setdefault(key, val)
+gadget_snapshot_params['units'] = gadget_snapshot_params_units
+gadget_snapshot_params['settle'] = int(gadget_snapshot_params['settle'])%2
 user_params['gadget_snapshot_params'] = gadget_snapshot_params
 life_output_order = tuple(user_params.get('life_output_order', ()))
 life_output_order = tuple([act.lower() for act in life_output_order])

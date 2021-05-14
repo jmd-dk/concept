@@ -628,9 +628,11 @@ def info():
         if snapshot_type == 'concept':
             masterprint('{:<20} {}'.format(unicode('Ωcdm'), correct_float(params['Ωcdm'])))
             masterprint('{:<20} {}'.format(unicode('Ωb'), correct_float(params['Ωb'])))
-        # Print out GADGET header for GADGET snapshots
+        # Print out GADGET header for GADGET snapshots.
+        # Note that the header structure of GADGET-2
+        # specifically is assumed.
         if snapshot_type == 'gadget':
-            masterprint('GADGET header:')
+            masterprint('GADGET-2 header:')
             for key, val in snapshot.header.items():
                 masterprint(f'{key:<16} {val}', indent=4)
         # Print out component information
