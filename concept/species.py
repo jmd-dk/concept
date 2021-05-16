@@ -739,16 +739,25 @@ class Tiling:
                     if 𝔹[coarse_tiling is not None]:
                         indexᵖ = coarse_rung[coarse_rung_particle_index]
                 # Determine the tile within which this particle
-                # is located. For the trivial tiling,
-                # we already know the answer.
+                # is located. For tilings of shape (1, 1, 1) (e.g. the
+                # trivial tiling) we already know the answer.
                 with unswitch:
-                    if not self.is_trivial:
+                    if not (self.shape[0] == self.shape[1] == self.shape[2] == 1):
                         indexˣ = 3*indexᵖ
-                        i = cast((posxˣ[indexˣ] - ℝ[self.location[0]])
+                        # Guard against round-off errors for positions
+                        # at or very near the higher edge of the
+                        # (sub)tile. We have found that introducing
+                        # machine_ϵ as a translation to the numerator
+                        # (as below) rather than as a scaling of the
+                        # denominator works best. Note that this is okay
+                        # at the lower end, as casting a floating-point
+                        # value only slightly below 0.0 to an int
+                        # results in 0.
+                        i = cast((posxˣ[indexˣ] - ℝ[self.location[0]*(1 + machine_ϵ)])
                             *ℝ[1/self.tile_extent[0]], 'Py_ssize_t')
-                        j = cast((posyˣ[indexˣ] - ℝ[self.location[1]])
+                        j = cast((posyˣ[indexˣ] - ℝ[self.location[1]*(1 + machine_ϵ)])
                             *ℝ[1/self.tile_extent[1]], 'Py_ssize_t')
-                        k = cast((poszˣ[indexˣ] - ℝ[self.location[2]])
+                        k = cast((poszˣ[indexˣ] - ℝ[self.location[2]*(1 + machine_ϵ)])
                             *ℝ[1/self.tile_extent[2]], 'Py_ssize_t')
                         # The tile_index is given by
                         # self.layout[i, j, k], but as an optimization
