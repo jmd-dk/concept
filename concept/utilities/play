@@ -174,7 +174,8 @@ fi
 
 # Use Python to extract and display the animation from the log file
 "${python}" -B -c "
-from commons import *
+import itertools, re
+from time import sleep, time
 
 # Variables from Bash
 path = '${path}'
@@ -295,7 +296,7 @@ for match in re.finditer(
 if a_stamps:
     time_stamps = []
     for t_stamp, a_stamp in zip(t_stamps, a_stamps):
-        spacing = np.max((len(a_stamp) + 2, width - len(t_stamp)))
+        spacing = max(len(a_stamp) + 2, width - len(t_stamp))
         time_stamps.append(
             f'{{:<{len(t_stamp)}}}{{:>{spacing}}}'
             .format(t_stamp, a_stamp)

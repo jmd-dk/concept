@@ -1119,7 +1119,7 @@ for test in sorted_tests:
             test_check_err_logs
             colorprint "${test_name} test ran successfully" "green"
             # Print out the execution time for this test
-            "${python}" -B -c "from commons import *
+            "${mpiexec}" -n 1 "${python}" -B -c "from commons import *
 print('Total execution time: {}'.format(time_since(${start_time_test})))"
         done
         echo
@@ -1133,7 +1133,7 @@ print('Total execution time: {}'.format(time_since(${start_time_test})))"
         colorprint "${test_name} test ran successfully" "green"
     fi
     # Print out the total time it took to ran the test(s)
-    "${python}" -B -c "from commons import *
+    "${mpiexec}" -n 1 "${python}" -B -c "from commons import *
 print('Total execution time: {}'.format(time_since(${start_time_epoch})))"
     # Deactivate traps and exit
     trap : 0
@@ -1221,7 +1221,7 @@ test:
                 exit 1
             fi
             if [[ "${make_output}" == *"Building modules"* ]]; then
-                "${python}" -B -c "from commons import *
+                "${mpiexec}" -n 1 "${python}" -B -c "from commons import *
 print('Build time: {}'.format(time_since(${start_time_build})))"
             fi
         fi
@@ -1279,7 +1279,7 @@ if [ "${utility}" != "${utility_unspecified}" ]; then
         called_from_concept="True" "${utility}" "${utility_args[@]}"
     fi
     # Print out the total execution time for this utility
-    "${python}" -B -c "from commons import *
+    "${mpiexec}" -n 1 "${python}" -B -c "from commons import *
 print('Total execution time: {}'.format(time_since(${start_time_epoch})))"
     exit 0
 fi

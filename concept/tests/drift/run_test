@@ -38,11 +38,11 @@ Gadget2_local_dir="${this_dir}/Gadget2"
 mkdir -p "${Gadget2_local_dir}"
 cp "${Gadget2_dir}/"* "${Gadget2_local_dir}" 2>/dev/null || :
 "${concept}" -u gadget "${Gadget2_local_dir}" -p "${this_dir}/params"
-(                             \
-    cd "${Gadget2_local_dir}" \
-    && make clean             \
-    && make                   \
-    && ./Gadget2 params       \
+(                                         \
+    cd "${Gadget2_local_dir}"             \
+    && make clean                         \
+    && make                               \
+    && "${mpiexec}" -n 1 ./Gadget2 params \
 )
 
 # Analyse the output snapshots

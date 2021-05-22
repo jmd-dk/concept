@@ -42,11 +42,11 @@ for suffix in "64" "64_dbl"; do
 done
 
 "${concept}" -u gadget "${Gadget2_local_dir}" -p "${this_dir}/params"
-(                             \
-    cd "${Gadget2_local_dir}" \
-    && make clean             \
-    && make                   \
-    && ./Gadget2 params       \
+(                                         \
+    cd "${Gadget2_local_dir}"             \
+    && make clean                         \
+    && make                               \
+    && "${mpiexec}" -n 1 ./Gadget2 params \
 )
 
 # Analyse the output snapshots

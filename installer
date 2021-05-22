@@ -1895,6 +1895,47 @@ nor anywhere in the PATH"
         if [ "$(basename "${mpi_dir}")" == "bin" ]; then
             mpi_dir="$(dirname "${mpi_dir}")"
         fi
+        mpi_dir="${mpi_dir%/}"
+        # If MPI_ROOT is set and it agrees with the mpi_*dir variables,
+        # use this path name explicitly (if may differ
+        # due to symbolic links).
+        if [ -n "${MPI_ROOT}" ] && [ -d "${MPI_ROOT}" ]; then
+            if [                                                                \
+                "$(readlink -m "${MPI_ROOT}")" == "$(readlink -m "${mpi_dir}")" \
+            ]; then
+                mpi_dir="${MPI_ROOT}"
+            fi
+            if [                                                                            \
+                "$(readlink -m "${MPI_ROOT}/bin")" == "$(readlink -m "${mpi_compilerdir}")" \
+            ]; then
+                mpi_compilerdir="${MPI_ROOT}/bin"
+                if [                                                                           \
+                    "$(readlink -m "${mpi_compilerdir}/mpicc")" == "$(readlink -m "${mpicc}")" \
+                ]; then
+                    mpicc="${mpi_compilerdir}/mpicc"
+                fi
+            fi
+            if [                                                                       \
+                "$(readlink -m "${MPI_ROOT}/bin")" == "$(readlink -m "${mpi_bindir}")" \
+            ]; then
+                mpi_bindir="${MPI_ROOT}/bin"
+                if [                                                                          \
+                    "$(readlink -m "${mpi_bindir}/mpiexec")" == "$(readlink -m "${mpiexec}")" \
+                ]; then
+                    mpiexec="${mpi_bindir}/mpiexec"
+                fi
+            fi
+            if [                                                                       \
+                "$(readlink -m "${MPI_ROOT}/lib")" == "$(readlink -m "${mpi_libdir}")" \
+            ]; then
+                mpi_libdir="${MPI_ROOT}/lib"
+            fi
+            if [                                                                               \
+                "$(readlink -m "${MPI_ROOT}/include")" == "$(readlink -m "${mpi_includedir}")" \
+            ]; then
+                mpi_includedir="${MPI_ROOT}/include"
+            fi
+        fi
     fi
     if [ "${progname}" == 'ncurses' ] && [ "${ncurses_preinstalled}" == "True" ]; then
         if [ ! -f "${progname_dir}/lib/libncurses.so" ]; then
@@ -2027,6 +2068,10 @@ fi
 # Some implementations of make does not support the bare -j option
 # without explicitly specifying a number afterwards. If so, we do not
 # make use of the -j option.
+make_jobs_set_by_user="False"
+if [ -n "${make_jobs}" ]; then
+    make_jobs_set_by_user="True"
+fi
 if [ "${ssh}" == "False" ] && [ -z "${make_jobs}" ]; then
     make_jobs_test_dir="${top_dir}/tmp/make_jobs_test"
     rm -rf "${make_jobs_test_dir}" || :
@@ -2115,7 +2160,18 @@ check_pypackage_installed() {
         fi
         export LD_LIBRARY_PATH="${lib_dir}:${LD_LIBRARY_PATH}"
     done
-    local pypackage_installed="$("${python}" -B -c "
+    # On some systems the MPI4Py package only works when Python
+    # is run through MPI.
+    python_executors=("")
+    if [ "${pypackage}" == "mpi4py" ]; then
+        python_executors=("${python_executors[@]}" "mpiexec -n 1")
+        if [ -n "${mpiexec_extra_args_local}" ]; then
+            python_executors=("${python_executors[@]}" "mpiexec ${mpiexec_extra_args_local} -n 1")
+        fi
+    fi
+    local pypackage_installed
+    for python_executor in "${python_executors[@]}"; do
+        pypackage_installed="$(${python_executor} "${python}" -B -c "
 from time import sleep
 try:
     if '${pypackage}' == 'cythongsl':
@@ -2138,9 +2194,12 @@ try:
 except:
     print('\nFalse')
 " 2>/dev/null | tail -n 1)"
-    if [ "${pypackage_installed}" != "True" ]; then
-        pypackage_installed="False"
-    fi
+        if [ "${pypackage_installed}" == "True" ]; then
+            break
+        else
+            pypackage_installed="False"
+        fi
+    done
     echo "${pypackage_installed}"
     cd "${current_dir}"
     export LD_LIBRARY_PATH="${current_LD_LIBRARY_PATH}"
@@ -3975,6 +4034,22 @@ use_specified_mpi_compilers() {
                 fi
             fi
         done
+        # Add symlinks to IBM / Spectrum MPI libraries as well
+        for f in "${lib_path}/"*; do
+            if [ ! -f "${f}" ]; then
+                continue
+            fi
+            f_base="$(basename "${f}")"
+            if [[ "${f_base}" == *"_ibm."* ]] || [[ "${f_base}" == *"_ibm_"* ]]; then
+                any_mpi_symlinks="True"
+                mpi_symlink_name="${f_base/_ibm_/_}"
+                mpi_symlink_name="${mpi_symlink_name/_ibm./.}"
+                mpi_symlink_name="${mpi_symlinkdir}/${mpi_symlink_name}"
+                if [ ! -f "${mpi_symlink_name}" ]; then
+                    ln -s "${f}" "${mpi_symlink_name}" >/dev/null 2>&1 || :
+                fi
+            fi
+        done
         if [ "${any_mpi_symlinks}" == "True" ]; then
             export LDFLAGS="${LDFLAGS} -L${mpi_symlinkdir}"
             export LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:${mpi_symlinkdir}"
@@ -4077,12 +4152,20 @@ int main(int argc, char *argv[]) {
 ' > "test.c"
         mpicc ${CFLAGS} -c -o "test.o" "test.c" >/dev/null 2>&1 || :
         mpicc "test.o" -o "test" ${LDFLAGS} ${MPI_LIBS} >/dev/null 2>&1 || :
+        # When running locally on a cluster, it may be necessary to
+        # supply an additional argument to mpiexec. This additional
+        # argument is captured by mpiexec_extra_args_local.
         mpi_environment_test_success="False"
-        mpi_environment_result="$("${mpi_bindir}/mpiexec" -n 4 "./test" 2>/dev/null \
-            | grep 'MPI test result =' | awk '{print $NF}' || :)"
-        if [ "${mpi_environment_result}" == "42" ]; then
-            mpi_environment_test_success="True"
-        fi
+        for mpiexec_extra_args_local in "" "-pami_noib"; do
+            mpi_environment_result="$(                                                        \
+                "${mpi_bindir}/mpiexec" ${mpiexec_extra_args_local} -n 4 "./test" 2>/dev/null \
+                | grep 'MPI test result =' | awk '{print $NF}' || : \
+            )"
+            if [ "${mpi_environment_result}" == "42" ]; then
+                mpi_environment_test_success="True"
+                break
+            fi
+        done
         cd "${current_dir}"
         rm -rf "${mpi_test_dir}" || :
         MPI_LIBS="${MPI_LIBS_backup}"
@@ -5721,7 +5804,7 @@ install "HDF5"                                             \
     buildmode "production" "debug"                     ";" \
     fix_attributes_declarator_order "False" "True"     ";" \
     hdf5_arch "" "x86-64"                              ";" \
-    ignore_signal_handling_verification "False" "Trye" ";" \
+    ignore_signal_handling_verification "False" "True" ";" \
 
 # FFTW
 fftw_install_func() {
@@ -5766,6 +5849,10 @@ fftw_install_func() {
         exit_code_filename="${top_dir}/tmp/.exit_code_fftw"
         mkdir -p "$(dirname "${exit_code_filename}")"
         rm -f "${exit_code_filename}" || :
+        if [ -n "${mpiexec_extra_args_local}" ]; then
+            sed -i "s/^MPIRUN *=.*/MPIRUN = mpiexec ${mpiexec_extra_args_local}/" \
+                "mpi/Makefile" || :
+        fi
         (make check 2>&1 | tee "test_log"; echo "${PIPESTATUS[0]}" > "${exit_code_filename}" \
             ) & fftw_test_pid=$!
         soothe ${fftw_test_pid} ${fftw_test_max_time}
@@ -5899,11 +5986,13 @@ install "libffi" compiler "${compiler_possibilities[@]}"
 
 # OpenBLAS
 blas_install_func() {
+    openblas_make_options=""
     # Compile for multiple CPU architectures
-    openblas_make_options="DYNAMIC_ARCH=1 DYNAMIC_OLDER=1"
+    openblas_make_options="${openblas_make_options} DYNAMIC_ARCH=1 DYNAMIC_OLDER=1"
     # Due to the threading behaviour of Python,
     # we install a non-threaded version of OpenBLAS.
-    openblas_make_options="${openblas_make_options} USE_THREAD=0 USE_OPENMP=0"
+    openblas_singlethread="USE_THREAD=0 USE_OPENMP=0"
+    openblas_make_options="${openblas_make_options} ${openblas_singlethread}"
     # Attempt build
     openblas_make_options="${openblas_make_options} ${NO_AVX}"
     if [ "${openblas_gfortran}" == "True" ]; then
@@ -5935,8 +6024,8 @@ blas_install_func() {
     # set to the number of hardware threads. As this takes up
     # a lot of resources we always set this to a low number,
     # regardless of ${make_jobs}.
-    make MAKE_NB_JOBS=2 ${openblas_make_options}     || return 1
-    make MAKE_NB_JOBS=2 PREFIX="${blas_dir}" install || return 1
+    make MAKE_NB_JOBS=2 ${openblas_make_options}                              || return 1
+    make MAKE_NB_JOBS=1 ${openblas_singlethread} PREFIX="${blas_dir}" install || return 1
     # Note that OpenBLAS runs its test suite during the build
 }
 NO_AVX_possibilities=(               \
@@ -5947,8 +6036,8 @@ NO_AVX_possibilities=(               \
 )
 install "BLAS"                                  \
     openblas_gfortran "True" "False"        ";" \
-    compiler "${compiler_possibilities[@]}" ";" \
     openblas_BINARY "" "32"                 ";" \
+    compiler "${compiler_possibilities[@]}" ";" \
     NO_AVX "${NO_AVX_possibilities[@]}"     ";" \
 
 # Python
@@ -7400,8 +7489,8 @@ if [ "${concept_install}" == "True" ] && [ "${concept_installed}" == "False" ]; 
         # be the very file running now, and so it is not safe to
         # overwrite it. Instead, move the new installation script there
         # under a new name, reflecting its version.
-        rm -f "${top_dir}/installer_${concept_version}"
-        mv "installer" "${top_dir}/installer_${concept_version}"
+        rm -f "${top_dir}/installer_${concept_version//\//_}" || :
+        mv "installer" "${top_dir}/installer_${concept_version//\//_}" || :
     fi
     for f in {.[!.],}*; do
         rm -rf "${top_dir}/${f}" || :
@@ -7429,6 +7518,8 @@ def get_envs():
         if (
             # PATH, LD_LIBRARY_PATH, ...
             ('path' in var.lower() and (val.startswith('/') or val.startswith(':')))
+            # MPI root directories
+            or (var in {'MPI_ROOT', 'I_MPI_ROOT', 'SMPI_ROOT'} and val.startswith('/'))
             # Intel license file
             or (var in {'INTEL_LICENSE_FILE', 'INTEL_LICENCE_FILE'} and val.startswith('/'))
         ):
@@ -7484,14 +7575,19 @@ with open('${env_file}', 'w', encoding='utf-8') as file:
                 mpiexec_args="${mpiexec_args} --bind-to none"
             fi
         fi
-        sed -i "s/mpi_executor=\"\"/mpi_executor=\"mpiexec${mpiexec_args}\"/" "${env_file}"
+        sed -i "s/^mpi_executor=\"\"/mpi_executor=\"mpiexec${mpiexec_args}\"/" "${env_file}" || :
         reset_environment
+    fi
+    # If the make_jobs variable is set by the user,
+    # store this in the .env file.
+    if [ -n "${make_jobs}" ] && [ "${make_jobs_set_by_user}" == "True" ]; then
+        sed -i "s/^make_jobs=\"\"/make_jobs=\"${make_jobs}\"/" "${env_file}" || :
     fi
     # Create the .paths file,
     # storing important paths used by CO𝘕CEPT.
     current_step="creation of the .paths file"
-    printf "\nWriting paths to .paths\n"
-    set_status "Writing paths to .paths"
+    printf "\nWriting paths to the .paths file\n"
+    set_status "Writing paths to the .paths file"
     echo "# This file contains absolute paths to directories and files
 # used by the CO𝘕CEPT code. You may manually edit these paths.
 
@@ -8542,6 +8638,15 @@ fftw_for_gadget_install_func() {
     if [ "${also_single_precision}" == "True" ]; then
         precision_flags="--enable-type-prefix"
     fi
+    # The config.guess and config.sub file bundled with FFTW 2 may be
+    # too old to be able to recognize the system.
+    if [ "${fetch_newest_config}" == "True" ]; then
+        config_url="https://git.savannah.gnu.org/gitweb/?p=config.git;a=blob_plain;f=filename;hb=HEAD"
+        for config_file in "config.guess" "config.sub"; do
+            rm -f "${config_file}" || :
+            wget -O "${config_file}" "${config_url/filename/${config_file}}" || return 1
+        done
+    fi
     ./configure ${enable_shared} ${enable_mpi} ${precision_flags} \
         --disable-fortran ${with_pic} --prefix="${fftw_for_gadget_dir}" 2>&1 || return 1
     make 2>&1 || return 1  # Parallel builds fail on some systems
@@ -8592,6 +8697,7 @@ if [ -n "${mpi_dir}" ]; then
     compiler_possibilities_fftw_for_gadget=("specified_mpi")
 fi
 install "FFTW for GADGET"                                       \
+    fetch_newest_config "False" "True"                      ";" \
     compiler "${compiler_possibilities_fftw_for_gadget[@]}" ";" \
     extra_optimizations "True" "False"                      ";" \
     enable_shared "--enable-shared" ""                      ";" \

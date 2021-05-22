@@ -211,7 +211,9 @@ other_cflags = \
     -fPIC      \
 
 # Optimization options
+no_optimizations_flag = --no-optimizations
 ifneq ($(no_optimizations),True)
+    no_optimizations_flag =
     # General optimizations
     optimizations        += -DNDEBUG -O3 -funroll-loops
     optimizations_linker += -O3
@@ -363,21 +365,17 @@ $(addsuffix .html, $(pyfiles)): %.html: %.pyx %.pxd
 # using the pyxpp script.
 $(addsuffix .pxd, $(pyfiles)): %.pxd: %.pyx $(types)
 	@$(call heading)
-	$(python) -B $(pyxpp) $< $(commons) $(types)
+	$(mpiexec) -n 1 $(python) -B $(pyxpp) $< $(commons) $(types)
 
 # Write the types file from the .pyx files using the pyxpp script
 $(types):
 	@$(call heading)
-	$(python) -B $(pyxpp) $@ $(commons) $(types) $(addsuffix .pyx, $(pyfiles))
+	$(mpiexec) -n 1 $(python) -B $(pyxpp) $@ $(commons) $(types) $(addsuffix .pyx, $(pyfiles))
 
 # Write .pyx files from .py files using the pyxpp script
 $(addsuffix .pyx, $(pyfiles)): %.pyx: %.py
 	@$(call heading)
-ifneq ($(no_optimizations),True)
-	$(python) -B $(pyxpp) $< $(commons)
-else
-	$(python) -B $(pyxpp) $< $(commons) --no-optimizations
-endif
+	$(mpiexec) -n 1 $(python) -B $(pyxpp) $< $(commons) $(no_optimizations_flag)
 
 
 

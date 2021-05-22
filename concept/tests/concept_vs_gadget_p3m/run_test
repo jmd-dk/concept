@@ -55,11 +55,11 @@ replace_gadget_param() {
 replace_gadget_param "ErrTolTheta"               "1e-6"
 replace_gadget_param "ErrTolForceAcc"            "1e-6"
 replace_gadget_param "TreeDomainUpdateFrequency" "0"
-(                             \
-    cd "${Gadget2_local_dir}" \
-    && make clean             \
-    && make                   \
-    && ./Gadget2 params       \
+(                                         \
+    cd "${Gadget2_local_dir}"             \
+    && make clean                         \
+    && make                               \
+    && "${mpiexec}" -n 1 ./Gadget2 params \
 )
 
 # Analyse the output snapshots
