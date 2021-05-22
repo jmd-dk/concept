@@ -392,7 +392,7 @@ if [ -n "${concept_version}" ]; then
     concept_version_specified="True"
 fi
 set_version "concept"           "master"
-set_version "blas"              "0.3.14"  "0.3.14"
+set_version "blas"              "0.3.15"  "0.3.15"
 set_version "class"             "2.7.2"
 set_version "fftw"              "3.3.9"   "3.3.9"
 set_version "fftw_for_gadget"   "2.1.5"   "2.1.5"   # Do not change
@@ -408,24 +408,24 @@ elif [ "${mpi}" == "openmpi" ]; then
 fi
 set_version "ncurses"           "6.2"     "6.2"
 set_version "openssl"           "1.1.1k"  "1.1.1j"
-set_version "perl"              "5.32.1"
-set_version "python"            "3.9.4"
+set_version "perl"              "5.34.0"
+set_version "python"            "3.9.5"
 set_version "zlib"              "1.2.11"  "1.2.11"
 # Python packages
 set_version "blessings"         "1.7"
-set_version "cython"            "0.29.21"
+set_version "cython"            "0.29.23"
 set_version "cythongsl"         "0.2.2"
-set_version "h5py"              "3.1.0"
-set_version "matplotlib"        "3.3.3"
+set_version "h5py"              "3.2.1"
+set_version "matplotlib"        "3.4.2"
 set_version "mpi4py"            "3.0.3"
-set_version "numpy"             "1.19.5"
-set_version "pip"               "21.0.1"
-set_version "scipy"             "1.6.0"
-set_version "setuptools"        "54.2.0"
-set_version "sphinx"            "3.4.3"
+set_version "numpy"             "1.20.3"
+set_version "pip"               "21.1.1"
+set_version "scipy"             "1.6.3"
+set_version "setuptools"        "56.2.0"
+set_version "sphinx"            "4.0.2"
 set_version "sphinx_copybutton" "0.3.1"
-set_version "sphinx_rtd_theme"  "0.5.1"
-set_version "sphinx_tabs"       "2.1.0"
+set_version "sphinx_rtd_theme"  "0.5.2"
+set_version "sphinx_tabs"       "3.0.0"
 set_version "wheel"             "0.36.2"
 # Note that the versions may be changed further down due to known
 # compatibility issues between specific versions of the above programs
@@ -6014,12 +6014,6 @@ blas_install_func() {
     if [ -d "${perl_dir}" ]; then
         export PATH="${perl_dir}/bin:${PATH}"
     fi
-    # There is an issue with at least GCC 10 where cross-compilation
-    # is erroneously detected. This is fixed here:
-    #   https://github.com/xianyi/OpenBLAS/pull/3038
-    # This will probably be included with OpenBLAS 0.3.14.
-    # For now we apply the patch ourselves.
-    sed -i 's/\(.*x86.*\)chop.*/\1/' "c_check" || :
     # Specify MAKE_NB_JOBS instead of explicit -j. By default this is
     # set to the number of hardware threads. As this takes up
     # a lot of resources we always set this to a low number,
@@ -6738,7 +6732,8 @@ Attempting to install Cython with compiler=${compiler}\n\n"
     if [ ${python_version_major} -eq 3 ] && [ ${python_version_minor} -ge 9 ]; then
         # PyUnicode_GET_SIZE has been deprecated in favor of
         # PyUnicode_GET_LENGTH since Python 3.3. In Python 3.9 the use
-        # of PyUnicode_GET_SIZE emits a warning.
+        # of PyUnicode_GET_SIZE emits a warning. Relevant issue:
+        #   https://github.com/cython/cython/issues/3924
         cython_file="Utility/ModuleSetupCode.c"
         set_cython_dir "${cython_file}"
         if [ -f "${cython_dir}/${cython_file}" ]; then
@@ -6750,7 +6745,9 @@ Attempting to install Cython with compiler=${compiler}\n\n"
         fi
     fi
     # Certain macro expansions leave __Pyx_UnicodeContainsUCS4() in
-    # StringTools.c without a return statement.
+    # StringTools.c without a return statement. This will probably
+    # be fixed by Cython 0.29.24. Relevant issue:
+    #   https://github.com/cython/cython/issues/3925
     cython_file="Utility/StringTools.c"
     set_cython_dir "${cython_file}"
     if [ -f "${cython_dir}/${cython_file}" ]; then
@@ -7339,28 +7336,6 @@ Attempting to install H5Py with compiler=${compiler}\n\n"
         error "Failed to install H5Py"
         exit 1
     fi
-    # Implement fixes to the installed H5Py code
-    if [[ "${h5py_version}" == "3."* ]]; then
-        # Starting with H5Py 3.0.0, the shape argument to
-        # _hl.selections.select() erroneously goes unused in some
-        # circumstances, causing wrong behaviour of e.g. read_direct().
-        # The below is probably not the best fix. Relevant issue:
-        #   https://github.com/h5py/h5py/issues/1773
-        h5py_dir="$(                                                 \
-            dirname "$(                                              \
-                "${python}" -B -c                                    \
-                'import inspect, h5py; print(inspect.getfile(h5py))' \
-                || :                                                 \
-            )"                                                       \
-        )"
-        if [ -f "${h5py_dir}/_hl/selections.py" ]; then
-            sed -i                              \
-                "0,/if dataset is not None:/s/if dataset is not None:\
-/if False:  # dataset is not None:/"            \
-                "${h5py_dir}/_hl/selections.py" \
-                || :
-        fi
-    fi
     reset_environment
 fi
 
@@ -7373,36 +7348,7 @@ if [ "${sphinx_install}" == "True" ] && [ "${sphinx_installed}" == "False" ] \
     # to install it.
     install_success="True"
     pip_install_pypackage "Sphinx" "${sphinx_version}" || install_success="False"
-    if [ "${install_success}" == "True" ]; then
-        # Fix an error with raw f-strings and Pygments (a dependency
-        # of Sphinx). The issue is described here:
-        #   https://github.com/pygments/pygments/issues/1681
-        # It will probably be fixed in Pygments 2.7.5.
-        pygments_dir="$(                                                     \
-            dirname "$(                                                      \
-                "${python}" -B -c                                            \
-                'import inspect, pygments; print(inspect.getfile(pygments))' \
-                || :                                                         \
-            )"                                                               \
-        )"
-        if ! grep "rfstringescape" "${pygments_dir}/lexers/python.py" >/dev/null 2>&1; then
-            for t in "t" ""; do
-                for DS in "Double" "Single"; do
-                    ds="$(echo "${DS:0:1}" | tr '[:upper:]' '[:lower:]')"
-                    sed -i                                               \
-                        "s/String\.${DS}), '${t}${ds}qf'/String\.${DS}), \
-combined('rfstringescape', '${t}${ds}qf')/"                              \
-                        "${pygments_dir}/lexers/python.py"               \
-                        || :
-                done
-            done
-            pattern="'fstringescape':"
-            linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" "${pygments_dir}/lexers/python.py" || :)
-            new_line="'rfstringescape': [(r'\\\\{\\\\{', String.Escape), \
-(r'\\\\}\\\\}', String.Escape)],"
-            sed -i "${linenr}i${new_line}" "${pygments_dir}/lexers/python.py" || :
-        fi
-    else
+    if [ "${install_success}" == "False" ]; then
         sphinx_install_success="False"
         error "Failed to install Sphinx. The installation will continue regardless."
         sphinx_install="False"  # Flag as not to be installed

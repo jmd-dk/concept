@@ -79,12 +79,12 @@ pxd('from libc.stddef cimport ptrdiff_t')
 cython.declare(C2np=dict)
 C2np = {
     # Booleans
-    'bint': np.bool,
+    'bint': np.bool_,
     # Integers
     'signed char'  : np.byte,
     'short'        : np.short,
     'int'          : np.intc,
-    'long int'     : np.long,
+    'long int'     : np.int_,
     'long long int': np.longlong,
     'ptrdiff_t'    : np.intp,
     'Py_ssize_t'   : np.intp,

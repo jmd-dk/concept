@@ -1386,7 +1386,7 @@ def render3D(components, filename, cleanup=True, tmp_dirname='.renders3D'):
             figname = f'render3D_{component.name}'
             dpi = 100  # This only affects the font size relative to the figure
             fig = plt.figure(figname, figsize=[render3D_resolution/dpi]*2, dpi=dpi)
-            ax = fig.gca(projection='3d', facecolor=render3D_bgcolor)
+            ax = fig.add_subplot(projection='3d', facecolor=render3D_bgcolor)
             # The colour and α (of a homogeneous column through the
             # entire box) of this component.
             if component.name.lower() in render3D_colors:
@@ -1458,8 +1458,10 @@ def render3D(components, filename, cleanup=True, tmp_dirname='.renders3D'):
                 scatter_size, α_factor = alpha_blend(gridsize**3, α_homogeneous, fig)
                 # Plot the fluid elements as a 3D scatter plot
                 artist_component = ax.scatter(
-                    posx_mv, posy_mv, posz_mv,
-                    c=rgbα,
+                    asarray(posx_mv),
+                    asarray(posy_mv),
+                    asarray(posz_mv),
+                    c=asarray(rgbα),
                     s=scatter_size,
                     depthshade=False,
                     lw=0,
@@ -1577,7 +1579,7 @@ def render3D(components, filename, cleanup=True, tmp_dirname='.renders3D'):
             # We do this by setting the attribute _facecolors,
             # which is much faster than using the set_facecolors
             # method.
-            artist_component._facecolors = rgbα
+            artist_component._facecolors = asarray(rgbα)
         # Print the current cosmic time and scale factor on the figure
         if master:
             t_str = a_str = ''
