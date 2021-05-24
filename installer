@@ -90,16 +90,16 @@ compatible with Bash version 3.0 or later.
 
 The programs which will be installed into the specified installation
 directory consist of the following and will be installed in order:
-  - zlib (needed by HDF5, Python)
+  - zlib (needed by HDF5, Python, pillow (needed by Matplotlib))
   - GSL
   - Perl (needed by OpenSSL, OpenBLAS, MPICH/OpenMPI)
   - MPICH/OpenMPI
   - HDF5
   - FFTW
   - FreeType (needed by Matplotlib)
-  - ncurses  (needed by _curses, which is needed by blessings)
+  - ncurses  (needed by _curses (needed by Blessings))
   - OpenSSL  (needed by pip)
-  - libffi   (needed by _ctypes, which is needed by pip)
+  - libffi   (needed by _ctypes (needed by pip))
   - OpenBLAS (needed by SciPy, used by NumPy)
   - Python, with the following packages
     (along with their own Python package dependencies):
@@ -419,9 +419,9 @@ set_version "h5py"              "3.2.1"
 set_version "matplotlib"        "3.4.2"
 set_version "mpi4py"            "3.0.3"
 set_version "numpy"             "1.20.3"
-set_version "pip"               "21.1.1"
+set_version "pip"               "21.1.2"
 set_version "scipy"             "1.6.3"
-set_version "setuptools"        "56.2.0"
+set_version "setuptools"        "57.0.0"
 set_version "sphinx"            "4.0.2"
 set_version "sphinx_copybutton" "0.3.1"
 set_version "sphinx_rtd_theme"  "0.5.2"
@@ -1897,7 +1897,7 @@ nor anywhere in the PATH"
         fi
         mpi_dir="${mpi_dir%/}"
         # If MPI_ROOT is set and it agrees with the mpi_*dir variables,
-        # use this path name explicitly (if may differ
+        # use this path name explicitly (it may differ
         # due to symbolic links).
         if [ -n "${MPI_ROOT}" ] && [ -d "${MPI_ROOT}" ]; then
             if [                                                                \
@@ -2341,12 +2341,13 @@ if [ -z "${gsl_install}" ]; then
         gsl_install="True"
     fi
 fi
-# zlib (needed by HDF5, Python)
+# zlib (needed by HDF5, Python, Matplotlib (via pillow))
 if [ -z "${zlib_install}" ]; then
     zlib_install="False"
-    if [ "${zlib_preinstalled}" == "False" ] && \
-        (   [ "${hdf5_install}"   == "True" ] \
-         || [ "${python_install}" == "True" ]); then
+    if [ "${zlib_preinstalled}" == "False" ] &&   \
+        (   [ "${hdf5_install}"       == "True" ] \
+         || [ "${python_install}"     == "True" ] \
+         || [ "${matplotlib_install}" == "True" ]); then
         zlib_install="True"
     fi
 fi
@@ -5508,6 +5509,10 @@ perl_install_func() {
         # to dump_libimf == False.
         return 1
     fi
+    if [ "${without_then_with_cc}" == "True" ] && [ -z "${CC}" ]; then
+        # Cannot run with -Dcc if CC is not set
+        return 1
+    fi
     # When an Intel C compiler is used, some libraries like libimf may
     # not be found by the perl executable. We can fix this by dropping
     # symlinks to all Intel libraries into the build directory.
@@ -5542,7 +5547,10 @@ perl_install_func() {
         done <<< "${LD_LIBRARY_PATH}"
     fi
     perl_config_options="-de -Dprefix=${perl_dir}"
-    if [ "${compiler}" != "default" ] && [ -n "${CC}" ]; then
+    if     [ "${without_then_with_cc}" == "False" ] \
+        && [ "${compiler}" != "default"           ] \
+        && [ -n "${CC}"                           ] \
+    ; then
         perl_config_options="${perl_config_options} -Dcc=${CC}"
     fi
     # Sometimes the installation will complain that the Perl libraries
@@ -5556,6 +5564,14 @@ perl_install_func() {
     # wrong location. A fix for this is implemented below.
     if [ "${perl_poll_fix}" == "True" ]; then
         sed -i 's/<poll\.h>/<sys\/poll\.h>/' 'dist/IO/poll.h' || return 1
+    fi
+    # For some reason, first trying without -Dcc
+    # and then with -Dcc sometimes help.
+    if [ "${without_then_with_cc}" == "True" ]; then
+        make ${make_jobs} 2>&1 || :
+        make clean || :
+        perl_config_options="${perl_config_options} -Dcc=${CC}"
+        ./Configure ${perl_config_options} 2>&1 || return 1
     fi
     make ${make_jobs} 2>&1 || return 1
     if [ "${do_tests}" == "True" ]; then
@@ -5591,6 +5607,7 @@ perl_install_func() {
 libimf_dumped="False"
 install "Perl"                                  \
     compiler "${compiler_possibilities[@]}" ";" \
+    without_then_with_cc "False" "True"     ";" \
     dump_libimf "True" "False"              ";" \
     perl_poll_fix "False" "True"            ";" \
     perl_cflags "" "-fPIC"                  ";" \
@@ -5643,7 +5660,13 @@ ${mpi_configure_option}"
     fi
     make ${make_jobs_mpi} install 2>&1 || return 1
     if [ "${slim}" == "True" ]; then
-        rm -rf "${mpi_dir}/share" || :
+        if [ -d "${mpi_dir}/share" ]; then
+            rm -rf "${mpi_dir}/share/man" || :
+            rm -rf "${mpi_dir}/share/doc" || :
+            if [ -z "$(ls -A "${mpi_dir}/share")" ]; then
+                rm -rf "${mpi_dir}/share" || :
+            fi
+        fi
     fi
 }
 mpi_configure_options_supplied="${mpi_configure_options}"
@@ -6566,9 +6589,12 @@ pip_install_pypackage_dependencies() {
     if [ -n "${2}" ]; then
         exit_on_error="${2}"
     fi
-    current_step="installation of ${1} dependencies"
-    heading "Installing ${1} dependencies"
-    set_status "Installing ${1} dependencies"
+    if [ "${1}" != "${pip_install_pypackage_dependencies_prevdep}" ]; then
+        current_step="installation of ${1} dependencies"
+        heading "Installing ${1} dependencies"
+        set_status "Installing ${1} dependencies"
+    fi
+    pip_install_pypackage_dependencies_prevdep="${1}"
     for dependency in ${dependencies[@]}; do
         dependency_installed=$(check_pypackage_installed "${dependency}")
         if [ "${dependency_installed}" == "False" ]; then
@@ -6687,6 +6713,15 @@ fi
 # Blessings
 if [ "${blessings_install}" == "True" ] && [ "${blessings_installed}" == "False" ] \
     && [ "$(check_pypackage_installed blessings)" == "False" ]; then
+    # Blessings has six as a required dependency, though this is not
+    # necessarily downloaded along with Blessings by pip. If not already
+    # installed, we install this Python package now. Do not exit on
+    # failure, as Blessings may succeed in installing six itself.
+    dependencies=( \
+        "six"      \
+    )
+    pip_install_pypackage_dependencies "Blessings" "False"
+    # Install Blessings
     pip_install_pypackage "Blessings" "${blessings_version}"
 fi
 
@@ -7159,10 +7194,100 @@ if [ "${matplotlib_install}" == "True" ] && [ "${matplotlib_installed}" == "Fals
         "cycler"          \
         "python-dateutil" \
         "kiwisolver"      \
-        "pillow"          \
         "pyparsing"       \
     )
     pip_install_pypackage_dependencies "Matplotlib"
+    # The pillow packages is missing from the above list of Matplotlib
+    # dependencies, as it may require more work to install. The pillow
+    # package itself depends on zlib and libjpeg, the latter of which
+    # we can explicitly disable. Furthermore, the installation may
+    # complain that "ZIP does not support timestamps before 1980",
+    # which can be fixed by slightly patching setuptools.
+    dependencies=( \
+        "pillow"   \
+    )
+    if [ -n "${zlib_dir}" ]; then
+        export CPPFLAGS="-I${zlib_dir}/include ${CPPFLAGS}"
+        export LD_LIBRARY_PATH="${zlib_dir}/lib:${LD_LIBRARY_PATH}"
+        export LDFLAGS="-L${zlib_dir}/lib -Wl,-rpath=${zlib_dir}/lib ${LDFLAGS}"
+    fi
+    pip_install_pypackage_dependencies "Matplotlib" "False"
+    reset_environment
+    pillow_installed=$(check_pypackage_installed "pillow")
+    if [ "${pillow_installed}" == "False" ]; then
+        # Default installation of pillow failed
+        printf "\nSwitching installation strategy for pillow\n\n"
+        # Download pillow.
+        tmp_pip_dir="${top_dir}/tmp/pip"
+        rm -rf "${tmp_pip_dir}" "${tmp_pip_dir}_tmp" || :
+        mkdir -p "${tmp_pip_dir}_tmp"
+        export TMPDIR="${tmp_pip_dir}_tmp"
+        export TEMP="${TMPDIR}"
+        export TMP="${TMPDIR}"
+        pip_download "pillow"
+        cd "${tmp_pip_dir}"
+        for f in *; do
+            f_lower="$(echo "${f}" | tr '[:upper:]' '[:lower:]')"
+            if [[ "${f_lower}" == "pillow"* ]]; then
+                extract "${f}"* "True"
+                break
+            fi
+        done
+        for f in *; do
+            f_lower="$(echo "${f}" | tr '[:upper:]' '[:lower:]')"
+            if [ -d "${f}" ] && [[ "${f_lower}" == "pillow"* ]]; then
+                pillow_build_dir="${tmp_pip_dir}/${f}"
+                break
+            fi
+        done
+        cd "${top_dir}"
+        cp -r "${pillow_build_dir}" "${pillow_build_dir}_cp"
+        pillow_install_func() {
+            if [ -n "${zlib_dir}" ]; then
+                export CPPFLAGS="-I${zlib_dir}/include ${CPPFLAGS}"
+                export LD_LIBRARY_PATH="${zlib_dir}/lib:${LD_LIBRARY_PATH}"
+                export LDFLAGS="-L${zlib_dir}/lib -Wl,-rpath=${zlib_dir}/lib ${LDFLAGS}"
+            fi
+            export TMPDIR="${tmp_pip_dir}_tmp"
+            export TEMP="${TMPDIR}"
+            export TMP="${TMPDIR}"
+            cd "${top_dir}"
+            rm -rf "${pillow_build_dir}" || :
+            cp -r "${pillow_build_dir}_cp" "${pillow_build_dir}"
+            cd "${pillow_build_dir}"
+            if [ "${zip_1980_fix}" == "True" ]; then
+                bdist_egg_file="$("${python}" -B -c "
+import inspect
+import setuptools.command.bdist_egg as bdist_egg
+print(inspect.getfile(bdist_egg))
+" || :)"
+                if [ ! -f "${bdist_egg_file}" ]; then
+                    return 1
+                fi
+                cp "${bdist_egg_file}" "${bdist_egg_file}_ori" || return 1
+                sed -i                                                             \
+                    "s/\(^.*\. *ZipFile\)\(.*\))$/\1\2, strict_timestamps=False)/" \
+                    "${bdist_egg_file}"                                            \
+                || return 1
+            fi
+            "${python}" setup.py build_ext --disable-jpeg install ${pyuser} || :
+            if [ "${zip_1980_fix}" == "True" ]; then
+                cp "${bdist_egg_file}_ori" "${bdist_egg_file}" || :
+                rm -f "${bdist_egg_file}_ori" || :
+            fi
+            if [ "$(check_pypackage_installed pillow)" == "False" ]; then
+                return 1
+            fi
+            # Clean up
+            cd "${top_dir}"
+            rm -rf "${tmp_pip_dir}" "${tmp_pip_dir}_tmp" "${top_dir}/tmp/pillow" || :
+            reset_environment
+        }
+        install "pillow" "no_init_install"  \
+            pyuser "" "--user"          ";" \
+            zip_1980_fix "False" "True" ";" \
+
+    fi
     # Install Matplotlib
     current_step="installation of Matplotlib ${matplotlib_version}"
     heading "Installing Matplotlib ${matplotlib_version}"
@@ -7465,7 +7590,14 @@ def get_envs():
             # PATH, LD_LIBRARY_PATH, ...
             ('path' in var.lower() and (val.startswith('/') or val.startswith(':')))
             # MPI root directories
-            or (var in {'MPI_ROOT', 'I_MPI_ROOT', 'SMPI_ROOT'} and val.startswith('/'))
+            or (var in {'MPI_ROOT', 'I_MPI_ROOT', 'IMPI_ROOT', 'SMPI_ROOT'}
+                and val.startswith('/')
+            )
+            # Other MPI related variables
+            or any([
+                var.startswith(prefix + '_')
+                for prefix in ['MPI', 'OMPI', 'MV2', 'IMPI', 'I_MPI', 'SMPI', 'PAMI', 'PMIX']
+            ])
             # Intel license file
             or (var in {'INTEL_LICENSE_FILE', 'INTEL_LICENCE_FILE'} and val.startswith('/'))
         ):
@@ -7625,22 +7757,9 @@ if [ -f "${concept}" ]; then
         fi
         "${concept}" -m "
 from commons import *
-val_raw = float(${expression})
-if float('{:g}'.format(val_raw)) == val_raw:
-    print('{:g}'.format(val_raw))
-else:
-    val_str = str(abs(val_raw))
-    if 'e' in val_str:
-        val_str = val_str[:val_str.index('e')]
-    val_str = val_str.replace('.', '')
-    if len(val_str) < 15:
-        print(val_raw)
-    else:
-        val_new = sorted(
-            [val_raw*(1 + sign*i*(0.5*machine_ϵ)) for i in range(21) for sign in (+1, -1)],
-            key=(lambda val: len(str(val))),
-        )[0]
-        print(val_new if len(str(val_new)) < len(str(val_raw)) - 2 else val_raw)
+sys.stdout.flush()
+sleep(0.1)
+print(correct_float(${expression}))
 " --pure-python --local 2>/dev/null | tail -n 1
         cd "${current_dir}"
     }
