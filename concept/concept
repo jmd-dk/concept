@@ -1362,6 +1362,9 @@ elif ${memory} == 0:
     lines.append(f'{directive_prefix} --mem=0')
 if '${walltime}' != '00:00:00':
     lines.append(f'{directive_prefix} --time=${walltime}')
+lines.append(f'{directive_prefix} --ntasks-per-core=1')   # to avoid hyper-threading
+lines.append(f'{directive_prefix} --hint=nomultithread')  # to avoid hyper-threading
+lines.append(f'{directive_prefix} --cpus-per-task=1')     # map 1 MPI process to 1 OpenMP thread
 lines.append(f'{directive_prefix} --output=/dev/null')
 lines.append(f'{directive_prefix} --error=/dev/null')
 for job_directive in '${job_directive}'.split(';'):
