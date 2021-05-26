@@ -8705,12 +8705,20 @@ fftw_for_gadget_install_func() {
     fi
     # The config.guess and config.sub file bundled with FFTW 2 may be
     # too old to be able to recognize the system.
+    config_files=("config.guess" "config.sub")
     if [ "${fetch_newest_config}" == "True" ]; then
+        fftw_for_gadget_builddir="$(pwd)"
         config_url="https://git.savannah.gnu.org/gitweb/?p=config.git;a=blob_plain;f=filename;hb=HEAD"
-        for config_file in "config.guess" "config.sub"; do
-            rm -f "${config_file}" || :
-            wget -O "${config_file}" "${config_url/filename/${config_file}}" || return 1
+        for config_file in "${config_files[@]}"; do
+            rm -f "${fftw_for_gadget_builddir}/${config_file}" || :
+            if [ ! -d "${top_dir}/tmp/${config_file/./_}" ] \
+                || [ -z "$(ls "${top_dir}/tmp/${config_file/./_}")" ]; then
+                download "${config_file/./_}" "False" "${config_url/filename/${config_file}}"
+            fi
+            cp "${top_dir}/tmp/${config_file/./_}/"* \
+                "${fftw_for_gadget_builddir}/${config_file}" || return 1
         done
+        cd "${fftw_for_gadget_builddir}"
     fi
     ./configure ${enable_shared} ${enable_mpi} ${precision_flags} \
         --disable-fortran ${with_pic} --prefix="${fftw_for_gadget_dir}" 2>&1 || return 1
@@ -8752,6 +8760,10 @@ fftw_for_gadget_install_func() {
         make         2>&1 || return 1  # Parallel builds fail on some systems
         make install 2>&1 || return 1  # Parallel builds fail on some systems
     fi
+    # Cleanup possibly downloaded config files
+    for config_file in "${config_files[@]}"; do
+        rm -rf "${top_dir}/tmp/${config_file/./_}" || :
+    done
     # Cleanup if installing in slim mode
     if [ "${slim}" == "True" ]; then
         rm -rf "${fftw_for_gadget_dir}/info" || :
