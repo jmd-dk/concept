@@ -422,6 +422,10 @@ def time_since(initial_time):
     """
     # Time since initial_time, in seconds
     seconds = time() - initial_time
+    # Delegate the formatting work
+    return nice_time_interval(seconds)
+# Function for formatting a time in seconds as a nice string
+def nice_time_interval(seconds):
     # Construct the time interval with a sensible amount of
     # significant figures.
     milliseconds = 0

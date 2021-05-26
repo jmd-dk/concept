@@ -1343,8 +1343,11 @@ if [ "${remote}" == "True" ]; then
             nnodes=0  # Has to be 0, not 1
             nprocs_per_node=${nprocs}
         fi
-        # Compute dedicated memory per process in megabytes
+        # Compute dedicated memory per process and node in megabytes
         mb_per_process=$("${python}" -B -c "print(int(${memory}/(2**20*${nprocs})))")
+        if [ "${nnodes}" -gt 0 ]; then
+            mb_per_node=$("${python}" -B -c "print(int(${memory}/(2**20*${nnodes})))")
+        fi
         # Construct Slurm header
         jobscript_header="$(${python} -B -c "
 directive_prefix = '#SBATCH'
@@ -1357,7 +1360,10 @@ if ${nnodes}:
 else:
     lines.append(f'{directive_prefix} --ntasks=${nprocs}')
 if ${memory} > 0:
-    lines.append(f'{directive_prefix} --mem-per-cpu=${mb_per_process}M')
+    if ${nnodes}:
+        lines.append(f'{directive_prefix} --mem=${mb_per_node}M')
+    else:
+        lines.append(f'{directive_prefix} --mem-per-cpu=${mb_per_process}M')
 elif ${memory} == 0:
     lines.append(f'{directive_prefix} --mem=0')
 if '${walltime}' != '00:00:00':
@@ -1379,6 +1385,8 @@ lines.append('# Get the ID of the current job')
 lines.append('jobid=\"\${SLURM_JOB_ID%%.*}\"')
 print('\n'.join(lines))
         ")"
+        # The Slurm queue (partition) in which the job is running
+        queue_display='${SLURM_JOB_PARTITION}'
     elif [ "${resource_manager}" == "torque" ]; then
         # Split the 'nprocs' variable up into the number of nodes
         # and the number of processes per node.
@@ -1419,20 +1427,40 @@ lines.append('# Get the ID of the current job')
 lines.append('jobid=\"\${PBS_JOBID%%.*}\"')
 print('\n'.join(lines))
         ")"
+        # The TORQUE/PBS queue in which the job is running
+        queue_display="${queue}"
     fi
-    # Prepare text with the total memory consumption
-    memory_in_tb=$("${python}" -B -c "print(int(${memory}/(2**40)))")
-    memory_in_gb=$("${python}" -B -c "print(int(${memory}/(2**30)))")
-    memory_in_mb=$("${python}" -B -c "print(int(${memory}/(2**20)))")
-    if [ ${memory_in_tb} -gt 1 ]; then
-        memory_display="${memory_in_tb} TB"
-    elif [ ${memory_in_gb} -gt 1 ]; then
-        memory_display="${memory_in_gb} GB"
-    elif [ ${memory_in_mb} -gt 1 ]; then
-        memory_display="${memory_in_mb} MB"
-    else
-        memory_display=""
-    fi
+    # Prepare display texts with the total memory consumption
+    # and maximum allowed wall time.
+    infos_display="$("${mpiexec}" -n 1 "${python}" -B -c "
+memory = ${memory}
+walltime = '${walltime}'
+from commons import *
+# Memory
+memory_str = ''
+if memory > 0:
+    prefixes = iter(['', 'k', 'M', 'G', 'T', 'P', 'E', 'Z', 'Y'])
+    for prefix in prefixes:
+        if memory < 2**10:
+            break
+        memory //= 2**10
+    memory_str = significant_figures(memory, 3)
+    if 'e' in memory_str:
+        memory //= 2**10
+        prefix = next(prefixes)
+        memory_str = significant_figures(memory, 3)
+    memory_str = f'{memory_str} {prefix}B'
+print(memory_str)
+# Wall time
+walltime_str = ''
+h, m, s = [int(t) for t in walltime.split(':')]
+walltime = s + 60*(m + 60*h)
+if walltime > 0:
+    walltime_str = nice_time_interval(walltime)
+print(walltime_str)
+" 2>/dev/null | tail -n 2)"
+    memory_display="$(echo "${infos_display}"   | head -n 1 | tail -n 1)"
+    walltime_display="$(echo "${infos_display}" | head -n 2 | tail -n 1)"
     # The MPI executor command when run remotely.
     # When using Slurm, it is best to use the srun command rather than
     # calling mpiexec directly.
@@ -1492,6 +1520,8 @@ main='${main}'
 main_as_command='${main_as_command}'
 main_rel='${main_rel}'
 memory_display='${memory_display}'
+walltime_display='${walltime_display}'
+queue_display=\"${queue_display}\"
 nnodes=${nnodes}
 nprocs=${nprocs}
 params='${params}'
@@ -1507,9 +1537,9 @@ cd \"\${logs_dir}\"
 # Print start messages
 pure_python_msg=\"\"
 [ \"\${pure_python}\" == \"True\" ] && pure_python_msg=\" in pure Python mode\"
-colorprint                                                                                   \\
-    \"Running \${esc_concept} job \${jobid}\${pure_python_msg} remotely on \$(hostname -f)\" \\
-    \"yellow\"                                                                               \\
+colorprint                                                                                                       \\
+    \"Running \${esc_concept} job \${jobid}\${pure_python_msg} remotely on \$(hostname -f) (\${queue_display})\" \\
+    \"yellow\"                                                                                                   \\
     > \"\${logs_dir}/\${jobid}\"
 echo \"Entry point:     \\\\\"\${main_rel}\\\\\"\" >> \"\${logs_dir}/\${jobid}\"
 if [ \"\${params_rel}\" == \"None\" ]; then
@@ -1521,6 +1551,9 @@ fi
 echo \"Log file:        \\\\\"\${logs_dir_rel}/\${jobid}\\\\\"\" >> \"\${logs_dir}/\${jobid}\"
 if [ -n \"\${memory_display}\" ]; then
     echo \"Memory:          \${memory_display}\" >> \"\${logs_dir}/\${jobid}\"
+fi
+if [ -n \"\${walltime_display}\" ]; then
+    echo \"Wall time:       \${walltime_display}\" >> \"\${logs_dir}/\${jobid}\"
 fi
 
 # Prepare Python options
