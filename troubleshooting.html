@@ -13,6 +13,8 @@
   
   <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
   <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
   <link rel="stylesheet" href="_static/copybutton.css" type="text/css" />
   <link rel="stylesheet" href="_static/tabs.css" type="text/css" />
   <link rel="stylesheet" href="_static/custom.css" type="text/css" />
@@ -24,10 +26,9 @@
 
   
   
-    <link rel="canonical" href="https://jmd-dk.github.io/concept/troubleshooting.html"/>
-  
 
   
+    <link rel="canonical" href="https://jmd-dk.github.io/concept/troubleshooting.html" />
 
   
   <!--[if lt IE 9]>
@@ -36,13 +37,13 @@
   
     
       <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+        <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
         <script src="_static/jquery.js"></script>
         <script src="_static/underscore.js"></script>
         <script src="_static/doctools.js"></script>
         <script src="_static/clipboard.min.js"></script>
         <script src="_static/copybutton.js"></script>
         <script src="_static/tabs.js"></script>
-        <script async="async" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.7/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
     
     <script type="text/javascript" src="_static/js/theme.js"></script>
 
@@ -604,10 +605,10 @@ executor as though you were using TORQUE/PBS.</p>
 </div>
 <p>If Slurm is used as the job scheduler and the MPI library used was not
 installed by the <code class="docutils literal notranslate"><span class="pre">installer</span></code> script as part of the CO<em>N</em>CEPT
-installation, the MPI executor will be set to <code class="docutils literal notranslate"><span class="pre">srun</span> <span class="pre">--cpu_bind=none</span></code>
+installation, the MPI executor will be set to <code class="docutils literal notranslate"><span class="pre">srun</span> <span class="pre">--cpu-bind=none</span></code>
 in job scripts by default (or possibly
-<code class="docutils literal notranslate"><span class="pre">srun</span> <span class="pre">--cpu_bind=none</span> <span class="pre">--mpi=openmpi</span></code> if OpenMPI is used). The first
-thing to try is to leave out <code class="docutils literal notranslate"><span class="pre">--cpu_bind=none</span></code>, i.e. setting</p>
+<code class="docutils literal notranslate"><span class="pre">srun</span> <span class="pre">--cpu-bind=none</span> <span class="pre">--mpi=openmpi</span></code> if OpenMPI is used). The first
+thing to try is to leave out <code class="docutils literal notranslate"><span class="pre">--cpu-bind=none</span></code>, i.e. setting</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">mpi_executor</span><span class="o">=</span><span class="s2">&quot;srun&quot;</span>
 </pre></div>
 </div>
@@ -625,8 +626,13 @@ supports, run</p>
 </div>
 <p>directly on the front-end. You may wish to try your luck on all
 supported MPI implementations. If you find one that works, do remember
-to test if it also works with the added <code class="docutils literal notranslate"><span class="pre">--cpu_bind=none</span></code> option, as
+to test if it also works with the added <code class="docutils literal notranslate"><span class="pre">--cpu-bind=none</span></code> option, as
 this is preferred.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>On some systems, the <code class="docutils literal notranslate"><span class="pre">--cpu-bind=none</span></code> option is written as
+<code class="docutils literal notranslate"><span class="pre">--cpu_bind=none</span></code>, i.e. with an underscore. Try both.</p>
+</div>
 </div><div aria-labelledby="tab-0-VE9SUVVFL1BCUw==" class="sphinx-tabs-panel group-tab" hidden="true" id="panel-0-VE9SUVVFL1BCUw==" name="VE9SUVVFL1BCUw==" role="tabpanel" tabindex="0"><p>When TORQUE or PBS is used as the job scheduler, the MPI executor will be
 set to one of <code class="docutils literal notranslate"><span class="pre">mpiexec</span></code> or <code class="docutils literal notranslate"><span class="pre">mpirun</span></code> by default, possibly with
 additional options. The first thing to try is to leave out these options,
@@ -638,15 +644,15 @@ i.e. setting</p>
 <code class="docutils literal notranslate"><span class="pre">mpiexec</span></code>/<code class="docutils literal notranslate"><span class="pre">mpirun</span></code> are guaranteed to be those belonging to the
 correct MPI implementation (that specified in the <code class="docutils literal notranslate"><span class="pre">.paths</span></code> file). You
 are however allowed to specify absolute paths as well.</p>
-<p>Options to try out with <code class="docutils literal notranslate"><span class="pre">mpiexec</span></code>/<code class="docutils literal notranslate"><span class="pre">mpirun</span></code> include</p>
+<p>An important option to try out with <code class="docutils literal notranslate"><span class="pre">mpiexec</span></code>/<code class="docutils literal notranslate"><span class="pre">mpirun</span></code> is</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">mpi_executor</span><span class="o">=</span><span class="s2">&quot;mpiexec --bind-to none&quot;</span>  <span class="c1"># or &quot;mpirun --bind-to none&quot;</span>
 </pre></div>
 </div>
-<p>and</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">mpi_executor</span><span class="o">=</span><span class="s2">&quot;mpiexec -bind-to none&quot;</span>  <span class="c1"># or &quot;mpirun -bind-to none&quot;</span>
-</pre></div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>On some systems, the <code class="docutils literal notranslate"><span class="pre">--bind-to</span> <span class="pre">none</span></code> options is written as
+<code class="docutils literal notranslate"><span class="pre">-bind-to</span> <span class="pre">none</span></code>, i.e. with only one leading dash. Try both.</p>
 </div>
-<p>(the difference being one or two dashes before <code class="docutils literal notranslate"><span class="pre">bind</span></code>).</p>
 <p>If remote jobs still fail, you may look for other possible MPI executors,
 e.g. by running</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="o">(</span><span class="nb">source</span> concept <span class="o">&amp;&amp;</span> ls <span class="s2">&quot;</span><span class="si">${</span><span class="nv">mpi_bindir</span><span class="si">}</span><span class="s2">&quot;</span><span class="o">)</span>
