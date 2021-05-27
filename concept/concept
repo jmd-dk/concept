@@ -352,8 +352,15 @@ else
     mpi_version="unknown"
 fi
 
-# MPI implementation specifics
-mpiexec_args=""
+# MPI implementation specifics.
+# While we always construct the contents of mpi_env,
+# that of mpiexec_args is only constructed when this script is run
+# as opposed to being sourced. We do this as mpiexec_args is only used
+# when executing the program, and its construction requires test running
+# mpiexec, which may cause trouble on some clusters.
+if [ "${being_sourced}" == "False" ]; then
+    mpiexec_args=""
+fi
 mpi_env=""
 if [ "${mpi_implementation}" == "openmpi" ]; then
     # Disable aggregation of OpenMPI warnings
@@ -378,10 +385,19 @@ export OMPI_MCA_rmaps_base_oversubscribe=1"
     # OpenFabrics device, we overwrite this default.
     if [ -z "${OMPI_MCA_btl_openib_allow_ib}" ] \
         && [ "${mpi_version_major}" -ge 4 2>/dev/null ]; then
-        mpi_warning="$("${python}" -B -c '
+        # As we are importing MPI4Py we ought to invoke Python via
+        # mpiexec, though this may lead to trouble when sourcing.
+        if [ "${being_sourced}" == "False" ]; then
+            mpi_warning="$("${mpiexec}" -n 1 "${python}" -B -c '
 import mpi4py.rc; mpi4py.rc.threads = False  # Do not use threads
 from mpi4py import MPI
-' 2>&1)"
+' 2>&1 || :)"
+        else
+            mpi_warning="$("${python}" -B -c '
+import mpi4py.rc; mpi4py.rc.threads = False  # Do not use threads
+from mpi4py import MPI
+' 2>&1 || :)"
+        fi
         if [ -n "${mpi_warning}" ]; then
             if echo "${mpi_warning}" | grep "error" | grep "OpenFabrics" >/dev/null; then
                 if echo "${mpi_warning}" | grep "btl_openib_allow_ib" >/dev/null; then
@@ -396,9 +412,11 @@ export OMPI_MCA_btl_openib_allow_ib=1"
     # This is off by default prior to OpenMPI version 1.7.
     # All of 1.7 -- 4.0 supports the --bind-to none option to mpiexec.
     # Here we add this option if it is understood.
-    mpiexec_output="$("${mpiexec}" --bind-to none -n 1 echo "success" 2>&1 || :)"
-    if [ "${mpiexec_output}" == "success" ]; then
-        mpiexec_args="${mpiexec_args} --bind-to none"
+    if [ "${being_sourced}" == "False" ]; then
+        mpiexec_output="$("${mpiexec}" --bind-to none -n 1 echo "success" 2>&1 || :)"
+        if [ "${mpiexec_output}" == "success" ]; then
+            mpiexec_args="${mpiexec_args} --bind-to none"
+        fi
     fi
     # For OpenMPI 1.8 -- 4.0 process binding can also be deactivated
     # using the following environment variable.
@@ -408,13 +426,15 @@ elif [ "${mpi_implementation}" == "mpich" ]; then
     # Though MPICH should not use process binding by default,
     # it still supports a -bind-to none or --bind-to none option.
     # Here we check if this is so, and apply it.
-    mpiexec_output="$("${mpiexec}" -bind-to none -n 1 echo "success" 2>&1 || :)"
-    if [ "${mpiexec_output}" == "success" ]; then
-        mpiexec_args="${mpiexec_args} -bind-to none"
-    else
-        mpiexec_output="$("${mpiexec}" --bind-to none -n 1 echo "success" 2>&1 || :)"
+    if [ "${being_sourced}" == "False" ]; then
+        mpiexec_output="$("${mpiexec}" -bind-to none -n 1 echo "success" 2>&1 || :)"
         if [ "${mpiexec_output}" == "success" ]; then
-            mpiexec_args="${mpiexec_args} --bind-to none"
+            mpiexec_args="${mpiexec_args} -bind-to none"
+        else
+            mpiexec_output="$("${mpiexec}" --bind-to none -n 1 echo "success" 2>&1 || :)"
+            if [ "${mpiexec_output}" == "success" ]; then
+                mpiexec_args="${mpiexec_args} --bind-to none"
+            fi
         fi
     fi
 elif [ "${mpi_implementation}" == "mvapich" ]; then
@@ -1132,7 +1152,7 @@ print('Total execution time: {}'.format(time_since(${start_time_test})))"
         test_check_err_logs
         colorprint "${test_name} test ran successfully" "green"
     fi
-    # Print out the total time it took to ran the test(s)
+    # Print out the total time it took to run the test(s)
     "${mpiexec}" -n 1 "${python}" -B -c "from commons import *
 print('Total execution time: {}'.format(time_since(${start_time_epoch})))"
     # Deactivate traps and exit
