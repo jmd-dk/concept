@@ -299,10 +299,10 @@ TORQUE/PBS).
 
       If Slurm is used as the job scheduler and the MPI library used was not
       installed by the ``installer`` script as part of the CO\ *N*\ CEPT
-      installation, the MPI executor will be set to ``srun --cpu_bind=none``
+      installation, the MPI executor will be set to ``srun --cpu-bind=none``
       in job scripts by default (or possibly
-      ``srun --cpu_bind=none --mpi=openmpi`` if OpenMPI is used). The first
-      thing to try is to leave out ``--cpu_bind=none``, i.e. setting
+      ``srun --cpu-bind=none --mpi=openmpi`` if OpenMPI is used). The first
+      thing to try is to leave out ``--cpu-bind=none``, i.e. setting
 
       .. code-block:: bash
 
@@ -327,8 +327,13 @@ TORQUE/PBS).
 
       directly on the front-end. You may wish to try your luck on all
       supported MPI implementations. If you find one that works, do remember
-      to test if it also works with the added ``--cpu_bind=none`` option, as
+      to test if it also works with the added ``--cpu-bind=none`` option, as
       this is preferred.
+
+      .. note::
+          On some systems, the ``--cpu-bind=none`` option is written as
+          ``--cpu_bind=none``, i.e. with an underscore. Try both.
+
 
    .. group-tab:: TORQUE/PBS
 
@@ -346,19 +351,15 @@ TORQUE/PBS).
       correct MPI implementation (that specified in the ``.paths`` file). You
       are however allowed to specify absolute paths as well.
 
-      Options to try out with ``mpiexec``/``mpirun`` include
+      An important option to try out with ``mpiexec``/``mpirun`` is
 
       .. code-block:: bash
 
          mpi_executor="mpiexec --bind-to none"  # or "mpirun --bind-to none"
 
-      and
-
-      .. code-block:: bash
-
-         mpi_executor="mpiexec -bind-to none"  # or "mpirun -bind-to none"
-
-      (the difference being one or two dashes before ``bind``).
+      .. note::
+         On some systems, the ``--bind-to none`` options is written as
+         ``-bind-to none``, i.e. with only one leading dash. Try both.
 
       If remote jobs still fail, you may look for other possible MPI executors,
       e.g. by running

@@ -22,7 +22,6 @@ sphinx_tabs_disable_tab_closing = True
 html_theme = 'sphinx_rtd_theme'
 html_theme_options = {
     # General
-    'canonical_url'             : 'https://jmd-dk.github.io/concept/',
     'display_version'           : False,
     'logo_only'                 : False,
     'prev_next_buttons_location': 'both',
@@ -64,6 +63,7 @@ monkeypatch_pygments(
 )
 
 # HTML
+html_baseurl           = 'https://jmd-dk.github.io/concept/'
 html_context           = {'display_github': True}
 html_favicon           = html_static_path[0] + '/favicon.ico'
 html_last_updated_fmt  = None
