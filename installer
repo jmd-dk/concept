@@ -2180,6 +2180,11 @@ try:
     elif '${pypackage}' == 'pythondateutil':
         # Python-dateutil is imported as dateutil
         import dateutil
+    elif '${pypackage}' == 'matplotlib':
+        # For Matplotlib we do a more thorough test
+        import matplotlib
+        matplotlib.use('agg')
+        import matplotlib.pyplot as plt
     elif '${pypackage}' == 'mpi4py':
         # For MPI4Py we do a more thorough test
         import mpi4py.rc; mpi4py.rc.threads = False  # Do not use threads
@@ -2187,6 +2192,12 @@ try:
     elif '${pypackage}' == 'pillow':
         # Pillow is imported as PIL
         import PIL
+    elif '${pypackage}' == 'scipy':
+        # For SciPy we do a more thorough test
+        import scipy.interpolate
+        import scipy.optimize
+        import scipy.signal
+        import scipy.special
     else:
         import ${pypackage}
     sleep(1)
@@ -5360,10 +5371,13 @@ set_optimizations() {
         use_lto="False"
     fi
     # Determine the compiler in use.
-    # Only icc and gcc are implemented here. The gcc behaviour
-    # is chosen if some third compiler is really in use.
+    # The gcc behaviour is chosen if some compiler
+    # not specified here is really in use.
+    CC_implementation="gcc"
     if [ "${compiler}" == "gnu" ]; then
         CC_implementation="gcc"
+    elif [ "${compiler}" == "clang" ]; then
+        CC_implementation="clang"
     elif [ "${compiler}" == "intel" ]; then
         CC_implementation="icc"
     else
@@ -5372,16 +5386,17 @@ set_optimizations() {
             CC_implementation="icc"
         elif echo "${info}" | grep -i "intel" >/dev/null; then
             CC_implementation="icc"
-        else
-            # Assume gcc
+        elif echo "${info}" | grep -i "gcc" >/dev/null; then
             CC_implementation="gcc"
+        elif echo "${info}" | grep -i "clang" >/dev/null; then
+            CC_implementation="clang"
         fi
     fi
     # General optimizations
     optimizations="-DNDEBUG -O3 -funroll-loops"
     optimizations_linker="-O3"
     # Floating point optimizations
-    if [ "${CC_implementation}" == "gcc" ]; then
+    if [ "${CC_implementation}" == "gcc" ] || [ "${CC_implementation}" == "clang" ]; then
         optimizations="${optimizations} -ffast-math"
     elif [ "${CC_implementation}" == "icc" ]; then
         optimizations="${optimizations} -fp-model fast=2"
@@ -5401,7 +5416,11 @@ set_optimizations() {
         mkdir -p "${lto_test_dir}"
         cd "${lto_test_dir}"
         echo "int main(void){ return 0; }" > main.c
-        lto_warning=$("${CC}" -flto -c -o main.o main.c 2>&1 | grep flto || :)
+        lto_warning="$(                                              \
+            "${CC}" -flto -c -o main.o main.c 2>&1 | grep flto || :; \
+            "${CC}" main.o -o main -flto 2>&1      | grep flto || :; \
+            ./main 2>/dev/null || echo "lto error";                  \
+        )"
         cd "${current_dir}"
         rm -rf "${lto_test_dir}" || :
         if [ -z "${lto_warning}" ]; then
@@ -5410,9 +5429,9 @@ set_optimizations() {
         fi
     fi
     # Remove unwanted flags from CFLAGS and CXXFLAGS
-    unwanted_flags=(                      \
-        -g -g0 -g1 -g2 -g3                \
-        -O -O0 -O1 -O2 -O3 -Og -Os -Ofast \
+    unwanted_flags=(                          \
+        -g -g0 -g1 -g2 -g3                    \
+        -O -O0 -O1 -O2 -O3 -O4 -Og -Os -Ofast \
     )
     CFLAGS_ori="${CFLAGS}"
     CFLAGS=""

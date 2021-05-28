@@ -69,7 +69,7 @@ files_auxiliary =      \
     ../install_log     \
     ../install_log_err \
     .exit_code_*       \
-    .lto_test.*        \
+    .lto_test*         \
     jobscript          \
 
 # List of files and directories in the utilities directory
@@ -176,17 +176,19 @@ compiler = $(shell                                           \
         echo "icc";                                          \
     elif echo "$${info}" | grep -i gcc >/dev/null; then      \
         echo "gcc";                                          \
+    elif echo "$${info}" | grep -i clang >/dev/null; then    \
+        echo "clang";                                        \
     else                                                     \
         echo "gcc";                                          \
     fi                                                       \
 )
-python_cflags = $(filter-out             \
-    $(addprefix -W,$(unwanted_warnings)) \
-    -g -g0 -g1 -g2 -g3                   \
-    -O -O0 -O1 -O2 -O3 -Og -Os -Ofast    \
-    -fwrapv                              \
-    ,                                    \
-    $(shell $(python_config) --cflags)   \
+python_cflags = $(filter-out              \
+    $(addprefix -W,$(unwanted_warnings))  \
+    -g -g0 -g1 -g2 -g3                    \
+    -O -O0 -O1 -O2 -O3 -O4 -Og -Os -Ofast \
+    -fwrapv                               \
+    ,                                     \
+    $(shell $(python_config) --cflags)    \
 )
 unwanted_warnings_general += \
     uninitialized            \
@@ -220,6 +222,8 @@ ifneq ($(no_optimizations),True)
     # Floating-point optimizations
     ifeq ($(compiler),gcc)
         optimizations += -ffast-math
+    else ifeq ($(compiler),clang)
+        optimizations += -ffast-math
     else ifeq ($(compiler),icc)
         optimizations += -fp-model fast=2
     endif
@@ -237,7 +241,9 @@ ifneq ($(no_optimizations),True)
     lto_warning = $(shell                                           \
         echo "int main(void){ return 0; }" > .lto_test.c;           \
         $(CC) -flto -c -o .lto_test.o .lto_test.c 2>&1 | grep flto; \
-        $(RM) -f .lto_test.c .lto_test.o                            \
+        $(CC) .lto_test.o -o .lto_test -flto      2>&1 | grep flto; \
+        ./.lto_test 2>/dev/null || echo "lto error";                \
+        $(RM) -f .lto_test.c .lto_test.o .lto_test;                 \
     )
     ifeq ("$(lto_warning)","")
         optimizations        += -flto
