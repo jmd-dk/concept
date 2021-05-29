@@ -72,6 +72,7 @@ def partition(size):
     indexᵖ_hole_end='Py_ssize_t',
     indexᵖ_i='Py_ssize_t',
     indexᵖ_j='Py_ssize_t',
+    indexᵖ_j_bgn='Py_ssize_t',
     indexᵖ_left='Py_ssize_t',
     indexᵖ_recv_bgn_ℓ='Py_ssize_t',
     indexᵖ_right='Py_ssize_t',
@@ -110,7 +111,6 @@ def partition(size):
     rank_left='int',
     rank_other='int',
     rank_other_i='int',
-    rank_other_i_known='bint',
     rank_other_j='int',
     rank_recv='int',
     rank_right='int',
@@ -302,9 +302,11 @@ def exchange(component, progress_msg=False):
             indexᵖ_i = indexᵖ_right + 1
             indexᵖ_end_i = indexᵖ_i + n_particles_send_tot
             indexˣ_i = 3*indexᵖ_i
-            rank_other_i_known = False
+            rank_other_i = 0
             while indexᵖ_i < indexᵖ_end_i:
-                if not rank_other_i_known:
+                if rank_other_i == -1:
+                    rank_other_i = rank_other_j
+                else:
                     rank_other_i = which_domain(
                         posxˣ[indexˣ_i],
                         posyˣ[indexˣ_i],
@@ -317,13 +319,13 @@ def exchange(component, progress_msg=False):
                     n_particles_sorted[rank_other_i] += 1
                     indexᵖ_i += 1
                     indexˣ_i += 3
-                    rank_other_i_known = False
                     continue
                 # Locate index j where particle currently at i
                 # should be moved to.
+                indexᵖ_j_bgn = indexᵖ_send_bgn_i + n_particles_sorted[rank_other_i]
+                indexᵖ_j = indexᵖ_j_bgn
+                indexˣ_j = 3*indexᵖ_j
                 while True:
-                    indexᵖ_j = indexᵖ_send_bgn_i + n_particles_sorted[rank_other_i]
-                    indexˣ_j = 3*indexᵖ_j
                     rank_other_j = which_domain(
                         posxˣ[indexˣ_j],
                         posyˣ[indexˣ_j],
@@ -334,7 +336,9 @@ def exchange(component, progress_msg=False):
                     # Particle at j belongs to the same process as the
                     # one at i. Skip along, counting the particle at j
                     # as being sorted.
-                    n_particles_sorted[rank_other_i] += 1
+                    indexᵖ_j += 1
+                    indexˣ_j += 3
+                n_particles_sorted[rank_other_i] += indexᵖ_j - indexᵖ_j_bgn
                 # Swap particle i and j
                 for dim in range(3):
                     indexʳ_i = indexˣ_i + dim
@@ -363,8 +367,7 @@ def exchange(component, progress_msg=False):
                 # may now be incorrectly placed.
                 # Continue without incrementing indexᵖ_i and indexˣ_i.
                 n_particles_sorted[rank_other_i] += 1
-                rank_other_i = rank_other_j
-                rank_other_i_known = True
+                rank_other_i = -1  # flag as being equal to rank_other_j
                 continue
         # Find out how many particles to receive
         n_particles_recv_tot = 0
@@ -726,12 +729,22 @@ def cutout_domains(n):
     returns='int',
 )
 def which_domain(x, y, z):
-    # Note that division is preferable to multiplication by
-    # reciprocals, in order to get the upper edge cases correct.
-    x_index = int(x/domain_size_x)
-    y_index = int(y/domain_size_y)
-    z_index = int(z/domain_size_z)
-    return domain_layout[x_index, y_index, z_index]
+    # Note that using division here is bad, and not just
+    # for performance. With division, inlining combined with agressive
+    # math optimizations by the compiler can lead to this function not
+    # being deterministic for particles right at the boundary between
+    # two domains. Using multiplication with pre-computed reciprocals
+    # as below is safe.
+    x_index = int(x*domain_size_x_inv)
+    y_index = int(y*domain_size_y_inv)
+    z_index = int(z*domain_size_z_inv)
+    # To get the rank we could index into domain_layout[...],
+    # but as an optimization we compute it ourselves.
+    return (
+        + x_index*ℤ[domain_subdivisions[2]*domain_subdivisions[1]]
+        + y_index*ℤ[domain_subdivisions[2]]
+        + z_index
+    )
 
 # This function computes the ranks of the processes governing the
 # domain which is located i domains to the right, j domains forward and
@@ -1733,6 +1746,9 @@ cython.declare(
     domain_end_x='double',
     domain_end_y='double',
     domain_end_z='double',
+    domain_size_x_inv='double',
+    domain_size_y_inv='double',
+    domain_size_z_inv='double',
 )
 # Number of subdivisions (domains) of the box
 # in each of the three dimensions.
@@ -1756,3 +1772,21 @@ domain_start_z = domain_layout_local_indices[2]*domain_size_z
 domain_end_x = domain_start_x + domain_size_x
 domain_end_y = domain_start_y + domain_size_y
 domain_end_z = domain_start_z + domain_size_z
+# Reciprocals of the domain sizes. To avoid future round-off errors,
+# these are constructed such that their product with boxsize is as close
+# to domain_subdivisions[:] as possible without being equal.
+domain_size_x_inv = 1./domain_size_x
+domain_size_y_inv = 1./domain_size_y
+domain_size_z_inv = 1./domain_size_z
+while boxsize*domain_size_x_inv < domain_subdivisions[0]:
+    domain_size_x_inv = np.nextafter(domain_size_x_inv, ထ)
+while boxsize*domain_size_x_inv >= domain_subdivisions[0]:
+    domain_size_x_inv = np.nextafter(domain_size_x_inv, -ထ)
+while boxsize*domain_size_y_inv < domain_subdivisions[1]:
+    domain_size_y_inv = np.nextafter(domain_size_y_inv, ထ)
+while boxsize*domain_size_y_inv >= domain_subdivisions[1]:
+    domain_size_y_inv = np.nextafter(domain_size_y_inv, -ထ)
+while boxsize*domain_size_z_inv < domain_subdivisions[2]:
+    domain_size_z_inv = np.nextafter(domain_size_z_inv, ထ)
+while boxsize*domain_size_z_inv >= domain_subdivisions[2]:
+    domain_size_z_inv = np.nextafter(domain_size_z_inv, -ထ)

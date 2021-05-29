@@ -294,7 +294,7 @@ comma = ,
 LDFLAGS += $(call unique, $(call sensible_paths,     \
     $(python_ldflags)                                \
     $(other_ldflags)                                 \
-    $(optimizations)                                 \
+    $(filter-out -ffast-math,$(optimizations))       \
     $(addprefix -Wl$(comma),$(optimizations_linker)) \
     $(warnings)                                      \
 ))
