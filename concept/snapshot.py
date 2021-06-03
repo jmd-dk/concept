@@ -516,8 +516,8 @@ class ConceptSnapshot:
 @cython.cclass
 class GadgetSnapshot:
     """This class represents snapshots of the "GADGET" type,
-    specifically the second type of snapshot native to GADGET
-    (i.e. SnapFormat = 2).
+    which may be either SnapFormat = 1 or SnapFormat = 2
+    native to GADGET.
     As is the case for the CO𝘕CEPT snapshot class, this class contains
     a list components (the components attribute) and dict of parameters
     (the params attribute).
@@ -1499,6 +1499,8 @@ class GadgetSnapshot:
             # For SnapFormat 1 the block names are left out of the
             # snapshot, but they occur in a specific order.
             self.block_names = iter(self.get_blocks_info('names'))
+            # Consume the header block name
+            next(self.block_names)
         # Read in the header of each file in the snapshot and check that
         # they are consistent. Keep information about the number of
         # particles of each type within eacch snapshot.
@@ -1509,7 +1511,7 @@ class GadgetSnapshot:
                 if i == num_files:
                     break
                 with open(filename, 'rb') as f:
-                    # Read in header and store
+                    # Read in and store header
                     header_i, offset_header = self.read_header(f)
                     num_particles_files.append(header_i['Npart'])
                     if i == 0:
@@ -1689,6 +1691,12 @@ class GadgetSnapshot:
             offset_nextblock = offset_header
             blocks_required = set(blocks.keys())
             end_of_file = False
+            if self.snapformat == 1:
+                # For SnapFormat 1 the block names are left out of the
+                # snapshot, but they occur in a specific order.
+                # The header block has already been read in.
+                self.block_names = iter(self.get_blocks_info('names'))
+                next(self.block_names)
             while True:
                 # Find next required block
                 if rank == 0:
@@ -1855,7 +1863,7 @@ class GadgetSnapshot:
             header = {}
             offset = 0
             f.seek(offset)
-            offset, size, block_name = self.read_block_bgn(f, offset)
+            offset, size, block_name = self.read_block_bgn(f, offset, self.block_name_header)
             if size == -1:
                 abort(
                     f'Expected block "{self.block_name_header}" at the '
@@ -1886,7 +1894,7 @@ class GadgetSnapshot:
 
     # Method for reading in the name and size of a block,
     # given the offset to where it begins.
-    def read_block_bgn(self, f, offset):
+    def read_block_bgn(self, f, offset, block_name=''):
         def read_size(f, offset):
             f.seek(offset)
             # Each block is bracketed with an unsigned int
@@ -1898,16 +1906,16 @@ class GadgetSnapshot:
                 offset += self.sizes['I'] + size + self.sizes['I']
             return offset, size
         offset, size = read_size(f, offset)
-        block_name = ''
         if self.snapformat == 1:
             # In the case of SnapFormat 1 we are already done.
             # Which block is up is not specified explicitly in the file,
             # so we rely on the ordered block_names.
-            try:
-                block_name = next(self.block_names)
-            except StopIteration:
-                # No more blocks to read in
-                offset = size = -1
+            if not block_name:
+                try:
+                    block_name = next(self.block_names)
+                except StopIteration:
+                    # No more blocks to read in
+                    offset = size = -1
             return offset, size, block_name
         size_bare = -1
         if offset != -1:
