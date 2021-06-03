@@ -303,9 +303,9 @@ def interpolate_domaingrid_to_particles(grid, component, variable, dim, order, f
     for indexˣ in range(0, 3*component.N_local, 3):
         # Get, translate and scale the coordinates so that
         # nghosts - ½ < r < shape[r] - nghosts - ½ for r ∈ {x, y, z}.
-        x = (posxˣ[indexˣ] - offset_x)*ℝ[1/cellsize]
-        y = (posyˣ[indexˣ] - offset_y)*ℝ[1/cellsize]
-        z = (poszˣ[indexˣ] - offset_z)*ℝ[1/cellsize]
+        x = (posxˣ[indexˣ] - offset_x)*ℝ[(1/cellsize)*(1 - machine_ϵ)]
+        y = (posyˣ[indexˣ] - offset_y)*ℝ[(1/cellsize)*(1 - machine_ϵ)]
+        z = (poszˣ[indexˣ] - offset_z)*ℝ[(1/cellsize)*(1 - machine_ϵ)]
         # Carry out the interpolation according to the order
         value = 0
         with unswitch:
@@ -1448,9 +1448,9 @@ def interpolate_particles(component, gridsize, grid, quantity, order, ᔑdt,
                 contribution = contribution_factor*contribution_ptr[indexˣ]
         # Get, translate and scale the coordinates so that
         # nghosts - ½ < r < shape[r] - nghosts - ½ for r ∈ {x, y, z}.
-        x = (posxˣ[indexˣ] - offset_x)*ℝ[1/cellsize]
-        y = (posyˣ[indexˣ] - offset_y)*ℝ[1/cellsize]
-        z = (poszˣ[indexˣ] - offset_z)*ℝ[1/cellsize]
+        x = (posxˣ[indexˣ] - offset_x)*ℝ[(1/cellsize)*(1 - machine_ϵ)]
+        y = (posyˣ[indexˣ] - offset_y)*ℝ[(1/cellsize)*(1 - machine_ϵ)]
+        z = (poszˣ[indexˣ] - offset_z)*ℝ[(1/cellsize)*(1 - machine_ϵ)]
         # Carry out the interpolation according to the order
         with unswitch:
             if order == 1:  # NGP interpolation
