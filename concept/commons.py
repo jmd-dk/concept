@@ -314,11 +314,11 @@ np.lib   .npyio.asunicode = asstr
 # Plotting #
 ############
 # We use Matplotlib for various plotting tasks.
-# To avoid importing mMtplotlib unnecessarily, we do not simply import
+# To avoid importing Matplotlib unnecessarily, we do not simply import
 # it here in the global scope. Instead, the below function will do the
-# import and return the Matplolib module object. This function should
-# then be called whenever matplotlib is needed.
-# In addition to importing matplotlib and its pyplot interface,
+# import and return the Matplotlib module object. This function should
+# then be called whenever Matplotlib is needed.
+# In addition to importing Matplotlib and its pyplot interface,
 # the function additionally:
 #   - Ensures that we use the agg back-end.
 #   - Sets some custom preferences.
@@ -2085,6 +2085,7 @@ cython.declare(
     render3D_select=dict,
     snapshot_type=str,
     gadget_snapshot_params=dict,
+    snapshot_wrap='bint',
     life_output_order=tuple,
     class_plot_perturbations='bint',
     class_extra_background=set,
@@ -2363,6 +2364,7 @@ for key, val in gadget_snapshot_params_defaults['units'].items():
 gadget_snapshot_params['units'] = gadget_snapshot_params_units
 gadget_snapshot_params['settle'] = int(gadget_snapshot_params['settle'])%2
 user_params['gadget_snapshot_params'] = gadget_snapshot_params
+snapshot_wrap = bool(user_params.get('snapshot_wrap', False))
 life_output_order = tuple(user_params.get('life_output_order', ()))
 life_output_order = tuple([act.lower() for act in life_output_order])
 life_output_order = tuple([

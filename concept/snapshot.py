@@ -2434,13 +2434,17 @@ def compare_parameters(snapshot, filename):
     x='double',
     y='double',
     z='double',
+    returns='void',
 )
 def out_of_bounds_check(component, snapshot_boxsize=-1):
-    """If any particles are outside of the box, the program
-    will terminate. Particles located exactly at the upper box
-    boundaries will be moved to the (physically equivalent) lower
-    boundaries. Note that no communication will be performed! Therefore,
-    you should always call the exchange function after this function.
+    """Unless the snapshot_wrap paramter is True, any particles outside
+    of the box will cause the program to terminate. Particles located
+    exactly at the upper box boundaries are allowed but will be moved to
+    the (physically equivalent) lower boundaries.
+    When snapshot_wrap is True, particles will be wrapped around the
+    periodic box, ending up inside it.
+    Note that no communication will be performed. Therefore, you should
+    always call the exchange() function after calling this function.
     """
     # Only components with particle representation can be out of bounds,
     # as these are the only ones with explicit positions.
@@ -2452,20 +2456,33 @@ def out_of_bounds_check(component, snapshot_boxsize=-1):
     pos = component.pos
     for indexʳ in range(3*component.N_local):
         value = pos[indexʳ]
-        if value == snapshot_boxsize:
-            pos[indexʳ] = 0
-        elif not (0 <= value < snapshot_boxsize):
-            indexᵖ = indexʳ//3
-            indexˣ = 3*indexᵖ
-            x = pos[indexˣ + 0]
-            y = pos[indexˣ + 1]
-            z = pos[indexˣ + 2]
-            abort(
-                f'Particle number {indexᵖ} of {component.name} has position '
-                f'({x}, {y}, {z}) {unit_length}, '
-                f'which is outside of the cubic box '
-                f'of side length {snapshot_boxsize} {unit_length}'
-            )
+        with unswitch:
+            if snapshot_wrap:
+                # Wrap particle around the periodic box
+                pos[indexʳ] = mod(value, snapshot_boxsize)
+            else:
+                # Fail if any particle is not within the box.
+                # Allow for but correct particle positions exactly at
+                # the upper box boundaries.
+                if value == snapshot_boxsize:
+                    pos[indexʳ] = 0
+                elif not (0 <= value < snapshot_boxsize):
+                    indexᵖ = indexʳ//3
+                    indexˣ = 3*indexᵖ
+                    x = pos[indexˣ + 0]
+                    y = pos[indexˣ + 1]
+                    z = pos[indexˣ + 2]
+                    abort(
+                        f'Particle number {indexᵖ} of {component.name} has position '
+                        f'({x}, {y}, {z}) {unit_length}, '
+                        f'which is outside of the cubic box '
+                        f'of side length {snapshot_boxsize} {unit_length}. '
+                        f'If this is not due to erroneous snapshot data or a mismatch '
+                        f'between snapshot and simulation parameters, '
+                        f'you can set the snapshot_wrap parameter to True in order to '
+                        f'have the particle positions wrapped around the periodic box '
+                        f'upon snapshot read-in.'
+                    )
 
 # Function that either loads existing initial conditions from a snapshot
 # or produces the initial conditions itself.

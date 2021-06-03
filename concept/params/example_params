@@ -104,6 +104,7 @@ gadget_snapshot_params = {  # Specifications for output GADGET snapshots
     },
     'settle': 0,                 # Settle for one or the other reported block sizes in case of disagreement
 }
+snapshot_wrap = False  # Wrap particles around the box upon snapshot read-in, allowing for out of bounce particles
 life_output_order = (  # Ordering of component activations/terminations relative to output dumps
     'terminate', 'activate', 'dump',
 )
