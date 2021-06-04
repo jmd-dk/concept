@@ -747,18 +747,18 @@ class Tiling:
                         # Guard against round-off errors for positions
                         # at or very near the higher edge of the
                         # (sub)tile. We have found that introducing
-                        # machine_ϵ as a translation to the numerator
-                        # (as below) rather than as a scaling of the
-                        # denominator works best. Note that this is okay
-                        # at the lower end, as casting a floating-point
+                        # machine_ϵ both as a translation of the
+                        # numerator and as a scaling of the denominator
+                        # works best. Note that this translation is OK
+                        # at the lower edge, as casting a floating-point
                         # value only slightly below 0.0 to an int
                         # results in 0.
                         i = cast((posxˣ[indexˣ] - ℝ[self.location[0]*(1 + machine_ϵ)])
-                            *ℝ[1/self.tile_extent[0]], 'Py_ssize_t')
+                            *ℝ[(1/self.tile_extent[0])*(1 - machine_ϵ)], 'Py_ssize_t')
                         j = cast((posyˣ[indexˣ] - ℝ[self.location[1]*(1 + machine_ϵ)])
-                            *ℝ[1/self.tile_extent[1]], 'Py_ssize_t')
+                            *ℝ[(1/self.tile_extent[1])*(1 - machine_ϵ)], 'Py_ssize_t')
                         k = cast((poszˣ[indexˣ] - ℝ[self.location[2]*(1 + machine_ϵ)])
-                            *ℝ[1/self.tile_extent[2]], 'Py_ssize_t')
+                            *ℝ[(1/self.tile_extent[2])*(1 - machine_ϵ)], 'Py_ssize_t')
                         # The tile_index is given by
                         # self.layout[i, j, k], but as an optimization
                         # we compute it ourselves.
