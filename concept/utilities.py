@@ -525,7 +525,7 @@ def info():
             # as it is grepped for by several of the Bash utilities.
             heading = '\nParameters of "{}"'.format(sensible_path(snapshot_filename))
             masterprint(terminal.bold(heading), wrap=False)
-            with open(parameter_filename, 'w') as pfile:
+            with open_file(parameter_filename, mode='w') as pfile:
                 masterprint('# Auto-generated parameter file for the snapshot\n# "{}"\n'
                             .format(snapshot_filename), file=pfile, wrap=False)
                 # Loop over stdout and the new parameter file

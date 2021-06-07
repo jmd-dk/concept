@@ -2930,7 +2930,7 @@ def get_wisdom_filename(gridsize):
         fftw_version = '<unknown>'
         fftw_pkgconfig_filename = paths['fftw_dir'] + f'/lib/pkgconfig/fftw3.pc'
         if os.path.exists(fftw_pkgconfig_filename):
-            with open(fftw_pkgconfig_filename, 'r') as fftw_pkgconfig_file:
+            with open_file(fftw_pkgconfig_filename, mode='r') as fftw_pkgconfig_file:
                 content = fftw_pkgconfig_file.read()
             match = re.search('Version.*?([0-9].*)', content)
             if match:

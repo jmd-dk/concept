@@ -4367,7 +4367,7 @@ for (varname,
             pattern = rf'(^|[^0-9a-zA-Z_]){varname}\s*=\s*(.*?)(/\*| |//|;|\n|$)'
         filename_abs = rf'{paths["class_dir"]}/{filename}'
         try:
-            with open(filename_abs, 'r') as class_file:
+            with open_file(filename_abs, mode='r') as class_file:
                 value = type(default_value)(re.search(pattern, class_file.read())
                                             .group(2).strip('"'))
         except:

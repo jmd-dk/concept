@@ -3490,7 +3490,7 @@ class Component:
                 # This should be written in the header of the file.
                 pattern = r'[a-zA-Z_]*\s*(?:\(\s*[a-zA-Z0-9\._]+\s*\))?'
                 done_reading_w = False
-                with open(w, 'r', encoding='utf-8') as w_file:
+                with open_file(w, mode='r', encoding='utf-8') as w_file:
                     while True:
                         line = w_file.readline().lstrip()
                         if line and not line.startswith('#'):

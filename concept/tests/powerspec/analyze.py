@@ -64,7 +64,7 @@ if abs(erf(1/sqrt(2)) - sum(abs(counts_contrast) < σ)/counts_contrast.size) > 0
 powerspec_filename = '{}/{}_{}'.format(this_dir,
                                        output_bases['powerspec'],
                                        os.path.basename(os.path.splitext(initial_conditions)[0]))
-with open(powerspec_filename, encoding='utf-8') as powespec_file:
+with open_file(powerspec_filename, mode='r', encoding='utf-8') as powespec_file:
     search = None
     while not search:
         header = powespec_file.readline()

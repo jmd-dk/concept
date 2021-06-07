@@ -824,7 +824,7 @@ def get_base_timestep_size(components, static_timestepping_func=None):
         if t + Δt_max < cosmic_time(1):
             Δa_max = scale_factor(t + Δt_max) - a
             n = int(ceil(log10(1/Δt_reltol) + 0.5))
-            with open(static_timestepping, 'a', encoding='utf-8') as f:
+            with open_file(static_timestepping, mode='a', encoding='utf-8') as f:
                 if f.tell() == 0:
                     static_timestepping_header = [
                         f'Time-stepping recorded by CO𝘕CEPT job {jobid}',
@@ -1831,7 +1831,10 @@ def autosave(components, time_step, Δt, Δt_begin):
                 f'output_times = {remaining_output_times}',
             ]
         # Write to parameter file
-        with open(autosave_params_filename, 'w', encoding='utf-8') as autosave_params_file:
+        with open_file(
+            autosave_params_filename,
+            mode='w', encoding='utf-8',
+        ) as autosave_params_file:
             print('\n'.join(param_lines), file=autosave_params_file)
         masterprint('done')
     # Save CO𝘕CEPT snapshot. Include all components regardless

@@ -146,7 +146,7 @@ installer_functions="             \
 "
 function_definitions="$("${python}" -B -c "
 import re, sys
-with open('${installer}', 'r', encoding='utf-8') as file:
+with open('${installer}', mode='r', encoding='utf-8') as file:
     installer_content = file.read()
 for installer_function in '${installer_functions}'.split():
     print(re.search(rf'{installer_function}\(\).*?\n}}', installer_content, flags=re.DOTALL).group())

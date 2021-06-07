@@ -184,7 +184,7 @@ selected_component_combination = '${component_combination}'
 # The ANSI ESC character
 ANSI_ESC = '\x1b'
 # Read in the entire log file
-with open(path) as fname:
+with open(path, mode='r') as fname:
     text = fname.read()
 # Find all 2D terminal rendered component combinations
 component_combinations = []

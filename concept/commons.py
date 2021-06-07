@@ -343,6 +343,10 @@ def get_matplotlib():
         'xtick.direction': 'out',
         'ytick.direction': 'out',
     })
+    # Monkey patch I/O functions so that exceptions trigger abort
+    plt.imread  = tryexcept_wrapper(plt.imread,  'plt.imread() failed')
+    plt.imsave  = tryexcept_wrapper(plt.imsave,  'plt.imsave() failed')
+    plt.savefig = tryexcept_wrapper(plt.savefig, 'plt.savefig() failed')
     # Patch a bug about automatic minor tick labels by monkey patching
     # plt.tight_layout() and plt.savefig().
     # The bug is reported here:
@@ -389,6 +393,20 @@ def get_matplotlib():
     return matplotlib
 # Global store for the matplotlib module
 matplotlib_cache = []
+# The relaxed attitude of Cython towards exceptions means that many of
+# these are ignored. This is a problem for I/O errors, as these then
+# cause CO𝘕CEPT to hang when running with multiple processes.
+# Monkey patch various functions for I/O with explicit exception
+# handling and MPI abort on error.
+def tryexcept_wrapper(func, abort_msg=''):
+    def inner(*args, **kwargs):
+        try:
+            val = func(*args, **kwargs)
+        except BaseException:
+            traceback.print_exc()
+            abort(abort_msg)
+        return val
+    return inner
 
 
 
@@ -1449,7 +1467,7 @@ jobid = int(argd.get('jobid', -1))
 cython.declare(params_file_content=str)
 params_file_content = ''
 if master and os.path.isfile(paths['params_cp']):
-    with open(paths['params_cp'], encoding='utf-8') as params_file:
+    with open(paths['params_cp'], mode='r', encoding='utf-8') as params_file:
         params_file_content = params_file.read()
 params_file_content = bcast(params_file_content)
 # Often, h ≡ H0/(100*km/(s*Mpc)) is used in unit specifications.
@@ -4493,7 +4511,7 @@ get_shortrange_param_cache = {}
 # Context manager which suppresses all output to stdout
 @contextlib.contextmanager
 def suppress_stdout(f=sys.stdout):
-    with open(os.devnull, 'w') as devnull:
+    with open(os.devnull, mode='w') as devnull:
         # Point sys.stdout to /dev/null
         sys.stdout = devnull
         try:
@@ -4518,8 +4536,43 @@ def get_integerset_strrep(integers):
             intervals.append(unicode(f'{interval[0]}–{interval[-1]}'))
     return ', '.join(map(str, intervals))
 
-# Function which should be used when opening hdf5 files
-def open_hdf5(filename, **kwargs):
+# Function decorator cache equivalent to functools.lru_cache,
+# but extended with copying functionality (when called with copy=True)
+# so that the returned object is freshly instantiated,
+# handy if the returned object is mutable.
+def lru_cache(maxsize=128, typed=False, copy=False):
+    if not copy:
+        return functools.lru_cache(maxsize, typed)
+    def decorator(f):
+        cached_func = functools.lru_cache(maxsize, typed)(f)
+        @functools.wraps(f)
+        def wrapper(*args, **kwargs):
+            return deepcopy(cached_func(*args, **kwargs))
+        return wrapper
+    return decorator
+
+# The terminal object from blessings is used for formatted printing.
+# If this is disabled, we replace the terminal object
+# with a dummy object.
+if not enable_terminal_formatting:
+    class DummyTerminal:
+        @staticmethod
+        def dummy_func(x):
+            return x
+        def __getattr__(self, att):
+            return self.dummy_func
+    terminal = DummyTerminal()
+
+# As already done for some pyplot methods, monkey patch I/O functions
+# so that exceptions lead to abort.
+open_file   = tryexcept_wrapper(open,        'open() failed')  # must not overwrite the standard "open"
+os.makedirs = tryexcept_wrapper(os.makedirs, 'os.makedirs() failed')
+np.load     = tryexcept_wrapper(np.load,     'np.load() failed')
+np.save     = tryexcept_wrapper(np.save,     'np.save() failed')
+np.loadtxt  = tryexcept_wrapper(np.loadtxt,  'np.loadtxt() failed')
+np.savetxt  = tryexcept_wrapper(np.savetxt,  'np.savetxt() failed')
+# For h5py.File the monkey patch is more involved
+def open_hdf5(filename, raise_exception=False, **kwargs):
     """This function is equivalent to just doing
     h5py.File(filename, **kwargs)
     except that it will not throw an exception if the file is
@@ -4558,8 +4611,11 @@ def open_hdf5(filename, **kwargs):
                 h5py.File(filename, **kwargs_noncollective).close()
                 break
             except OSError as e:
-                if 'File exists' not in str(e):
+                if raise_exception:
                     raise e
+                if 'File exists' not in str(e):
+                    traceback.print_exc()
+                    abort('h5py.File() failed')
             if sleep_time == sleep_time_min:
                 masterprint(
                     f'File "{filename}" is temporarily unavailable, '
@@ -4581,45 +4637,8 @@ def open_hdf5(filename, **kwargs):
         return open_hdf5(filename, **kwargs)
     return hdf5_file
 
-# Function decorator cache equivalent to functools.lru_cache,
-# but extended with copying functionality (when called with copy=True)
-# so that the returned object is freshly instantiated,
-# handy if the returned object is mutable.
-def lru_cache(maxsize=128, typed=False, copy=False):
-    if not copy:
-        return functools.lru_cache(maxsize, typed)
-    def decorator(f):
-        cached_func = functools.lru_cache(maxsize, typed)(f)
-        @functools.wraps(f)
-        def wrapper(*args, **kwargs):
-            return deepcopy(cached_func(*args, **kwargs))
-        return wrapper
-    return decorator
 
-# The terminal object from blessings is used for formatted printing.
-# If this is disabled, we replace the terminal object
-# with a dummy object.
-if not enable_terminal_formatting:
-    class DummyTerminal:
-        @staticmethod
-        def dummy_func(x):
-            return x
-        def __getattr__(self, att):
-            return self.dummy_func
-    terminal = DummyTerminal()
 
-# Some times, the MPI environment can make erroneous file system
-# operations halt, rather than fail normally. Here we monkey patch
-# os.makedirs to abort the program on failure.
-def tryexcept_wrapper(func, abort_msg=''):
-    def inner(*args, **kwargs):
-        try:
-            func(*args, **kwargs)
-        except Exception:
-            traceback.print_exc()
-            abort(abort_msg)
-    return inner
-os.makedirs = tryexcept_wrapper(os.makedirs, 'os.makedirs() failed')
 
 
 

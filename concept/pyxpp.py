@@ -303,7 +303,7 @@ def cython_structs(lines, no_optimization):
     # from commons.py:
     def get_build_struct():
         build_struct_code = []
-        with open('{}.py'.format(commons_name), 'r', encoding='utf-8') as commonsfile:
+        with open(f'{commons_name}.py', mode='r', encoding='utf-8') as commonsfile:
             indentation = -1
             for line in commonsfile:
                 if line.lstrip().startswith('def build_struct('):
@@ -3005,7 +3005,7 @@ def make_types(filename, no_optimization):
     extension_types = {}
     for other_pyxfile in all_pyxfiles:
         module = other_pyxfile[:-4]
-        with open(other_pyxfile, 'r', encoding='utf-8') as pyxfile:
+        with open(other_pyxfile, mode='r', encoding='utf-8') as pyxfile:
             code = pyxfile.read().split('\n')
         for i, line in enumerate(reversed(code)):
             if line == '# __pyxinfo__':
@@ -3025,7 +3025,7 @@ def make_types(filename, no_optimization):
     # Do not write to the types file
     # if it already has the correct content.
     if os.path.isfile(filename):
-        with open(filename, 'r', encoding='utf-8') as types_file:
+        with open(filename, mode='r', encoding='utf-8') as types_file:
             existing_extension_types_content = types_file.read()
         try:
             existing_extension_types = eval(existing_extension_types_content)
@@ -3034,21 +3034,21 @@ def make_types(filename, no_optimization):
         except:
             print(f'Warning: Could not interpret the content of "{filename}".', file=sys.stderr)
     # Write the dictionary to the types file:
-    with open(filename, 'w', encoding='utf-8') as types_file:
+    with open(filename, mode='w', encoding='utf-8') as types_file:
         types_file.write(str(extension_types))
 
 
 
 def make_pxd(filename, no_optimization):
     # Read in the extension types from the types file
-    with open(filename_types, 'r', encoding='utf-8') as pyxfile:
+    with open(filename_types, mode='r', encoding='utf-8') as pyxfile:
         extension_types_content = pyxfile.read()
     extension_types = eval(extension_types_content)
     # Begin constructing pxd
     header_lines = []
     pxd_filename = filename[:-3] + 'pxd'
     pxd_lines = []
-    with open(filename, 'r', encoding='utf-8') as pyxfile:
+    with open(filename, mode='r', encoding='utf-8') as pyxfile:
         code_str = pyxfile.read()
     code = code_str.split('\n')
     # Add the '# pxd hints' line
@@ -3505,12 +3505,12 @@ def make_pxd(filename, no_optimization):
                        'to the outside world\n']
     # Do not write to pxd if it already exist in the correct state
     if os.path.isfile(pxd_filename):
-        with open(pxd_filename, 'r', encoding='utf-8') as pxdfile:
+        with open(pxd_filename, mode='r', encoding='utf-8') as pxdfile:
             existing_pxd_lines = pxdfile.readlines()
         if total_lines == existing_pxd_lines:
             return
     # Update/create .pxd
-    with open(pxd_filename, 'w', encoding='utf-8') as pxdfile:
+    with open(pxd_filename, mode='w', encoding='utf-8') as pxdfile:
         pxdfile.writelines(total_lines)
 
 
@@ -3545,7 +3545,7 @@ if __name__ == '__main__':
     commons_name = filename_commons[:-3]
     @contextlib.contextmanager
     def suppress_stdout():
-        with open(os.devnull, 'w') as devnull:
+        with open(os.devnull, mode='w') as devnull:
             old_stdout = sys.stdout
             sys.stdout = devnull
             try:
@@ -3559,7 +3559,7 @@ if __name__ == '__main__':
         if filename.endswith('.py'):
             # A .py-file is passed.
             # Read in the lines of the file.
-            with open(filename, 'r', encoding='utf-8') as pyfile:
+            with open(filename, mode='r', encoding='utf-8') as pyfile:
                 lines = pyfile.readlines()
             # Apply transformations on the lines
             lines = cimport_cython               (lines, no_optimization)
@@ -3587,7 +3587,7 @@ if __name__ == '__main__':
             lines = find_extension_types         (lines, no_optimization)
             # Write the modified lines to the .pyx-file
             filename_pyx = filename[:-2] + 'pyx'
-            with open(filename_pyx, 'w', encoding='utf-8') as pyxfile:
+            with open(filename_pyx, mode='w', encoding='utf-8') as pyxfile:
                 pyxfile.writelines(lines)
         elif filename.endswith('.pyx'):
             # A .pyx-file is passed.

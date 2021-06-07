@@ -66,7 +66,7 @@ class ConceptSnapshot:
         # Test for CO𝘕CEPT format by looking up the 'Ωcdm' attribute
         # in the HDF5 data structure.
         try:
-            with open_hdf5(filename, mode='r') as hdf5_file:
+            with open_hdf5(filename, mode='r', raise_exception=True) as hdf5_file:
                 hdf5_file.attrs[unicode('Ωcdm')]
                 return True
         except:
@@ -640,7 +640,7 @@ class GadgetSnapshot:
         # Test for SnapFormat 2 by checking for the existence
         # of the 'HEAD' identifier.
         try:
-            with open(filename, 'rb') as f:
+            with open_file(filename, mode='rb') as f:
                 f.seek(cls.sizes['I'])
                 if cls.block_name_header == struct.unpack(
                     cls.block_name_fmt,
@@ -652,7 +652,7 @@ class GadgetSnapshot:
         # Test for SnapFormat 1 by checking the size
         # of the header block.
         try:
-            with open(filename, 'rb') as f:
+            with open_file(filename, mode='rb') as f:
                 if cls.sizes['header'] == struct.unpack('I', f.read(cls.sizes['I']))[0]:
                     return 1
         except:
@@ -957,7 +957,7 @@ class GadgetSnapshot:
                             if num_write == 0:
                                 continue
                             # Write out data in chunks
-                            with open(filename_i, 'ab') as f:
+                            with open_file(filename_i, mode='ab') as f:
                                 for indexʳ in range(0, size_write, chunk_size):
                                     if indexʳ + chunk_size > size_write:
                                         chunk_size = size_write - indexʳ
@@ -1009,7 +1009,7 @@ class GadgetSnapshot:
                             chunk_size = np.min((num_particle_file_tot, ℤ[self.chunk_size_max//8]))
                             indexᵖ_bgn = id_counter
                             indexᵖ_end = id_counter + num_particle_file_tot
-                            with open(filename_i, 'ab') as f:
+                            with open_file(filename_i, mode='ab') as f:
                                 for indexᵖ in range(indexᵖ_bgn, indexᵖ_end, chunk_size):
                                     if indexᵖ + chunk_size > indexᵖ_end:
                                         chunk_size = indexᵖ_end - indexᵖ
@@ -1268,7 +1268,7 @@ class GadgetSnapshot:
         header = self.header.copy()
         header['Npart'] = num_particles_header
         # Initialize file with HEAD block
-        with open(filename, 'wb') as f:
+        with open_file(filename, mode='wb') as f:
             # Start the HEAD block
             self.write_block_bgn(f, self.sizes['header'], self.block_name_header)
             # Write out header, tallying up its size
@@ -1310,7 +1310,7 @@ class GadgetSnapshot:
         # Call writeout() in accordance with the supplied f
         if isinstance(f, str):
             filename = f
-            with open(filename, 'ab') as f:
+            with open_file(filename, mode='ab') as f:
                 writeout(f)
         else:
             writeout(f)
@@ -1337,7 +1337,7 @@ class GadgetSnapshot:
         # Call writeout() in accordance with the supplied f
         if isinstance(f, str):
             filename = f
-            with open(filename, 'ab') as f:
+            with open_file(filename, mode='ab') as f:
                 writeout(f)
         else:
             writeout(f)
@@ -1510,7 +1510,7 @@ class GadgetSnapshot:
             for i, filename in enumerate(filenames):
                 if i == num_files:
                     break
-                with open(filename, 'rb') as f:
+                with open_file(filename, mode='rb') as f:
                     # Read in and store header
                     header_i, offset_header = self.read_header(f)
                     num_particles_files.append(header_i['Npart'])
@@ -1700,7 +1700,7 @@ class GadgetSnapshot:
             while True:
                 # Find next required block
                 if rank == 0:
-                    with open(filename_i, 'rb') as f:
+                    with open_file(filename_i, mode='rb') as f:
                         while True:
                             # Seek to next block
                             offset_nextblock, block_size, block_name = (
@@ -1779,7 +1779,7 @@ class GadgetSnapshot:
                             offset = recv(source=mod(rank - 1, nprocs))
                         # Read in block data
                         if component is not None and num_read > 0:
-                            with open(filename_i, 'rb') as f:
+                            with open_file(filename_i, mode='rb') as f:
                                 # Seek to where the previous
                                 # process left off.
                                 f.seek(offset)
@@ -1886,7 +1886,7 @@ class GadgetSnapshot:
         # Call readin() in accordance with the supplied f
         if isinstance(f, str):
             filename = f
-            with open(filename, 'rb') as f:
+            with open_file(filename, mode='rb') as f:
                 header, offset = readin(f)
         else:
             header, offset = readin(f)

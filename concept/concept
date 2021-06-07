@@ -983,7 +983,7 @@ fi
 if [ "${params}" != "${params_default}" ]; then
     params_traceback="$("${python}" -B -c "
 import ast
-with open('${params}', 'r', encoding='utf-8') as f:
+with open('${params}', mode='r', encoding='utf-8') as f:
     source = f.read()
 ast.parse(source)
 " 2>&1 || :)"
@@ -1336,7 +1336,7 @@ lines = [
 for statement in '${command_line_params}'.split(';'):
     lines.append(statement.strip())
 lines.append('')
-with open('${params_cp}', 'a') as f:
+with open('${params_cp}', mode='a') as f:
     f.write('\n'.join(lines))
 "
 
