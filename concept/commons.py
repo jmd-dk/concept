@@ -3439,12 +3439,12 @@ if not enable_class_background:
 # and render2D interpolations (order 1 (NGP): 0 ghost layers,
 # 2 (CIC): 1 ghost layer, order 3 (TSC): 1 ghost layer,
 # order 4 (PCS): 2 ghost layers), as well as force differentiations
-# (order 1: 1 ghost layer, order 2: 1 ghost layer, order 3: 2 ghost
-# layers, order 4: 2 ghost layers). One additional ghost layer is
-# required for odd order interpolations in the case of grid interlacing
-# (as the particles are shifted by half a grid cell). Finally,
-# second-order differentiation is used to compute fluid source terms,
-# and so nghosts should always be at least 1.
+# (order 1: 1 ghost layer, order 2: 1 ghost layer, order 4: 2 ghost
+# layers, order 6: 3 ghost layers, order 8: 4 ghost layers).
+# One additional ghost layer is required for odd order interpolations in
+# the case of grid interlacing (as the particles are shifted by half a
+# grid cell). Finally, second-order differentiation is used to compute
+# fluid source terms, and so nghosts should always be at least 1.
 nghosts = 0
 for options in (powerspec_options, render2D_options):
     interpolation_order_option = np.max(list(options['interpolation'].values()))
