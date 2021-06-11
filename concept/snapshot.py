@@ -536,7 +536,7 @@ class GadgetSnapshot:
     ]
     num_particle_types = len(component_names)
     # Ordered fields in the GADGET header,
-    # mapped to their their type and default value.
+    # mapped to their type and default value.
     #   † Unsigned in GADGET-2 user guide but not in source code.
     #     We go with unsigned. We never have Npart large enough for
     #     overflow of signed int when saving, but you never know when

@@ -565,7 +565,7 @@ class CosmoResults:
             # large scales) approximately follows the behaviour of the
             # other species, which simply comes about because the metric
             # is built from the other species. We thus defien the
-            # background density and pressure of the metric to the the
+            # background density and pressure of the metric to be the
             # sum of background densities and pressures of all physical
             # species. To ensure a nice, positive density and pressure,
             # we exclude any species with negative density or pressure.

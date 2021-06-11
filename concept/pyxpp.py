@@ -1938,18 +1938,17 @@ def loop_unswitching(lines, no_optimization):
             yield i, line, match
     def build_ordering_key(indentation_lvl, n, index):
         # This function returns its integer arguments packed into
-        # a tuple. The lexicographical ordering ordering of such
-        # tuples determine the 'nr' in 'unswitch_nr' and thus the
-        # order in which the unswitches are carried out.
-        # The algorithm of this function is such that we need to
-        # perform the outer unswitches before the inner ones,
-        # in case of nested unswitches. Thus, indentation_lvl
-        # should be the first element of the tuple.
-        # For two consecutive unswitches at the same indentation
-        # level, the order in which we carry out the unswitching
-        # does not matter. If we however do the first encountered
-        # unswitch first, the spacing of the comments will remain
-        # correct. Thus index is chosen as the second key in the
+        # a tuple. The lexicographical ordering of such tuples determine
+        # the 'nr' in 'unswitch_nr' and thus the order in which the
+        # unswitches are carried out. The algorithm of this function is
+        # such that we need to perform the outer unswitches before the
+        # inner ones, in case of nested unswitches.
+        # Thus, indentation_lvl should be the first element of
+        # the tuple. For two consecutive unswitches at the same
+        # indentation level, the order in which we carry out the
+        # unswitching does not matter. If we however do the first
+        # encountered unswitch first, the spacing of the comments will
+        # remain correct. Thus index is chosen as the second key in the
         # tuple. As this index is unique to the unswitch, it means
         # that the remaining argument, n, does not play a role.
         # We add it to the key anyway.
