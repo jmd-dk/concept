@@ -53,6 +53,8 @@
 - 'Slim builds' now available.
 
 [Commits since 0.3.0](https://github.com/jmd-dk/concept/compare/v0.3.0...master)
+
+---
 <br/><br/>
 
 
@@ -81,6 +83,8 @@
 - More robust integration with pre-installed MPI libraries.
 
 [Commits since 0.2.1](https://github.com/jmd-dk/concept/compare/v0.2.1...v0.3.0)
+
+---
 <br/><br/>
 
 
@@ -99,6 +103,8 @@
 - CLASS perturbations are now MPI distributed.
 
 [Commits since 0.2.0](https://github.com/jmd-dk/concept/compare/v0.2.0...v0.2.1)
+
+---
 <br/><br/>
 
 
@@ -118,6 +124,8 @@
 - Random numbers for initial condition generation now drawn in shells.
 
 [Commits since 0.1.0](https://github.com/jmd-dk/concept/compare/v0.1.0...v0.2.0)
+
+---
 <br/><br/>
 
 
