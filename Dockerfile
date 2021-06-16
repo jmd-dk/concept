@@ -15,6 +15,7 @@ COPY \
     .env* \
     .gitignore* \
     COPYING* \
+    CHANGELOG.md* \
     Dockerfile* \
     README.md* \
     installer \

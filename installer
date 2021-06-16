@@ -2855,12 +2855,11 @@ if [ "${concept_version_specified}" == "True" ]; then
                 ".gitignore" \
                 ".paths"     \
                 "Dockerfile" \
-                "README.md"  \
                 "concept"    \
                 "installer"  \
             )
             if [ "${slim}" != "True" ]; then
-                files=("${files[@]}" "COPYING")
+                files=("${files[@]}" "CHANGELOG.md" "COPYING" "README.md")
             fi
             for f in "${files[@]}"; do
                 f="${top_dir_supplied}/${f}"
