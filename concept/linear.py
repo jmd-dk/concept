@@ -2880,8 +2880,10 @@ def get_k_magnitudes(gridsize):
     cached = k_magnitudes_cache.get(gridsize)
     if cached is not None:
         return cached
-    if gridsize < 2:
-        abort(f'get_k_magnitudes() got gridsize = {gridsize} < 2')
+    # As we ignore the Nyquist points, (nyquist - 1) needs to be
+    # positive, requiring gridsize >= 4.
+    if gridsize < 4:
+        abort(f'get_k_magnitudes() got gridsize = {gridsize} < 4')
     # Minimum and maximum k
     k_min = ℝ[2*π/boxsize]
     nyquist = gridsize//2

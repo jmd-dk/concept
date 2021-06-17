@@ -4178,6 +4178,8 @@ def init_tiling(component, tiling_name, initial_rung_size=-1):
     #   tilings have immediate neighbour tiles which are different
     #   from each other (and the tile in question itself).
     #   We thus need at least 3 tiles along each dimension per tiling.
+    #   This restriction is really for the entire, global tiling,
+    #   not for the individual domain tilings.
     # - The shortest path between pairs of particles in different tiles
     #   may either be the "direct" path or a path through the periodic
     #   boundary of the box. With 3 tiles (or lower) along each
@@ -4187,16 +4189,7 @@ def init_tiling(component, tiling_name, initial_rung_size=-1):
     #   generally tell us whether to use the "direct" or the periodic
     #   path, but the implemented logic for the particle periodicity in
     #   fact assumes that it can. We thus really need at least 4 tiles
-    #   along each dimension across the entire box (not for individual
-    #   domain tilings).
-    if np.min(shape) < 3:
-        message = [
-            f'The {force} domain tiling needs a subdivision of at least 3 in every direction. '
-            f'Consider lowering shortrange_params["{force}"]["tilesize"].'
-        ]
-        if 1 != nprocs != int(round(cbrt(nprocs)))**3:
-            message.append('It may also help to choose a lower and/or cubic number of processes.')
-        abort(' '.join(message))
+    #   along each dimension of the global tiling, not just 3.
     if np.min(asarray(shape)*asarray(domain_subdivisions)) < 4:
         abort(
             f'The global {force} tiling needs to have at least 4 tiles across the box in '
