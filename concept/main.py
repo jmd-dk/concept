@@ -407,7 +407,7 @@ def timeloop():
                     recompute_Δt_max = False
                     continue
                 # Check whether the base time step should be increased
-                if (Δt_max > ℝ[1 + Δt_period_increase_min_fac]*Δt
+                if (Δt_max > Δt_increase_min_factor*Δt
                     and (time_step + 1 - time_step_last_sync) >= Δt_period
                 ):
                     # We should synchronize, whereafter the
@@ -618,7 +618,9 @@ def prepare_static_timestepping():
     # Locals
     H='double',
     a='double',
+    a_next='double',
     bottleneck=str,
+    bottleneck_hubble=str,
     component='Component',
     extreme_force=str,
     force=str,
@@ -641,6 +643,8 @@ def prepare_static_timestepping():
     Δt_pm='double',
     Δt_ẇ='double',
     Δx_max='double',
+    Δt_Δa_early='double',
+    Δt_Δa_late='double',
     ρ_bar='double',
     ρ_bar_component='double',
     returns=tuple,
@@ -702,12 +706,29 @@ def get_base_timestep_size(components, static_timestepping_func=None):
     if Δt_dynamical < Δt_max:
         Δt_max = Δt_dynamical
         bottleneck = 'the dynamical timescale'
-    # The Hubble time
+    # Maximum allowed Δa at late times
     if enable_Hubble:
+        a_next = a + Δa_max_late
+        if a_next < 1:
+            Δt_Δa_late = Δt_base_background_factor*(cosmic_time(a_next) - t)
+            if Δt_Δa_late < Δt_max:
+                Δt_max = Δt_Δa_late
+                bottleneck = 'the maximum allowed Δa (late)'
+    # The Hubble time and maximum allowed Δa at early times
+    if enable_Hubble:
+        # The Hubble time
         Δt_hubble = fac_hubble/H
+        bottleneck_hubble = 'the Hubble time'
+        # Constant Δa overrule Hubble at early times
+        a_next = a + Δa_max_early
+        if a_next < 1:
+            Δt_Δa_early = Δt_base_background_factor*(cosmic_time(a_next) - t)
+            if Δt_Δa_early > Δt_hubble:
+                Δt_hubble = Δt_Δa_early
+                bottleneck_hubble = 'the maximum allowed Δa (early)'
         if Δt_hubble < Δt_max:
             Δt_max = Δt_hubble
-            bottleneck = 'the Hubble time'
+            bottleneck = bottleneck_hubble
     # 1/abs(ẇ)
     for component in components:
         if component.representation == 'fluid' and component.is_linear(0):
@@ -892,19 +913,13 @@ def update_base_timestep_size(
         period_frac = 1
     elif period_frac < 0:
         period_frac = 0
-    Δt_tmp = (1 + period_frac*Δt_period_increase_max_fac)*Δt
+    Δt_tmp = (1 + period_frac*ℝ[Δt_increase_max_factor - 1])*Δt
     if Δt_new > Δt_tmp:
         Δt_new = Δt_tmp
     # If close to a = 1, leave Δt as is
     if enable_Hubble and universals.t + Δt_new > cosmic_time(1):
         bottleneck = 'a ≈ 1'
         return Δt, bottleneck
-    # Reject Δt_new if accepting it brings Δa above Δa_max_increasing
-    if enable_Hubble and Δa_max_increasing > 0:
-        Δa_new = scale_factor(universals.t + Δt_new) - universals.a
-        if Δa_new > Δa_max_increasing:
-            bottleneck = 'maximum allowed Δa'
-            return Δt, bottleneck
     # Accept Δt_new. As the base time step size
     # has been increased, there is no bottleneck.
     bottleneck = ''
@@ -2193,8 +2208,7 @@ cython.declare(
     Δt_initial_fac='double',
     Δt_reduce_fac='double',
     Δt_increase_fac='double',
-    Δt_period_increase_max_fac='double',
-    Δt_period_increase_min_fac='double',
+    Δt_increase_min_factor='double',
     Δt_ratio_warn='double',
     Δt_ratio_abort='double',
     Δt_jump_fac='double',
@@ -2212,12 +2226,9 @@ cython.declare(
 # When increasing Δt, set it to the maximum allowed value
 # times this factor.
 Δt_increase_fac = 0.96
-# The maximum allowed fractional increase in Δt
-# after Δt_period time steps with constant time step size.
-Δt_period_increase_max_fac = 0.33
-# The minimum fractional increase in Δt needed before it is deemed
+# The minimum factor with which Δt should increase before it is deemed
 # worth it to synchronize drifts/kicks and update Δt.
-Δt_period_increase_min_fac = 0.01
+Δt_increase_min_factor = 1.01
 # Ratios between old and new Δt, below which the program
 # will show a warning or abort, respectively.
 Δt_ratio_warn  = 0.7
@@ -2270,10 +2281,10 @@ cython.declare(
 )
 # The base time step should be below the dynamic time scale
 # times this factor.
-fac_dynamical = 0.057*Δt_base_background_factor
+fac_dynamical = 0.056*Δt_base_background_factor
 # The base time step should be below the current Hubble time scale
 # times this factor.
-fac_hubble = 0.16*Δt_base_background_factor
+fac_hubble = 0.031*Δt_base_background_factor
 # The base time step should be below |ẇ|⁻¹ times this factor,
 # for all components. Here w is the equation of state parameter.
 fac_ẇ = 0.0017*Δt_base_background_factor

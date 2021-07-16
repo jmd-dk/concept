@@ -2137,8 +2137,10 @@ cython.declare(
     # Simulation options
     Δt_base_background_factor='double',
     Δt_base_nonlinear_factor='double',
+    Δt_increase_max_factor='double',
     Δt_rung_factor='double',
-    Δa_max_increasing='double',
+    Δa_max_early='double',
+    Δa_max_late='double',
     static_timestepping=object,  # str, callable or None
     N_rungs='Py_ssize_t',
     fftw_wisdom_rigor=str,
@@ -3034,10 +3036,14 @@ user_params['select_softening_length'] = select_softening_length
 user_params['Δt_base_background_factor'] = Δt_base_background_factor
 Δt_base_nonlinear_factor = float(user_params.get('Δt_base_nonlinear_factor', 1))
 user_params['Δt_base_nonlinear_factor'] = Δt_base_nonlinear_factor
+Δt_increase_max_factor = float(user_params.get('Δt_increase_max_factor', ထ))
+user_params['Δt_increase_max_factor'] = Δt_increase_max_factor
 Δt_rung_factor = float(user_params.get('Δt_rung_factor', 1))
 user_params['Δt_rung_factor'] = Δt_rung_factor
-Δa_max_increasing = float(user_params.get('Δa_max_increasing', 0.022))
-user_params['Δa_max_increasing'] = Δa_max_increasing
+Δa_max_early = float(user_params.get('Δa_max_early', 0.00153))
+user_params['Δa_max_early'] = Δa_max_early
+Δa_max_late = float(user_params.get('Δa_max_late', 0.022))
+user_params['Δa_max_late'] = Δa_max_late
 static_timestepping = user_params.get('static_timestepping')
 if static_timestepping == '':
     static_timestepping = None
@@ -4707,6 +4713,18 @@ for key, d in shortrange_params.items():
             d['subtiling'] = (subtiling[0], subtiling_refinement_period_min)
     else:
         abort(f'Could not understand shortrange_params["{key}"]["subtiling"] == {subtiling}')
+# The time step size must be allowed to increase
+if Δt_increase_max_factor <= 1:
+    abort(f'You must have Δt_increase_max_factor > 1')
+# The maximum allowed Δa at late times is supposed to be bigger than the
+# maximum allowed value of Δa at early times,
+# and they must both be positive.
+if Δa_max_early <= 0:
+    abort('You must have Δa_max_early > 0')
+if Δa_max_late <= 0:
+    abort('You must have Δa_max_late > 0')
+if Δa_max_early > Δa_max_late:
+    masterwarn(f'You have Δa_max_early = {Δa_max_early} > Δa_max_late = {Δa_max_late}')
 # Static time-stepping (both recording and application) uses scale
 # factor values and this requires the Hubble expansion to be enabled.
 if static_timestepping is not None and not enable_Hubble:

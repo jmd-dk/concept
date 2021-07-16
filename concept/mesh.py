@@ -2651,7 +2651,7 @@ def nullify_modes(slab, nullifications):
             # always located as the first element on the master process.
             if master:
                 slab_ptr[0] = 0  # real part
-                slab_ptr[1] = 0  # real part
+                slab_ptr[1] = 0  # imag part
         elif nullification == 'nyquist':
             # Nullify the three Nyquist planes ki = -nyquist,
             # kj = -nyquist and kk = +nyquist. These planes overlap

@@ -22,6 +22,7 @@
   - Toggleable deconvolution.
 - Full GADGET snapshot support.
 - Switch to B-spline particle softening and only soften the Newtonian force.
+- History-independent time step size.
 - [Docker images](https://hub.docker.com/r/jmddk/concept/).
 - 'Paired-and-fixed' initial conditions.
 - Linear *N*-body gauge power spectrum output.
