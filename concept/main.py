@@ -651,19 +651,27 @@ def prepare_static_timestepping():
 )
 def get_base_timestep_size(components, static_timestepping_func=None):
     """This function computes the maximum allowed size
-    of the base time step Δt. The time step limiters come in three
-    categories; global limiters, component limiters and
-    particle/fluid element limiters. For each limiter, the value of Δt
-    should not exceed a small fraction of the following.
+    of the base time step Δt. The time step limiters come in two
+    categories; Background limiters and non-linear limiters. The
+    background limiters are further categorised into global and
+    component-wise limiters.
+    Each limiter corresponds to a time scale. The value of Δt should
+    then not exceed a small fraction of any of these time scales.
     Background limiters:
       Global background limiters:
-      - The dynamical time scale.
-      - The Hubble time (≃ present age of the universe)
-        if Hubble expansion is enabled.
+      - The dynamical (gravitational) time scale (G*ρ)**(-1/2).
+      - The value of Δt that amounts to a fixed value for Δa. Though
+        this applies for all times, we refer to this as the "late Δa"
+        limiter, as we have a similar (sub)limiter with a smaller value
+        for Δa.
+      - Combined Δa (early) and Hubble limiter: This limiter takes the
+        maximum value of two sub-limiters; the value of Δt that amounts
+        to a fixed value for Δa ("early"), and a fraction of
+        the Hubble time.
       Component background limiters:
-      - 1/abs(ẇ) for every component, so that the transition from
-        relativistic to non-relativistic happens smoothly.
-      - The reciprocal decay rate of each matter component, weighted
+      - 1/abs(ẇ) for every non-linear component, so that the transition
+        from relativistic to non-relativistic happens smoothly.
+      - The reciprocal decay rate of each non-linear component, weighted
         with their current total mass (or background density) relative
         to all matter.
     Non-linear limiters:
@@ -674,9 +682,9 @@ def get_base_timestep_size(components, static_timestepping_func=None):
       would take to traverse a PM grid cell for a particle/fluid element
       with the rms velocity of all particles/fluid elements within a
       given component.
-    - For particle components using the P³M method: The time it
-      would take to traverse the long/short-range force split scale for
-      a particle with the rms velocity of all particles within a
+    - For particle components using the P³M method: The time it would
+      take to traverse the long/short-range force split scale for a
+      particle with the rms velocity of all particles within a
       given component.
     The return value is a tuple containing the maximum allowed Δt and a
     str stating which limiter is the bottleneck.
@@ -705,7 +713,7 @@ def get_base_timestep_size(components, static_timestepping_func=None):
     Δt_dynamical = fac_dynamical/(sqrt(G_Newton*ρ_bar) + machine_ϵ)
     if Δt_dynamical < Δt_max:
         Δt_max = Δt_dynamical
-        bottleneck = 'the dynamical timescale'
+        bottleneck = 'the dynamical time scale'
     # Maximum allowed Δa at late times
     if enable_Hubble:
         a_next = a + Δa_max_late
