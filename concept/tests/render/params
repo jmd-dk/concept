@@ -1,8 +1,7 @@
 # Directory of this parameter file (non-parameter variable)
 _this_dir = os.path.dirname(paths['params'])
 
-# Fake parameter used to control number of particles
-# and render2D terminal resolution.
+# Fake parameter used to control the number of particles
 _size = 64
 
 # Input/output
@@ -24,8 +23,8 @@ a_begin = 0.02
 select_forces = {'matter': {'gravity': 'pm'}}
 
 # Simulation options
-random_generator = 'PCG64'
-random_seed      = 5  # A value of 5 results in nice looking 2D renders
+random_generator = 'PCG64DXSM'
+random_seed      = 2  # 2 (with PCG64DXSM) results in nice looking 2D renders
 
 # Graphics
 terminal_width = 80

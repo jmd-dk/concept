@@ -54,7 +54,7 @@ cimport(
 @cython.cclass
 class PseudoRandomNumberGenerator:
     # Find all bit stream generators available in NumPy,
-    # e.g. 'PCG64' (Permuted Congruential Generator)
+    # e.g. 'PCG64DXSM' (Permuted Congruential Generator)
     # and 'MT19937' (Mersenne Twister).
     streams = {}
     for name, attr in vars(np.random).items():
@@ -96,6 +96,15 @@ class PseudoRandomNumberGenerator:
         self.cache_size = 2**12
         # Look up requested bit stream generator
         generator = self.streams.get(stream)
+        if generator is None and stream == 'PCG64DXSM':
+            # Older versions of NumPy do not have the DXSM version
+            # of PCG64. Allow falling back to the older PCG64 version.
+            masterwarn(
+                f'Pseudo-random bit generator "{stream}" not available in NumPy. '
+                f'Falling back to "PCG64".'
+            )
+            stream = 'PCG64'
+            generator = self.streams.get(stream)
         if generator is None:
             streams_str = ', '.join([f'"{stream}"' for stream in self.streams])
             abort(

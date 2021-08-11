@@ -1,5 +1,5 @@
 # Base
-FROM debian:10.9-slim
+FROM debian:10.10-slim
 SHELL ["/usr/bin/env", "bash", "-c"]
 CMD ["bash"]
 

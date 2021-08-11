@@ -16,5 +16,5 @@ H0      = 67*km/s/Mpc
 a_begin = 0.1
 
 # Simulation options
-random_generator = 'PCG64'
+random_generator = 'PCG64DXSM'
 random_seed      = 0

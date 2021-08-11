@@ -392,15 +392,15 @@ if [ -n "${concept_version}" ]; then
     concept_version_specified="True"
 fi
 set_version "concept"           "master"
-set_version "blas"              "0.3.15"  "0.3.15"
+set_version "blas"              "0.3.17"  "0.3.17"
 set_version "class"             "2.7.2"
 set_version "fftw"              "3.3.9"   "3.3.9"
 set_version "fftw_for_gadget"   "2.1.5"   "2.1.5"   # Do not change
-set_version "freetype"          "2.10.4"  "2.10.4"
+set_version "freetype"          "2.11.0"  "2.11.0"
 set_version "gadget"            "2.0.7"             # Do not change
 set_version "gsl"               "2.7"     "2.7"
-set_version "hdf5"              "1.12.0"
-set_version "libffi"            "3.3"     "3.3"
+set_version "hdf5"              "1.12.1"
+set_version "libffi"            "3.4.2"   "3.3"
 if [ "${mpi}" == "mpich" ]; then
     set_version "mpi"           "3.4.2"   "3.4.2"
 elif [ "${mpi}" == "openmpi" ]; then
@@ -409,24 +409,24 @@ fi
 set_version "ncurses"           "6.2"     "6.2"
 set_version "openssl"           "1.1.1k"  "1.1.1j"
 set_version "perl"              "5.34.0"
-set_version "python"            "3.9.5"
+set_version "python"            "3.9.6"
 set_version "zlib"              "1.2.11"  "1.2.11"
 # Python packages
 set_version "blessings"         "1.7"
-set_version "cython"            "0.29.23"
+set_version "cython"            "0.29.24"
 set_version "cythongsl"         "0.2.2"
-set_version "h5py"              "3.2.1"
+set_version "h5py"              "3.3.0"
 set_version "matplotlib"        "3.4.2"
 set_version "mpi4py"            "3.0.3"
-set_version "numpy"             "1.20.3"
-set_version "pip"               "21.1.2"
-set_version "scipy"             "1.6.3"
-set_version "setuptools"        "57.0.0"
-set_version "sphinx"            "4.0.2"
-set_version "sphinx_copybutton" "0.3.3"
+set_version "numpy"             "1.21.1"
+set_version "pip"               "21.2.3"
+set_version "scipy"             "1.7.1"
+set_version "setuptools"        "57.4.0"
+set_version "sphinx"            "4.1.2"
+set_version "sphinx_copybutton" "0.4.0"
 set_version "sphinx_rtd_theme"  "0.5.2"
-set_version "sphinx_tabs"       "3.1.0"
-set_version "wheel"             "0.36.2"
+set_version "sphinx_tabs"       "3.2.0"
+set_version "wheel"             "0.37.0"
 # Note that the versions may be changed further down due to known
 # compatibility issues between specific versions of the above programs
 # and specific versions of system dependencies.
@@ -3216,7 +3216,8 @@ fi
 # libffi
 if [ "${libffi_install}" == "True" ]; then
     if [ -z "${libffi_url}" ]; then
-        libffi_url="ftp://sourceware.org/pub/libffi/libffi-${libffi_version}.tar.gz"
+        libffi_url="https://github.com/libffi/libffi/releases/\
+download/v${libffi_version}/libffi-${libffi_version}.tar.gz"
     fi
     # Check if already installed and/or downloaded
     check_progress "libffi"
@@ -6797,29 +6798,6 @@ Attempting to install Cython with compiler=${compiler}\n\n"
                 || :
         fi
     fi
-    # Certain macro expansions leave __Pyx_UnicodeContainsUCS4() in
-    # StringTools.c without a return statement. This will probably
-    # be fixed by Cython 0.29.24. Relevant issue:
-    #   https://github.com/cython/cython/issues/3925
-    cython_file="Utility/StringTools.c"
-    set_cython_dir "${cython_file}"
-    if [ -f "${cython_dir}/${cython_file}" ]; then
-        pattern=' __Pyx_UnicodeContainsUCS4 *\\(.*\\{'
-        linenr_bgn=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
-            "${cython_dir}/${cython_file}" | head -n 1 || :)
-        pattern='^\\}'
-        linenrs_end=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
-            "${cython_dir}/${cython_file}" || :)
-        if [ -n "${linenrs_end}" ]; then
-            new_line='\    return 0;'
-            for linenr_end in ${linenrs_end}; do
-                if [ ${linenr_end} -gt ${linenr_bgn} ]; then
-                    sed -i "${linenr_end}i${new_line}" "${cython_dir}/${cython_file}" || :
-                    break
-                fi
-            done
-        fi
-    fi
     reset_environment
 fi
 
@@ -7045,6 +7023,7 @@ if [ "${scipy_install}" == "True" ] && [ "${scipy_installed}" == "False" ] \
     # install this Python package now.
     dependencies=( \
         "pybind11" \
+        "pythran"  \
     )
     pip_install_pypackage_dependencies "SciPy"
     # The testing of SciPy depends on other Python packages
