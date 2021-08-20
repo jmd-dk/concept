@@ -25,7 +25,7 @@ jobs:
                 echo ".git" >> .dockerignore
                 docker build --pull --no-cache -t concept:test-build .
           - name: 🤖 Run test suite
-            run: docker run --rm -e make_jobs="-j 1" concept:test-build concept -t all
+            run: docker run -e make_jobs="-j 1" --rm concept:test-build concept -t all
           - name: 📖 Build docs
             run: docker run --rm concept:test-build make docs
           - name: 🐋 Push Docker image

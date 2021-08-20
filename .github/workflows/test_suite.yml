@@ -32,6 +32,7 @@ jobs:
             run: |
                 docker run \
                     -e GITHUB_JOB \
+                    -e make_jobs="-j 1" \
                     -v "${GITHUB_WORKSPACE}":/github \
                     --rm \
                     ${docker_username}/concept:latest \
@@ -75,6 +76,7 @@ jobs:
             run: |
                 docker run \
                     -e GITHUB_JOB \
+                    -e make_jobs="-j 1" \
                     -v "${GITHUB_WORKSPACE}":/github \
                     --rm \
                     ${docker_username}/concept:latest \
@@ -110,6 +112,7 @@ jobs:
             run: |
                 docker run \
                     -e GITHUB_JOB \
+                    -e make_jobs="-j 1" \
                     -v "${GITHUB_WORKSPACE}":/github \
                     --rm \
                     ${docker_username}/concept:latest \
@@ -145,6 +148,7 @@ jobs:
             run: |
                 docker run \
                     -e GITHUB_JOB \
+                    -e make_jobs="-j 1" \
                     -v "${GITHUB_WORKSPACE}":/github \
                     --rm \
                     ${docker_username}/concept:latest \
@@ -180,6 +184,7 @@ jobs:
             run: |
                 docker run \
                     -e GITHUB_JOB \
+                    -e make_jobs="-j 1" \
                     -v "${GITHUB_WORKSPACE}":/github \
                     --rm \
                     ${docker_username}/concept:latest \
@@ -215,6 +220,7 @@ jobs:
             run: |
                 docker run \
                     -e GITHUB_JOB \
+                    -e make_jobs="-j 1" \
                     -v "${GITHUB_WORKSPACE}":/github \
                     --rm \
                     ${docker_username}/concept:latest \
@@ -250,6 +256,7 @@ jobs:
             run: |
                 docker run \
                     -e GITHUB_JOB \
+                    -e make_jobs="-j 1" \
                     -v "${GITHUB_WORKSPACE}":/github \
                     --rm \
                     ${docker_username}/concept:latest \
@@ -285,6 +292,7 @@ jobs:
             run: |
                 docker run \
                     -e GITHUB_JOB \
+                    -e make_jobs="-j 1" \
                     -v "${GITHUB_WORKSPACE}":/github \
                     --rm \
                     ${docker_username}/concept:latest \
@@ -320,6 +328,7 @@ jobs:
             run: |
                 docker run \
                     -e GITHUB_JOB \
+                    -e make_jobs="-j 1" \
                     -v "${GITHUB_WORKSPACE}":/github \
                     --rm \
                     ${docker_username}/concept:latest \
@@ -355,6 +364,7 @@ jobs:
             run: |
                 docker run \
                     -e GITHUB_JOB \
+                    -e make_jobs="-j 1" \
                     -v "${GITHUB_WORKSPACE}":/github \
                     --rm \
                     ${docker_username}/concept:latest \
@@ -390,6 +400,7 @@ jobs:
             run: |
                 docker run \
                     -e GITHUB_JOB \
+                    -e make_jobs="-j 1" \
                     -v "${GITHUB_WORKSPACE}":/github \
                     --rm \
                     ${docker_username}/concept:latest \
@@ -425,6 +436,7 @@ jobs:
             run: |
                 docker run \
                     -e GITHUB_JOB \
+                    -e make_jobs="-j 1" \
                     -v "${GITHUB_WORKSPACE}":/github \
                     --rm \
                     ${docker_username}/concept:latest \
@@ -460,6 +472,7 @@ jobs:
             run: |
                 docker run \
                     -e GITHUB_JOB \
+                    -e make_jobs="-j 1" \
                     -v "${GITHUB_WORKSPACE}":/github \
                     --rm \
                     ${docker_username}/concept:latest \
@@ -495,6 +508,7 @@ jobs:
             run: |
                 docker run \
                     -e GITHUB_JOB \
+                    -e make_jobs="-j 1" \
                     -v "${GITHUB_WORKSPACE}":/github \
                     --rm \
                     ${docker_username}/concept:latest \
@@ -530,6 +544,7 @@ jobs:
             run: |
                 docker run \
                     -e GITHUB_JOB \
+                    -e make_jobs="-j 1" \
                     -v "${GITHUB_WORKSPACE}":/github \
                     --rm \
                     ${docker_username}/concept:latest \
@@ -565,6 +580,7 @@ jobs:
             run: |
                 docker run \
                     -e GITHUB_JOB \
+                    -e make_jobs="-j 1" \
                     -v "${GITHUB_WORKSPACE}":/github \
                     --rm \
                     ${docker_username}/concept:latest \
@@ -600,6 +616,7 @@ jobs:
             run: |
                 docker run \
                     -e GITHUB_JOB \
+                    -e make_jobs="-j 1" \
                     -v "${GITHUB_WORKSPACE}":/github \
                     --rm \
                     ${docker_username}/concept:latest \
@@ -635,6 +652,7 @@ jobs:
             run: |
                 docker run \
                     -e GITHUB_JOB \
+                    -e make_jobs="-j 1" \
                     -v "${GITHUB_WORKSPACE}":/github \
                     --rm \
                     ${docker_username}/concept:latest \
@@ -670,6 +688,7 @@ jobs:
             run: |
                 docker run \
                     -e GITHUB_JOB \
+                    -e make_jobs="-j 1" \
                     -v "${GITHUB_WORKSPACE}":/github \
                     --rm \
                     ${docker_username}/concept:latest \
@@ -705,6 +724,7 @@ jobs:
             run: |
                 docker run \
                     -e GITHUB_JOB \
+                    -e make_jobs="-j 1" \
                     -v "${GITHUB_WORKSPACE}":/github \
                     --rm \
                     ${docker_username}/concept:latest \
@@ -740,6 +760,7 @@ jobs:
             run: |
                 docker run \
                     -e GITHUB_JOB \
+                    -e make_jobs="-j 1" \
                     -v "${GITHUB_WORKSPACE}":/github \
                     --rm \
                     ${docker_username}/concept:latest \
@@ -775,6 +796,7 @@ jobs:
             run: |
                 docker run \
                     -e GITHUB_JOB \
+                    -e make_jobs="-j 1" \
                     -v "${GITHUB_WORKSPACE}":/github \
                     --rm \
                     ${docker_username}/concept:latest \
@@ -810,6 +832,7 @@ jobs:
             run: |
                 docker run \
                     -e GITHUB_JOB \
+                    -e make_jobs="-j 1" \
                     -v "${GITHUB_WORKSPACE}":/github \
                     --rm \
                     ${docker_username}/concept:latest \
@@ -845,6 +868,7 @@ jobs:
             run: |
                 docker run \
                     -e GITHUB_JOB \
+                    -e make_jobs="-j 1" \
                     -v "${GITHUB_WORKSPACE}":/github \
                     --rm \
                     ${docker_username}/concept:latest \
@@ -880,6 +904,7 @@ jobs:
             run: |
                 docker run \
                     -e GITHUB_JOB \
+                    -e make_jobs="-j 1" \
                     -v "${GITHUB_WORKSPACE}":/github \
                     --rm \
                     ${docker_username}/concept:latest \
@@ -915,6 +940,7 @@ jobs:
             run: |
                 docker run \
                     -e GITHUB_JOB \
+                    -e make_jobs="-j 1" \
                     -v "${GITHUB_WORKSPACE}":/github \
                     --rm \
                     ${docker_username}/concept:latest \
@@ -950,6 +976,7 @@ jobs:
             run: |
                 docker run \
                     -e GITHUB_JOB \
+                    -e make_jobs="-j 1" \
                     -v "${GITHUB_WORKSPACE}":/github \
                     --rm \
                     ${docker_username}/concept:latest \
@@ -985,6 +1012,7 @@ jobs:
             run: |
                 docker run \
                     -e GITHUB_JOB \
+                    -e make_jobs="-j 1" \
                     -v "${GITHUB_WORKSPACE}":/github \
                     --rm \
                     ${docker_username}/concept:latest \
@@ -1020,6 +1048,7 @@ jobs:
             run: |
                 docker run \
                     -e GITHUB_JOB \
+                    -e make_jobs="-j 1" \
                     -v "${GITHUB_WORKSPACE}":/github \
                     --rm \
                     ${docker_username}/concept:latest \
@@ -1055,6 +1084,7 @@ jobs:
             run: |
                 docker run \
                     -e GITHUB_JOB \
+                    -e make_jobs="-j 1" \
                     -v "${GITHUB_WORKSPACE}":/github \
                     --rm \
                     ${docker_username}/concept:latest \

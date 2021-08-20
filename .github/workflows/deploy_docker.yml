@@ -40,6 +40,7 @@ jobs:
                 rm -f concept/docs/_static/*.pdf
                 docker rm -f concept-tmp 2>/dev/null || :
                 docker run \
+                    -e make_jobs="-j 1" \
                     -v "${GITHUB_WORKSPACE}":/github \
                     --name concept-tmp \
                     ${{ secrets.DOCKER_USERNAME }}/concept:test-build \
