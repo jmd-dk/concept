@@ -119,7 +119,21 @@ while :; do
 done
 
 # Load environment variables from the .env file
+env_backup_vars=(mpi_executor make_jobs)
+env_backup_vals=()
+for env_var in "${env_backup_vars[@]}"; do
+    eval "env_val=\"\${${env_var}}\""
+    env_backup_vals=("${env_backup_vals[@]}" "${env_val}")
+done
 source "${env_file}"
+for ((index=0; index<${#env_backup_vars[@]}; index+=1)); do
+    env_val="${env_backup_vals[${index}]}"
+    if [ -n "${env_val}" ]; then
+        env_var="${env_backup_vars[${index}]}"
+        eval "${env_var}=\"${env_val}\""
+        env_backups=("${env_backups[@]}" "${env_val}")
+    fi
+done
 
 # Add the concept directory to searched paths
 # when importing modules in Python.
@@ -500,6 +514,7 @@ local_default="False"
 main_default="${concept_dir}/main.py"
 memory_default="-1"  # -1 implies unset
 native_optimizations_default="False"
+no_lto_default="False"
 no_optimizations_default="False"
 no_recompilation_default="False"
 no_watching_default="False"
@@ -764,6 +779,12 @@ parser.add_argument(
     action='store_true',
 )
 parser.add_argument(
+    '--no-lto',
+    help='disable link time optimizations',
+    default=${no_lto_default},
+    action='store_true',
+)
+parser.add_argument(
     '--no-optimizations',
     help='disable compiler optimizations',
     default=${no_optimizations_default},
@@ -840,6 +861,7 @@ print('; '.join([
     \"walltime={}\".format(args.walltime),
     \"local={}\".format(args.local),
     \"native_optimizations={}\".format(args.native_optimizations),
+    \"no_lto={}\".format(args.no_lto),
     \"no_optimizations={}\".format(args.no_optimizations),
     \"no_recompilation={}\".format(args.no_recompilation),
     \"no_watching={}\".format(args.no_watching),
@@ -1221,17 +1243,26 @@ test:
                     rm -rf "${top_dir}/tmp" 2>/dev/null || :
                 fi
             fi
-            # Compile all the modules in parallel
+            # Compile all modules. As this process requires a lot of
+            # memory it may fail, in particular on virtual machines with
+            # dynamic memory and a small base memory. Attempting the
+            # compilation a few times in a row can help, as the dynamic
+            # memory then has a chance of increasing.
             start_time_build=$("${python}" -B -c "import time; print(time.time())")
-            exec 4>&1
-            make_output="$(
-                cd "${concept_dir}" && make                        \
+            make_concept() {
+                make                                               \
                     native_optimizations="${native_optimizations}" \
+                    no_lto="${no_lto}"                             \
                     no_optimizations="${no_optimizations}"         \
                     unsafe_building="${unsafe_building}"           \
-                    ${make_jobs}                                   \
-                    | tee >(cat >&4)                               \
-                    ; echo "concept_exit_code = ${PIPESTATUS[0]}"  \
+                    ${make_jobs}
+            }
+            exec 4>&1
+            make_output="$(
+                cd "${concept_dir}"                               \
+                && (make_concept || make_concept || make_concept) \
+                    | tee >(cat >&4)                              \
+                    ; echo "concept_exit_code = ${PIPESTATUS[0]}" \
             )"
             exec 4>&-
             exit_code="$(echo "${make_output}" | grep "concept_exit_code" \
@@ -1269,6 +1300,10 @@ if [ "${utility}" != "${utility_unspecified}" ]; then
     native_optimizations_flag=""
     if [ "${native_optimizations}" == "True" ]; then
         native_optimizations_flag="--native-optimizations"
+    fi
+    no_lto_flag=""
+    if [ "${no_lto}" == "True" ]; then
+        no_lto_flag="--no-lto"
     fi
     no_optimizations_flag=""
     if [ "${no_optimizations}" == "True" ]; then

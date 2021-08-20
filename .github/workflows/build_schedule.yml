@@ -38,7 +38,7 @@ jobs:
                 echo ".git" >> .dockerignore
                 docker build --pull --no-cache -t concept:latest .
           - name: 🤖 Run test suite
-            run: docker run --rm concept:latest concept -t all
+            run: docker run --rm -e make_jobs="-j 1" concept:latest concept -t all
           - name: 📖 Build docs
             run: docker run --rm concept:latest make docs
 

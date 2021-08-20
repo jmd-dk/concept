@@ -416,10 +416,10 @@ set_version "blessings"         "1.7"
 set_version "cython"            "0.29.24"
 set_version "cythongsl"         "0.2.2"
 set_version "h5py"              "3.3.0"
-set_version "matplotlib"        "3.4.2"
-set_version "mpi4py"            "3.0.3"
-set_version "numpy"             "1.21.1"
-set_version "pip"               "21.2.3"
+set_version "matplotlib"        "3.4.3"
+set_version "mpi4py"            "3.1.1"
+set_version "numpy"             "1.21.2"
+set_version "pip"               "21.2.4"
 set_version "scipy"             "1.7.1"
 set_version "setuptools"        "57.4.0"
 set_version "sphinx"            "4.1.2"
@@ -881,8 +881,12 @@ fi
 log="${log/__top_dir__/${top_dir}}"
 # Check for another installation that is already running
 if [ "${check_other_running_installation}" != "False" ] && [ -f "${log}" ]; then
-    installpid_line="$(grep "^${status_prefix}${status_installpid}" "${log}" 2>/dev/null \
-        | tail -n 1)"
+    installpid_line=""
+    while read logline; do  # we really want to 'grep', but this migh not (yet) be installed
+        if [[ "${logline}" == "${status_prefix}${status_installpid}"* ]]; then
+            installpid_line="${logline}"
+        fi
+    done <<< "$(cat "${log}")"
     installpid_old=""
     if [ -n "${installpid_line}" ]; then
         installpid_old="${installpid_line#*=}"
@@ -2072,7 +2076,7 @@ make_jobs_set_by_user="False"
 if [ -n "${make_jobs}" ]; then
     make_jobs_set_by_user="True"
 fi
-if [ "${ssh}" == "False" ] && [ -z "${make_jobs}" ]; then
+if ([ "${ssh}" == "False" ] && [ -z "${make_jobs}" ]) || [ -n "${make_jobs}" ]; then
     make_jobs_test_dir="${top_dir}/tmp/make_jobs_test"
     rm -rf "${make_jobs_test_dir}" || :
     mkdir -p "${make_jobs_test_dir}"
@@ -2080,9 +2084,15 @@ if [ "${ssh}" == "False" ] && [ -z "${make_jobs}" ]; then
 test:
 \t@echo success
 " > "${make_jobs_test_dir}/Makefile"
-    make_jobs_output="$(cd "${make_jobs_test_dir}" && make -j 2>/dev/null)" || :
-    if [ "${make_jobs_output}" == "success" ]; then
+    if [ -z "${make_jobs}" ]; then
         make_jobs="-j"
+    fi
+    make_jobs_output="$(cd "${make_jobs_test_dir}" && make ${make_jobs} 2>/dev/null)" || :
+    if [ "${make_jobs_output}" != "success" ]; then
+        if [ "${make_jobs_set_by_user}" == "True" ]; then
+            echo "Changing make_jobs from '${make_jobs}' to ''" 2>&1
+        fi
+        make_jobs=""
     fi
     rm -rf "${make_jobs_test_dir}" || :
 fi
@@ -7018,9 +7028,10 @@ fi
 # as we need to link to OpenBLAS).
 if [ "${scipy_install}" == "True" ] && [ "${scipy_installed}" == "False" ] \
     && [ "$(check_pypackage_installed scipy)" == "False" ]; then
-    # As of SciPy 1.4, pybind11 is a required dependency, though this is
-    # not automatically installed by pip. If not already installed, we
-    # install this Python package now.
+    # As of SciPy 1.4, pybind11 is a required dependency.
+    # As of SciPy 1.7, Pythran is a required dependency.
+    # These are not automatically installed by pip.
+    # If not already installed, we install these Python packages now.
     dependencies=( \
         "pybind11" \
         "pythran"  \
@@ -7074,16 +7085,6 @@ library_dirs = ${blas_dir}/lib
 include_dirs = ${blas_dir}/include
 runtime_library_dirs = ${blas_dir}/lib
 " > "${scipy_build_dir}/site.cfg"
-    # At least in SciPy 1.4.1, compilation of SciPy may fail with an
-    # error stating that int64_t has not been declared.
-    # We fix this below.
-    rectangular_lsap="${scipy_build_dir}/scipy/optimize/rectangular_lsap/rectangular_lsap.cpp"
-    echo "
-/* Fix needed at least for SciPy 1.4.1 */
-#include \"rectangular_lsap.h\"
-
-$(cat "${rectangular_lsap}")
-" > "${rectangular_lsap}"
     cp -r "${scipy_build_dir}" "${scipy_build_dir}_cp"
     # Build and install SciPy with OpenBLAS support.
     # We wish to use the gfortran Fortran compiler. We try out all the
@@ -7112,6 +7113,10 @@ $(cat "${rectangular_lsap}")
         rm -rf "${scipy_build_dir}" || :
         cp -r "${scipy_build_dir}_cp" "${scipy_build_dir}"
         cd "${scipy_build_dir}"
+        if [ -n "${zip_safe}" ]; then
+            sed -i "s/\(^ *\)\(setup *(.*\)$/\1metadata['zip_safe'] = ${zip_safe}; \2/" \
+                setup.py || return 1
+        fi
         echo "True" > ".setuppy_success"
         if [ -n "${fcompiler}" ]; then
             ("${python}" setup.py build --fcompiler="${fcompiler}" \
@@ -7169,6 +7174,7 @@ extra_argv=['-q', '--color=yes', '-k not test_face'])" 2>&1 | tee "test_log"; \
         pyuser "" "--user"                                         ";" \
         scipy_gfortran "True" "False"                              ";" \
         compiler "${compiler_possibilities_specified_mpi_last[@]}" ";" \
+        zip_safe "False" ""                                        ";" \
         cstd "-std=c99" ""                                         ";" \
         fcompiler "gnu95" ""                                       ";" \
         extra_FCFLAGS "" "-fPIC"                                   ";" \
@@ -7650,13 +7656,13 @@ with open('${env_file}', 'w', encoding='utf-8') as file:
                 mpiexec_args="${mpiexec_args} --bind-to none"
             fi
         fi
-        sed -i "s/^mpi_executor=\"\"/mpi_executor=\"mpiexec${mpiexec_args}\"/" "${env_file}" || :
+        sed -i "s/mpi_executor=\"\"/mpi_executor=\"mpiexec${mpiexec_args}\"/" "${env_file}" || :
         reset_environment
     fi
     # If the make_jobs variable is set by the user,
     # store this in the .env file.
     if [ -n "${make_jobs}" ] && [ "${make_jobs_set_by_user}" == "True" ]; then
-        sed -i "s/^make_jobs=\"\"/make_jobs=\"${make_jobs}\"/" "${env_file}" || :
+        sed -i "s/make_jobs=\"\"/make_jobs=\"${make_jobs}\"/" "${env_file}" || :
     fi
     # Create the .paths file,
     # storing important paths used by CO𝘕CEPT.
@@ -8870,6 +8876,13 @@ fi
 ##############################
 # Testing GADGET and CO𝘕CEPT #
 ##############################
+# As the CO𝘕CEPT build process requires a lot of memory, we perform
+# the build in serial unless make_jobs is set.
+make_jobs_backup="${make_jobs}"
+if [ "${make_jobs_set_by_user}" == "False" ]; then
+    make_jobs="-j 1"
+fi
+export make_jobs="${make_jobs}"
 if [ "${concept_install}" == "True" ] && [ "${concept_installed}" == "False" ]; then
     if [ "${do_tests}" == "True" ]; then
         # Run basic CO𝘕CEPT test to test the environment
@@ -8932,6 +8945,7 @@ if [ "${concept_install}" == "True" ] && [ "${concept_installed}" == "False" ]; 
     # to minimize the number of files in the CO𝘕CEPT directory.
     install_notice "CONCEPT" "${gadget_dir}"
 fi
+export make_jobs="${make_jobs_backup}"
 
 
 
@@ -8944,9 +8958,30 @@ if [ "${concept_install}" == "True" ] && [ "${concept_installed}" == "False" ]; 
     # as the CO𝘕CEPT build process does this by itself.
     echo
     set_status "Building ${esc_concept}"
-    # Build the code by running it with no parameters specified
+    # Build the code by running it with no parameters specified.
+    # As the CO𝘕CEPT build process requires a lot of memory, we perform
+    # the build in serial unless make_jobs is set.
+    # On failure we try again without link time optimizations.
+    make_jobs_backup="${make_jobs}"
+    if [ "${make_jobs_set_by_user}" == "False" ]; then
+        make_jobs="-j 1"
+    fi
+    export make_jobs="${make_jobs}"
     cd "${concept_dir}"
-    logo_printed=True "${concept}" --local 2>&1
+    build_concept_success="True"
+    logo_printed=True "${concept}" --local 2>&1 || build_concept_success="False"
+    if [ "${build_concept_success}" == "False" ]; then
+        error "Failed to build ${esc_concept}"
+        echo "Will now try without link time optimizations"
+        (source "${concept}" && make clean) || :
+        build_concept_success="True"
+        logo_printed=True "${concept}" --local --no-lto 2>&1 || build_concept_success="False"
+    fi
+    export make_jobs="${make_jobs_backup}"
+    if [ "${build_concept_success}" == "False" ]; then
+        error "Failed to build ${esc_concept} even with no link time optimizations"
+        exit 1
+    fi
     # Remove log and parameter copy file generated by the above run
     (source "${concept}" && make clean_logs clean_params_cp) || :
     # Remove compilation artefacts if installing in slim mode

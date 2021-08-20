@@ -25,6 +25,7 @@
 # build and run the code.
 # This makefile accepts the options
 #   native_optimizations
+#   no_lto
 #   no_optimizations
 #   unsafe_building
 # all of which may be either 'True' or 'False',
@@ -238,16 +239,18 @@ ifneq ($(no_optimizations),True)
         optimizations += -march=native
     endif
     # Link time optimizations
-    lto_warning = $(shell                                           \
-        echo "int main(void){ return 0; }" > .lto_test.c;           \
-        $(CC) -flto -c -o .lto_test.o .lto_test.c 2>&1 | grep flto; \
-        $(CC) .lto_test.o -o .lto_test -flto      2>&1 | grep flto; \
-        ./.lto_test 2>/dev/null || echo "lto error";                \
-        $(RM) -f .lto_test.c .lto_test.o .lto_test;                 \
-    )
-    ifeq ("$(lto_warning)","")
-        optimizations        += -flto
-        optimizations_linker += -flto
+    ifneq ($(no_lto),True)
+        lto_warning = $(shell                                           \
+            echo "int main(void){ return 0; }" > .lto_test.c;           \
+            $(CC) -flto -c -o .lto_test.o .lto_test.c 2>&1 | grep flto; \
+            $(CC) .lto_test.o -o .lto_test -flto      2>&1 | grep flto; \
+            ./.lto_test 2>/dev/null || echo "lto error";                \
+            $(RM) -f .lto_test.c .lto_test.o .lto_test;                 \
+        )
+        ifeq ("$(lto_warning)","")
+            optimizations        += -flto
+            optimizations_linker += -flto
+        endif
     endif
 endif
 CFLAGS += $(call unique, $(call sensible_paths, \
@@ -307,28 +310,35 @@ LDFLAGS += $(call unique, $(call sensible_paths,     \
 # The below recipes are responsible for the
 # .py --> ((.pyx --> types) --> .pxd) --> (.c + .html) --> .o --> .so
 # build chain. A heading is printed at the beginning of the build.
-building = modules
 define heading
-    $(python) -B -c "pass;                                                              \
-        import sys;                                                                     \
-        from time import sleep;                                                         \
-        import blessings;                                                               \
-        sys.exit() if '$(heading_printed)' else None;                                   \
-        extra = [];                                                                     \
-        extra.append('native optimizations')                                            \
-            if '$(native_optimizations)' == 'True' and '$(no_optimizations)' == 'False' \
-            else None;                                                                  \
-        extra.append('no optimizations')                                                \
-            if '$(no_optimizations)' == 'True'                                          \
-            else None;                                                                  \
-        extra.append('unsafe')                                                          \
-            if '$(unsafe_building)' == 'True'                                           \
-            else None;                                                                  \
-        extra = (' (' + ', '.join(extra) + ')')                                         \
-            if extra                                                                    \
-            else '';                                                                    \
-        terminal = blessings.Terminal(force_styling=True);                              \
-        print(terminal.bold_yellow('Building $(building)' + extra), flush=True);        \
+    $(python) -B -c "pass;                                                         \
+        import sys;                                                                \
+        sys.exit() if '$(heading_printed)' else None;                              \
+        import re;                                                                 \
+        import blessings;                                                          \
+        extra = [];                                                                \
+        extra.append('native optimizations')                                       \
+            if '$(native_optimizations)' == 'True'                                 \
+                and '$(no_optimizations)' != 'True'                                \
+            else None;                                                             \
+        extra.append('no link time optimizations')                                 \
+            if '$(no_lto)' == 'True'                                               \
+                and '$(no_optimizations)' != 'True'                                \
+            else None;                                                             \
+        extra.append('no optimizations')                                           \
+            if '$(no_optimizations)' == 'True'                                     \
+            else None;                                                             \
+        extra.append('unsafe')                                                     \
+            if '$(unsafe_building)' == 'True'                                      \
+            else None;                                                             \
+        extra.append('serially')                                                   \
+            if re.search(r'^ *(-j|--j|--jo|--job|--jobs)=? *1$$', '$(make_jobs)')  \
+            else None;                                                             \
+        extra = (' (' + ', '.join(extra) + ')')                                    \
+            if extra                                                               \
+            else '';                                                               \
+        terminal = blessings.Terminal(force_styling=True);                         \
+        print(terminal.bold_yellow('Building modules' + extra), flush=True);       \
     "
     $(eval heading_printed = True)
     sleep 0.1

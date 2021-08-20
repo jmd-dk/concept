@@ -132,6 +132,7 @@ info="$(                                              \
         ${interactive_flag}                           \
         --local                                       \
         ${native_optimizations_flag}                  \
+        ${no_lto_flag}                                \
         ${no_optimizations_flag}                      \
         ${no_recompilation_flag}                      \
         ${pure_python_flag}                           \
@@ -205,6 +206,7 @@ paths['params'] = _params_path_ori
             ${interactive_flag}            \
             ${local_flag}                  \
             ${native_optimizations_flag}   \
+            ${no_lto_flag}                 \
             ${no_optimizations_flag}       \
             ${no_recompilation_flag}       \
             --no-watching                  \

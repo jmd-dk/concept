@@ -1,5 +1,5 @@
 # Base
-FROM debian:10.10-slim
+FROM debian:11.0-slim
 SHELL ["/usr/bin/env", "bash", "-c"]
 CMD ["bash"]
 
@@ -9,6 +9,7 @@ ARG top_dir="/concept"
 ARG slim=True
 ARG mpi=mpich
 ARG mpi_configure_options="+= --with-device=ch3:sock"
+ARG make_jobs=""
 
 # Build
 COPY \

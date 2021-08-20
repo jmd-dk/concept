@@ -237,6 +237,7 @@ jobid_and_exit_code="$(                \
         ${interactive_flag}            \
         ${local_flag}                  \
         ${native_optimizations_flag}   \
+        ${no_lto_flag}                 \
         ${no_optimizations_flag}       \
         ${no_recompilation_flag}       \
         ${no_watching_flag}            \
