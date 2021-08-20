@@ -433,11 +433,36 @@ Python mode, without needing to recompile in-between.
 
 
 
+.. _no_link_time_optimizations:
+
+No link time optimizations: ``--no-lto``
+........................................
+Link time optimizations (LTO) are on by default when compiling CO\ *N*\ CEPT,
+if supported by the compiler. Though preferable, the associated increase in
+build time and especially memory may be undesirable. To build CO\ *N*\ CEPT
+without link time optimizations, supply this option:
+
+.. code-block:: bash
+
+   ./concept --no-lto
+
+.. note::
+   If CO\ *N*\ CEPT is already in a compiled state (built with or without
+   LTO), it will not be recompiled. To recompile without LTO, you first have
+   to remove the compiled files:
+
+   .. code-block:: bash
+
+      (source concept && make clean)
+
+
+
 No optimizations: ``--no-optimizations``
 ........................................
 During compilation of CO\ *N*\ CEPT, a lot of optimizations are performed.
 These include source code transformations performed by ``pyxpp.py`` as well
-as standard C compiler optimizations, applied in the ``Makefile``. Though
+as standard C compiler optimizations (including
+:ref:`LTO <no_link_time_optimizations>`), applied in the ``Makefile``. Though
 these optimizations should not be disabled under normal circumstances, you may
 do so by supplying this option:
 

@@ -189,6 +189,7 @@
 <li class="toctree-l2"><a class="reference internal" href="command_line_options.html#other-modes-of-building-running">Other modes of building/running</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="command_line_options.html#local-local">Local: <code class="docutils literal notranslate"><span class="pre">--local</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="command_line_options.html#pure-python-pure-python">Pure Python: <code class="docutils literal notranslate"><span class="pre">--pure-python</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="command_line_options.html#no-link-time-optimizations-no-lto">No link time optimizations: <code class="docutils literal notranslate"><span class="pre">--no-lto</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="command_line_options.html#no-optimizations-no-optimizations">No optimizations: <code class="docutils literal notranslate"><span class="pre">--no-optimizations</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="command_line_options.html#native-optimizations-native-optimizations">Native optimizations: <code class="docutils literal notranslate"><span class="pre">--native-optimizations</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="command_line_options.html#no-recompilation-no-recompilation">No recompilation: <code class="docutils literal notranslate"><span class="pre">--no-recompilation</span></code></a></li>
@@ -462,8 +463,23 @@ the compilation taken place without trouble.</p>
 <span id="id2"></span><h3>Dangerous optimizations<a class="headerlink" href="#dangerous-optimizations" title="Permalink to this headline">¶</a></h3>
 <p>If the compilation errors were not due to
 <a class="reference internal" href="#insufficient-memory"><span class="std std-ref">insufficient memory</span></a>, it may be that one or more
-of the applied optimization flags causes trouble. Try compiling without any
-optimizations:</p>
+of the applied optimizations cause trouble. First, try compiling without link
+time optimizations:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="o">(</span><span class="nb">source</span> concept <span class="o">&amp;&amp;</span> make clean<span class="o">)</span>  <span class="c1"># cleanup</span>
+./concept --no-lto --local
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>If this solves the problem, it may simply be because compilation without
+LTO requires significantly less memory. You are encouraged to check if
+you simply have <a class="reference internal" href="#insufficient-memory"><span class="std std-ref">insufficient memory</span></a> for a
+full build.</p>
+</div>
+<p>If disabling link time optimizations makes the code compile, you may consider
+this a working solution, as the performance improvements obtained through
+link time optimizations are not crucial.</p>
+<p>A much more drastic thing to try is to compile without <em>any</em> optimizations:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="o">(</span><span class="nb">source</span> concept <span class="o">&amp;&amp;</span> make clean<span class="o">)</span>  <span class="c1"># cleanup</span>
 ./concept --no-optimizations --local
 </pre></div>

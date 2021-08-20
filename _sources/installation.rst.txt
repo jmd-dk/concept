@@ -1017,14 +1017,19 @@ chosen value of ``mpi_executor``.
 See :ref:`this <chosing_an_mpi_executor>` troubleshooting entry for further
 details.
 
+.. note::
+
+   If an environment variable ``mpi_executor`` is set and non-empty, this
+   takes precedence over the ``mpi_executor`` set in the ``.env`` file.
+
 
 
 The ``make_jobs`` environment variable
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-The ``make_jobs`` variable is not present in the ``.env`` file by default, but
-may be set in order to specify whether CO\ *N*\ CEPT should be built in
-parallel. The default behaviour is to build in parallel when working locally
-and serially when working remotely. To overrule this, add one of e.g.
+The ``make_jobs`` variable may be set in the ``.env`` file in order to
+specify whether CO\ *N*\ CEPT should be built in parallel. The default
+behaviour is to build in parallel when working locally and build serially
+when working remotely. To overrule this, add one of e.g.
 
 .. code-block:: bash
 
@@ -1033,4 +1038,9 @@ and serially when working remotely. To overrule this, add one of e.g.
    export make_jobs="-j"    # Always build in parallel, using any number of cores
 
 to ``.env``.
+
+.. note::
+
+   If an environment variable ``make_jobs`` is set and non-empty, this
+   takes precedence over the ``make_jobs`` set in the ``.env`` file.
 

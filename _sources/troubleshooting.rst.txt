@@ -119,8 +119,26 @@ Dangerous optimizations
 .......................
 If the compilation errors were not due to
 :ref:`insufficient memory <insufficient_memory>`, it may be that one or more
-of the applied optimization flags causes trouble. Try compiling without any
-optimizations:
+of the applied optimizations cause trouble. First, try compiling without link
+time optimizations:
+
+.. code-block:: bash
+
+   (source concept && make clean)  # cleanup
+   ./concept --no-lto --local
+
+.. note::
+
+   If this solves the problem, it may simply be because compilation without
+   LTO requires significantly less memory. You are encouraged to check if
+   you simply have :ref:`insufficient memory <insufficient_memory>` for a
+   full build.
+
+If disabling link time optimizations makes the code compile, you may consider
+this a working solution, as the performance improvements obtained through
+link time optimizations are not crucial.
+
+A much more drastic thing to try is to compile without *any* optimizations:
 
 .. code-block:: bash
 
