@@ -58,6 +58,7 @@ jobs:
                         && mv "${concept_dir}"/so/* "${concept_dir}"/ \
                         && rm -rf "${concept_dir}"/so \
                         && (cd "${concept_dir}" && make -t) \
+                        && find / -type d -a -name "__pycache__" -exec rm -rf "{}" + \
                     '
                 docker commit \
                     --change='CMD ["bash"]' \

@@ -7169,6 +7169,15 @@ extra_argv=['-q', '--color=yes', '-k not test_face'])" 2>&1 | tee "test_log"; \
             fi
             rm -f "${exit_code_filename}" || :
         fi
+        if [ "${slim}" == "True" ]; then
+            removable_dependencies=( \
+                "pybind11"           \
+                "pythran"            \
+            )
+            for dependency in "${removable_dependencies[@]}"; do
+                "${python}" -m pip uninstall "${dependency}" -y 2>&1 || :
+            done
+        fi
     }
     install "SciPy" "no_init_install"                                  \
         pyuser "" "--user"                                         ";" \
@@ -8645,6 +8654,7 @@ sys.exit(int(cosmo.get_background()['proper time [Gyr]'][-1]) != 13)
         if [ "${slim}" == "True" ]; then
             (cd "${class_dir}" && make clean) || :
             rm -rf "${class_dir}/doc" || :
+            rm -rf "${class_dir}/output/"* || :
             rm -f "${class_dir}/Makefile_ori" "${class_dir}/python/setup.py_ori" || :
         fi
     }

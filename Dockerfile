@@ -55,7 +55,19 @@ RUN : \
     && rm -rf /var/lib/{apt/lists,cache,log}/* \
     && find /var/lib/dpkg/info/* -not -name '*.list' -delete \
     # Remove other caches
-    && rm -rf /tmp/* ~/.cache/*
+    && rm -rf /tmp/* ~/.cache/* \
+    # Remove system documentation
+    && rm -rf /usr/share/doc/* /usr/share/info/* /usr/share/man/* \
+    # Remove a few large system files
+    && rm -f \
+        /usr/bin/x86_64-linux-gnu-lto-dump-* \
+        /usr/lib/gcc/x86_64-linux-gnu/*/lib*san*.a \
+        /usr/lib/x86_64-linux-gnu/lib*san*.so* \
+    # Remove a few large files installed with CO𝘕CEPT
+    && rm -f \
+        /concept/openblas/lib/*.a \
+        /concept/python/lib/*.a \
+    && :
 ENV \
     PATH="${top_dir}/concept:${top_dir}/concept/utilities:${top_dir}/python/bin:${PATH}" \
     TERM="linux"
