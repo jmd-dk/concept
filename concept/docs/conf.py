@@ -4,9 +4,9 @@ author    = 'Jeppe Dakin'
 copyright = '2020, Jeppe Dakin'
 
 # Paths
-html_static_path = ['_static']
+html_static_path = ['static']
 html_css_files = ['custom.css']
-exclude_patterns = ['_build']
+exclude_patterns = ['build']
 
 # Extensions
 extensions = [

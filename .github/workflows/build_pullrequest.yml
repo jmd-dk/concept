@@ -21,8 +21,6 @@ jobs:
             uses: actions/checkout@v2
           - name: 🔧 Install
             run: |
-                rm -f concept/docs/_static/*.pdf
-                rm -f concept/docs/_static/render2D.png
                 echo ".git" >> .dockerignore
                 docker build --pull --no-cache \
                     --build-arg cleanup_concept=True -t concept:test-build .

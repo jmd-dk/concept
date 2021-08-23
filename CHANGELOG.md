@@ -10,7 +10,7 @@
 - Adaptive particle time-stepping.
 - Overhaul of grid implementation:
   - Grids used for for PM, power spectra and 2D renders are now separate.
-  - Addition of grid quantities from components are now carried out in a
+  - Addition of grid quantities from components are now carried out in an
     upstream → global → downstream scheme. Only the global grid is common
     to all components. Different sized upstream grids are added to the
     global grid in Fourier space.
@@ -29,6 +29,7 @@
 - Allow finite life times of components.
 - Allow for static global time-stepping.
 - Display of load imbalance.
+- The `--no-lto` option to `concept`.
 - The `--no-recompilation` option to `concept`.
 
 #### 🐛 Bugs fixed
@@ -48,7 +49,7 @@
 - Generalised species.
 - More tunable power spectrum settings.
 - Allow for deterministic FFTW wisdom.
-- Switched to the PCG pseudo-random number generator.
+- Switched to the PCG64DXSM pseudo-random number generator.
 - Explicit registration of CLASS perturbations.
 - Improved robustness of the `installer`.
 - 'Slim builds' now available.

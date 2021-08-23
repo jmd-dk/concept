@@ -9003,11 +9003,8 @@ if [ "${concept_install}" == "True" ] && [ "${concept_installed}" == "False" ]; 
         rm -rf so || :
         (source "${concept}" && make -t) || :
     fi
-    # Also build the documentation
-    if [ "${slim}" == "True" ]; then
-        rm -f "${concept}/docs/_static/"*.pdf        2>/dev/null || :
-        rm -f "${concept}/docs/_static/render2D.png" 2>/dev/null || :
-    else
+    # If not in slim mode, also build the documentation
+    if [ "${slim}" != "True" ]; then
         echo
         (source "${concept}" && make docs 2>/dev/null) || :
     fi

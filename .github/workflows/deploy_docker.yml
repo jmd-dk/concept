@@ -37,8 +37,6 @@ jobs:
             run: docker pull ${{ secrets.DOCKER_USERNAME }}/concept:test-build
           - name: 🔧 Build code
             run: |
-                rm -f concept/docs/_static/*.pdf
-                rm -f concept/docs/_static/render2D.png
                 docker rm -f concept-tmp 2>/dev/null || :
                 docker run \
                     -v "${GITHUB_WORKSPACE}":/github \

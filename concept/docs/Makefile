@@ -11,15 +11,15 @@ building = documentation  # Change heading text
 SPHINXOPTS  =
 SPHINXBUILD = $(python) -m sphinx
 SOURCEDIR   = .
-BUILDDIR    = _build
-STATICDIR   = _static
+BUILDDIR    = build
+STATICDIR   = static
 PUBLISHDIR  = publish
 
 # The content of README.md placed together with the published documentation
 define README_body
 CO*N*CEPT documentation
 =======================
-<img align="right" height="300" src="/_static/render2D.png"/>
+<img align="right" height="300" src="/static/render2D.png"/>
 
 This is the git branch for the published CO*N*CEPT documentation,
 which is most likely not what you are looking for.

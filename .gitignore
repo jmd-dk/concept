@@ -23,7 +23,7 @@
 /.backup
 
 # Subdirectories
-/concept/docs/_build
+/concept/docs/build
 /concept/docs/publish
 /concept/ICs
 /concept/logs
