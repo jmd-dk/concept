@@ -22,12 +22,14 @@ jobs:
           - name: 🔧 Install
             run: |
                 rm -f concept/docs/_static/*.pdf
+                rm -f concept/docs/_static/render2D.png
                 echo ".git" >> .dockerignore
-                docker build --pull --no-cache -t concept:test-build .
+                docker build --pull --no-cache \
+                    --build-arg cleanup_concept=True -t concept:test-build .
           - name: 🤖 Run test suite
             run: docker run -e make_jobs="-j 1" --rm concept:test-build concept -t all
           - name: 📖 Build docs
-            run: docker run --rm concept:test-build make docs
+            run: docker run --rm concept:test-build bash -c 'make clean_docs && make docs'
           - name: 🐋 Push Docker image
             env:
                 docker_password: ${{ secrets.DOCKER_PASSWORD }}

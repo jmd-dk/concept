@@ -310,6 +310,7 @@ LDFLAGS += $(call unique, $(call sensible_paths,     \
 # The below recipes are responsible for the
 # .py --> ((.pyx --> types) --> .pxd) --> (.c + .html) --> .o --> .so
 # build chain. A heading is printed at the beginning of the build.
+building = modules
 define heading
     $(python) -B -c "pass;                                                         \
         import sys;                                                                \
@@ -338,7 +339,7 @@ define heading
             if extra                                                               \
             else '';                                                               \
         terminal = blessings.Terminal(force_styling=True);                         \
-        print(terminal.bold_yellow('Building modules' + extra), flush=True);       \
+        print(terminal.bold_yellow('Building $(building)' + extra), flush=True);   \
     "
     $(eval heading_printed = True)
     sleep 0.1

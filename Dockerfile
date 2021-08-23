@@ -9,7 +9,8 @@ ARG top_dir="/concept"
 ARG slim=True
 ARG mpi=mpich
 ARG mpi_configure_options="+= --with-device=ch3:sock"
-ARG make_jobs=""
+ARG cleanup_concept
+ARG make_jobs
 
 # Build
 COPY \
@@ -53,20 +54,19 @@ RUN : \
     && apt-get clean -y \
     && apt-get autoclean -y \
     && rm -rf /var/lib/{apt/lists,cache,log}/* \
-    && find /var/lib/dpkg/info/* -not -name '*.list' -delete \
+    && rm -rf $(ls /var/lib/dpkg/info/* | grep -v "\.list") \
     # Remove other caches
     && rm -rf /tmp/* ~/.cache/* \
-    # Remove system documentation
-    && rm -rf /usr/share/doc/* /usr/share/info/* /usr/share/man/* \
-    # Remove a few large system files
-    && rm -f \
-        /usr/bin/x86_64-linux-gnu-lto-dump-* \
-        /usr/lib/gcc/x86_64-linux-gnu/*/lib*san*.a \
-        /usr/lib/x86_64-linux-gnu/lib*san*.so* \
-    # Remove a few large files installed with CO𝘕CEPT
-    && rm -f \
-        /concept/openblas/lib/*.a \
-        /concept/python/lib/*.a \
+    # Remove some files installed with CO𝘕CEPT
+    && rm -f $(find "${top_dir}" -name "*.a") \
+    && rm -f "${top_dir}"/freetype*/lib/libfreetype*.so* \
+    && rm -f "${top_dir}"/python/lib/python*/site-packages/Pillow.libs/lib{freetype,harfbuzz,lcms,png,web}*.so* \
+    && rm -f "${top_dir}"/python/lib/python*/site-packages/scipy*/scipy/misc/face.dat \
+    # Remove some system files
+    && rm -rf /usr/share/{doc,info,man}/* \
+    && rm -f $(find / -name "*.a" | grep -v "/libgcc.a\|/libc_nonshared.a") \
+    && rm -f /usr/lib/x86_64-linux-gnu/lib{crypto,db-*,*san*}.so* \
+    && rm -f /usr/bin/x86_64-linux-gnu-lto-dump-* \
     && :
 ENV \
     PATH="${top_dir}/concept:${top_dir}/concept/utilities:${top_dir}/python/bin:${PATH}" \

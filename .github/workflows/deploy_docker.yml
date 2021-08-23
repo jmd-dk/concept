@@ -38,9 +38,9 @@ jobs:
           - name: 🔧 Build code
             run: |
                 rm -f concept/docs/_static/*.pdf
+                rm -f concept/docs/_static/render2D.png
                 docker rm -f concept-tmp 2>/dev/null || :
                 docker run \
-                    -e make_jobs="-j 1" \
                     -v "${GITHUB_WORKSPACE}":/github \
                     --name concept-tmp \
                     ${{ secrets.DOCKER_USERNAME }}/concept:test-build \
@@ -50,7 +50,7 @@ jobs:
                         && rm -rf "${concept_dir}" \
                         && cp -r /github/concept "${concept_dir}" \
                         && (cd "${concept_dir}" && make distclean) \
-                        && concept \
+                        && make_jobs="-j 1" concept \
                         && (cd "${concept_dir}" && make clean_logs clean_params_cp) \
                         && mkdir "${concept_dir}/so" \
                         && mv "${concept_dir}"/*.so "${concept_dir}"/so/ \

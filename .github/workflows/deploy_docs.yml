@@ -33,7 +33,9 @@ jobs:
                         && source ~/.bashrc \
                         && rm -rf "${concept_dir}" \
                         && cp -r /github/concept "${concept_dir}" \
-                        && (cd "${concept_dir}" && make clean_docs && make docs) \
+                        && cd "${concept_dir}" \
+                        && make clean_docs \
+                        && make docs \
                         && cp -r "${docs_dir}/publish" /github/ \
                     '
           - name: 🚀 Deploy docs

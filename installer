@@ -9005,7 +9005,8 @@ if [ "${concept_install}" == "True" ] && [ "${concept_installed}" == "False" ]; 
     fi
     # Also build the documentation
     if [ "${slim}" == "True" ]; then
-        rm -f "${concept}/docs/_static/"*.pdf 2>/dev/null || :
+        rm -f "${concept}/docs/_static/"*.pdf        2>/dev/null || :
+        rm -f "${concept}/docs/_static/render2D.png" 2>/dev/null || :
     else
         echo
         (source "${concept}" && make docs 2>/dev/null) || :
@@ -9079,6 +9080,10 @@ config-${python_version_major}.${python_version_minor}-"*
             rm -rf "${dependency_dir}" || :
         fi
     done
+fi
+if [ "${cleanup_concept}" == "True" ] && [ "${concept_install}" == "True" ]; then
+    # Remove the build files of CO𝘕CEPT, leaving only the source
+    (cd "${concept_dir}" && source "${concept}" && make distclean 2>/dev/null) || :
 fi
 # Copyright notice
 disable_status
