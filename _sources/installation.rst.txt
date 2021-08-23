@@ -36,16 +36,16 @@ Entries on this page:
 Supported platforms
 -------------------
 
-.. |linux| image:: /_static/linux.png
+.. |linux| image:: /static/linux.png
    :height: 35px
 
-.. |windows| image:: /_static/windows.png
+.. |windows| image:: /static/windows.png
    :height: 35px
 
-.. |macos| image:: /_static/macos.png
+.. |macos| image:: /static/macos.png
    :height: 35px
 
-.. |docker| image:: /_static/docker.png
+.. |docker| image:: /static/docker.png
    :height: 35px
 
 .. tabs::

@@ -1,6 +1,6 @@
 CO*N*CEPT documentation
 =======================
-<img align="right" height="300" src="/_static/render2D.png"/>
+<img align="right" height="300" src="/static/render2D.png"/>
 
 This is the git branch for the published CO*N*CEPT documentation,
 which is most likely not what you are looking for.

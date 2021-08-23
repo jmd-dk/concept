@@ -41,7 +41,7 @@ author --- both of which focus on the development of CO\ *N*\ CEPT --- are
 also available. You may consult both of these for the numerical methods
 implemented. For the physics, see the PhD thesis.
 
-* `PhD thesis <https://github.com/jmd-dk/concept/raw/master/concept/docs/_static/thesis_phd-b5.pdf>`_
+* `PhD thesis <https://pure.au.dk/portal/files/221374977/thesis_phd_b5.pdf>`_
 
-* `Master's thesis <https://github.com/jmd-dk/concept/raw/master/concept/docs/_static/thesis_masters.pdf>`_
+* `Master's thesis <https://pure.au.dk/portal/files/221375392/thesis_masters.pdf>`_
 
