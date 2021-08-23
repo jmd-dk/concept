@@ -139,6 +139,9 @@ done
 # when importing modules in Python.
 export PYTHONPATH="${concept_dir}:${PYTHONPATH}"
 
+# Disable Python hash randomization (salting) for reproducibility
+export PYTHONHASHSEED=0
+
 # Some Python packages may need access to libraries at runtime
 for lib in "blas" "gsl" "hdf5" "ncurses" "python" "zlib"; do
     eval "lib_dir=\"\${${lib}_dir}\""
