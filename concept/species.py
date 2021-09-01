@@ -747,18 +747,19 @@ class Tiling:
                         # Guard against round-off errors for positions
                         # at or very near the higher edge of the
                         # (sub)tile. We have found that introducing
-                        # machine_ϵ both as a translation of the
+                        # 2*machine_ϵ both as a translation of the
                         # numerator and as a scaling of the denominator
-                        # works best. Note that this translation is OK
-                        # at the lower edge, as casting a floating-point
-                        # value only slightly below 0.0 to an int
-                        # results in 0.
-                        i = cast((posxˣ[indexˣ] - ℝ[self.location[0]*(1 + machine_ϵ)])
-                            *ℝ[(1/self.tile_extent[0])*(1 - machine_ϵ)], 'Py_ssize_t')
-                        j = cast((posyˣ[indexˣ] - ℝ[self.location[1]*(1 + machine_ϵ)])
-                            *ℝ[(1/self.tile_extent[1])*(1 - machine_ϵ)], 'Py_ssize_t')
-                        k = cast((poszˣ[indexˣ] - ℝ[self.location[2]*(1 + machine_ϵ)])
-                            *ℝ[(1/self.tile_extent[2])*(1 - machine_ϵ)], 'Py_ssize_t')
+                        # works best, and that 1*machine_ϵ is not
+                        # always enough. Note that this translation is
+                        # OK at the lower edge, as casting a
+                        # floating-point value only slightly below 0.0
+                        # to an int results in 0.
+                        i = cast((posxˣ[indexˣ] - ℝ[self.location[0]*(1 + 2*machine_ϵ)])
+                            *ℝ[(1/self.tile_extent[0])*(1 - 2*machine_ϵ)], 'Py_ssize_t')
+                        j = cast((posyˣ[indexˣ] - ℝ[self.location[1]*(1 + 2*machine_ϵ)])
+                            *ℝ[(1/self.tile_extent[1])*(1 - 2*machine_ϵ)], 'Py_ssize_t')
+                        k = cast((poszˣ[indexˣ] - ℝ[self.location[2]*(1 + 2*machine_ϵ)])
+                            *ℝ[(1/self.tile_extent[2])*(1 - 2*machine_ϵ)], 'Py_ssize_t')
                         # The tile_index is given by
                         # self.layout[i, j, k], but as an optimization
                         # we compute it ourselves.
