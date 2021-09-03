@@ -143,7 +143,7 @@ export PYTHONPATH="${concept_dir}:${PYTHONPATH}"
 export PYTHONHASHSEED=0
 
 # Some Python packages may need access to libraries at runtime
-for lib in "blas" "gsl" "hdf5" "ncurses" "python" "zlib"; do
+for lib in "blas" "fftw" "gsl" "hdf5" "ncurses" "python" "zlib"; do
     eval "lib_dir=\"\${${lib}_dir}\""
     if [ -z "${lib_dir}" ]; then
         continue
