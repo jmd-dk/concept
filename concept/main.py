@@ -25,22 +25,23 @@
 from commons import *
 
 # Cython imports
-import interactions
 cimport('from analysis import measure, powerspec')
 cimport('from communication import domain_subdivisions')
 cimport('from graphics import render2D, render3D')
 cimport(
     'from integration import   '
     '    cosmic_time,          '
-    '    expand,               '
     '    hubble,               '
-    '    init_time,            '
     '    remove_doppelgängers, '
     '    scale_factor,         '
     '    scalefactor_integral, '
 )
 cimport('from snapshot import get_initial_conditions, save')
 cimport('from utilities import delegate')
+
+# Pure Python imports
+from integration import init_time
+import interactions
 
 
 
@@ -968,7 +969,6 @@ def get_time_step_integrals(t_start, t_end, components):
                     'a**(-3*(1+w_eff))',
                     'a**(-3*w_eff-1)',
                     'a**(3*w_eff-2)',
-                    'a**(2-3*w_eff)',
                     'a**(-3*w_eff)*Γ/H',
                 )
             ],
@@ -1005,7 +1005,7 @@ def get_time_step_integrals(t_start, t_end, components):
     for integrand in ᔑdt_scalar.keys():
         # If the passed components are only a subset of all components
         # present in the simulation, some integrals cannot be computed.
-        # This is OK, as presumably the caller it not interested in
+        # This is OK, as presumably the caller is not interested in
         # these anyway. Store NaN if the current integrand cannot be
         # computed for this reason.
         if isinstance(integrand, tuple):
@@ -1022,20 +1022,9 @@ def get_time_step_integrals(t_start, t_end, components):
                 ᔑdt_scalar[integrand] = NaN
                 continue
         # Compute integral
-        with unswitch:
-            if t_start == t_end:
-                ᔑdt_scalar[integrand] = 0
-            else:
-                with unswitch:
-                    if not enable_class_background:
-                        expand(
-                            scale_factor(t_start),
-                            t_start,
-                            ℝ[t_end - t_start],
-                        )
-                ᔑdt_scalar[integrand] = scalefactor_integral(
-                    integrand, t_start, ℝ[t_end - t_start], components,
-                )
+        ᔑdt_scalar[integrand] = scalefactor_integral(
+            integrand, t_start, t_end, components,
+        )
     # Return the global ᔑdt_scalar
     return ᔑdt_scalar
 # Dict returned by the get_time_step_integrals() function,
@@ -2177,15 +2166,13 @@ def prepare_for_output(components=None):
     dump_times =  [DumpTime('t', t=t_dump, a=None) for t_dump in t_dumps]
     dump_times += [DumpTime('a', a=a_dump, t=None) for a_dump in a_dumps]
     if enable_Hubble:
-        a_lower = t_lower = machine_ϵ
         for i, dump_time in enumerate(dump_times):
             if dump_time.time_param == 't' and dump_time.a is None:
                 a = scale_factor(dump_time.t)
                 dump_time = DumpTime('t', t=dump_time.t, a=a)
             elif dump_time.time_param == 'a' and dump_time.t is None:
-                t = cosmic_time(dump_time.a, a_lower, t_lower)
+                t = cosmic_time(dump_time.a)
                 dump_time = DumpTime('a', a=dump_time.a, t=t)
-                a_lower, t_lower = dump_time.a, dump_time.t
             dump_times[i] = dump_time
     # Sort the list according to the cosmic time
     dump_times = sorted(dump_times, key=operator.attrgetter('t'))

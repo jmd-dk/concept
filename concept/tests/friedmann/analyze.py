@@ -64,6 +64,7 @@ if sum([bool(re.search(rf'^{this_dir}/t_class=(True|False)_compiled=(True|False)
     # Find the latest time at which this difference is still important.
     rel_tol = 1e-2
     i = N_points
+    something_wrong = False
     for t1, t2 in zip(reversed(all_times[   'CLASS, compiled']),
                       reversed(all_times['no CLASS, compiled'])):
         i -= 1
@@ -80,15 +81,19 @@ if sum([bool(re.search(rf'^{this_dir}/t_class=(True|False)_compiled=(True|False)
             # If this time is too late, something is wrong
             a_max_allowed = 0.1
             if a > a_max_allowed:
-                abort(f'A discrepancy in t(a) of 1% between CLASS and the built-in '
-                      f'Freedman equation is present as late as a = {a}, '
-                      f'which is too extreme to be acceptable.\n'
-                      f'See "{fig_file}" for a visualization.'
-                      )
+                something_wrong = True
             break
     plt.legend(loc='best', fontsize=16).get_frame().set_alpha(0.7)
     plt.tight_layout()
     plt.savefig(fig_file)
+    if something_wrong:
+        abort(
+            f'A discrepancy in t(a) of 1% between CLASS and the built-in '
+            f'Friedmann equation is present as late as a = {a}, '
+            f'which is too extreme to be acceptable.\n'
+            f'See "{fig_file}" for a visualization.'
+        )
+
     # Whether we are running in compiled mode or not
     # really should not make a big difference.
     # When using CLASS, a real (but still small) difference

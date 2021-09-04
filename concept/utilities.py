@@ -32,7 +32,7 @@ cimport('import analysis')
 cimport('from analysis import measure')
 cimport('from communication import domain_subdivisions, exchange, partition, smart_mpi')
 cimport('import graphics')
-cimport('from integration import cosmic_time, init_time, remove_doppelgängers')
+cimport('from integration import cosmic_time, remove_doppelgängers')
 cimport(
     'from linear import                   '
     '    class_extra_perturbations_class, '
@@ -44,6 +44,9 @@ cimport('from mesh import convert_particles_to_fluid')
 cimport('from snapshot import compare_parameters, get_snapshot_type, snapshot_extensions')
 cimport('import species')
 cimport('from snapshot import get_initial_conditions, load, save')
+
+# Pure Python imports
+from integration import init_time
 
 
 

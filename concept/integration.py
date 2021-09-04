@@ -27,9 +27,6 @@ from commons import *
 # Cython imports
 cimport('from communication import get_buffer, smart_mpi')
 
-# Function pointer types used in this module
-pxd('ctypedef double (*func_d_dd) (double, double)')
-
 
 
 # Class used for 1D, cubic interpolation.
@@ -37,6 +34,8 @@ pxd('ctypedef double (*func_d_dd) (double, double)')
 # pure Python mode. The behaviour is identical.
 @cython.cclass
 class Spline:
+    size_min = 3
+
     # Initialisation method
     @cython.header(
         # Arguments
@@ -68,6 +67,7 @@ class Spline:
         double xmax
         double abs_tol_min
         double abs_tol_max
+        AcceleratorContainer acc_container
         gsl_interp_accel* acc
         gsl_spline* spline
         """
@@ -80,11 +80,11 @@ class Spline:
                 f'A Spline object cannot be tabulated using arrays of different lengths. '
                 f'Arrays of lengths {x.shape[0]} and {y.shape[0]} were passed.'
             )
-        if x.shape[0] < 3:
+        if x.shape[0] < self.size_min:
             abort(
                 f'Spline "{self.name}": '
                 f'Too few tabulated values ({x.shape[0]}) were given for '
-                f'cubic spline interpolation. At least 3 is needed.'
+                f'cubic spline interpolation. At least {self.size_min} is needed.'
             )
         # Take the log, if requested.
         # Note that a copy of the input data is used,
@@ -134,14 +134,17 @@ class Spline:
             # as to match the default of GSL.
             import scipy.interpolate
             self.spline = scipy.interpolate.CubicSpline(
-                asarray(x).copy(), asarray(y).copy(), bc_type='natural')
+                asarray(x).copy(), asarray(y).copy(),
+                bc_type='natural',
+            )
         else:
-            # Allocate an interpolation accelerator
-            # and a (cubic) spline object.
-            self.acc = gsl_interp_accel_alloc()
+            # Allocate and initialise cubic spline object
             self.spline = gsl_spline_alloc(gsl_interp_cspline, x.shape[0])
-            # Initialise the spline
             gsl_spline_init(self.spline, cython.address(x[:]), cython.address(y[:]), x.shape[0])
+            # Fetch existing interpolation accelerator over x
+            # or create a new one if missing.
+            self.acc_container = fetch_acc(x)
+            self.acc = self.acc_container.acc
 
     # Method for doing spline evaluation
     @cython.pheader(
@@ -264,11 +267,66 @@ class Spline:
     # This method is automatically called when a Spline instance
     # is garbage collected. All manually allocated memory is freed.
     def __dealloc__(self):
-        # Free the accelerator and the spline object
+        # Free the spline object
         gsl_spline_free(self.spline)
+        # Decrease accelerator counter and remove accelerator from
+        # global store if the count reach zero. No references should
+        # then remain to the accelerator and it will be cleaned up.
+        digest = self.acc_container.digest
+        acc_counter[digest] -= 1
+        if acc_counter[digest] == 0:
+            acc_store.pop(digest, None)
+            acc_counter.pop(digest, None)
+
+# Container class for storing GSL interpolation accelerator objects
+@cython.cclass
+class AcceleratorContainer:
+    @cython.header(x='double[::1]')
+    def __init__(self, x):
+        # The triple quoted string below serves as the type declaration
+        # for the data attributes of the AcceleratorContainer type.
+        # It will get picked up by the pyxpp script
+        # and included in the .pxd file.
+        """
+        str digest
+        gsl_interp_accel* acc
+        """
+        # Allocate new accelerator
+        self.acc = gsl_interp_accel_alloc()
+        # Add instance to global store
+        self.digest = self.hash_interpolation_domain(x)
+        if self.digest in acc_store:
+            abort(f'AcceleratorContainer {self.digest} instantiated twice')
+        acc_store[self.digest] = self
+        acc_counter[self.digest] += 1
+    @staticmethod
+    def hash_interpolation_domain(x):
+        return hashlib.sha1(asarray(x)).hexdigest()
+    def __dealloc__(self):
         gsl_interp_accel_free(self.acc)
 
-
+# Storage and retrieval mechanism for reusage
+# of AcceleratorContainer instances.
+@cython.header(
+    # Arguments
+    x='double[::1]',
+    # Locals
+    acc_container='AcceleratorContainer',
+    digest=str,
+    returns='AcceleratorContainer'
+)
+def fetch_acc(x):
+    digest = AcceleratorContainer.hash_interpolation_domain(x)
+    acc_container = acc_store.get(digest)
+    if acc_container is None:
+        # Instantiate new accelerator container
+        acc_container = AcceleratorContainer(x)
+    else:
+        # Reuse old accelerator; bump its count
+        acc_counter[digest] += 1
+    return acc_container
+acc_store = {}
+acc_counter = collections.Counter()
 
 # Function for cleaning up arrays of points possibly containing
 # duplicate points.
@@ -455,12 +513,12 @@ accepted_indices_ptr = malloc(accepted_indices_size*sizeof('Py_ssize_t'))
 # This function implements the Hubble parameter H(a)=ȧ/a,
 # The Hubble parameter is only ever written here. Every time the Hubble
 # parameter is used in the code, this function should be called.
-@cython.header(# Arguments
-               a='double',
-               # Locals
-               ΩΛ='double',
-               returns='double',
-               )
+@cython.header(
+    # Arguments
+    a='double',
+    # Locals
+    returns='double',
+)
 def hubble(a=-1):
     if not enable_Hubble:
         return 0
@@ -477,311 +535,123 @@ def hubble(a=-1):
             abort('The function H(a) has not been tabulated. Have you called init_time?')
         return spline_a_H.eval(a)
     # CLASS not enabled. Assume that the universe is flat
-    # and consists purely of matter and dark energy.
-    ΩΛ = 1 - Ωm
-    return H0*sqrt(Ωm/(a**3 + machine_ϵ) + ΩΛ)
+    # and consists purely of matter and Λ.
+    # If we write a**(±3) directly,
+    # -ffast-math degrades the power computation.
+    return H0*sqrt(Ωm*np.power(a, -3) + ΩΛ)
+# ΩΛ for a flat universe consisting purely of matter and Λ.
+# This will only be used when the CLASS background is disabled.
+cython.declare(ΩΛ='double')
+ΩΛ = 1 - Ωm
 
-# Function returning the proper time differentiated scale factor,
-# given the value of the scale factor.
-@cython.header(
-    # Arguments
-    a='double',
-    # Locals
-    returns='double',
-)
-def ȧ(a):
-    return a*hubble(a)
-
-# Function returning the proper time differentiated scale factor,
-# given the value of the scale factor.
-# This function is intended to be used by the rkf45 function, which is
-# why it takes in both t and a as arguments, even though t is not used.
+# Function for computing the scale factor a,
+# given a value for the cosmic time.
 @cython.header(
     # Arguments
     t='double',
-    a='double',
     # Locals
     returns='double',
 )
-def ȧ_rkf(t, a):
-    return ȧ(a)
-
-# Function returning the proper time differentiated Hubble parameter
-@cython.header(# Arguments
-               a='double',
-               # Locals
-               ΩΛ='double',
-               returns='double',
-               )
-def Ḣ(a=-1):
-    if not enable_Hubble:
-        return 0
-    if a == -1:
-        a = universals.a
-    # When using CLASS for the background computation, simply compute
-    # Ḣ(a) from the tabulated data. The largest tabulated a is 1, but it
-    # may happen that this function gets called with an a that is
-    # sightly larger. In this case, compute Ḣ directly via the
-    # derivative of the simple Friedmann equation, just as when CLASS is
-    # not being used for the background computation.
-    # We have Ḣ = dH/dt = ȧ*dH/da.
-    if enable_class_background and a <= 1:
-        if spline_a_H is None:
-            abort('The function H(a) has not been tabulated. Have you called init_time?')
-        return ȧ(a)*spline_a_H.eval_deriv(a)
-    # CLASS not enabled. Assume that the universe is flat
-    # and consists purely of matter and dark energy.
-    ΩΛ = 1 - Ωm
-    return ȧ(a)*(-1.5*H0*Ωm/(sqrt(a**5*(Ωm + a**3*ΩΛ)) + machine_ϵ))
-
-# Function returning the second proper time derivative of the factor,
-# given the value of the scale factor.
-@cython.header(
-    # Arguments
-    a='double',
-    # Locals
-    returns='double',
-)
-def ä(a):
-    return a*(hubble(a)**2 + Ḣ(a))
-
-# Function for computing the scale factor a at a given cosmic time t
-@cython.header(# Arguments
-               t='double',
-               # Locals
-               returns='double',
-               )
 def scale_factor(t=-1):
     if not enable_Hubble:
         return 1
     if t == -1:
         t = universals.t
-    # When using CLASS for the background computation,
-    # simply look up a(t) in the tabulated data.
-    if enable_class_background:
-        if spline_t_a is None:
-            abort('The function a(t) has not been tabulated. Have you called init_time?')
-        return spline_t_a.eval(t)
-    # Not using CLASS.
-    # Integrate the Friedmann equation from the beginning of time
-    # to the requested time.
-    return rkf45(ȧ_rkf, machine_ϵ, machine_ϵ, t, abs_tol=1e-9, rel_tol=1e-9)
+    if spline_t_a is None:
+        abort('The function a(t) has not been tabulated. Have you called init_time?')
+    return spline_t_a.eval(t)
 
-# Function for computing the cosmic time t at some given scale factor a
-@cython.pheader(# Arguments
-                a='double',
-                a_lower='double',
-                t_lower='double',
-                t_upper='double',
-                # Locals
-                a_test='double',
-                a_test_prev='double',
-                abs_tol='double',
-                rel_tol='double',
-                t='double',
-                t_max='double',
-                t_min='double',
-                returns='double',
-                )
-def cosmic_time(a=-1, a_lower=machine_ϵ, t_lower=machine_ϵ, t_upper=-1):
-    """Given lower and upper bounds on the cosmic time, t_lower and
-    t_upper, and the scale factor at time t_lower, a_lower,
-    this function finds the future time at which the scale
-    factor will have the value a.
-    """
-    global t_max_ever
-    # This function only works when Hubble expansion is enabled
+# Function for computing the cosmic time t,
+# given a value for the scale factor.
+@cython.pheader(
+    # Arguments
+    a='double',
+    # Locals
+    returns='double',
+)
+def cosmic_time(a=-1):
     if not enable_Hubble:
-        abort('The cosmic_time function was called. '
-              'A mapping from a to t is only meaningful when Hubble expansion is enabled.')
+        abort(
+            'The cosmic_time() function was called. '
+            'A mapping from a to t is only meaningful when Hubble expansion is enabled.'
+        )
     if a == -1:
         a = universals.a
-    # When using CLASS for the background computation,
-    # simply look up t(a) in the tabulated data.
-    if enable_class_background:
-        if spline_a_t is None:
-            abort('The function t(a) has not been tabulated. Have you called init_time?')
-        return spline_a_t.eval(a)
-    # Not using CLASS
-    if t_upper == -1:
-        # If no explicit t_upper is passed, use t_max_ever
-        t_upper = t_max_ever
-    elif t_upper > t_max_ever:
-        # If passed t_upper exceeds t_max_ever,
-        # set t_max_ever to this larger value.
-        t_max_ever = t_upper
-    # Tolerances
-    abs_tol = 1e-9
-    rel_tol = 1e-9
-    # Saves copies of extreme t values
-    t_min, t_max = t_lower, t_upper
-    # Compute the cosmic time at which the scale factor had the value a,
-    # using a binary search.
-    a_test = a_test_prev = t = -1
-    while (    not isclose(a_test,  a,       0, 2*machine_ϵ)
-           and not isclose(t_upper, t_lower, 0, 2*machine_ϵ)):
-        t = 0.5*(t_upper + t_lower)
-        a_test = rkf45(ȧ_rkf, a_lower, t_min, t, abs_tol, rel_tol)
-        if a_test == a_test_prev:
-            if not isclose(a_test, a):
-                if isclose(t, t_max):
-                    # Integration stopped at t == t_max.
-                    # Break out so that this function is called
-                    # recursively, this time with a higher t_upper.
-                    break
-                else:
-                    # Integration halted for whatever reason
-                    abort('Integration of scale factor a(t) halted')
-            break
-        a_test_prev = a_test
-        if a_test > a:
-            t_upper = t
-        else:
-            t_lower = t
-    # If the result is equal to t_max, it means that the t_upper
-    # argument was too small! Call recursively with double t_upper.
-    if isclose(t, t_max):
-        return cosmic_time(a, a_test, t_max, 2*t_max)
-    return t
-# Initialise t_max_ever, a cosmic time later than what will
-# ever be reached (if exceeded, it dynamically grows).
-cython.declare(t_max_ever='double')
-t_max_ever = 20*units.Gyr
+    if spline_a_t is None:
+        abort('The function t(a) has not been tabulated. Have you called init_time?')
+    return spline_a_t.eval(a)
 
-# Function for updating the scale factor
-@cython.header(# Arguments
-               a='double',
-               t='double',
-               Δt='double',
-               returns='double',
-               )
-def expand(a, t, Δt):
-    """Integrates the Friedmann equation from t to t + Δt,
-    where the scale factor at time t is given by a. Returns a(t + Δt).
-    """
-    return rkf45(ȧ_rkf, a, t, t + Δt, abs_tol=1e-9, rel_tol=1e-9, save_intermediate=True)
+# Function returning the proper time differentiated scale factor,
+# given a value for the scale factor.
+@cython.header(
+    # Arguments
+    a='double',
+    # Locals
+    returns='double',
+)
+def ȧ(a=-1):
+    if not enable_Hubble:
+        return 0
+    if a == -1:
+        a = universals.a
+    return a*hubble(a)
 
-# Function for solving ODEs of the form ḟ(t, f)
-@cython.header(# Arguments
-               ḟ=func_d_dd,
-               f_start='double',
-               t_start='double',
-               t_end='double',
-               abs_tol='double',
-               rel_tol='double',
-               save_intermediate='bint',
-               # Locals
-               error='double',
-               f='double',
-               f4='double',
-               f5='double',
-               h='double',
-               h_max='double',
-               i='Py_ssize_t',
-               k1='double',
-               k2='double',
-               k3='double',
-               k4='double',
-               k5='double',
-               k6='double',
-               tolerance='double',
-               Δt='double',
-               returns='double',
-               )
-def rkf45(ḟ, f_start, t_start, t_end, abs_tol, rel_tol, save_intermediate=False):
-    """ḟ(t, f) is the derivative of f with respect to t. Initial values
-    are given by f_start and t_start. ḟ will be integrated from t_start
-    to t_end. That is, the returned value is f(t_end). The absolute and
-    relative accuracies are given by abs_tol, rel_tol.
-    If save_intermediate is True, intermediate values obtained during
-    the integration will be kept in the global variables t_tab, f_tab.
-    """
-    global alloc_tab, f_tab, f_tab_mv, integrand_tab, integrand_tab_mv
-    global size_tab, t_tab, t_tab_mv
-    # The maximum and minimum step size
-    Δt = t_end - t_start
-    h_min = 10*machine_ϵ
-    h_max = 0.01*Δt + h_min
-    # Initial values
-    h = h_max*rel_tol
-    i = 0
-    f = f_start
-    t = t_start
-    if Δt == 0:
-        return f
-    # Drive the method
-    while t_end - t >  1e+3*machine_ϵ:
-        # The embedded Runge-Kutta-Fehlberg 4(5) step
-        k1 = h*ḟ(t            , f)
-        k2 = h*ḟ(t +  1./ 4.*h, f +     1./   4.*k1)
-        k3 = h*ḟ(t +  3./ 8.*h, f +     3./  32.*k1 +    9./  32.*k2)
-        k4 = h*ḟ(t + 12./13.*h, f +  1932./2197.*k1 - 7200./2197.*k2 + 7296./ 2197.*k3)
-        k5 = h*ḟ(t +         h, f +   439./ 216.*k1 -    8.      *k2 + 3680./  513.*k3 -   845./ 4104.*k4)
-        k6 = h*ḟ(t +  1./ 2.*h, f -     8./  27.*k1 +    2.      *k2 - 3544./ 2565.*k3 +  1859./ 4104.*k4 - 11./40.*k5)
-        f4 =                    f +    25./ 216.*k1                  + 1408./ 2565.*k3 +  2197./ 4104.*k4 -  1./ 5.*k5
-        f5 =                    f +    16./ 135.*k1                  + 6656./12825.*k3 + 28561./56430.*k4 -  9./50.*k5 + 2./55.*k6
-        # The error estimate
-        error = abs(f5 - f4) + machine_ϵ
-        # The local tolerance
-        tolerance = (rel_tol*abs(f5) + abs_tol)*sqrt(h/Δt) + 2*machine_ϵ
-        if error < tolerance:
-            # Step accepted
-            t += h
-            f = f5
-            # Save intermediate t and f values
-            if save_intermediate:
-                t_tab[i] = t
-                f_tab[i] = f
-                i += 1
-                # If necessary, t_tab and f_tab get resized (doubled)
-                if i == alloc_tab:
-                    alloc_tab *= 2
-                    t_tab = realloc(t_tab, alloc_tab*sizeof('double'))
-                    f_tab = realloc(f_tab, alloc_tab*sizeof('double'))
-                    integrand_tab = realloc(integrand_tab, alloc_tab*sizeof('double'))
-                    t_tab_mv = cast(t_tab, 'double[:alloc_tab]')
-                    f_tab_mv = cast(f_tab, 'double[:alloc_tab]')
-                    integrand_tab_mv = cast(integrand_tab, 'double[:alloc_tab]')
-        # Updating step size
-        h *= 0.95*(tolerance/error)**0.25
-        if h > h_max:
-            h = h_max
-        elif h < h_min:
-            h = h_min
-        if t + h > t_end:
-            h = t_end - t
-    if save_intermediate:
-        size_tab = i
-    return f
-# Allocate t_tab, f_tab and integrand_tab at import time.
-# t_tab and f_tab are used to store intermediate values of t and f
-# in the Runge-Kutta-Fehlberg method. integrand_tab stores the
-# associated values of the integrand in ᔑ_t^(t + Δt) integrand dt.
-cython.declare(alloc_tab='Py_ssize_t',
-               f_tab='double*',
-               f_tab_mv='double[::1]',
-               integrand_tab='double*',
-               integrand_tab_mv='double[::1]',
-               size_tab='Py_ssize_t',
-               t_tab='double*',
-               t_tab_mv='double[::1]'
-               )
-alloc_tab = 100
-size_tab = 0
-t_tab = malloc(alloc_tab*sizeof('double'))
-f_tab = malloc(alloc_tab*sizeof('double'))
-integrand_tab = malloc(alloc_tab*sizeof('double'))
-t_tab_mv = cast(t_tab, 'double[:alloc_tab]')
-f_tab_mv = cast(f_tab, 'double[:alloc_tab]')
-integrand_tab_mv = cast(integrand_tab, 'double[:alloc_tab]')
+# Function returning the second proper time derivative of the
+# scale factor, given a value for the scale factor.
+@cython.header(
+    # Arguments
+    a='double',
+    # Locals
+    returns='double',
+)
+def ä(a=-1):
+    if not enable_Hubble:
+        return 0
+    if a == -1:
+        a = universals.a
+    return a*(hubble(a)**2 + Ḣ(a))
+
+# Function returning the proper time differentiated Hubble parameter,
+# given a value for the scale factor.
+@cython.header(
+    # Arguments
+    a='double',
+    # Locals
+    returns='double',
+)
+def Ḣ(a=-1):
+    if not enable_Hubble:
+        return 0
+    if a == -1:
+        a = universals.a
+    if spline_a_H is None:
+        abort('The function H(a) has not been tabulated. Have you called init_time?')
+    return ȧ(a)*spline_a_H.eval_deriv(a)
+
+# Function returning ∂log(a)/∂log(t), given both log(t) and log(a).
+# The function is written as to be
+# plugged into scipy.integrate.solve_ivp().
+@cython.pheader(
+    # Arguments
+    logt='double',
+    loga='double[::1]',
+    # Locals
+    a='double',
+    t='double',
+    returns='double',
+)
+def dloga_dlogt(logt, loga):
+    t = exp(logt)
+    a = exp(loga[0])
+    return t*hubble(a)
 
 # Function for calculating integrals of the sort
-# ᔑ_t^(t + Δt) integrand(a) dt.
+# ᔑ_t_start^t_end integrand(a(t)) dt.
 @cython.header(
     # Arguments
     key=object,  # str or tuple
-    t_ini='double',
-    Δt='double',
+    t_start='double',
+    t_eval='double',
     all_components=list,
     # Locals
     a='double',
@@ -804,20 +674,17 @@ integrand_tab_mv = cast(integrand_tab, 'double[:alloc_tab]')
     w_eff_1='double',
     returns='double',
 )
-def scalefactor_integral(key, t_ini, Δt, all_components):
+def scalefactor_integral(key, t_start, t_end, all_components):
     """This function returns the integral
-    ᔑ_t^(t + Δt) integrand(a) dt.
+    ᔑ_t_start^t_end integrand(a(t)) dt.
     The integrand is passed as the key argument, which may be a string
     (e.g. 'a**(-1)') or a tuple in the format (string, component.name),
     (string, component_0.name, component_1.name) etc., where again the
     first string is really the integrand. The tuple form is used when
     the integrand is component specific, e.g. 'a**(-3*w_eff)'.
-    When the CLASS background is disabled it is important that the
-    expand function expand(a, t, Δt) has been called prior to calling
-    this function, as expand generates the values needed in
-    the integration. You can call this function multiple times (and with
-    different integrands) without calling expand in between.
     """
+    if t_start == t_end:
+        return 0
     # Extract the integrand from the passed key
     components = []
     if 𝔹[isinstance(key, str)]:
@@ -831,18 +698,13 @@ def scalefactor_integral(key, t_ini, Δt, all_components):
                 if component.name == component_name:
                     components.append(component)
                     break
-    # When using the CLASS background, a(t) is already tabulated
-    # throughout time. Here we simply construct Spline objects over the
-    # given integrand and ask for the integral.
-    if enable_class_background:
-        spline = spline_t_integrands.get(key)
-        if spline is not None:
-            return spline.integrate(t_ini, t_ini + Δt)
-    # At this point, either enable_class_background is False,
-    # or this is the first time this function has been called with
-    # the given key. In both cases, we now need to tabulate
-    # the integrand.
-    if enable_class_background:
+    # Lookup spline and use it for the integration
+    spline = spline_t_integrands.get(key)
+    if spline is not None:
+        return spline.integrate(t_start, t_end)
+    # A spline has yet to be made for this integrand.
+    # Get tabulated a(t).
+    if enable_Hubble:
         for component in components:
             if component is not None and component.w_eff_type != 'constant':
                 a_tab_spline = component.w_eff_spline.x
@@ -851,16 +713,12 @@ def scalefactor_integral(key, t_ini, Δt, all_components):
         else:
             a_tab_spline = spline_a_t.x
             t_tab_spline = spline_a_t.y
-        integrand_tab_spline = empty(t_tab_spline.shape[0], dtype=C2np['double'])
-        size = t_tab_spline.shape[0]
     else:
-        # We do not use the CLASS background. If expand() has been
-        # called as it should, t_tab_mv stores the tabulated values of t
-        # while f_tab_mv stores the tabulated values of a.
-        a_tab_spline = f_tab_mv
-        t_tab_spline = t_tab_mv
-        integrand_tab_spline = integrand_tab_mv
-        size = size_tab
+        # Construct dummy a(t) table
+        t_tab_spline = linspace(t_start, t_end, Spline.size_min)
+        a_tab_spline = asarray([scale_factor(t) for t in t_tab_spline])
+    size = t_tab_spline.shape[0]
+    integrand_tab_spline = empty(size, dtype=C2np['double'])
     # Do the tabulation
     for i in range(size):
         a = a_tab_spline[i]
@@ -899,9 +757,6 @@ def scalefactor_integral(key, t_ini, Δt, all_components):
                     elif integrand == 'a**(3*w_eff-2)':
                         w_eff = component.w_eff(t=t, a=a)
                         integrand_tab_spline[i] = a**(3*w_eff - 2)
-                    elif integrand == 'a**(2-3*w_eff)':
-                        w_eff = component.w_eff(t=t, a=a)
-                        integrand_tab_spline[i] = a**(2 - 3*w_eff)
                     elif integrand == 'a**(-3*w_eff)*Γ/H':
                         with unswitch:
                             if enable_Hubble:
@@ -929,11 +784,12 @@ def scalefactor_integral(key, t_ini, Δt, all_components):
                         )
             else:
                 abort(f'scalefactor_integral(): Invalid length ({len(key)}) of key {key}')
-    # Do the integration
-    spline = Spline(t_tab_spline[:size], integrand_tab_spline[:size], integrand)
-    if enable_class_background:
+    # Create and store the spline
+    spline = Spline(t_tab_spline, integrand_tab_spline, integrand)
+    if enable_Hubble:
         spline_t_integrands[key] = spline
-    return spline.integrate(t_ini, t_ini + Δt)
+    # Perform the integration
+    return spline.integrate(t_start, t_end)
 # Global dict of Spline objects defined by scalefactor_integral()
 cython.declare(spline_t_integrands=dict)
 spline_t_integrands = {}
@@ -943,28 +799,31 @@ spline_t_integrands = {}
 # cosmology if enable_Hubble is True. The functions t(a), a(t) and H(a)
 # will also be tabulated and stored in the module namespace in the
 # form of spline_a_t, spline_t_a and spline_a_H.
-@cython.pheader(
-    # Arguments
-    reinitialize='bint',
-    # Locals
-    H_values='double[::1]',
-    a_begin_correct='double',
-    a_values='double[::1]',
-    background=dict,
-    t_values='double[::1]',
-    t_begin_correct='double',
-)
 def init_time(reinitialize=False):
     global time_initialized, spline_a_t, spline_t_a, spline_a_H
+    # This is a pure function as it contains a closure.
+    # Some type information is necessary.
+    cython.declare(
+        H_values='double[::1]',
+        a_begin_correct='double',
+        a_today='double',
+        a_values='double[::1]',
+        t_values='double[::1]',
+        t_begin_correct='double',
+    )
     if time_initialized and not reinitialize:
         return
     time_initialized = True
     if enable_Hubble:
         # Hubble expansion enabled.
-        # If CLASS should be used to compute the evolution of
-        # the background throughout time, run CLASS now.
+        # If CLASS should be used to compute the evolution of the
+        # background throughout time, we run CLASS now.
+        # Otherwise we solve the simplified background implemented
+        # by hubble() ourselves.
+        a_values = t_values = H_values = None
+        a_today = 1
         if enable_class_background:
-            # Ideally we would call CLASS via compute_cosmo from the
+            # Ideally we would call CLASS via compute_cosmo() from the
             # linear module, as this would preserve all results for any
             # future needs. However, the linear module imports functions
             # from this module (integration), so importing from
@@ -975,18 +834,73 @@ def init_time(reinitialize=False):
             # from the CLASS computation.
             cosmo = call_class(class_call_reason='in order to set the cosmic clock')
             background = cosmo.get_background()
-            # What we need to store is the cosmic time t and the Hubble
-            # parameter H, both as functions of the scale factor a.
-            # Since the time-stepping is done in t, we furthermore want
-            # the scale factor a as a function of cosmic time t.
-            # We do this by defining global Spline objects.
-            a_values = smart_mpi(1/(background['z'] + 1), 0, mpifun='bcast')
-            t_values = smart_mpi(background['proper time [Gyr]']*units.Gyr, 1, mpifun='bcast')
-            H_values = smart_mpi(
-                background['H [1/Mpc]']*(light_speed/units.Mpc), 2, mpifun='bcast')
-            spline_a_t = Spline(a_values, t_values, 't(a)', logx=True, logy=True)
-            spline_t_a = Spline(t_values, a_values, 'a(t)', logx=True, logy=True)
-            spline_a_H = Spline(a_values, H_values, 'H(a)', logx=True, logy=True)
+            a_values = 1/(background['z'] + 1)
+            t_values = background['proper time [Gyr]']*units.Gyr
+            H_values = background['H [1/Mpc]']*(light_speed/units.Mpc)
+        elif master:
+            masterprint('Solving matter + Λ background ...')
+            # Get the age of the universe t(a=1)
+            import scipy.integrate
+            a_begin_bg = 1e-14  # as in CLASS
+            t_begin_bg = 2/(3*hubble(a_begin_bg))  # assume matter domination as hubble() neglects radiation
+            rtol = 1e-12
+            atol = machine_ϵ  # 0 is not OK
+            def event(logt, loga):
+                return loga[0] - ℝ[log(a_today)]
+            event.terminal = True
+            t_today = exp(
+                scipy.integrate.solve_ivp(
+                    dloga_dlogt,
+                    (log(t_begin_bg), ထ),
+                    asarray([log(a_begin_bg)]),
+                    rtol=rtol,
+                    atol=atol,
+                    events=event,
+                ).t_events[0][0]
+            )
+            # Tabulate a(t) from t_begin_bg to today
+            n_bg = int(log(a_today/a_begin_bg)/7e-3)  # as in CLASS
+            logt_values = linspace(log(t_begin_bg), log(t_today), n_bg)
+            t_values = np.exp(logt_values)
+            a_values = np.exp(
+                scipy.integrate.solve_ivp(
+                    dloga_dlogt,
+                    (log(t_begin_bg), log(t_today)),
+                    asarray([log(a_begin_bg)]),
+                    t_eval=logt_values,
+                    rtol=rtol,
+                    atol=atol,
+                ).y[0, :]
+            )
+            # Tabulate H on the same interval
+            H_values = asarray([hubble(a) for a in a_values])
+            masterprint('done')
+        # Ensure that the last scale factor and Hubble value
+        # are set to their current values.
+        if master:
+            index = len(a_values) - 1
+            if not isclose(a_values[index], a_today):
+                abort(
+                    f'Expected the last scale factor value in the '
+                    f'tabulated background to be {a_today}, '
+                    f'but found {a_values[index]}.'
+                )
+            a_values[index] = a_today
+            unit = units.km/(units.s*units.Mpc)
+            if not isclose(H_values[index], H0):
+                abort(
+                    f'Expected the last Hubble value in the '
+                    f'tabulated background to be {H0/unit} km s⁻¹ Mpc⁻¹, '
+                    f'but found {H_values[index]/unit} km s⁻¹ Mpc⁻¹.'
+                )
+            a_values[index] = a_today
+        # Communicate results and create splines
+        a_values = smart_mpi(a_values, 0, mpifun='bcast')
+        t_values = smart_mpi(t_values, 1, mpifun='bcast')
+        H_values = smart_mpi(H_values, 2, mpifun='bcast')
+        spline_a_t = Spline(a_values, t_values, 't(a)', logx=True, logy=True)
+        spline_t_a = Spline(t_values, a_values, 'a(t)', logx=True, logy=True)
+        spline_a_H = Spline(a_values, H_values, 'H(a)', logx=True, logy=True)
         # A specification of initial scale factor or
         # cosmic time is needed.
         if 'a_begin' in user_params_keys_raw:
@@ -1019,7 +933,7 @@ def init_time(reinitialize=False):
         # effectively ignoring its existence.
         a_begin_correct = 1.0
         if 'a_begin' in user_params_keys_raw:
-            masterwarn('Ignoring a_begin = {} because enable_Hubble is False'.format(a_begin))
+            masterwarn(f'Ignoring a_begin = {a_begin} because enable_Hubble is False')
     # Now t_begin_correct and a_begin_correct are defined and store
     # the actual values of the initial time and scale factor.
     # Assign these correct values to the corresponding
