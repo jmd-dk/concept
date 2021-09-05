@@ -168,9 +168,10 @@ replacing the uncorrelated random amplitudes of the primordial noise used to
 generate the initial conditions with amplitudes that are all of the same size.
 With this change, ``powerspec_lin=_a=0.02.png`` should look much better at
 low :math:`k` (larger :math:`k` are not very affected by this, as here many
-more :math:`\vec{k}` with the same magnitude :math:`|\vec{k}|=k` goes into
-producing each data point (recorded in the ``modes`` column in the power
-spectrum data file), reducing errors arising due to small number statistics).
+more :math:`\boldsymbol{k}` with the same magnitude :math:`|\boldsymbol{k}|=k`
+goes into producing each data point (recorded in the ``modes`` column in the
+power spectrum data file), reducing errors arising due to small
+number statistics).
 
 We expect the evolution of the *N*-body particles to be completely linear at
 these large scales and early times, and so we may use the difference between
