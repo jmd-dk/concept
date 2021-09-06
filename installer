@@ -409,7 +409,7 @@ fi
 set_version "ncurses"           "6.2"     "6.2"
 set_version "openssl"           "1.1.1l"  "1.1.1k"
 set_version "perl"              "5.34.0"
-set_version "python"            "3.9.6"
+set_version "python"            "3.9.7"
 set_version "zlib"              "1.2.11"  "1.2.11"
 # Python packages
 set_version "blessings"         "1.7"
@@ -421,7 +421,7 @@ set_version "mpi4py"            "3.1.1"
 set_version "numpy"             "1.21.2"
 set_version "pip"               "21.2.4"
 set_version "scipy"             "1.7.1"
-set_version "setuptools"        "57.4.0"
+set_version "setuptools"        "57.5.0"
 set_version "sphinx"            "4.1.2"
 set_version "sphinx_copybutton" "0.4.0"
 set_version "sphinx_rtd_theme"  "0.5.2"
@@ -5245,8 +5245,8 @@ install() {
             "acknowledgement" "acknowledgements" "acknowledgment" "acknowledgments" "announce"    \
             "announcement" "announcements" "author" "authors" "backers" "changelist"              \
             "changelog" "changes" "contributing" "contributors" "copying" "copyright" "ftl" "gpl" \
-            "gplv2" "gplv3" "license" "new" "news" "readme" "thank" "thanks" "trademark"          \
-            "trademarks" "version"                                                                \
+            "gplv2" "gplv3" "license" "licence" "new" "news" "readme" "thank" "thanks"            \
+            "trademark" "trademarks" "version"                                                    \
         )
     fi
     if [ -n "${program_test_log}" ]; then
@@ -6355,15 +6355,16 @@ ${pip_name}${command_end}"
     for n in {1..10}; do
         pip_status="error"
         for extra_pip_arg in                                 \
-            "--no-build-isolation --no-deps"                 \
-            "--no-build-isolation"                           \
-            "--no-deps"                                      \
-            ""                                               \
             "--no-build-isolation --no-deps --no-use-pep517" \
-            "--no-build-isolation --no-use-pep517"           \
-            "--no-deps --no-use-pep517"                      \
-            "--no-use-pep517"                                \
+            "--no-build-isolation           --no-use-pep517" \
+            "                     --no-deps --no-use-pep517" \
+            "                               --no-use-pep517" \
+            "                                              " \
+            "--no-build-isolation --no-deps                " \
+            "--no-build-isolation                          " \
+            "                     --no-deps                " \
         ; do
+            extra_pip_arg="$(echo ${extra_pip_arg} | awk '{$1=$1};1')"
             all_pip_args="${pip_args} ${extra_pip_arg}"
             printf "
 Attempting to download ${1} using pip ${all_pip_args}\n\n"
@@ -6526,14 +6527,16 @@ pip_install_pypackage() {
             # for particular packages, such as h5py. When this is the
             # case, write a soothing message.
             for extra_pip_arg in                                      \
-                "--no-cache-dir"                                      \
-                "--no-cache-dir --no-build-isolation"                 \
-                "--no-build-isolation"                                \
-                "--no-cache-dir --no-use-pep517"                      \
+                "--no-cache-dir                                     " \
+                "--no-cache-dir --no-build-isolation                " \
+                "               --no-build-isolation                " \
+                "--no-cache-dir                      --no-use-pep517" \
                 "--no-cache-dir --no-build-isolation --no-use-pep517" \
-                "--no-build-isolation --no-use-pep517"                \
-                ""                                                    \
+                "               --no-build-isolation --no-use-pep517" \
+                "                                    --no-use-pep517" \
+                "                                                   " \
             ; do
+                extra_pip_arg="$(echo ${extra_pip_arg} | awk '{$1=$1};1')"
                 rm -rf "${tmp_pip_dir}" || :
                 cp -r "${tmp_pip_dir}_cp" "${tmp_pip_dir}"
                 if [ -z "${upgrade_flag}" ]; then
@@ -6568,14 +6571,16 @@ pyuser=${pyuser}, extra_pip_arg=${extra_pip_arg}\n\n"
             fi
             rm -rf "${tmp_pip_dir}" || :
             for extra_pip_arg in                                      \
-                "--no-cache-dir"                                      \
-                "--no-cache-dir --no-build-isolation"                 \
-                "--no-build-isolation"                                \
-                "--no-cache-dir --no-use-pep517"                      \
+                "--no-cache-dir                                     " \
+                "--no-cache-dir --no-build-isolation                " \
+                "               --no-build-isolation                " \
+                "--no-cache-dir                      --no-use-pep517" \
                 "--no-cache-dir --no-build-isolation --no-use-pep517" \
-                "--no-build-isolation --no-use-pep517"                \
-                ""                                                    \
+                "               --no-build-isolation --no-use-pep517" \
+                "                                    --no-use-pep517" \
+                "                                                   " \
             ; do
+                extra_pip_arg="$(echo ${extra_pip_arg} | awk '{$1=$1};1')"
                 printf "
 Attempting to install ${1} using pip with default settings, \
 force_recythonization=${force_recythonization}, pyuser=${pyuser}, \
@@ -6662,14 +6667,16 @@ if [ "${pip_install}" == "True" ] && [ "${python_install}" == "True" ]; then
         eval "package_version=\${${package}_version}"
         pip_success="True"
         for extra_pip_arg in                                      \
-            "--no-cache-dir"                                      \
-            "--no-cache-dir --no-build-isolation"                 \
-            "--no-build-isolation"                                \
-            "--no-cache-dir --no-use-pep517"                      \
+            "--no-cache-dir                                     " \
+            "--no-cache-dir --no-build-isolation                " \
+            "               --no-build-isolation                " \
+            "--no-cache-dir                      --no-use-pep517" \
             "--no-cache-dir --no-build-isolation --no-use-pep517" \
-            "--no-build-isolation --no-use-pep517"                \
-            ""                                                    \
+            "               --no-build-isolation --no-use-pep517" \
+            "                                    --no-use-pep517" \
+            "                                                   " \
         ; do
+            extra_pip_arg="$(echo ${extra_pip_arg} | awk '{$1=$1};1')"
             rm -rf "${tmp_pip_dir}" "${tmp_pip_dir}_tmp" || :
             mkdir -p "${tmp_pip_dir}" "${tmp_pip_dir}_tmp"
             "${python}" -m pip install \
@@ -6961,6 +6968,7 @@ runtime_library_dirs = ${blas_dir}/lib
         export LDFLAGS="${extra_LDFLAGS} ${LDFLAGS}"
         cd "${top_dir}"
         rm -rf "${numpy_build_dir}" || :
+        "${python}" -m pip uninstall "numpy" -y >/dev/null 2>&1 || :
         cp -r "${numpy_build_dir}_cp" "${numpy_build_dir}"
         cd "${numpy_build_dir}"
         echo "True" > ".setuppy_success"
@@ -6977,7 +6985,19 @@ runtime_library_dirs = ${blas_dir}/lib
         if [ "${setuppy_success}" != "True" ]; then
             return 1
         fi
-        "${python}" setup.py install ${pyuser} & setuppy_pid=$!
+        if [ "${setuppy_mode}" == "wheel" ]; then
+            rm -rf concept_wheel || :
+            ("${python}" setup.py bdist_wheel -d concept_wheel \
+                && cd "${top_dir}"                             \
+                && "${python}" -m pip install                  \
+                    --no-deps --ignore-installed               \
+                    "${numpy_build_dir}/concept_wheel/"*.whl   \
+            ) & setuppy_pid=$!
+        elif [ "${setuppy_mode}" == "install" ]; then
+            "${python}" setup.py install & setuppy_pid=$!
+        elif [ "${setuppy_mode}" == "--user" ]; then
+            "${python}" setup.py install --user & setuppy_pid=$!
+        fi
         soothe ${setuppy_pid}
         if [ "$(check_pypackage_installed numpy)" == "False" ]; then
             return 1
@@ -7015,7 +7035,7 @@ extra_argv=['-q', '--color=yes'])" 2>&1 | tee "test_log"; \
         fi
     }
     install "NumPy" "no_init_install"                                  \
-        pyuser "" "--user"                                         ";" \
+        setuppy_mode "wheel" "install" "--user"                    ";" \
         numpy_gfortran "True" "False"                              ";" \
         compiler "${compiler_possibilities_specified_mpi_last[@]}" ";" \
         cstd "-std=c99" ""                                         ";" \
@@ -7112,6 +7132,7 @@ runtime_library_dirs = ${blas_dir}/lib
         export LDFLAGS="${extra_LDFLAGS} ${LDFLAGS}"
         cd "${top_dir}"
         rm -rf "${scipy_build_dir}" || :
+        "${python}" -m pip uninstall "scipy" -y >/dev/null 2>&1 || :
         cp -r "${scipy_build_dir}_cp" "${scipy_build_dir}"
         cd "${scipy_build_dir}"
         if [ -n "${zip_safe}" ]; then
@@ -7132,7 +7153,19 @@ runtime_library_dirs = ${blas_dir}/lib
         if [ "${setuppy_success}" != "True" ]; then
             return 1
         fi
-        "${python}" setup.py install ${pyuser} & setuppy_pid=$!
+        if [ "${setuppy_mode}" == "wheel" ]; then
+            rm -rf concept_wheel || :
+            ("${python}" setup.py bdist_wheel -d concept_wheel \
+                && cd "${top_dir}"                             \
+                && "${python}" -m pip install                  \
+                    --no-deps --ignore-installed               \
+                    "${scipy_build_dir}/concept_wheel/"*.whl   \
+            ) & setuppy_pid=$!
+        elif [ "${setuppy_mode}" == "install" ]; then
+            "${python}" setup.py install & setuppy_pid=$!
+        elif [ "${setuppy_mode}" == "--user" ]; then
+            "${python}" setup.py install --user & setuppy_pid=$!
+        fi
         soothe ${setuppy_pid}
         if [ "$(check_pypackage_installed scipy)" == "False" ]; then
             return 1
@@ -7181,7 +7214,7 @@ extra_argv=['-q', '--color=yes', '-k not test_face'])" 2>&1 | tee "test_log"; \
         fi
     }
     install "SciPy" "no_init_install"                                  \
-        pyuser "" "--user"                                         ";" \
+        setuppy_mode "wheel" "install" "--user"                    ";" \
         scipy_gfortran "True" "False"                              ";" \
         compiler "${compiler_possibilities_specified_mpi_last[@]}" ";" \
         zip_safe "False" ""                                        ";" \
@@ -7380,16 +7413,20 @@ ${freetype_include2},${freetype_dir}/lib"
             export PATH="${freetype_dir}/bin:${PATH_libpng}${PATH}"
             export PKG_CONFIG_PATH="${PKG_CONFIG_PATH_libpng}\
 ${zlib_dir}/lib/pkgconfig:${PKG_CONFIG_PATH}"
+            matplotlib_build_dir="$(pwd)"
+            cd "${top_dir}"
             # As usual, various extra pip arguments may be needed
             for extra_pip_arg in                                      \
-                "--no-cache-dir"                                      \
-                "--no-cache-dir --no-build-isolation"                 \
-                "--no-build-isolation"                                \
-                "--no-cache-dir --no-use-pep517"                      \
+                "--no-cache-dir                                     " \
+                "--no-cache-dir --no-build-isolation                " \
+                "               --no-build-isolation                " \
+                "--no-cache-dir                      --no-use-pep517" \
                 "--no-cache-dir --no-build-isolation --no-use-pep517" \
-                "--no-build-isolation --no-use-pep517"                \
-                ""                                                    \
+                "               --no-build-isolation --no-use-pep517" \
+                "                                    --no-use-pep517" \
+                "                                                   " \
             ; do
+                extra_pip_arg="$(echo ${extra_pip_arg} | awk '{$1=$1};1')"
                 # Install Matplotlib
                 "${python}" -m pip uninstall "matplotlib" -y >/dev/null 2>&1 || :
                 printf "
@@ -7400,7 +7437,7 @@ Attempting to install Matplotlib using pip with extra_pip_arg=${extra_pip_arg}\n
                     ${extra_pip_arg}                  \
                     --no-index                        \
                     --find-links="${top_dir}/tmp/pip" \
-                    . 2>&1 & pip_install_pid=$!
+                    "${matplotlib_build_dir}" 2>&1 & pip_install_pid=$!
                 soothe ${pip_install_pid}
                 pypackage_installed=$(check_pypackage_installed matplotlib)
                 if [ "${pypackage_installed}" == "True" ]; then
