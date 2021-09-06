@@ -2717,6 +2717,7 @@ class Component:
         any_rung_jumps='bint',
         indexᵖ='Py_ssize_t',
         integrals='double[::1]',
+        integrals_ptr='double*',
         jump_down='signed char',
         jump_up='signed char',
         lowest_active_rung='signed char',
@@ -2740,6 +2741,7 @@ class Component:
         if not self.use_rungs:
             return any_rung_jumps
         integrals = ᔑdt_rungs['1']
+        integrals_ptr = cython.address(integrals[:])
         rung_indices        = self.rung_indices
         rung_indices_jumped = self.rung_indices_jumped
         lowest_active_rung = self.lowest_active_rung
@@ -2750,7 +2752,15 @@ class Component:
         for indexᵖ in range(self.N_local):
             rung_index = rung_indices[indexᵖ]
             # Skip this particle if it is on an inactive rung
-            if rung_index < lowest_active_rung:
+            with unswitch:
+                if lowest_active_rung > 0:
+                    if rung_index < lowest_active_rung:
+                        continue
+            # A rung may be effectively inactive even if it is above
+            # the lowest active rung, due to it being ahead and at
+            # a synchronization point. If so it will have a
+            # time step size of zero.
+            if integrals_ptr[rung_index] == 0:
                 continue
             # A particle is always allowed to jump up, but may only jump
             # down every second kick. When a down-jump is disallowed,
@@ -2762,7 +2772,7 @@ class Component:
                 rung_indices_jumped[indexᵖ] = rung_index + jump_up
             else:
                 rung_jump_down = rung_index + jump_down
-                if integrals[rung_jump_down] == -1:
+                if integrals_ptr[rung_jump_down] == -1:
                     continue
                 rung_index_ought = self.get_rung(indexᵖ, rung_factor_down)
                 if rung_index_ought < rung_index:

@@ -81,6 +81,7 @@ import interactions
     Δt_begin='double',
     Δt_min='double',
     Δt_max='double',
+    Δt_print='double',
     returns='void',
 )
 def timeloop():
@@ -141,9 +142,9 @@ def timeloop():
         timespan = dump_times[len(dump_times) - 1].t - universals.t
         if Δt_begin > timespan/Δt_period:
             Δt_begin = timespan/Δt_period
-        # We need at least 1.5 base time steps before the first dump
-        if Δt_begin > (dump_times[0].t - universals.t)/1.5:
-            Δt_begin = (dump_times[0].t - universals.t)/1.5
+        # We need at least a whole base time step before the first dump
+        if Δt_begin > dump_times[0].t - universals.t:
+            Δt_begin = dump_times[0].t - universals.t
         Δt = Δt_begin
     else:
         # Set Δt_begin and Δt to the autosaved values
@@ -155,7 +156,7 @@ def timeloop():
     # Record what time it is, for use with autosaving
     autosave_time = time()
     # Populate the global ᔑdt_scalar and ᔑdt_rungs dicts
-    # with integrand keys
+    # with integrand keys.
     get_time_step_integrals(0, 0, components + passive_components)
     # Construct initial rung populations by carrying out an initial
     # short kick, but without applying the momentum updates.
@@ -207,7 +208,10 @@ def timeloop():
                 # universals.time_step being exactly equal to time_step.
                 universals.time_step = time_step
                 # Print out message at the beginning of each time step
-                print_timestep_heading(time_step, Δt,
+                Δt_print = Δt
+                if universals.t + Δt*(1 + Δt_reltol) + 2*machine_ϵ > sync_time:
+                    Δt_print = sync_time - universals.t
+                print_timestep_heading(time_step, Δt_print,
                     bottleneck if time_step_type == 'init' else '', components)
             # Handle the time step.
             # This is either of type "init" or "full".
@@ -272,7 +276,7 @@ def timeloop():
                 # have been nullified by the call
                 # to Component.assign_rungs() above.
                 kick_short(components, Δt)
-                # Check whether next dump is within 1.5*Δt
+                # Check whether next dump is within one and a half Δt
                 if dump_time.t - universals.t <= 1.5*Δt:
                     # Next base step should synchronize at dump time
                     sync_time = dump_time.t
@@ -300,11 +304,11 @@ def timeloop():
                 # next base time step.
                 driftkick_short(components, Δt, sync_time)
                 # All drifting is now exactly at the next base time
-                # step, while the long-range kicks are lagging behind.
-                # Before doing the long-range kicks, set the universal
-                # time and scale factor to match the current position of
-                # the long-range kicks, so that various time averages
-                # will be over the kick step.
+                # step, while the long-range kicks are lagging half a
+                # step behind. Before doing the long-range kicks, set
+                # the universal time and scale factor to match the
+                # current position of the long-range kicks, so that
+                # various time averages will be over the kick step.
                 universals.t += 0.5*Δt
                 if universals.t + Δt_reltol*Δt + 2*machine_ϵ > sync_time:
                     universals.t = sync_time
@@ -365,10 +369,10 @@ def timeloop():
                                 Δt, Δt_min, Δt_max, bottleneck,
                                 allow_increase=False, tolerate_danger=True,
                             )
-                        # Ensure that we have at least 1.5
-                        # base time steps before the next dump.
+                        # Ensure that we have at least a whole
+                        # base time step before the next dump.
                         if dump_index != len(dump_times) - 1:
-                            Δt_max = (dump_times[dump_index + 1].t - universals.t)/1.5
+                            Δt_max = dump_times[dump_index + 1].t - universals.t
                             if Δt > Δt_max:
                                 # We are now lowering Δt in order to
                                 # reach the next dump time exactly. Once
@@ -381,9 +385,9 @@ def timeloop():
                         # proceeding to the next dump time.
                         break
                     # Not at dump time.
-                    # Ensure that we have at least 1.5
-                    # base time steps before we reach the dump time.
-                    Δt_max = (dump_time.t - universals.t)/1.5
+                    # Ensure that we have at least a whole
+                    # base time step before we reach the dump time.
+                    Δt_max = dump_time.t - universals.t
                     if Δt > Δt_max:
                         # We are now lowering Δt in order to reach the
                         # next dump time exactly. Once the dump is
@@ -394,7 +398,9 @@ def timeloop():
                         Δt = Δt_max
                     # Go to init step
                     continue
-                # Check whether next dump is within 1.5*Δt
+                # Base time step completed
+                time_step += 1
+                # Check whether next dump is within one and a half Δt
                 if dump_time.t - universals.t <= 1.5*Δt:
                     # We need to synchronize at dump time
                     sync_time = dump_time.t
@@ -404,7 +410,7 @@ def timeloop():
                 if Δt > Δt_max:
                     # We should synchronize, whereafter the
                     # base time step size can be lowered.
-                    sync_time = universals.t + 0.5*Δt
+                    sync_time = universals.t + Δt
                     recompute_Δt_max = False
                     continue
                 # Check whether the base time step should be increased
@@ -413,11 +419,9 @@ def timeloop():
                 ):
                     # We should synchronize, whereafter the
                     # base time step size can be raised.
-                    sync_time = universals.t + 0.5*Δt
+                    sync_time = universals.t + Δt
                     recompute_Δt_max = False
                     continue
-                # Base time step completed
-                time_step += 1
     # All dumps completed; end of main time loop
     print_timestep_footer(components)
     print_timestep_heading(time_step, Δt, bottleneck, components, end=True)
@@ -1506,7 +1510,7 @@ def driftkick_short(components, Δt, sync_time):
                     ᔑdt_rungs[integrand][rung_index + ℤ[2*N_rungs]] = integral
         # Perform short-range kicks, unless the time step size is zero
         # for all active rungs (i.e. they are all at a sync time),
-        # in which case we go to the next (drift) sub-step.  We cannot
+        # in which case we go to the next (drift) sub-step. We cannot
         # just return, as all kicks may still not be at the sync time.
         integrals = ᔑdt_rungs['1']
         if sum(integrals[lowest_active_rung:ℤ[highest_populated_rung + 1]]) == 0:
