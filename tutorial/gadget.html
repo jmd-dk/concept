@@ -597,7 +597,7 @@ to use “cell-centred” grid discretisation, whereas GADGET-2 uses
 grids of the two codes are shifted by half a grid cell relative to each other,
 in all three dimensions. This detail oughtn’t matter much, but the grid
 structure imprinted on the particle distribution, together with the fact that
-our simulations are rather small (<span class="math notranslate nohighlight">\(N = 64^3\)</span>) simulations, makes for an
+our simulations are rather small (<span class="math notranslate nohighlight">\(N = 64^3\)</span>), makes for an
 exaggerated effect.</p>
 <p>We can force CO<em>N</em>CEPT to use cell-vertex discretisation by specifying</p>
 <div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">cell_centered</span> <span class="o">=</span> <span class="kc">False</span>
@@ -614,12 +614,13 @@ that cell-vertex discretisation is superior to its cell-centred cousin.
 The improvement came from using the <em>same</em> discretisation.</p>
 <p>The real solution would be to redo the initial conditions without the
 isotropies, e.g. using what is known as <em>glass</em> (pre-)initial conditions,
-though this feature is not (yet) available in CO<em>N</em>CEPT.</p>
+though this feature is not (yet) available in CO<em>N</em>CEPT. Another
+solution is to apply a random spatial shift to the potential grid at each
+time step, an approach built into GADGET-4.</p>
 <p>The mismatch between results of cell-centred and cell-vertex simulations is
 reduced for larger simulations, as the details of what’s going on at the
 scale of half a grid cell become more negligible for the whole. Thus for
-large (say <span class="math notranslate nohighlight">\(N \gtrsim 512^3\)</span>) simulations, we may ignore this issue
-while keep using standard grid (i.e. non-glass) (pre-)initial conditions.</p>
+large (say <span class="math notranslate nohighlight">\(N \gtrsim 512^3\)</span>) simulations, we may ignore this issue.</p>
 </div>
 <h4>Radiation in the background</h4><p>A key difference between CO<em>N</em>CEPT and GADGET-2 is that the former
 — unlike the latter — tries to incorporate all species of a given
@@ -642,21 +643,21 @@ rerun the CO<em>N</em>CEPT simulation.</p>
 <p>Updating the comparison plot, the codes should now agree to within a percent.</p>
 <h4>Increased short-range precision</h4><p>The gravitational force of the P³M method in CO<em>N</em>CEPT and the TreePM
 method of GADGET-2 is split into a long-range and a short-range part at a
-scale <span class="math notranslate nohighlight">\(r_{\text{s}}\)</span>, which in both CO<em>N</em>CEPT and GADGET-2 has a
-default value of <span class="math notranslate nohighlight">\(r_{\text{s}} = 1.25 \Delta x\)</span>, with <span class="math notranslate nohighlight">\(\Delta x\)</span>
+scale <span class="math notranslate nohighlight">\(x_{\text{s}}\)</span>, which in both CO<em>N</em>CEPT and GADGET-2 has a
+default value of <span class="math notranslate nohighlight">\(x_{\text{s}} = 1.25 \Delta x\)</span>, with <span class="math notranslate nohighlight">\(\Delta x\)</span>
 the cell size of the potential grid. The short-range force between pairs of
-particles separated by a distance somewhat larger than <span class="math notranslate nohighlight">\(r_{\text{s}}\)</span>
+particles separated by a distance somewhat larger than <span class="math notranslate nohighlight">\(x_{\text{s}}\)</span>
 falls of exponentially with the distance. Particle pairs with a separation
-<span class="math notranslate nohighlight">\(r &gt; r_{\text{r}}\)</span> may then be neglected, provided
-<span class="math notranslate nohighlight">\(r_{\text{r}} \gg r_{\text{s}}\)</span>.</p>
+<span class="math notranslate nohighlight">\(|\boldsymbol{x}_i - \boldsymbol{x}_j| &gt; x_{\text{r}}\)</span> may then be
+neglected, provided <span class="math notranslate nohighlight">\(x_{\text{r}} \gg x_{\text{s}}\)</span>.</p>
 <p>In both CO<em>N</em>CEPT and GADGET-2, the range of the short-range force has a
-default value of <span class="math notranslate nohighlight">\(r_{\text{r}} = 4.5r_{\text{s}}\)</span>. Due to the grouping
+default value of <span class="math notranslate nohighlight">\(x_{\text{r}} = 4.5x_{\text{s}}\)</span>. Due to the grouping
 of particles by the tree in GADGET-2, the short-range forces between some
-particles separated by distances somewhat larger than <span class="math notranslate nohighlight">\(r_{\text{r}}\)</span> are
+particles separated by distances somewhat larger than <span class="math notranslate nohighlight">\(x_{\text{r}}\)</span> are
 probably being taken into account as well. We can then hope to obtain still
-better agreement with GADGET-2 by increasing the value of <span class="math notranslate nohighlight">\(r_{\text{r}}\)</span>
+better agreement with GADGET-2 by increasing the value of <span class="math notranslate nohighlight">\(x_{\text{r}}\)</span>
 in CO<em>N</em>CEPT slightly. Try rerunning CO<em>N</em>CEPT with
-<span class="math notranslate nohighlight">\(r_{\text{r}} = 5.5r_{\text{s}}\)</span> using</p>
+<span class="math notranslate nohighlight">\(x_{\text{r}} = 5.5x_{\text{s}}\)</span> using</p>
 <div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">shortrange_params</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;range&#39;</span><span class="p">:</span> <span class="s1">&#39;5.5*scale&#39;</span><span class="p">}</span>
 </pre></div>
 </div>
@@ -684,7 +685,7 @@ from radiation is unacceptable for precision simulations. To resolve this
 problem, the usual trick used with Newtonian <em>N</em>-body codes is to generate
 initial conditions at <span class="math notranslate nohighlight">\(a = a_{\text{begin}}\)</span> using the results of
 general relativistic perturbations theory (which also accounts for radiation)
-at math:<cite>a = 1</cite>, but scaled back in time using the Newtonian growth factor.
+at <span class="math notranslate nohighlight">\(a = 1\)</span>, but scaled back in time using the Newtonian growth factor.
 Thus only the <span class="math notranslate nohighlight">\(a = 1\)</span> results of such <em>back-scaled</em> simulations are
 really physical.</p>
 <p>As CO<em>N</em>CEPT works in <em>N</em>-body gauge, the initial conditions generated for

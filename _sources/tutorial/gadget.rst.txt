@@ -299,7 +299,7 @@ to use "cell-centred" grid discretisation, whereas GADGET-2 uses
 grids of the two codes are shifted by half a grid cell relative to each other,
 in all three dimensions. This detail oughtn't matter much, but the grid
 structure imprinted on the particle distribution, together with the fact that
-our simulations are rather small (:math:`N = 64^3`) simulations, makes for an
+our simulations are rather small (:math:`N = 64^3`), makes for an
 exaggerated effect.
 
 We can force CO\ *N*\ CEPT to use cell-vertex discretisation by specifying
@@ -320,13 +320,14 @@ now much smaller, though still a few percent.
 
    The real solution would be to redo the initial conditions without the
    isotropies, e.g. using what is known as *glass* (pre-)initial conditions,
-   though this feature is not (yet) available in CO\ *N*\ CEPT.
+   though this feature is not (yet) available in CO\ *N*\ CEPT. Another
+   solution is to apply a random spatial shift to the potential grid at each
+   time step, an approach built into GADGET-4.
 
    The mismatch between results of cell-centred and cell-vertex simulations is
    reduced for larger simulations, as the details of what's going on at the
    scale of half a grid cell become more negligible for the whole. Thus for
-   large (say :math:`N \gtrsim 512^3`) simulations, we may ignore this issue
-   while keep using standard grid (i.e. non-glass) (pre-)initial conditions.
+   large (say :math:`N \gtrsim 512^3`) simulations, we may ignore this issue.
 
 
 
@@ -366,22 +367,22 @@ Updating the comparison plot, the codes should now agree to within a percent.
 
 The gravitational force of the P³M method in CO\ *N*\ CEPT and the TreePM
 method of GADGET-2 is split into a long-range and a short-range part at a
-scale :math:`r_{\text{s}}`, which in both CO\ *N*\ CEPT and GADGET-2 has a
-default value of :math:`r_{\text{s}} = 1.25 \Delta x`, with :math:`\Delta x`
+scale :math:`x_{\text{s}}`, which in both CO\ *N*\ CEPT and GADGET-2 has a
+default value of :math:`x_{\text{s}} = 1.25 \Delta x`, with :math:`\Delta x`
 the cell size of the potential grid. The short-range force between pairs of
-particles separated by a distance somewhat larger than :math:`r_{\text{s}}`
+particles separated by a distance somewhat larger than :math:`x_{\text{s}}`
 falls of exponentially with the distance. Particle pairs with a separation
-:math:`r > r_{\text{r}}` may then be neglected, provided
-:math:`r_{\text{r}} \gg r_{\text{s}}`.
+:math:`|\boldsymbol{x}_i - \boldsymbol{x}_j| > x_{\text{r}}` may then be
+neglected, provided :math:`x_{\text{r}} \gg x_{\text{s}}`.
 
 In both CO\ *N*\ CEPT and GADGET-2, the range of the short-range force has a
-default value of :math:`r_{\text{r}} = 4.5r_{\text{s}}`. Due to the grouping
+default value of :math:`x_{\text{r}} = 4.5x_{\text{s}}`. Due to the grouping
 of particles by the tree in GADGET-2, the short-range forces between some
-particles separated by distances somewhat larger than :math:`r_{\text{r}}` are
+particles separated by distances somewhat larger than :math:`x_{\text{r}}` are
 probably being taken into account as well. We can then hope to obtain still
-better agreement with GADGET-2 by increasing the value of :math:`r_{\text{r}}`
+better agreement with GADGET-2 by increasing the value of :math:`x_{\text{r}}`
 in CO\ *N*\ CEPT slightly. Try rerunning CO\ *N*\ CEPT with
-:math:`r_{\text{r}} = 5.5r_{\text{s}}` using
+:math:`x_{\text{r}} = 5.5x_{\text{s}}` using
 
 .. code-block:: python3
 
@@ -421,7 +422,7 @@ from radiation is unacceptable for precision simulations. To resolve this
 problem, the usual trick used with Newtonian *N*-body codes is to generate
 initial conditions at :math:`a = a_{\text{begin}}` using the results of
 general relativistic perturbations theory (which also accounts for radiation)
-at math:`a = 1`, but scaled back in time using the Newtonian growth factor.
+at :math:`a = 1`, but scaled back in time using the Newtonian growth factor.
 Thus only the :math:`a = 1` results of such *back-scaled* simulations are
 really physical.
 
