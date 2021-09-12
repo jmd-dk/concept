@@ -1542,7 +1542,7 @@ class GadgetSnapshot:
                             val_i = header_i.get(key)
                             if key != 'Npart' and val != val_i:
                                 masterwarn(
-                                    f'Disagreement between "{filename[0]}" and "{filename}": '
+                                    f'Disagreement between "{filenames[0]}" and "{filename}": '
                                     f'{key} = {val} vs {val_i}. The first value will be used.'
                                 )
             filenames = filenames[:num_files]
