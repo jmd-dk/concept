@@ -1275,15 +1275,14 @@ class GadgetSnapshot:
             size = 0
             for key, val in self.header_fields.items():
                 size += self.write(f, val.fmt, header[key])
-            # Pad the header to fill out its specified size
-            size_padding = self.current_block_size - size
-            if size_padding > 0:
-                self.write(f, 's', b' '*size_padding)
-            elif size_padding < 0:
+            if size > self.current_block_size:
                 abort(
                     f'The "{self.block_name_header}" block took up {size} bytes '
                     f'but was specified to {self.current_block_size}'
                 )
+            # Pad the header with zeros to fill out its specified size
+            size_padding = self.current_block_size - size
+            self.write(f, 'b', [0]*size_padding)
             # Close the HEAD block
             self.write_block_end(f)
 
@@ -1357,6 +1356,8 @@ class GadgetSnapshot:
             size = len(data[0])
         else:
             size = len(data)
+        if size == 0:
+            return 0
         if size > 1 and not re.search(r'\d', fmt[0]):
             fmt = f'{size}{fmt}'
         # Correct floating-point data if double-precision
