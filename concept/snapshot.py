@@ -1423,7 +1423,7 @@ class GadgetSnapshot:
         num_files='Py_ssize_t',
         num_local=list,
         num_particles_component='Py_ssize_t',
-        num_particles_component_header='Py_ssize_t',
+        num_particles_component_header=object,  # Python int
         num_particles_components=list,
         num_particles_file='Py_ssize_t',
         num_particles_files=list,
