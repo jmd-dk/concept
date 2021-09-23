@@ -907,9 +907,8 @@ def update_base_timestep_size(
         if Δt_new < Δt_min:
             # Never tolerate this
             abort(
-                f'Time evolution effectively halted with a time step size '
-                f'of {Δt_new} {unit_time} (at the start of the simulation '
-                f'the time step size was {Δt_begin} {unit_time})'
+                f'Time evolution effectively halted '
+                f'with a time step size of {Δt_new} {unit_time}'
             )
         # Apply reduction
         Δt = Δt_new

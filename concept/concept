@@ -1495,22 +1495,22 @@ memory = ${memory}
 walltime = '${walltime}'
 from commons import *
 # Memory
-memory_str = ''
+memory_str = ' '
 if memory > 0:
     prefixes = iter(['', 'k', 'M', 'G', 'T', 'P', 'E', 'Z', 'Y'])
     for prefix in prefixes:
         if memory < 2**10:
             break
-        memory //= 2**10
+        memory /= 2**10
     memory_str = significant_figures(memory, 3)
     if 'e' in memory_str:
-        memory //= 2**10
+        memory /= 2**10
         prefix = next(prefixes)
         memory_str = significant_figures(memory, 3)
     memory_str = f'{memory_str} {prefix}B'
 print(memory_str)
 # Wall time
-walltime_str = ''
+walltime_str = ' '
 h, m, s = [int(t) for t in walltime.split(':')]
 walltime = s + 60*(m + 60*h)
 if walltime > 0:
