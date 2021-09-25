@@ -198,6 +198,14 @@ format, which is simply a well-structured HDF5 file.
 
       (source concept && $python -m vitables &)
 
+   If ViTables is unable to start, it might be due to Qt 5 not being installed
+   on your system. If you're on a Debian/Ubuntu-like system (and have root
+   privileges), you can install Qt 5 by
+
+   .. code-block:: bash
+
+      sudo apt install qt5-default
+
 Such snapshots are useful if you want to process the raw data using some
 external program. You can also initialize a simulation from a snapshot, instead
 of generating initial conditions from scratch. To try this, redefine the

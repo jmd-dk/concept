@@ -80,7 +80,7 @@ specified by the below parameter file:
            }
        )
    output_dirs = {
-       'powerspec': paths['output_dir'] + '/' + basename(paths['params'])
+       'powerspec': paths['output_dir'] + '/' + basename(paths['params']),
    }
    output_bases = {
        'powerspec': f'powerspec{_lin=}'
@@ -191,7 +191,7 @@ plotting script:
    this_dir = os.path.dirname(os.path.realpath(__file__))
    P_sims = {}
    for filename in sorted(glob.glob(f'{this_dir}/powerspec*'), key=os.path.getmtime):
-       matches = re.findall(r'(?=_(.*?)=(.*?)_)', filename)
+       matches = re.findall(r'(?=_(.*?)=(.*?)_)', os.path.basename(filename))
        if not matches or filename.endswith('.png'):
            continue
        for var, val in matches:
@@ -333,8 +333,7 @@ shall illuminate this concept:
    Though higher Boltzmann orders are well-defined, the largest Boltzmann
    order currently implemented in CO\ *N*\ CEPT is :math:`1`.
 
-We shall look into Boltzmann orders different from :math:`-1` in the
-subsection on
+We shall look into Boltzmann order :math:`+1` in the subsection on
 :ref:`non-linear massive neutrinos <nonlinear_massive_neutrinos>`. For now we
 shall keep to the purely linear case of Boltzmann order :math:`-1`.
 
@@ -496,6 +495,8 @@ You are in fact already very familiar with the idea of combining species, as
 
 
 
+.. _massive_neutrinos:
+
 Massive neutrinos
 .................
 The previous subsection demonstrated how simulations of matter can be made to
@@ -555,7 +556,7 @@ parameter file:
            }
        )
    output_dirs = {
-       'powerspec': paths['output_dir'] + '/' + basename(paths['params'])
+       'powerspec': paths['output_dir'] + '/' + basename(paths['params']),
    }
    output_bases = {
        'powerspec': f'powerspec{_mass=}{_lin=}'
@@ -685,7 +686,7 @@ this, you should make use of the following script:
    this_dir = os.path.dirname(os.path.realpath(__file__))
    P_sims, P_lins = {}, {}
    for filename in sorted(glob.glob(f'{this_dir}/powerspec*'), key=os.path.getmtime):
-       matches = re.findall(r'(?=_(.*?)=(.*?)_)', filename)
+       matches = re.findall(r'(?=_(.*?)=(.*?)_)', os.path.basename(filename))
        if not matches or filename.endswith('.png'):
            continue
        for var, val in matches:
@@ -913,7 +914,7 @@ shall make use of the following parameter file, which you should save as e.g.
            }
        )
    output_dirs = {
-       'powerspec': paths['output_dir'] + '/' + basename(paths['params'])
+       'powerspec': paths['output_dir'] + '/' + basename(paths['params']),
    }
    output_bases = {
        'powerspec': f'powerspec{_de=}{_lin=}'
@@ -976,7 +977,7 @@ Perform a simulation using both types of dark energy using
 
 The parameter specifications ``Δt_base_background_factor = 2`` and
 ``Δt_base_nonlinear_factor = 2`` double the allowable time step size, while
-``N_rungs = 1`` effectively disables the adaptive time stepping. In addition,
+``N_rungs = 1`` effectively disables the adaptive time-stepping. In addition,
 we start the simulation rather late at ``a_begin = 0.1``, as the effects from
 dark energy show up only at late times. All of this is just to speed up the
 simulations, as we do not require excellent precision.
@@ -989,7 +990,7 @@ simulations, as we do not require excellent precision.
    ``Δt_base_nonlinear_factor`` parameter, respectively.
 
 .. note::
-   The adaptive particle time stepping is a feature enabled by default when
+   The adaptive particle time-stepping is a feature enabled by default when
    using the P³M method, which assigns separate time step sizes to the
    different particles, allowing for small time steps in dense regions and
    large time steps in less dense regions, achieving both accuracy and
@@ -999,7 +1000,7 @@ simulations, as we do not require excellent precision.
    of available rungs (and thus the minimum allowed particle time step) is
    determined through the ``N_rungs`` parameter. With ``N_rungs = 1``, all
    particles are kept fixed at rung 0, i.e. the base time step, and so no
-   adaptive time stepping takes place. The distribution of particles across
+   adaptive time-stepping takes place. The distribution of particles across
    all rungs is printed at the start of each time step, for ``N_rungs > 1``.
 
 To make the usual plot of the relative power spectrum --- this time comparing
@@ -1019,7 +1020,7 @@ we shall make use of the following plotting script:
    this_dir = os.path.dirname(os.path.realpath(__file__))
    P_sims, P_lins = {}, {}
    for filename in sorted(glob.glob(f'{this_dir}/powerspec*'), key=os.path.getmtime):
-       matches = re.findall(r'(?=_(.*?)=(.*?)_)', filename)
+       matches = re.findall(r'(?=_(.*?)=(.*?)_)', os.path.basename(filename))
        if not matches or filename.endswith('.png'):
            continue
        for var, val in matches:
@@ -1377,7 +1378,7 @@ and without decaying cold dark matter, make use of the below script:
    this_dir = os.path.dirname(os.path.realpath(__file__))
    ks, P_sims, P_lins = {}, {}, {}
    for filename in sorted(glob.glob(f'{this_dir}/powerspec*'), key=os.path.getmtime):
-       matches = re.findall(r'(?=_(.*?)=(.*?)_)', filename)
+       matches = re.findall(r'(?=_(.*?)=(.*?)_)', os.path.basename(filename))
        if not matches or filename.endswith('.png'):
            continue
        for var, val in matches:
@@ -1685,5 +1686,494 @@ noise at "small" (relative to the enormous box) scales.
 
 Non-linear massive neutrinos
 ............................
-*Under construction!*
+Here we'll explore simulations with massive neutrinos, solved *non*-linearly
+within CO\ *N*\ CEPT. You should have already completed the *linear*
+:ref:`massive neutrinos <massive_neutrinos>` subsection of this tutorial
+before carrying on with this subsection.
+
+
+
+.. raw:: html
+
+   <h3>Linear neutrinos</h3>
+
+The goal of this subsection is to upgrade the massive neutrinos within the
+simulations from being a simple linear density field to be a non-linearly
+evolved fluid. For this we shall make use of the below parameter file, which
+you should save as e.g. ``params/tutorial``:
+
+.. code-block:: python3
+   :caption: params/tutorial :math:`\,` (non-linear massive neutrinos)
+   :name: params-nonlinear-massive-neutrinos
+   :emphasize-lines: 19-35, 75-79, 83-88, 94-95
+
+   # Non-parameter helper variable used to control the size of the simulation
+   _size = 80
+
+   # Input/output
+   initial_conditions = [
+       # Non-linear matter particles
+       {
+           'species': 'matter',
+           'N'      : _size**3,
+       },
+       # Linear fluid component
+       {
+           'name'           : 'linear',
+           'species'        : 'photon + neutrino + metric',
+           'gridsize'       : _size,
+           'boltzmann order': -1,
+       },
+   ]
+   if _nunonlin:
+       initial_conditions += [
+           # Non-linear neutrino fluid
+           {
+               'name'           : 'non-linear neutrino',
+               'species'        : 'neutrino',
+               'gridsize'       : _size,
+               'boltzmann order': +1,
+           },
+           # Linear fluid component with neutrinos left out
+           {
+               'name'           : 'linear (no neutrino)',
+               'species'        : 'photon + metric',
+               'gridsize'       : _size,
+               'boltzmann order': -1,
+           },
+       ]
+   output_dirs = {
+       'powerspec': paths['output_dir'] + '/' + basename(paths['params']),
+   }
+   output_bases = {
+       'powerspec': f'powerspec{_mass=}{_nunonlin=}{_nutrans=}',
+   }
+   output_times = {
+       'powerspec': 1,
+   }
+   powerspec_select = {
+       'matter'             : True,
+       'non-linear neutrino': True,
+   }
+
+   # Numerical parameters
+   boxsize = 400*Mpc
+   potential_options = {
+       'gridsize': {
+           'gravity': {
+               'pm' :   _size,
+               'p3m': 2*_size,
+           },
+       },
+   }
+
+   # Cosmology
+   H0      = 67*km/(s*Mpc)
+   Ωb      = 0.049
+   Ωcdm    = 0.27 - Ων
+   a_begin = 0.02
+   class_params = {
+       # Disable massless neutrinos
+       'N_ur': 0,
+       # Add 3 massive neutrinos of equal mass
+       'N_ncdm'  : 1,
+       'deg_ncdm': 3,
+       'm_ncdm'  : max(_mass/3, 1e-100),  # Avoid exact value of 0.0
+       # General precision parameters
+       'evolver': 0,
+       # Neutrino precision parameters
+       'l_max_ncdm'              : 200,
+       'Number of momentum bins' : 100,
+       'Quadrature strategy'     : 2,
+       'ncdm_fluid_approximation': 3,
+   }
+
+   # Physics
+   if _nunonlin:
+       select_lives = {
+           'linear'              : (0, _nutrans),
+           'linear (no neutrino)': (_nutrans, inf),
+           'non-linear neutrino' : (_nutrans, inf),
+       }
+   primordial_amplitude_fixed = True
+
+   # Non-parameter helper variables which should
+   # be supplied as command-line parameters.
+   _mass = 0          # Sum of neutrino masses in eV
+   _nunonlin = False  # Use non-linear neutrinos?
+   _nutrans = 0       # Scale factor at which to transition to non-linear neutrinos
+
+Start by running this parameter file as is,
+
+.. code-block:: bash
+
+   ./concept -p params/tutorial
+
+which will perform a simulation with three mass\ *less* neutrinos, with these
+as well as photons and the metric included in a combined, linear component.
+
+Once done, also perform a simulation with three massive neutrino, say with
+:math:`\sum m_\nu = 0.5\, \text{eV}`.
+:ref:`The parameter file <params-nonlinear-massive-neutrinos>` has been set up
+so that this can be achieved by supplying ``_mass`` as a command-line
+parameter:
+
+.. code-block:: bash
+
+   ./concept \
+       -p params/tutorial \
+       -c "_mass = 0.5"
+
+With both the linear massless and the linear massive neutrino run done, plot
+the results using the following plotting script:
+
+.. code-block:: python3
+   :caption: output/tutorial/plot.py :math:`\,` (non-linear massive neutrinos)
+   :name: plot-nonlinear-massive-neutrinos
+
+   import collections, glob, itertools, os, re
+   import numpy as np
+   import matplotlib
+   import matplotlib.pyplot as plt
+
+   # Read in data
+   this_dir = os.path.dirname(os.path.realpath(__file__))
+   inf = np.inf
+   P_sims, P_lins = collections.defaultdict(dict), collections.defaultdict(dict)
+   for filename in glob.glob(f'{this_dir}/powerspec*'):
+       matches = re.findall(r'(?=_(.*?)=(.*?)_)', os.path.basename(filename))
+       if not matches or filename.endswith('.png'):
+           continue
+       for var, val in matches:
+           exec(f'{var} = {val}')
+       k, P_sim, P_lin = np.loadtxt(filename, usecols=(0, 2, 3), unpack=True)
+       mask = ~np.isnan(P_lin)
+       k = k[mask]
+       P_sims['matter'][mass, nunonlin, nutrans] = P_sim[mask]
+       P_lins['matter'][mass                   ] = P_lin[mask]
+       try:
+           k_ν, P_sim, P_lin = np.loadtxt(filename, usecols=(4, 6, 7), unpack=True)
+       except:
+           continue
+       mask_ν = ~np.isnan(P_lin)
+       k_ν = k_ν[mask_ν]
+       P_sims['neutrino'][mass, nunonlin, nutrans] = P_sim[mask_ν]
+       P_lins['neutrino'][mass                   ] = P_lin[mask_ν]
+   for species in ['matter', 'neutrino']:
+       P_sims[species] = {
+           key: P_sims[species][key]
+           for key in sorted(P_sims[species].keys())
+       }
+       P_lins[species] = {
+           key: P_lins[species][key]
+           for key in sorted(P_lins[species].keys())
+       }
+
+   # Plot
+   fig = plt.figure()
+   gs = matplotlib.gridspec.GridSpec(2, 2, figure=fig)
+   ax_w  = fig.add_subplot(gs[:, 0])
+   ax_ne = fig.add_subplot(gs[0, 1])
+   ax_se = fig.add_subplot(gs[1, 1])
+   linestyles = ['-', '--', ':', '-.']
+   fmts = {}
+   i = -1
+   for (mass, nunonlin, nutrans), P_sim in P_sims['matter'].items():
+       if not mass:
+           continue
+       i += 1
+       for nutrans_ref in (nutrans, 0):
+           P_sim_ref = P_sims['matter'].get((0, False, nutrans_ref))
+           if P_sim_ref is not None:
+               break
+       y = (P_sim/P_sim_ref - 1)*100
+       linestyle = linestyles[
+           sum(np.allclose(line.get_ydata()[:30], y[:30], 3e-2) for line in ax_w.lines)
+           %len(linestyles)
+       ]
+       fmt = f'C{i%10}{linestyle}'
+       if nunonlin:
+           fmts[mass, nutrans] = fmt
+       label = rf'simulation: $\Sigma m_\nu = {mass}$ eV, '
+       if nunonlin:
+           label += rf'$a_{{\nu\mathrm{{trans}}}} = {nutrans:.2g}$'
+       else:
+           label += r'linear $\nu$'
+       ax_w.semilogx(k, y, fmt, label=label)
+   mass_nonzeros = sorted({mass for mass, *_ in P_sims['matter'].keys() if mass})
+   label = 'linear'
+   for mass_nonzero in mass_nonzeros:
+       ax_w.semilogx(
+           k, (P_lins['matter'][mass_nonzero]/P_lins['matter'][0] - 1)*100, 'k--',
+           label=label, linewidth=1, zorder=-1,
+       )
+       label = None
+   for mass_nonzero in mass_nonzeros:
+       P_sim_ref = P_sims['matter'].get((mass_nonzero, False, 0))
+       if P_sim_ref is None:
+           continue
+       for (mass, nunonlin, nutrans), P_sim in P_sims['matter'].items():
+           if mass != mass_nonzero or not nunonlin:
+               continue
+           ax_ne.semilogx(
+               k, (P_sim/P_sim_ref - 1)*100, fmts[mass, nutrans],
+               label=(
+                   rf'simulation: $\Sigma m_\nu = {mass}$ eV, '
+                   rf'$a_{{\nu\mathrm{{trans}}}} = {nutrans:.2g}$'
+               ),
+           )
+   for (mass, nunonlin, nutrans), P_sim in P_sims['neutrino'].items():
+       ax_se.loglog(
+           k_ν, k_ν**3*P_sim, fmts[mass, nutrans],
+           label=(
+               rf'simulation: $\Sigma m_\nu = {mass}$ eV, '
+               rf'$a_{{\nu\mathrm{{trans}}}} = {nutrans:.2g}$'
+           ),
+       )
+   ax_w .set_xlim(k[0], k[-1])
+   ax_ne.set_xlim(k[0], k[-1])
+   label = 'linear'
+   for mass_nonzero in mass_nonzeros:
+       P_lin = P_lins['neutrino'].get(mass_nonzero)
+       if P_lin is None:
+           continue
+       ax_se.loglog(k_ν, k_ν**3*P_lin, 'k--',
+           label=label, linewidth=1, zorder=-1,
+       )
+       label = None
+       ax_se.set_xlim(k_ν[0], k_ν[-1])
+   for ax in [ax_w, ax_ne, ax_se]:
+       ax.set_xlabel(r'$k\, [\mathrm{Mpc}^{-1}]$')
+       if ax.lines:
+           ax.legend(fontsize=7)
+   ax_w.set_ylabel(
+       rf'$P_{{\Sigma m_\nu > 0}}'
+       rf'/P_{{\Sigma m_\nu = 0}} - 1\, [\%]$'
+   )
+   ax_ne.set_ylabel(
+       rf'$P_{{\mathrm{{non‐linear}}\,\nu}}'
+       rf'/P_{{\mathrm{{linear}}\,\nu}} - 1\, [\%]$'
+   )
+   ax_se.set_ylabel(r'$k^3P_{\nu}$')
+   ax_ne.set_ylim(bottom=0)
+   fig.tight_layout()
+   fig.savefig(f'{this_dir}/plot.png', dpi=150)
+
+Save the plotting script to e.g. ``output/tutorial/plot.py`` and run it using
+
+.. code-block:: bash
+
+   ./concept -m output/tutorial/plot.py
+
+The resulting ``plot.png`` shows the relative matter power spectrum between
+the massive and massless neutrino cosmology on the left. You should see the
+usual non-linear suppression dip. The corresponding result from linear theory
+is shown as well, which matches at large scales. Be careful not to confuse
+completely linear theory with non-linear matter simulations containing linear
+neutrinos, which again is different from the upcoming simulations treating
+both matter and neutrinos non-linearly.
+
+
+
+.. raw:: html
+
+   <h3>Non-linear neutrinos</h3>
+
+Studying :ref:`the parameter file <params-nonlinear-massive-neutrinos>` it
+should be clear that setting ``_nunonlin = True`` will result in two
+new components within the simulation, namely ``'non-linear neutrino'`` and
+``'linear (no neutrino)'``, the latter of which supplies the simulation with
+photons and the metric. To not double count these species, the old component
+named ``'linear'`` should now no longer be used. This is handled by the newly
+introduced ``select_lives`` parameter, which we shall look into shortly. What
+makes the ``'non-linear neutrino'`` component non-linear is its Boltzmann
+order of :math:`+1`, meaning that its energy and momentum density are treated
+as non-linear fields --- evolved within CO\ *N*\ CEPT --- with pressure and
+shear still treated linearly. See the :ref:`radiation <radiation>` subsection
+for further explanation about the Boltzmann order. For details on how the
+non-linear fluid evolution is implemented in CO\ *N*\ CEPT, we refer to the
+paper
+":doc:`νCO𝘕CEPT: Cosmological neutrino simulations from the non-linear Boltzmann hierarchy </publications>`".
+
+Run a simulation with non-linear massive neutrinos with the same mass as used
+for the linear massive neutrino run:
+
+.. code-block:: bash
+
+   ./concept \
+       -p params/tutorial \
+       -c "_mass = 0.5" \
+       -c "_nunonlin = True"
+
+Reading the output in the terminal during the simulation, it's clear that each
+time step is now quite a bit more involved. Beyond having to additionally
+evolve the energy and momentum density of the non-linear neutrinos --- which
+in turn require continual realisations of the linear pressure (written as
+``ς['trace']``) and shear (written as ``ς[i, j]``) --- the number of
+gravitational interactions also increases. We give an overview of these below:
+
+* Gravity applied to ``'matter'``:
+
+   * From ``'matter'``:
+
+      * P³M (long-range)
+      * P³M (short-range)
+
+   * From ``'non-linear neutrino'`` + ``'linear (no neutrino)'``:
+
+      * PM
+
+* Gravity applied to ``'non-linear neutrino'``:
+
+   * From ``matter`` + ``'non-linear neutrino'`` + ``'linear (no neutrino)'``:
+
+      * PM
+
+All of this makes non-linear neutrino simulation slower than simulations with
+linear neutrinos. Even more significant is the fact that non-linear neutrinos
+require a small time step size due to the
+`Courant condition <https://en.wikipedia.org/wiki/Courant-Friedrichs-Lewy_condition>`_.
+As no rung-like system exists for fluids in CO\ *N*\ CEPT, the single most
+extreme fluid cell typically dictate the global time step size, slowing down
+the entire simulation.
+
+.. note::
+
+   As stated above, in these simulations with non-linear neutrinos, the
+   neutrinos receive gravitational kicks from themselves, matter, photons and
+   what we call the "metric". This works fine in practice, but as the general
+   relativistic corrections collected into the "metric" is constructed for the
+   purpose of application to pressureless matter, it might be the case that
+   the corresponding general relativistic corrections felt by neutrinos are
+   different, and so really require a separately constructed "neutrino
+   metric". Whether this is or isn't the case is currently unknown.
+
+Once the non-linear neutrino simulation has completed, update the plot by
+rerunning the plotting script. A new line will appear in the left panel, which
+shows that running with non-linear neutrinos makes the non-linear suppression
+dip slightly shallower. That is, treating the neutrinos non-linearly slightly
+increases the matter power. This is caused by the enhanced clustering of the
+neutrinos. Exactly how much of an increase in matter power we get by
+substituting linear neutrinos for non-linear neutrinos is shown in the upper
+right panel. For :math:`\sum m_\nu = 0.5\, \text{eV}` it should amount to a
+few per mille around the :math:`k`'s of the non-linear suppression dip. The
+lower right panel shows the power spectrum of the neutrino component, where
+:math:`k^3P_{\nu}` rather than just :math:`P_{\nu}` is plotted as this results
+in a better view of the data. Both the non-linearly evolved neutrinos as well
+as linear ones are shown.
+
+.. note::
+
+   Larger neutrino masses leads to stronger neutrino clustering, in turn
+   leading to further increased matter power. Though non-linear clustering in
+   the neutrino component itself is clearly visible in the neutrino power
+   spectrum even for small masses, the accompanying increase in matter power
+   becomes very hard to see for :math:`\sum m_\nu \lesssim 0.1\, \text{eV}`.
+
+.. caution::
+
+   The default fluid solver used within CO\ *N*\ CEPT is that of
+   `MacCormack <https://en.wikipedia.org/wiki/MacCormack_method>`_. We have
+   found this method to be bad at handling strong clustering, and so our
+   implementation includes a crude fix to avoid the generation of cells
+   with negative densities. For large neutrino masses and/or high resolution
+   this may not be sufficient, in which case the code will abort, stating that
+   it gives up trying to repair the erroneous negative cells. We thus
+   recommend that you only run CO\ *N*\ CEPT with non-linear neutrinos for
+   :math:`\sum m_\nu \lesssim 0.6\, \text{eV}` (3 degenerate neutrinos)
+   or :math:`m_\nu \lesssim 0.2\, \text{eV}` (per neutrino).
+
+
+
+.. raw:: html
+
+   <h3>Transitioning from linear to non-linear neutrinos</h3>
+
+As you've now experienced first hand, non-linear neutrino simulations can take
+a long time to run. As written above, a major reason for this is the small
+global time step size required by the non-linear neutrino fluid, leading to
+many more time steps than usual. This is especially true at early times and
+for light neutrinos, as here the neutrino fluid has a high pressure and thus a
+high speed of sound.
+
+.. note::
+
+   At each time step of the simulation the equation of state (EoS) parameter
+   :math:`w` of the non-linear neutrino component is show. By following the
+   evolution of the EoS you can get an idea about how far the neutrino
+   component is on its path towards becoming non-relativistic and hence
+   matter-like, with only a small pressure.
+
+As the non-linear neutrino component doesn't significantly deviate from linear
+behaviour at early times, we can save on computational resources by running
+with linear neutrinos in the beginning and then transition to using non-linear
+neutrinos at some scale factor value :math:`a_{\nu\text{trans}}`.
+:ref:`The parameter file <params-nonlinear-massive-neutrinos>` is set up to do
+exactly this by specifying :math:`a_{\nu\text{trans}}` as the ``_nutrans``
+variable. To rerun the non-linear neutrino simulation, though using linear
+neutrinos for :math:`a < a_{\nu\text{trans}} = 0.1`, do
+
+.. code-block:: bash
+
+   ./concept \
+       -p params/tutorial \
+       -c "_mass = 0.5" \
+       -c "_nunonlin = True" \
+       -c "_nutrans = 0.1"
+
+The transitioning works by terminating the ``'linear'`` component (containing
+neutrinos, photons and metric) at :math:`a = a_{\nu\text{trans}}`, while
+simultaneously activating both the ``'linear (no neutrino)'`` (containing
+photons and metric) and the ``'non-linear neutrino'`` component. This is
+achieved through the ``select_lives`` parameter in the
+:ref:`the parameter file <params-nonlinear-massive-neutrinos>`, which maps
+components to life spans in the format
+:math:`(a_{\text{activate}}, a_{\text{terminate}})`. When ``_nunonlin`` is
+``False`` (default), ``select_lives`` is not set at all, and so all specified
+components (here only ``'matter'`` and ``'linear'``) live for the entirety of
+the simulation. With ``_nunonlin = True`` we see that ``'linear'`` is only
+active until the time of ``_nutrans``, whereas ``'linear (no neutrino)'`` and
+``'non-linear neutrino'`` are first activated at the time of ``_nutrans`` and
+then continues to be active throughout time.
+
+You should find that this simulation completes significantly faster than the
+previous one. Once completed and with the plot updated, you should find that
+running with linear neutrinos at early times doesn't change the results much.
+In fact, the non-linear neutrino power spectra at :math:`a = 1` looks very
+close to identical. It does make a small difference at high :math:`k` for the
+matter spectrum, as seen from the top right panel of the plot. However, these
+sub per mille changes are likely to come about simply due to the difference in
+global time-stepping between the simulations, and so should not be confidently
+ascribed to early non-linearity of the neutrinos.
+
+.. tip::
+
+   As stated previously, running with non-linear neutrinos require continual
+   realisation of the linear pressure and shear. For the non-linear neutrino
+   evolution within CO\ *N*\ CEPT to turn out correct, the linear inputs from
+   CLASS then need to be nicely converged. For this to be the case, CLASS must
+   be run with a much higher precision in the neutrino sector than is used by
+   default, hence the neutrino precision parameters specified in
+   ``class_params`` in
+   :ref:`the parameter file <params-nonlinear-massive-neutrinos>`. Stated
+   briefly, ``'l_max_ncdm'`` sets the size of the linear massive neutrino
+   Boltzmann hierarchy, while ``'Number of momentum bins'`` specifies the
+   number of discrete neutrino momenta to employ for mapping the neutrino
+   distribution function. Setting ``'Quadrature strategy'`` to ``2`` ensures
+   that integrals over the distribution function are integrated all the way to
+   infinity. Lastly, setting ``'ncdm_fluid_approximation'`` to ``3`` disables
+   the fluid approximation used by default for massive neutrinos.
+
+   For simulations with higher resolution or lower neutrino masses, still
+   higher values for ``'l_max_ncdm'`` and ``'Number of momentum bins'`` may be
+   required, which can make the usually quick CLASS computation take up hours.
+   As CO\ *N*\ CEPT runs CLASS in a distributed manner (even across compute
+   nodes of a cluster) this is not an issue in practice. Furthermore,
+   CO\ *N*\ CEPT caches all CLASS results to disk by default, so that such
+   expensive CLASS computations do not have to be redone repeatedly.
+
+You may play around with different neutrino masses ``_mass`` and/or transition
+times ``_nutrans`` while continuing to use
+:ref:`the plotting script <plot-nonlinear-massive-neutrinos>`, as it can
+handle output of multiple masses and transition times at the same time.
 

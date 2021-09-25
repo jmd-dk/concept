@@ -379,9 +379,9 @@ In both CO\ *N*\ CEPT and GADGET-2, the range of the short-range force has a
 default value of :math:`x_{\text{r}} = 4.5x_{\text{s}}`. Due to the grouping
 of particles by the tree in GADGET-2, the short-range forces between some
 particles separated by distances somewhat larger than :math:`x_{\text{r}}` are
-probably being taken into account as well. We can then hope to obtain still
-better agreement with GADGET-2 by increasing the value of :math:`x_{\text{r}}`
-in CO\ *N*\ CEPT slightly. Try rerunning CO\ *N*\ CEPT with
+being taken into account as well. We can then hope to obtain still better
+agreement with GADGET-2 by increasing the value of :math:`x_{\text{r}}` in
+CO\ *N*\ CEPT slightly. Try rerunning CO\ *N*\ CEPT with
 :math:`x_{\text{r}} = 5.5x_{\text{s}}` using
 
 .. code-block:: python3

@@ -281,7 +281,7 @@ select_realization_options = {  # Realization options for each component and var
             'back-scaling': False,
             # Non-linear realization options
             'structure'     : 'non-linear',
-            'compound-order': 'linear',
+            'compound-order': 'non-linear',
         },
     },
 }

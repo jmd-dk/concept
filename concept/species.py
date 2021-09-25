@@ -1294,7 +1294,7 @@ class Component:
             ),
             # Non-linear realisation options
             'structure'    : realization_options_all.get('structure', 'nonlinear'),
-            'compoundorder': realization_options_all.get('compoundorder', 'linear'),
+            'compoundorder': realization_options_all.get('compoundorder', 'nonlinear'),
         }
         for varname in varnames:
             realization_options_default_copy = realization_options_default.copy()
