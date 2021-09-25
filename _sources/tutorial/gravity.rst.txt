@@ -25,7 +25,7 @@ to the ones encountered in the previous section.
        'N'      : _size**3,
    }
    output_dirs = {
-       'powerspec': paths['output_dir'] + '/' + basename(paths['params'])
+       'powerspec': paths['output_dir'] + '/' + basename(paths['params']),
    }
    output_bases = {
        'powerspec': f'powerspec_{_sim}',

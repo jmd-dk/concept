@@ -379,15 +379,15 @@ a particular species in isolation, these may be mixed and matched at will when
 running simulations.</p>
 <div class="contents local topic" id="contents">
 <ul class="simple">
-<li><p><a class="reference internal" href="#radiation" id="id3">Radiation</a></p></li>
-<li><p><a class="reference internal" href="#massive-neutrinos" id="id4">Massive neutrinos</a></p></li>
-<li><p><a class="reference internal" href="#dynamical-dark-energy" id="id5">Dynamical dark energy</a></p></li>
-<li><p><a class="reference internal" href="#decaying-cold-dark-matter" id="id6">Decaying cold dark matter</a></p></li>
-<li><p><a class="reference internal" href="#non-linear-massive-neutrinos" id="id7">Non-linear massive neutrinos</a></p></li>
+<li><p><a class="reference internal" href="#radiation" id="id4">Radiation</a></p></li>
+<li><p><a class="reference internal" href="#massive-neutrinos" id="id5">Massive neutrinos</a></p></li>
+<li><p><a class="reference internal" href="#dynamical-dark-energy" id="id6">Dynamical dark energy</a></p></li>
+<li><p><a class="reference internal" href="#decaying-cold-dark-matter" id="id7">Decaying cold dark matter</a></p></li>
+<li><p><a class="reference internal" href="#non-linear-massive-neutrinos" id="id8">Non-linear massive neutrinos</a></p></li>
 </ul>
 </div>
 <div class="section" id="radiation">
-<span id="id1"></span><h2><a class="toc-backref" href="#id3"><span class="section-number">7.1. </span>Radiation</a><a class="headerlink" href="#radiation" title="Permalink to this headline">¶</a></h2>
+<span id="id1"></span><h2><a class="toc-backref" href="#id4"><span class="section-number">7.1. </span>Radiation</a><a class="headerlink" href="#radiation" title="Permalink to this headline">¶</a></h2>
 <h3>Introduction</h3><p>Though universes of interest may contain several different species, in
 cosmological <em>N</em>-body simulations we are typically interested in following the
 evolution of the matter component only, as this is the only component which is
@@ -417,7 +417,7 @@ specified by the below parameter file:</p>
         <span class="s1">&#39;N&#39;</span>      <span class="p">:</span> <span class="n">_size</span><span class="o">**</span><span class="mi">3</span><span class="p">,</span>
     <span class="p">},</span>
 <span class="p">]</span><span class="hll"><span class="k">for</span> <span class="n">_species</span> <span class="ow">in</span> <span class="n">_lin</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;,&#39;</span><span class="p">):</span></span><span class="hll">    <span class="k">if</span> <span class="ow">not</span> <span class="n">_species</span><span class="p">:</span></span><span class="hll">        <span class="k">continue</span></span><span class="hll">    <span class="n">initial_conditions</span><span class="o">.</span><span class="n">append</span><span class="p">(</span></span><span class="hll">        <span class="c1"># Linear fluid component(s)</span></span><span class="hll">        <span class="p">{</span></span><span class="hll">            <span class="s1">&#39;species&#39;</span>        <span class="p">:</span> <span class="n">_species</span><span class="p">,</span></span><span class="hll">            <span class="s1">&#39;gridsize&#39;</span>       <span class="p">:</span> <span class="n">_size</span><span class="p">,</span></span><span class="hll">            <span class="s1">&#39;boltzmann order&#39;</span><span class="p">:</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span></span><span class="hll">        <span class="p">}</span></span><span class="hll">    <span class="p">)</span></span><span class="n">output_dirs</span> <span class="o">=</span> <span class="p">{</span>
-    <span class="s1">&#39;powerspec&#39;</span><span class="p">:</span> <span class="n">paths</span><span class="p">[</span><span class="s1">&#39;output_dir&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="s1">&#39;/&#39;</span> <span class="o">+</span> <span class="n">basename</span><span class="p">(</span><span class="n">paths</span><span class="p">[</span><span class="s1">&#39;params&#39;</span><span class="p">])</span>
+    <span class="s1">&#39;powerspec&#39;</span><span class="p">:</span> <span class="n">paths</span><span class="p">[</span><span class="s1">&#39;output_dir&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="s1">&#39;/&#39;</span> <span class="o">+</span> <span class="n">basename</span><span class="p">(</span><span class="n">paths</span><span class="p">[</span><span class="s1">&#39;params&#39;</span><span class="p">]),</span>
 <span class="p">}</span>
 <span class="n">output_bases</span> <span class="o">=</span> <span class="p">{</span>
     <span class="s1">&#39;powerspec&#39;</span><span class="p">:</span> <span class="sa">f</span><span class="s1">&#39;powerspec</span><span class="si">{</span><span class="n">_lin</span><span class="si">=}</span><span class="s1">&#39;</span>
@@ -505,7 +505,7 @@ plotting script:</p>
 <span class="n">this_dir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">realpath</span><span class="p">(</span><span class="vm">__file__</span><span class="p">))</span>
 <span class="n">P_sims</span> <span class="o">=</span> <span class="p">{}</span>
 <span class="k">for</span> <span class="n">filename</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">glob</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">this_dir</span><span class="si">}</span><span class="s1">/powerspec*&#39;</span><span class="p">),</span> <span class="n">key</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">getmtime</span><span class="p">):</span>
-    <span class="n">matches</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">findall</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;(?=_(.*?)=(.*?)_)&#39;</span><span class="p">,</span> <span class="n">filename</span><span class="p">)</span>
+    <span class="n">matches</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">findall</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;(?=_(.*?)=(.*?)_)&#39;</span><span class="p">,</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">filename</span><span class="p">))</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="n">matches</span> <span class="ow">or</span> <span class="n">filename</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">&#39;.png&#39;</span><span class="p">):</span>
         <span class="k">continue</span>
     <span class="k">for</span> <span class="n">var</span><span class="p">,</span> <span class="n">val</span> <span class="ow">in</span> <span class="n">matches</span><span class="p">:</span>
@@ -633,8 +633,7 @@ the simulation.</p></li>
 <p>Though higher Boltzmann orders are well-defined, the largest Boltzmann
 order currently implemented in CO<em>N</em>CEPT is <span class="math notranslate nohighlight">\(1\)</span>.</p>
 </div>
-<p>We shall look into Boltzmann orders different from <span class="math notranslate nohighlight">\(-1\)</span> in the
-subsection on
+<p>We shall look into Boltzmann order <span class="math notranslate nohighlight">\(+1\)</span> in the subsection on
 <a class="reference internal" href="#nonlinear-massive-neutrinos"><span class="std std-ref">non-linear massive neutrinos</span></a>. For now we
 shall keep to the purely linear case of Boltzmann order <span class="math notranslate nohighlight">\(-1\)</span>.</p>
 <p>For fluid components (whether linear or not), the only sensible gravitational
@@ -774,7 +773,7 @@ use even in a cosmology without e.g. cold dark matter.</p>
 </div>
 </div>
 <div class="section" id="massive-neutrinos">
-<h2><a class="toc-backref" href="#id4"><span class="section-number">7.2. </span>Massive neutrinos</a><a class="headerlink" href="#massive-neutrinos" title="Permalink to this headline">¶</a></h2>
+<span id="id3"></span><h2><a class="toc-backref" href="#id5"><span class="section-number">7.2. </span>Massive neutrinos</a><a class="headerlink" href="#massive-neutrinos" title="Permalink to this headline">¶</a></h2>
 <p>The previous subsection demonstrated how simulations of matter can be made to
 agree extremely well with linear theory at linear scales, if we include the
 gravitational contributions from the otherwise missing species, which were
@@ -819,7 +818,7 @@ parameter file:</p>
         <span class="p">}</span>
     <span class="p">)</span>
 <span class="n">output_dirs</span> <span class="o">=</span> <span class="p">{</span>
-    <span class="s1">&#39;powerspec&#39;</span><span class="p">:</span> <span class="n">paths</span><span class="p">[</span><span class="s1">&#39;output_dir&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="s1">&#39;/&#39;</span> <span class="o">+</span> <span class="n">basename</span><span class="p">(</span><span class="n">paths</span><span class="p">[</span><span class="s1">&#39;params&#39;</span><span class="p">])</span>
+    <span class="s1">&#39;powerspec&#39;</span><span class="p">:</span> <span class="n">paths</span><span class="p">[</span><span class="s1">&#39;output_dir&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="s1">&#39;/&#39;</span> <span class="o">+</span> <span class="n">basename</span><span class="p">(</span><span class="n">paths</span><span class="p">[</span><span class="s1">&#39;params&#39;</span><span class="p">]),</span>
 <span class="p">}</span>
 <span class="n">output_bases</span> <span class="o">=</span> <span class="p">{</span>
     <span class="s1">&#39;powerspec&#39;</span><span class="p">:</span> <span class="sa">f</span><span class="s1">&#39;powerspec</span><span class="si">{</span><span class="n">_mass</span><span class="si">=}{</span><span class="n">_lin</span><span class="si">=}</span><span class="s1">&#39;</span>
@@ -928,7 +927,7 @@ this, you should make use of the following script:</p>
 <span class="n">this_dir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">realpath</span><span class="p">(</span><span class="vm">__file__</span><span class="p">))</span>
 <span class="n">P_sims</span><span class="p">,</span> <span class="n">P_lins</span> <span class="o">=</span> <span class="p">{},</span> <span class="p">{}</span>
 <span class="k">for</span> <span class="n">filename</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">glob</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">this_dir</span><span class="si">}</span><span class="s1">/powerspec*&#39;</span><span class="p">),</span> <span class="n">key</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">getmtime</span><span class="p">):</span>
-    <span class="n">matches</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">findall</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;(?=_(.*?)=(.*?)_)&#39;</span><span class="p">,</span> <span class="n">filename</span><span class="p">)</span>
+    <span class="n">matches</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">findall</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;(?=_(.*?)=(.*?)_)&#39;</span><span class="p">,</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">filename</span><span class="p">))</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="n">matches</span> <span class="ow">or</span> <span class="n">filename</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">&#39;.png&#39;</span><span class="p">):</span>
         <span class="k">continue</span>
     <span class="k">for</span> <span class="n">var</span><span class="p">,</span> <span class="n">val</span> <span class="ow">in</span> <span class="n">matches</span><span class="p">:</span>
@@ -1026,7 +1025,7 @@ relative power spectrum should have been smoothed out at low <span class="math n
 showing excellent agreement with the linear prediction.</p>
 </div>
 <div class="section" id="dynamical-dark-energy">
-<h2><a class="toc-backref" href="#id5"><span class="section-number">7.3. </span>Dynamical dark energy</a><a class="headerlink" href="#dynamical-dark-energy" title="Permalink to this headline">¶</a></h2>
+<h2><a class="toc-backref" href="#id6"><span class="section-number">7.3. </span>Dynamical dark energy</a><a class="headerlink" href="#dynamical-dark-energy" title="Permalink to this headline">¶</a></h2>
 <p>This subsection investigates how to perform simulations where dark energy is
 dynamic, specifically using the equation of state
 <span class="math notranslate nohighlight">\(w(a) = w_0 + (1 - a)w_a\)</span>. Beyond just changing the background
@@ -1109,7 +1108,7 @@ shall make use of the following parameter file, which you should save as e.g.
         <span class="p">}</span>
     <span class="p">)</span>
 <span class="n">output_dirs</span> <span class="o">=</span> <span class="p">{</span>
-    <span class="s1">&#39;powerspec&#39;</span><span class="p">:</span> <span class="n">paths</span><span class="p">[</span><span class="s1">&#39;output_dir&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="s1">&#39;/&#39;</span> <span class="o">+</span> <span class="n">basename</span><span class="p">(</span><span class="n">paths</span><span class="p">[</span><span class="s1">&#39;params&#39;</span><span class="p">])</span>
+    <span class="s1">&#39;powerspec&#39;</span><span class="p">:</span> <span class="n">paths</span><span class="p">[</span><span class="s1">&#39;output_dir&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="s1">&#39;/&#39;</span> <span class="o">+</span> <span class="n">basename</span><span class="p">(</span><span class="n">paths</span><span class="p">[</span><span class="s1">&#39;params&#39;</span><span class="p">]),</span>
 <span class="p">}</span>
 <span class="n">output_bases</span> <span class="o">=</span> <span class="p">{</span>
     <span class="s1">&#39;powerspec&#39;</span><span class="p">:</span> <span class="sa">f</span><span class="s1">&#39;powerspec</span><span class="si">{</span><span class="n">_de</span><span class="si">=}{</span><span class="n">_lin</span><span class="si">=}</span><span class="s1">&#39;</span>
@@ -1155,7 +1154,7 @@ Perform a simulation using both types of dark energy using</p>
 </div>
 <p>The parameter specifications <code class="docutils literal notranslate"><span class="pre">Δt_base_background_factor</span> <span class="pre">=</span> <span class="pre">2</span></code> and
 <code class="docutils literal notranslate"><span class="pre">Δt_base_nonlinear_factor</span> <span class="pre">=</span> <span class="pre">2</span></code> double the allowable time step size, while
-<code class="docutils literal notranslate"><span class="pre">N_rungs</span> <span class="pre">=</span> <span class="pre">1</span></code> effectively disables the adaptive time stepping. In addition,
+<code class="docutils literal notranslate"><span class="pre">N_rungs</span> <span class="pre">=</span> <span class="pre">1</span></code> effectively disables the adaptive time-stepping. In addition,
 we start the simulation rather late at <code class="docutils literal notranslate"><span class="pre">a_begin</span> <span class="pre">=</span> <span class="pre">0.1</span></code>, as the effects from
 dark energy show up only at late times. All of this is just to speed up the
 simulations, as we do not require excellent precision.</p>
@@ -1169,7 +1168,7 @@ category is scaled by the <code class="docutils literal notranslate"><span class
 </div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>The adaptive particle time stepping is a feature enabled by default when
+<p>The adaptive particle time-stepping is a feature enabled by default when
 using the P³M method, which assigns separate time step sizes to the
 different particles, allowing for small time steps in dense regions and
 large time steps in less dense regions, achieving both accuracy and
@@ -1179,7 +1178,7 @@ base time step size divided by <span class="math notranslate nohighlight">\(2^n\
 of available rungs (and thus the minimum allowed particle time step) is
 determined through the <code class="docutils literal notranslate"><span class="pre">N_rungs</span></code> parameter. With <code class="docutils literal notranslate"><span class="pre">N_rungs</span> <span class="pre">=</span> <span class="pre">1</span></code>, all
 particles are kept fixed at rung 0, i.e. the base time step, and so no
-adaptive time stepping takes place. The distribution of particles across
+adaptive time-stepping takes place. The distribution of particles across
 all rungs is printed at the start of each time step, for <code class="docutils literal notranslate"><span class="pre">N_rungs</span> <span class="pre">&gt;</span> <span class="pre">1</span></code>.</p>
 </div>
 <p>To make the usual plot of the relative power spectrum — this time comparing
@@ -1196,7 +1195,7 @@ we shall make use of the following plotting script:</p>
 <span class="n">this_dir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">realpath</span><span class="p">(</span><span class="vm">__file__</span><span class="p">))</span>
 <span class="n">P_sims</span><span class="p">,</span> <span class="n">P_lins</span> <span class="o">=</span> <span class="p">{},</span> <span class="p">{}</span>
 <span class="k">for</span> <span class="n">filename</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">glob</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">this_dir</span><span class="si">}</span><span class="s1">/powerspec*&#39;</span><span class="p">),</span> <span class="n">key</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">getmtime</span><span class="p">):</span>
-    <span class="n">matches</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">findall</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;(?=_(.*?)=(.*?)_)&#39;</span><span class="p">,</span> <span class="n">filename</span><span class="p">)</span>
+    <span class="n">matches</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">findall</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;(?=_(.*?)=(.*?)_)&#39;</span><span class="p">,</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">filename</span><span class="p">))</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="n">matches</span> <span class="ow">or</span> <span class="n">filename</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">&#39;.png&#39;</span><span class="p">):</span>
         <span class="k">continue</span>
     <span class="k">for</span> <span class="n">var</span><span class="p">,</span> <span class="n">val</span> <span class="ow">in</span> <span class="n">matches</span><span class="p">:</span>
@@ -1321,7 +1320,7 @@ the metric.</p>
 </div>
 </div>
 <div class="section" id="decaying-cold-dark-matter">
-<h2><a class="toc-backref" href="#id6"><span class="section-number">7.4. </span>Decaying cold dark matter</a><a class="headerlink" href="#decaying-cold-dark-matter" title="Permalink to this headline">¶</a></h2>
+<h2><a class="toc-backref" href="#id7"><span class="section-number">7.4. </span>Decaying cold dark matter</a><a class="headerlink" href="#decaying-cold-dark-matter" title="Permalink to this headline">¶</a></h2>
 <p>This subsection deals with the case of <span class="bolditalic">d</span><em>ecaying</em> <strong>c</strong>old
 <strong>d</strong>ark <strong>m</strong>atter (‘dcdm’), in particular the scenario where it decays
 to some new form of massless non-interacting radiation; what we might call
@@ -1471,7 +1470,7 @@ and without decaying cold dark matter, make use of the below script:</p>
 <span class="n">this_dir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">realpath</span><span class="p">(</span><span class="vm">__file__</span><span class="p">))</span>
 <span class="n">ks</span><span class="p">,</span> <span class="n">P_sims</span><span class="p">,</span> <span class="n">P_lins</span> <span class="o">=</span> <span class="p">{},</span> <span class="p">{},</span> <span class="p">{}</span>
 <span class="k">for</span> <span class="n">filename</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">glob</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">this_dir</span><span class="si">}</span><span class="s1">/powerspec*&#39;</span><span class="p">),</span> <span class="n">key</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">getmtime</span><span class="p">):</span>
-    <span class="n">matches</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">findall</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;(?=_(.*?)=(.*?)_)&#39;</span><span class="p">,</span> <span class="n">filename</span><span class="p">)</span>
+    <span class="n">matches</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">findall</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;(?=_(.*?)=(.*?)_)&#39;</span><span class="p">,</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">filename</span><span class="p">))</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="n">matches</span> <span class="ow">or</span> <span class="n">filename</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">&#39;.png&#39;</span><span class="p">):</span>
         <span class="k">continue</span>
     <span class="k">for</span> <span class="n">var</span><span class="p">,</span> <span class="n">val</span> <span class="ow">in</span> <span class="n">matches</span><span class="p">:</span>
@@ -1741,8 +1740,440 @@ for each component.</p>
 </div>
 </div>
 <div class="section" id="non-linear-massive-neutrinos">
-<span id="nonlinear-massive-neutrinos"></span><h2><a class="toc-backref" href="#id7"><span class="section-number">7.5. </span>Non-linear massive neutrinos</a><a class="headerlink" href="#non-linear-massive-neutrinos" title="Permalink to this headline">¶</a></h2>
-<p><em>Under construction!</em></p>
+<span id="nonlinear-massive-neutrinos"></span><h2><a class="toc-backref" href="#id8"><span class="section-number">7.5. </span>Non-linear massive neutrinos</a><a class="headerlink" href="#non-linear-massive-neutrinos" title="Permalink to this headline">¶</a></h2>
+<p>Here we’ll explore simulations with massive neutrinos, solved <em>non</em>-linearly
+within CO<em>N</em>CEPT. You should have already completed the <em>linear</em>
+<a class="reference internal" href="#massive-neutrinos"><span class="std std-ref">massive neutrinos</span></a> subsection of this tutorial
+before carrying on with this subsection.</p>
+<h3>Linear neutrinos</h3><p>The goal of this subsection is to upgrade the massive neutrinos within the
+simulations from being a simple linear density field to be a non-linearly
+evolved fluid. For this we shall make use of the below parameter file, which
+you should save as e.g. <code class="docutils literal notranslate"><span class="pre">params/tutorial</span></code>:</p>
+<div class="literal-block-wrapper docutils container" id="params-nonlinear-massive-neutrinos">
+<div class="code-block-caption"><span class="caption-text">params/tutorial <span class="math notranslate nohighlight">\(\,\)</span> (non-linear massive neutrinos)</span><a class="headerlink" href="#params-nonlinear-massive-neutrinos" title="Permalink to this code">¶</a></div>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="c1"># Non-parameter helper variable used to control the size of the simulation</span>
+<span class="n">_size</span> <span class="o">=</span> <span class="mi">80</span>
+
+<span class="c1"># Input/output</span>
+<span class="n">initial_conditions</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="c1"># Non-linear matter particles</span>
+    <span class="p">{</span>
+        <span class="s1">&#39;species&#39;</span><span class="p">:</span> <span class="s1">&#39;matter&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;N&#39;</span>      <span class="p">:</span> <span class="n">_size</span><span class="o">**</span><span class="mi">3</span><span class="p">,</span>
+    <span class="p">},</span>
+    <span class="c1"># Linear fluid component</span>
+    <span class="p">{</span>
+        <span class="s1">&#39;name&#39;</span>           <span class="p">:</span> <span class="s1">&#39;linear&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;species&#39;</span>        <span class="p">:</span> <span class="s1">&#39;photon + neutrino + metric&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;gridsize&#39;</span>       <span class="p">:</span> <span class="n">_size</span><span class="p">,</span>
+        <span class="s1">&#39;boltzmann order&#39;</span><span class="p">:</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span>
+    <span class="p">},</span>
+<span class="p">]</span><span class="hll"><span class="k">if</span> <span class="n">_nunonlin</span><span class="p">:</span></span><span class="hll">    <span class="n">initial_conditions</span> <span class="o">+=</span> <span class="p">[</span></span><span class="hll">        <span class="c1"># Non-linear neutrino fluid</span></span><span class="hll">        <span class="p">{</span></span><span class="hll">            <span class="s1">&#39;name&#39;</span>           <span class="p">:</span> <span class="s1">&#39;non-linear neutrino&#39;</span><span class="p">,</span></span><span class="hll">            <span class="s1">&#39;species&#39;</span>        <span class="p">:</span> <span class="s1">&#39;neutrino&#39;</span><span class="p">,</span></span><span class="hll">            <span class="s1">&#39;gridsize&#39;</span>       <span class="p">:</span> <span class="n">_size</span><span class="p">,</span></span><span class="hll">            <span class="s1">&#39;boltzmann order&#39;</span><span class="p">:</span> <span class="o">+</span><span class="mi">1</span><span class="p">,</span></span><span class="hll">        <span class="p">},</span></span><span class="hll">        <span class="c1"># Linear fluid component with neutrinos left out</span></span><span class="hll">        <span class="p">{</span></span><span class="hll">            <span class="s1">&#39;name&#39;</span>           <span class="p">:</span> <span class="s1">&#39;linear (no neutrino)&#39;</span><span class="p">,</span></span><span class="hll">            <span class="s1">&#39;species&#39;</span>        <span class="p">:</span> <span class="s1">&#39;photon + metric&#39;</span><span class="p">,</span></span><span class="hll">            <span class="s1">&#39;gridsize&#39;</span>       <span class="p">:</span> <span class="n">_size</span><span class="p">,</span></span><span class="hll">            <span class="s1">&#39;boltzmann order&#39;</span><span class="p">:</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span></span><span class="hll">        <span class="p">},</span></span><span class="hll">    <span class="p">]</span></span><span class="n">output_dirs</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;powerspec&#39;</span><span class="p">:</span> <span class="n">paths</span><span class="p">[</span><span class="s1">&#39;output_dir&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="s1">&#39;/&#39;</span> <span class="o">+</span> <span class="n">basename</span><span class="p">(</span><span class="n">paths</span><span class="p">[</span><span class="s1">&#39;params&#39;</span><span class="p">]),</span>
+<span class="p">}</span>
+<span class="n">output_bases</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;powerspec&#39;</span><span class="p">:</span> <span class="sa">f</span><span class="s1">&#39;powerspec</span><span class="si">{</span><span class="n">_mass</span><span class="si">=}{</span><span class="n">_nunonlin</span><span class="si">=}{</span><span class="n">_nutrans</span><span class="si">=}</span><span class="s1">&#39;</span><span class="p">,</span>
+<span class="p">}</span>
+<span class="n">output_times</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;powerspec&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+<span class="p">}</span>
+<span class="n">powerspec_select</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;matter&#39;</span>             <span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="s1">&#39;non-linear neutrino&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+<span class="p">}</span>
+
+<span class="c1"># Numerical parameters</span>
+<span class="n">boxsize</span> <span class="o">=</span> <span class="mi">400</span><span class="o">*</span><span class="n">Mpc</span>
+<span class="n">potential_options</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;gridsize&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;gravity&#39;</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s1">&#39;pm&#39;</span> <span class="p">:</span>   <span class="n">_size</span><span class="p">,</span>
+            <span class="s1">&#39;p3m&#39;</span><span class="p">:</span> <span class="mi">2</span><span class="o">*</span><span class="n">_size</span><span class="p">,</span>
+        <span class="p">},</span>
+    <span class="p">},</span>
+<span class="p">}</span>
+
+<span class="c1"># Cosmology</span>
+<span class="n">H0</span>      <span class="o">=</span> <span class="mi">67</span><span class="o">*</span><span class="n">km</span><span class="o">/</span><span class="p">(</span><span class="n">s</span><span class="o">*</span><span class="n">Mpc</span><span class="p">)</span>
+<span class="n">Ωb</span>      <span class="o">=</span> <span class="mf">0.049</span>
+<span class="n">Ωcdm</span>    <span class="o">=</span> <span class="mf">0.27</span> <span class="o">-</span> <span class="n">Ων</span>
+<span class="n">a_begin</span> <span class="o">=</span> <span class="mf">0.02</span>
+<span class="n">class_params</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="c1"># Disable massless neutrinos</span>
+    <span class="s1">&#39;N_ur&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+    <span class="c1"># Add 3 massive neutrinos of equal mass</span>
+    <span class="s1">&#39;N_ncdm&#39;</span>  <span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+    <span class="s1">&#39;deg_ncdm&#39;</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span>
+    <span class="s1">&#39;m_ncdm&#39;</span>  <span class="p">:</span> <span class="nb">max</span><span class="p">(</span><span class="n">_mass</span><span class="o">/</span><span class="mi">3</span><span class="p">,</span> <span class="mf">1e-100</span><span class="p">),</span>  <span class="c1"># Avoid exact value of 0.0</span>
+    <span class="c1"># General precision parameters</span>
+    <span class="s1">&#39;evolver&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span><span class="hll">    <span class="c1"># Neutrino precision parameters</span></span><span class="hll">    <span class="s1">&#39;l_max_ncdm&#39;</span>              <span class="p">:</span> <span class="mi">200</span><span class="p">,</span></span><span class="hll">    <span class="s1">&#39;Number of momentum bins&#39;</span> <span class="p">:</span> <span class="mi">100</span><span class="p">,</span></span><span class="hll">    <span class="s1">&#39;Quadrature strategy&#39;</span>     <span class="p">:</span> <span class="mi">2</span><span class="p">,</span></span><span class="hll">    <span class="s1">&#39;ncdm_fluid_approximation&#39;</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span></span><span class="p">}</span>
+
+<span class="c1"># Physics</span><span class="hll"><span class="k">if</span> <span class="n">_nunonlin</span><span class="p">:</span></span><span class="hll">    <span class="n">select_lives</span> <span class="o">=</span> <span class="p">{</span></span><span class="hll">        <span class="s1">&#39;linear&#39;</span>              <span class="p">:</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">_nutrans</span><span class="p">),</span></span><span class="hll">        <span class="s1">&#39;linear (no neutrino)&#39;</span><span class="p">:</span> <span class="p">(</span><span class="n">_nutrans</span><span class="p">,</span> <span class="n">inf</span><span class="p">),</span></span><span class="hll">        <span class="s1">&#39;non-linear neutrino&#39;</span> <span class="p">:</span> <span class="p">(</span><span class="n">_nutrans</span><span class="p">,</span> <span class="n">inf</span><span class="p">),</span></span><span class="hll">    <span class="p">}</span></span><span class="n">primordial_amplitude_fixed</span> <span class="o">=</span> <span class="kc">True</span>
+
+<span class="c1"># Non-parameter helper variables which should</span>
+<span class="c1"># be supplied as command-line parameters.</span>
+<span class="n">_mass</span> <span class="o">=</span> <span class="mi">0</span>          <span class="c1"># Sum of neutrino masses in eV</span><span class="hll"><span class="n">_nunonlin</span> <span class="o">=</span> <span class="kc">False</span>  <span class="c1"># Use non-linear neutrinos?</span></span><span class="hll"><span class="n">_nutrans</span> <span class="o">=</span> <span class="mi">0</span>       <span class="c1"># Scale factor at which to transition to non-linear neutrinos</span></span></pre></div>
+</div>
+</div>
+<p>Start by running this parameter file as is,</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept -p params/tutorial
+</pre></div>
+</div>
+<p>which will perform a simulation with three mass<em>less</em> neutrinos, with these
+as well as photons and the metric included in a combined, linear component.</p>
+<p>Once done, also perform a simulation with three massive neutrino, say with
+<span class="math notranslate nohighlight">\(\sum m_\nu = 0.5\, \text{eV}\)</span>.
+<a class="reference internal" href="#params-nonlinear-massive-neutrinos"><span class="std std-ref">The parameter file</span></a> has been set up
+so that this can be achieved by supplying <code class="docutils literal notranslate"><span class="pre">_mass</span></code> as a command-line
+parameter:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept <span class="se">\</span>
+    -p params/tutorial <span class="se">\</span>
+    -c <span class="s2">&quot;_mass = 0.5&quot;</span>
+</pre></div>
+</div>
+<p>With both the linear massless and the linear massive neutrino run done, plot
+the results using the following plotting script:</p>
+<div class="literal-block-wrapper docutils container" id="plot-nonlinear-massive-neutrinos">
+<div class="code-block-caption"><span class="caption-text">output/tutorial/plot.py <span class="math notranslate nohighlight">\(\,\)</span> (non-linear massive neutrinos)</span><a class="headerlink" href="#plot-nonlinear-massive-neutrinos" title="Permalink to this code">¶</a></div>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">collections</span><span class="o">,</span> <span class="nn">glob</span><span class="o">,</span> <span class="nn">itertools</span><span class="o">,</span> <span class="nn">os</span><span class="o">,</span> <span class="nn">re</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">matplotlib</span>
+<span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
+
+<span class="c1"># Read in data</span>
+<span class="n">this_dir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">realpath</span><span class="p">(</span><span class="vm">__file__</span><span class="p">))</span>
+<span class="n">inf</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">inf</span>
+<span class="n">P_sims</span><span class="p">,</span> <span class="n">P_lins</span> <span class="o">=</span> <span class="n">collections</span><span class="o">.</span><span class="n">defaultdict</span><span class="p">(</span><span class="nb">dict</span><span class="p">),</span> <span class="n">collections</span><span class="o">.</span><span class="n">defaultdict</span><span class="p">(</span><span class="nb">dict</span><span class="p">)</span>
+<span class="k">for</span> <span class="n">filename</span> <span class="ow">in</span> <span class="n">glob</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">this_dir</span><span class="si">}</span><span class="s1">/powerspec*&#39;</span><span class="p">):</span>
+    <span class="n">matches</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">findall</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;(?=_(.*?)=(.*?)_)&#39;</span><span class="p">,</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">filename</span><span class="p">))</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">matches</span> <span class="ow">or</span> <span class="n">filename</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">&#39;.png&#39;</span><span class="p">):</span>
+        <span class="k">continue</span>
+    <span class="k">for</span> <span class="n">var</span><span class="p">,</span> <span class="n">val</span> <span class="ow">in</span> <span class="n">matches</span><span class="p">:</span>
+        <span class="n">exec</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">var</span><span class="si">}</span><span class="s1"> = </span><span class="si">{</span><span class="n">val</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+    <span class="n">k</span><span class="p">,</span> <span class="n">P_sim</span><span class="p">,</span> <span class="n">P_lin</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">loadtxt</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="n">usecols</span><span class="o">=</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span> <span class="n">unpack</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">mask</span> <span class="o">=</span> <span class="o">~</span><span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">P_lin</span><span class="p">)</span>
+    <span class="n">k</span> <span class="o">=</span> <span class="n">k</span><span class="p">[</span><span class="n">mask</span><span class="p">]</span>
+    <span class="n">P_sims</span><span class="p">[</span><span class="s1">&#39;matter&#39;</span><span class="p">][</span><span class="n">mass</span><span class="p">,</span> <span class="n">nunonlin</span><span class="p">,</span> <span class="n">nutrans</span><span class="p">]</span> <span class="o">=</span> <span class="n">P_sim</span><span class="p">[</span><span class="n">mask</span><span class="p">]</span>
+    <span class="n">P_lins</span><span class="p">[</span><span class="s1">&#39;matter&#39;</span><span class="p">][</span><span class="n">mass</span>                   <span class="p">]</span> <span class="o">=</span> <span class="n">P_lin</span><span class="p">[</span><span class="n">mask</span><span class="p">]</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">k_ν</span><span class="p">,</span> <span class="n">P_sim</span><span class="p">,</span> <span class="n">P_lin</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">loadtxt</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="n">usecols</span><span class="o">=</span><span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="mi">6</span><span class="p">,</span> <span class="mi">7</span><span class="p">),</span> <span class="n">unpack</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="k">except</span><span class="p">:</span>
+        <span class="k">continue</span>
+    <span class="n">mask_ν</span> <span class="o">=</span> <span class="o">~</span><span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">P_lin</span><span class="p">)</span>
+    <span class="n">k_ν</span> <span class="o">=</span> <span class="n">k_ν</span><span class="p">[</span><span class="n">mask_ν</span><span class="p">]</span>
+    <span class="n">P_sims</span><span class="p">[</span><span class="s1">&#39;neutrino&#39;</span><span class="p">][</span><span class="n">mass</span><span class="p">,</span> <span class="n">nunonlin</span><span class="p">,</span> <span class="n">nutrans</span><span class="p">]</span> <span class="o">=</span> <span class="n">P_sim</span><span class="p">[</span><span class="n">mask_ν</span><span class="p">]</span>
+    <span class="n">P_lins</span><span class="p">[</span><span class="s1">&#39;neutrino&#39;</span><span class="p">][</span><span class="n">mass</span>                   <span class="p">]</span> <span class="o">=</span> <span class="n">P_lin</span><span class="p">[</span><span class="n">mask_ν</span><span class="p">]</span>
+<span class="k">for</span> <span class="n">species</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;matter&#39;</span><span class="p">,</span> <span class="s1">&#39;neutrino&#39;</span><span class="p">]:</span>
+    <span class="n">P_sims</span><span class="p">[</span><span class="n">species</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="n">key</span><span class="p">:</span> <span class="n">P_sims</span><span class="p">[</span><span class="n">species</span><span class="p">][</span><span class="n">key</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">P_sims</span><span class="p">[</span><span class="n">species</span><span class="p">]</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+    <span class="p">}</span>
+    <span class="n">P_lins</span><span class="p">[</span><span class="n">species</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="n">key</span><span class="p">:</span> <span class="n">P_lins</span><span class="p">[</span><span class="n">species</span><span class="p">][</span><span class="n">key</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">P_lins</span><span class="p">[</span><span class="n">species</span><span class="p">]</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+    <span class="p">}</span>
+
+<span class="c1"># Plot</span>
+<span class="n">fig</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">()</span>
+<span class="n">gs</span> <span class="o">=</span> <span class="n">matplotlib</span><span class="o">.</span><span class="n">gridspec</span><span class="o">.</span><span class="n">GridSpec</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="n">figure</span><span class="o">=</span><span class="n">fig</span><span class="p">)</span>
+<span class="n">ax_w</span>  <span class="o">=</span> <span class="n">fig</span><span class="o">.</span><span class="n">add_subplot</span><span class="p">(</span><span class="n">gs</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">])</span>
+<span class="n">ax_ne</span> <span class="o">=</span> <span class="n">fig</span><span class="o">.</span><span class="n">add_subplot</span><span class="p">(</span><span class="n">gs</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">])</span>
+<span class="n">ax_se</span> <span class="o">=</span> <span class="n">fig</span><span class="o">.</span><span class="n">add_subplot</span><span class="p">(</span><span class="n">gs</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">])</span>
+<span class="n">linestyles</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;-&#39;</span><span class="p">,</span> <span class="s1">&#39;--&#39;</span><span class="p">,</span> <span class="s1">&#39;:&#39;</span><span class="p">,</span> <span class="s1">&#39;-.&#39;</span><span class="p">]</span>
+<span class="n">fmts</span> <span class="o">=</span> <span class="p">{}</span>
+<span class="n">i</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span>
+<span class="k">for</span> <span class="p">(</span><span class="n">mass</span><span class="p">,</span> <span class="n">nunonlin</span><span class="p">,</span> <span class="n">nutrans</span><span class="p">),</span> <span class="n">P_sim</span> <span class="ow">in</span> <span class="n">P_sims</span><span class="p">[</span><span class="s1">&#39;matter&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">mass</span><span class="p">:</span>
+        <span class="k">continue</span>
+    <span class="n">i</span> <span class="o">+=</span> <span class="mi">1</span>
+    <span class="k">for</span> <span class="n">nutrans_ref</span> <span class="ow">in</span> <span class="p">(</span><span class="n">nutrans</span><span class="p">,</span> <span class="mi">0</span><span class="p">):</span>
+        <span class="n">P_sim_ref</span> <span class="o">=</span> <span class="n">P_sims</span><span class="p">[</span><span class="s1">&#39;matter&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">get</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="kc">False</span><span class="p">,</span> <span class="n">nutrans_ref</span><span class="p">))</span>
+        <span class="k">if</span> <span class="n">P_sim_ref</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">break</span>
+    <span class="n">y</span> <span class="o">=</span> <span class="p">(</span><span class="n">P_sim</span><span class="o">/</span><span class="n">P_sim_ref</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span><span class="o">*</span><span class="mi">100</span>
+    <span class="n">linestyle</span> <span class="o">=</span> <span class="n">linestyles</span><span class="p">[</span>
+        <span class="nb">sum</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">allclose</span><span class="p">(</span><span class="n">line</span><span class="o">.</span><span class="n">get_ydata</span><span class="p">()[:</span><span class="mi">30</span><span class="p">],</span> <span class="n">y</span><span class="p">[:</span><span class="mi">30</span><span class="p">],</span> <span class="mf">3e-2</span><span class="p">)</span> <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">ax_w</span><span class="o">.</span><span class="n">lines</span><span class="p">)</span>
+        <span class="o">%</span><span class="nb">len</span><span class="p">(</span><span class="n">linestyles</span><span class="p">)</span>
+    <span class="p">]</span>
+    <span class="n">fmt</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;C</span><span class="si">{</span><span class="n">i</span><span class="o">%</span><span class="mi">10</span><span class="si">}{</span><span class="n">linestyle</span><span class="si">}</span><span class="s1">&#39;</span>
+    <span class="k">if</span> <span class="n">nunonlin</span><span class="p">:</span>
+        <span class="n">fmts</span><span class="p">[</span><span class="n">mass</span><span class="p">,</span> <span class="n">nutrans</span><span class="p">]</span> <span class="o">=</span> <span class="n">fmt</span>
+    <span class="n">label</span> <span class="o">=</span> <span class="sa">rf</span><span class="s1">&#39;simulation: $\Sigma m_\nu = </span><span class="si">{</span><span class="n">mass</span><span class="si">}</span><span class="s1">$ eV, &#39;</span>
+    <span class="k">if</span> <span class="n">nunonlin</span><span class="p">:</span>
+        <span class="n">label</span> <span class="o">+=</span> <span class="sa">rf</span><span class="s1">&#39;$a_</span><span class="se">{{</span><span class="s1">\nu\mathrm</span><span class="se">{{</span><span class="s1">trans</span><span class="se">}}}}</span><span class="s1"> = </span><span class="si">{</span><span class="n">nutrans</span><span class="si">:</span><span class="s1">.2g</span><span class="si">}</span><span class="s1">$&#39;</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">label</span> <span class="o">+=</span> <span class="sa">r</span><span class="s1">&#39;linear $\nu$&#39;</span>
+    <span class="n">ax_w</span><span class="o">.</span><span class="n">semilogx</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">fmt</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="n">label</span><span class="p">)</span>
+<span class="n">mass_nonzeros</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">({</span><span class="n">mass</span> <span class="k">for</span> <span class="n">mass</span><span class="p">,</span> <span class="o">*</span><span class="n">_</span> <span class="ow">in</span> <span class="n">P_sims</span><span class="p">[</span><span class="s1">&#39;matter&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span> <span class="k">if</span> <span class="n">mass</span><span class="p">})</span>
+<span class="n">label</span> <span class="o">=</span> <span class="s1">&#39;linear&#39;</span>
+<span class="k">for</span> <span class="n">mass_nonzero</span> <span class="ow">in</span> <span class="n">mass_nonzeros</span><span class="p">:</span>
+    <span class="n">ax_w</span><span class="o">.</span><span class="n">semilogx</span><span class="p">(</span>
+        <span class="n">k</span><span class="p">,</span> <span class="p">(</span><span class="n">P_lins</span><span class="p">[</span><span class="s1">&#39;matter&#39;</span><span class="p">][</span><span class="n">mass_nonzero</span><span class="p">]</span><span class="o">/</span><span class="n">P_lins</span><span class="p">[</span><span class="s1">&#39;matter&#39;</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span><span class="o">*</span><span class="mi">100</span><span class="p">,</span> <span class="s1">&#39;k--&#39;</span><span class="p">,</span>
+        <span class="n">label</span><span class="o">=</span><span class="n">label</span><span class="p">,</span> <span class="n">linewidth</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">zorder</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">label</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="k">for</span> <span class="n">mass_nonzero</span> <span class="ow">in</span> <span class="n">mass_nonzeros</span><span class="p">:</span>
+    <span class="n">P_sim_ref</span> <span class="o">=</span> <span class="n">P_sims</span><span class="p">[</span><span class="s1">&#39;matter&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">get</span><span class="p">((</span><span class="n">mass_nonzero</span><span class="p">,</span> <span class="kc">False</span><span class="p">,</span> <span class="mi">0</span><span class="p">))</span>
+    <span class="k">if</span> <span class="n">P_sim_ref</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">continue</span>
+    <span class="k">for</span> <span class="p">(</span><span class="n">mass</span><span class="p">,</span> <span class="n">nunonlin</span><span class="p">,</span> <span class="n">nutrans</span><span class="p">),</span> <span class="n">P_sim</span> <span class="ow">in</span> <span class="n">P_sims</span><span class="p">[</span><span class="s1">&#39;matter&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="k">if</span> <span class="n">mass</span> <span class="o">!=</span> <span class="n">mass_nonzero</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">nunonlin</span><span class="p">:</span>
+            <span class="k">continue</span>
+        <span class="n">ax_ne</span><span class="o">.</span><span class="n">semilogx</span><span class="p">(</span>
+            <span class="n">k</span><span class="p">,</span> <span class="p">(</span><span class="n">P_sim</span><span class="o">/</span><span class="n">P_sim_ref</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span><span class="o">*</span><span class="mi">100</span><span class="p">,</span> <span class="n">fmts</span><span class="p">[</span><span class="n">mass</span><span class="p">,</span> <span class="n">nutrans</span><span class="p">],</span>
+            <span class="n">label</span><span class="o">=</span><span class="p">(</span>
+                <span class="sa">rf</span><span class="s1">&#39;simulation: $\Sigma m_\nu = </span><span class="si">{</span><span class="n">mass</span><span class="si">}</span><span class="s1">$ eV, &#39;</span>
+                <span class="sa">rf</span><span class="s1">&#39;$a_</span><span class="se">{{</span><span class="s1">\nu\mathrm</span><span class="se">{{</span><span class="s1">trans</span><span class="se">}}}}</span><span class="s1"> = </span><span class="si">{</span><span class="n">nutrans</span><span class="si">:</span><span class="s1">.2g</span><span class="si">}</span><span class="s1">$&#39;</span>
+            <span class="p">),</span>
+        <span class="p">)</span>
+<span class="k">for</span> <span class="p">(</span><span class="n">mass</span><span class="p">,</span> <span class="n">nunonlin</span><span class="p">,</span> <span class="n">nutrans</span><span class="p">),</span> <span class="n">P_sim</span> <span class="ow">in</span> <span class="n">P_sims</span><span class="p">[</span><span class="s1">&#39;neutrino&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+    <span class="n">ax_se</span><span class="o">.</span><span class="n">loglog</span><span class="p">(</span>
+        <span class="n">k_ν</span><span class="p">,</span> <span class="n">k_ν</span><span class="o">**</span><span class="mi">3</span><span class="o">*</span><span class="n">P_sim</span><span class="p">,</span> <span class="n">fmts</span><span class="p">[</span><span class="n">mass</span><span class="p">,</span> <span class="n">nutrans</span><span class="p">],</span>
+        <span class="n">label</span><span class="o">=</span><span class="p">(</span>
+            <span class="sa">rf</span><span class="s1">&#39;simulation: $\Sigma m_\nu = </span><span class="si">{</span><span class="n">mass</span><span class="si">}</span><span class="s1">$ eV, &#39;</span>
+            <span class="sa">rf</span><span class="s1">&#39;$a_</span><span class="se">{{</span><span class="s1">\nu\mathrm</span><span class="se">{{</span><span class="s1">trans</span><span class="se">}}}}</span><span class="s1"> = </span><span class="si">{</span><span class="n">nutrans</span><span class="si">:</span><span class="s1">.2g</span><span class="si">}</span><span class="s1">$&#39;</span>
+        <span class="p">),</span>
+    <span class="p">)</span>
+<span class="n">ax_w</span> <span class="o">.</span><span class="n">set_xlim</span><span class="p">(</span><span class="n">k</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">k</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+<span class="n">ax_ne</span><span class="o">.</span><span class="n">set_xlim</span><span class="p">(</span><span class="n">k</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">k</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+<span class="n">label</span> <span class="o">=</span> <span class="s1">&#39;linear&#39;</span>
+<span class="k">for</span> <span class="n">mass_nonzero</span> <span class="ow">in</span> <span class="n">mass_nonzeros</span><span class="p">:</span>
+    <span class="n">P_lin</span> <span class="o">=</span> <span class="n">P_lins</span><span class="p">[</span><span class="s1">&#39;neutrino&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">mass_nonzero</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">P_lin</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">continue</span>
+    <span class="n">ax_se</span><span class="o">.</span><span class="n">loglog</span><span class="p">(</span><span class="n">k_ν</span><span class="p">,</span> <span class="n">k_ν</span><span class="o">**</span><span class="mi">3</span><span class="o">*</span><span class="n">P_lin</span><span class="p">,</span> <span class="s1">&#39;k--&#39;</span><span class="p">,</span>
+        <span class="n">label</span><span class="o">=</span><span class="n">label</span><span class="p">,</span> <span class="n">linewidth</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">zorder</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">label</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">ax_se</span><span class="o">.</span><span class="n">set_xlim</span><span class="p">(</span><span class="n">k_ν</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">k_ν</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+<span class="k">for</span> <span class="n">ax</span> <span class="ow">in</span> <span class="p">[</span><span class="n">ax_w</span><span class="p">,</span> <span class="n">ax_ne</span><span class="p">,</span> <span class="n">ax_se</span><span class="p">]:</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;$k\, [\mathrm</span><span class="si">{Mpc}</span><span class="s1">^{-1}]$&#39;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">ax</span><span class="o">.</span><span class="n">lines</span><span class="p">:</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">legend</span><span class="p">(</span><span class="n">fontsize</span><span class="o">=</span><span class="mi">7</span><span class="p">)</span>
+<span class="n">ax_w</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span>
+    <span class="sa">rf</span><span class="s1">&#39;$P_</span><span class="se">{{</span><span class="s1">\Sigma m_\nu &gt; 0</span><span class="se">}}</span><span class="s1">&#39;</span>
+    <span class="sa">rf</span><span class="s1">&#39;/P_</span><span class="se">{{</span><span class="s1">\Sigma m_\nu = 0</span><span class="se">}}</span><span class="s1"> - 1\, [\%]$&#39;</span>
+<span class="p">)</span>
+<span class="n">ax_ne</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span>
+    <span class="sa">rf</span><span class="s1">&#39;$P_</span><span class="se">{{</span><span class="s1">\mathrm</span><span class="se">{{</span><span class="s1">non‐linear</span><span class="se">}}</span><span class="s1">\,\nu</span><span class="se">}}</span><span class="s1">&#39;</span>
+    <span class="sa">rf</span><span class="s1">&#39;/P_</span><span class="se">{{</span><span class="s1">\mathrm</span><span class="se">{{</span><span class="s1">linear</span><span class="se">}}</span><span class="s1">\,\nu</span><span class="se">}}</span><span class="s1"> - 1\, [\%]$&#39;</span>
+<span class="p">)</span>
+<span class="n">ax_se</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;$k^3P_{\nu}$&#39;</span><span class="p">)</span>
+<span class="n">ax_ne</span><span class="o">.</span><span class="n">set_ylim</span><span class="p">(</span><span class="n">bottom</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+<span class="n">fig</span><span class="o">.</span><span class="n">tight_layout</span><span class="p">()</span>
+<span class="n">fig</span><span class="o">.</span><span class="n">savefig</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">this_dir</span><span class="si">}</span><span class="s1">/plot.png&#39;</span><span class="p">,</span> <span class="n">dpi</span><span class="o">=</span><span class="mi">150</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<p>Save the plotting script to e.g. <code class="docutils literal notranslate"><span class="pre">output/tutorial/plot.py</span></code> and run it using</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept -m output/tutorial/plot.py
+</pre></div>
+</div>
+<p>The resulting <code class="docutils literal notranslate"><span class="pre">plot.png</span></code> shows the relative matter power spectrum between
+the massive and massless neutrino cosmology on the left. You should see the
+usual non-linear suppression dip. The corresponding result from linear theory
+is shown as well, which matches at large scales. Be careful not to confuse
+completely linear theory with non-linear matter simulations containing linear
+neutrinos, which again is different from the upcoming simulations treating
+both matter and neutrinos non-linearly.</p>
+<h3>Non-linear neutrinos</h3><p>Studying <a class="reference internal" href="#params-nonlinear-massive-neutrinos"><span class="std std-ref">the parameter file</span></a> it
+should be clear that setting <code class="docutils literal notranslate"><span class="pre">_nunonlin</span> <span class="pre">=</span> <span class="pre">True</span></code> will result in two
+new components within the simulation, namely <code class="docutils literal notranslate"><span class="pre">'non-linear</span> <span class="pre">neutrino'</span></code> and
+<code class="docutils literal notranslate"><span class="pre">'linear</span> <span class="pre">(no</span> <span class="pre">neutrino)'</span></code>, the latter of which supplies the simulation with
+photons and the metric. To not double count these species, the old component
+named <code class="docutils literal notranslate"><span class="pre">'linear'</span></code> should now no longer be used. This is handled by the newly
+introduced <code class="docutils literal notranslate"><span class="pre">select_lives</span></code> parameter, which we shall look into shortly. What
+makes the <code class="docutils literal notranslate"><span class="pre">'non-linear</span> <span class="pre">neutrino'</span></code> component non-linear is its Boltzmann
+order of <span class="math notranslate nohighlight">\(+1\)</span>, meaning that its energy and momentum density are treated
+as non-linear fields — evolved within CO<em>N</em>CEPT — with pressure and
+shear still treated linearly. See the <a class="reference internal" href="#radiation"><span class="std std-ref">radiation</span></a> subsection
+for further explanation about the Boltzmann order. For details on how the
+non-linear fluid evolution is implemented in CO<em>N</em>CEPT, we refer to the
+paper
+“<a class="reference internal" href="../publications.html"><span class="doc">νCO𝘕CEPT: Cosmological neutrino simulations from the non-linear Boltzmann hierarchy</span></a>”.</p>
+<p>Run a simulation with non-linear massive neutrinos with the same mass as used
+for the linear massive neutrino run:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept <span class="se">\</span>
+    -p params/tutorial <span class="se">\</span>
+    -c <span class="s2">&quot;_mass = 0.5&quot;</span> <span class="se">\</span>
+    -c <span class="s2">&quot;_nunonlin = True&quot;</span>
+</pre></div>
+</div>
+<p>Reading the output in the terminal during the simulation, it’s clear that each
+time step is now quite a bit more involved. Beyond having to additionally
+evolve the energy and momentum density of the non-linear neutrinos — which
+in turn require continual realisations of the linear pressure (written as
+<code class="docutils literal notranslate"><span class="pre">ς['trace']</span></code>) and shear (written as <code class="docutils literal notranslate"><span class="pre">ς[i,</span> <span class="pre">j]</span></code>) — the number of
+gravitational interactions also increases. We give an overview of these below:</p>
+<ul>
+<li><p>Gravity applied to <code class="docutils literal notranslate"><span class="pre">'matter'</span></code>:</p>
+<blockquote>
+<div><ul>
+<li><p>From <code class="docutils literal notranslate"><span class="pre">'matter'</span></code>:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>P³M (long-range)</p></li>
+<li><p>P³M (short-range)</p></li>
+</ul>
+</div></blockquote>
+</li>
+<li><p>From <code class="docutils literal notranslate"><span class="pre">'non-linear</span> <span class="pre">neutrino'</span></code> + <code class="docutils literal notranslate"><span class="pre">'linear</span> <span class="pre">(no</span> <span class="pre">neutrino)'</span></code>:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>PM</p></li>
+</ul>
+</div></blockquote>
+</li>
+</ul>
+</div></blockquote>
+</li>
+<li><p>Gravity applied to <code class="docutils literal notranslate"><span class="pre">'non-linear</span> <span class="pre">neutrino'</span></code>:</p>
+<blockquote>
+<div><ul>
+<li><p>From <code class="docutils literal notranslate"><span class="pre">matter</span></code> + <code class="docutils literal notranslate"><span class="pre">'non-linear</span> <span class="pre">neutrino'</span></code> + <code class="docutils literal notranslate"><span class="pre">'linear</span> <span class="pre">(no</span> <span class="pre">neutrino)'</span></code>:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>PM</p></li>
+</ul>
+</div></blockquote>
+</li>
+</ul>
+</div></blockquote>
+</li>
+</ul>
+<p>All of this makes non-linear neutrino simulation slower than simulations with
+linear neutrinos. Even more significant is the fact that non-linear neutrinos
+require a small time step size due to the
+<a class="reference external" href="https://en.wikipedia.org/wiki/Courant-Friedrichs-Lewy_condition">Courant condition</a>.
+As no rung-like system exists for fluids in CO<em>N</em>CEPT, the single most
+extreme fluid cell typically dictate the global time step size, slowing down
+the entire simulation.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>As stated above, in these simulations with non-linear neutrinos, the
+neutrinos receive gravitational kicks from themselves, matter, photons and
+what we call the “metric”. This works fine in practice, but as the general
+relativistic corrections collected into the “metric” is constructed for the
+purpose of application to pressureless matter, it might be the case that
+the corresponding general relativistic corrections felt by neutrinos are
+different, and so really require a separately constructed “neutrino
+metric”. Whether this is or isn’t the case is currently unknown.</p>
+</div>
+<p>Once the non-linear neutrino simulation has completed, update the plot by
+rerunning the plotting script. A new line will appear in the left panel, which
+shows that running with non-linear neutrinos makes the non-linear suppression
+dip slightly shallower. That is, treating the neutrinos non-linearly slightly
+increases the matter power. This is caused by the enhanced clustering of the
+neutrinos. Exactly how much of an increase in matter power we get by
+substituting linear neutrinos for non-linear neutrinos is shown in the upper
+right panel. For <span class="math notranslate nohighlight">\(\sum m_\nu = 0.5\, \text{eV}\)</span> it should amount to a
+few per mille around the <span class="math notranslate nohighlight">\(k\)</span>’s of the non-linear suppression dip. The
+lower right panel shows the power spectrum of the neutrino component, where
+<span class="math notranslate nohighlight">\(k^3P_{\nu}\)</span> rather than just <span class="math notranslate nohighlight">\(P_{\nu}\)</span> is plotted as this results
+in a better view of the data. Both the non-linearly evolved neutrinos as well
+as linear ones are shown.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Larger neutrino masses leads to stronger neutrino clustering, in turn
+leading to further increased matter power. Though non-linear clustering in
+the neutrino component itself is clearly visible in the neutrino power
+spectrum even for small masses, the accompanying increase in matter power
+becomes very hard to see for <span class="math notranslate nohighlight">\(\sum m_\nu \lesssim 0.1\, \text{eV}\)</span>.</p>
+</div>
+<div class="admonition caution">
+<p class="admonition-title">Caution</p>
+<p>The default fluid solver used within CO<em>N</em>CEPT is that of
+<a class="reference external" href="https://en.wikipedia.org/wiki/MacCormack_method">MacCormack</a>. We have
+found this method to be bad at handling strong clustering, and so our
+implementation includes a crude fix to avoid the generation of cells
+with negative densities. For large neutrino masses and/or high resolution
+this may not be sufficient, in which case the code will abort, stating that
+it gives up trying to repair the erroneous negative cells. We thus
+recommend that you only run CO<em>N</em>CEPT with non-linear neutrinos for
+<span class="math notranslate nohighlight">\(\sum m_\nu \lesssim 0.6\, \text{eV}\)</span> (3 degenerate neutrinos)
+or <span class="math notranslate nohighlight">\(m_\nu \lesssim 0.2\, \text{eV}\)</span> (per neutrino).</p>
+</div>
+<h3>Transitioning from linear to non-linear neutrinos</h3><p>As you’ve now experienced first hand, non-linear neutrino simulations can take
+a long time to run. As written above, a major reason for this is the small
+global time step size required by the non-linear neutrino fluid, leading to
+many more time steps than usual. This is especially true at early times and
+for light neutrinos, as here the neutrino fluid has a high pressure and thus a
+high speed of sound.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>At each time step of the simulation the equation of state (EoS) parameter
+<span class="math notranslate nohighlight">\(w\)</span> of the non-linear neutrino component is show. By following the
+evolution of the EoS you can get an idea about how far the neutrino
+component is on its path towards becoming non-relativistic and hence
+matter-like, with only a small pressure.</p>
+</div>
+<p>As the non-linear neutrino component doesn’t significantly deviate from linear
+behaviour at early times, we can save on computational resources by running
+with linear neutrinos in the beginning and then transition to using non-linear
+neutrinos at some scale factor value <span class="math notranslate nohighlight">\(a_{\nu\text{trans}}\)</span>.
+<a class="reference internal" href="#params-nonlinear-massive-neutrinos"><span class="std std-ref">The parameter file</span></a> is set up to do
+exactly this by specifying <span class="math notranslate nohighlight">\(a_{\nu\text{trans}}\)</span> as the <code class="docutils literal notranslate"><span class="pre">_nutrans</span></code>
+variable. To rerun the non-linear neutrino simulation, though using linear
+neutrinos for <span class="math notranslate nohighlight">\(a &lt; a_{\nu\text{trans}} = 0.1\)</span>, do</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept <span class="se">\</span>
+    -p params/tutorial <span class="se">\</span>
+    -c <span class="s2">&quot;_mass = 0.5&quot;</span> <span class="se">\</span>
+    -c <span class="s2">&quot;_nunonlin = True&quot;</span> <span class="se">\</span>
+    -c <span class="s2">&quot;_nutrans = 0.1&quot;</span>
+</pre></div>
+</div>
+<p>The transitioning works by terminating the <code class="docutils literal notranslate"><span class="pre">'linear'</span></code> component (containing
+neutrinos, photons and metric) at <span class="math notranslate nohighlight">\(a = a_{\nu\text{trans}}\)</span>, while
+simultaneously activating both the <code class="docutils literal notranslate"><span class="pre">'linear</span> <span class="pre">(no</span> <span class="pre">neutrino)'</span></code> (containing
+photons and metric) and the <code class="docutils literal notranslate"><span class="pre">'non-linear</span> <span class="pre">neutrino'</span></code> component. This is
+achieved through the <code class="docutils literal notranslate"><span class="pre">select_lives</span></code> parameter in the
+<a class="reference internal" href="#params-nonlinear-massive-neutrinos"><span class="std std-ref">the parameter file</span></a>, which maps
+components to life spans in the format
+<span class="math notranslate nohighlight">\((a_{\text{activate}}, a_{\text{terminate}})\)</span>. When <code class="docutils literal notranslate"><span class="pre">_nunonlin</span></code> is
+<code class="docutils literal notranslate"><span class="pre">False</span></code> (default), <code class="docutils literal notranslate"><span class="pre">select_lives</span></code> is not set at all, and so all specified
+components (here only <code class="docutils literal notranslate"><span class="pre">'matter'</span></code> and <code class="docutils literal notranslate"><span class="pre">'linear'</span></code>) live for the entirety of
+the simulation. With <code class="docutils literal notranslate"><span class="pre">_nunonlin</span> <span class="pre">=</span> <span class="pre">True</span></code> we see that <code class="docutils literal notranslate"><span class="pre">'linear'</span></code> is only
+active until the time of <code class="docutils literal notranslate"><span class="pre">_nutrans</span></code>, whereas <code class="docutils literal notranslate"><span class="pre">'linear</span> <span class="pre">(no</span> <span class="pre">neutrino)'</span></code> and
+<code class="docutils literal notranslate"><span class="pre">'non-linear</span> <span class="pre">neutrino'</span></code> are first activated at the time of <code class="docutils literal notranslate"><span class="pre">_nutrans</span></code> and
+then continues to be active throughout time.</p>
+<p>You should find that this simulation completes significantly faster than the
+previous one. Once completed and with the plot updated, you should find that
+running with linear neutrinos at early times doesn’t change the results much.
+In fact, the non-linear neutrino power spectra at <span class="math notranslate nohighlight">\(a = 1\)</span> looks very
+close to identical. It does make a small difference at high <span class="math notranslate nohighlight">\(k\)</span> for the
+matter spectrum, as seen from the top right panel of the plot. However, these
+sub per mille changes are likely to come about simply due to the difference in
+global time-stepping between the simulations, and so should not be confidently
+ascribed to early non-linearity of the neutrinos.</p>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>As stated previously, running with non-linear neutrinos require continual
+realisation of the linear pressure and shear. For the non-linear neutrino
+evolution within CO<em>N</em>CEPT to turn out correct, the linear inputs from
+CLASS then need to be nicely converged. For this to be the case, CLASS must
+be run with a much higher precision in the neutrino sector than is used by
+default, hence the neutrino precision parameters specified in
+<code class="docutils literal notranslate"><span class="pre">class_params</span></code> in
+<a class="reference internal" href="#params-nonlinear-massive-neutrinos"><span class="std std-ref">the parameter file</span></a>. Stated
+briefly, <code class="docutils literal notranslate"><span class="pre">'l_max_ncdm'</span></code> sets the size of the linear massive neutrino
+Boltzmann hierarchy, while <code class="docutils literal notranslate"><span class="pre">'Number</span> <span class="pre">of</span> <span class="pre">momentum</span> <span class="pre">bins'</span></code> specifies the
+number of discrete neutrino momenta to employ for mapping the neutrino
+distribution function. Setting <code class="docutils literal notranslate"><span class="pre">'Quadrature</span> <span class="pre">strategy'</span></code> to <code class="docutils literal notranslate"><span class="pre">2</span></code> ensures
+that integrals over the distribution function are integrated all the way to
+infinity. Lastly, setting <code class="docutils literal notranslate"><span class="pre">'ncdm_fluid_approximation'</span></code> to <code class="docutils literal notranslate"><span class="pre">3</span></code> disables
+the fluid approximation used by default for massive neutrinos.</p>
+<p>For simulations with higher resolution or lower neutrino masses, still
+higher values for <code class="docutils literal notranslate"><span class="pre">'l_max_ncdm'</span></code> and <code class="docutils literal notranslate"><span class="pre">'Number</span> <span class="pre">of</span> <span class="pre">momentum</span> <span class="pre">bins'</span></code> may be
+required, which can make the usually quick CLASS computation take up hours.
+As CO<em>N</em>CEPT runs CLASS in a distributed manner (even across compute
+nodes of a cluster) this is not an issue in practice. Furthermore,
+CO<em>N</em>CEPT caches all CLASS results to disk by default, so that such
+expensive CLASS computations do not have to be redone repeatedly.</p>
+</div>
+<p>You may play around with different neutrino masses <code class="docutils literal notranslate"><span class="pre">_mass</span></code> and/or transition
+times <code class="docutils literal notranslate"><span class="pre">_nutrans</span></code> while continuing to use
+<a class="reference internal" href="#plot-nonlinear-massive-neutrinos"><span class="std std-ref">the plotting script</span></a>, as it can
+handle output of multiple masses and transition times at the same time.</p>
 </div>
 </div>
 

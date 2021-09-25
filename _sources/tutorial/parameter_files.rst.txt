@@ -18,7 +18,7 @@ Copy the content below to such a file:
        'N'      : _size**3,
    }
    output_dirs = {
-       'powerspec': paths['output_dir'] + '/' + basename(paths['params'])
+       'powerspec': paths['output_dir'] + '/' + basename(paths['params']),
    }
    output_times = {
        'powerspec': [a_begin, 0.3, 1],

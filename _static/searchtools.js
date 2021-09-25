@@ -300,11 +300,13 @@ var Search = {
       // search finished, update title and status message
       else {
         Search.stopPulse();
-        Search.title.text(_('Search Results'));
+        Search.title.text(_('Search results'));
         if (!resultCount)
-          Search.status.text(_('Your search did not match any documents. Please make sure that all words are spelled correctly and that you\'ve selected enough categories.'));
+          Search.status.text(_('Could not find anything matching the search query.'));
+        else if (resultCount == 1)
+          Search.status.text(_('Found 1 page matching the search query.'));
         else
-            Search.status.text(_('Search finished, found %s page(s) matching the search query.').replace('%s', resultCount));
+          Search.status.text(_('Found %s pages matching the search query.').replace('%s', resultCount));
         Search.status.fadeIn(500);
       }
     }
