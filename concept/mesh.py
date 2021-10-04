@@ -552,7 +552,7 @@ def add_upstream_to_global_slabs(
     # and assign/update the global slabs to/with the results.
     if use_upstream_as_global:
         # Perform in-place deconvolution and interlacing
-        deconvolve_and_interlace(slab_upstream, deconv_order, interlace_flag)
+        fourier_operate(slab_upstream, deconv_order, interlace_flag)
         # The upstream slabs are really the global slabs
         slab_global = slab_upstream
     else:
@@ -589,7 +589,7 @@ def add_upstream_to_global_slabs(
 
 # Function for grouping components according to
 # associated grid sizes and their representation.
-def group_components(components, gridsizes, gridsizes_order=()):
+def group_components(components, gridsizes, gridsizes_order=(), split_representations=True):
     """Given a list of components and a list of corresponding grid
     sizes, this function returns a dict of components, grouped by their
     grid size and representation, in the format
@@ -611,25 +611,32 @@ def group_components(components, gridsizes, gridsizes_order=()):
         gridsizes_order = [<gridsize 0>, ..., <gridsize 1>]
         gridsizes_order = [<gridsize 0>, <gridsize 2>, ...]
     The ellipsis (...) signals any grid sizes not explicitly listed.
-    The passed gridsizes_order must contain exactly one ellipsis.
+    If the passed gridsizes_order does not contain an ellipsis, one will
+    be placed at the end.
     """
     # Look up previous result in cache
-    key = (tuple(components), tuple(gridsizes), tuple(gridsizes_order))
+    key = (tuple(components), tuple(gridsizes), tuple(gridsizes_order), split_representations)
     groups = component_groups_cache.get(key)
     if groups is not None:
         return groups
     # Perform the grouping
-    groups = collections.defaultdict(lambda: collections.defaultdict(list))
-    for component, gridsize in zip(components, gridsizes):
-        groups[gridsize][component.representation].append(component)
+    if split_representations:
+        groups = collections.defaultdict(lambda: collections.defaultdict(list))
+        for component, gridsize in zip(components, gridsizes):
+            groups[gridsize][component.representation].append(component)
+    else:
+        groups = collections.defaultdict(list)
+        for component, gridsize in zip(components, gridsizes):
+            groups[gridsize].append(component)
     # Create list of ordered grid sizes
     gridsizes_order = any2list(gridsizes_order)
-    if not gridsizes_order:
-        gridsizes_order = [...]
-    if gridsizes_order.count(...) != 1:
+    n_ellipses = gridsizes_order.count(...)
+    if n_ellipses == 0:
+        gridsizes_order += [...]
+    elif n_ellipses > 1:
         abort(
             f'group_components() got gridsizes_order = {gridsizes_order}, '
-            f'but this must contain exactly one ellipsis (...)'
+            f'but this must contain at most one ellipsis (...)'
         )
     index = gridsizes_order.index(...)
     gridsizes_first = gridsizes_order[:index]
@@ -642,7 +649,7 @@ def group_components(components, gridsizes, gridsizes_order=()):
     gridsizes_ordered += gridsizes_last
     # Enforce correct ordering of the groups based on their grid sizes
     groups = {
-        gridsize: dict(groups[gridsize])
+        gridsize: dict(groups[gridsize]) if split_representations else list(groups[gridsize])
         for gridsize in gridsizes_ordered
         if gridsize in gridsizes
     }
@@ -2452,6 +2459,7 @@ def fourier_loop(
                     # k == 2*kk. Here the Nyquist point kk = _nyquist is
                     # the last element along this dimension, and so we
                     # skip it by simply not including it in the range.
+                    index = _index_ij + 2*(_kk_bgn - 1)
                     for kk in range(_kk_bgn, _nyquist):
                         # Bail out if beyond maximum frequency
                         with unswitch(5):
@@ -2459,7 +2467,7 @@ def fourier_loop(
                                 if ℤ[ℤ[ℤ[kj**2] + ki**2] + kk**2] > k2_max:
                                     break
                         # Index into (real part of) complex Fourier mode
-                        index = _index_ij + 2*kk
+                        index += 2
                         # Combined factor for deconvolution
                         # and interlacing.
                         factor = 1
@@ -2500,19 +2508,21 @@ def fourier_loop(
                         # Yield the needed variables
                         yield index, ki, kj, kk, factor, θ
 
-# Function performing in-place deconvolution and/or interlacing of
-# Fourier slabs.
+# Function performing in-place deconvolution and/or interlacing
+# and/or differentiation of Fourier slabs.
 @cython.pheader(
     # Arguments
     slab='double[:, :, ::1]',
     deconv_order='int',
     interlace_flag='int',
+    diff_dim='int',
     # Locals
     cosθ='double',
     factor='double',
     gridsize='Py_ssize_t',
     im='double',
     index='Py_ssize_t',
+    k_dim='Py_ssize_t',
     ki='Py_ssize_t',
     kj='Py_ssize_t',
     kk='Py_ssize_t',
@@ -2525,7 +2535,7 @@ def fourier_loop(
     θ='double',
     returns='double[:, :, ::1]',
 )
-def deconvolve_and_interlace(slab, deconv_order=0, interlace_flag=0):
+def fourier_operate(slab, deconv_order=0, interlace_flag=0, diff_dim=-1):
     """Deconvolution will be performed according to deconv_order.
     To do an interlacing you need to call this function twice; once with
     the non-shifted grid and interlace_flag = 1, and once with the
@@ -2533,18 +2543,23 @@ def deconvolve_and_interlace(slab, deconv_order=0, interlace_flag=0):
     values in the slabs are simply multiplied by 0.5. With
     interlace_flag = 2, the phases of the (complex) values are
     additionally rotated as defined by harmonic averaging.
+    To perform differentiation along x, y or z, pass diff_dim = 0, 1
+    or 2, respectively. Note that this convention ignores the fact that
+    the first two dimensions are transposed in Fourier space.
     """
     # Bail out if neither deconvolution nor interlacing
-    # is to be performed.
-    if deconv_order == 0 and interlace_flag == 0:
+    # nor differentiation is to be performed.
+    if deconv_order == 0 and interlace_flag == 0 and diff_dim == -1:
         return slab
+    if not (-1 <= diff_dim < 3):
+        abort(f'fourier_operate() called with diff_dim = {diff_dim} ∉ {{-1, 0, 1, 2}}')
     # Extract slab shape and pointer
     slab_size_j, slab_size_i, slab_size_k = asarray(slab).shape
     slab_ptr = cython.address(slab[:, :, :])
-    # If no deconvolution and only the first (scaling only) stage of
-    # interlacing is to be performed, we can do this directly, without
-    # use of the Fourier loop.
-    if deconv_order == 0 and interlace_flag == 1:
+    # If no deconvolution, no differentiation and only the first
+    # (scaling only) stage of interlacing is to be performed, we can do
+    # this directly, without use of the Fourier loop.
+    if deconv_order == 0 and interlace_flag == 1 and diff_dim == -1:
         for index in range(slab_size_j*slab_size_i*slab_size_k):
             slab_ptr[index] *= 0.5
         return slab
@@ -2553,7 +2568,7 @@ def deconvolve_and_interlace(slab, deconv_order=0, interlace_flag=0):
     for index, ki, kj, kk, factor, θ in fourier_loop(
         gridsize, deconv_order=deconv_order, interlace_flag=interlace_flag,
     ):
-        # Extract real and imag part of slab_from
+        # Extract real and imag part of slab
         re = slab_ptr[index    ]
         im = slab_ptr[index + 1]
         # Rotate the complex phase due to interlacing
@@ -2565,7 +2580,19 @@ def deconvolve_and_interlace(slab, deconv_order=0, interlace_flag=0):
                     re*cosθ - im*sinθ,
                     re*sinθ + im*cosθ,
                 )
-        # Apply factor from deconvolution and interlacing
+        # Differentiate by multiplying by the imaginary unit and the
+        # given component of k⃗ in physical units.
+        with unswitch:
+            if 𝔹[diff_dim != -1]:
+                k_dim = (
+                      (-𝔹[diff_dim == 0] & ki)
+                    | (-𝔹[diff_dim == 1] & kj)
+                    | (-𝔹[diff_dim == 2] & kk)
+                )
+                factor *= ℝ[2*π/boxsize]*k_dim
+                re, im = -im, re
+        # Apply factor from deconvolution,
+        # interlacing and differentiation.
         re *= factor
         im *= factor
         # Store updated values back in slabs

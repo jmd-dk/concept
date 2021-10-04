@@ -153,9 +153,11 @@ potential_options = {  # Specifications for potential computations
         },
     },
     'differentiation': {  # Finite central difference order
-        'gravity': {
-            'pm' : 2,
-            'p3m': 4,
+        'all': {
+            'gravity': {
+                'pm' : 2,
+                'p3m': 4,
+            },
         },
     },
 }

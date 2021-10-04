@@ -3490,7 +3490,11 @@ def realize(
                     # 'velocities from displacements' True, we really
                     # want to realise ψⁱ, and so we need to use the k
                     # factor for positions.
-                    k_index0 = ℤ[ℤ[ℤ[𝔹[index0 == 1]*kj] or 𝔹[index0 == 0]*ki] or 𝔹[index0 == 2]*kk]
+                    k_index0 = (
+                          (-𝔹[index0 == 0] & ki)
+                        | (-𝔹[index0 == 1] & kj)
+                        | (-𝔹[index0 == 2] & kk)
+                    )
                     k_factor = ℝ[
                         {
                             ('pos', True ): +1,
@@ -3510,7 +3514,11 @@ def realize(
                     # Realise uⁱ.
                     # For vectors we have a k factor of
                     # K(k⃗) = -ikⁱ/k².
-                    k_index0 = ℤ[ℤ[ℤ[𝔹[index0 == 1]*kj] or 𝔹[index0 == 0]*ki] or 𝔹[index0 == 2]*kk]
+                    k_index0 = (
+                          (-𝔹[index0 == 0] & ki)
+                        | (-𝔹[index0 == 1] & kj)
+                        | (-𝔹[index0 == 2] & kk)
+                    )
                     k_factor = -(ℝ[boxsize/(2*π)]*k_index0)/k2
                     slab_ptr[index    ] = ℝ[sqrt_power*k_factor]*(-structure_ptr[index + 1])
                     slab_ptr[index + 1] = ℝ[sqrt_power*k_factor]*(+structure_ptr[index    ])
@@ -3519,8 +3527,16 @@ def realize(
                     # For rank 2 tensors we
                     # have a k factor of
                     # K(k⃗) = 3/2(δⁱⱼ/3 - kⁱkⱼ/k²).
-                    k_index0 = ℤ[ℤ[ℤ[𝔹[index0 == 1]*kj] or 𝔹[index0 == 0]*ki] or 𝔹[index0 == 2]*kk]
-                    k_index1 = ℤ[ℤ[ℤ[𝔹[index1 == 1]*kj] or 𝔹[index1 == 0]*ki] or 𝔹[index1 == 2]*kk]
+                    k_index0 = (
+                          (-𝔹[index0 == 0] & ki)
+                        | (-𝔹[index0 == 1] & kj)
+                        | (-𝔹[index0 == 2] & kk)
+                    )
+                    k_index1 = (
+                          (-𝔹[index1 == 0] & ki)
+                        | (-𝔹[index1 == 1] & kj)
+                        | (-𝔹[index1 == 2] & kk)
+                    )
                     k_factor = ℝ[0.5*(index0 == index1)] - (1.5*k_index0*k_index1)/k2
                     slab_ptr[index    ] = ℝ[sqrt_power*k_factor]*structure_ptr[index    ]
                     slab_ptr[index + 1] = ℝ[sqrt_power*k_factor]*structure_ptr[index + 1]

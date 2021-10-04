@@ -37,11 +37,11 @@ cimport('from ewald import get_ewald_grid')
 cimport(
     'from mesh import                         '
     '    copy_modes,                          '
-    '    deconvolve_and_interlace,            '
     '    diff_domaingrid,                     '
     '    domain_decompose,                    '
     '    fft,                                 '
     '    fourier_loop,                        '
+    '    fourier_operate,                     '
     '    get_fftw_slab,                       '
     '    interpolate_domaingrid_to_particles, '
     '    interpolate_upstream,                '
@@ -1910,20 +1910,22 @@ def get_softened_r3inv(r2, ϵ):
     deconvolve_upstream='bint',
     interpolation_order='int',
     interlace='bint',
-    differentiation_order='int',
     ᔑdt=dict,
     ᔑdt_key=object,  # str or tuple
     # Locals
     all_receiver_downstream_gridsizes_equal_global='bint',
     all_supplier_upstream_gridsizes_equal_global='bint',
-    Jᵢ='FluidScalar',
-    Jᵢ_ptr='double*',
+    at_last_differentiation_order='bint',
+    at_last_representation='bint',
+    deconv_order_downstream='int',
     deconv_order_global='int',
+    differentiation_order='int',
     dim='int',
     downstream_description=str,
     downstream_description_gridsize=str,
     downstream_description_representation=str,
     factor='double',
+    fourier_diff='bint',
     grid_downstream='double[:, :, ::1]',
     gridsize_downstream='Py_ssize_t',
     group=dict,
@@ -1933,31 +1935,31 @@ def get_softened_r3inv(r2, ϵ):
     ki='Py_ssize_t',
     kj='Py_ssize_t',
     kk='Py_ssize_t',
+    mutate_slab_downstream_ok='bint',
     nullification=str,
     only_particle_receivers='bint',
     only_particle_suppliers='bint',
     receiver='Component',
+    receivers_differentiations=list,
     receivers_gridsizes_downstream=list,
     representation=str,
     slab_downstream='double[:, :, ::1]',
     slab_downstream_representation='double[:, :, ::1]',
     slab_global='double[:, :, ::1]',
     slab_global_ptr='double*',
-    substitute_ᔑdt_key='bint',
+    subgroup=list,
+    subgroups=dict,
     supplier='Component',
     suppliers_description=str,
     suppliers_gridsizes_upstream=list,
     Δx='double',
-    ϱ_ptr='double*',
     θ='double',
-    𝒫_ptr='double*',
     ᐁᵢgrid_downstream='double[:, :, ::1]',
-    ᐁᵢgrid_downstream_ptr='double*',
     returns='void',
 )
 def particle_mesh(
     receivers, suppliers, gridsize_global, quantity, force, method, potential, interpolation_order,
-    deconvolve_upstream, deconvolve_downstream, interlace, differentiation_order,
+    deconvolve_upstream, deconvolve_downstream, interlace,
     ᔑdt, ᔑdt_key,
 ):
     """
@@ -2012,7 +2014,7 @@ def particle_mesh(
     # we perform the upstream (downstream) deconvolution right within
     # this function while constructing the global potential,
     # rather than through calls to interpolate_upstream()
-    # or deconvolve_and_interlace().
+    # or fourier_operate().
     only_particle_suppliers = all([
         supplier.representation == 'particles'
         for supplier in suppliers
@@ -2039,10 +2041,6 @@ def particle_mesh(
             deconvolve_downstream = False
             deconv_order_global += 1
     deconv_order_global *= interpolation_order
-    # When ᔑdt_key is a (2-)tuple, the last element needs to be
-    # substituted with the name of a given component. The variable below
-    # acts as a flag for this substitution.
-    substitute_ᔑdt_key = isinstance(ᔑdt_key, tuple)
     # Interpolate suppliers onto global Fourier slabs by first
     # interpolating them onto individual upstream grids, transforming to
     # Fourier space and then adding them together.
@@ -2118,28 +2116,22 @@ def particle_mesh(
                 # the origin and of size gridsize_global will be set.
                 # We then need to nullify all elements beyond this cube.
                 nullification = f'beyond cube of |k| < {gridsize_global//2}'
-            slab_downstream = get_fftw_slab(gridsize_downstream, 'slab_updownstream', nullification)
+            slab_downstream = get_fftw_slab(
+                gridsize_downstream, 'slab_updownstream', nullification,
+            )
             # Obtain downstream slab potential through up-/down-scaling
             copy_modes(slab_global, slab_downstream, operation='=')
         # Handle each (possible) representation of the receivers in turn
         for representation in ('fluid', 'particles'):
             if representation not in group:
                 continue
+            at_last_representation = (
+                𝔹[representation == 'particles'] or 'particles' not in group
+            )
             downstream_description_representation = (
                 representation
                 if len(group) == 2 else ''
             )
-            # The slab_downstream is used for both particle and fluid
-            # receivers, but as the backward FFT to come is carried out
-            # in-place, we need to copy the data in the case where we
-            # have both fluid and particle receivers.
-            slab_downstream_representation = slab_downstream
-            if not 𝔹[representation == 'particles'] and 𝔹['particles' in group]:
-                slab_downstream_representation = get_fftw_slab(
-                    gridsize_downstream, 'slab_updownstream_representation',
-                )
-                slab_downstream_representation[...] = slab_downstream
-            # Perform downstream deconvolution
             downstream_description = ', '.join([
                 description
                 for description in (
@@ -2150,73 +2142,204 @@ def particle_mesh(
             ])
             if downstream_description:
                 downstream_description = f'({downstream_description}) '
-            masterprint(f'Transforming to real space potential {downstream_description}...')
-            if 𝔹[representation == 'particles'] and deconvolve_downstream:
-                deconvolve_and_interlace(
-                    slab_downstream_representation,
-                    deconv_order=interpolation_order,
-                )
-            # Transform to real space and perform domain decomposition
-            fft(slab_downstream_representation, 'backward')
-            grid_downstream = domain_decompose(
-                slab_downstream_representation,
-                'grid_updownstream',
-                do_ghost_communication=True,
+            # The downstream deconvolution order, taking the
+            # representation into account.
+            deconv_order_downstream = interpolation_order*(
+                𝔹[representation == 'particles'] and deconvolve_downstream
             )
-            masterprint('done')
-            # For each dimension, differentiate the grid to obtain the
-            # force and apply this force.
-            for dim in range(3):
-                masterprint(f'Obtaining and applying the {"xyz"[dim]}-force ...')
-                # Differentiate the downstream potential in real space
-                # using finite difference. We need to properly populate
-                # the ghost points in the differentiated grid, as ghost
-                # points are needed for particle interpolation. For
-                # fluids, having proper ghost points in the
-                # differentiated grid means that the momentum grid will
-                # automatically get ghost points populated correctly as
-                # well.
-                ᐁᵢgrid_downstream = diff_domaingrid(
-                    grid_downstream, dim, differentiation_order,
-                    Δx, 'force_downstream',
-                    do_ghost_communication=True,
+            # Further group the receivers of the current representation
+            # within the current group into subgroups based on their
+            # potential differentiation order.
+            receivers_differentiations = [
+                receiver.potential_differentiations[force][method]
+                for receiver in group[representation]
+            ]
+            subgroups = group_components(
+                group[representation],
+                receivers_differentiations,
+                sorted(receivers_differentiations, reverse=True),
+                split_representations=False,
+            )
+            for differentiation_order, subgroup in subgroups.items():
+                at_last_differentiation_order = (
+                    differentiation_order == ℤ[np.min(receivers_differentiations)]
                 )
-                ᐁᵢgrid_downstream_ptr = cython.address(ᐁᵢgrid_downstream[:, :, :])
-                # Apply force
-                for receiver in group[representation]:
-                    masterprint(f'Applying force to {receiver.name} ...')
-                    if substitute_ᔑdt_key:
-                        ᔑdt_key = (ᔑdt_key[0], receiver.name)
-                    if 𝔹[representation == 'particles']:
-                        # Update the dim'th momentum component of all
-                        # particles through interpolation in
-                        # ᐁᵢgrid_downstream. To convert from force to
-                        # momentum change we should multiply by -mass*Δt
-                        # (minus as the force is the negative gradient
-                        # of the potential), where Δt = ᔑdt['1']. Here
-                        # this integral over the time step is
-                        # generalised and supplied by the caller.
-                        interpolate_domaingrid_to_particles(
-                            ᐁᵢgrid_downstream, receiver, 'mom', dim, interpolation_order,
-                            receiver.mass*ℝ[-ᔑdt[ᔑdt_key]],
+                # A differentiation order of 0
+                # signals differentiation in Fourier space.
+                fourier_diff = (differentiation_order == 0)
+                # The downstream potential for all receivers within the
+                # group (and thus subgroup) is stored as
+                # slab_downstream. We want to use this directly if
+                # possible, but if we need to mutate it and we are not
+                # at the last subgroup, we need to take a copy.
+                mutate_slab_downstream_ok = False
+                if fourier_diff:
+                    if at_last_representation and at_last_differentiation_order:
+                        # Really only True for the last dim
+                        mutate_slab_downstream_ok = True
+                else:
+                    if at_last_representation and at_last_differentiation_order:
+                        mutate_slab_downstream_ok = True
+                    elif deconv_order_downstream == 0:
+                        # Mutation really nok OK, but as the slab will
+                        # not be differentiated nor deconvolved, there
+                        # is no reason to take a copy.
+                        mutate_slab_downstream_ok = True
+                # Obtain the force grid either in Fourier or real space
+                if fourier_diff:
+                    # Fourier space differentiation.
+                    # For each dimension, differentiate the grid
+                    # to obtain the force and apply this force.
+                    for dim in range(3):
+                        masterprint(f'Obtaining and applying the {"xyz"[dim]}-force ...')
+                        # Get reference to or copy of slab_downstream
+                        if mutate_slab_downstream_ok and dim == 2:
+                            slab_downstream_subgroup = slab_downstream
+                        else:
+                            slab_downstream_subgroup = get_fftw_slab(
+                                gridsize_downstream, 'slab_updownstream_subgroup',
+                            )
+                            slab_downstream_subgroup[...] = slab_downstream
+                        # Do the in-place Fourier differentiation along
+                        # with the possible downstream deconvolution.
+                        fourier_operate(
+                            slab_downstream_subgroup,
+                            deconv_order_downstream,
+                            diff_dim=dim,
                         )
-                    else:  # representation == 'fluid'
-                        # The source term has the form
-                        #   ΔJ ∝ -(ϱ + c⁻²𝒫)*ᐁφ.
-                        # The proportionality factor above is something
-                        # like Δt = ᔑdt['1']. Here this integral over
-                        # the time step is generalised and supplied by
-                        # the caller.
-                        Jᵢ = receiver.J[dim]
-                        Jᵢ_ptr = Jᵢ.grid
-                        ϱ_ptr = receiver.ϱ.grid
-                        𝒫_ptr = receiver.𝒫.grid
-                        for index in range(receiver.size):
-                            Jᵢ_ptr[index] += ℝ[-ᔑdt[ᔑdt_key]]*(
-                                ϱ_ptr[index] + ℝ[light_speed**(-2)]*𝒫_ptr[index]
-                            )*ᐁᵢgrid_downstream_ptr[index]
+                        # Transform to real space
+                        # and perform domain decomposition.
+                        masterprint(
+                            f'Transforming to real space force {downstream_description}...'
+                        )
+                        fft(slab_downstream_subgroup, 'backward')
+                        grid_downstream = domain_decompose(
+                            slab_downstream_subgroup,
+                            'grid_updownstream',
+                            do_ghost_communication=True,
+                        )
+                        masterprint('done')
+                        # Apply force
+                        apply_particle_mesh_force(
+                            grid_downstream, dim, group[representation], interpolation_order,
+                            ᔑdt, ᔑdt_key,
+                        )
+                        masterprint('done')
+                else:
+                    # Real space differentiation.
+                    # Get reference to or copy of slab_downstream.
+                    if mutate_slab_downstream_ok:
+                        slab_downstream_subgroup = slab_downstream
+                    else:
+                        slab_downstream_subgroup = get_fftw_slab(
+                            gridsize_downstream, 'slab_updownstream_subgroup',
+                        )
+                        slab_downstream_subgroup[...] = slab_downstream
+                    # Perform possible downstream deconvolution.
+                    fourier_operate(
+                        slab_downstream_subgroup,
+                        deconv_order=deconv_order_downstream,
+                    )
+                    # Transform to real space
+                    # and perform domain decomposition.
+                    masterprint(
+                        f'Transforming to real space potential {downstream_description}...'
+                    )
+                    fft(slab_downstream_subgroup, 'backward')
+                    grid_downstream = domain_decompose(
+                        slab_downstream_subgroup,
+                        'grid_updownstream',
+                        do_ghost_communication=True,
+                    )
                     masterprint('done')
-                masterprint('done')
+                    # For each dimension, differentiate the grid
+                    # to obtain the force and apply this force.
+                    for dim in range(3):
+                        masterprint(f'Obtaining and applying the {"xyz"[dim]}-force ...')
+                        # Differentiate the downstream potential in real
+                        # space using finite difference. We need to
+                        # properly populate the ghost points in the
+                        # differentiated grid, as ghost points are
+                        # needed for particle interpolation. For fluids,
+                        # having proper ghost points in the
+                        # differentiated grid means that the momentum
+                        # grid will automatically get ghost points
+                        # populated correctly as well.
+                        ᐁᵢgrid_downstream = diff_domaingrid(
+                            grid_downstream, dim, differentiation_order,
+                            Δx, 'force_downstream',
+                            do_ghost_communication=True,
+                        )
+                        # Apply force
+                        apply_particle_mesh_force(
+                            ᐁᵢgrid_downstream, dim, group[representation], interpolation_order,
+                            ᔑdt, ᔑdt_key,
+                        )
+                        masterprint('done')
+
+# Function for applying a scalar grid of the force along the dim'th
+# dimenstion to receiver components.
+@cython.header(
+    # Arguments
+    grid='double[:, :, ::1]',
+    dim='int',
+    receivers=list,
+    interpolation_order='int',
+    ᔑdt=dict,
+    ᔑdt_key=object,  # str or tuple
+    # Locals
+    Jᵢ='FluidScalar',
+    Jᵢ_ptr='double*',
+    grid_ptr='double*',
+    index='Py_ssize_t',
+    receiver='Component',
+    substitute_ᔑdt_key='bint',
+    ϱ_ptr='double*',
+    𝒫_ptr='double*',
+    returns='void',
+)
+def apply_particle_mesh_force(grid, dim, receivers, interpolation_order, ᔑdt, ᔑdt_key):
+    if not receivers:
+        return
+    if not (0 <= dim < 3):
+        abort(f'apply_particle_mesh_force() called with dim = {dim} ∉ {{0, 1, 2}}')
+    # When ᔑdt_key is a (2-)tuple, the last element needs to be
+    # substituted with the name of a given component. The variable below
+    # acts as a flag for this substitution.
+    substitute_ᔑdt_key = isinstance(ᔑdt_key, tuple)
+    # Apply the force grid to each receiverg
+    grid_ptr = cython.address(grid[:, :, :])
+    for receiver in receivers:
+        masterprint(f'Applying force to {receiver.name} ...')
+        if substitute_ᔑdt_key:
+            ᔑdt_key = (ᔑdt_key[0], receiver.name)
+        if receiver.representation == 'particles':
+            # Update the dim'th momentum component of all particles
+            # through interpolation in the grid. To convert from force
+            # to momentum change we should multiply by -mass*Δt (minus
+            # as the force is the negative gradient of the potential),
+            # where Δt = ᔑdt['1']. Here this integral over the time step
+            # is generalised and supplied by the caller.
+            interpolate_domaingrid_to_particles(
+                grid, receiver, 'mom', dim, interpolation_order,
+                receiver.mass*ℝ[-ᔑdt[ᔑdt_key]],
+            )
+        else:  # receiver.representation == 'fluid'
+            # The source term has the form
+            #   ΔJ ∝ -(ϱ + c⁻²𝒫)*ᐁφ.
+            # The proportionality factor above is something like
+            # Δt = ᔑdt['1']. Here this integral over the time step is
+            # generalised and supplied by the caller.
+            Jᵢ = receiver.J[dim]
+            Jᵢ_ptr = Jᵢ.grid
+            ϱ_ptr = receiver.ϱ.grid
+            𝒫_ptr = receiver.𝒫.grid
+            for index in range(receiver.size):
+                Jᵢ_ptr[index] += ℝ[-ᔑdt[ᔑdt_key]]*(
+                    ϱ_ptr[index] + ℝ[light_speed**(-2)]*𝒫_ptr[index]
+                )*grid_ptr[index]
+        masterprint('done')
+
 
 # Function implementing progress messages used for the short-range
 # kicks intertwined with drift operations.
@@ -2590,16 +2713,15 @@ pairwise_quantities = {}
     suppliers=list,
     # Locals
     deconvolve=object,  # PotentialDeconvolutions
-    differentiation_order='int',
     gridsize='Py_ssize_t',
     gridsizes=set,
     interlace='bint',
     interpolation_order='int',
     key=tuple,
-    potential_specs=object,  # PotentialForceInfo
+    potential_specs=object,  # PotentialInfo
     receiver='Component',
     supplier='Component',
-    returns=object,  # PotentialForceInfo
+    returns=object,  # PotentialInfo
 )
 def get_potential_specs(force, method, receivers, suppliers):
     # Cache lookup
@@ -2629,26 +2751,19 @@ def get_potential_specs(force, method, receivers, suppliers):
                 f'are in use, the global grid size could not be set automatically.'
             )
         gridsize = gridsizes.pop()
-    # Fetch interpolation, deconvolution, interlacing
-    # and differentiation specifications.
+    # Fetch interpolation, deconvolution and interlacing specifications
     interpolation_order   = 𝕆[potential_options['interpolation'  ]][force][method]
     deconvolve            = 𝕆[potential_options['deconvolve'     ]][force][method]
     interlace             = 𝕆[potential_options['interlace'      ]][force][method]
-    differentiation_order = 𝕆[potential_options['differentiation']][force][method]
     # Cache and return
-    potential_specs = PotentialForceInfo(
-        gridsize, interpolation_order, deconvolve, interlace, differentiation_order,
-    )
+    potential_specs = PotentialInfo(gridsize, interpolation_order, deconvolve, interlace)
     potential_specs_cache[key] = potential_specs
     return potential_specs
 # Cache and type used by the above function
 cython.declare(potential_specs_cache=dict)
 potential_specs_cache = {}
-PotentialForceInfo = collections.namedtuple(
-    'PotentialForceInfo',
-    (
-        'gridsize', 'interpolation_order', 'deconvolve', 'interlace', 'differentiation_order',
-    ),
+PotentialInfo = collections.namedtuple(
+    'PotentialInfo', ('gridsize', 'interpolation_order', 'deconvolve', 'interlace'),
 )
 
 
@@ -2672,7 +2787,7 @@ register('gravity', ['ppnonperiodic', 'pp', 'p3m', 'pm'], 'gravitational')
     extra_message=str,
     force=str,
     potential=str,
-    potential_specs=object,  # PotentialForceInfo
+    potential_specs=object,  # PotentialInfo
     quantity=str,
     ᔑdt_key=tuple,
 )
@@ -2717,7 +2832,7 @@ def gravity(method, receivers, suppliers, ᔑdt, interaction_type, printout):
             receivers, suppliers, potential_specs.gridsize, quantity, force, method, potential,
             potential_specs.interpolation_order,
             potential_specs.deconvolve.upstream, potential_specs.deconvolve.downstream,
-            potential_specs.interlace, potential_specs.differentiation_order,
+            potential_specs.interlace,
             ᔑdt, ᔑdt_key,
         )
         if printout:
@@ -2742,7 +2857,7 @@ def gravity(method, receivers, suppliers, ᔑdt, interaction_type, printout):
                 receivers, suppliers, potential_specs.gridsize, quantity, force, method, potential,
                 potential_specs.interpolation_order,
                 potential_specs.deconvolve.upstream, potential_specs.deconvolve.downstream,
-                potential_specs.interlace, potential_specs.differentiation_order,
+                potential_specs.interlace,
                 ᔑdt, ᔑdt_key,
             )
         # The short-range PP part
@@ -2798,7 +2913,7 @@ register('lapse', 'pm')
     # Locals
     force=str,
     potential=str,
-    potential_specs=object,  # PotentialForceInfo
+    potential_specs=object,  # PotentialInfo
     quantity=str,
     ᔑdt_key=tuple,
 )
@@ -2853,7 +2968,7 @@ def lapse(method, receivers, suppliers, ᔑdt, interaction_type, printout):
             receivers, suppliers, potential_specs.gridsize, quantity, force, method, potential,
             potential_specs.interpolation_order,
             potential_specs.deconvolve.upstream, potential_specs.deconvolve.downstream,
-            potential_specs.interlace, potential_specs.differentiation_order,
+            potential_specs.interlace,
             ᔑdt, ᔑdt_key,
         )
         if printout:

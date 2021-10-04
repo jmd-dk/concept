@@ -2630,7 +2630,7 @@ for key, val in force_interlacings.copy().items():
         subd[subd_key] = subd_val
     force_interlacings[key] = subd
 potential_options['interlace'] = force_interlacings
-force_differentiations = {
+potential_differentiations_default = {
     'gravity': {
         'pm' : 2,
         'p3m': 4,
@@ -2639,28 +2639,43 @@ force_differentiations = {
         'pm': 2,
     },
 }
-for key, val in replace_ellipsis(dict(potential_options.get('differentiation', {}))).items():
-    key = key.lower()
-    if isinstance(val, dict):
-        force_differentiations[key].update({
-            subd_key.lower(): subd_val for subd_key, subd_val in replace_ellipsis(val).items()
-        })
-    elif isinstance(val, (tuple, list)):
-        force_differentiations[key][val[0].lower()] = val[1]
-    elif isinstance(val, (int, float)):
-        force_differentiations[key] = {'pm': int(round(val)), 'p3m': int(round(val))}
-    else:
-        abort('Could not interpret the potential_options["differentiation"] parameter')
-for key, val in force_differentiations.copy().items():
-    subd = {}
-    for subd_key, subd_val in val.items():
-        subd_key = re.sub(r'[ _\-^()]', '', subd_key.lower())
-        for n in range(10):
-            subd_key = subd_key.replace(unicode_superscript(str(n)), str(n))
-        subd_val = int(subd_val)
-        subd[subd_key] = subd_val
-    force_differentiations[key] = subd
-potential_options['differentiation'] = force_differentiations
+potential_differentiations = {'default': potential_differentiations_default.copy()}
+potential_differentiations_input = replace_ellipsis(
+    dict(potential_options.get('differentiation', {}))
+)
+for name, d in potential_differentiations_input.items():
+    potential_differentiations[name] = d.copy()
+    for key, val in d.items():
+        key = key.lower()
+        if isinstance(val, dict):
+            potential_differentiations[name][key].update({
+                subd_key.lower(): subd_val for subd_key, subd_val in replace_ellipsis(val).items()
+            })
+        elif isinstance(val, (tuple, list)):
+            potential_differentiations[name][key][val[0].lower()] = val[1]
+        elif isinstance(val, (int, float)):
+            potential_differentiations[name][key] = {'pm': int(round(val)), 'p3m': int(round(val))}
+        elif isinstance(val, str):
+            potential_differentiations[name][key] = {'pm': val, 'p3m': val}
+        else:
+            abort('Could not interpret the potential_options["differentiation"] parameter')
+    for key, val in potential_differentiations[name].copy().items():
+        subd = {}
+        for subd_key, subd_val in val.items():
+            subd_key = re.sub(r'[ _\-^()]', '', subd_key.lower())
+            for n in range(10):
+                subd_key = subd_key.replace(unicode_superscript(str(n)), str(n))
+            if isinstance(subd_val, (int, float)):
+                subd_val = int(round(subd_val))
+            elif isinstance(subd_val, str):
+                subd_val = subd_val.lower()
+                if subd_val != 'fourier':
+                    abort(f'Invalid potential_options["differentiation"] value {subd_val}')
+                # Encode 'fourier' differentiation as a value of zero
+                subd_val = 0
+            subd[subd_key] = subd_val
+        potential_differentiations[name][key] = subd
+potential_options['differentiation'] = potential_differentiations
 user_params['potential_options'] = potential_options
 ewald_gridsize = to_int(user_params.get('ewald_gridsize', 64))
 user_params['ewald_gridsize'] = ewald_gridsize
@@ -3467,8 +3482,9 @@ for force, d in potential_options['interpolation'].items():
                 potential_options['interlace'][force][method] and force_interpolation%2 != 0
             )
         ])
-for force, d in potential_options['differentiation'].items():
-    nghosts = np.max([nghosts, (np.max(tuple(d.values())) + 1)//2])
+for name, d0 in potential_options['differentiation'].items():
+    for force, d1 in d0.items():
+        nghosts = np.max([nghosts, (np.max(tuple(d1.values())) + 1)//2])
 if nghosts < 1:
     nghosts = 1
 # The average, comoing density (the critical
@@ -4666,13 +4682,14 @@ for d in output_times.values():
         if key not in output_kinds:
             abort(f'Unrecognised output type "{key}"')
 # Warn about odd force differentiation
-for force, d in potential_options['differentiation'].items():
-    for method, order in d.items():
-        if order % 2:
-            masterwarn(
-                f'As potential_options["differentiation"]["{force}"]["{method}"] = {order} '
-                f'is odd, this will lead to asymmetric differentiation'
-            )
+for name, d0 in potential_options['differentiation'].items():
+    for force, d1 in d0.items():
+        for method, order in d1.items():
+            if order % 2:
+                masterwarn(
+                    f'As potential_options["differentiation"]["{force}"]["{method}"] = {order} '
+                    f'is odd, this will lead to asymmetric differentiation'
+                )
 # Check format on 'subtiling' values in shortrange_params.
 # Among other things, the refinement period used for automatic subtiling
 # refinement has to at least as big as subtiling_refinement_period_min,

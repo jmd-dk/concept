@@ -933,6 +933,7 @@ class Component:
         public str representation
         public dict forces
         public dict potential_gridsizes
+        public dict potential_differentiations
         public str class_species
         public tuple life
         # Particle attributes
@@ -1185,6 +1186,25 @@ class Component:
                     for gridsize_str in gridsizes
                 ]
                 dict_method[method] = PotentialGridsizesComponent(*gridsizes_transformed)
+        # Set potential differentiation order for each force and method.
+        self.potential_differentiations = is_selected(
+            self, potential_options['differentiation'], default={},
+        )
+        for force, method in self.forces.items():
+            if method not in ('pm', 'p3m'):
+                continue
+            self.potential_differentiations.setdefault(force, {})
+            methods = [method]
+            if method == 'p3m':
+                # If P³M is to be used, also set up potential
+                # differentiation order for PM, as P³M will be switched
+                # out for PM in the case of fluid components.
+                methods.append('pm')
+            for method_extra in methods:
+                self.potential_differentiations[force].setdefault(
+                    method_extra,
+                    potential_options['differentiation']['default'][force][method_extra],
+                )
         # Check that fluid components have upstream and downstream
         # potential grid sizes equal to their fluid grid size.
         if self.representation == 'fluid' and self.name:
@@ -1199,8 +1219,8 @@ class Component:
                         if method == 'pm':
                             abort(
                                 f'Upstream and downstream potential grid sizes of fluid component '
-                                f'"{self.name}" for force "{force}" with method "{method}" was set'
-                                f'to {tuple(dict_method[method])} but both need to equal the '
+                                f'"{self.name}" for force "{force}" with method "{method}" was '
+                                f'set to {tuple(dict_method[method])} but both need to equal the '
                                 f'fluid grid size {self.gridsize}'
                             )
                         else:

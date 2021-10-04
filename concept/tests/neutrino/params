@@ -48,9 +48,11 @@ potential_options = {
         },
     },
     'differentiation': {
-        'gravity': {
-            'pm' : 2,
-            'p3m': 4,
+        'all': {
+            'gravity': {
+                'pm' : 2,
+                'p3m': 4,
+            },
         },
     },
 }
