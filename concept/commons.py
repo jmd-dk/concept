@@ -88,7 +88,7 @@ C2np = {
     'long long int': np.longlong,
     'ptrdiff_t'    : np.intp,
     'Py_ssize_t'   : np.intp,
-    # Unsgined integers
+    # Unsigned integers
     'unsigned char'         : np.ubyte,
     'unsigned short'        : np.ushort,
     'unsigned int'          : np.uintc,
@@ -1962,7 +1962,7 @@ class DictWithCounter(dict):
 # Dict-like object constituting the namespace for the statements
 # in the user specified parameter file.
 # Note that the previously defined user_params is overwritten.
-user_params = DictWithCounter(construct_user_params_namespace('inferrables'))
+user_params = DictWithCounter(construct_user_params_namespace('inferables'))
 # Additional things which should be available when defining parameters
 user_params.update({
     # Units from the units struct
@@ -1991,33 +1991,33 @@ for u in ('length', 'time', 'mass'):
 # CLASS setup section).
 if 'class_params' in user_params:
     user_params['class_params'] = update_class_params(user_params['class_params'], user_params)
-# Find out which of the inferrable parameters are not explicitly set,
+# Find out which of the inferable parameters are not explicitly set,
 # and so should be inferred.
-user_params_changed_inferrables = user_params.copy()
+user_params_changed_inferables = user_params.copy()
 for key, val in inferred_params.items():
     # Make sure to implement every possible type
-    # of the inferrable parameters.
+    # of the inferable parameters.
     if val is None:
-        user_params_changed_inferrables[key] = False
+        user_params_changed_inferables[key] = False
     elif val is ...:
-        user_params_changed_inferrables[key] = True
+        user_params_changed_inferables[key] = True
     elif isinstance(val, bool):
-        user_params_changed_inferrables[key] = not val
+        user_params_changed_inferables[key] = not val
     elif isinstance(val, bytes):
-        user_params_changed_inferrables[key] += b' '
+        user_params_changed_inferables[key] += b' '
     elif isinstance(val, str):
-        user_params_changed_inferrables[key] += ' '
+        user_params_changed_inferables[key] += ' '
     elif isinstance(val, (tuple, list, set)):
-        user_params_changed_inferrables[key] = type(val)(list(val) + [0])
+        user_params_changed_inferables[key] = type(val)(list(val) + [0])
     else:
         # Assume numeric type
-        user_params_changed_inferrables[key] += 1
-user_params_changed_inferrables['params_iteration'] = 'inferrables (changed)'
-exec_params(params_file_content, user_params_changed_inferrables, suppress_exceptions=False)
+        user_params_changed_inferables[key] += 1
+user_params_changed_inferables['params_iteration'] = 'inferables (changed)'
+exec_params(params_file_content, user_params_changed_inferables, suppress_exceptions=False)
 inferred_params_set = DictWithCounter({
-    key: user_params[key] == user_params_changed_inferrables[key] for key in inferred_params
+    key: user_params[key] == user_params_changed_inferables[key] for key in inferred_params
 })
-# Infer inferrable parameters which have not been explicitly set
+# Infer inferable parameters which have not been explicitly set
 # by the user. To ensure that every key gets looked up in their proper
 # Unicode form, we wrap the inferred_params dict in a DictWithCounter.
 inferred_params = DictWithCounter(inferred_params)
@@ -2049,7 +2049,7 @@ inferred_params_final['Ων'] = Ων
 user_params.update(inferred_params_final)
 # Re-"import" the parameter file by executing it
 # in the namespace defined by the user_params namespace,
-# this time with the inferrable values in place.
+# this time with the inferable values in place.
 user_params['params_iteration'] = 'final'
 exec_params(params_file_content, user_params, suppress_exceptions=False)
 # Backup of originally supplied user parameter names
@@ -3487,7 +3487,7 @@ for name, d0 in potential_options['differentiation'].items():
         nghosts = np.max([nghosts, (np.max(tuple(d1.values())) + 1)//2])
 if nghosts < 1:
     nghosts = 1
-# The average, comoing density (the critical
+# The average, comoving density (the critical
 # comoving density since we only study flat universes).
 ρ_crit = 3*H0**2/(8*π*G_Newton)
 # The density parameter for all matter

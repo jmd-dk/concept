@@ -1978,11 +1978,20 @@ def particle_mesh(
     - Obtain downstream potential Fourier slabs for each receiver.
       For particle receivers, another deconvolution is now performed due
       to the upcoming interpolation.
-    - Transform to real space downstream potentials.
-    - For each dimension, differentiate the downstream potentials to get
-      the real space downstream force.
-    - Interpolate the downstream force grid onto the components,
-      applying the force. The force application uses the prescription
+    - For receivers obtaining the force grid from the
+      real-space potential:
+      - Transform to real space downstream potentials.
+      - For each dimension, differentiate the downstream potentials to
+        get the real space downstream force.
+    - For receivers obtaining the force grid from the
+      Fourier-space potential:
+      - For each dimension, differentiate the downstream potentials in
+        Fourier space to obtain the downstream force grid
+        in Fourier space.
+      - Transform to real space downstream force grid.
+    - Interpolate the real-space downstream force grid onto
+      the receivers, applying the force.
+      The force application uses the prescription
         Δmom = -component.mass*∂ⁱφ*ᔑdt[ᔑdt_key].
     """
     if potential not in {'gravity', 'gravity long-range'}:
@@ -2181,7 +2190,7 @@ def particle_mesh(
                     if at_last_representation and at_last_differentiation_order:
                         mutate_slab_downstream_ok = True
                     elif deconv_order_downstream == 0:
-                        # Mutation really nok OK, but as the slab will
+                        # Mutation really not OK, but as the slab will
                         # not be differentiated nor deconvolved, there
                         # is no reason to take a copy.
                         mutate_slab_downstream_ok = True
@@ -2278,7 +2287,7 @@ def particle_mesh(
                         masterprint('done')
 
 # Function for applying a scalar grid of the force along the dim'th
-# dimenstion to receiver components.
+# dimension to receiver components.
 @cython.header(
     # Arguments
     grid='double[:, :, ::1]',
@@ -2307,7 +2316,7 @@ def apply_particle_mesh_force(grid, dim, receivers, interpolation_order, ᔑdt, 
     # substituted with the name of a given component. The variable below
     # acts as a flag for this substitution.
     substitute_ᔑdt_key = isinstance(ᔑdt_key, tuple)
-    # Apply the force grid to each receiverg
+    # Apply the force grid to each receiver
     grid_ptr = cython.address(grid[:, :, :])
     for receiver in receivers:
         masterprint(f'Applying force to {receiver.name} ...')

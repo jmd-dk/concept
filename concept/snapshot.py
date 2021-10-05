@@ -1233,7 +1233,7 @@ class GadgetSnapshot:
             and self.misnamed_halo_component.name == component.name
         ):
             # Though the named of the passed component does not match
-            # any of the GADGET component names, it is intented for use
+            # any of the GADGET component names, it is intended for use
             # as the GADGET halo component, i.e. particle type 1.
             index = 1
         elif fail_on_error:
@@ -1504,7 +1504,7 @@ class GadgetSnapshot:
             next(self.block_names)
         # Read in the header of each file in the snapshot and check that
         # they are consistent. Keep information about the number of
-        # particles of each type within eacch snapshot.
+        # particles of each type within each snapshot.
         num_particles_files = []
         if master:
             num_files = -1
@@ -2373,7 +2373,7 @@ def compare_parameters(snapshot, filename):
         msg_list.append(line_fmt.format('Ωcdm', Ωcdm, params['Ωcdm']))
     if not isclose(Ωm, float(params.get('Ωm', Ωm)), rel_tol):
         msg_list.append(line_fmt.format('Ωm', Ωm, params['Ωm']))
-    # Check if the totoal mass of each species within components
+    # Check if the total mass of each species within components
     # adds up to the correct value as set by the CLASS background.
     if enable_class_background:
         # One species may be distributed over several components.
@@ -2446,7 +2446,7 @@ def compare_parameters(snapshot, filename):
     returns='void',
 )
 def out_of_bounds_check(component, snapshot_boxsize=-1):
-    """Unless the snapshot_wrap paramter is True, any particles outside
+    """Unless the snapshot_wrap parameter is True, any particles outside
     of the box will cause the program to terminate. Particles located
     exactly at the upper box boundaries are allowed but will be moved to
     the (physically equivalent) lower boundaries.

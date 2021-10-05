@@ -17,7 +17,7 @@
   - Nyquist planes are explicitly zeroed.
   - Switched to cell-centred values.
   - NGP, CIC, TSC, PCS interpolation.
-  - Differentiation orders 2, 4, 6, 8.
+  - Differentiation orders 2, 4, 6, 8, Fourier space differentiation.
   - Toggleable interlacing.
   - Toggleable deconvolution.
 - Full GADGET snapshot support.

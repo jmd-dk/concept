@@ -103,7 +103,7 @@ def kurganov_tadmor(component, ᔑdt, a=-1, rk_order=2, rk_step=0):
 
     The rk_order determines the order of the Runge-Kutta time
     integration (can be 1 or 2), while rk_step specifies the current
-    Runge kutta step (should not be explicitly passed). This function is
+    Runge-Kutta step (should not be explicitly passed). This function is
     written with rk_order == 2 in mind, and so although Euler
     integration (rk_order == 1) is possible, it is not implemented
     efficiently and so should only be used for testing.

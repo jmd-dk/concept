@@ -510,7 +510,7 @@ cython.declare(accepted_indices_ptr='Py_ssize_t*', accepted_indices_size='Py_ssi
 accepted_indices_size = 3
 accepted_indices_ptr = malloc(accepted_indices_size*sizeof('Py_ssize_t'))
 
-# This function implements the Hubble parameter H(a)=ȧ/a,
+# This function implements the Hubble parameter H(a) = ȧ/a,
 # The Hubble parameter is only ever written here. Every time the Hubble
 # parameter is used in the code, this function should be called.
 @cython.header(

@@ -730,7 +730,7 @@ def cutout_domains(n):
 )
 def which_domain(x, y, z):
     # Note that using division here is bad, and not just
-    # for performance. With division, inlining combined with agressive
+    # for performance. With division, inlining combined with aggressive
     # math optimizations by the compiler can lead to this function not
     # being deterministic for particles right at the boundary between
     # two domains. Using multiplication with pre-computed reciprocals
