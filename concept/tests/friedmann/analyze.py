@@ -115,6 +115,10 @@ if sum([bool(re.search(rf'^{this_dir}/t_class=(True|False)_compiled=(True|False)
                for t1, t2 in zip(all_times['no CLASS, compiled'],
                                  all_times['no CLASS, not compiled'])
                ):
+        # On most systems, t1 is identically equal to t2, but for
+        # some reason not on all. We wish to see how far apart t1 and t2
+        # are in such cases, hence the print below.
+        print(list(all_times['no CLASS, compiled']), list(all_times['no CLASS, not compiled']))
         abort('The cosmic times computed via the simple Friedmann equation '
               'are different between compiled and pure Python mode.\n'
               f'See "{fig_file}" for a visualization.'
