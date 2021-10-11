@@ -115,6 +115,7 @@ def convert():
     information about global parameters and individual component
     attributes which should be changed.
     """
+    init_time()
     # Create dict of global parameters (params) and (default)dict of
     # component attributes (attributes) from the passed attributes.
     params = {}
@@ -144,8 +145,8 @@ def convert():
     # Read snapshot on disk into the requested type
     snapshot = load(
         snapshot_filename,
-        compare_params=True,  # Warn the user of non-matching params
-        do_exchange=False,    # Exchanges happen later, if needed
+        compare_params=False,  # Postpone parameter comparison
+        do_exchange=False,     # Exchanges happen later, if needed
         as_if=snapshot_type,
     )
     # Some of the functions used later use the value of universals.a.
@@ -154,6 +155,8 @@ def convert():
     # universals.a will be reassigned.
     a = universals.a
     universals.a = snapshot.params['a']
+    # Now do the parameter comparison
+    compare_parameters(snapshot, snapshot_filename)
     # Warn the user of specified changes to component attributes
     # of non-existing components. Allow for components written in a
     # different case.
@@ -425,13 +428,18 @@ def powerspec():
                 snapshot_filename=str,
                 )
 def render3D():
-    # Initial cosmic time universals.t
-    # and scale factor a(universals.t) = universals.a.
     init_time()
     # Extract the snapshot filename
     snapshot_filename = special_params['snapshot_filename']
-    # Read in the snapshot
-    snapshot = load(snapshot_filename, compare_params=True)
+    # Read in the snapshot, postponing the parameter comparison
+    snapshot = load(snapshot_filename, compare_params=False)
+    # Set universal scale factor and cosmic time and to match
+    # that of the snapshot.
+    universals.a = snapshot.params['a']
+    if enable_Hubble:
+        universals.t = cosmic_time(universals.a)
+    # Now do the parameter comparison
+    compare_parameters(snapshot, snapshot_filename)
     # Construct output filename based on the snapshot filename.
     # Importantly, remove any file extension signalling a snapshot.
     output_dir, basename = os.path.split(snapshot_filename)
