@@ -172,7 +172,7 @@ of ellipses '``...``' like so:
        'render3D' : ...,
    }
 
-Here, the keys ``'powerspec'``, ``'render2D'`` and ``'render23'`` will map
+Here, the keys ``'powerspec'``, ``'render2D'`` and ``'render3D'`` will map
 to the same value as ``'snapshot'``. More generally, an ellipsis is replaced
 by the first non-ellipsis value encountered when looking back up the key-value
 definitions, wrapping around if necessary. Thus,

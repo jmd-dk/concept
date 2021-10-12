@@ -26,8 +26,8 @@ k_modes_per_decade = _k_modes/log10(_k_max/_k_min)
 
 # Cosmology
 H0      = 67*km/(s*Mpc)
-Ωcdm    = 0.27 - Ων
 Ωb      = 0.049
+Ωcdm    = 0.27 - Ων
 a_begin = 1/(1 + 250)
 _N_eff  = 3.046
 class_params = {

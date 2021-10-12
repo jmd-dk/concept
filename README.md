@@ -52,10 +52,10 @@ To run a small sample simulation, navigate to the `concept` directory
 and invoke
 
 ```bash
-./concept -p params/example_params -n 2 --local
+./concept -p params/example_basic -n 2 --local
 ```
 
-This will run the simulation defined by the provided `example_params`
+This will run the simulation defined by the provided `example_basic`
 parameter file using 2 processes.
 
 Consult the [tutorial] and the rest of the [documentation]

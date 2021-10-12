@@ -1896,17 +1896,17 @@ def update_class_params(class_params, namespace=None):
     if namespace is None:
         class_params_default = {
             'H0'       : H0/(units.km/(units.s*units.Mpc)),
-            'Omega_cdm': Ωcdm,
             'Omega_b'  : Ωb,
+            'Omega_cdm': Ωcdm,
         }
     else:
         class_params_default = {}
         if 'H0' in namespace:
             class_params_default['H0'] = namespace['H0']/(units.km/(units.s*units.Mpc))
-        if 'Ωcdm' in namespace:
-            class_params_default['Omega_cdm'] = namespace['Ωcdm']
         if 'Ωb' in namespace:
             class_params_default['Omega_b'] = namespace['Ωb']
+        if 'Ωcdm' in namespace:
+            class_params_default['Omega_cdm'] = namespace['Ωcdm']
     # Apply updates to the CLASS parameters
     for param_name, param_value in class_params_default.items():
         class_params.setdefault(param_name, param_value)
@@ -2117,8 +2117,8 @@ cython.declare(
     k_modes_per_decade=dict,
     # Cosmology
     H0='double',
-    Ωcdm='double',
     Ωb='double',
+    Ωcdm='double',
     a_begin='double',
     t_begin='double',
     primordial_spectrum=dict,
@@ -2180,9 +2180,15 @@ cython.declare(
 # Input/output
 initial_conditions = user_params.get('initial_conditions', '')
 user_params['initial_conditions'] = initial_conditions
-output_dirs = dict(user_params.get('output_dirs', {}))
-replace_ellipsis(output_dirs)
 output_kinds = ('snapshot', 'powerspec', 'render2D', 'render3D')
+if isinstance(user_params.get('output_dirs'), str):
+    output_dirs = {
+        kind: user_params['output_dirs']
+        for kind in output_kinds
+    }
+else:
+    output_dirs = dict(user_params.get('output_dirs', {}))
+replace_ellipsis(output_dirs)
 for kind in output_kinds:
     output_dirs[kind] = str(output_dirs.get(kind, paths['output_dir']))
     if not output_dirs[kind]:
@@ -2885,10 +2891,10 @@ user_params['k_modes_per_decade'] = k_modes_per_decade
 # Cosmology
 H0 = float(user_params.get('H0', 67*units.km/(units.s*units.Mpc)))
 user_params['H0'] = H0
-Ωcdm = float(user_params.get('Ωcdm', 0.27))
-user_params['Ωcdm'] = Ωcdm
 Ωb = float(user_params.get('Ωb', 0.049))
 user_params['Ωb'] = Ωb
+Ωcdm = float(user_params.get('Ωcdm', 0.27))
+user_params['Ωcdm'] = Ωcdm
 a_begin = float(user_params.get('a_begin', 1))
 user_params['a_begin'] = a_begin
 t_begin = float(user_params.get('t_begin', 0))
@@ -3575,23 +3581,23 @@ if 'ntimes' in special_params:
 # contain all sorts of "units". Update the units_dict with quantities so
 # that quite general evaluations can take place.
 # Add physical quantities.
-units_dict.setdefault('G_Newton'              , G_Newton              )
-units_dict.setdefault('H0'                    , H0                    )
-units_dict.setdefault('a_begin'               , a_begin               )
-units_dict.setdefault('boxsize'               , boxsize               )
-units_dict.setdefault('t_begin'               , t_begin               )
-units_dict.setdefault(        'Ωcdm'          , Ωcdm                  )
-units_dict.setdefault(unicode('Ωcdm')         , Ωcdm                  )
-units_dict.setdefault(        'Ωb'            , Ωb                    )
-units_dict.setdefault(unicode('Ωb')           , Ωb                    )
-units_dict.setdefault(        'Ωm'            , Ωm                    )
-units_dict.setdefault(unicode('Ωm')           , Ωm                    )
-units_dict.setdefault(        'ρ_vacuum'      , ρ_vacuum              )
-units_dict.setdefault(unicode('ρ_vacuum')     , ρ_vacuum              )
-units_dict.setdefault(        'ρ_crit'        , ρ_crit                )
-units_dict.setdefault(unicode('ρ_crit')       , ρ_crit                )
-units_dict.setdefault(        'ρ_mbar'        , ρ_mbar                )
-units_dict.setdefault(unicode('ρ_mbar')       , ρ_mbar                )
+units_dict.setdefault(        'G_Newton' , G_Newton)
+units_dict.setdefault(        'H0'       , H0      )
+units_dict.setdefault(        'a_begin'  , a_begin )
+units_dict.setdefault(        'boxsize'  , boxsize )
+units_dict.setdefault(        't_begin'  , t_begin )
+units_dict.setdefault(        'Ωb'       , Ωb      )
+units_dict.setdefault(unicode('Ωb')      , Ωb      )
+units_dict.setdefault(        'Ωcdm'     , Ωcdm    )
+units_dict.setdefault(unicode('Ωcdm')    , Ωcdm    )
+units_dict.setdefault(        'Ωm'       , Ωm      )
+units_dict.setdefault(unicode('Ωm')      , Ωm      )
+units_dict.setdefault(        'ρ_vacuum' , ρ_vacuum)
+units_dict.setdefault(unicode('ρ_vacuum'), ρ_vacuum)
+units_dict.setdefault(        'ρ_crit'   , ρ_crit  )
+units_dict.setdefault(unicode('ρ_crit')  , ρ_crit  )
+units_dict.setdefault(        'ρ_mbar'   , ρ_mbar  )
+units_dict.setdefault(unicode('ρ_mbar')  , ρ_mbar  )
 # Add dimensionless sizes
 units_dict.setdefault('ewald_gridsize'     , ewald_gridsize     )
 units_dict.setdefault('render3D_resolution', render3D_resolution)

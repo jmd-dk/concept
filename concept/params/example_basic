@@ -1,0 +1,28 @@
+# This example CO𝘕CEPT parameter file will perform a matter-only
+# simulation in a ΛCDM cosmology. Initial conditions will be
+# generated on-the-fly and a present-day power spectrum
+# will be dumped.
+
+
+# Input/output
+initial_conditions = {
+    'species': 'matter',
+    'N'      : 64**3,
+}
+output_dirs = 'output/example_basic'
+output_times = {'powerspec': 1.0}
+
+# Numerical parameters
+boxsize = 256*Mpc/h
+potential_options = 128  # P³M grid size
+
+# Cosmology
+H0 = 67*km/(s*Mpc)
+Ωb = 0.049
+Ωcdm = 0.27
+a_begin = 0.02
+primordial_spectrum = {
+    'A_s': 2.1e-9,  # Amplitude
+    'n_s': 0.96,    # Tilt / spectral index
+}
+

@@ -581,11 +581,11 @@ def info():
                         )
                     if snapshot_type == 'concept':
                         masterprint(
-                            'Ωcdm = {}'.format(correct_float(params['Ωcdm'])),
+                            'Ωb = {}'.format(correct_float(params['Ωb'])),
                             file=file, wrap=False,
                         )
                         masterprint(
-                            'Ωb = {}'.format(correct_float(params['Ωb'])),
+                            'Ωcdm = {}'.format(correct_float(params['Ωcdm'])),
                             file=file, wrap=False,
                         )
             # Do not edit the printed text below,
@@ -637,8 +637,8 @@ def info():
         # out here, as these will be printed as part
         # of the GADGET header.
         if snapshot_type == 'concept':
-            masterprint('{:<20} {}'.format(unicode('Ωcdm'), correct_float(params['Ωcdm'])))
             masterprint('{:<20} {}'.format(unicode('Ωb'), correct_float(params['Ωb'])))
+            masterprint('{:<20} {}'.format(unicode('Ωcdm'), correct_float(params['Ωcdm'])))
         # Print out GADGET header for GADGET snapshots.
         # Note that the header structure of GADGET-2
         # specifically is assumed.

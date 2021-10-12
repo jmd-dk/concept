@@ -1,25 +1,7 @@
-# This is an example parameter file to the CO𝘕CEPT code,
-# showcasing the many possible parameters.
-# When defining parameters, the following tips and tricks may be used:
-# - Parameters can be specified as any valid Python 3 expression.
-# - Parameters may be defined in terms of other parameters/variables.
-#   Unlike normal Python code, the order of definitions is not important.
-# - Mathematical as well as NumPy functions and constants are available.
-# - Physical units may and should be used where applicable.
-# - Absolute paths defined in the .paths file may be accessed
-#   via the paths dict. Relative paths will be understood
-#   with respect to the concept directory.
-# - Should you wish to define non-parameter helper variables,
-#   let their name begin with an underscore in order to suppress
-#   the 'unknown parameter specified' warning.
-# - Repeated values in dictionaries may be succinctly declared
-#   by an ellipsis (...).
-# - Some parameters will be inferred from others and must not be
-#   defined explicitly. Below is the complete list of such parameters.
-#     h : Inferred from H0, defined to be H0/(100*km/(s*Mpc)).
-#     Ων: Inferred from the values of 'N_ncdm', 'deg_ncdm' and 'm_ncdm'
-#         in the class_params dictionary.
-
+# This example CO𝘕CEPT parameter file showcases the vast majority
+# of available parameters, and as so is much larger than typical
+# parameter files. It is recommended to study the other example
+# parameter files prior to this one.
 
 
 # Non-parameter variable used to control the size of the simulation
@@ -212,8 +194,8 @@ k_modes_per_decade = {  # Number of k modes per decade in CLASS computations
 
 # Cosmology
 H0 = 67*km/(s*Mpc)  # The Hubble constant
-Ωcdm = 0.27 - Ων    # Density parameter for cold dark matter
 Ωb = 0.049          # Density parameter for baryonic matter
+Ωcdm = 0.27 - Ων    # Density parameter for cold dark matter
 a_begin = 0.02      # Scale factor at beginning of simulation
 primordial_spectrum = {  # Parameters for the analytic primordial spectrum
     'A_s'  : 2.1e-9,    # Amplitude

@@ -131,8 +131,8 @@ class ConceptSnapshot:
             hdf5_file.attrs['H0']            = correct_float(self.params['H0'])
             hdf5_file.attrs['a']             = correct_float(self.params['a'])
             hdf5_file.attrs['boxsize']       = correct_float(self.params['boxsize'])
-            hdf5_file.attrs[unicode('Ωcdm')] = correct_float(self.params['Ωcdm'])
             hdf5_file.attrs[unicode('Ωb')]   = correct_float(self.params['Ωb'])
+            hdf5_file.attrs[unicode('Ωcdm')] = correct_float(self.params['Ωcdm'])
             # Store each component as a separate group
             # within /components.
             for component in self.components:
@@ -308,8 +308,8 @@ class ConceptSnapshot:
             self.params['H0']      = hdf5_file.attrs['H0']*(1/snapshot_unit_time)
             self.params['a']       = hdf5_file.attrs['a']
             self.params['boxsize'] = hdf5_file.attrs['boxsize']*snapshot_unit_length
-            self.params['Ωcdm']    = hdf5_file.attrs[unicode('Ωcdm')]
             self.params['Ωb']      = hdf5_file.attrs[unicode('Ωb')]
+            self.params['Ωcdm']    = hdf5_file.attrs[unicode('Ωcdm')]
             # Load component data
             for name, component_h5 in hdf5_file['components'].items():
                 # Determine representation from the snapshot
@@ -504,8 +504,8 @@ class ConceptSnapshot:
         else:
             self.params['a'] = universals.a
         self.params['boxsize'] = params.get('boxsize', boxsize)
-        self.params['Ωcdm'   ] = params.get('Ωcdm'   , Ωcdm)
         self.params['Ωb'     ] = params.get('Ωb'     , Ωb)
+        self.params['Ωcdm'   ] = params.get('Ωcdm'   , Ωcdm)
         # Populate the base units with the global base units
         self.units['time'  ] = unit_time
         self.units['length'] = unit_length

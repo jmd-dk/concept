@@ -42,8 +42,8 @@ file:
 
    # Cosmology
    H0      = 67*km/(s*Mpc)
-   Ωcdm    = 0.27
    Ωb      = 0.049
+   Ωcdm    = 0.27
    a_begin = 0.02
 
    # Graphics
