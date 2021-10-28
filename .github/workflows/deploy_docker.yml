@@ -42,21 +42,20 @@ jobs:
                     -v "${GITHUB_WORKSPACE}":/github \
                     --name concept-tmp \
                     ${{ secrets.DOCKER_USERNAME }}/concept:test-build \
-                    bash -c ': \
-                        && cd / \
+                    bash -O extglob -c ': \
                         && source ~/.bashrc \
-                        && rm -rf "${concept_dir}" \
-                        && cp -r /github/concept "${concept_dir}" \
+                        && rm -rf "${concept_dir}/"!(dep) \
+                        && cp -r /github/!(dep) "${concept_dir}/" \
                         && (cd "${concept_dir}" && make distclean) \
                         && make_jobs="-j 1" concept \
-                        && (cd "${concept_dir}" && make clean_logs clean_params_cp) \
-                        && mkdir "${concept_dir}/so" \
-                        && mv "${concept_dir}"/*.so "${concept_dir}"/so/ \
+                        && (cd "${concept_dir}" && make clean_job) \
+                        && mkdir -p "${tmp_dir}/so" \
+                        && mv "${build_dir}"/*.so "${tmp_dir}/so/" \
                         && (cd "${concept_dir}" && make clean) \
-                        && mv "${concept_dir}"/so/* "${concept_dir}"/ \
-                        && rm -rf "${concept_dir}"/so \
-                        && (cd "${concept_dir}" && make -t) \
-                        && find / -type d -a -name "__pycache__" -exec rm -rf "{}" + \
+                        && mkdir -p "${build_dir}" \
+                        && mv "${tmp_dir}"/so/* "${build_dir}/" \
+                        && (cd "${concept_dir}" && make clean_tmp) \
+                        && (find / -type d -a -name "__pycache__" -exec rm -rf "{}" + || :) \
                     '
                 docker commit \
                     --change='CMD ["bash"]' \
@@ -65,9 +64,10 @@ jobs:
                 docker rm -f concept-tmp 2>/dev/null || :
           - name: 🚀 Deploy Docker image
             run: |
-                docker login \
-                    -u ${{ secrets.DOCKER_USERNAME }} \
-                    -p ${{ secrets.DOCKER_PASSWORD }} \
+                echo ${{ secrets.DOCKER_PASSWORD }} \
+                    | docker login \
+                        -u ${{ secrets.DOCKER_USERNAME }} \
+                        --password-stdin \
                     2>/dev/null
                 docker push ${{ secrets.DOCKER_USERNAME }}/concept:latest
                 docker logout

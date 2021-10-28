@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+
+# This script does cleanup after a test
+this_dir="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
+(cd "${this_dir}" && rm -rf  \
+    output                   \
+    output_massless          \
+    output_massive_linear    \
+    output_massive_nonlinear \
+    param_massless           \
+    param_massive_linear     \
+    param_massive_nonlinear  \
+    result_abs.png           \
+    result_rel.png           \
+)

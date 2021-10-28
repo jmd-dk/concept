@@ -1,0 +1,42 @@
+# GitHub workflow for testing the building of the documentation
+name: test_doc
+
+on:
+    pull_request:
+        branches:
+          - master
+        paths:
+          - 'Makefile'
+          - 'doc/**'
+
+jobs:
+    test_doc:
+        runs-on: [self-hosted, linux]
+        steps:
+          - name: 🛎 Checkout
+            uses: actions/checkout@v2
+          - name: 🐋 Clean dangling Docker containers
+            uses: ./.github/actions/clean-dangling-docker
+          - name: 📝 Set Docker username
+            env:
+                docker_username: ${{ secrets.DOCKER_USERNAME }}
+            run: |
+                [ -n "${docker_username}" ] || docker_username=jmddk
+                echo "docker_username=${docker_username}" >> "${GITHUB_ENV}"
+          - name: 🐋 Pull Docker image
+            run: docker pull ${docker_username}/concept:latest
+          - name: 📖 Build documentation
+            run: |
+                sleep 1
+                docker run \
+                    -v "${GITHUB_WORKSPACE}":/github \
+                    --name "${GITHUB_REPOSITORY//\//_}__${GITHUB_WORKFLOW}__${GITHUB_JOB}__$(date +%s)" \
+                    --rm \
+                    ${docker_username}/concept:latest \
+                    bash -O extglob -c ': \
+                        && source ~/.bashrc \
+                        && rm -rf "${concept_dir}/"!(dep) \
+                        && cp -r /github/!(dep) "${concept_dir}/" \
+                        && (cd "${concept_dir}" && make clean_doc && make doc) \
+                    '
+

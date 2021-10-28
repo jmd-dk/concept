@@ -40,7 +40,7 @@ To get started with CO*N*CEPT, walking through the [tutorial] is highly
 recommended. That said, installation can be as simple as
 
 ```bash
-bash <(wget -O- https://raw.githubusercontent.com/jmd-dk/concept/master/installer)
+bash <(wget -O- https://raw.githubusercontent.com/jmd-dk/concept/master/install)
 ```
 
 which installs CO*N*CEPT along with all of its dependencies into a single
@@ -48,11 +48,11 @@ directory. The installation takes about an hour or two on modern hardware.
 Should the installation process end prematurely, simply rerun the installation
 command and it will pick up from where it was.
 
-To run a small sample simulation, navigate to the `concept` directory
-and invoke
+To run a small sample simulation, navigate to the directory where CO*N*CEPT
+is installed and invoke
 
 ```bash
-./concept -p params/example_basic -n 2 --local
+./concept -p param/example_basic -n 2 --local
 ```
 
 This will run the simulation defined by the provided `example_basic`

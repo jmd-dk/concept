@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+
+# This script performs CO𝘕CEPT runs with matter particles
+# and a massive neutrino fluid, the latter of which is treated
+# both linearly and non-linearly.
+# The absolute non-linear neutrino power spectrum is matched
+# against the linear solution at large scales, while the relative
+# total power spectrum (relative to a cosmology with a
+# massless neutrino) is matched against the behaviour
+# found in https://arxiv.org/pdf/0802.3700.pdf
+
+# Absolute path and name of the directory of this file
+this_dir="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
+this_test="$(basename "${this_dir}")"
+
+# Set up error trapping
+ctrl_c() {
+    trap : 0
+    exit 2
+}
+abort() {
+    exit_code=$?
+    colorprint "An error occurred during ${this_test} test!" "red"
+    exit ${exit_code}
+}
+trap 'ctrl_c' SIGINT
+trap 'abort' EXIT
+set -e
+
+# Cleanup from last test run
+"${this_dir}/clean"
+
+# Run the (linear) massless neutrino simulation
+sim="massless"
+cp "${this_dir}/param" "${this_dir}/param_${sim}"
+echo "
+initial_conditions[1]['boltzmann_order'] = -1
+class_params['m_ncdm'] = 1e-100
+" >> "${this_dir}/param_${sim}"
+"${concept}" -n 4 -p "${this_dir}/param_${sim}" --local
+mv "${this_dir}/output" "${this_dir}/output_${sim}"
+
+# Run the linear massive neutrino simulation
+sim="massive_linear"
+cp "${this_dir}/param" "${this_dir}/param_${sim}"
+echo "
+initial_conditions[1]['boltzmann_order'] = -1
+" >> "${this_dir}/param_${sim}"
+"${concept}" -n 4 -p "${this_dir}/param_${sim}" --local
+mv "${this_dir}/output" "${this_dir}/output_${sim}"
+
+# Run the non-linear massive neutrino simulation
+sim="massive_nonlinear"
+cp "${this_dir}/param" "${this_dir}/param_${sim}"
+echo "
+initial_conditions[1]['boltzmann_order'] = +1
+" >> "${this_dir}/param_${sim}"
+"${concept}" -n 4 -p "${this_dir}/param_${sim}" --local
+mv "${this_dir}/output" "${this_dir}/output_${sim}"
+
+# Analyse the output snapshots
+"${concept}" -n 1 -p "${this_dir}/param" -m "${this_dir}/analyze.py" --pure-python --local
+
+# Test ran successfully. Deactivate traps.
+trap : 0

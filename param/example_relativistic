@@ -1,0 +1,69 @@
+# This example CO𝘕CEPT parameter file will perform a simulation
+# with matter particles in a ΛCDM cosmology. A linear component
+# supplying relativistic corrections from radiation
+# (photons and massless neutrinos) is also present.
+
+
+# Non-parameter variable used to control the size of the simulation
+_size = 128
+
+# Input/output
+initial_conditions = [
+    # Matter component
+    {
+        'species': 'matter',
+        'N'      : _size**3,
+    },
+    # Linear component
+    {
+        'name'           : 'linear',
+        'species'        : 'radiation + metric',
+        'gridsize'       : _size,
+        'boltzmann order': -1,  # Completely linear component
+    },
+]
+output_dirs = paths['output_dir'] + f'/{param}'
+output_times = {'powerspec': [a_begin, 0.5, 1]}
+powerspec_select = {'matter': True}
+
+# Numerical parameters
+boxsize = 1024*Mpc
+potential_options = {
+    'gridsize': {
+        'global': {
+            'gravity': {
+                'pm' :   _size,  # PM  grid size (matter ← linear component)
+                'p3m': 2*_size,  # P³M grid size (matter ↔ matter)
+            },
+        },
+    },
+    'differentiation': {
+        'all': {
+            'gravity': {
+                'pm' : 'fourier',  # Force from PM  potential via differentiation in Fourier space
+                'p3m': 4,          # Force from P³M potential via 4ᵗʰ order finite differencing
+            },
+        },
+    },
+}
+
+# Cosmology
+H0 = 67*km/(s*Mpc)
+Ωb = 0.049
+Ωcdm = 0.27
+a_begin = 0.01
+primordial_spectrum = {
+    'A_s': 2.1e-9,  # Amplitude
+    'n_s': 0.96,    # Tilt / spectral index
+}
+class_params = {
+    # Increase CLASS precision
+    'evolver'                          : 0,
+    'radiation_streaming_approximation': 3,
+    'l_max_g'                          : 1000,
+    'l_max_ur'                         : 1000,
+}
+
+# Simulation options
+primordial_amplitude_fixed = True  # Replace Gaussian noise with noise of fixed amplitude
+

@@ -1,0 +1,85 @@
+# This file contains absolute paths to directories and files
+# used by the CO𝘕CEPT code. You may manually edit these paths.
+
+
+#######################
+# CO𝘕CEPT directories #
+#######################
+# Top-level directory of the CO𝘕CEPT installation
+concept_dir='/home/jeppe/concept'
+# Default build directory
+build_dir='/home/jeppe/concept/build'
+# Directory containing installed dependency programs
+dep_dir='/home/jeppe/concept/dep'
+# Directory containing documentation
+doc_dir='/home/jeppe/concept/doc'
+# Directory intended for initial conditions
+ic_dir='/home/jeppe/concept/ic'
+# Directory containing information for each job
+job_dir='/home/jeppe/concept/job'
+# Directory intended for output
+output_dir='/home/jeppe/concept/output'
+# Directory intended for parameter files
+param_dir='/home/jeppe/concept/param'
+# Directory containing reusable dumps
+reusable_dir='/home/jeppe/concept/.reusable'
+# Directory containing source code
+src_dir='/home/jeppe/concept/src'
+# Directory containing tests
+test_dir='/home/jeppe/concept/test'
+# Directory used for temporary files
+tmp_dir='/home/jeppe/concept/.tmp'
+# Directory containing utilities
+util_dir='/home/jeppe/concept/util'
+
+
+##########################
+# Dependency directories #
+##########################
+# Directory of BLAS
+blas_dir='/home/jeppe/concept/dep/openblas'
+# Directory of CLASS
+class_dir='/home/jeppe/concept/dep/class'
+# Directory of FFTW
+fftw_dir='/home/jeppe/concept/dep/fftw'
+# Directory of FFTW2, used by GADGET
+fftw_for_gadget_dir='/home/jeppe/concept/dep/gadget/fftw'
+# Directory of GADGET2
+gadget_dir='/home/jeppe/concept/dep/gadget'
+# Directory containing the GADGET2 source code
+Gadget2_dir='/home/jeppe/concept/dep/gadget/Gadget2'
+# Directory of GSL
+gsl_dir='/home/jeppe/concept/dep/gsl'
+# Directory of HDF5
+hdf5_dir='/home/jeppe/concept/dep/hdf5'
+# Directories of MPI
+mpi_dir='/home/jeppe/concept/dep/mpich'
+mpi_compilerdir='/home/jeppe/concept/dep/mpich/bin'
+mpi_bindir='/home/jeppe/concept/dep/mpich/bin'
+mpi_libdir='/home/jeppe/concept/dep/mpich/lib'
+mpi_includedir='/home/jeppe/concept/dep/mpich/include'
+mpi_symlinkdir='/home/jeppe/concept/dep/.mpi_symlinks'
+# Directory of Python
+python_dir='/home/jeppe/concept/dep/python'
+# Directory of zlib
+zlib_dir='/home/jeppe/concept/dep/zlib'
+
+
+#########
+# Files #
+#########
+# The executable script of the CO𝘕CEPT code
+concept='/home/jeppe/concept/concept'
+# The file containing environment variables
+env_file='/home/jeppe/concept/.env'
+# The install script
+install='/home/jeppe/concept/install'
+# The MPI C compiler
+mpicc='/home/jeppe/concept/dep/mpich/bin/mpicc'
+# The MPI executable
+mpiexec='/home/jeppe/concept/dep/mpich/bin/mpiexec'
+# The file containing paths (this file)
+path_file='/home/jeppe/concept/.path'
+# The Python interpreter
+python='/home/jeppe/concept/dep/python/bin/python3.9'
+

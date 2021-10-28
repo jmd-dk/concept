@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+
+# This script performs a basic test of the CO𝘕CEPT code.
+# It runs the code with no parameter file in both pure Python
+# and compiled mode.
+
+# Absolute path and name of the directory of this file
+this_dir="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
+this_test="$(basename "${this_dir}")"
+
+# Set up error trapping
+ctrl_c() {
+    trap : 0
+    exit 2
+}
+abort() {
+    exit_code=$?
+    colorprint "An error occurred during ${this_test} test!" "red"
+    exit ${exit_code}
+}
+trap 'ctrl_c' SIGINT
+trap 'abort' EXIT
+set -e
+
+# Clean and run in pure Python with different number of CPUs
+(cd "${concept_dir}" && make clean)
+"${concept}"      --pure-python --local
+"${concept}" -n 1 --pure-python --local
+"${concept}" -n 2 --pure-python --local
+"${concept}" -n 4 --pure-python --local
+
+# Build and run in compiled mode with different number of CPUs
+"${concept}"      --local
+"${concept}" -n 1 --local
+"${concept}" -n 2 --local
+"${concept}" -n 4 --local
+
+# Test ran successfully. Deactivate traps.
+trap : 0

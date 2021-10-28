@@ -1,11 +1,11 @@
 # Base
-FROM debian:11.0-slim
+FROM debian:11.1-slim
 SHELL ["/usr/bin/env", "bash", "-c"]
 CMD ["bash"]
 
 # Installation options
 ARG concept_version=/source
-ARG top_dir="/concept"
+ARG install_dir="/concept"
 ARG slim=True
 ARG mpi=mpich
 ARG mpi_configure_options="+= --with-device=ch3:sock"
@@ -16,13 +16,18 @@ ARG make_jobs
 COPY \
     .env* \
     .gitignore* \
-    COPYING* \
     CHANGELOG.md* \
     Dockerfile* \
+    LICENSE* \
+    Makefile* \
     README.md* \
-    installer \
+    concept* \
+    install \
     /source/
-COPY concept* /source/concept/
+COPY doc*     /source/doc/
+COPY src*     /source/src/
+COPY test*    /source/test/
+COPY util*    /source/util/
 COPY .github* /source/.github/
 ARG DEBIAN_FRONTEND=noninteractive
 RUN : \
@@ -31,14 +36,14 @@ RUN : \
     && apt-get install -y --no-install-recommends apt-utils \
         2> >(grep -v 'apt-utils is not installed' >&2) \
     # Install CO𝘕CEPT
-    && bash /source/installer -y "${top_dir}" \
+    && bash /source/install -y "${install_dir}" \
     && rm -rf /source \
     # Set up CO𝘕CEPT and Python environment
-    && sed -i "1i source \"${top_dir}/concept/concept\"" ~/.bashrc \
+    && sed -i "1i source \"${install_dir}/concept\"" ~/.bashrc \
     && apt-get install -y --no-install-recommends less \
     && echo "[ ! -t 0 ] || alias less='less -r -f'" >> ~/.bashrc \
-    && ln -s "${top_dir}/python/bin/python3" "${top_dir}/python/bin/python" \
-    # Set up Bash autocompletion
+    && ln -s "${install_dir}/dep/python/bin/python3" "${install_dir}/dep/python/bin/python" \
+    # Set up Bash auto-completion
     && apt-get install -y --no-install-recommends bash-completion \
     && echo "[ ! -t 0 ] || source /etc/bash_completion" >> ~/.bashrc \
     # Set up Bash history search with ↑↓
@@ -58,10 +63,10 @@ RUN : \
     # Remove other caches
     && rm -rf /tmp/* ~/.cache/* \
     # Remove some files installed with CO𝘕CEPT
-    && rm -f $(find "${top_dir}" -name "*.a") \
-    && rm -f "${top_dir}"/freetype*/lib/libfreetype*.so* \
-    && rm -f "${top_dir}"/python/lib/python*/site-packages/Pillow.libs/lib{freetype,harfbuzz,lcms,png,web}*.so* \
-    && rm -f "${top_dir}"/python/lib/python*/site-packages/scipy*/scipy/misc/face.dat \
+    && rm -f $(find "${install_dir}" -name "*.a") \
+    && rm -f "${install_dir}"/dep/freetype*/lib/libfreetype*.so* \
+    && rm -f "${install_dir}"/dep/python/lib/python*/site-packages/Pillow.libs/lib{freetype,harfbuzz,lcms,png,web}*.so* \
+    && rm -f "${install_dir}"/dep/python/lib/python*/site-packages/scipy*/scipy/misc/face.dat \
     # Remove some system files
     && rm -rf /usr/share/{doc,info,man}/* \
     && rm -f $(find / -name "*.a" | grep -v "/libgcc.a\|/libc_nonshared.a") \
@@ -69,7 +74,7 @@ RUN : \
     && rm -f /usr/bin/x86_64-linux-gnu-lto-dump-* \
     && :
 ENV \
-    PATH="${top_dir}/concept:${top_dir}/concept/utilities:${top_dir}/python/bin:${PATH}" \
+    PATH="${install_dir}:${install_dir}/util:${install_dir}/dep/python/bin:${PATH}" \
     TERM="linux"
-WORKDIR "${top_dir}/concept"
+WORKDIR "${install_dir}"
 

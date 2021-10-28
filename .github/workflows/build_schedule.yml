@@ -1,5 +1,5 @@
 # GitHub workflow for testing the entire build,
-# including installation, the test suite and building of the docs.
+# including installation, the test suite and building of the documentation.
 # - This workflow runs on a schedule, and only if
 #   the GitHub secret SCHEDULE_BUILD is set to True.
 name: build
@@ -32,12 +32,38 @@ jobs:
         steps:
           - name: 🛎 Checkout
             uses: actions/checkout@v2
+          - name: 🐋 Clean dangling Docker containers
+            uses: ./.github/actions/clean-dangling-docker
           - name: 🔧 Install
             run: |
-                echo ".git" >> .dockerignore
-                docker build --pull --no-cache -t concept:latest .
+                echo ".git"      >> .dockerignore
+                echo ".reusable" >> .dockerignore
+                echo ".tmp"      >> .dockerignore
+                echo "build"     >> .dockerignore
+                echo "dep"       >> .dockerignore
+                echo "ic"        >> .dockerignore
+                echo "job"       >> .dockerignore
+                echo "output"    >> .dockerignore
+                docker build \
+                    -t concept:latest \
+                    --force-rm \
+                    --no-cache \
+                    --pull \
+                    .
           - name: 🤖 Run test suite
-            run: docker run -e make_jobs="-j 1" --rm concept:latest concept -t all
-          - name: 📖 Build docs
-            run: docker run --rm concept:latest bash -c 'make clean_docs && make docs'
+            run: |
+                sleep 1
+                docker run \
+                    -e make_jobs="-j 1" \
+                    --name "${GITHUB_REPOSITORY//\//_}__${GITHUB_WORKFLOW}__${GITHUB_JOB}__$(date +%s)" \
+                    --rm concept:latest \
+                    concept -t all
+          - name: 📖 Build documentation
+            run: |
+                sleep 1
+                docker run \
+                    --name "${GITHUB_REPOSITORY//\//_}__${GITHUB_JOB}__$(date +%s)" \
+                    --rm \
+                    concept:latest \
+                    bash -c 'make clean_doc && make doc'
 

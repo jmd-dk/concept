@@ -1,0 +1,43 @@
+# GitHub action for performing a single test within the test suite.
+# The workflow job which uses this action must be named test_<test>
+# and should set the docker_username environment variable.
+name: test
+
+runs:
+    using: composite
+    steps:
+      - name: 📝 Set Docker username
+        run: |
+            [ -n "${docker_username}" ] || docker_username=jmddk
+            echo "docker_username=${docker_username}" >> "${GITHUB_ENV}"
+        shell: bash
+      - name: 🐋 Pull Docker image
+        run: docker pull ${docker_username}/concept:latest
+        shell: bash
+      - name: 🐋 Clean dangling Docker containers
+        uses: ./.github/actions/clean-dangling-docker
+      - name: 📥 Download build
+        uses: actions/download-artifact@v2
+        with:
+            name: build
+            path: build
+      - name: 🤖 Run test
+        run: |
+            sleep 1
+            docker run \
+                -e GITHUB_JOB \
+                -e make_jobs="-j 1" \
+                -v "${GITHUB_WORKSPACE}":/github \
+                --name "${GITHUB_REPOSITORY//\//_}__${GITHUB_WORKFLOW}__${GITHUB_JOB}__$(date +%s)" \
+                --rm \
+                ${docker_username}/concept:latest \
+                bash -O extglob -c ': \
+                    && source ~/.bashrc \
+                    && rm -rf "${concept_dir}/"!(dep) \
+                    && cp -r /github/!(dep) "${concept_dir}/" \
+                    && sleep 1 \
+                    && touch "${build_dir}/"* \
+                    && concept -t ${GITHUB_JOB/test_} \
+                '
+        shell: bash
+

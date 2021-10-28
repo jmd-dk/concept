@@ -1,0 +1,527 @@
+#!/usr/bin/env bash
+
+# This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
+# Copyright © 2015–2021 Jeppe Mosgaard Dakin.
+#
+# CO𝘕CEPT is free software: You can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# CO𝘕CEPT is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with CO𝘕CEPT. If not, see https://www.gnu.org/licenses/
+#
+# The author of CO𝘕CEPT can be contacted at dakin(at)phys.au.dk
+# The latest version of CO𝘕CEPT is available at
+# https://github.com/jmd-dk/concept/
+
+
+
+# Running this script after submitting a remote CO𝘕CEPT job
+# via Slurm/TORQUE/PBS will print out the output of the code
+# as it is being run. If multiple jobs are running or in queue,
+# the latest will be watched. Alternatively, the job ID can be
+# passed as the first argument when calling this script.
+# You can run this file directly as
+# util/watch [jobid]
+# or invoke it via the concept script as
+# ./concept -u watch [jobid]
+
+
+
+# Absolute paths to this file and its directory
+this_file="$(readlink -f "${BASH_SOURCE[0]}")"
+this_dir="$(dirname "${this_file}")"
+
+# Source the concept script
+source "${this_dir}/../concept"
+
+# Set up error trapping
+ctrl_c() {
+    # Kill the tail command silently before exiting
+    if [ -n "${tail_pid}" ]; then
+        exec 3>&2
+        exec 2>/dev/null
+        kill -SIGKILL ${tail_pid} >/dev/null 2>&1 || :
+        sleep 0.1
+        exec 2>&3
+        exec 3>&-
+    fi
+    trap : 0
+    exit 2
+}
+abort() {
+    exit_code=$?
+    # Kill the tail command silently before exiting
+    if [ -n "${tail_pid}" ]; then
+        exec 3>&2
+        exec 2>/dev/null
+        kill -SIGKILL ${tail_pid} >/dev/null 2>&1 || :
+        sleep 0.1
+        exec 2>&3
+        exec 3>&-
+    fi
+    colorprint "An error occurred while using the \"$(basename "${this_file}")\" utility!" "red"
+    exit ${exit_code}
+}
+if [ "${called_from_concept}" == "True" ]; then
+    trap 'ctrl_c' SIGINT
+    trap 'abort' EXIT
+    set -e
+fi
+
+# Use Python's argparse module to handle command-line arguments
+jobid_unspecified="__none__"
+argparse_finished="False"
+argparse_exit_code=""
+args=$("${python}" -B -c "
+import argparse, sys
+# Setup command-line arguments
+parser = argparse.ArgumentParser(
+    prog='$(basename "${this_file}")',
+    description='Run the ${esc_concept} $(basename "${this_file}") utility',
+)
+parser.add_argument(
+    'jobid',
+    default='${jobid_unspecified}',
+    help='job ID or name of the submitted ${esc_concept} Slurm or TORQUE/PBS job to watch',
+    nargs='?',
+)
+# Enables Python to write directly to screen (stderr)
+# in case of help request.
+stdout_copy = sys.stdout
+sys.stdout = sys.stderr
+# Now do the actual argument parsing,
+# including writing out the help message.
+if '${called_from_concept}' == 'True':
+    # Called from concept - Throw exception on illegal args
+    args = parser.parse_args()
+else:
+    # Called directly - Allow what appears to be illegal args
+    # (these might be known to the concept script).
+    args, unknown_args = parser.parse_known_args()
+# Reset stdout
+sys.stdout = stdout_copy
+# Print out the arguments.
+# These will be captured in the Bash 'args' variable.
+print('argparse_finished=True')
+print('jobid=\"{}\"'.format(args.jobid))
+" "$@" || echo "argparse_exit_code=$?")
+# Evaluate the handled arguments into this scope
+eval "${args}"
+# Exit if argparse exited without finishing
+if [ "${argparse_finished}" != "True" ]; then
+    if [ -z "${argparse_exit_code}" ]; then
+        argparse_exit_code=0
+    fi
+    if [ ${argparse_exit_code} -eq 0 ]; then
+        trap : 0
+    fi
+    exit ${argparse_exit_code}
+fi
+
+# If not called indirectly through the concept script,
+# call the concept script now.
+if [ "${called_from_concept}" != "True" ]; then
+    "${concept}" -u="${this_file}" "$@"
+    trap : 0
+    exit 0
+fi
+
+# Exit if this script is not run remotely via ssh
+if [ "${ssh}" != "True" ]; then
+    colorprint "Error: Cannot watch remote job as you are working on a local machine" "red"
+    exit 1
+fi
+
+# Detect what resource manager is used
+resource_manager="$(get_resource_manager)"
+if [ -z "${resource_manager}" ]; then
+    colorprint "Error: No resource manager found" "red"
+    exit 1
+fi
+# Resource manager dependent setup
+if [ "${resource_manager}" == "slurm" ]; then
+    # Slurm is used. Check for the squeue command.
+    info_command="squeue"
+    if ! get_command "${info_command}" >/dev/null; then
+        colorprint "Error: Could not find the slurm '${info_command}' command" "red"
+        exit 1
+    fi
+    # Function which lists information about all jobs in standard
+    # PBS format (jobid, jobname, username, time, state, queue).
+    get_info() {
+        ${info_command} --format='%i %j %u %M %t %P'
+    }
+    # State designating a running job
+    state_running="R"
+elif [ "${resource_manager}" == "torque" ]; then
+    # Torque/PBS is used. Check for the qstat command.
+    info_command="qstat"
+    if ! get_command "${info_command}" >/dev/null; then
+        colorprint "Error: Could not find the torque/PBS '${info_command}' command" "red"
+        exit 1
+    fi
+    # Function which lists information about all jobs in standard
+    # PBS format (jobid, jobname, username, time, state, queue).
+    get_info() {
+        ${info_command}
+    }
+    # State designating a running job
+    state_running="R"
+else
+    colorprint "Error: Unrecognised resource manager \"${resource_manager}\"" "red"
+    exit 1
+fi
+
+# Value given to the job state when the job has not been found
+state_notexist="None"
+
+# Get the name of the current user.
+# As at least some PBS implementations enforce a
+# maximum user name length of 15 characters,
+# truncate the user name to 15 characters.
+username="$(whoami)"
+username="${username:0:15}"
+
+# Function that update the state variable
+update_job_info() {
+    # Reset the state variable
+    state="${state_notexist}"
+    # Acquire information about submitted jobs.
+    # Revert the output so that the newest jobs are in the top.
+    info="$(get_info | grep "${jobid}" | tac)"
+    if [ -z "${info}" ]; then
+        # The job ID was not found amongst submitted jobs
+        return
+    fi
+    # Iterate through the output
+    Njobs=0
+    while read -r line; do
+        jobid_line="$(echo "${line}" | awk '{print $1}')"
+        jobid_line="${jobid_line%.*}"
+        jobname_line="$(echo "${line}" | awk '{print $2}')"
+        if [ "${jobid_line}" == "${jobid}" ]; then
+            # Submitted job with matching job ID found
+            username_line="$(echo "${line}" | awk '{print $3}')"
+            username_line="${username_line:0:15}"
+            if [ "${username_line}" != "${username}" ]; then
+                colorprint "Job ${jobid} does not belong to you" "red"
+                exit 1
+            fi
+            jobname="${jobname_line}"
+            state="$(echo "${line}" | awk '{print $5}')"
+            queue="$(echo "${line}" | awk '{print $6}')"
+            break
+        fi
+        # Perhaps the specified job ID is really the job name
+        if [ "${jobname_line}" == "${jobid}" ]; then
+            username_line="$(echo "${line}" | awk '{print $3}')"
+            username_line="${username_line:0:15}"
+            if [ "${username_line}" == "${username}" ]; then
+                ((Njobs += 1))
+                jobid_i="${jobid_line}"
+                state_i="$(echo "${line}" | awk '{print $5}')"
+                queue_i="$(echo "${line}" | awk '{print $6}')"
+                # Accept job if it is the first, or if it is running
+                # while the previous candidate is not, or if it is running
+                # and newer than the previous candidate,
+                # or if it is newer than the previous candidate
+                # and none of them are running.
+                if [ ${Njobs} -eq 1 ] \
+                    || ([ "${state_i}" == "${state_running}" ] && \
+                           ([ "${state}" != "${state_running}" ] || [ ${jobid_i} -gt ${jobid_candidate} ])) \
+                    || ([ "${state}" != "${state_running}" ] && [ ${jobid_i} -gt ${jobid_candidate} ]) \
+                ; then
+                    jobid_candidate="${jobid_i}"
+                    state_candidate="${state_i}"
+                    queue_candidate="${queue_i}"
+                fi
+            fi
+        fi
+    done <<< "${info}"
+    # If the specified job ID was really the job name,
+    # promote the above candidate to the actual job.
+    # This overwrites jobid with the actual job ID.
+    if [ "${state}" == "${state_notexist}" ] && [ ${Njobs} -ge 1 ]; then
+        jobname="${jobid}"
+        jobid="${jobid_candidate}"
+        state="${state_candidate}"
+        queue="${queue_candidate}"
+        if [ ${Njobs} -gt 1 ]; then
+            printf "Found ${Njobs} submitted jobs named \"${jobname}\" submitted\n"
+            if [ "${state}" == "${state_running}" ]; then
+                echo "The latest running job (${jobid}) will be watched"
+            else
+                echo "The latest job (${jobid}) will be watched"
+            fi
+        fi
+    fi
+}
+
+# Function for printing out an entire log file,
+# though with the middle part removed for large logs.
+display() {
+    filename="${1}"
+    nlines=$(wc -l "${filename}" | awk '{print $1}')
+    max_nlines_to_display=200
+    if [ ${nlines} -gt ${max_nlines_to_display} ]; then
+        ((nlines_to_display_half = max_nlines_to_display/2))
+        head -n ${nlines_to_display_half} "${filename}"
+        printf "\n.\n.\n.\n\n"
+        tail -n ${nlines_to_display_half} "${filename}"
+    else
+        cat "${filename}"
+    fi
+}
+
+# If the job ID was not given as an argument, find the CO𝘕CEPT job
+# which were submitted last. If an argument (the job ID) is given,
+# find information about the job.
+if [ "${jobid}" == "${jobid_unspecified}" ]; then
+    # Acquire information about all submitted jobs
+    info="$(get_info | grep "${username}" || :)"
+    # Find all submitted CO𝘕CEPT jobs.
+    # Keep only the latest, running job.
+    Njobs=0
+    while read -r line; do
+        username_line="$(echo "${line}" | awk '{print $3}')"
+        username_line="${username_line:0:15}"
+        if [ "${username_line}" != "${username}" ]; then
+            continue
+        fi
+        jobname="$(echo "${line}" | awk '{print $2}')"
+        # Only count job as a CO𝘕CEPT job if its name
+        # is the default CO𝘕CEPT job name.
+        if [ "${jobname}" != "${jobname_default}" ]; then
+            continue
+        fi
+        # Submitted CO𝘕CEPT job found
+        ((Njobs += 1))
+        # Accept job if it is the first, or if it is running
+        # while the previous candidate is not, or if it is running
+        # and newer than the previous candidate,
+        # or if it is newer than the previous candidate
+        # and none of them are running.
+        jobid_i="$(echo "${line}" | awk '{print $1}')"
+        jobid_i="${jobid_i%.*}"
+        state_i="$(echo "${line}" | awk '{print $5}')"
+        queue_i="$(echo "${line}" | awk '{print $6}')"
+        if [ ${Njobs} -eq 1 ] \
+            || ([ "${state_i}" == "${state_running}" ] && \
+                ([ "${state}" != "${state_running}" ] || [ ${jobid_i} -gt ${jobid} ])) \
+            || ([ "${state}" != "${state_running}" ] && [ ${jobid_i} -gt ${jobid} ]) \
+        ; then
+            jobid="${jobid_i}"
+            state="${state_i}"
+            queue="${queue_i}"
+        fi
+    done <<< "${info}"
+    # Remove possible suffix on job ID
+    jobid="${jobid%.*}"
+    # Print out message for Njobs != 1
+    if [ ${Njobs} -eq 0 ]; then
+        colorprint "Error: Could not find any submitted ${esc_concept} jobs" "red"
+        exit 1
+    elif [ ${Njobs} -gt 1 ]; then
+        printf "Found ${Njobs} submitted ${esc_concept} jobs\n"
+        if [ "${state}" == "${state_running}" ]; then
+            echo "The latest running job (${jobid}) will be watched"
+        else
+            echo "The latest job (${jobid}) will be watched"
+        fi
+    fi
+else
+    # Parse passed job ID
+    jobid="${jobid%.*}"  # remove possible suffix
+    if [ "${jobid}" == "${jobname_default}" ]; then
+        # Passed job ID is really the job name
+        :
+    elif [ -f "${job_dir}/${jobid}/log" ]; then
+        jobid="${jobid}"
+    elif [ -f "${jobid}" ] || [ -f "${job_dir}/${jobid}" ]; then
+        jobid="$(basename "$(dirname "${jobid}")")"
+    elif [ -f "${jobid}/log" ]; then
+        jobid="$(basename "${jobid}")"
+    fi
+    jobid="$(basename "${jobid}")"
+    update_job_info
+    if [ "${state}" == "${state_notexist}" ]; then
+        # Job not in progress
+        if [ -f "${job_dir}/${jobid}/log" ]; then
+            display "${job_dir}/${jobid}/log"
+            trap : 0
+            exit 0
+        else
+            colorprint "Error: Job ${jobid} is not running and no matching log file found" "red"
+            exit 1
+        fi
+    fi
+fi
+
+# Function for printing changes to the job state
+state_last=""
+inform_on_new_state() {
+    if [ "${state}" != "${state_last}" ]; then
+        if [ "${resource_manager}" == "slurm" ]; then
+            case "${state}" in
+                "BF") echo "Job ${jobid} terminated due to launch failure";;
+                "CA") echo "Job ${jobid} was explicitly cancelled";;
+                "CD") echo "Job ${jobid} is completed after having run";;
+                "CF") echo "Job ${jobid} is configuring resources";;
+                "CG") echo "Job ${jobid} is exiting after having run";;
+                "F" ) echo "Job ${jobid} terminated due to an error";;
+                "NF") echo "Job ${jobid} terminated due to failure of one or more nodes";;
+                "PD") echo "Job ${jobid} is queued in ${queue}";;
+                "PR") echo "Job ${jobid} terminated due to preemption";;
+                "R" ) echo "Job ${jobid} is running in ${queue}";;
+                "SE") echo "Job ${jobid} was re-queued in a special state";;
+                "ST") echo "Job ${jobid} has stopped with the SIGSTOP signal";;
+                "S" ) echo "Job ${jobid} has been suspended";;
+                "TO") echo "Job ${jobid} was terminated upon reaching its time limit";;
+ "${state_notexist}") echo "Job ${jobid} has finished running";;
+                ""  ) echo "Job ${jobid} is in an unspecified state";;
+                *   ) echo "Job ${jobid} is in the unknown state \"${state}\"";;
+            esac
+        elif [ "${resource_manager}" == "torque" ]; then
+            case "${state}" in
+                "C") echo "Job ${jobid} is completed after having run";;
+                "E") echo "Job ${jobid} is exiting after having run";;
+                "H") echo "Job ${jobid} is held";;
+                "Q") echo "Job ${jobid} is queued in ${queue}";;
+                "R") echo "Job ${jobid} is running in ${queue}";;
+                "T") echo "Job ${jobid} is being moved to a new location";;
+                "W") echo "Job ${jobid} is waiting for its executing time to be reached";;
+                "S") echo "Job ${jobid} is suspend";;
+"${state_notexist}") echo "Job ${jobid} has finished running";;
+                "" ) echo "Job ${jobid} is in an unspecified state";;
+                *  ) echo "Job ${jobid} is in the unknown state \"${state}\"";;
+            esac
+        fi
+        state_last="${state}"
+    fi
+}
+
+# Function for checking if the job suddenly finished.
+# Do not call this function after beginning reading the log file.
+check_suddenly_finished() {
+    update_job_info
+    inform_on_new_state
+    # If the job is already finished, printout the entire log and exit
+    if [ "${state}" == "C" ] || [ "${state}" == "${state_notexist}" ]; then
+        if [ -f "${job_dir}/${jobid}/log" ]; then
+            display "${job_dir}/${jobid}/log"
+            trap : 0
+            exit 0
+        else
+            echo "Job ${jobid} has finished running, but no log file is to be found" >&2
+            if [ "${jobname}" != "${jobname_default}" ]; then
+                printf "Are you certain that job ${jobid} was a ${esc_concept} job?\n" >&2
+            fi
+            exit 1
+        fi
+    fi
+}
+
+# Print initial state of job
+inform_on_new_state
+
+# Wait until job is running, using exponential backoff
+sleep_barely=5
+sleep_little=30
+sleep_much=300
+if [ "${state}" != "${state_running}" ]; then
+    check_suddenly_finished
+    slept=0
+    while [ ${slept} -lt $((2*sleep_little)) ]; do
+        if [ "${state}" == "${state_running}" ]; then
+            break
+        fi
+        sleep ${sleep_barely}
+        ((slept += ${sleep_barely}))
+        check_suddenly_finished
+    done
+    slept=0
+    while [ ${slept} -lt $((2*sleep_much)) ]; do
+        if [ "${state}" == "${state_running}" ]; then
+            break
+        fi
+        sleep ${sleep_little}
+        ((slept += ${sleep_little}))
+        check_suddenly_finished
+    done
+    while [ "${state}" != "${state_running}" ] ; do
+        sleep ${sleep_much}
+        check_suddenly_finished
+    done
+fi
+state_last="${state_running}"
+
+# Job running. Wait for log file to be created.
+if [ ! -f "${job_dir}/${jobid}/log" ]; then
+    sleep ${sleep_barely}
+fi
+slept=0
+message_printed="False"
+while [ ! -f "${job_dir}/${jobid}/log" ]; do
+    sleep ${sleep_little}
+    ((slept += ${sleep_little}))
+    # After having slept for a long time, check that the job
+    # has not just finished without producing a log file.
+    if [ ${slept} -ge ${sleep_much} ]; then
+        check_suddenly_finished
+        slept=0
+        if [ "${message_printed}" == "False" ]; then
+            echo "Can't find log file of job ${jobid}" >&2
+            if [ "${jobname}" != "${jobname_default}" ]; then
+                printf "Are you certain that job ${jobid} is a ${esc_concept} job?\n" >&2
+            fi
+            message_printed="True"
+        fi
+    fi
+done
+
+# Log file created. Continuously print out its tail until end of job
+display "${job_dir}/${jobid}/log"
+tail -n 0 -f -s ${sleep_barely} "${job_dir}/${jobid}/log" &
+tail_pid=$!
+update_job_info
+inform_on_new_state
+slept=0
+if [ "${state}" != "${state_notexist}" ]; then
+    # Wait a small time before re-querying the job state
+    sleep ${sleep_little}
+    update_job_info
+    inform_on_new_state
+    while [ "${state}" != "${state_notexist}" ]; do
+        # Wait a long time before re-querying the job state
+        if [ ${slept} -gt ${sleep_much} ]; then
+            sleep ${sleep_much}
+            ((slept += ${sleep_much}))
+        else
+            sleep ${sleep_little}
+            ((slept += ${sleep_little}))
+        fi
+        update_job_info
+        inform_on_new_state
+    done
+fi
+
+# Kill the tail command silently before exiting
+if [ -n "${tail_pid}" ]; then
+    sleep ${sleep_little}
+    exec 3>&2
+    exec 2>/dev/null
+    kill -SIGKILL ${tail_pid} >/dev/null 2>&1 || :
+    sleep 0.1
+    exec 2>&3
+    exec 3>&-
+fi
+
+# Exit gracefully
+trap : 0

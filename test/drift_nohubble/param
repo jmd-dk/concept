@@ -1,0 +1,11 @@
+# Input/output
+initial_conditions = f'{param.dir}/ic.hdf5'
+output_dirs        = {'snapshot': f'{param.dir}/output'}
+output_bases       = {'snapshot': 'snapshot'}
+output_times       = {'t': {'snapshot': 5*Gyr}}
+
+# Numerical parameters
+boxsize = 16*Mpc
+
+# Debugging options
+enable_Hubble = False

@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+
+# This script performs a kick test of the CO𝘕CEPT (PP) code, by comparison
+# with GADGET-2 (TreePM). Initial conditions are generated, containing 8
+# particles placed symmetrically so that a force only exist in the
+# x-direction. The particles start out with zero velocity.
+
+# Absolute path and name of the directory of this file
+this_dir="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
+this_test="$(basename "${this_dir}")"
+
+# Set up error trapping
+ctrl_c() {
+    trap : 0
+    exit 2
+}
+abort() {
+    exit_code=$?
+    colorprint "An error occurred during ${this_test} test!" "red"
+    exit ${exit_code}
+}
+trap 'ctrl_c' SIGINT
+trap 'abort' EXIT
+set -e
+
+# Cleanup from last test run
+"${this_dir}/clean"
+
+# Generate initial conditions
+"${concept}" -n 1 -p "${this_dir}/param" -m "${this_dir}/gen_ic.py" \
+    --pure-python --local
+
+# Run the CO𝘕CEPT code on the generated initial conditions
+"${concept}" -n 1 -p "${this_dir}/param" --local
+
+# Run the GADGET code on the generated initial conditions
+Gadget2_local_dir="${this_dir}/Gadget2"
+mkdir -p "${Gadget2_local_dir}"
+cp "${Gadget2_dir}/"* "${Gadget2_local_dir}" 2>/dev/null || :
+for suffix in "64" "64_dbl"; do
+    # Remove tabulated Ewald grid
+    rm -f "${Gadget2_local_dir}/ewald_spc_table_${suffix}.dat"
+done
+
+"${concept}" -u gadget "${Gadget2_local_dir}" -p "${this_dir}/param"
+(                                        \
+    cd "${Gadget2_local_dir}"            \
+    && make clean                        \
+    && make                              \
+    && "${mpiexec}" -n 1 ./Gadget2 param \
+)
+
+# Analyse the output snapshots
+"${concept}" -n 1 -p "${this_dir}/param" -m "${this_dir}/analyze.py" \
+    --pure-python --local
+
+# Test ran successfully. Deactivate traps.
+trap : 0

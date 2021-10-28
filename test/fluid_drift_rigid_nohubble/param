@@ -1,0 +1,28 @@
+# Input/output
+initial_conditions = f'{param.dir}/ic.hdf5'
+output_dirs        = {'snapshot': f'{param.dir}/output'}
+output_bases       = {'snapshot': 'snapshot'}
+output_times       = {
+    'snapshot': linspace(0, 4*Gyr, 5),
+    'render2D': linspace(0, 4*Gyr, 26),
+}
+render2D_select = {'matter': {'terminal image': True}}
+
+# Numerical parameters
+boxsize = 64*Mpc
+
+# Cosmology
+t_begin = 0
+
+# Physics
+select_eos_w             = {'matter': 'default'}
+select_boltzmann_closure = {'matter': 'truncate'}
+select_approximations    = {'matter': {'P=wρ': True}}
+
+# Graphics
+render2D_options = {
+    'enhance': False,
+}
+
+# Debugging options
+enable_Hubble = False

@@ -1,0 +1,100 @@
+#!/usr/bin/env bash
+
+# This script tests CO𝘕CEPT by running it several times over on the same
+# initial particle configuration, but stored across a different number of
+# particle components. Additionally the simulations are performed using
+# various numbers of processes.
+# This test contains two separate subtests, one which uses non-periodic PP
+# gravity (domain) and one which uses P³M gravity (tile):
+# - Domain: 6 particles are initialized placed in a spherically symmetric
+#   configuration with zero momenta, and so we expect a spherically symmetric
+#   collapse.
+# - Tile: 12³ particles are placed in a cubic lattice. The box is divided into
+#   6³ tiles. The particles start out with zero momenta, and should thus
+#   remain static during time evolution.
+
+# Absolute path and name of the directory of this file
+this_dir="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
+this_test="$(basename "${this_dir}")"
+
+# Set up error trapping
+ctrl_c() {
+    trap : 0
+    exit 2
+}
+abort() {
+    exit_code=$?
+    colorprint "An error occurred during ${this_test} test!" "red"
+    exit ${exit_code}
+}
+trap 'ctrl_c' SIGINT
+trap 'abort' EXIT
+set -e
+
+# Cleanup from last test run
+"${this_dir}/clean"
+
+
+
+##################
+# Domain subtest #
+##################
+subtest="domain"
+ncomponents_values=(1 2 3 4 7)
+nprocs_values=(1 2 3 5 7)
+
+# Generate initial conditions
+for ncomponents in ${ncomponents_values[@]}; do
+    "${concept}" -n 1 -p "${this_dir}/param" -c "_subtest = '${subtest}'"  \
+        -c "_ncomponents = ${ncomponents}" -m "${this_dir}/gen_ic.py" \
+        --pure-python --local
+done
+
+# Run the CO𝘕CEPT code on the generated initial conditions
+for ncomponents in ${ncomponents_values[@]}; do
+    for nprocs in ${nprocs_values[@]}; do
+        "${concept}" -n ${nprocs} -p "${this_dir}/param" \
+            -c "_subtest = '${subtest}'"                 \
+            -c "_ncomponents = ${ncomponents}" --local
+    done
+done
+
+
+
+################
+# Tile subtest #
+################
+subtest="tile"
+ncomponents_values=(1 2 5)
+nprocs_values=(1 2 4)
+subtiling_values=(1 2 3)
+
+# Generate initial conditions
+for ncomponents in ${ncomponents_values[@]}; do
+    "${concept}" -n 1 -p "${this_dir}/param" -c "_subtest = '${subtest}'" \
+        -c "_ncomponents = ${ncomponents}" -c "_subtiling = 1"            \
+        -m "${this_dir}/gen_ic.py" --pure-python --local
+done
+
+# Run the CO𝘕CEPT code on the generated initial conditions
+for ncomponents in ${ncomponents_values[@]}; do
+    for nprocs in ${nprocs_values[@]}; do
+        for subtiling in ${subtiling_values[@]}; do
+            "${concept}" -n ${nprocs} -p "${this_dir}/param"                    \
+                -c "_subtest = '${subtest}'" -c "_ncomponents = ${ncomponents}" \
+                -c "_subtiling = ${subtiling}" --local
+        done
+    done
+done
+
+
+
+###############################################
+# Analyse output snapshots from both subtests #
+###############################################
+"${concept}" -n 1 -p "${this_dir}/param" -c "_subtest = 'domain'" \
+    -c "_ncomponents = 1" -m "${this_dir}/analyze.py" --pure-python --local
+
+# Test ran successfully. Deactivate traps.
+trap : 0
+

@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+
+# This script performs a drift test of a fluid with a spatially
+# homogeneous velocity field. Neither gravity nor Hubble expansion is enabled.
+
+# Absolute path and name of the directory of this file
+this_dir="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
+this_test="$(basename "${this_dir}")"
+
+# Set up error trapping
+ctrl_c() {
+    trap : 0
+    exit 2
+}
+abort() {
+    exit_code=$?
+    colorprint "An error occurred during ${this_test} test!" "red"
+    exit ${exit_code}
+}
+trap 'ctrl_c' SIGINT
+trap 'abort' EXIT
+set -e
+
+# Cleanup from last test run
+"${this_dir}/clean"
+
+# Generate initial conditions
+"${concept}" -n 1 -p "${this_dir}/param" -m "${this_dir}/gen_ic.py" \
+    --pure-python --local
+
+# Run the CO𝘕CEPT code on the fluid initial conditions
+"${concept}" -n 1 -p "${this_dir}/param" --local
+
+# Play the 2D terminal renders in the log file as an animation
+"${concept}" -u play
+
+# Analyse the output snapshots
+"${concept}" -n 1 -p "${this_dir}/param" -m "${this_dir}/analyze.py" \
+    --pure-python --local
+
+# Test ran successfully. Deactivate traps.
+trap : 0

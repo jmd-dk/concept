@@ -1,0 +1,399 @@
+# This example CO𝘕CEPT parameter file showcases the vast majority
+# of available parameters, and as so is much larger than typical
+# parameter files. It is recommended to study the other example
+# parameter files prior to this one.
+
+
+# Non-parameter variable used to control the size of the simulation
+_size = 64
+
+# Input/output
+initial_conditions = [  # Initial condition snapshot file or container of components to be generated
+    # Matter component
+    {
+        'species': 'matter',
+        'N'      : _size**3,
+    },
+    # Neutrino component
+    {
+        'species'          : 'neutrino',
+        'gridsize'         : _size,
+        'boltzmann order'  : 1,
+        'boltzmann closure': 'class',
+    },
+]
+output_dirs = {  # Directories for storing output
+    'snapshot' : paths['output_dir'] + f'/{param}',
+    'powerspec': ...,
+    'render2D' : ...,
+    'render3D' : ...,
+    'autosave' : paths['ic_dir'],
+}
+output_bases = {  # File basenames of output
+    'snapshot' : 'snapshot',
+    'powerspec': 'powerspec',
+    'render2D' : 'render2D',
+    'render3D' : 'render3D',
+}
+output_times = {
+    'a': {  # Scale factor values at which to dump output
+        'snapshot' : linspace(a_begin, 1, 4),
+        'powerspec': ...,
+        'render2D' : 1,
+        'render3D' : [a_begin, 1],
+    },
+    't': {  # Cosmic times at which to dump output
+        'snapshot' : '',
+        'powerspec': '',
+        'render2D' : '',
+        'render3D' : '',
+     },
+}
+autosave_interval = 12*hr  # How often to dump autosave snapshot
+snapshot_select = {  # Select which components to save to and load from snapshots
+    'save': {
+        'all': True,
+    },
+    'load': {
+        'all': True,
+    },
+}
+powerspec_select = {  # Toggle power spectra computation for individual and sets of components
+    'all'             : {'data': True, 'linear': True, 'plot': True},
+    'all combinations': {'data': True, 'linear': True, 'plot': False},
+}
+render2D_select = {  # Toggle 2D rendering for individual and sets of components
+    'matter'  : {'data': False, 'image': True,  'terminal image': True},
+    'neutrino': {'data': False, 'image': False, 'terminal image': False},
+}
+render3D_select = {  # Toggle rendering for each component
+    'all': True,
+}
+snapshot_type = 'concept'  # Type of output snapshots
+gadget_snapshot_params = {  # Specifications for output GADGET snapshots
+    'snapformat': 2,  # GADGET snapshot format
+    'dataformat': {   # Data type sizes
+        'POS': 32,
+        'VEL': 32,
+        'ID' : 'automatic',
+    },
+    'Nall high word': 'NallHW',  # Place to store high word part of Nall
+    'header': {},                # Header field values
+    'units': {                   # Unit system used when reading/writing Gadget snapshots
+        'length'  : 'kpc/h',
+        'velocity': 'km/s',
+        'mass'    : '10¹⁰ m☉/h',
+    },
+    'settle': 0,                 # Settle for one or the other reported block sizes in case of disagreement
+}
+snapshot_wrap = False  # Wrap particles around the box upon snapshot read-in, allowing for out of bounce particles
+life_output_order = (  # Ordering of component activations/terminations relative to output dumps
+    'terminate', 'activate', 'dump',
+)
+class_plot_perturbations = False  # Plot CLASS perturbations?
+class_extra_background = {}       # Extra CLASS background variables to dump
+class_extra_perturbations = {}    # Extra CLASS perturbations to dump
+
+# Numerical parameters
+boxsize = 256*Mpc/h  # Linear size of the simulation box
+potential_options = {  # Specifications for potential computations
+    'gridsize': {  # Linear potential grid size
+        'global': {  # Common, global grid size
+            'gravity': {
+                'pm' :   _size,
+                'p3m': 2*_size,
+            },
+        },
+        # Component specific upstream and downstream grid sizes
+        'matter': {
+            'gravity': {
+                'p3m': (2*_size, 2*_size),
+            },
+        },
+        'neutrino': {
+            'gravity': {
+                'pm': _size,
+            },
+        },
+    },
+    'interpolation': {  # Particle interpolation order
+        'gravity': {
+            'pm' : 'CIC',
+            'p3m': 'CIC',
+        },
+    },
+    'deconvolve': {  # Perform upstream and/or downstream deconvolution of particles?
+        'gravity': {
+            'pm' : (True, True),
+            'p3m': (True, True),
+        },
+    },
+    'interlace': {  # Use interlaced grids for particles?
+        'gravity': {
+            'pm' : False,
+            'p3m': False,
+        },
+    },
+    'differentiation': {  # Finite central difference order
+        'all': {
+            'gravity': {
+                'pm' : 2,
+                'p3m': 4,
+            },
+        },
+    },
+}
+ewald_gridsize = 64  # Linear grid size of the grid of Ewald corrections
+shortrange_params = {  # Short-range force parameters for each short-range force
+    'gravity': {
+        'scale'    : '1.25*boxsize/gridsize',  # The long/short-range force split scale
+        'range'    : '4.5*scale',              # Maximum reach of short-range force
+        'subtiling': 'automatic',              # Subtile decomposition
+        'tablesize': 2**12,                    # Size of tabulation of short-range forces
+    },
+}
+powerspec_options = {  # Specifications of power spectra for individual and sets of components
+    'upstream gridsize': {  # Linear upstream grid sizes
+        'particles': '2*cbrt(N)',
+        'fluid'    : 'gridsize',
+    },
+    'global gridsize': {  # Linear global grid sizes
+        'default': -1,
+    },
+    'interpolation': {  # Particle interpolation order
+        'default': 'PCS',
+    },
+    'deconvolve': {  # Perform deconvolution of particles?
+        'default': True,
+    },
+    'interlace': {  # Use interlaced grids for particles?
+        'default': True,
+    },
+    'k_max': {  # Maximum frequency to include
+        'default': 'Nyquist',
+    },
+    'binsize': {  # Linear width of each power spectrum bin
+        'default': {
+            '1*k_min': 1*π/boxsize,
+            '5*k_min': 2*π/boxsize,
+        },
+    },
+    'tophat': {  # Radius of tophat used to compute rms density variation
+        'default': 8*Mpc/h,
+    },
+    'significant figures': {  # Number of significant figures in output
+        'default': 8,
+    },
+}
+k_modes_per_decade = {  # Number of k modes per decade in CLASS computations
+    3e-3/Mpc: 10,
+    3e-2/Mpc: 30,
+    3e-1/Mpc: 30,
+    1   /Mpc: 10,
+}
+
+# Cosmology
+H0 = 67*km/(s*Mpc)  # The Hubble constant
+Ωb = 0.049          # Density parameter for baryonic matter
+Ωcdm = 0.27 - Ων    # Density parameter for cold dark matter
+a_begin = 0.02      # Scale factor at beginning of simulation
+primordial_spectrum = {  # Parameters for the analytic primordial spectrum
+    'A_s'  : 2.1e-9,    # Amplitude
+    'n_s'  : 0.96,      # Tilt / spectral index
+    'α_s'  : 0,         # Tilt running
+    'pivot': 0.05/Mpc,  # Pivot scale
+}
+class_params = {  # CLASS parameters. See the CLASS documentation for details.
+    # Use a 3-times degenerate neutrino hierarchy
+    'N_ur'    : 0,  # No massless neutrinos
+    'N_ncdm'  : 1,
+    'deg_ncdm': 3,
+    'm_ncdm'  : 0.5/3,  # Σmν = 0.5 eV
+    # Massive neutrino precision parameters
+    'l_max_ncdm'              : 200,
+    'Number of momentum bins' : 30,
+    'Quadrature strategy'     : 2,
+    'ncdm_fluid_approximation': 3,
+    # General precision parameters
+    'evolver': 0,
+}
+
+# Physics
+select_forces = {  # Forces and methods which act on each component
+    'particles': {'gravity': 'p3m'},
+    'fluid'    : {'gravity': 'pm'},
+}
+select_species = {  # Species of components
+    'default': 'matter',
+}
+select_eos_w = {  # Equation of state parameter w for each component
+    'all': 'class',
+}
+select_boltzmann_order = {  # Boltzmann order for each component
+    'all': 1,
+}
+select_boltzmann_closure = {  # Closure rule for the Boltzmann hierarchy for each component
+    'all': 'class',
+}
+select_realization_options = {  # Realization options for each component and variable
+    'all': {
+        # Particle variables
+        'pos': {
+            'interpolation': 'CIC',
+            'back-scaling' : False,
+        },
+        'mom': {
+            'interpolation'                : 'CIC',
+            'back-scaling'                 : False,
+            'velocities from displacements': False,
+        },
+        # Fluid variables
+        'ϱ': {
+            'back-scaling': False,
+        },
+        'J': {
+            # Linear realization options
+            'back-scaling': False,
+            # Non-linear realization options
+            'structure'     : 'primordial',
+            'compound-order': 'linear',
+        },
+        '𝒫': {
+            # Linear realization options
+            'back-scaling': False,
+            # Non-linear realization options
+            'structure': 'non-linear',
+        },
+        'ς': {
+            # Linear realization options
+            'back-scaling': False,
+            # Non-linear realization options
+            'structure'     : 'non-linear',
+            'compound-order': 'non-linear',
+        },
+    },
+}
+select_lives = {  # Time (scale factor value) of birth and death for each component
+    'all': (0, inf),
+}
+select_approximations = {  # Toggle approximations for each component
+    'all': {
+        'P = wρ': False,
+    },
+}
+softening_kernel = 'spline'  # Gravitational softening kernel to use
+select_softening_length = {  # Gravitational softening length for each component
+    'particles': '0.03*boxsize/cbrt(N)',
+}
+
+# Simulation options
+Δt_base_background_factor = 1       # This scales the 'background' time step limiters
+Δt_base_nonlinear_factor = 1        # This scales the 'non-linear' time step limiters
+Δt_increase_max_factor = inf        # The maximum factor by which Δt is allowed to increase
+Δt_rung_factor = 1                  # This scales the rung time step size needed for a given short-range acceleration
+Δa_max_early = 0.00153              # Maximum allowed change in scale factor over early time steps
+Δa_max_late = 0.022                 # Maximum allowed change in scale factor over late time steps
+static_timestepping = None          # File to write/read static time-stepping information to/from
+N_rungs = 8                         # Number of available rungs for adaptive time stepping
+fftw_wisdom_rigor = 'measure'       # Rigour level when acquiring FFTW wisdom
+fftw_wisdom_reuse = True            # Reuse FFTW wisdom from earlier runs?
+fftw_wisdom_share = False           # Share FFTW wisdom across nodes?
+random_generator = 'PCG64DXSM'      # Pseudo-random number generator to use
+random_seed = 0                     # Seed for pseudo-random numbers
+primordial_amplitude_fixed = False  # Replace Gaussian noise with noise of fixed amplitude and uniform random phase?
+primordial_phase_shift = 0          # Phase shift when using fixed amplitude (set to π for paired simulations)
+cell_centered = True                # Use cell centre (as opposed to vertex) locations for grid variables?
+fourier_structure_caching = {       # Cache and reuse primordial and component-specific Fourier grids?
+    'primordial': True,
+    'all'       : True,
+}
+fluid_scheme_select = {             # Fluid evolution scheme for each component
+    'all': 'MacCormack',
+}
+fluid_options = {  # Specifications of fluid scheme parameters
+    'MacCormack': {
+        'vacuum_corrections_select': {  # Toggle vacuum corrections
+            'all': True,
+        },
+        'max_vacuum_corrections_select': {  # Max number of vacuum corrections in the two MacCormack steps
+            'all': (1, 'gridsize'),
+        },
+        'foresight_select': {  # Number of time steps to look ahead when doing vacuum corrections
+            'all': 25,
+        },
+        'smoothing_select': {  # Amount of smoothing to apply when doing vacuum correction
+            'all': 1.0,
+        },
+    },
+    'Kurganov-Tadmor': {
+        'Runge-Kutta order': {  # Order of time integration
+            'all': 2,
+        },
+        'flux_limiter_select': {  # Flux limiter function
+            'all': 'mc',
+        },
+    },
+}
+class_k_max = {}                # Maximum trusted k for individual perturbations
+class_reuse = True              # Reuse CLASS results from earlier runs?
+
+# Graphics
+terminal_width = 80                # Maximum width of terminal output, in characters
+enable_terminal_formatting = True  # Use formatted terminal output (e.g. colours)
+suppress_output = {                # Suppress terminal output matching these regexes
+    'out': (),
+    'err': (),
+    'all': (),
+}
+render2D_options = {  # Specifications of 2D renders for individual and sets of components
+    'upstream gridsize': {  # Linear upstream grid sizes
+        'particles': 'cbrt(N)',
+        'fluid'    : 'gridsize',
+    },
+    'global gridsize': {  # Linear global grid sizes
+        'default': -1,
+    },
+    'terminal resolution': {  # Resolution (in characters) of terminal images
+        'default': -1,
+    },
+    'interpolation': {  # Particle interpolation order
+        'default': 'PCS',
+    },
+    'deconvolve': {  # Perform deconvolution for particles?
+        'default': False,
+    },
+    'interlace': {  # Use interlaced grids for particles?
+        'default': False,
+    },
+    'axis': {  # Projection axis
+        'default': 'z',
+    },
+    'extent': {  # Interval to include along the projected axis
+        'default': (0, 0.1*boxsize),
+    },
+    'colormap': {  # Colormap for 2D render images and terminal images
+        'default': 'inferno',
+    },
+    'enhance': {  # Toggle non-linear contrast enhancement of 2D render images and terminal images
+        'default': True,
+    },
+}
+render3D_colors = {  # Colour to use in 3D renders for each component
+    'matter'  : 'lime',
+    'neutrino': 'r',
+}
+render3D_bgcolor = 'black'  # Background colour of 3D renders
+render3D_resolution = 1080  # The height and width of 3D renders
+
+# System of units
+unit_length = 'Mpc'    # Physical length corresponding to a numerical value of 1.0
+unit_time = 'Gyr'      # Physical time   corresponding to a numerical value of 1.0
+unit_mass = '10¹⁰ m☉'  # Physical mass   corresponding to a numerical value of 1.0
+
+# Debugging options
+print_load_imbalance = True                  # Print the CPU load imbalance after each time step?
+allow_snapshot_multifile_singleload = False  # Allow loading just a single file of multi-file snapshots?
+particle_reordering = True                   # Allow in-memory particle reordering?
+enable_Hubble = True                         # Enable Hubble expansion?
+enable_class_background = True               # Use CLASS to compute the evolution of the background?
+

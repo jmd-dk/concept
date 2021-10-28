@@ -46,12 +46,13 @@
 - New `--native-optimizations` option to `concept`.
 
 #### 👌 Other changes
+- New and more organised directory structure.
 - Generalised species.
 - More tunable power spectrum settings.
 - Allow for deterministic FFTW wisdom.
 - Switched to the PCG64DXSM pseudo-random number generator.
 - Explicit registration of CLASS perturbations.
-- Improved robustness of the `installer`.
+- Improved robustness of the `install` script.
 - 'Slim builds' now available.
 
 [Commits since 0.3.0](https://github.com/jmd-dk/concept/compare/v0.3.0...master)
@@ -79,8 +80,8 @@
   dark energy perturbations in CLASS.
 - Added missing *N*-body gauge transformation for pressure perturbations.
 - Detrending of CLASS perturbations now done in intervals.
-- Broader compiler support by the `installer`.
-- Tests no longer performed by default by the `instaler`
+- Broader compiler support by the `install` script.
+- Tests no longer performed by default by the `install` script
   (instead, supply `-t`).
 - More robust integration with pre-installed MPI libraries.
 

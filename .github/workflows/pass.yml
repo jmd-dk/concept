@@ -15,8 +15,8 @@ jobs:
         steps:
           - name: Pass
             run: exit 0
-    # Test docs
-    test_docs:
+    # Test documentation
+    test_doc:
         runs-on: [self-hosted, linux, light]
         steps:
           - name: Pass

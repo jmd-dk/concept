@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+
+# This script performs a test of the code's ability to transform
+# transfer functions into 3D realisations. Both fluid and particle
+# components are tested.
+
+# Number of processes to use
+nprocs_list=(1 2 4 8)
+
+# Absolute path and name of the directory of this file
+this_dir="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
+this_test="$(basename "${this_dir}")"
+
+# Set up error trapping
+ctrl_c() {
+    trap : 0
+    exit 2
+}
+abort() {
+    exit_code=$?
+    colorprint "An error occurred during ${this_test} test!" "red"
+    exit ${exit_code}
+}
+trap 'ctrl_c' SIGINT
+trap 'abort' EXIT
+set -e
+
+# Cleanup from last test run
+"${this_dir}/clean"
+
+# Realise matter particles and compute their power spectrum
+for n in ${nprocs_list[@]}; do
+    echo "$(cat "${this_dir}/param")
+initial_conditions = {
+    'species': 'matter',
+    'N'      : _size**3,
+}
+output_dirs  = {'powerspec': f'{param.dir}/output_particles'}
+output_bases = {'powerspec': 'powerspec_nprocs=${n}'}
+" > "${this_dir}/ic.param"
+    "${concept}" -n ${n}                   \
+                 -p "${this_dir}/ic.param" \
+                 --local
+done
+
+# Realise matter fluid and compute its power spectrum
+for n in ${nprocs_list[@]}; do
+    echo "$(cat "${this_dir}/param")
+initial_conditions = {
+    'species'          : 'matter',
+    'gridsize'         : _size,
+    'boltzmann_order'  : 0,
+    'boltzmann_closure': 'truncate',
+    'approximations'   : {'P=wρ': True},
+}
+output_dirs  = {'powerspec': f'{param.dir}/output_fluid'}
+output_bases = {'powerspec': 'powerspec_nprocs=${n}'}
+" > "${this_dir}/ic.param"
+    "${concept}" -n ${n}                   \
+                 -p "${this_dir}/ic.param" \
+                 --local
+done
+
+# Analyse the output power spectra
+"${concept}" -n 1 -p "${this_dir}/param" -m "${this_dir}/analyze.py" --pure-python --local
+
+# Test ran successfully. Deactivate traps.
+trap : 0

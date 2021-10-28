@@ -1,0 +1,46 @@
+# Fake parameter used to control number of particles/fluid
+# elements and PM gridsize.
+_size = 4*8  # Must be a multiple of 4
+
+# Input/output
+initial_conditions = f'{param.dir}/ic.hdf5'
+output_dirs        = {'snapshot': f'{param.dir}/output'}
+output_bases       = {'snapshot': 'snapshot'}
+output_times       = {
+    'a': {
+        'snapshot': logspace(log(0.02), log(0.055),  3, base=e),
+        'render2D': logspace(log(0.02), log(0.055), 26, base=e),
+    },
+}
+render2D_select = {'all': {'terminal image': True}}
+
+# Numerical parameters
+boxsize = 64*Mpc
+potential_options = {
+    'gridsize': {
+        'gravity': {
+            'pm': _size,
+        },
+    },
+}
+
+# Cosmology
+H0      = 70*km/(s*Mpc)
+Ωcdm    = 0.25
+Ωb      = 0.05
+a_begin = 0.02
+
+# Physics
+select_forces            = {'all': {'gravity': 'pm'}}
+select_boltzmann_closure = {'matter': 'truncate'}
+select_approximations    = {'matter': {'P=wρ': True}}
+
+# Graphics
+render2D_options = {
+    'gridsize': _size,
+    'axis'    : 'z',
+    'enhance' : False,
+}
+
+# Debugging options
+enable_Hubble = True

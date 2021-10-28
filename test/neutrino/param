@@ -1,0 +1,114 @@
+# Input/output
+_size = 64
+initial_conditions = [
+    # Matter
+    {
+        'species': 'matter',
+        'N'      : _size**3,
+    },
+    # Neutrinos
+    {
+        'species'          : 'neutrino',
+        'gridsize'         : _size,
+        'boltzmann_closure': 'class',
+    },
+]
+output_dirs  = {
+    'powerspec': f'{param.dir}/output',
+    'render2D' : ...,
+}
+output_times = {
+    'powerspec': (0.02, 0.021, 0.1, 0.3, 0.5, 0.7, 1.0),
+    'render2D' : ...,
+}
+powerspec_select = {
+    'all'             : {'data': True, 'linear': True, 'plot': True},
+    'all combinations': ...,
+}
+render2D_select = {
+    'neutrino': {'image': True, 'terminal image': True},
+}
+
+# Numerical parameters
+boxsize = 512*Mpc
+potential_options = {
+    'gridsize': {
+        'gravity': {
+            'p3m': 2*_size,
+            'pm' :   _size,
+        },
+    },
+    'interpolation': {
+        'gravity': {
+            'pm' : 'CIC',
+            'p3m': 'CIC',
+        },
+    },
+    'differentiation': {
+        'all': {
+            'gravity': {
+                'pm' : 2,
+                'p3m': 4,
+            },
+        },
+    },
+}
+shortrange_params = {
+    'gravity': {
+        'scale'    : '1.25*boxsize/gridsize',
+        'range'    : '4.5*scale',
+        'subtiling': 'automatic',
+    },
+}
+powerspec_options = {
+    'gridsize': {
+        'particles': 2*_size,
+        'fluid'    :   _size,
+    },
+    'interpolation': 'PCS',
+    'k_max'        : '1.5*Nyquist',
+}
+k_modes_per_decade = {
+    3e-3/Mpc: 10,
+    3e-2/Mpc: 30,
+    3e-1/Mpc: 30,
+    1   /Mpc: 10,
+}
+
+# Cosmology
+H0      = 70*km/s/Mpc
+Ωcdm    = 0.25 - Ων
+Ωb      = 0.05
+a_begin = 0.02
+primordial_spectrum = {
+    'A_s'  : 2.3e-9,
+    'n_s'  : 1.0,
+    'α_s'  : 0,
+    'pivot': 0.05/Mpc,
+}
+class_params = {
+    'N_ur'                    : 0,
+    'N_ncdm'                  : 1,
+    'deg_ncdm'                : 3,
+    'm_ncdm'                  : 0.3/3,
+    'l_max_ncdm'              : 50,
+    'Number of momentum bins' : 25,
+    'Quadrature strategy'     : 2,
+    'ncdm_fluid_approximation': 3,
+    'evolver'                 : 0,
+}
+
+# Physics
+select_forces = {
+    'particles': {'gravity': 'p3m'},
+    'fluid'    : {'gravity': 'pm'},
+}
+
+# Simulation options
+primordial_amplitude_fixed = True
+fluid_scheme_select = {'all': 'maccormack'}
+class_reuse = True
+
+# Graphics
+render2D_options = {'enhance': False}
+

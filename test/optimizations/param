@@ -1,0 +1,68 @@
+# Input/output
+_size = 16
+initial_conditions = [
+    {
+        'species': 'matter',
+        'N'      : _size**3,
+    },
+    {
+        'species'        : 'neutrino',
+        'gridsize'       : _size,
+        'boltzmann_order': 1,
+    },
+]
+output_dirs  = {
+    'powerspec': f'{param.dir}/output',
+    'render2D' : ...,
+}
+output_bases = {
+    'powerspec': 'powerspec',
+    'render2D' : 'render2D',
+}
+output_times = {
+    'powerspec': 0.1,
+    'render2D' : ...,
+}
+powerspec_select = {
+    'all'             : {'data': True, 'linear': True, 'plot': False},
+    'all combinations': ...,
+}
+render2D_select = {
+    ('matter', 'neutrino'): {'data': True},
+}
+
+# Numerical parameters
+boxsize = 5000*Mpc
+potential_options = {
+    'gridsize': {
+        'gravity': {
+            'p3m': 2*_size,
+            'pm' :   _size,
+        },
+    },
+}
+shortrange_params = {
+    'gravity': {
+        'scale'    : '1.25*boxsize/gridsize',
+        'range'    : '2*scale',
+        'subtiling': 2,
+    },
+}
+
+# Cosmology
+Ωcdm    = 0.25 - Ων
+Ωb      = 0.05
+a_begin = 0.02
+class_params = {
+    'N_ncdm': 1,
+    'm_ncdm': 1,
+}
+
+# Physics
+select_forces = {
+    'particles': {'gravity': 'p3m'},
+    'fluid':     {'gravity': 'pm'},
+}
+
+# Simulation options
+class_reuse = False

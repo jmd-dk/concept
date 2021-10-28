@@ -1,7 +1,7 @@
 # GitHub workflow for testing the entire build,
-# including installation, the test suite and building of the docs.
+# including installation, the test suite and building of the documentation.
 # - This workflow runs on pull requests to master
-#   if installer or Dockerfile has changed.
+#   if the install script or Dockerfile has changed.
 # - The Docker build is pushed to Docker Hub upon success.
 name: build
 
@@ -10,7 +10,7 @@ on:
         branches:
           - master
         paths:
-          - 'installer'
+          - 'install'
           - 'Dockerfile'
 
 jobs:
@@ -19,24 +19,52 @@ jobs:
         steps:
           - name: 🛎 Checkout
             uses: actions/checkout@v2
+          - name: 🐋 Clean dangling Docker containers
+            uses: ./.github/actions/clean-dangling-docker
           - name: 🔧 Install
             run: |
-                echo ".git" >> .dockerignore
-                docker build --pull --no-cache \
-                    --build-arg cleanup_concept=True -t concept:test-build .
+                echo ".git"      >> .dockerignore
+                echo ".reusable" >> .dockerignore
+                echo ".tmp"      >> .dockerignore
+                echo "build"     >> .dockerignore
+                echo "dep"       >> .dockerignore
+                echo "ic"        >> .dockerignore
+                echo "job"       >> .dockerignore
+                echo "output"    >> .dockerignore
+                docker build \
+                    -t concept:test-build \
+                    --build-arg cleanup_concept=True \
+                    --force-rm \
+                    --no-cache \
+                    --pull \
+                    .
           - name: 🤖 Run test suite
-            run: docker run -e make_jobs="-j 1" --rm concept:test-build concept -t all
-          - name: 📖 Build docs
-            run: docker run --rm concept:test-build bash -c 'make clean_docs && make docs'
+            run: |
+                sleep 1
+                docker run \
+                    -e make_jobs="-j 1" \
+                    --name "${GITHUB_REPOSITORY//\//_}__${GITHUB_WORKFLOW}__${GITHUB_JOB}__$(date +%s)" \
+                    --rm \
+                    concept:test-build \
+                    concept -t all
+          - name: 📖 Build documentation
+            run: |
+                sleep 1
+                docker run \
+                    --name "${GITHUB_REPOSITORY//\//_}__${GITHUB_JOB}__$(date +%s)" \
+                    --rm \
+                    concept:test-build \
+                    bash -c 'make clean_doc && make doc'
           - name: 🐋 Push Docker image
             env:
                 docker_password: ${{ secrets.DOCKER_PASSWORD }}
             if: env.docker_password
             run: |
                 docker tag concept:test-build ${{ secrets.DOCKER_USERNAME }}/concept:test-build
-                docker login \
-                    -u ${{ secrets.DOCKER_USERNAME }} \
-                    -p ${{ secrets.DOCKER_PASSWORD }} \
+                echo ${{ secrets.DOCKER_PASSWORD }} \
+                    | docker login \
+                        -u ${{ secrets.DOCKER_USERNAME }} \
+                        --password-stdin \
                     2>/dev/null
                 docker push ${{ secrets.DOCKER_USERNAME }}/concept:test-build
                 docker logout

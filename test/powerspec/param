@@ -1,0 +1,20 @@
+# Input/output
+initial_conditions = f'{param.dir}/snapshot.hdf5'
+output_bases       = {'powerspec': 'powerspec'}
+powerspec_select   = {'all': {'data': True, 'plot': True}}
+snapshot_type      = 'concept'
+
+# Numerical parameters
+boxsize = 512*Mpc
+_gridsize = 256
+powerspec_options = {
+    'gridsize'           : _gridsize,
+    'interpolation'      : 'PCS',
+    'interlace'          : True,
+    'k_max'              : '1.5*Nyquist',
+    'tophat'             : 8*Mpc,  # Not Mpc/h as Hubble expansion is disabled
+    'significant figures': 8,
+}
+
+# Debugging options
+enable_Hubble = False
