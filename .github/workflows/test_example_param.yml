@@ -1,16 +1,19 @@
-# GitHub workflow for deploying the documentation to GitHub Pages
-name: deploy_doc
+# GitHub workflow for testing the example parameter files
+name: test_example_param
 
 on:
-    push:
+    pull_request:
         branches:
           - master
         paths:
-          - 'doc/**'
+          - 'Makefile'
+          - 'concept'
+          - 'param/example_**'
+          - 'src/**'
 
 jobs:
-    deploy_doc:
-        runs-on: ubuntu-20.04
+    test_example_param:
+        runs-on: [self-hosted, linux, heavy]
         steps:
           - name: 🛎️ Checkout
             uses: actions/checkout@v2
@@ -24,10 +27,11 @@ jobs:
                 echo "docker_username=${docker_username}" >> "${GITHUB_ENV}"
           - name: 🐋 Pull Docker image
             run: docker pull ${docker_username}/concept:latest
-          - name: 📖 Build documentation
+          - name: 🤖 Test example parameter files
             run: |
                 sleep 1
                 docker run \
+                    -e make_jobs="-j 1" \
                     -v "${GITHUB_WORKSPACE}":/github \
                     --name "${GITHUB_REPOSITORY//\//_}__${GITHUB_WORKFLOW}__${GITHUB_JOB}__$(date +%s)" \
                     --rm \
@@ -36,12 +40,15 @@ jobs:
                         && source ~/.bashrc \
                         && rm -rf "${concept_dir}/"!(dep) \
                         && cp -r /github/!(dep) "${concept_dir}/" \
-                        && (cd "${concept_dir}" && make clean_doc && make doc) \
-                        && cp -r "${doc_dir}/publish" /github/ \
+                        && (cd "${concept_dir}" && make clean_job) \
+                        && ( \
+                               for param in "${param_dir}/example_"*; do \
+                                   concept -n 4 -p "${param}" --local || exit 1; \
+                                   if ls "${job_dir}/"*/log_err >/dev/null 2>&1; then \
+                                       echo "Parameter file ${param} generated error messages" >&2; \
+                                       exit 1; \
+                                   fi; \
+                               done; \
+                           ) \
                     '
-          - name: 🚀 Deploy documentation
-            uses: peaceiris/actions-gh-pages@v3
-            with:
-                github_token: ${{ secrets.GITHUB_TOKEN }}
-                publish_dir: publish
 

@@ -31,7 +31,7 @@ jobs:
         needs: check_deploy
         if: needs.check_deploy.outputs.deploy
         steps:
-          - name: 🛎 Checkout
+          - name: 🛎️ Checkout
             uses: actions/checkout@v2
           - name: 🐋 Pull Docker image
             run: docker pull ${{ secrets.DOCKER_USERNAME }}/concept:test-build

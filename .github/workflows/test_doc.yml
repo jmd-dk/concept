@@ -13,10 +13,10 @@ jobs:
     test_doc:
         runs-on: [self-hosted, linux]
         steps:
-          - name: 🛎 Checkout
+          - name: 🛎️ Checkout
             uses: actions/checkout@v2
           - name: 🐋 Clean dangling Docker containers
-            uses: ./.github/actions/clean-dangling-docker
+            uses: ./.github/actions/docker-clean
           - name: 📝 Set Docker username
             env:
                 docker_username: ${{ secrets.DOCKER_USERNAME }}

@@ -272,9 +272,9 @@ print(str(v.major) + '.' + str(v.minor)); \
     if [ "${yes_to_defaults}" == "True" ]; then
         yes_to_defaults_flag="-y"
     fi
-    concept_install="False" class_install="True" python_dir="${python_dir}" \
-        check_other_running_installation="False" cleanup_tmp="False"        \
-        say_welcome="False" say_copyright="False" say_goodbye="False"       \
+    concept_install="False" class_install="True" python_dir="${python_dir}"                     \
+        check_other_running_installation="False" check_preinstalled="False" cleanup_tmp="False" \
+        say_welcome="False" say_copyright="False" say_goodbye="False"                           \
         bash "${tmp_dir}/install/install" ${yes_to_defaults_flag} "${concept_dir}" || :
     # Cleanup
     rm -rf "${tmp_dir}/install"

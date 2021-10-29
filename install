@@ -1668,12 +1668,15 @@ fix_path() {
     # Convert to absolute path
     eval "${progname=}_dir=\"\$(convert_to_abs_path \"\${${progname=}_dir}\")\""
     # Check that the path to pre-installed dependencies exist
-    if eval "[ \"\${${progname}_preinstalled}\" == \"True\" ] \
-             && [ ! -d \"\${${progname}_dir}\" ] \
-             && [ ! -f \"\${${progname}_dir}\" ]"; then
-        error "The specified directory\n\"$(eval "echo \${${progname}_dir}")\"\n\
+    if [ "${check_preinstalled}" != "False" ]; then
+        if eval "[ \"\${${progname}_preinstalled}\" == \"True\" ] \
+            && [ ! -d \"\${${progname}_dir}\" ] \
+            && [ ! -f \"\${${progname}_dir}\" ]" \
+        ; then
+            error "The specified directory\n\"$(eval "echo \${${progname}_dir}")\"\n\
 for ${1/CONCEPT/$esc_concept} does not exist!"
-        exit 1
+            exit 1
+        fi
     fi
     # Check and correct user specified dependency directories
     eval "progname_dir=\"\${${progname=}_dir}\""
@@ -1684,7 +1687,7 @@ for ${1/CONCEPT/$esc_concept} does not exist!"
         if [ ! -f "${progname_dir}/class" ]; then
             if [ -f "${progname_dir}/../class" ]; then
                 class_dir="$(dirname ${progname_dir})"
-            else
+            elif [ "${check_preinstalled}" != "False" ]; then
                 error "Could not locate CLASS at \"${class_dir}\""
                 exit 1
             fi
@@ -1694,7 +1697,7 @@ for ${1/CONCEPT/$esc_concept} does not exist!"
         if [ ! -f "${progname_dir}/concept" ]; then
             if [ -f "${progname_dir}/../concept" ]; then
                 concept_dir="$(dirname ${progname_dir})"
-            else
+            elif [ "${check_preinstalled}" != "False" ]; then
                 error "Could not locate ${esc_concept} at \"${concept_dir}\""
                 exit 1
             fi
@@ -1706,7 +1709,7 @@ for ${1/CONCEPT/$esc_concept} does not exist!"
             if     [ -f "${progname_dir}/../lib/libfftw3.so" ] \
                 || [ -f "${progname_dir}/../lib/libfftw3f.so" ]; then
                 fftw_dir="$(dirname ${progname_dir})"
-            else
+            elif [ "${check_preinstalled}" != "False" ]; then
                 error "Could not locate FFTW at \"${fftw_dir}\""
                 exit 1
             fi
@@ -1716,7 +1719,7 @@ for ${1/CONCEPT/$esc_concept} does not exist!"
         if [ ! -f "${progname_dir}/lib/libfreetype.so" ]; then
             if [ -f "${progname_dir}/../lib/libfreetype.so" ]; then
                 freetype_dir="$(dirname ${progname_dir})"
-            else
+            elif [ "${check_preinstalled}" != "False" ]; then
                 error "Could not locate FreeType at \"${freetype_dir}\""
                 exit 1
             fi
@@ -1726,7 +1729,7 @@ for ${1/CONCEPT/$esc_concept} does not exist!"
         if [ ! -d "${progname_dir}/Gadget2" ]; then
             if [ -d "${progname_dir}/../Gadget2" ]; then
                 gadget_dir="$(dirname ${progname_dir})"
-            else
+            elif [ "${check_preinstalled}" != "False" ]; then
                 error "Could not locate GADGET at \"${gadget_dir}\""
                 exit 1
             fi
@@ -1736,7 +1739,7 @@ for ${1/CONCEPT/$esc_concept} does not exist!"
         if [ ! -f "${progname_dir}/lib/libgsl.so" ]; then
             if [ -f "${progname_dir}/../lib/libgsl.so" ]; then
                 gsl_dir="$(dirname ${progname_dir})"
-            else
+            elif [ "${check_preinstalled}" != "False" ]; then
                 error "Could not locate GSL at \"${gsl_dir}\""
                 exit 1
             fi
@@ -1746,7 +1749,7 @@ for ${1/CONCEPT/$esc_concept} does not exist!"
         if [ ! -f "${progname_dir}/lib/libhdf5.so" ]; then
             if [ -f "${progname_dir}/../lib/libhdf5.so" ]; then
                 hdf5_dir="$(dirname ${progname_dir})"
-            else
+            elif [ "${check_preinstalled}" != "False" ]; then
                 error "Could not locate HDF5 at \"${hdf5_dir}\""
                 exit 1
             fi
@@ -1756,7 +1759,7 @@ for ${1/CONCEPT/$esc_concept} does not exist!"
         if [ ! -f "${progname_dir}/lib/libffi.so" ]; then
             if [ -f "${progname_dir}/../lib/libffi.so" ]; then
                 libffi_dir="$(dirname ${progname_dir})"
-            else
+            elif [ "${check_preinstalled}" != "False" ]; then
                 error "Could not locate libffi at \"${libffi_dir}\""
                 exit 1
             fi
@@ -1776,7 +1779,7 @@ for ${1/CONCEPT/$esc_concept} does not exist!"
             fi
             progname_dir_shallow="$(dirname "${progname_dir_shallow}")"
         done
-        if [ -z "${mpicc}" ]; then
+        if [ -z "${mpicc}" ] && [ "${check_preinstalled}" != "False" ]; then
             error "Could not locate mpicc at \"${mpi_dir}\""
             exit 1
         fi
@@ -1952,7 +1955,7 @@ nor anywhere in the PATH"
         if [ ! -f "${progname_dir}/lib/libncurses.so" ]; then
             if [ -f "${progname_dir}/../lib/libncurses.so" ]; then
                 ncurses_dir="$(dirname ${progname_dir})"
-            else
+            elif [ "${check_preinstalled}" != "False" ]; then
                 error "Could not locate ncurses at \"${ncurses_dir}\""
                 exit 1
             fi
@@ -1962,7 +1965,7 @@ nor anywhere in the PATH"
         if [ ! -f "${progname_dir}/include/cblas.h" ]; then
             if [ -f "${progname_dir}/../include/cblas.h" ]; then
                 blas_dir="$(dirname ${progname_dir})"
-            else
+            elif [ "${check_preinstalled}" != "False" ]; then
                 error "Could not locate OpenBLAS at \"${blas_dir}\""
                 exit 1
             fi
@@ -1972,7 +1975,7 @@ nor anywhere in the PATH"
         if [ ! -f "${progname_dir}/lib/libssl.so" ]; then
             if [ -f "${progname_dir}/../lib/libssl.so" ]; then
                 openssl_dir="$(dirname ${progname_dir})"
-            else
+            elif [ "${check_preinstalled}" != "False" ]; then
                 error "Could not locate OpenSSL at \"${openssl_dir}\""
                 exit 1
             fi
@@ -1982,7 +1985,7 @@ nor anywhere in the PATH"
         if [ ! -f "${progname_dir}/bin/perl" ]; then
             if [ -f "${progname_dir}/../bin/perl" ]; then
                 perl_dir="$(dirname ${progname_dir})"
-            else
+            elif [ "${check_preinstalled}" != "False" ]; then
                 error "Could not locate Perl at \"${perl_dir}\""
                 exit 1
             fi
@@ -1994,7 +1997,7 @@ nor anywhere in the PATH"
             if     [ -f "${progname_dir}/../bin/python" ] \
                 || [ -f "${progname_dir}/../bin/python3" ]; then
                 python_dir="$(dirname ${progname_dir})"
-            else
+            elif [ "${check_preinstalled}" != "False" ]; then
                 error "Could not locate Python at \"${python_dir}\""
                 exit 1
             fi
@@ -2004,7 +2007,7 @@ nor anywhere in the PATH"
         if [ ! -f "${progname_dir}/lib/libz.so" ]; then
             if [ -f "${progname_dir}/../lib/libz.so" ]; then
                 zlib_dir="$(dirname ${progname_dir})"
-            else
+            elif [ "${check_preinstalled}" != "False" ]; then
                 error "Could not locate zlib at \"${zlib_dir}\""
                 exit 1
             fi
@@ -7669,12 +7672,8 @@ if [ "${concept_install}" == "True" ] && [ "${concept_installed}" == "False" ]; 
     done
     cd "${concept_dir}"
     rm -rf "${tmp_dir}/concept" || :
-    # Create sub-directories
-    mkdir -p "${build_dir}"
+    # Though empty, create the sub-directory for initial conditions
     mkdir -p "${ic_dir}"
-    mkdir -p "${job_dir}"
-    mkdir -p "${output_dir}"
-    mkdir -p "${param_dir}"
     # Add PATH-like and a few PYTHON environment variables present at
     # install time (now) to the .env file.
     current_step="setup of the .env file"

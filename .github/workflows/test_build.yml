@@ -1,0 +1,113 @@
+# GitHub workflow for testing the entire build,
+# including installation, the test suite, the update utility,
+# the example parameter files and building of the documentation.
+# - This workflow runs on pull requests to master
+#   if the install script or Dockerfile has changed.
+# - The Docker build is pushed to Docker Hub upon success.
+name: test_build
+
+on:
+    pull_request:
+        branches:
+          - master
+        paths:
+          - 'install'
+          - 'Dockerfile'
+
+jobs:
+    test_build:
+        runs-on: [self-hosted, linux, heavy]
+        steps:
+          - name: 🛎️ Checkout
+            uses: actions/checkout@v2
+          - name: 🐋 Clean dangling Docker containers and images
+            uses: ./.github/actions/docker-clean
+            with:
+                imgpat: "concept:test-build"
+          - name: 📝 Set temporary Docker image name
+            run: |
+                echo "docker_image=concept:test-build__$(date +%s)" >> "${GITHUB_ENV}"
+          - name: 🔧 Install
+            run: |
+                echo ".git"      >> .dockerignore
+                echo ".reusable" >> .dockerignore
+                echo ".tmp"      >> .dockerignore
+                echo "build"     >> .dockerignore
+                echo "dep"       >> .dockerignore
+                echo "ic"        >> .dockerignore
+                echo "job"       >> .dockerignore
+                echo "output"    >> .dockerignore
+                docker build \
+                    -t ${docker_image} \
+                    --build-arg cleanup_concept=True \
+                    --force-rm \
+                    --no-cache \
+                    --pull \
+                    .
+          - name: 🤖 Run test suite
+            run: |
+                sleep 1
+                docker run \
+                    -e make_jobs="-j 1" \
+                    --name "${GITHUB_REPOSITORY//\//_}__${GITHUB_WORKFLOW}__${GITHUB_JOB}__$(date +%s)" \
+                    --rm \
+                    ${docker_image} \
+                    concept -t all
+          - name: 🤖 Test update utility
+            run: |
+                sleep 1
+                docker run \
+                    -e make_jobs="-j 1" \
+                    --name "${GITHUB_REPOSITORY//\//_}__${GITHUB_WORKFLOW}__${GITHUB_JOB}__$(date +%s)" \
+                    --rm \
+                    ${docker_image} \
+                    bash -c ': \
+                        && concept -u update current -y \
+                        && concept -u update current -y --class \
+                        && concept -t concept_vs_class_pm \
+                    '
+          - name: 🤖 Test example parameter files
+            run: |
+                sleep 1
+                docker run \
+                    --name "${GITHUB_REPOSITORY//\//_}__${GITHUB_WORKFLOW}__${GITHUB_JOB}__$(date +%s)" \
+                    --rm \
+                    ${docker_image} \
+                    bash -c ': \
+                        && source ~/.bashrc \
+                        && (cd "${concept_dir}" && make clean_job) \
+                        && ( \
+                               for param in "${param_dir}/example_"*; do \
+                                   concept -n 4 -p "${param}" --local || exit 1; \
+                                   if ls "${job_dir}/"*/log_err >/dev/null 2>&1; then \
+                                       echo "Parameter file ${param} generated error messages" >&2; \
+                                       exit 1; \
+                                   fi; \
+                               done; \
+                           ) \
+                    '
+          - name: 📖 Build documentation
+            run: |
+                sleep 1
+                docker run \
+                    --name "${GITHUB_REPOSITORY//\//_}__${GITHUB_JOB}__$(date +%s)" \
+                    --rm \
+                    ${docker_image} \
+                    bash -c 'make clean_doc && make doc'
+          - name: 🐋 Push Docker image
+            env:
+                docker_password: ${{ secrets.DOCKER_PASSWORD }}
+            if: env.docker_password
+            run: |
+                docker tag ${docker_image} ${{ secrets.DOCKER_USERNAME }}/concept:test-build
+                echo ${{ secrets.DOCKER_PASSWORD }} \
+                    | docker login \
+                        -u ${{ secrets.DOCKER_USERNAME }} \
+                        --password-stdin \
+                    2>/dev/null
+                docker push ${{ secrets.DOCKER_USERNAME }}/concept:test-build
+                docker logout
+          - name: 🐋 Remove temporary Docker image
+            run: |
+                docker rmi -f ${docker_image} 2>/dev/null || :
+

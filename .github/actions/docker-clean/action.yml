@@ -1,0 +1,51 @@
+# GitHub action for removing dangling Docker containers and images.
+# The containers must use the naming convention
+#   <repo>__<workflow>__<job>__<timestamp>.
+# For images should be named
+#   <imgpat>__<timestamp>
+# with <imgpat> given as an input.
+# Containers and images matching the naming convention will be
+# removed if they are older than <age> in seconds.
+name: docker-clean
+
+inputs:
+    age:
+        default: 86400
+    imgpat:
+        default: ""
+
+runs:
+    using: composite
+    steps:
+      - name: 🐋 Clean dangling Docker containers
+        run: |
+            for container in $( \
+                docker ps \
+                    -a --format '{{.Names}}' \
+                | grep "${GITHUB_REPOSITORY//\//_}__${GITHUB_WORKFLOW}__${GITHUB_JOB}__" \
+            ); do
+                t="${container##*__}"
+                dt=$(($(date +%s) - t))
+                if [ ${dt} -gt ${{ inputs.age }} ]; then
+                    echo "removing Docker container ${container}"
+                    docker rm -f "${container}" 2>/dev/null || :
+                fi
+            done
+        shell: bash
+      - name: 🐋 Clean dangling Docker images
+        run: |
+            [ -n "${{ inputs.imgpat }}" ] || exit 0
+            for image in $( \
+                docker images \
+                    -a --format '{{.Repository}}:{{.Tag}}' \
+                | grep "${{ inputs.imgpat }}__" \
+            ); do
+                t="${image##*__}"
+                dt=$(($(date +%s) - t))
+                if [ ${dt} -gt ${{ inputs.age }} ]; then
+                    echo "removing Docker image ${image}"
+                    docker rmi -f "${image}" 2>/dev/null || :
+                fi
+            done
+        shell: bash
+

@@ -6,6 +6,8 @@ name: test
 runs:
     using: composite
     steps:
+      - name: 🐋 Clean dangling Docker containers
+        uses: ./.github/actions/docker-clean
       - name: 📝 Set Docker username
         run: |
             [ -n "${docker_username}" ] || docker_username=jmddk
@@ -14,8 +16,6 @@ runs:
       - name: 🐋 Pull Docker image
         run: docker pull ${docker_username}/concept:latest
         shell: bash
-      - name: 🐋 Clean dangling Docker containers
-        uses: ./.github/actions/clean-dangling-docker
       - name: 📥 Download build
         uses: actions/download-artifact@v2
         with:

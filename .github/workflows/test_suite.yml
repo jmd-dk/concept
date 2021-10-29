@@ -15,12 +15,12 @@ on:
 jobs:
     # This job runs first
     test_basic:
-        runs-on: [self-hosted, linux, heavy]
+        runs-on: [self-hosted, linux, light]
         steps:
-          - name: 🛎 Checkout
+          - name: 🛎️ Checkout
             uses: actions/checkout@v2
           - name: 🐋 Clean dangling Docker containers
-            uses: ./.github/actions/clean-dangling-docker
+            uses: ./.github/actions/docker-clean
           - name: 📝 Set Docker username
             env:
                 docker_username: ${{ secrets.DOCKER_USERNAME }}
@@ -59,7 +59,7 @@ jobs:
         needs: test_basic
         runs-on: [self-hosted, linux, light]
         steps:
-          - name: 🛎 Checkout
+          - name: 🛎️ Checkout
             uses: actions/checkout@v2
           - name: 🤖 Run test
             env:
@@ -69,7 +69,7 @@ jobs:
         needs: test_basic
         runs-on: [self-hosted, linux, light]
         steps:
-          - name: 🛎 Checkout
+          - name: 🛎️ Checkout
             uses: actions/checkout@v2
           - name: 🤖 Run test
             env:
@@ -79,7 +79,7 @@ jobs:
         needs: test_basic
         runs-on: [self-hosted, linux, light]
         steps:
-          - name: 🛎 Checkout
+          - name: 🛎️ Checkout
             uses: actions/checkout@v2
           - name: 🤖 Run test
             env:
@@ -89,7 +89,7 @@ jobs:
         needs: test_basic
         runs-on: [self-hosted, linux, light]
         steps:
-          - name: 🛎 Checkout
+          - name: 🛎️ Checkout
             uses: actions/checkout@v2
           - name: 🤖 Run test
             env:
@@ -99,7 +99,7 @@ jobs:
         needs: test_basic
         runs-on: [self-hosted, linux, light]
         steps:
-          - name: 🛎 Checkout
+          - name: 🛎️ Checkout
             uses: actions/checkout@v2
           - name: 🤖 Run test
             env:
@@ -109,7 +109,7 @@ jobs:
         needs: test_basic
         runs-on: [self-hosted, linux, light]
         steps:
-          - name: 🛎 Checkout
+          - name: 🛎️ Checkout
             uses: actions/checkout@v2
           - name: 🤖 Run test
             env:
@@ -119,7 +119,7 @@ jobs:
         needs: test_basic
         runs-on: [self-hosted, linux, light]
         steps:
-          - name: 🛎 Checkout
+          - name: 🛎️ Checkout
             uses: actions/checkout@v2
           - name: 🤖 Run test
             env:
@@ -129,7 +129,7 @@ jobs:
         needs: test_basic
         runs-on: [self-hosted, linux, light]
         steps:
-          - name: 🛎 Checkout
+          - name: 🛎️ Checkout
             uses: actions/checkout@v2
           - name: 🤖 Run test
             env:
@@ -139,7 +139,7 @@ jobs:
         needs: test_basic
         runs-on: [self-hosted, linux, light]
         steps:
-          - name: 🛎 Checkout
+          - name: 🛎️ Checkout
             uses: actions/checkout@v2
           - name: 🤖 Run test
             env:
@@ -149,7 +149,7 @@ jobs:
         needs: test_basic
         runs-on: [self-hosted, linux, light]
         steps:
-          - name: 🛎 Checkout
+          - name: 🛎️ Checkout
             uses: actions/checkout@v2
           - name: 🤖 Run test
             env:
@@ -159,7 +159,7 @@ jobs:
         needs: test_basic
         runs-on: [self-hosted, linux, light]
         steps:
-          - name: 🛎 Checkout
+          - name: 🛎️ Checkout
             uses: actions/checkout@v2
           - name: 🤖 Run test
             env:
@@ -169,7 +169,7 @@ jobs:
         needs: test_basic
         runs-on: [self-hosted, linux, light]
         steps:
-          - name: 🛎 Checkout
+          - name: 🛎️ Checkout
             uses: actions/checkout@v2
           - name: 🤖 Run test
             env:
@@ -179,7 +179,7 @@ jobs:
         needs: test_basic
         runs-on: [self-hosted, linux, light]
         steps:
-          - name: 🛎 Checkout
+          - name: 🛎️ Checkout
             uses: actions/checkout@v2
           - name: 🤖 Run test
             env:
@@ -189,7 +189,7 @@ jobs:
         needs: test_basic
         runs-on: [self-hosted, linux, light]
         steps:
-          - name: 🛎 Checkout
+          - name: 🛎️ Checkout
             uses: actions/checkout@v2
           - name: 🤖 Run test
             env:
@@ -199,7 +199,7 @@ jobs:
         needs: test_basic
         runs-on: [self-hosted, linux, light]
         steps:
-          - name: 🛎 Checkout
+          - name: 🛎️ Checkout
             uses: actions/checkout@v2
           - name: 🤖 Run test
             env:
@@ -209,7 +209,7 @@ jobs:
         needs: test_basic
         runs-on: [self-hosted, linux, light]
         steps:
-          - name: 🛎 Checkout
+          - name: 🛎️ Checkout
             uses: actions/checkout@v2
           - name: 🤖 Run test
             env:
@@ -219,7 +219,7 @@ jobs:
         needs: test_basic
         runs-on: [self-hosted, linux, light]
         steps:
-          - name: 🛎 Checkout
+          - name: 🛎️ Checkout
             uses: actions/checkout@v2
           - name: 🤖 Run test
             env:
@@ -229,7 +229,7 @@ jobs:
         needs: test_basic
         runs-on: [self-hosted, linux, heavy]
         steps:
-          - name: 🛎 Checkout
+          - name: 🛎️ Checkout
             uses: actions/checkout@v2
           - name: 🤖 Run test
             env:
@@ -239,7 +239,7 @@ jobs:
         needs: test_basic
         runs-on: [self-hosted, linux, heavy]
         steps:
-          - name: 🛎 Checkout
+          - name: 🛎️ Checkout
             uses: actions/checkout@v2
           - name: 🤖 Run test
             env:
@@ -249,7 +249,7 @@ jobs:
         needs: test_basic
         runs-on: [self-hosted, linux, light]
         steps:
-          - name: 🛎 Checkout
+          - name: 🛎️ Checkout
             uses: actions/checkout@v2
           - name: 🤖 Run test
             env:
@@ -259,7 +259,7 @@ jobs:
         needs: test_basic
         runs-on: [self-hosted, linux, light]
         steps:
-          - name: 🛎 Checkout
+          - name: 🛎️ Checkout
             uses: actions/checkout@v2
           - name: 🤖 Run test
             env:
@@ -269,7 +269,7 @@ jobs:
         needs: test_basic
         runs-on: [self-hosted, linux, light]
         steps:
-          - name: 🛎 Checkout
+          - name: 🛎️ Checkout
             uses: actions/checkout@v2
           - name: 🤖 Run test
             env:
@@ -279,7 +279,7 @@ jobs:
         needs: test_basic
         runs-on: [self-hosted, linux, light]
         steps:
-          - name: 🛎 Checkout
+          - name: 🛎️ Checkout
             uses: actions/checkout@v2
           - name: 🤖 Run test
             env:
@@ -289,7 +289,7 @@ jobs:
         needs: test_basic
         runs-on: [self-hosted, linux, light]
         steps:
-          - name: 🛎 Checkout
+          - name: 🛎️ Checkout
             uses: actions/checkout@v2
           - name: 🤖 Run test
             env:
@@ -299,7 +299,7 @@ jobs:
         needs: test_basic
         runs-on: [self-hosted, linux, light]
         steps:
-          - name: 🛎 Checkout
+          - name: 🛎️ Checkout
             uses: actions/checkout@v2
           - name: 🤖 Run test
             env:
@@ -309,7 +309,7 @@ jobs:
         needs: test_basic
         runs-on: [self-hosted, linux, light]
         steps:
-          - name: 🛎 Checkout
+          - name: 🛎️ Checkout
             uses: actions/checkout@v2
           - name: 🤖 Run test
             env:
@@ -319,7 +319,7 @@ jobs:
         needs: test_basic
         runs-on: [self-hosted, linux, heavy]
         steps:
-          - name: 🛎 Checkout
+          - name: 🛎️ Checkout
             uses: actions/checkout@v2
           - name: 🤖 Run test
             env:
@@ -327,9 +327,9 @@ jobs:
             uses: ./.github/actions/test
     test_optimizations:
         needs: test_basic
-        runs-on: [self-hosted, linux, heavy]
+        runs-on: [self-hosted, linux, light]
         steps:
-          - name: 🛎 Checkout
+          - name: 🛎️ Checkout
             uses: actions/checkout@v2
           - name: 🤖 Run test
             env:
@@ -339,7 +339,7 @@ jobs:
         needs: test_basic
         runs-on: [self-hosted, linux, light]
         steps:
-          - name: 🛎 Checkout
+          - name: 🛎️ Checkout
             uses: actions/checkout@v2
           - name: 🤖 Run test
             env:

@@ -24,11 +24,12 @@ COPY \
     concept* \
     install \
     /source/
-COPY doc*     /source/doc/
-COPY src*     /source/src/
-COPY test*    /source/test/
-COPY util*    /source/util/
-COPY .github* /source/.github/
+COPY doc*            /source/doc/
+COPY param/example_* /source/param/
+COPY src*            /source/src/
+COPY test*           /source/test/
+COPY util*           /source/util/
+COPY .github*        /source/.github/
 ARG DEBIAN_FRONTEND=noninteractive
 RUN : \
     # Update APT cache
@@ -47,8 +48,8 @@ RUN : \
     && apt-get install -y --no-install-recommends bash-completion \
     && echo "[ ! -t 0 ] || source /etc/bash_completion" >> ~/.bashrc \
     # Set up Bash history search with ↑↓
-    && echo "[ ! -t 0 ] || bind '\"\e[A\": history-search-backward'" >> ~/.bashrc \
-    && echo "[ ! -t 0 ] || bind '\"\e[B\": history-search-forward'" >> ~/.bashrc \
+    && echo "[ ! -t 0 ] || bind '\"\e[A\": history-search-backward' 2>/dev/null" >> ~/.bashrc \
+    && echo "[ ! -t 0 ] || bind '\"\e[B\": history-search-forward' 2>/dev/null" >> ~/.bashrc \
     # Set up colour prompt
     && echo "[ ! -t 0 ] || PS1='\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\\$ '" >> ~/.bashrc \
     && echo "[ ! -t 0 ] || alias ls='ls --color=auto'" >> ~/.bashrc \

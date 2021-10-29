@@ -1,16 +1,14 @@
-# GitHub workflow for deploying the documentation to GitHub Pages
-name: deploy_doc
+# GitHub workflow for testing the update utility
+name: test_update
 
 on:
-    push:
+    pull_request:
         branches:
           - master
-        paths:
-          - 'doc/**'
 
 jobs:
-    deploy_doc:
-        runs-on: ubuntu-20.04
+    test_update:
+        runs-on: [self-hosted, linux]
         steps:
           - name: 🛎️ Checkout
             uses: actions/checkout@v2
@@ -24,10 +22,11 @@ jobs:
                 echo "docker_username=${docker_username}" >> "${GITHUB_ENV}"
           - name: 🐋 Pull Docker image
             run: docker pull ${docker_username}/concept:latest
-          - name: 📖 Build documentation
+          - name: 🤖 Test update utility
             run: |
                 sleep 1
                 docker run \
+                    -e make_jobs="-j 1" \
                     -v "${GITHUB_WORKSPACE}":/github \
                     --name "${GITHUB_REPOSITORY//\//_}__${GITHUB_WORKFLOW}__${GITHUB_JOB}__$(date +%s)" \
                     --rm \
@@ -36,12 +35,8 @@ jobs:
                         && source ~/.bashrc \
                         && rm -rf "${concept_dir}/"!(dep) \
                         && cp -r /github/!(dep) "${concept_dir}/" \
-                        && (cd "${concept_dir}" && make clean_doc && make doc) \
-                        && cp -r "${doc_dir}/publish" /github/ \
+                        && concept -u update current -y \
+                        && concept -u update current -y --class \
+                        && concept -t concept_vs_class_pm \
                     '
-          - name: 🚀 Deploy documentation
-            uses: peaceiris/actions-gh-pages@v3
-            with:
-                github_token: ${{ secrets.GITHUB_TOKEN }}
-                publish_dir: publish
 
