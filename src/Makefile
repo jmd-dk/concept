@@ -240,11 +240,9 @@ LDLIBS += $(call unique, $(call sensible_path, \
 
 # Linker options
 python_ldflags = $(shell $(python_config) --ldflags)
-other_ldflags  = -shared
 comma = ,
 LDFLAGS += $(call unique, $(call sensible_path,      \
     $(python_ldflags)                                \
-    $(other_ldflags)                                 \
     $(filter-out -ffast-math,$(optimizations))       \
     $(addprefix -Wl$(comma),$(optimizations_linker)) \
     $(warnings)                                      \
@@ -262,7 +260,7 @@ LDFLAGS += $(call unique, $(call sensible_path,      \
 # Link object files into shared object Python modules
 $(addsuffix .so, $(pyfiles)): %.so: %.o
 	@$(call heading)
-	$(CC) $< -o $@ $(call unique, $(LDFLAGS) $(LDLIBS))
+	$(CC) $< -o $@ $(call unique, $(LDFLAGS) -shared $(LDLIBS))
 
 # Compile C source files into object files
 $(addsuffix .o, $(pyfiles)): %.o: %.c
@@ -351,7 +349,7 @@ check_float_literals:
 	" > $(check_fname).c
 	@$(CC) $(CFLAGS) -c -o $(check_fname).o $(check_fname).c
 	@$(CC) $(check_fname).o -o $(check_fname) \
-	    $(filter-out -shared,$(call unique, $(LDFLAGS) $(LDLIBS)))
+	    $(call unique, $(LDFLAGS) $(LDLIBS))
 	@./$(check_fname)
 	@$(RM) $(check_fname)*
 .PHONY: check_float_literals

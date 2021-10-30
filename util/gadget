@@ -280,10 +280,10 @@ mpi_libs = $(get_make_var mpi_libs)
 LDLIBS += \$(fftw_libs) \$(gsl_libs) \$(mpi_libs)
 
 # Linker options
-other_ldflags = $(get_make_var other_ldflags | sed 's/-shared//g')
 comma = ,
 optimizations_linker = $(get_make_var optimizations_linker)
-LDFLAGS += \$(other_ldflags) \$(optimizations) \$(addprefix -Wl\$(comma),\$(optimizations_linker))
+LDFLAGS += \$(filter-out -ffast-math,\$(optimizations)) \\
+    \$(addprefix -Wl\$(comma),\$(optimizations_linker))
 
 
 
