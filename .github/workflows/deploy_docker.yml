@@ -33,14 +33,18 @@ jobs:
         steps:
           - name: 🛎️ Checkout
             uses: actions/checkout@v2
+          - name: 🐋 Clean dangling Docker containers
+            uses: ./.github/actions/docker-clean
+          - name: 📝 Set temporary Docker container name
+            run: |
+                echo "docker_container=${GITHUB_REPOSITORY//\//_}__${GITHUB_WORKFLOW}__${GITHUB_JOB}__$(date +%s)" >> "${GITHUB_ENV}"
           - name: 🐋 Pull Docker image
             run: docker pull ${{ secrets.DOCKER_USERNAME }}/concept:test-build
           - name: 🔧 Build code
             run: |
-                docker rm -f concept-tmp 2>/dev/null || :
                 docker run \
                     -v "${GITHUB_WORKSPACE}":/github \
-                    --name concept-tmp \
+                    --name ${docker_container} \
                     ${{ secrets.DOCKER_USERNAME }}/concept:test-build \
                     bash -O extglob -c ': \
                         && source ~/.bashrc \
@@ -59,9 +63,9 @@ jobs:
                     '
                 docker commit \
                     --change='CMD ["bash"]' \
-                    concept-tmp \
+                    ${docker_container} \
                     ${{ secrets.DOCKER_USERNAME }}/concept:latest
-                docker rm -f concept-tmp 2>/dev/null || :
+                docker rm -f ${docker_container} 2>/dev/null || :
           - name: 🚀 Deploy Docker image
             run: |
                 echo ${{ secrets.DOCKER_PASSWORD }} \
