@@ -30,6 +30,9 @@
 # all of which may be either 'True' or 'False',
 # with unset values being equivalent to 'False'.
 
+# Use the Bash shell
+SHELL = /usr/bin/env bash
+
 
 
 ##############################
@@ -102,6 +105,9 @@ endif
 ########################################
 # Settings for compilation and linking #
 ########################################
+# Process ID of this make process,
+# used for unique naming of temporary files.
+pid=$(shell echo $${PPID})
 # The python configuration script
 python_config = $(shell readlink -f $$(which $(python)))-config
 # Options passed when cythonising .pyx files
@@ -181,12 +187,13 @@ ifneq ($(no_optimizations),True)
     endif
     # Link time optimizations
     ifneq ($(no_lto),True)
-        lto_warning = $(shell                                          \
-            echo "int main(void){ return 0; }" > .lto_test.c;          \
-            $(CC) -flto -c -o .lto_test.o .lto_test.c 2>&1 | grep lto; \
-            $(CC) .lto_test.o -o .lto_test -flto      2>&1 | grep lto; \
-            ./.lto_test 2>/dev/null || echo "lto error";               \
-            $(RM) -f .lto_test.c .lto_test.o .lto_test;                \
+        check_fname = .check_lto_$(pid)
+        lto_warning = $(shell                                                    \
+            echo "int main(void){ return 0; }" > $(check_fname).c;               \
+            $(CC) -flto -c -o $(check_fname).o $(check_fname).c 2>&1 | grep lto; \
+            $(CC) $(check_fname).o -o $(check_fname) -flto      2>&1 | grep lto; \
+            ./$(check_fname) 2>/dev/null || echo "lto error";                    \
+            $(RM) $(check_fname)*;                                               \
         )
         ifeq ("$(lto_warning)","")
             optimizations        += -flto
@@ -319,6 +326,35 @@ ifneq ($(unsafe_building),True)
     # as well as on the main makefile.
     $(addsuffix .pyx, $(pyfiles)): $(MAKEFILE_LIST)
 endif
+
+
+
+#################
+# Other targets #
+#################
+# For checking whether the NAN and INFINITY macros are supported.
+# Each supported macro will be printed.
+check_fname = .check_float_literals_$(pid)
+check_float_literals:
+	@printf "\
+	    #include <stdio.h>\n\
+	    #include <math.h>\n\
+	    int main(void){\n\
+	      #ifdef NAN\n\
+	        printf(\"NAN\\\\n\");\n\
+	      #endif\n\
+	      #ifdef INFINITY\n\
+	        printf(\"INFINITY\\\\n\");\n\
+	      #endif\n\
+	      return 0;\n\
+	    }\
+	" > $(check_fname).c
+	@$(CC) $(CFLAGS) -c -o $(check_fname).o $(check_fname).c
+	@$(CC) $(check_fname).o -o $(check_fname) \
+	    $(filter-out -shared,$(call unique, $(LDFLAGS) $(LDLIBS)))
+	@./$(check_fname)
+	@$(RM) $(check_fname)*
+.PHONY: check_float_literals
 
 
 

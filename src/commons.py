@@ -1680,7 +1680,7 @@ machine_ϵ = float(np.finfo(C2np['double']).eps)
 π = float(np.pi)
 ρ_vacuum = float(1e+2*machine_ϵ)
 ထ = float('inf')
-NaN = float('nan')  # Note: nan (all lower-case) conflicts with the nan() function of C's math lib
+NaN = float('nan')  # Note: nan conflicts with the nan() function of C's math lib and NAN conflicts with the C macro
 
 
 

@@ -87,8 +87,8 @@ the modified code in a very clean state either. Sorry...
 
 
 # General imports
-import ast, collections, contextlib, copy, importlib, inspect, itertools
-import keyword, os, re, shutil, sys, unicodedata, warnings
+import ast, collections, contextlib, copy, functools, importlib, inspect, itertools
+import keyword, os, re, shutil, subprocess, sys, unicodedata, warnings
 # For math
 import numpy as np
 
@@ -748,15 +748,27 @@ def cimport_function(lines, no_optimization):
 
 
 def float_literals(lines, no_optimization):
+    if no_optimization:
+        return lines
+    # Straightforward literals
     literals = {
         'π'        : commons.π,
         'machine_ϵ': commons.machine_ϵ,
     }
-    if no_optimization:
-        return lines
+    # Add other literals if supported
+    legal_literals = check_float_literals()
+    pylit_to_clit = {
+        'NaN': 'NAN',
+        'ထ'  : 'INFINITY',
+    }
+    for pylit, clit in pylit_to_clit.items():
+        if clit in legal_literals:
+            literals[pylit] = clit
+    # Encapsulate literals in parentheses
     for name, value in literals.copy().items():
         for fun in commons.asciify, commons.unicode:
             literals[fun(name)] = f'({value})'
+    # Swap variables for literals
     new_lines = []
     for line in lines:
         if not line.lstrip().startswith('#'):
@@ -796,6 +808,23 @@ def float_literals(lines, no_optimization):
                         break
         new_lines.append(line)
     return new_lines
+@functools.lru_cache
+def check_float_literals():
+    legal_literals = []
+    try:
+        completed_process = subprocess.run(
+            ['make', 'check_float_literals'],
+            capture_output=True,
+        )
+        legal_literals = completed_process.stdout.decode().split('\n')
+    except:
+        pass
+    legal_literals = [
+        legal_literal
+        for legal_literal in legal_literals
+        if legal_literal.strip()
+    ]
+    return tuple(legal_literals)
 
 
 
@@ -3200,10 +3229,10 @@ def make_pxd(filename, no_optimization):
     with open(filename_types, mode='r', encoding='utf-8') as pyxfile:
         extension_types_content = pyxfile.read()
     extension_types = eval(extension_types_content)
-    # Begin constructing pxd
-    header_lines = []
-    pxd_filename = filename[:-3] + 'pxd'
     pxd_lines = []
+    header_lines = []
+    # Read in the code
+    pxd_filename = filename[:-3] + 'pxd'
     with open(filename, mode='r', encoding='utf-8') as pyxfile:
         code_str = pyxfile.read()
     code = code_str.split('\n')
@@ -3646,11 +3675,20 @@ def make_pxd(filename, no_optimization):
     if total_lines != []:
         total_lines.append('\n')
     total_lines += pxd_lines
+    # Add import of certain float literals at the top, if supported
+    legal_literals = check_float_literals()
+    if legal_literals:
+        total_lines = [
+            '# Mathematical constants\n',
+            'from libc.math cimport {}\n'.format(', '.join(legal_literals)),
+            '\n',
+        ] + total_lines
     # Add 'cimport cython' as the top line
-    total_lines = ['# Get full access to all of Cython\n',
-                   'cimport cython\n',
-                   '\n',
-                   ] + total_lines
+    total_lines = [
+        '# Get full access to all of Cython\n',
+        'cimport cython\n',
+        '\n',
+    ] + total_lines
     # Remove duplicates
     total_lines_unique = []
     counter = collections.Counter(total_lines)
