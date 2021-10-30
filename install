@@ -5445,13 +5445,6 @@ set_optimizations() {
     elif [ "${CC_implementation}" == "icc" ]; then
         optimizations="${optimizations} -fp-model fast=2"
     fi
-    # Better inlining
-    if [ "${CC_implementation}" == "gcc" ]; then
-        optimizations="${optimizations} \
---param max-inline-insns-auto=100 --param early-inlining-insns=200"
-    elif [ "${CC_implementation}" == "icc" ]; then
-        optimizations="${optimizations} -inline-factor=200"
-    fi
     # Link time optimizations
     if [ "${use_lto}" == "True" ]; then
         local current_dir="$(pwd)"

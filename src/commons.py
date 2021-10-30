@@ -1189,6 +1189,7 @@ if not cython.compiled:
         d = globals() if module is None else module.__dict__
         exec(import_statement, d)
     # A dummy context manager for use with loop unswitching
+    # and copy_on_import.
     class DummyContextManager:
         def __call__(self, *args):
             return self
@@ -1197,6 +1198,7 @@ if not cython.compiled:
         def __exit__(self, *exc_info):
             ...
     unswitch = DummyContextManager()
+    copy_on_import = DummyContextManager()
     # The pxd function, which in pure Python defines the variables
     # passed in as a string in the global name space.
     class DummyPxd:
@@ -1328,33 +1330,37 @@ ctypedef fused fused_numeric2:
     Py_ssize_t
     float
     double
-# Mathematical functions
-from libc.math cimport (
-    sin, cos, tan,
-    asin  as arcsin,
-    acos  as arccos,
-    atan  as arctan,
-    atan2 as arctan2,
-    sinh, cosh, tanh,
-    asinh as arcsinh,
-    acosh as arccosh,
-    atanh as arctanh,
-    exp, log, log2, log10,
-    sqrt, cbrt,
-    erf, erfc,
-    floor, ceil, round,
-)
-from libc.math   cimport  fabs
-from libc.stdlib cimport llabs
 """)
+with copy_on_import:
+    pxd("""
+    # Mathematical functions
+    from libc.math cimport (
+        sin, cos, tan,
+        asin  as arcsin,
+        acos  as arccos,
+        atan  as arctan,
+        atan2 as arctan2,
+        sinh, cosh, tanh,
+        asinh as arcsinh,
+        acosh as arccosh,
+        atanh as arctanh,
+        exp, log, log2, log10,
+        sqrt, cbrt,
+        erf, erfc,
+        floor, ceil, round,
+    )
+    from libc.math   cimport  fabs
+    from libc.stdlib cimport llabs
+    """)
 # Custom extension types using @cython.cclass will be found by the
 # pyxpp preprocessor. A comment containing such types will be placed in
 # the .pyx version of the given .py file. These are then collected
-# together into the .types.pyx file. The content of the cython_gsl
-# module cimported above also contains some extension types however.
+# together into the .types.pyx file. The fused types defined above
+# as well as the content of the cython_gsl module cimported above
+# also contain some extension types however.
 # Here we add this comment manually, directly in the .py file.
 # Extension types implemented by this module:
-#     gsl_...: from cython_gsl cimport *
+#     fused_integral, fused_floating, fused_numeric, fused_numeric2, gsl_...: from cython_gsl cimport *
 
 
 
@@ -4088,197 +4094,219 @@ FakeClass = collections.namedtuple(
 # Custom defined functions #
 ############################
 # Absolute function for numbers
-if not cython.compiled:
-    # Use NumPy's abs function in pure Python
-    abs = np.abs
-else:
-    @cython.header(
-        x=fused_numeric,
-        returns=fused_numeric,
-    )
-    def abs(x):
-        if fused_numeric in fused_floating:
-            return fabs(x)
-        else:
-            return llabs(x)
+with copy_on_import:
+    if not cython.compiled:
+        # Use NumPy's abs function in pure Python
+        abs = np.abs
+    else:
+        @cython.inline
+        @cython.header(
+            x=fused_numeric,
+            returns=fused_numeric,
+        )
+        def abs(x):
+            if fused_numeric in fused_floating:
+                return fabs(x)
+            else:
+                return llabs(x)
 
 # Max function for 1D memory views of numbers
-if not cython.compiled:
-    # Use NumPy's max function in pure Python
-    max = np.max
-else:
-    """
-    @cython.header(returns=fused_numeric)
-    def max(fused_numeric[::1] a):
-        cdef:
-            Py_ssize_t i
-            fused_numeric m
-        m = a[0]
-        for i in range(1, a.shape[0]):
-            if a[i] > m:
-                m = a[i]
-        return m
-    """
+with copy_on_import:
+    if not cython.compiled:
+        # Use NumPy's max function in pure Python
+        max = np.max
+    else:
+        """
+        @cython.inline
+        @cython.header(returns=fused_numeric)
+        def max(fused_numeric[::1] a):
+            cdef:
+                Py_ssize_t i
+                fused_numeric m
+            m = a[0]
+            for i in range(1, a.shape[0]):
+                if a[i] > m:
+                    m = a[i]
+            return m
+        """
 
 # Min function for 1D memory views of numbers
-if not cython.compiled:
-    # Use NumPy's min function in pure Python
-    min = np.min
-else:
-    """
-    @cython.header(returns=fused_numeric)
-    def min(fused_numeric[::1] a):
-        cdef:
-            Py_ssize_t i
-            fused_numeric m
-        m = a[0]
-        for i in range(1, a.shape[0]):
-            if a[i] < m:
-                m = a[i]
-        return m
-    """
+with copy_on_import:
+    if not cython.compiled:
+        # Use NumPy's min function in pure Python
+        min = np.min
+    else:
+        """
+        @cython.inline
+        @cython.header(returns=fused_numeric)
+        def min(fused_numeric[::1] a):
+            cdef:
+                Py_ssize_t i
+                fused_numeric m
+            m = a[0]
+            for i in range(1, a.shape[0]):
+                if a[i] < m:
+                    m = a[i]
+            return m
+        """
 
 # Max function for pairs of numbers
-@cython.header(a=fused_numeric, b=fused_numeric, returns=fused_numeric)
-def pairmax(a, b):
-    if a > b:
-        return a
-    return b
+with copy_on_import:
+    @cython.inline
+    @cython.header(a=fused_numeric, b=fused_numeric, returns=fused_numeric)
+    def pairmax(a, b):
+        if a > b:
+            return a
+        return b
 
 # Min function for pairs of numbers
-@cython.header(a=fused_numeric, b=fused_numeric, returns=fused_numeric)
-def pairmin(a, b):
-    if a < b:
-        return a
-    return b
+with copy_on_import:
+    @cython.inline
+    @cython.header(a=fused_numeric, b=fused_numeric, returns=fused_numeric)
+    def pairmin(a, b):
+        if a < b:
+            return a
+        return b
 
 # Proper modulo function mod(x, length) for scalars,
 # with x ∈ [0, length) for length > 0.
 # Note that this is different from both x%length
-# and fmod(x, lengt) in C.
-if not cython.compiled:
-    def mod(x, length):
-        x = np.mod(x, length)
-        # Ensure x ∈ [0, length)
-        if x == length:
-            return 0
-        return x
-else:
-    @cython.header(
-        # Arguments
-        x=fused_numeric,
-        length=fused_numeric2,
-        # Locals
-        returns=fused_numeric,
-    )
-    def mod(x, length):
-        if fused_numeric in fused_integral and fused_numeric2 in fused_floating:
-            # Not supported
-            return -1
-        else:
-            while x >= length:
-                x -= length
-            while x < 0:
-                x += length
-            if fused_numeric in fused_floating:
-                if x == length:
-                    return 0
+# and fmod(x, length) in C.
+with copy_on_import:
+    if not cython.compiled:
+        def mod(x, length):
+            x = np.mod(x, length)
+            # Ensure x ∈ [0, length)
+            if x == length:
+                return 0
             return x
+    else:
+        @cython.inline
+        @cython.header(
+            # Arguments
+            x=fused_numeric,
+            length=fused_numeric2,
+            # Locals
+            returns=fused_numeric,
+        )
+        def mod(x, length):
+            if fused_numeric in fused_integral and fused_numeric2 in fused_floating:
+                # Not supported
+                return -1
+            else:
+                while x >= length:
+                    x -= length
+                while x < 0:
+                    x += length
+                if fused_numeric in fused_floating:
+                    if x == length:
+                        return 0
+                return x
 
 # Summation function for 1D memory views of numbers
-if not cython.compiled:
-    # Use NumPy's sum function in pure Python
-    sum = np.sum
-else:
-    """
-    @cython.header(returns=fused_numeric)
-    def sum(fused_numeric[::1] a):
-        cdef:
-            fused_numeric Σ
-            Py_ssize_t N
-            Py_ssize_t i
-        N = a.shape[0]
-        if N == 0:
-            return 0
-        Σ = a[0]
-        for i in range(1, N):
-            Σ += a[i]
-        return Σ
-    """
+with copy_on_import:
+    if not cython.compiled:
+        # Use NumPy's sum function in pure Python
+        sum = np.sum
+    else:
+        """
+        @cython.inline
+        @cython.header(returns=fused_numeric)
+        def sum(fused_numeric[::1] a):
+            cdef:
+                fused_numeric Σ
+                Py_ssize_t N
+                Py_ssize_t i
+            N = a.shape[0]
+            if N == 0:
+                return 0
+            Σ = a[0]
+            for i in range(1, N):
+                Σ += a[i]
+            return Σ
+        """
 
 # Product function for 1D memory views of numbers
-if not cython.compiled:
-    # Use NumPy's prod function in pure Python
-    prod = np.prod
-else:
-    """
-    @cython.header(returns=fused_numeric)
-    def prod(fused_numeric[::1] a):
-        cdef:
-            fused_numeric Π
-            Py_ssize_t N
-            Py_ssize_t i
-        N = a.shape[0]
-        if N == 0:
-            return 1
-        Π = a[0]
-        for i in range(1, N):
-            Π *= a[i]
-        return Π
-    """
+with copy_on_import:
+    if not cython.compiled:
+        # Use NumPy's prod function in pure Python
+        prod = np.prod
+    else:
+        """
+        @cython.inline
+        @cython.header(returns=fused_numeric)
+        def prod(fused_numeric[::1] a):
+            cdef:
+                fused_numeric Π
+                Py_ssize_t N
+                Py_ssize_t i
+            N = a.shape[0]
+            if N == 0:
+                return 1
+            Π = a[0]
+            for i in range(1, N):
+                Π *= a[i]
+            return Π
+        """
 
 # Mean function for 1D memory views of numbers
-if not cython.compiled:
-    # Use NumPy's mean function in pure Python
-    mean = np.mean
-else:
-    """
-    @cython.header(returns=fused_numeric)
-    def mean(fused_numeric[::1] a):
-        return sum(a)/a.shape[0]
-    """
+with copy_on_import:
+    if not cython.compiled:
+        # Use NumPy's mean function in pure Python
+        mean = np.mean
+    else:
+        """
+        @cython.inline
+        @cython.header(returns=fused_numeric)
+        def mean(fused_numeric[::1] a):
+            return sum(a)/a.shape[0]
+        """
 
 # Function that compares two numbers (identical to math.isclose)
-@cython.pheader(
-    # Arguments
-    a=fused_numeric,
-    b=fused_numeric,
-    rel_tol='double',
-    abs_tol='double',
-    # Locals
-    answer='bint',
-    size_a='double',
-    size_b='double',
-    tol='double',
-    returns='bint',
-)
-def isclose(a, b, rel_tol=1e-9, abs_tol=0):
-    size_a, size_b = abs(a), abs(b)
-    if size_a > size_b:
-        tol = rel_tol*size_a
-    else:
-        tol = rel_tol*size_b
-    if tol < abs_tol:
-        tol = abs_tol
-    answer = abs(a - b) <= tol
-    if not answer and (size_a == 0 or size_b == 0) and abs_tol == 0:
-        warn(
-            'isclose() was called with one argument being 0 with no abs_tol. '
-            'This can never result in the arguments being deemed close, '
-            'regardless of the smallness of the other (non-zero) argument.'
-        )
-    return answer
+with copy_on_import:
+    @cython.inline
+    @cython.pheader(
+        # Arguments
+        a=fused_numeric,
+        b=fused_numeric,
+        rel_tol='double',
+        abs_tol='double',
+        # Locals
+        answer='bint',
+        size_a='double',
+        size_b='double',
+        tol='double',
+        returns='bint',
+    )
+    def isclose(a, b, rel_tol=1e-9, abs_tol=0):
+        size_a, size_b = abs(a), abs(b)
+        if size_a > size_b:
+            tol = rel_tol*size_a
+        else:
+            tol = rel_tol*size_b
+        if tol < abs_tol:
+            tol = abs_tol
+        answer = abs(a - b) <= tol
+        if not answer and (size_a == 0 or size_b == 0) and abs_tol == 0:
+            warn(
+                'isclose() was called with one argument being 0 with no abs_tol. '
+                'This can never result in the arguments being deemed close, '
+                'regardless of the smallness of the other (non-zero) argument.'
+            )
+        return answer
 
 # Function that checks if a (floating-point) number
 # is actually an integer.
-@cython.header(
-    x='double',
-    rel_tol='double',
-    abs_tol='double',
-    returns='bint',
-)
-def isint(x, abs_tol=1e-6):
-    return isclose(x, round(x), 0, abs_tol)
+with copy_on_import:
+    @cython.inline
+    @cython.header(
+        x='double',
+        rel_tol='double',
+        abs_tol='double',
+        returns='bint',
+    )
+    def isint(x, abs_tol=1e-6):
+        return isclose(x, round(x), 0, abs_tol)
 
 # Function which format numbers to have a
 # specific number of significant figures.

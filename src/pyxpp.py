@@ -47,6 +47,8 @@ the following changes happens to the source code (in the .pyx file):
   'else:', including these lines themselves. Also removes the triple
   quotes around the Cython statements in the else body. The 'else'
   clause is optional.
+- Code blocks within copy_on_import context managers will be copied
+  over when * importing.
 - Calls to build_struct will be replaced with specialized C structs
   which are declared dynamically from the call. Type declarations
   of this struct, its fields and its corresponding dict are inserted.
@@ -65,7 +67,7 @@ the following changes happens to the source code (in the .pyx file):
 - Replaces the cython.header and cython.pheader decorators with
   all of the Cython decorators which improves performance. The
   difference between the two is that cython.header turns into
-  cython.cfunc and cython.inline (among others), while cython.pheader
+  cython.cfunc (among others), while cython.pheader
   turns into cython.ccall (among others).
 - __init__ methods in cclasses are renamed to __cinit__.
 - Replace (with '0') or remove ':' and '...' intelligently, when taking
@@ -223,6 +225,169 @@ def walrus(lines, no_optimization):
             line = re.sub(rf'\( *{varname} *:=', '( ', line)
             line = line.replace(varname, f'({expression})')
         new_lines.append(line)
+    return new_lines
+
+
+
+def copy_on_import(lines, no_optimization):
+    workfile = filename.removesuffix('.py').removesuffix('.pyx')
+    def get_new_funcname(funcname):
+        return funcname + f'__{workfile}__'
+    funcnames = []
+    new_lines = []
+    unindent = False
+    for i, line in enumerate(lines):
+        # Remove copy_on_import context manager
+        # and unindent block.
+        if re.search(r'^ *with +copy_on_import *:', line):
+            unindent = True
+            indentation_lvl = len(line) - len(line.lstrip())
+            continue
+        elif unindent:
+            line_stripped = line.strip()
+            if line_stripped and not line_stripped.startswith('#'):
+                indentation_lvl_new = len(line) - len(line.lstrip())
+                if indentation_lvl_new <= indentation_lvl:
+                    # End of context manager
+                    unindent = False
+        if unindent and line[:4] == ' '*4:
+            new_lines.append(line[4:])
+            continue
+        new_lines.append(line)
+        # Handle * (c)imports of modules containing copy_on_import
+        match = re.search(r'^ *from +(.+) +c?import +\*', line)
+        if not match:
+            match = re.search(r'^ *cimport *\(["\']+ *from +(.+) +c?import +\* *["\']+\)', line)
+            if not match:
+                continue
+        module_name = match.group(1).strip()
+        try:
+            module = import_py_module(module_name)
+        except ImportError:
+            continue
+        lines_imported = inspect.getsourcelines(module)[0]
+        import_indentation = len(line) - len(line.lstrip())
+        blocks = []
+        in_block = False
+        for line_imported in lines_imported:
+            if re.search(r'^ *with +copy_on_import *:', line_imported):
+                in_block = True
+                block = []
+                blocks.append(block)
+                indentation_lvl_imported = len(line_imported) - len(line_imported.lstrip())
+                continue
+            elif in_block:
+                line_imported_stripped = line_imported.strip()
+                if line_imported_stripped:
+                    indentation_lvl_imported_new = len(line_imported) - len(line_imported.lstrip())
+                    if indentation_lvl_imported_new <= indentation_lvl_imported:
+                        if line_imported_stripped.startswith('#'):
+                            # Leave unindented comment out of block
+                            continue
+                        else:
+                            # End of context manager
+                            in_block = False
+            if in_block:
+                block.append(line_imported)
+        for block in blocks:
+            if not block:
+                continue
+            block_new = []
+            indentation_lvl_block = len(block[0]) - len(block[0].lstrip())
+            funcnames_block = []
+            for line_block in block:
+                line_block_stripped = line_block.strip()
+                if line_block_stripped and not line_block_stripped.startswith('#'):
+                    match = re.search(r'( *def +)(.+?)( *\()', line_block)
+                    if match:
+                        funcname = match.group(2)
+                        if funcname not in funcnames_block:
+                            funcnames_block.append(funcname)
+                        if funcname in funcnames:
+                            print(f'Warning: Function {funcname}() appears twice in {workfile} due to copy_on_import', file=sys.stderr)
+                        # Substitute name of function in definition
+                        line_block = re.sub(
+                            r'( *def +)(.+?)( *\()',
+                            lambda m: m.group(1) + get_new_funcname(m.group(2)) + m.group(3),
+                            line_block,
+                        )
+                if line_block.startswith(' '*indentation_lvl_block):
+                    line_block = line_block[indentation_lvl_block:]
+                line_block = ' '*import_indentation + line_block
+                block_new.append(line_block)
+            funcnames += funcnames_block
+            new_lines.append('\n')
+            new_lines.append(' '*import_indentation + f'# Copied from the {module_name} module\n')
+            block = block_new
+            block_new = []
+            for j, line_block in enumerate(block):
+                if line_block.strip():
+                    block_new += block[j:]
+                    break
+            for line_block in reversed(block_new):
+                if line_block.strip():
+                    break
+                block_new.pop()
+            for line_block in block_new:
+                new_lines.append(line_block)
+            new_lines.append('\n')
+    new_lines = commons.onelinerize(new_lines)
+    # Substitute name of functions used throughout the module,
+    # if defined within the copy block.
+    unused_funcs = funcnames.copy()
+    patterns = [rf'(^|[^\w.])({funcname})($|\W)' for funcname in funcnames]
+    for i, line in enumerate(new_lines):
+        line_stripped = line.strip()
+        if not line_stripped or line_stripped.startswith('#'):
+            continue
+        for funcname, pattern in zip(funcnames, patterns):
+            if not re.search(pattern, line_stripped):
+                continue
+            line_modified, n = re.subn(
+                pattern,
+                lambda m: m.group(1) + get_new_funcname(m.group(2)) + m.group(3),
+                line,
+            )
+            if n > 0:
+                new_lines[i] = line_modified
+                # Is the function used or merely defined using =?
+                if not re.search(rf'(^|[^\w.]){funcname} *=', line):
+                    if funcname in unused_funcs:
+                        unused_funcs.remove(funcname)
+    new_lines = commons.onelinerize(new_lines)
+    # Remove copied function definitions if not used
+    for funcname in unused_funcs:
+        pattern = rf' *def +{get_new_funcname(funcname)} *\('
+        lines = new_lines
+        new_lines = []
+        in_unused_function = False
+        decorator_begin = -1
+        for i, line in enumerate(lines):
+            line_stripped = line.strip()
+            if line_stripped.startswith('@'):
+                if decorator_begin == -1:
+                    decorator_begin = i
+            match = re.search(pattern, line)
+            if not match and line_stripped.startswith('def '):
+                decorator_begin = -1
+            if match:
+                in_unused_function = True
+                indentation_level = len(line) - len(line.lstrip())
+                # Unused function found. Remove decorators above.
+                if decorator_begin != -1:
+                    for _ in range(i - decorator_begin):
+                        new_lines.pop()
+                new_lines.append(' '*indentation_level + 'pass\n')
+                continue
+            elif in_unused_function:
+                line_stripped = line.strip()
+                if not line_stripped or line_stripped.startswith('#'):
+                    continue
+                indentation_level_new = len(line) - len(line.lstrip())
+                if indentation_level_new <= indentation_level:
+                    in_unused_function = False
+            if not in_unused_function:
+                new_lines.append(line)
     return new_lines
 
 
@@ -469,7 +634,7 @@ def cimport_function(lines, no_optimization):
                 f'from {module} cimport {function}\n',
             ]
     def handle_iterator(line, new_lines):
-        match = re.search(r'from +(.+) +cimport +(.+)', line)
+        match = re.search(r'^ *from +(.+) +cimport +(.+)', line)
         if not match:
             return
         filename = match.group(1).strip()
@@ -2756,20 +2921,12 @@ def cython_decorators(lines, no_optimization):
                 # A @cython.header should transform into @cython.cfunc
                 # while a @cython.pheader should transform into a
                 # @cython.ccall. Additional decorators should be placed
-                # below. The @cython.inline decorator should not be
-                # placed on top of:
-                # - So-called special methods, like __init__
-                # - Class methods decorated with @cython.pheader (cpdef)
+                # below.
                 pyfuncs = ('__init__', '__cinit__', '__dealloc__')
                 decorators = [decorator for decorator in
                               (('ccall' if headertype == 'pheader' else 'cfunc')
                                if all(' ' + pyfunc + '(' not in def_line
                                       for pyfunc in pyfuncs) else '',
-                              'inline' if (not no_optimization
-                                           and all(' ' + pyfunc + '(' not in def_line
-                                                   for pyfunc in pyfuncs)
-                                           and (not inside_class or headertype != 'pheader')
-                                           ) else '',
                               'boundscheck({})'.format(no_optimization),
                               'cdivision(True)',
                               'initializedcheck({})'.format(no_optimization),
@@ -3453,6 +3610,14 @@ def make_pxd(filename, no_optimization):
             # Assume this is a declaration of the extension type.
             header_lines.append(vardeclaration)
             continue
+        # The extension type may not be quoted
+        if re.search((  r"""(^|[,;(\s])[^\W0-9]\w*\s*="""
+                      + r"""\s*{vartype}\*?"""
+                      ).format(vartype=vartype),
+                     code_str,
+                     re.MULTILINE):
+            header_lines.append(vardeclaration)
+            continue
         # For extension type attributes another syntax is used;
         # vartype varname
         # Also search after this.
@@ -3534,7 +3699,7 @@ if __name__ == '__main__':
                     f'the "--no-optimizations" flag'
                 )
     if len(sys.argv) > 4:
-        all_pyxfiles = sys.argv[4:]
+        all_pyxfiles = [f for f in sys.argv[4:] if f.endswith('.pyx')]
         if not filename.endswith('.pyx'):
             raise Exception(
                 f'Got "{filename}" which is not a .pyx file as the '
@@ -3565,6 +3730,7 @@ if __name__ == '__main__':
             lines = commons.onelinerize          (lines                 )
             lines = remove_functions             (lines, no_optimization)
             lines = walrus                       (lines, no_optimization)
+            lines = copy_on_import               (lines, no_optimization)
             lines = format_pxdhints              (lines, no_optimization)
             lines = cythonstring2code            (lines, no_optimization)
             lines = cython_structs               (lines, no_optimization)

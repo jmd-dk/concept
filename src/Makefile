@@ -175,12 +175,6 @@ ifneq ($(no_optimizations),True)
     else ifeq ($(compiler),icc)
         optimizations += -fp-model fast=2
     endif
-    # Better inlining
-    ifeq ($(compiler),gcc)
-        optimizations += --param max-inline-insns-auto=100 --param early-inlining-insns=200
-    else ifeq ($(compiler),icc)
-        optimizations += -inline-factor=200
-    endif
     # Native optimizations
     ifeq ($(native_optimizations),True)
         optimizations += -march=native
