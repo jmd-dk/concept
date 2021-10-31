@@ -136,9 +136,19 @@ if [ "${called_from_concept}" != "True" ]; then
 fi
 
 # If no parameter file is supplied,
-# use the one that goes along with this utility.
+# generate a default one.
+param_tmp=""
 if [ "${param}" == "${param_default}" ]; then
-    param="${this_file}.param"
+    param_tmp="${tmp_dir}/param/${start_time_human_nosep}/$(basename "${this_file}")/default"
+    param="${param_tmp}"
+    mkdir -p "$(dirname "${param}")"
+    echo "
+##############################
+# Utility default parameters #
+##############################
+# Debugging options
+allow_snapshot_multifile_singleload = True
+" > "${param}"
 fi
 
 # Convert to absolute paths
@@ -227,7 +237,7 @@ jobid="$("${python}" -B -c                                                      
     2>/dev/null)" || :
 
 # Cleanup
-rm -f "${param_filename}"
+rm -f "${param_tmp}" "${param_filename}"
 cleanup_empty_tmp
 
 # Exit gracefully

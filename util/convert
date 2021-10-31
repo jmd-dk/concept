@@ -123,9 +123,17 @@ if [ "${called_from_concept}" != "True" ]; then
 fi
 
 # If no parameter file is supplied,
-# use the one that goes along with this utility.
+# generate a default one.
+param_tmp=""
 if [ "${param}" == "${param_default}" ]; then
-    param="${this_file}.param"
+    param_tmp="${tmp_dir}/param/${start_time_human_nosep}/$(basename "${this_file}")/default"
+    param="${param_tmp}"
+    mkdir -p "$(dirname "${param}")"
+    echo "
+##############################
+# Utility default parameters #
+##############################
+" > "${param}"
 fi
 
 # Split the paths_and_attributes array up into two separate arrays,
@@ -267,7 +275,8 @@ param = _param_ori
     rm -f "${param_filename}"
 done
 
-# Recursively cleanup tmp directory
+# Cleanup
+rm -f "${param_tmp}"
 cleanup_empty_tmp
 
 # Deactivate traps before exiting
