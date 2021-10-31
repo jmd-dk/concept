@@ -173,6 +173,8 @@ ifneq ($(no_optimizations),True)
     # General optimizations
     optimizations        += -DNDEBUG -O3 -funroll-loops
     optimizations_linker += -O3
+    # Python/Cython optimizations
+    optimizations += -DCYTHON_WITHOUT_ASSERTIONS
     # Floating-point optimizations
     ifeq ($(compiler),gcc)
         optimizations += -ffast-math
