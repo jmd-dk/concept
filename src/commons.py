@@ -25,12 +25,6 @@
 # 'from commons import *' as its first statement.
 
 
-######################
-# __future__ imports #
-######################
-from __future__ import division  # Needed for Python3 division in Cython
-
-
 
 #######################
 # The CO𝘕CEPT version #
