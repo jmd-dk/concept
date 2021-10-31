@@ -639,7 +639,7 @@ build_concept() {
     export PYTHONPATH="${build}:${PYTHONPATH}"
     # Check whether the code should be rebuild
     if [ "${rebuild}" == "True" ]; then
-        rm -rf "${build}/*" "${build}/".[^.]*
+        rm -rf "${build}/"* "${build}/".[^.]*
     elif [ "${rebuild}" == "False" ]; then
         return
     else
