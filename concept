@@ -1227,7 +1227,11 @@ if [ "${main_as_command}" == "False" ]; then
     main="$(absolute_path "${main}")"
 fi
 if [ "${param}" != "${param_unspecified}" ]; then
+    param_ori="${param}"
     param="$(absolute_path "${param}")"
+    if [ ! -f "${param}" ] && [ -f "${param_dir}/${param_ori}" ]; then
+        param="${param_dir}/${param_ori}"
+    fi
 fi
 if [ "${test}" != "${test_unspecified}" ] && [ "${test}" != "all" ]; then
     if [[ "${test}" == *"/run" ]]; then
