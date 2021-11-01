@@ -69,7 +69,7 @@ endif
 # Include (absolute) paths from the .path file
 include $(path_filename)
 # Read in the paths
-paths = $(shell grep -o '.*=' $(path_filename) | sed 's/.$$//')
+path = $(shell grep -o '.*=' $(path_filename) | sed 's/.$$//')
 
 
 
@@ -123,50 +123,50 @@ sensible_path = $(shell                                                    \
     fi;                                                                    \
     current_dir="$$(pwd)";                                                 \
     print_str="";                                                          \
-    for path in $1; do                                                     \
+    for p in $1; do                                                        \
         for prefix in "-I" "-L" "-Wl,-rpath=" ""; do                       \
-            if [[ "$${path}" == "$${prefix}"* ]]; then                     \
+            if [[ "$${p}" == "$${prefix}"* ]]; then                        \
                 n=$$(echo "$${prefix}" | awk '{print length}');            \
-                path="$${path:$${n}}";                                     \
+                p="$${p:$${n}}";                                           \
                 break;                                                     \
             fi;                                                            \
         done;                                                              \
         if [ "$${slow_but_general}" == "True" ]; then                      \
             suffix="";                                                     \
-            n=$$(echo "$${path}" | awk '{print length - 1}');              \
-            end="$${path:$${n}:1}";                                        \
+            n=$$(echo "$${p}" | awk '{print length - 1}');                 \
+            end="$${p:$${n}:1}";                                           \
             if [ "$${end}" == "/" ]; then                                  \
                 suffix="/";                                                \
             fi;                                                            \
-            path="$$(readlink -m "$${path}")$${suffix}";                   \
+            p="$$(readlink -m "$${p}")$${suffix}";                         \
         else                                                               \
-            if [ "$${path:0:1}" != "/" ]; then                             \
-                print_str="$${print_str} $${prefix}$${path}";              \
+            if [ "$${p:0:1}" != "/" ]; then                                \
+                print_str="$${print_str} $${prefix}$${p}";                 \
                 continue;                                                  \
             fi;                                                            \
         fi;                                                                \
-        if [ "$${path}" == "$${current_dir}" ]; then                       \
-            path=".";                                                      \
-        elif [[ "$${path}" == "$${current_dir}/"* ]]; then                 \
+        if [ "$${p}" == "$${current_dir}" ]; then                          \
+            p=".";                                                         \
+        elif [[ "$${p}" == "$${current_dir}/"* ]]; then                    \
             n=$$(echo "$${current_dir}" | awk '{print length + 1}');       \
-            path="$${path:$${n}}";                                         \
+            p="$${p:$${n}}";                                               \
         else                                                               \
             back="";                                                       \
             upper_dir="$${current_dir}";                                   \
             for ((i = 0; i < $${depth}; i += 1)); do                       \
                 upper_dir="$$(dirname "$${upper_dir}")";                   \
-                if [ "$${path}" == "$${upper_dir}" ]; then                 \
-                    path="..$${back}";                                     \
+                if [ "$${p}" == "$${upper_dir}" ]; then                    \
+                    p="..$${back}";                                        \
                     break;                                                 \
-                elif [[ "$${path}" == "$${upper_dir}/"* ]]; then           \
+                elif [[ "$${p}" == "$${upper_dir}/"* ]]; then              \
                     n=$$(echo "$${upper_dir}" | awk '{print length + 1}'); \
-                    path="..$${back}/$${path:$${n}}";                      \
+                    p="..$${back}/$${p:$${n}}";                            \
                     break;                                                 \
                 fi;                                                        \
                 back="$${back}/..";                                        \
             done;                                                          \
         fi;                                                                \
-        print_str="$${print_str} $${prefix}$${path}";                      \
+        print_str="$${print_str} $${prefix}$${p}";                         \
     done;                                                                  \
     print_str="$$(echo $${print_str})";                                    \
     echo "$${print_str}";                                                  \
@@ -198,7 +198,7 @@ ifneq ($(python_test),success)
 endif
 # Transform all the included paths to sensible paths
 # to reduce screen clutter when building.
-$(foreach path,$(paths),$(eval $(path)=$(call sensible_path,$($(path)))))
+$(foreach p,$(path),$(eval $(p)=$(call sensible_path,$($(p)))))
 # If no $(build) directory is defined, use the default build_dir
 ifeq ($(build),)
     build = $(build_dir)

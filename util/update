@@ -398,8 +398,16 @@ fi
 
 # Copy new files into the installation directory,
 # overwriting all files. We exclude installation specific files.
+files_installation_specific=(".env" ".git" ".path")
 for f in * .[^.]*; do
-    if [ "${f}" == ".env" ] || [ "${f}" == ".git" ] || [ "${f}" == ".path" ]; then
+    skip="False"
+    for f_exclude in "${files_installation_specific[@]}"; do
+        if [ "${f}" == "${f_exclude}" ]; then
+            skip="True"
+            break
+        fi
+    done
+    if [ "${skip}" == "True" ]; then
         continue
     fi
     cp -r "${f}" "${concept_dir}/"

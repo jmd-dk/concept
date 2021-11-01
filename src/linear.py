@@ -367,7 +367,7 @@ class CosmoResults:
                     for key, val in self.params.items()}.items()))
                 + (class__VERSION_, class__ARGUMENT_LENGTH_MAX_, class_a_min)
             ).encode('utf-8')).hexdigest()[:sha_length]
-            self.filename = f'{paths["reusable_dir"]}/class/{self.id}.hdf5'
+            self.filename = f'{path.reusable_dir}/class/{self.id}.hdf5'
         # Message that gets printed if and when CLASS is called
         self.class_call_reason = class_call_reason
         # Add methods which return transfer function splines for a
@@ -4392,7 +4392,7 @@ for (varname,
             pattern = rf'(^|[^0-9a-zA-Z_])#define\s+{varname}\s+(.+?)(/\*| |//|;|\n|$)'
         elif declaration_type == 'variable':
             pattern = rf'(^|[^0-9a-zA-Z_]){varname}\s*=\s*(.*?)(/\*| |//|;|\n|$)'
-        filename_abs = rf'{paths["class_dir"]}/{filename}'
+        filename_abs = rf'{path.class_dir}/{filename}'
         try:
             with open_file(filename_abs, mode='r') as class_file:
                 value = type(default_value)(re.search(pattern, class_file.read())

@@ -2955,7 +2955,7 @@ def get_wisdom_filename(gridsize):
     # Get the version of FFTW in use
     if not fftw_version:
         fftw_version = '<unknown>'
-        fftw_pkgconfig_filename = paths['fftw_dir'] + f'/lib/pkgconfig/fftw3.pc'
+        fftw_pkgconfig_filename = f'{path.fftw_dir}/lib/pkgconfig/fftw3.pc'
         if os.path.exists(fftw_pkgconfig_filename):
             with open_file(fftw_pkgconfig_filename, mode='r') as fftw_pkgconfig_file:
                 content = fftw_pkgconfig_file.read()
@@ -2995,7 +2995,7 @@ def get_wisdom_filename(gridsize):
         wisdom_owner,
     )).encode('utf-8')).hexdigest()[:sha_length]
     # The full path to the wisdom file
-    wisdom_filename = paths['reusable_dir'] + f'/fftw/{wisdom_hash}.wisdom'
+    wisdom_filename = f'{path.reusable_dir}/fftw/{wisdom_hash}.wisdom'
     # Broadcast and return result
     return bcast(wisdom_filename)
 # Constant strings set and used by the get_wisdom_filename function

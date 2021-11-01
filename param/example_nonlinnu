@@ -20,7 +20,7 @@ initial_conditions = [
     },
 ]
 output_dirs = {
-    'powerspec': paths['output_dir'] + f'/{param}',
+    'powerspec': f'{path.output_dir}/{param}',
     'render2D' : ...,
 }
 output_times = {

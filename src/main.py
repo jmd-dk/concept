@@ -1793,7 +1793,7 @@ def activate_terminate(components, a, Δt, act='activate terminate'):
 def autosave(components, time_step, Δt, Δt_begin):
     masterprint('Autosaving ...')
     autosave_filename        = f'{autosave_dir}/autosave_{jobid}.hdf5'
-    autosave_param_filename = f'{paths["param_dir"]}/autosave_{jobid}.param'
+    autosave_param_filename = f'{path.param_dir}/autosave_{jobid}.param'
     # Save parameter file corresponding to the snapshot
     if master:
         masterprint(f'Writing parameter file "{autosave_param_filename}" ...')

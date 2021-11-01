@@ -22,7 +22,7 @@ initial_conditions = [
         'boltzmann order': -1,  # Completely linear component
     },
 ]
-output_dirs = paths['output_dir'] + f'/{param}'
+output_dirs = f'{path.output_dir}/{param}'
 output_times = {'powerspec': [a_begin, 0.5, 1]}
 powerspec_select = {'matter': True}
 

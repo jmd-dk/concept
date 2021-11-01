@@ -71,7 +71,7 @@ zlib_dir='/home/jeppe/concept/dep/zlib'
 # The executable script of the CO𝘕CEPT code
 concept='/home/jeppe/concept/concept'
 # The file containing environment variables
-env_file='/home/jeppe/concept/.env'
+env='/home/jeppe/concept/.env'
 # The install script
 install='/home/jeppe/concept/install'
 # The MPI C compiler
@@ -79,7 +79,7 @@ mpicc='/home/jeppe/concept/dep/mpich/bin/mpicc'
 # The MPI executable
 mpiexec='/home/jeppe/concept/dep/mpich/bin/mpiexec'
 # The file containing paths (this file)
-path_file='/home/jeppe/concept/.path'
+path='/home/jeppe/concept/.path'
 # The Python interpreter
 python='/home/jeppe/concept/dep/python/bin/python3.9'
 

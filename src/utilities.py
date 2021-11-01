@@ -342,34 +342,34 @@ def convert():
 # Function for finding all snapshots in a directory
 @cython.pheader(
     # Arguments
-    path=str,
+    path_snapshot=str,
     # Locals
     filenames=list,
     snapshot_filenames=list,
     returns=list,
 )
-def locate_snapshots(path):
+def locate_snapshots(path_snapshot):
     # Get all files and directories from the path
-    if get_snapshot_type(path):
-        filenames = [path]
-    elif os.path.isdir(path):
+    if get_snapshot_type(path_snapshot):
+        filenames = [path_snapshot]
+    elif os.path.isdir(path_snapshot):
         filenames = []
-        for filename in os.listdir(path):
-            filename = os.path.join(path, filename)
+        for filename in os.listdir(path_snapshot):
+            filename = os.path.join(path_snapshot, filename)
             if os.path.isfile(filename) or os.path.isdir(filename):
                 filenames.append(filename)
     else:
-        filenames = [path]
+        filenames = [path_snapshot]
     # Only use snapshots
     snapshot_filenames = [filename for filename in filenames if get_snapshot_type(filename)]
     # Abort if none of the files where snapshots
     if master and not snapshot_filenames:
-        if os.path.isdir(path):
-            abort(f'The directory "{path}" does not contain any snapshots')
-        elif os.path.exists(path):
-            abort(f'The file "{path}" is not recognized as a snapshot')
+        if os.path.isdir(path_snapshot):
+            abort(f'The directory "{path_snapshot}" does not contain any snapshots')
+        elif os.path.exists(path_snapshot):
+            abort(f'The file "{path_snapshot}" is not recognized as a snapshot')
         else:
-            abort(f'Path "{path}" does not exist')
+            abort(f'Path "{path_snapshot}" does not exist')
     return snapshot_filenames
 
 # Function that produces a power spectrum of the file
@@ -464,33 +464,36 @@ def render3D():
                     True, '.renders3D_{}'.format(basename))
 
 # Function for printing all informations within a snapshot
-@cython.pheader(# Locals
-                alt_str=str,
-                component='Component',
-                h='double',
-                heading=str,
-                index='int',
-                eos_info=str,
-                ext=str,
-                param_num='int',
-                parameter_filename=str,
-                params=dict,
-                path=str,
-                paths=list,
-                snapshot=object,
-                snapshot_filenames=list,
-                snapshot_type=str,
-                unit='double',
-                value='double',
-                Σmom='double[::1]',
-                σmom='double[::1]',
-                )
+@cython.pheader(
+    # Locals
+    alt_str=str,
+    component='Component',
+    h='double',
+    heading=str,
+    index='int',
+    eos_info=str,
+    ext=str,
+    param_num='int',
+    parameter_filename=str,
+    params=dict,
+    paths=list,
+    snapshot=object,
+    snapshot_filenames=list,
+    snapshot_type=str,
+    unit='double',
+    value='double',
+    Σmom='double[::1]',
+    σmom='double[::1]',
+)
 def info():
     # Extract the paths to snapshot(s)
     paths = special_params['paths']
     # Get list of all snapshots
-    snapshot_filenames = [snapshot_filename for path in paths
-                                            for snapshot_filename in locate_snapshots(path)]
+    snapshot_filenames = [
+        snapshot_filename
+        for path in paths
+        for snapshot_filename in locate_snapshots(path)
+    ]
     # Print out information about each snapshot
     for snapshot_filename in snapshot_filenames:
         # Load parameters from the snapshot

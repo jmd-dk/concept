@@ -128,7 +128,7 @@ for env_var in "${env_backup_vars[@]}"; do
     eval "env_val=\"\${${env_var}}\""
     env_backup_vals=("${env_backup_vals[@]}" "${env_val}")
 done
-source "${env_file}"
+source "${env}"
 for ((index=0; index<${#env_backup_vars[@]}; index+=1)); do
     env_val="${env_backup_vals[${index}]}"
     if [ -n "${env_val}" ]; then

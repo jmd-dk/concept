@@ -1562,7 +1562,7 @@ def eval_unit(unit_str, namespace=None, fail_on_error=True):
 # Paths to directories and files #
 ##################################
 # The paths are stored in the .path file
-cython.declare(paths=dict)
+cython.declare(path=object)  # Path
 def load_source(module_name, filename):
     loader = importlib.machinery.SourceFileLoader(module_name, filename)
     spec = importlib.util.spec_from_loader(loader.name, loader)
@@ -1584,30 +1584,40 @@ if master:
     concept_dir = find_concept_dir()
     if concept_dir is None:
         abort('Could not find the .path file!')
-    paths_module = load_source('paths', f'{concept_dir}/.path')
-    paths = {
+    path_module = load_source('path', f'{concept_dir}/.path')
+    path = {
         key: value
-        for key, value in paths_module.__dict__.items()
+        for key, value in path_module.__dict__.items()
         if isinstance(key, str) and not key.startswith('__')
     }
-paths = bcast(paths if master else None)
+path = bcast(path if master else None)
+# Wrap the path variable in a convenient container class,
+# enabling both bracketed and dotted lookup.
+class Path(dict):
+    def __getattr__(self, name):
+       return self[name]
+    def __setattr__(self, name, value):
+        self[name] = value
+    def __delattr__(self, name):
+        self.pop(name)
+path = Path(path)
 # Function for converting an absolute path to its "sensible" form.
 # That is, this function returns the relative path with respect to the
 # concept directory, if it is no more than one directory above the
 # concept directory. Otherwise, return the absolute path back again.
 @cython.header(
     # Arguments
-    path=str,
+    abspath=str,
     # Locals
     relpath=str,
     returns=str,
 )
-def sensible_path(path):
-    if not path:
-        return path
-    relpath = os.path.relpath(path, paths['concept_dir'])
+def sensible_path(abspath):
+    if not abspath:
+        return abspath
+    relpath = os.path.relpath(abspath, path['concept_dir'])
     if relpath.startswith('../../'):
-        return path
+        return abspath
     return relpath
 
 
@@ -1620,7 +1630,7 @@ cython.declare(param_file_content=str)
 param_file_content = ''
 if master and jobid != -1:
     # The path to the copied parameter file
-    param_cp = paths['job_dir'] + f'/{jobid}/param'
+    param_cp = path['job_dir'] + f'/{jobid}/param'
     # If no parameter file is specified we do not attempt to read
     # in the copy of it (unless such a copy mysteriously exists anyway).
     if param or os.path.isfile(param_cp):
@@ -1787,8 +1797,8 @@ def construct_user_params_namespace(params_iteration):
         # built-in hybrid min and max functions.
         'min': produce_np_and_builtin_function('min'),
         'max': produce_np_and_builtin_function('max'),
-        # The paths dict
-        'paths': paths,
+        # The path container
+        'path': path,
         # Modules
         'numpy': np,
         'np'   : np,
@@ -2367,12 +2377,12 @@ else:
     output_dirs = dict(user_params.get('output_dirs', {}))
 replace_ellipsis(output_dirs)
 for kind in output_kinds:
-    output_dirs[kind] = str(output_dirs.get(kind, paths['output_dir']))
+    output_dirs[kind] = str(output_dirs.get(kind, path['output_dir']))
     if not output_dirs[kind]:
-        output_dirs[kind] = paths['output_dir']
+        output_dirs[kind] = path['output_dir']
 output_dirs['autosave'] = str(output_dirs.get('autosave', ''))
 if not output_dirs['autosave']:
-    output_dirs['autosave'] = paths['ic_dir']
+    output_dirs['autosave'] = path['ic_dir']
 output_dirs = {key: sensible_path(path) for key, path in output_dirs.items()}
 user_params['output_dirs'] = output_dirs
 output_bases = dict(user_params.get('output_bases', {}))
@@ -4986,7 +4996,7 @@ def commons_flood():
         with suppress_stdout():
             commons_module = load_source(
                 'commons_pure_python',
-                '{}/commons.py'.format(paths['src_dir']),
+                '{}/commons.py'.format(path['src_dir']),
             )
         stack = inspect.stack()
         if len(stack) == 1:

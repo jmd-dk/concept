@@ -241,7 +241,7 @@ def tabulate():
 # The global Ewald grid and its path on disk
 cython.declare(grid='double[:, :, :, ::1]', filename=str)
 grid = None
-filename = f'{paths["reusable_dir"]}/ewald/{ewald_gridsize}.hdf5'
+filename = f'{path.reusable_dir}/ewald/{ewald_gridsize}.hdf5'
 
 # Set parameters for the Ewald summation at import time
 cython.declare(

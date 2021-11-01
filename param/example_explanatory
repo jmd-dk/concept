@@ -23,11 +23,11 @@ initial_conditions = [  # Initial condition snapshot file or container of compon
     },
 ]
 output_dirs = {  # Directories for storing output
-    'snapshot' : paths['output_dir'] + f'/{param}',
+    'snapshot' : f'{path.output_dir}/{param}',
     'powerspec': ...,
     'render2D' : ...,
     'render3D' : ...,
-    'autosave' : paths['ic_dir'],
+    'autosave' : path.ic_dir,
 }
 output_bases = {  # File basenames of output
     'snapshot' : 'snapshot',

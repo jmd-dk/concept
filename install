@@ -362,8 +362,8 @@ set_dir "libffi"          "${python_dir}"
 set_dir "zlib"            "__concept_dir__/dep/zlib"
 tmp_dir="__concept_dir__/.tmp"
 log="${tmp_dir}/install_log"
-env_file="__concept_dir__/.env"
-path_file="__concept_dir__/.path"
+env="__concept_dir__/.env"
+path="__concept_dir__/.path"
 
 # This function sets the variable "name_version" if not set already.
 # For pre-installed software, set "name_version" to "pre-installed".
@@ -783,14 +783,14 @@ fi
 get_command() {
     command_name="${1}"
     # Use the type built-in to locate the command
-    local path="$(type "${command_name}" 2>/dev/null || :)"
-    path="${path##* }"
-    if [[ "${path}" == "/"* ]]; then
+    command_path="$(type "${command_name}" 2>/dev/null || :)"
+    command_path="${command_path##* }"
+    if [[ "${command_path}" == "/"* ]]; then
         # The command is a path
-        path="$(readlink -f "${path}")"
-        echo "${path}"
+        command_path="$(readlink -f "${command_path}")"
+        echo "${command_path}"
         return 0
-    elif [ -n "${path}" ]; then
+    elif [ -n "${command_path}" ]; then
         # The command exists as a function
         echo "${command_name}"
         return 0
@@ -2030,8 +2030,8 @@ fix_path "FFTW for GADGET"
 fix_path "GSL"
 fix_path "HDF5"
 fix_path "MPI"
-env_file="${env_file/__concept_dir__/${concept_dir}}"
-path_file="${path_file/__concept_dir__/${concept_dir}}"
+env="${env/__concept_dir__/${concept_dir}}"
+path="${path/__concept_dir__/${concept_dir}}"
 
 # Set mpicc, mpi_compilerdir, mpi_bindir, mpi_libdir and mpi_includedir
 # if not already set.
@@ -7675,7 +7675,7 @@ if [ "${concept_install}" == "True" ] && [ "${concept_installed}" == "False" ]; 
     set_status "Setting up the .env file"
     "${python}" -B -c "
 import os
-with open('${env_file}', 'r', encoding='utf-8') as file:
+with open('${env}', 'r', encoding='utf-8') as file:
     lines = file.readlines()
 # Generator for extracting environment variables
 def get_envs():
@@ -7698,10 +7698,9 @@ def get_envs():
             yield var, val
 # Add environment variables
 envs_inserted = False
-with open('${env_file}', 'w', encoding='utf-8') as file:
+with open('${env}', 'w', encoding='utf-8') as file:
     for line in lines:
-        if not envs_inserted and 'Update the environment' in line:
-            print('# The following has been placed by the install script', file=file)
+        if not envs_inserted and r'pathenv_name_value_pairs_installtime=()' in line:
             if '${python_install}' == 'True':
                 print('unset PYTHONPATH', file=file)
                 print('unset PYTHONHOME', file=file)
@@ -7710,9 +7709,9 @@ with open('${env_file}', 'w', encoding='utf-8') as file:
             for var, val in get_envs():
                 print(f'    {var} \"{val}\" \\\\', file=file)
             print(')', file=file)
-            print('', file=file)
             envs_inserted = True
-        print(line, end='', file=file)
+        else:
+            print(line, end='', file=file)
 "
     # If MPI was installed as part of this installation process, it is
     # not set up to function with e.g. Slurm, and so we set the
@@ -7747,13 +7746,13 @@ with open('${env_file}', 'w', encoding='utf-8') as file:
                 mpiexec_args="${mpiexec_args} --bind-to none"
             fi
         fi
-        sed -i "s/mpi_executor=\"\"/mpi_executor=\"mpiexec${mpiexec_args}\"/" "${env_file}" || :
+        sed -i "s/mpi_executor=\"\"/mpi_executor=\"mpiexec${mpiexec_args}\"/" "${env}" || :
         reset_environment
     fi
     # If the make_jobs variable is set by the user,
     # store this in the .env file.
     if [ -n "${make_jobs}" ] && [ "${make_jobs_set_by_user}" == "True" ]; then
-        sed -i "s/make_jobs=\"\"/make_jobs=\"${make_jobs}\"/" "${env_file}" || :
+        sed -i "s/make_jobs=\"\"/make_jobs=\"${make_jobs}\"/" "${env}" || :
     fi
     # Create the .path file,
     # storing important paths used by CO𝘕CEPT.
@@ -7833,7 +7832,7 @@ zlib_dir='${zlib_dir}'
 # The executable script of the CO𝘕CEPT code
 concept='${concept}'
 # The file containing environment variables
-env_file='${env_file}'
+env='${env}'
 # The install script
 install='${install}'
 # The MPI C compiler
@@ -7841,10 +7840,10 @@ mpicc='${mpicc}'
 # The MPI executable
 mpiexec='${mpiexec}'
 # The file containing paths (this file)
-path_file='${path_file}'
+path='${path}'
 # The Python interpreter
 python='${python}'
-" > "${path_file}"
+" > "${path}"
     # CO𝘕CEPT will be tested later
 fi
 # The concept_print function, used later for extracting values
