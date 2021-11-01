@@ -3239,7 +3239,7 @@ class Component:
         # continuity equation. If what is being run is not a simulation
         # but the CLASS utility, this is not a problem as the system
         # is not to be evolved.
-        if value <= -1 and special_params.get('special') != 'CLASS':
+        if value <= -1 and special_params.get('special') != 'class':
             if (
                     (   self.boltzmann_order > 0
                      or (self.boltzmann_order == 0 and self.boltzmann_closure == 'class'))
@@ -3259,7 +3259,7 @@ class Component:
         # negative. If what is being run is not a simulation
         # but the CLASS utility, this is not a problem as the system
         # is not to be evolved.
-        if value < 0 and special_params.get('special') != 'CLASS':
+        if value < 0 and special_params.get('special') != 'class':
             if self.boltzmann_order > 0 and (a > universals.a_begin or t > universals.t_begin):
                 if t == -1:
                     t = cosmic_time(a)

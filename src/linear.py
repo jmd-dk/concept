@@ -751,7 +751,7 @@ class CosmoResults:
                 # this simulation. If we are running the CLASS utility
                 # and not a simulation, keep the
                 # extra perturbations around.
-                if master and special_params.get('special') != 'CLASS':
+                if master and special_params.get('special') != 'class':
                     for key in set(self._perturbations[0].keys()):
                         if not any([key == pattern or re.search(pattern, key)
                             for pattern in class_extra_perturbations_class]
@@ -1484,7 +1484,7 @@ class CosmoResults:
                     )
                 # Load the perturbations
                 needed_keys = self.needed_keys['perturbations'].copy()
-                if special_params.get('special') == 'CLASS':
+                if special_params.get('special') == 'class':
                     needed_keys |= class_extra_perturbations_class
                 for key, d in perturbations_h5.items():
                     if key == 'k_magnitudes':
@@ -4408,4 +4408,4 @@ for (varname,
         # This is the maximum number of k modes that CLASS can handle
         k_gridsize_max = (class__ARGUMENT_LENGTH_MAX_ - 1)//(len(k_float2str(0)) + 1)
     elif varname == 'a_min':
-        class_a_min = -1.0 if special_params.get('special') == 'CLASS' else value
+        class_a_min = -1.0 if special_params.get('special') == 'class' else value

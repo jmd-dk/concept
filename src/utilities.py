@@ -55,7 +55,11 @@ from integration import init_time
 # defined in the special_params dict.
 @cython.header()
 def delegate():
-    eval(special_params['special'] + '()')
+    utility = special_params['special']
+    utility = {
+        'class': 'class_',
+    }.get(utility, utility)
+    eval(f'{utility}()')
 
 # Context manager which temporarily sets the
 # allow_similarly_named_components flag in the species module to True,
@@ -746,7 +750,7 @@ def info():
     variable_specifications=list,
     ρ_bars=dict,
 )
-def CLASS():
+def class_():
     # Suppress warning about the total energy density of the components
     # being too high, as the components are not used to perform a
     # simulation anyway.
