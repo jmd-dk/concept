@@ -5,7 +5,9 @@
 ### 🚀 1.0.0 — *Still under development*
 
 #### ✨ Features added
-- [Documentation](https://jmd-dk.github.io/concept/)
+- [Documentation](https://jmd-dk.github.io/concept/).
+- [Docker images](https://hub.docker.com/r/jmddk/concept/).
+- Proper example parameter files.
 - Proper P³M via tiles and subtiles.
 - Adaptive particle time-stepping.
 - Overhaul of grid implementation:
@@ -23,14 +25,15 @@
 - Full GADGET snapshot support.
 - Switch to B-spline particle softening and only soften the Newtonian force.
 - History-independent time step size.
-- [Docker images](https://hub.docker.com/r/jmddk/concept/).
+- Allow for static global time-stepping.
 - 'Paired-and-fixed' initial conditions.
 - Linear *N*-body gauge power spectrum output.
 - Allow finite life times of components.
-- Allow for static global time-stepping.
 - Display of load imbalance.
+- The `--job-name` option to `concept`.
 - The `--no-lto` option to `concept`.
-- The `--no-recompilation` option to `concept`.
+- The `--rebuild` option to `concept`.
+- The `--repeats` option to the `play` utility.
 
 #### 🐛 Bugs fixed
 - Guard against particles with positions right at the edge of the box,
@@ -44,13 +47,25 @@
 - More performant grid differentiation.
 - More aggressive compile time optimization.
 - New `--native-optimizations` option to `concept`.
+- Fine-grained inlining.
+- Basic invocation of `concept` and `make` sped up.
+- Disabling of Cython assertions.
+- Transpile-time insertions of `NAN` and `INFINITY` literals.
+
+#### 🤖 Tests
+- Test of update utility.
+- Test of example parameter files.
 
 #### 👌 Other changes
 - New and more organised directory structure.
+- Generalised build system:
+  - Multiple simultaneous builds possible.
+  - Build from submitted job possible.
+- Convenient `path` and `param` variables in parameter files.
 - Generalised species.
 - More tunable power spectrum settings.
-- Allow for deterministic FFTW wisdom.
-- Switched to the PCG64DXSM pseudo-random number generator.
+- Allow for deterministic [FFTW wisdom](https://www.fftw.org/fftw3_doc/Wisdom.html).
+- Switched to the [PCG64 DXSM](https://numpy.org/doc/stable/reference/random/bit_generators/pcg64dxsm.html) pseudo-random number generator.
 - Explicit registration of CLASS perturbations.
 - Improved robustness of the `install` script.
 - 'Slim builds' now available.
