@@ -22,13 +22,7 @@
 
 
 
-# This utility can produce 3D renders of snapshots.
-# You can run this file directly as
-# util/render3D paths
-# or invoke it via the concept script as
-# ./concept -u render3D paths
-# In both cases, paths are paths to snapshot files
-# or a directories containing snapshot files.
+# This utility can produce 3D renders of snapshots
 
 
 

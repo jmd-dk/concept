@@ -22,11 +22,7 @@
 
 
 
-# This utility will update the CO𝘕CEPT or CLASS source files.
-# You can run this file directly as
-# util/update version [-y] [--class]
-# or invoke it via the concept script as
-# ./concept -u update version [-y] [--class]
+# This utility will update the CO𝘕CEPT or CLASS source files
 
 
 

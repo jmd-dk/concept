@@ -977,172 +977,181 @@ def bool_or_empty(value):
     if value in {'false', 'n', 'no'}:
         return 'False'
     raise argparse.ArgumentTypeError(\"invalid non-empty bool value: '{}'\".format(value_raw))
-# Setup command-line arguments
-parser = argparse.ArgumentParser(
-    prog='$(basename "${this_file}")',
-    description='Run the ${esc_concept} code',
-)
-parser.add_argument(
-    '-b', '--build',
-    help='build directory to use',
-    default='${build_dir}',
-)
-parser.add_argument(
-    '-c', '--command-line-params',
-    help=(
-        'specify parameter(s) directly from the command-line. '
-        'If a parameter file is specified as well, the command-line '
-        'parameters will take precedence. This option may be specified '
-        'multiple times.'
-    ),
-    default=[],
-    action='append',
-)
-parser.add_argument(
-    '-i', '--interactive',
-    help='inspect interactively after program execution',
-    default=${interactive_default},
-    action='store_true',
-)
-parser.add_argument(
-    '-j', '--job-directive',
-    help=(
-        'specify an additional line to add to the job script header '
-        'for remote jobs. This option may be specified multiple times.'
-    ),
-    default=[],
-    action='append',
-)
-parser.add_argument(
-    '-m', '--main',
-    help='entry point of the code. Can be a Python filename or command.',
-    default='${src_dir}/main.py',
-)
-parser.add_argument(
-    '--memory',
-    help='total memory allocated for remote job',
-    type=memory,
-    default=${memory_default},
-)
-parser.add_argument(
-    '-n', '--nprocs',
-    help=('total number of processes '
-          'or number of nodes and number of processes per node'),
-    type=positive_int_or_int_pair,
-    default=${nprocs_unspecified},
-)
-parser.add_argument(
-    '-p', '--params',
-    help='parameter file to use',
-    default='${param_unspecified}',
-)
-parser.add_argument(
-    '-q', '--queue',
-    help='queue for submission of the remote job',
-    default='${queue_unspecified}',
-)
-parser.add_argument(
-    '-t', '--tests',
-    help=('run test TESTS. TESTS can be any subdirectory of the test directory. '
-          'Use TESTS=all to run all tests'),
-    default='${test_unspecified}',
-)
-parser.add_argument(
-    '-u', '--utility',
-    nargs='+',
-    help='run utility UTILITY. UTILITY can be any executable in the util directory',
-    default=['${utility_unspecified}']*2,  # One for utility, one for utility_args
-)
-parser.add_argument(
-    '-w', '--walltime',
-    help='maxium allowed wall time for remote job',
-    type=time,
-    default='${walltime_default}',
-)
-parser.add_argument(
-    '--job-name',
-    help='name of the job to be used with Slurm/TORQUE/PBS',
-    default='${jobname_default}',
-)
-parser.add_argument(
-    '--local',
-    help='force the run to be done locally, without submitting it as a remote job',
-    default=${local_default},
-    action='store_true',
-)
-parser.add_argument(
-    '--native-optimizations',
-    help='allow the compiler to generate non-portable code optimized for this machine',
-    default=${native_optimizations_default},
-    action='store_true',
-)
-parser.add_argument(
-    '--no-lto',
-    help='disable link time optimizations',
-    default=${no_lto_default},
-    action='store_true',
-)
-parser.add_argument(
-    '--no-optimizations',
-    help='disable compiler optimizations',
-    default=${no_optimizations_default},
-    action='store_true',
-)
-parser.add_argument(
-    '--no-watching',
-    help='do not follow the submitted job via the watch utility',
-    default=${no_watching_default},
-    action='store_true',
-)
-parser.add_argument(
-    '--pure-python',
-    help='run in pure Python mode',
-    default=${pure_python_default},
-    action='store_true',
-)
-parser.add_argument(
-    '--rebuild',
-    nargs='?',
-    help='specify whether to rebuild the code before running it',
-    type=bool_or_empty,
-    default='',
-    const='True',
-)
-parser.add_argument(
-    '--unsafe-building',
-    help='ignore dependencies between modules when building',
-    default=${unsafe_building_default},
-    action='store_true',
-)
-parser.add_argument(
-    '-v', '--version',
-    help='print version info',
-    default=False,
-    action='store_true',
-)
+# Function for setting up a parser for command-line arguments
+def get_parser(*, add_help=True):
+    parser = argparse.ArgumentParser(
+        prog='$(basename "${this_file}")',
+        description='Run the ${esc_concept} code',
+        add_help=add_help,
+    )
+    parser.add_argument(
+        '-b', '--build',
+        help='build directory to use',
+        default='${build_dir}',
+    )
+    parser.add_argument(
+        '-c', '--command-line-params',
+        help=(
+            'specify parameter(s) directly from the command-line. '
+            'If a parameter file is specified as well, the command-line '
+            'parameters will take precedence. This option may be specified '
+            'multiple times.'
+        ),
+        default=[],
+        action='append',
+    )
+    parser.add_argument(
+        '-i', '--interactive',
+        help='inspect interactively after program execution',
+        default=${interactive_default},
+        action='store_true',
+    )
+    parser.add_argument(
+        '-j', '--job-directive',
+        help=(
+            'specify an additional line to add to the job script header '
+            'for remote jobs. This option may be specified multiple times.'
+        ),
+        default=[],
+        action='append',
+    )
+    parser.add_argument(
+        '-m', '--main',
+        help='entry point of the code. Can be a Python filename or command.',
+        default='${src_dir}/main.py',
+    )
+    parser.add_argument(
+        '--memory',
+        help='total memory allocated for remote job',
+        type=memory,
+        default=${memory_default},
+    )
+    parser.add_argument(
+        '-n', '--nprocs',
+        help=(
+            'total number of processes '
+            'or number of nodes and number of processes per node'
+        ),
+        type=positive_int_or_int_pair,
+        default=${nprocs_unspecified},
+    )
+    parser.add_argument(
+        '-p', '--params',
+        help='parameter file to use',
+        default='${param_unspecified}',
+    )
+    parser.add_argument(
+        '-q', '--queue',
+        help='queue for submission of the remote job',
+        default='${queue_unspecified}',
+    )
+    parser.add_argument(
+        '-t', '--tests',
+        help=(
+            'run test TESTS. TESTS can be any subdirectory of the test directory. '
+            'Use TESTS=all to run all tests'
+        ),
+        default='${test_unspecified}',
+    )
+    parser.add_argument(
+        '-u', '--utility',
+        nargs='+',
+        help='run utility UTILITY. UTILITY can be any executable in the util directory',
+        default=['${utility_unspecified}']*2,  # One for utility, one for utility_args
+    )
+    parser.add_argument(
+        '-w', '--walltime',
+        help='maxium allowed wall time for remote job',
+        type=time,
+        default='${walltime_default}',
+    )
+    parser.add_argument(
+        '--job-name',
+        help='name of the job to be used with Slurm/TORQUE/PBS',
+        default='${jobname_default}',
+    )
+    parser.add_argument(
+        '--local',
+        help='force the run to be done locally, without submitting it as a remote job',
+        default=${local_default},
+        action='store_true',
+    )
+    parser.add_argument(
+        '--native-optimizations',
+        help='allow the compiler to generate non-portable code optimized for this machine',
+        default=${native_optimizations_default},
+        action='store_true',
+    )
+    parser.add_argument(
+        '--no-lto',
+        help='disable link time optimizations',
+        default=${no_lto_default},
+        action='store_true',
+    )
+    parser.add_argument(
+        '--no-optimizations',
+        help='disable compiler optimizations',
+        default=${no_optimizations_default},
+        action='store_true',
+    )
+    parser.add_argument(
+        '--no-watching',
+        help='do not follow the submitted job via the watch utility',
+        default=${no_watching_default},
+        action='store_true',
+    )
+    parser.add_argument(
+        '--pure-python',
+        help='run in pure Python mode',
+        default=${pure_python_default},
+        action='store_true',
+    )
+    parser.add_argument(
+        '--rebuild',
+        nargs='?',
+        help='specify whether to rebuild the code before running it',
+        type=bool_or_empty,
+        default='',
+        const='True',
+    )
+    parser.add_argument(
+        '--unsafe-building',
+        help='ignore dependencies between modules when building',
+        default=${unsafe_building_default},
+        action='store_true',
+    )
+    parser.add_argument(
+        '-v', '--version',
+        help='print version info',
+        default=False,
+        action='store_true',
+    )
+    return parser
 # Enables Python to write directly to screen (stderr)
 # in case of help request.
-stdout_copy = sys.stdout
+stdout = sys.stdout
 sys.stdout = sys.stderr
-# Now do the actual argument parsing,
-# including writing out the help message.
+# Parse without -h/--help
+parser = get_parser(add_help=False)
 args, unknown_args = parser.parse_known_args()
-# If a utility is to be used, arguments unknown to this script should
-# be passed on to the utility.
+# If a utility is to be used, -h/--help and arguments
+# unknown to this script should be passed on to the utility.
 utility_args = args.utility[1:]
 if args.utility[0] != '${utility_unspecified}':
     utility_args += unknown_args
 else:
-    # Do print out error if invalid arguments are given
-    # and no utility should be used.
+    # No utility should be used. Parse again,
+    # this time including -h/--help and errors
+    # in case of invalid arguments.
+    parser = get_parser()
     args = parser.parse_args()
+# Reinsert stdout
+sys.stdout = stdout
 # Function for converting a list to a str in the form of a Bash array
 def python_list2bash_array(lst):
     return '({})'.format(\"'\" + \"' '\".join(
         [str(val).replace(\"'\", '\"') for val in lst]
     ) + \"'\")
-# Reset stdout
-sys.stdout = stdout_copy
 # Print out the arguments.
 # These will be captured in the Bash 'args' variable
 print('; '.join([
@@ -1293,8 +1302,10 @@ if max_ratio > 0.01:
 }
 
 # Use the main.{py/so} of the build instead of the source.
-# Error out if neither path exists.
-if [ "${main_as_command}" == "False" ]; then
+# Error out if neither path exists. If a utility is to be run,
+# do not do this now, but wait until this script is called back
+# from the utility.
+if [ "${main_as_command}" == "False" ] && [ "${utility}" == "${utility_unspecified}" ]; then
     main_ori="${main}"
     main_missing=0
     for i in 0 1; do
@@ -1551,12 +1562,6 @@ if [ "${remote}" == "True" ] && [ "${interactive}" == "True" ]; then
     exit 1
 fi
 
-# Build the code as necessary. When running remotely,
-# the code will be built from within the job script.
-if [ "${remote}" == "False" ]; then
-    build_concept
-fi
-
 # If a utility is to be run, run it and exit
 if [ "${utility}" != "${utility_unspecified}" ]; then
     # If no argument was passed after the -u option,
@@ -1611,6 +1616,12 @@ if [ "${utility}" != "${utility_unspecified}" ]; then
     "${mpiexec}" -n 1 "${python}" -B -c "from commons import *
 print('Total execution time: {}'.format(time_since(${start_time_epoch})))"
     exit 0
+fi
+
+# Build the code as necessary. When running remotely,
+# the code will be built from within the job script.
+if [ "${remote}" == "False" ]; then
+    build_concept
 fi
 
 # Ensure existence of job directory

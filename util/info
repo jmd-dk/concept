@@ -25,17 +25,6 @@
 # This utility prints out information about snapshots.
 # More specifically, it prints the meta data contained in the snapshot
 # (everything except the actual component data).
-# You can run this file directly as
-# util/info paths [--generate-params [paramdir]] [--stats]
-# or invoke it via the concept script as
-# ./concept -u info paths [--generate-params [paramdir]] [--stats]
-# In both cases, paths are paths to snapshot files
-# or directories containing snapshot files.
-# When the --generate-params flag is set, only the global
-# parameters which goes into a parameter file will be printed,
-# and in a format understandable by CO𝘕CEPT.
-# If --stats is specified, component statistics
-# will be computed and printed as well.
 
 
 

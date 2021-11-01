@@ -24,14 +24,8 @@
 
 # This utility generates a GADGET-2 Makefile, parameter file
 # and outputlist file, given an equivalent CO𝘕CEPT parameter file.
-# You can run this file directly as
-# util/gadget [dump_directory]
-# or invoke it via the concept script as
-# ./concept -u gadget [dump_directory]
-# where the optional dump_directory specifies where to dump
-# the generated files.
-# When run without specifying a CO𝘕CEPT parameter file, as above, this will
-# generate a GADGET-2 Makefile only. If in addition a CO𝘕CEPT parameter file
+# When run without specifying a CO𝘕CEPT parameter file, this utility
+# generates a GADGET-2 Makefile only. If in addition a CO𝘕CEPT parameter file
 # is supplied (-p path/to/parameterfile), a matching GADGET-2 parameter file
 # and outputlist file will also be generated.
 

@@ -24,10 +24,6 @@
 
 # This utility will save the processed CLASS output
 # (background and perturbations) to disk.
-# You can run this file directly as
-# util/CLASS
-# or invoke it via the concept script as
-# ./concept -u CLASS
 # The saved CLASS data will be that which is necessary
 # to realise the components given by the
 # initial_conditions parameter.

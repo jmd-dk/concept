@@ -22,13 +22,7 @@
 
 
 
-# This utility can produce power spectra of snapshots.
-# You can run this file directly as
-# util/powerspec paths
-# or invoke it via the concept script as
-# ./concept -u powerspec paths
-# In both cases, paths are paths to snapshot files
-# or directories containing snapshot files.
+# This utility can produce power spectra of snapshots
 
 
 

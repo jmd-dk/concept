@@ -24,11 +24,6 @@
 
 # This utility can play animations from log files
 # containing 2D terminal renders.
-# You can run this file directly as
-# util/play path
-# or invoke it via the concept script as
-# ./concept -u play path
-# In both cases, path is the path to a log file.
 
 
 

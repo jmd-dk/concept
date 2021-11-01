@@ -26,11 +26,7 @@
 # via Slurm/TORQUE/PBS will print out the output of the code
 # as it is being run. If multiple jobs are running or in queue,
 # the latest will be watched. Alternatively, the job ID can be
-# passed as the first argument when calling this script.
-# You can run this file directly as
-# util/watch [jobid]
-# or invoke it via the concept script as
-# ./concept -u watch [jobid]
+# passed as the first argument.
 
 
 
