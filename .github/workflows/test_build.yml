@@ -29,14 +29,6 @@ jobs:
                 echo "docker_image=concept:test-build__$(date +%s)" >> "${GITHUB_ENV}"
           - name: 🔧 Install
             run: |
-                echo ".git"      >> .dockerignore
-                echo ".reusable" >> .dockerignore
-                echo ".tmp"      >> .dockerignore
-                echo "build"     >> .dockerignore
-                echo "dep"       >> .dockerignore
-                echo "ic"        >> .dockerignore
-                echo "job"       >> .dockerignore
-                echo "output"    >> .dockerignore
                 docker build \
                     -t ${docker_image} \
                     --build-arg cleanup_concept=True \

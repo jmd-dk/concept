@@ -2871,20 +2871,21 @@ ${progname_installed_varname}=\"${progname_installed_value}\""
 
 # CO𝘕CEPT
 set_concept_files() {
-    files=(          \
-        ".env"       \
-        ".github"    \
-        ".gitignore" \
-        ".path"      \
-        "Dockerfile" \
-        "Makefile"   \
-        "concept"    \
-        "doc"        \
-        "install"    \
-        "param"      \
-        "src"        \
-        "test"       \
-        "util"       \
+    files=(             \
+        ".env"          \
+        ".dockerignore" \
+        ".github"       \
+        ".gitignore"    \
+        ".path"         \
+        "Dockerfile"    \
+        "Makefile"      \
+        "concept"       \
+        "doc"           \
+        "install"       \
+        "param"         \
+        "src"           \
+        "test"          \
+        "util"          \
     )
     if [ "${slim}" != "True" ]; then
          files=("${files[@]}" "CHANGELOG.md" "LICENSE" "README.md")

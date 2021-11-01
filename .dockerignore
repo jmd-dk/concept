@@ -1,3 +1,4 @@
+/.git
 /.reusable
 /.tmp
 /build
@@ -8,7 +9,5 @@
 /install_*
 /job
 /output
-/param
-/test
 /util/update_new
 

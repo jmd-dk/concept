@@ -14,6 +14,7 @@ ARG make_jobs
 
 # Build
 COPY \
+    .dockerignore* \
     .env* \
     .gitignore* \
     CHANGELOG.md* \
@@ -24,12 +25,12 @@ COPY \
     concept* \
     install \
     /source/
+COPY .github*        /source/.github/
 COPY doc*            /source/doc/
 COPY param/example_* /source/param/
 COPY src*            /source/src/
 COPY test*           /source/test/
 COPY util*           /source/util/
-COPY .github*        /source/.github/
 ARG DEBIAN_FRONTEND=noninteractive
 RUN : \
     # Update APT cache
