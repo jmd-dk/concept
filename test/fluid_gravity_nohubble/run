@@ -34,7 +34,7 @@ gridsize=$(get_param "_size")
 "${concept}" -n 1 -p "${this_dir}/param" --local
 
 # Play the 2D terminal renders in the log file as an animation
-"${concept}" -u play -f 5
+"${concept}" -u play --fps 5
 
 # Move particle snapshots to a new directory
 mkdir "${this_dir}/output/particles"
@@ -56,7 +56,7 @@ mv "${this_dir}/ic_converted.hdf5" "${this_dir}/ic.hdf5"
 "${concept}" -n 1 -p "${this_dir}/param" --local
 
 # Play the 2D terminal renders in the log file as an animation
-"${concept}" -u play -f 5
+"${concept}" -u play --fps 5
 
 # Move fluid snapshots to a new directory
 mkdir "${this_dir}/output/fluid"

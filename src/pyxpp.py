@@ -343,6 +343,11 @@ def copy_on_import(lines, no_optimization):
         for funcname, pattern in zip(funcnames, patterns):
             if not re.search(pattern, line_stripped):
                 continue
+            line_nostr = line_stripped
+            line_nostr = re.subn(r'\'.*?\'', '', line_nostr)[0]
+            line_nostr = re.subn(r'".*?"', '', line_nostr)[0]
+            if not re.search(pattern, line_nostr):
+                continue
             line_modified, n = re.subn(
                 pattern,
                 lambda m: m.group(1) + get_new_funcname(m.group(2)) + m.group(3),

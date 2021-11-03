@@ -53,7 +53,7 @@ if [ "${called_from_concept}" == "True" ]; then
 fi
 
 # Default values of command-line arguments
-default_framerate=5
+default_fps=5
 default_path="__newest__"
 
 # Use Python's argparse module to handle command-line arguments
@@ -78,6 +78,7 @@ def positive_float(value):
     return final_value
 # Function which checks whether input is a representation of
 # a positive integer, or inf.
+inf = float('inf')
 def positive_int_or_inf(value):
     value_raw = value
     def raise_argparse_exception():
@@ -86,7 +87,7 @@ def positive_int_or_inf(value):
         value = float(eval(value))
     except:
         raise_argparse_exception()
-    if value == float('inf'):
+    if value == inf:
         return value
     if value != int(value):
         raise_argparse_exception()
@@ -106,10 +107,10 @@ parser.add_argument(
     default='${default_path}',
 )
 parser.add_argument(
-    '-f', '--frame-rate',
+    '--fps',
     help='frame rate in frames/second',
     type=positive_float,
-    default=${default_framerate},
+    default=${default_fps},
 )
 parser.add_argument(
     '--component', '--component-combination',
@@ -122,11 +123,11 @@ parser.add_argument(
     help='repeatedly play the animation indefinitely, or a specified number of times',
     type=positive_int_or_inf,
     default=1,
-    const=float('inf'),
+    const=inf,
 )
 # Enables Python to write directly to screen (stderr)
 # in case of help request.
-stdout_copy = sys.stdout
+stdout = sys.stdout
 sys.stdout = sys.stderr
 # Now do the actual argument parsing,
 # including writing out the help message.
@@ -138,12 +139,12 @@ else:
     # (these might be known to the concept script).
     args, unknown_args = parser.parse_known_args()
 # Reset stdout
-sys.stdout = stdout_copy
+sys.stdout = stdout
 # Print out the arguments.
 # These will be captured in the Bash 'args' variable.
 print('argparse_finished=True')
 print('path=\"{}\"'.format(args.path))
-print('framerate={}'.format(args.frame_rate))
+print('fps={}'.format(args.fps))
 print('component_combination=\"{}\"'.format(args.component))
 print('repeats={}'.format(args.repeats))
 " "$@" || echo "argparse_exit_code=$?")
@@ -204,10 +205,11 @@ path="$(absolute_path "${path}" "${workdir}")"
 "${python}" -B -c "
 import itertools, re, sys
 from time import sleep, time
+inf = float('inf')
 
 # Variables from Bash
 path = '${path}'
-framerate = ${framerate}
+fps = ${fps}
 selected_component_combination = '${component_combination}'
 repeats = float('${repeats}')
 # The ANSI ESC character
@@ -341,14 +343,15 @@ for time_stamp in time_stamps:
     if stamp_length > stamps_max_length:
         stamps_max_length = stamp_length
 time_stamps = [f'{{:<{stamps_max_length}}}'.format(time_stamp) for time_stamp in time_stamps]
-# Adjust the frame rate so that
-# the animation takes at least one second.
+# The time between frames
 frames = frames_dict[selected_component_combination]
-Δt = 1/framerate
+Δt = 1/fps
+# If no frame rate is set by the user, adjust the default
+# so that the animation takes at least one second.
 T = Δt*len(frames)
-if T < 1:
-    framerate = len(frames)
-    Δt = 1/framerate
+if ${fps} == ${default_fps} and T < 1:
+    fps = len(frames)
+    Δt = 1/fps
 # Apply colormap of the specified component combination
 print(colormaps_ANSI[selected_component_combination], end='')
 # Play all frames of the specified component combination

@@ -89,7 +89,7 @@ parser.add_argument(
 )
 # Enables Python to write directly to screen (stderr)
 # in case of help request.
-stdout_copy = sys.stdout
+stdout = sys.stdout
 sys.stdout = sys.stderr
 # Now do the actual argument parsing,
 # including writing out the help message.
@@ -101,7 +101,7 @@ else:
     # (these might be known to the concept script).
     args, unknown_args = parser.parse_known_args()
 # Reset stdout
-sys.stdout = stdout_copy
+sys.stdout = stdout
 # Print out the arguments.
 # These will be captured in the Bash 'args' variable.
 print('argparse_finished=True')

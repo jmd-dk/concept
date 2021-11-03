@@ -59,13 +59,20 @@ parser = argparse.ArgumentParser(
     prog='$(basename "${this_file}")',
     description='Run the ${esc_concept} $(basename "${this_file}") utility',
 )
-parser.add_argument('paths',
-                    nargs='+',
-                    help='paths to snapshots or directories of snapshots',
-                    )
+parser.add_argument(
+    'paths',
+    nargs='+',
+    help='paths to snapshots or directories of snapshots',
+)
+parser.add_argument(
+    '-y', '--yes-to-defaults',
+    default=False,
+    action='store_true',
+    help='accept default options on future queries',
+)
 # Enables Python to write directly to screen (stderr)
 # in case of help request.
-stdout_copy = sys.stdout
+stdout = sys.stdout
 sys.stdout = sys.stderr
 # Now do the actual argument parsing,
 # including writing out the help message.
@@ -77,11 +84,12 @@ else:
     # (these might be known to the concept script).
     args, unknown_args = parser.parse_known_args()
 # Reset stdout
-sys.stdout = stdout_copy
+sys.stdout = stdout
 # Print out the arguments.
 # These will be captured in the Bash 'args' variable.
 print('argparse_finished=True')
 print('paths=({})'.format(' '.join(['\"{}\"'.format(paths) for paths in args.paths])))
+print('yes_to_defaults=\"{}\"'.format(args.yes_to_defaults))
 " "$@" || echo "argparse_exit_code=$?")
 # Evaluate the handled arguments into this scope
 eval "${args}"
@@ -161,6 +169,37 @@ else
     echo "Power spectra will be produced of the following snapshots:"
 fi
 echo "${snapshot_filenames}"
+
+# Spawning many simultaneous remote jobs which read in snapshots
+# can put the file system under a lot of stress.
+if [ "${remote}" == "True" ] && [ ${N_snapshots} -gt 1 ]; then
+    if [ "${yes_to_defaults}" == "True" ]; then
+        printf "\nA job will be submitted for each snapshot\n"
+    else
+        while :; do
+            read -p "
+Simultaneous submission of many jobs which read from disk
+may put the file system under severe stress.
+Would you like to submit a job for each
+of the above snapshots anyway? [Y/n] " yn
+            case "${yn}" in
+                [Yy]*)
+                    break
+                    ;;
+                [Nn]*)
+                    trap : 0
+                    exit 0
+                    ;;
+                "")
+                    break
+                    ;;
+                *)
+                    break
+                    ;;
+            esac
+        done
+    fi
+fi
 
 # For each snapshot, run the CO𝘕CEPT code to create the power spectrum
 jobids=()

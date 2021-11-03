@@ -100,7 +100,7 @@ mv "${this_dir}/output/render3D_snapshot.png" \
 "${concept}" -n 1 -p "${this_dir}/param" --local
 
 # Also demonstrate the play utility
-"${concept}" -u play -f 10 --component "matter" --repeats 3
+"${concept}" -u play --fps 10 --component "matter" --repeats 3
 
 # Test ran successfully. Deactivate traps.
 trap : 0

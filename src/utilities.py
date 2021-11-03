@@ -346,35 +346,94 @@ def convert():
 # Function for finding all snapshots in a directory
 @cython.pheader(
     # Arguments
-    path_snapshot=str,
+    path_or_paths_snapshot=object,  # str or list
+    warn_individual='bint',
+    exit_individual='bint',
+    warn_all='bint',
+    exit_all='bint',
     # Locals
     filenames=list,
+    msg=str,
     snapshot_filenames=list,
     returns=list,
 )
-def locate_snapshots(path_snapshot):
-    # Get all files and directories from the path
-    if get_snapshot_type(path_snapshot):
-        filenames = [path_snapshot]
-    elif os.path.isdir(path_snapshot):
-        filenames = []
-        for filename in os.listdir(path_snapshot):
-            filename = os.path.join(path_snapshot, filename)
-            if os.path.isfile(filename) or os.path.isdir(filename):
-                filenames.append(filename)
+def locate_snapshots(
+    path_or_paths_snapshot,
+    warn_individual=True,
+    exit_individual=False,
+    warn_all=False,
+    exit_all=True,
+    initial_call=True,
+):
+    if not master:
+        return bcast()
+    if isinstance(path_or_paths_snapshot, list):
+        if len(path_or_paths_snapshot) == 1:
+            return locate_snapshots(
+                path_or_paths_snapshot[0],
+                warn_individual,
+                exit_individual,
+                warn_all,
+                exit_all,
+                initial_call=True,
+            )
+        # Handle list of strings
+        snapshot_filenames = []
+        for path_snapshot in path_or_paths_snapshot:
+            snapshot_filenames += locate_snapshots(
+                path_snapshot,
+                warn_individual,
+                exit_individual,
+                initial_call=False,
+            )
     else:
-        filenames = [path_snapshot]
-    # Only use snapshots
-    snapshot_filenames = [filename for filename in filenames if get_snapshot_type(filename)]
-    # Abort if none of the files where snapshots
-    if master and not snapshot_filenames:
-        if os.path.isdir(path_snapshot):
-            abort(f'The directory "{path_snapshot}" does not contain any snapshots')
-        elif os.path.exists(path_snapshot):
-            abort(f'The file "{path_snapshot}" is not recognized as a snapshot')
+        # Handle single string (pointing to file or directory)
+        path_snapshot = path_or_paths_snapshot
+        # Get all files and directories from the path
+        if get_snapshot_type(path_snapshot):
+            filenames = [path_snapshot]
+        elif os.path.isdir(path_snapshot):
+            filenames = []
+            for filename in os.listdir(path_snapshot):
+                filename = os.path.join(path_snapshot, filename)
+                if os.path.isfile(filename) or os.path.isdir(filename):
+                    filenames.append(filename)
         else:
-            abort(f'Path "{path_snapshot}" does not exist')
-    return snapshot_filenames
+            filenames = [path_snapshot]
+        # Only use snapshots
+        snapshot_filenames = [filename for filename in filenames if get_snapshot_type(filename)]
+        if not snapshot_filenames:
+            if os.path.isdir(path_snapshot):
+                msg = f'The directory "{path_snapshot}" does not contain any snapshots'
+            elif os.path.exists(path_snapshot):
+                msg = f'The file "{path_snapshot}" is not recognized as a snapshot'
+            else:
+                msg = f'Path "{path_snapshot}" does not exist'
+            if exit_individual:
+                abort(msg)
+            elif warn_individual:
+                warn(msg)
+    if not initial_call:
+        return snapshot_filenames
+    if not snapshot_filenames:
+        if isinstance(path_or_paths_snapshot, list):
+            msg = 'Could not find any snapshots in {}'.format(
+                ', '.join([
+                    f'"{path_snapshot}"'
+                    for path_snapshot in path_or_paths_snapshot
+            ]))
+        else:
+            if os.path.isdir(path_or_paths_snapshot):
+                msg = f'The directory "{path_or_paths_snapshot}" does not contain any snapshots'
+            elif os.path.exists(path_or_paths_snapshot):
+                msg = f'The file "{path_or_paths_snapshot}" is not recognized as a snapshot'
+            else:
+                msg = f'Path "{path_or_paths_snapshot}" does not exist'
+        if exit_all:
+            abort(msg)
+        elif warn_all:
+            warn(msg)
+    return bcast(snapshot_filenames)
 
 # Function that produces a power spectrum of the file
 # specified by the special_params['snapshot_filename'] parameter.
@@ -482,6 +541,7 @@ def render3D():
     params=dict,
     paths=list,
     snapshot=object,
+    snapshot_filename=str,
     snapshot_filenames=list,
     snapshot_type=str,
     unit='double',
@@ -493,11 +553,13 @@ def info():
     # Extract the paths to snapshot(s)
     paths = special_params['paths']
     # Get list of all snapshots
-    snapshot_filenames = [
-        snapshot_filename
-        for path in paths
-        for snapshot_filename in locate_snapshots(path)
-    ]
+    snapshot_filenames = locate_snapshots(
+        paths,
+        warn_individual=False,
+        exit_individual=False,
+        warn_all=True,
+        exit_all=False,
+    )
     # Print out information about each snapshot
     for snapshot_filename in snapshot_filenames:
         # Load parameters from the snapshot
@@ -516,13 +578,15 @@ def info():
         # The value of special_params['generate params'] is either a
         # directory path where the parameter file should be placed,
         # or False if no parameter file should be generated.
-        if special_params['generate params']:
-            # Make sure that the params directory exist
+        generate_params = special_params.get('generate params')
+        if generate_params:
+            if os.path.basename(generate_params) == '__together_with_snapshot__':
+                generate_params = os.path.dirname(snapshot_filename)
+            # Make sure that the params directory exists
             if master:
-                os.makedirs(special_params['generate params'], exist_ok=True)
+                os.makedirs(generate_params, exist_ok=True)
             # The filename of the new parameter file
-            parameter_filename = '{}/{}'.format(special_params['generate params'],
-                                                os.path.basename(snapshot_filename))
+            parameter_filename = f'{generate_params}/{os.path.basename(snapshot_filename)}'
             for ext in snapshot_extensions:
                 if parameter_filename.endswith(ext):
                     index = len(parameter_filename) - len(ext)
@@ -581,11 +645,6 @@ def info():
                         'H0 = {}*km/(s*Mpc)'.format(correct_float(params['H0']/unit)),
                         file=file, wrap=False,
                     )
-                    if enable_Hubble:
-                        masterprint(
-                            'a_begin = {}'.format(correct_float(params['a'])),
-                            file=file, wrap=False,
-                        )
                     if snapshot_type == 'concept':
                         masterprint(
                             'Ωb = {}'.format(correct_float(params['Ωb'])),
@@ -593,6 +652,25 @@ def info():
                         )
                         masterprint(
                             'Ωcdm = {}'.format(correct_float(params['Ωcdm'])),
+                            file=file, wrap=False,
+                        )
+                    elif snapshot_type == 'gadget':
+                        # Gadget snapshots only store Ωm = Ωb + Ωcdm.
+                        # Use the global value of Ωb (from the parameters)
+                        # to get {Ωb, Ωcdm}.
+                        masterprint(
+                            f'Ωb = {{}}  # from parameters, not the snapshot'
+                            .format(correct_float(Ωb)),
+                            file=file, wrap=False,
+                        )
+                        masterprint(
+                            f'Ωcdm = {{}}  # using above Ωb and Ωb + Ωcdm = Ωm = {{}}'
+                            .format(correct_float(params['Ωm'] - Ωb), correct_float(params['Ωm'])),
+                            file=file, wrap=False,
+                        )
+                    if enable_Hubble:
+                        masterprint(
+                            'a_begin = {}'.format(correct_float(params['a'])),
                             file=file, wrap=False,
                         )
             # Do not edit the printed text below,
@@ -621,8 +699,7 @@ def info():
             mass_num = eval_unit(snapshot.units['mass'])/units.m_sun
             mass_basicunit = 'm☉'
             mass_num_fmt = significant_figures(float(mass_num), 6, fmt='unicode', incl_zeros=False)
-            masterprint('{:<20} {}'.format('unit_mass', '{} {}'.format(mass_num_fmt,
-                                                                       mass_basicunit)))
+            masterprint(f'{{:<20}} {mass_num_fmt} {mass_basicunit}'.format('unit_mass'))
         # Print out global parameters
         unit = units.km/(units.s*units.Mpc)
         masterprint('{:<20} {} km s⁻¹ Mpc⁻¹'.format('H0', correct_float(params['H0']/unit)))
