@@ -818,7 +818,7 @@ def check_float_literals():
     legal_literals = []
     try:
         completed_process = subprocess.run(
-            ['make', 'check_float_literals'],
+            ['make', 'check-float-literals'],
             capture_output=True,
         )
         legal_literals = completed_process.stdout.decode().split('\n')

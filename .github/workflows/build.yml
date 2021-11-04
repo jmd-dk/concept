@@ -78,7 +78,7 @@ jobs:
                     ${docker_image} \
                     bash -c ': \
                         && source ~/.bashrc \
-                        && (cd "${concept_dir}" && make clean_job) \
+                        && (cd "${concept_dir}" && make clean-job) \
                         && ( \
                                for param in "${param_dir}/example_"*; do \
                                    concept -n 4 -p "${param}" --local || exit 1; \
@@ -96,7 +96,7 @@ jobs:
                     --name "${GITHUB_REPOSITORY//\//_}__${GITHUB_JOB}__$(date +%s)" \
                     --rm \
                     ${docker_image} \
-                    bash -c 'make clean_doc && make doc'
+                    bash -c 'make clean-doc && make doc'
           - name: 🐋 Remove temporary Docker image
             run: |
                 docker rmi -f ${docker_image} 2>/dev/null || :

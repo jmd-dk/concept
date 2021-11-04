@@ -604,7 +604,7 @@ script within each subdirectory of the ``tests`` directory, do
 
 .. code-block:: bash
 
-   (source concept && make clean_tests)
+   (source concept && make clean-test)
 
 
 

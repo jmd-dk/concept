@@ -40,7 +40,7 @@ jobs:
                         && source ~/.bashrc \
                         && rm -rf "${concept_dir}/"!(dep) \
                         && cp -r /github/!(dep) "${concept_dir}/" \
-                        && (cd "${concept_dir}" && make clean_job) \
+                        && (cd "${concept_dir}" && make clean-job) \
                         && ( \
                                for param in "${param_dir}/example_"*; do \
                                    concept -n 4 -p "${param}" --local || exit 1; \

@@ -1,6 +1,6 @@
 # Main documentation target
-all_doc: publish
-.PHONY: all_doc
+all-doc: publish
+.PHONY: all-doc
 
 # Import variables from the main makefile
 # (must be placed below main target).
@@ -157,7 +157,7 @@ html: sphinx
 .PHONY: html
 
 # HTML ready for publication
-publish: html clean_sphinx_publish
+publish: html clean-sphinx-publish
 	@$(call heading)
 	@mkdir -p $(PUBLISHDIR)
 	@cp -r $(BUILDDIR)/html/* $(PUBLISHDIR)/
@@ -170,13 +170,13 @@ publish: html clean_sphinx_publish
 
 # Cleanup targets
 .PHONY:                  \
-    clean_sphinx_build   \
-    clean_sphinx_publish \
-    clean_sphinx         \
+    clean-sphinx-build   \
+    clean-sphinx-publish \
+    clean-sphinx         \
 
-clean_sphinx_build:
+clean-sphinx-build:
 	$(RM) -r $(BUILDDIR)
-clean_sphinx_publish:
+clean-sphinx-publish:
 	$(RM) -r $(PUBLISHDIR)/{.[!.git],}*
-clean_sphinx: clean_sphinx_build clean_sphinx_publish
+clean-sphinx: clean-sphinx-build clean-sphinx-publish
 

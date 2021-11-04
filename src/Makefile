@@ -79,13 +79,13 @@ types = .types.pyx
 # Once all timestamps are updated, further update just those of the
 # compiled module files, so that all of these are newer than any of
 # source files.
-all_build: $(addsuffix .so, $(pyfiles))
+all-build: $(addsuffix .so, $(pyfiles))
 	@if [ "$(no_update_timestamps)" != "True" ]; then   \
 	    no_update_timestamps=True $(MAKE) -s -t $@;     \
 	    sleep 1;                                        \
 	    touch $^;                                       \
 	fi;
-.PHONY: all_build
+.PHONY: all-build
 
 # Import variables from the main makefile
 # (must be placed below main target).
@@ -335,7 +335,7 @@ endif
 # For checking whether the NAN and INFINITY macros are supported.
 # Each supported macro will be printed.
 check_fname = .check_float_literals_$(pid)
-check_float_literals:
+check-float-literals:
 	@printf "\
 	    #include <stdio.h>\n\
 	    #include <math.h>\n\
@@ -354,7 +354,7 @@ check_float_literals:
 	    $(call unique, $(LDFLAGS) $(LDLIBS))
 	@./$(check_fname)
 	@$(RM) $(check_fname)*
-.PHONY: check_float_literals
+.PHONY: check-float-literals
 
 
 
@@ -362,8 +362,8 @@ check_float_literals:
 # Cleanup target #
 ##################
 # Remove all compile files
-clean_build:
+clean-build:
 	$(RM) -r $(foreach ext,pyc pyx pxd c html o so so_,\
 	    $(addsuffix .$(ext), $(pyfiles))) $(types) __pycache__
-.PHONY: clean_build
+.PHONY: clean-build
 

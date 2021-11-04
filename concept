@@ -1528,7 +1528,7 @@ for test in sorted_tests:
             echo "    ${test_name}"
         done
         echo
-        (cd "${concept_dir}" && make clean_test)
+        (cd "${concept_dir}" && make clean-test)
         for test_name in ${tests}; do
             start_time_test=$("${python}" -B -c "import time; print(time.time())")
             colorprint "\nRunning ${test_name} test" "yellow"

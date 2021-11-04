@@ -52,13 +52,13 @@ jobs:
                         && cp -r /github/!(dep) "${concept_dir}/" \
                         && (cd "${concept_dir}" && make distclean) \
                         && make_jobs="-j 1" concept \
-                        && (cd "${concept_dir}" && make clean_job) \
+                        && (cd "${concept_dir}" && make clean-job) \
                         && mkdir -p "${tmp_dir}/so" \
                         && mv "${build_dir}"/*.so "${tmp_dir}/so/" \
                         && (cd "${concept_dir}" && make clean) \
                         && mkdir -p "${build_dir}" \
                         && mv "${tmp_dir}"/so/* "${build_dir}/" \
-                        && (cd "${concept_dir}" && make clean_tmp) \
+                        && (cd "${concept_dir}" && make clean-tmp) \
                         && (find / -type d -a -name "__pycache__" -exec rm -rf "{}" + || :) \
                     '
                 docker commit \

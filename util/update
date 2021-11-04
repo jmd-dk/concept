@@ -321,7 +321,7 @@ and
     if [ -d "${reusable_dir}/class" ] && [ -n "$(ls -A "${reusable_dir}/class")" ]; then
         colorprint "\nNote" "yellow"
         printf "You should remove cached CLASS dumps. You can do so by executing
-(cd \"${concept_dir}\" && source \"${concept}\" && make clean_class_reusable)\n\n"
+(cd \"${concept_dir}\" && source \"${concept}\" && make clean-class-reusable)\n\n"
     fi
     colorprint "$(basename "${this_file}") utility finished successfully" "green"
     # Exit gracefully

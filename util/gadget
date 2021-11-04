@@ -191,7 +191,7 @@ print('RCUT =', RCUT)
 fi
 
 # Write out GADGET-2 Makefile
-make_vars="$(cd "${src_dir}" && make -s print_vars)"
+make_vars="$(cd "${src_dir}" && make -s print-vars)"
 get_make_var() {
     varname="$1"
     definition="$(echo "${make_vars}" | grep "^${varname} = ")"

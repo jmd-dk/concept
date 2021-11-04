@@ -37,6 +37,6 @@ jobs:
                         && source ~/.bashrc \
                         && rm -rf "${concept_dir}/"!(dep) \
                         && cp -r /github/!(dep) "${concept_dir}/" \
-                        && (cd "${concept_dir}" && make clean_doc && make doc) \
+                        && (cd "${concept_dir}" && make clean-doc && make doc) \
                     '
 
