@@ -6671,7 +6671,7 @@ print(name, vreq)
 ")"
         dependency_name="$(echo "${dependency}" | awk '{print $1}')"
         dependency_vrec="$(echo "${dependency}" | awk '{print $2}')"
-        dependency_installed=$(check_pypackage_installed "${dependency_name}")
+        dependency_installed="$(check_pypackage_installed "${dependency_name}")"
         if [ "${dependency_installed}" == "False" ]; then
             if [ "${exit_on_error}" == "False" ]; then
                 pip_install_pypackage "${dependency_name}" ${dependency_vrec} || :
@@ -9152,12 +9152,38 @@ if [ "${slim}" == "True" ]; then
         slimdown_python "Python" "${python_dir}"
         rm -rf "${python_dir}/lib/python${python_version_major}.${python_version_minor}/\
 config-${python_version_major}.${python_version_minor}-"*
+        rm -f "${python_dir}/lib/python${python_version_major}.${python_version_minor}/\
+site-packages/Pillow.libs/"lib{freetype,harfbuzz,lcms,png,web}*.so* || :
+        rm -f "${python_dir}/lib/python${python_version_major}.${python_version_minor}/\
+site-packages/scipy/misc/face.dat" || :
     fi
     # Slim down the Python component of CLASS
     if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
         slimdown_python "CLASS" "${class_dir}"
     fi
+    # Slim down FreeType
+    if [ "${freetype_install}" == "True" ] && [ "${freetype_installed}" == "False" ]; then
+        rm -f "${freetype_dir}/lib/"libfreetype*.so* || :
+    fi
+    # Remove all static libraries (archive files) in the dependency directory
+    if get_command "find" >/dev/null; then
+        rm -f $(find "${dep_dir}" -name "*.a") || :
+    fi
     # We may even remove some of the dependencies entirely
+    if [ "${python_install}" == "True" ] && [ "${python_installed}" == "False" ]; then
+        # Python packages to remove
+        removable_dependencies=( \
+            "pybind11"           \
+            "pytest"             \
+            "pythran"            \
+        )
+        for dependency in "${removable_dependencies[@]}"; do
+            dependency_installed="$(check_pypackage_installed "${dependency}")"
+            if [ "${dependency_installed}" == "True" ]; then
+                "${python}" -m pip uninstall "${dependency}" -y 2>&1 || :
+            fi
+        done
+    fi
     removable_dependencies=("perl" "zlib")
     for dependency in "${removable_dependencies[@]}"; do
         eval "dependency_install=\"\${${dependency}_install}\""

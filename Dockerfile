@@ -64,11 +64,6 @@ RUN : \
     && rm -rf $(ls /var/lib/dpkg/info/* | grep -v "\.list") \
     # Remove other caches
     && rm -rf /tmp/* ~/.cache/* \
-    # Remove some files installed with CO𝘕CEPT
-    && rm -f $(find "${install_dir}" -name "*.a") \
-    && rm -f "${install_dir}"/dep/freetype*/lib/libfreetype*.so* \
-    && rm -f "${install_dir}"/dep/python/lib/python*/site-packages/Pillow.libs/lib{freetype,harfbuzz,lcms,png,web}*.so* \
-    && rm -f "${install_dir}"/dep/python/lib/python*/site-packages/scipy*/scipy/misc/face.dat \
     # Remove some system files
     && rm -rf /usr/share/{doc,info,man}/* \
     && rm -f $(find / -name "*.a" | grep -v "/libgcc.a\|/libc_nonshared.a") \
