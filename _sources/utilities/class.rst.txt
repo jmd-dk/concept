@@ -1,4 +1,4 @@
-The CLASS utility
+The class utility
 -----------------
 
 *Under construction!*

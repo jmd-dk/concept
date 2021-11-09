@@ -1,42 +1,20 @@
-
-
 <!DOCTYPE html>
 <html class="writer-html5" lang="en" >
 <head>
   <meta charset="utf-8" />
-  
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  
   <title>3. Working with parameter files &mdash; CONCEPT Documentation</title>
-  
-
-  
-  <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
-  <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
-  <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
-  <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
-  <link rel="stylesheet" href="../_static/copybutton.css" type="text/css" />
-  <link rel="stylesheet" href="../_static/tabs.css" type="text/css" />
-  <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
-
-  
-  
+      <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/copybutton.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/tabs.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
     <link rel="shortcut icon" href="../_static/favicon.ico"/>
-  
-
-  
-  
-
-  
     <link rel="canonical" href="https://jmd-dk.github.io/concept/tutorial/parameter_files.html" />
-
-  
   <!--[if lt IE 9]>
     <script src="../_static/js/html5shiv.min.js"></script>
   <![endif]-->
   
-    
-      <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
         <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
         <script src="../_static/jquery.js"></script>
         <script src="../_static/underscore.js"></script>
@@ -44,39 +22,21 @@
         <script src="../_static/clipboard.min.js"></script>
         <script src="../_static/copybutton.js"></script>
         <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
-    
-    <script type="text/javascript" src="../_static/js/theme.js"></script>
-
-    
+    <script src="../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
     <link rel="next" title="4. Mastering gravity" href="gravity.html" />
     <link rel="prev" title="2. Your first simulations" href="first_simulations.html" /> 
 </head>
 
-<body class="wy-body-for-nav">
-
-   
+<body class="wy-body-for-nav"> 
   <div class="wy-grid-for-nav">
-    
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
         <div class="wy-side-nav-search" >
-          
-
-          
             <a href="../index.html" class="icon icon-home"> CO<em>N</em>CEPT
-          
-
-          
-            
             <img src="../_static/logo.png" class="logo" alt="Logo"/>
-          
           </a>
-
-          
-
-          
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
     <input type="text" name="q" placeholder="Search documentation" />
@@ -84,18 +44,7 @@
     <input type="hidden" name="area" value="default" />
   </form>
 </div>
-
-          
-        </div>
-
-        
-        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
-          
-            
-            
-              
-            
-            
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
               <ul class="current">
 <li class="toctree-l1 current"><a class="reference internal" href="tutorial.html">Tutorial</a><ul class="current">
 <li class="toctree-l2"><a class="reference internal" href="installation.html">1. Effortless installation</a></li>
@@ -131,7 +80,7 @@
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="../installation.html#cloning-with-git">Cloning with Git</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../installation.html#the-installer-script-in-depth">The <code class="docutils literal notranslate"><span class="pre">installer</span></code> script in-depth</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../installation.html#the-install-script-in-depth">The <code class="docutils literal notranslate"><span class="pre">install</span></code> script in-depth</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="../installation.html#programs-installed">Programs installed</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../installation.html#command-line-options">Command-line options</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../installation.html#influential-environment-variables">Influential environment variables</a><ul>
@@ -141,7 +90,7 @@
 <li class="toctree-l4"><a class="reference internal" href="../installation.html#choosing-compiler-precedence">Choosing compiler precedence</a></li>
 <li class="toctree-l4"><a class="reference internal" href="../installation.html#installing-mpich-or-openmpi">Installing MPICH or OpenMPI</a></li>
 <li class="toctree-l4"><a class="reference internal" href="../installation.html#parallel-builds">Parallel builds</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../installation.html#using-the-installer-to-install-specific-libraries-but-not-concept-itself">Using the <code class="docutils literal notranslate"><span class="pre">installer</span></code> to install specific libraries but not CO<em>N</em>CEPT itself</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../installation.html#using-the-install-script-to-install-specific-libraries-but-not-concept-itself">Using the <code class="docutils literal notranslate"><span class="pre">install</span></code> script to install specific libraries but not CO<em>N</em>CEPT itself</a></li>
 </ul>
 </li>
 </ul>
@@ -152,8 +101,8 @@
 <li class="toctree-l3"><a class="reference internal" href="../installation.html#system-dependencies">System dependencies</a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="../installation.html#the-paths-and-env-files">The <code class="docutils literal notranslate"><span class="pre">.paths</span></code> and <code class="docutils literal notranslate"><span class="pre">.env</span></code> files</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="../installation.html#the-paths-file">The <code class="docutils literal notranslate"><span class="pre">.paths</span></code> file</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../installation.html#the-path-and-env-files">The <code class="docutils literal notranslate"><span class="pre">.path</span></code> and <code class="docutils literal notranslate"><span class="pre">.env</span></code> files</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../installation.html#the-path-file">The <code class="docutils literal notranslate"><span class="pre">.path</span></code> file</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../installation.html#the-env-file">The <code class="docutils literal notranslate"><span class="pre">.env</span></code> file</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="../installation.html#path-like-environment-variables"><code class="docutils literal notranslate"><span class="pre">PATH</span></code>-like environment variables</a></li>
 <li class="toctree-l4"><a class="reference internal" href="../installation.html#eliminating-interference-from-foreign-python-installations">Eliminating interference from foreign Python installations</a></li>
@@ -175,13 +124,13 @@
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#utility-u-utility">Utility: <code class="docutils literal notranslate"><span class="pre">-u</span></code>, <code class="docutils literal notranslate"><span class="pre">--utility</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#version-v-version">Version: <code class="docutils literal notranslate"><span class="pre">-v</span></code>, <code class="docutils literal notranslate"><span class="pre">--version</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="../command_line_options.html#remote-job-submission">Remote job submission</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#queue-q-queue">Queue: <code class="docutils literal notranslate"><span class="pre">-q</span></code>, <code class="docutils literal notranslate"><span class="pre">--queue</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#wall-time-w-wall-time">Wall time: <code class="docutils literal notranslate"><span class="pre">-w</span></code>, <code class="docutils literal notranslate"><span class="pre">--wall-time</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#wall-time-w-walltime">Wall time: <code class="docutils literal notranslate"><span class="pre">-w</span></code>, <code class="docutils literal notranslate"><span class="pre">--walltime</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#memory-memory">Memory: <code class="docutils literal notranslate"><span class="pre">--memory</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#job-name-job-name">Job name: <code class="docutils literal notranslate"><span class="pre">--job-name</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#job-directive-j-job-directive">Job directive: <code class="docutils literal notranslate"><span class="pre">-j</span></code>, <code class="docutils literal notranslate"><span class="pre">--job-directive</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#no-watching-no-watching">No watching: <code class="docutils literal notranslate"><span class="pre">--no-watching</span></code></a></li>
 </ul>
@@ -189,17 +138,19 @@
 <li class="toctree-l2"><a class="reference internal" href="../command_line_options.html#other-modes-of-building-running">Other modes of building/running</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#local-local">Local: <code class="docutils literal notranslate"><span class="pre">--local</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#pure-python-pure-python">Pure Python: <code class="docutils literal notranslate"><span class="pre">--pure-python</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#build-b-build">Build: <code class="docutils literal notranslate"><span class="pre">-b</span></code>, <code class="docutils literal notranslate"><span class="pre">--build</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#rebuild-rebuild">Rebuild: <code class="docutils literal notranslate"><span class="pre">--rebuild</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#native-optimizations-native-optimizations">Native optimizations: <code class="docutils literal notranslate"><span class="pre">--native-optimizations</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#no-link-time-optimizations-no-lto">No link time optimizations: <code class="docutils literal notranslate"><span class="pre">--no-lto</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#no-optimizations-no-optimizations">No optimizations: <code class="docutils literal notranslate"><span class="pre">--no-optimizations</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#native-optimizations-native-optimizations">Native optimizations: <code class="docutils literal notranslate"><span class="pre">--native-optimizations</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#no-recompilation-no-recompilation">No recompilation: <code class="docutils literal notranslate"><span class="pre">--no-recompilation</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#unsafe-building-unsafe-building">Unsafe building: <code class="docutils literal notranslate"><span class="pre">--unsafe-building</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="../command_line_options.html#specials">Specials</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#test-t-test">Test: <code class="docutils literal notranslate"><span class="pre">-t</span></code>, <code class="docutils literal notranslate"><span class="pre">--test</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#test-t-tests">Test: <code class="docutils literal notranslate"><span class="pre">-t</span></code>, <code class="docutils literal notranslate"><span class="pre">--tests</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#main-entry-point-m-main">Main entry point: <code class="docutils literal notranslate"><span class="pre">-m</span></code>, <code class="docutils literal notranslate"><span class="pre">--main</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#interactive-i-interactive">Interactive: <code class="docutils literal notranslate"><span class="pre">-i</span></code>, <code class="docutils literal notranslate"><span class="pre">--interactive</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#version-v-version">Version: <code class="docutils literal notranslate"><span class="pre">-v</span></code>, <code class="docutils literal notranslate"><span class="pre">--version</span></code></a></li>
 </ul>
 </li>
 </ul>
@@ -212,9 +163,11 @@
 </li>
 <li class="toctree-l2"><a class="reference internal" href="../parameters/numerical_parameters.html">Numerical parameters</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/numerical_parameters.html#boxsize"><code class="docutils literal notranslate"><span class="pre">boxsize</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/numerical_parameters.html#potential-options"><code class="docutils literal notranslate"><span class="pre">potential_options</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="../parameters/cosmology.html">Cosmology</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/cosmology.html#h0"><code class="docutils literal notranslate"><span class="pre">H0</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/cosmology.html#class-params"><code class="docutils literal notranslate"><span class="pre">class_params</span></code></a></li>
 </ul>
 </li>
@@ -241,19 +194,17 @@
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../utilities/utilities.html">Utilities</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/class.html">The CLASS utility</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/class.html">The class utility</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../utilities/convert.html">The convert utility</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../utilities/gadget.html">The gadget utility</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../utilities/info.html">The info utility</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../utilities/play.html">The play utility</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../utilities/powerspec.html">The powerspec utility</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/render2D.html">The render2D utility</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../utilities/render3D.html">The render3D utility</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../utilities/update.html">The update utility</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../utilities/watch.html">The watch utility</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="../under_the_hood.html">Looking under the hood</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../troubleshooting.html">Troubleshooting</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="../troubleshooting.html#installation-failed">Installation failed</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../troubleshooting.html#compilation-failed">Compilation failed</a><ul>
@@ -282,92 +233,47 @@
 </li>
 </ul>
 
-            
-          
         </div>
-        
       </div>
     </nav>
 
-    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
-
-      
-      <nav class="wy-nav-top" aria-label="top navigation">
-        
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
           <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
           <a href="../index.html">CO<em>N</em>CEPT</a>
-        
       </nav>
 
-
       <div class="wy-nav-content">
-        
         <div class="rst-content style-external-links">
-        
-          
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-<div role="navigation" aria-label="breadcrumbs navigation">
-
+          <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
-    
       <li><a href="../index.html" class="icon icon-home"></a> &raquo;</li>
-        
           <li><a href="tutorial.html">Tutorial</a> &raquo;</li>
-        
       <li><span class="section-number">3. </span>Working with parameter files</li>
-    
-    
       <li class="wy-breadcrumbs-aside">
-        
-          
-            
               <a href="https://github.com/jmd-dk/concept/" class="fa fa-github"> Code Repository</a>
-            
-          
-        
       </li>
-    
-  </ul>
-
-  
-  <div class="rst-breadcrumbs-buttons" role="navigation" aria-label="breadcrumb navigation">
-      
-        <a href="gravity.html" class="btn btn-neutral float-right" title="4. Mastering gravity" accesskey="n">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
-      
-      
+  </ul><div class="rst-breadcrumbs-buttons" role="navigation" aria-label="Sequential page navigation">
         <a href="first_simulations.html" class="btn btn-neutral float-left" title="2. Your first simulations" accesskey="p"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-      
+        <a href="gravity.html" class="btn btn-neutral float-right" title="4. Mastering gravity" accesskey="n">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
   </div>
-  
   <hr/>
 </div>
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
-            
+             
   <div class="section" id="working-with-parameter-files">
-<h1><span class="section-number">3. </span>Working with parameter files<a class="headerlink" href="#working-with-parameter-files" title="Permalink to this headline">¶</a></h1>
+<h1><span class="section-number">3. </span>Working with parameter files<a class="headerlink" href="#working-with-parameter-files" title="Permalink to this headline"></a></h1>
 <p>Specifying the many parameters to the <code class="docutils literal notranslate"><span class="pre">concept</span></code> script via the <code class="docutils literal notranslate"><span class="pre">-c</span></code> option
 quickly becomes tiresome. A better solution is to write all parameters in a
-text file, say <code class="docutils literal notranslate"><span class="pre">params/tutorial</span></code> (the <code class="docutils literal notranslate"><span class="pre">params</span></code> directory already exists).
-Copy the content below to such a file:</p>
-<div class="literal-block-wrapper docutils container" id="params-parameter-files">
-<div class="code-block-caption"><span class="caption-text">params/tutorial</span><a class="headerlink" href="#params-parameter-files" title="Permalink to this code">¶</a></div>
+text file.</p>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>The <code class="docutils literal notranslate"><span class="pre">param</span></code> directory is meant as a dedicated place to store your
+parameter files. It comes with a few example parameter files included.</p>
+</div>
+<p>Copy the content below to a file named e.g. <code class="docutils literal notranslate"><span class="pre">param/tutorial</span></code>:</p>
+<div class="literal-block-wrapper docutils container" id="param-parameter-files">
+<div class="code-block-caption"><span class="caption-text">param/tutorial</span><a class="headerlink" href="#param-parameter-files" title="Permalink to this code"></a></div>
 <div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="c1"># Non-parameter helper variable used to control the size of the simulation</span>
 <span class="n">_size</span> <span class="o">=</span> <span class="mi">64</span>
 
@@ -377,7 +283,7 @@ Copy the content below to such a file:</p>
     <span class="s1">&#39;N&#39;</span>      <span class="p">:</span> <span class="n">_size</span><span class="o">**</span><span class="mi">3</span><span class="p">,</span>
 <span class="p">}</span>
 <span class="n">output_dirs</span> <span class="o">=</span> <span class="p">{</span>
-    <span class="s1">&#39;powerspec&#39;</span><span class="p">:</span> <span class="n">paths</span><span class="p">[</span><span class="s1">&#39;output_dir&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="s1">&#39;/&#39;</span> <span class="o">+</span> <span class="n">basename</span><span class="p">(</span><span class="n">paths</span><span class="p">[</span><span class="s1">&#39;params&#39;</span><span class="p">]),</span>
+    <span class="s1">&#39;powerspec&#39;</span><span class="p">:</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">path</span><span class="o">.</span><span class="n">output_dir</span><span class="si">}</span><span class="s1">/</span><span class="si">{</span><span class="n">param</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span>
 <span class="p">}</span>
 <span class="n">output_times</span> <span class="o">=</span> <span class="p">{</span>
     <span class="s1">&#39;powerspec&#39;</span><span class="p">:</span> <span class="p">[</span><span class="n">a_begin</span><span class="p">,</span> <span class="mf">0.3</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span>
@@ -397,7 +303,7 @@ Copy the content below to such a file:</p>
 </div>
 <p>To run CO<em>N</em>CEPT using this parameter file, do</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept <span class="se">\</span>
-    -p params/tutorial <span class="se">\</span>
+    -p param/tutorial <span class="se">\</span>
     -n <span class="m">4</span>
 </pre></div>
 </div>
@@ -414,28 +320,25 @@ Python (3) language when defining the parameters. We can also define
 helper variables that are not themselves parameters, like <code class="docutils literal notranslate"><span class="pre">_size</span></code> above,
 which here is used to simultaneously adjust the number of particles <code class="docutils literal notranslate"><span class="pre">'N'</span></code>,
 the side length of the simulation box <code class="docutils literal notranslate"><span class="pre">boxsize</span></code> and the size of the
-potential grid. Though not strictly necessary, it is preferable for such
-helper variables to be named with a leading underscore <code class="docutils literal notranslate"><span class="pre">_</span></code>, to separate
-them from actual parameters.</p></li>
+potential grid via <code class="docutils literal notranslate"><span class="pre">potential_options</span></code>. Though not strictly necessary,
+it is preferable for such helper variables to be named with a leading
+underscore <code class="docutils literal notranslate"><span class="pre">_</span></code>, to separate them from actual parameters.</p></li>
 <li><p>We have explicitly specified the directory for power spectra output in the
-<code class="docutils literal notranslate"><span class="pre">output_dirs</span></code> parameter. The value is constructed using the <code class="docutils literal notranslate"><span class="pre">paths</span></code>
-variable, which holds absolute paths specified in the <code class="docutils literal notranslate"><span class="pre">.paths</span></code> file.
-If you want to take a look at this <code class="docutils literal notranslate"><span class="pre">.paths</span></code> file, do e.g.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cat ../.paths
+<code class="docutils literal notranslate"><span class="pre">output_dirs</span></code> parameter. The value is constructed using the magic <code class="docutils literal notranslate"><span class="pre">path</span></code>
+and <code class="docutils literal notranslate"><span class="pre">param</span></code> variables, available to all parameter files. The <code class="docutils literal notranslate"><span class="pre">path</span></code>
+variable holds absolute paths specified in the <code class="docutils literal notranslate"><span class="pre">.path</span></code> file.
+If you want to take a look at this <code class="docutils literal notranslate"><span class="pre">.path</span></code> file, do e.g.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cat .path
 </pre></div>
 </div>
-<p>Writing <code class="docutils literal notranslate"><span class="pre">paths['output_dir']</span></code> then maps to whatever value is specified for
-<code class="docutils literal notranslate"><span class="pre">output_dir</span></code> in the <code class="docutils literal notranslate"><span class="pre">.paths</span></code> file, which will be
-<code class="docutils literal notranslate"><span class="pre">'/path/to/concept_installation/concept/output'</span></code>. Looking up
-<code class="docutils literal notranslate"><span class="pre">paths['params']</span></code> is somewhat different, as <code class="docutils literal notranslate"><span class="pre">params</span></code> is not in the
-<code class="docutils literal notranslate"><span class="pre">.paths</span></code> file. Instead, this dynamically maps to the full path of the
-parameter file itself. To get the file name only (i.e. <code class="docutils literal notranslate"><span class="pre">'tutorial'</span></code>),
-we use the <code class="docutils literal notranslate"><span class="pre">basename</span></code> function. In total, the power spectrum output
-directory gets set to
-<code class="docutils literal notranslate"><span class="pre">'/path/to/concept_installation/concept/output/tutorial'</span></code>. We could have
-gotten away with just writing <code class="docutils literal notranslate"><span class="pre">'output/tutorial'</span></code> out statically. When
-specifying relative paths, these are always with respect to the
-<code class="docutils literal notranslate"><span class="pre">concept</span></code> directory.</p>
+<p>Writing <code class="docutils literal notranslate"><span class="pre">path.output_dir</span></code> then maps to whatever value is specified for
+<code class="docutils literal notranslate"><span class="pre">output_dir</span></code> in the <code class="docutils literal notranslate"><span class="pre">.path</span></code> file, which will be
+<code class="docutils literal notranslate"><span class="pre">'/path/to/concept/output'</span></code>. When used as is, the <code class="docutils literal notranslate"><span class="pre">param</span></code> variable
+maps to the file name of the parameter in which it is used, in this case
+<code class="docutils literal notranslate"><span class="pre">'tutorial'</span></code>. In total, the power spectrum output directory then gets set
+to <code class="docutils literal notranslate"><span class="pre">'/path/to/concept/output/tutorial'</span></code>. We could have gotten away with
+just writing <code class="docutils literal notranslate"><span class="pre">'output/tutorial'</span></code> out statically. Such relative paths in
+parameter files should be given with respect to the installation directory.</p>
 </li>
 <li><p>We’ve specified multiple times at which to dump power spectra in
 <code class="docutils literal notranslate"><span class="pre">output_times</span></code>. Note that we use the parameter <code class="docutils literal notranslate"><span class="pre">a_begin</span></code> (creating a
@@ -468,84 +371,70 @@ parameter) option. As an example, consider leaving out the definition of
 <code class="docutils literal notranslate"><span class="pre">_size</span></code> from the parameter file and instead supplying it when running the
 code:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept <span class="se">\</span>
-    -p params/tutorial <span class="se">\</span>
+    -p param/tutorial <span class="se">\</span>
     -c <span class="s2">&quot;_size = 64&quot;</span> <span class="se">\</span>
     -n <span class="m">4</span>
 </pre></div>
 </div>
 <p>If you forget to specify <code class="docutils literal notranslate"><span class="pre">_size</span></code> — or any other variable referenced by the
 parameter file — CO<em>N</em>CEPT will exit with an error, letting you know.</p>
-<h3>Log files</h3><p>The printed output of all CO<em>N</em>CEPT runs gets logged in the <code class="docutils literal notranslate"><span class="pre">logs</span></code>
-directory. Each run (or <em>job</em>) gets a unique integer ID, which is also used as
-the file name for the logged output. The log file name of any CO<em>N</em>CEPT
-run is stated when the program starts, and the job ID is written again at the
-end. Also, the job ID is included in the header of the power spectrum data
-files.</p>
+<h3>Logged job information</h3><p>For each CO<em>N</em>CEPT run (or <em>job</em>) a lot of information is logged. Each new
+job gets a unique integer ID, which is stated in the beginning and end of
+the run (and further included in the header of the power spectrum data files).
+Each job gets its own subdirectory within the <code class="docutils literal notranslate"><span class="pre">job</span></code> directory, containing
+at least:</p>
+<ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">param</span></code>: A copy of the parameter file used for the job.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>When mixing <code class="docutils literal notranslate"><span class="pre">-p</span></code> and <code class="docutils literal notranslate"><span class="pre">-c</span></code>, the combined parameters are what’s stored
+in the copied parameter file.</p>
+</div>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">log</span></code>: A record of the information printed to the screen during the job.</p>
 <div class="admonition tip">
 <p class="admonition-title">Tip</p>
-<p>To view the logged output of e.g. CO<em>N</em>CEPT run 1 with proper
-coloring, use <code class="docutils literal notranslate"><span class="pre">less</span> <span class="pre">-rf</span> <span class="pre">logs/1</span></code>. Arrow keys to navigate, <code class="docutils literal notranslate"><span class="pre">q</span></code> to quit.</p>
+<p>To view the logged output of e.g. CO<em>N</em>CEPT job 1 with proper
+colouring, use</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>less -rf job/1/log
+</pre></div>
 </div>
-<h3>Checking previously used parameters</h3><p>Among the first lines of output of any CO<em>N</em>CEPT run is the path to the
-parameter file in use. As this is included in the log file, you can always go
-back and check the parameters used by a given run. However, this information
-isn’t reliable, as we may have modified the parameter file since its original
-use. To this end, a complete copy of the parameter file is made upon every
-invocation of CO<em>N</em>CEPT, and stored in the <code class="docutils literal notranslate"><span class="pre">params</span></code> directory. The file
-name of this copy is written together with the name of the original parameter
-file when CO<em>N</em>CEPT starts. The name is generated from the current time
-and has the format <code class="docutils literal notranslate"><span class="pre">.YYYYMMDDhhmmssSSS</span></code> (year, month, day, hour, minute,
-second, millisecond).</p>
-<p>When mixing <code class="docutils literal notranslate"><span class="pre">-p</span></code> and <code class="docutils literal notranslate"><span class="pre">-c</span></code>, the combined parameters are what’s stored in the
-copied parameter file.</p>
-<p>As an exercise, get the job ID of the latest simulation from the header of one
-of the power spectrum data files (e.g. <code class="docutils literal notranslate"><span class="pre">output/tutorial/powerspec_a=1.00</span></code>),
-find the file name of the parameter file copy from the corresponding log file,
-and check that the parameters specified are as you expect. Any command-line
-parameters will be placed at the bottom.</p>
+<p>Arrow keys to navigate, <code class="docutils literal notranslate"><span class="pre">q</span></code> to quit.</p>
+</div>
+</li>
+</ul>
 <p>So far we’ve introduced only the most essential parameters. The remaining
 sections of this tutorial will introduce further parameters — and expand on
-already encountered ones — as needed. For full documentation on all
-available parameters, consult <a class="reference internal" href="../parameters/parameters.html"><span class="doc">Parameters</span></a>.</p>
+already encountered ones — as needed. For more focused documentation on any
+specific parameter, consult <a class="reference internal" href="../parameters/parameters.html"><span class="doc">Parameters</span></a>.</p>
 </div>
 
 
            </div>
-           
           </div>
-          <footer>
-    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
-        <a href="gravity.html" class="btn btn-neutral float-right" title="4. Mastering gravity" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
         <a href="first_simulations.html" class="btn btn-neutral float-left" title="2. Your first simulations" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="gravity.html" class="btn btn-neutral float-right" title="4. Mastering gravity" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>
 
   <div role="contentinfo">
-    <p>
+    <p></p>
+  </div>
 
-    </p>
-  </div> 
+   
 
 </footer>
         </div>
       </div>
-
     </section>
-
   </div>
-  
-
-  <script type="text/javascript">
+  <script>
       jQuery(function () {
           SphinxRtdTheme.Navigation.enable(true);
       });
-  </script>
-
-  
-  
-    
-   
+  </script> 
 
 </body>
 </html>

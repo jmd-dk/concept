@@ -1,42 +1,20 @@
-
-
 <!DOCTYPE html>
 <html class="writer-html5" lang="en" >
 <head>
   <meta charset="utf-8" />
-  
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  
   <title>Parameters &mdash; CONCEPT Documentation</title>
-  
-
-  
-  <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
-  <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
-  <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
-  <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
-  <link rel="stylesheet" href="../_static/copybutton.css" type="text/css" />
-  <link rel="stylesheet" href="../_static/tabs.css" type="text/css" />
-  <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
-
-  
-  
+      <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/copybutton.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/tabs.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
     <link rel="shortcut icon" href="../_static/favicon.ico"/>
-  
-
-  
-  
-
-  
     <link rel="canonical" href="https://jmd-dk.github.io/concept/parameters/parameters.html" />
-
-  
   <!--[if lt IE 9]>
     <script src="../_static/js/html5shiv.min.js"></script>
   <![endif]-->
   
-    
-      <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
         <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
         <script src="../_static/jquery.js"></script>
         <script src="../_static/underscore.js"></script>
@@ -44,39 +22,21 @@
         <script src="../_static/clipboard.min.js"></script>
         <script src="../_static/copybutton.js"></script>
         <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
-    
-    <script type="text/javascript" src="../_static/js/theme.js"></script>
-
-    
+    <script src="../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
     <link rel="next" title="Input/output" href="input_output.html" />
     <link rel="prev" title="Command-line options" href="../command_line_options.html" /> 
 </head>
 
-<body class="wy-body-for-nav">
-
-   
+<body class="wy-body-for-nav"> 
   <div class="wy-grid-for-nav">
-    
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
         <div class="wy-side-nav-search" >
-          
-
-          
             <a href="../index.html" class="icon icon-home"> CO<em>N</em>CEPT
-          
-
-          
-            
             <img src="../_static/logo.png" class="logo" alt="Logo"/>
-          
           </a>
-
-          
-
-          
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
     <input type="text" name="q" placeholder="Search documentation" />
@@ -84,18 +44,7 @@
     <input type="hidden" name="area" value="default" />
   </form>
 </div>
-
-          
-        </div>
-
-        
-        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
-          
-            
-            
-              
-            
-            
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
               <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="../tutorial/tutorial.html">Tutorial</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="../tutorial/installation.html">1. Effortless installation</a></li>
@@ -131,7 +80,7 @@
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="../installation.html#cloning-with-git">Cloning with Git</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../installation.html#the-installer-script-in-depth">The <code class="docutils literal notranslate"><span class="pre">installer</span></code> script in-depth</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../installation.html#the-install-script-in-depth">The <code class="docutils literal notranslate"><span class="pre">install</span></code> script in-depth</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="../installation.html#programs-installed">Programs installed</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../installation.html#command-line-options">Command-line options</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../installation.html#influential-environment-variables">Influential environment variables</a><ul>
@@ -141,7 +90,7 @@
 <li class="toctree-l4"><a class="reference internal" href="../installation.html#choosing-compiler-precedence">Choosing compiler precedence</a></li>
 <li class="toctree-l4"><a class="reference internal" href="../installation.html#installing-mpich-or-openmpi">Installing MPICH or OpenMPI</a></li>
 <li class="toctree-l4"><a class="reference internal" href="../installation.html#parallel-builds">Parallel builds</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../installation.html#using-the-installer-to-install-specific-libraries-but-not-concept-itself">Using the <code class="docutils literal notranslate"><span class="pre">installer</span></code> to install specific libraries but not CO<em>N</em>CEPT itself</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../installation.html#using-the-install-script-to-install-specific-libraries-but-not-concept-itself">Using the <code class="docutils literal notranslate"><span class="pre">install</span></code> script to install specific libraries but not CO<em>N</em>CEPT itself</a></li>
 </ul>
 </li>
 </ul>
@@ -152,8 +101,8 @@
 <li class="toctree-l3"><a class="reference internal" href="../installation.html#system-dependencies">System dependencies</a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="../installation.html#the-paths-and-env-files">The <code class="docutils literal notranslate"><span class="pre">.paths</span></code> and <code class="docutils literal notranslate"><span class="pre">.env</span></code> files</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="../installation.html#the-paths-file">The <code class="docutils literal notranslate"><span class="pre">.paths</span></code> file</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../installation.html#the-path-and-env-files">The <code class="docutils literal notranslate"><span class="pre">.path</span></code> and <code class="docutils literal notranslate"><span class="pre">.env</span></code> files</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../installation.html#the-path-file">The <code class="docutils literal notranslate"><span class="pre">.path</span></code> file</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../installation.html#the-env-file">The <code class="docutils literal notranslate"><span class="pre">.env</span></code> file</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="../installation.html#path-like-environment-variables"><code class="docutils literal notranslate"><span class="pre">PATH</span></code>-like environment variables</a></li>
 <li class="toctree-l4"><a class="reference internal" href="../installation.html#eliminating-interference-from-foreign-python-installations">Eliminating interference from foreign Python installations</a></li>
@@ -175,13 +124,13 @@
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#utility-u-utility">Utility: <code class="docutils literal notranslate"><span class="pre">-u</span></code>, <code class="docutils literal notranslate"><span class="pre">--utility</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#version-v-version">Version: <code class="docutils literal notranslate"><span class="pre">-v</span></code>, <code class="docutils literal notranslate"><span class="pre">--version</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="../command_line_options.html#remote-job-submission">Remote job submission</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#queue-q-queue">Queue: <code class="docutils literal notranslate"><span class="pre">-q</span></code>, <code class="docutils literal notranslate"><span class="pre">--queue</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#wall-time-w-wall-time">Wall time: <code class="docutils literal notranslate"><span class="pre">-w</span></code>, <code class="docutils literal notranslate"><span class="pre">--wall-time</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#wall-time-w-walltime">Wall time: <code class="docutils literal notranslate"><span class="pre">-w</span></code>, <code class="docutils literal notranslate"><span class="pre">--walltime</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#memory-memory">Memory: <code class="docutils literal notranslate"><span class="pre">--memory</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#job-name-job-name">Job name: <code class="docutils literal notranslate"><span class="pre">--job-name</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#job-directive-j-job-directive">Job directive: <code class="docutils literal notranslate"><span class="pre">-j</span></code>, <code class="docutils literal notranslate"><span class="pre">--job-directive</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#no-watching-no-watching">No watching: <code class="docutils literal notranslate"><span class="pre">--no-watching</span></code></a></li>
 </ul>
@@ -189,17 +138,19 @@
 <li class="toctree-l2"><a class="reference internal" href="../command_line_options.html#other-modes-of-building-running">Other modes of building/running</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#local-local">Local: <code class="docutils literal notranslate"><span class="pre">--local</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#pure-python-pure-python">Pure Python: <code class="docutils literal notranslate"><span class="pre">--pure-python</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#build-b-build">Build: <code class="docutils literal notranslate"><span class="pre">-b</span></code>, <code class="docutils literal notranslate"><span class="pre">--build</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#rebuild-rebuild">Rebuild: <code class="docutils literal notranslate"><span class="pre">--rebuild</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#native-optimizations-native-optimizations">Native optimizations: <code class="docutils literal notranslate"><span class="pre">--native-optimizations</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#no-link-time-optimizations-no-lto">No link time optimizations: <code class="docutils literal notranslate"><span class="pre">--no-lto</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#no-optimizations-no-optimizations">No optimizations: <code class="docutils literal notranslate"><span class="pre">--no-optimizations</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#native-optimizations-native-optimizations">Native optimizations: <code class="docutils literal notranslate"><span class="pre">--native-optimizations</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#no-recompilation-no-recompilation">No recompilation: <code class="docutils literal notranslate"><span class="pre">--no-recompilation</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#unsafe-building-unsafe-building">Unsafe building: <code class="docutils literal notranslate"><span class="pre">--unsafe-building</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="../command_line_options.html#specials">Specials</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#test-t-test">Test: <code class="docutils literal notranslate"><span class="pre">-t</span></code>, <code class="docutils literal notranslate"><span class="pre">--test</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#test-t-tests">Test: <code class="docutils literal notranslate"><span class="pre">-t</span></code>, <code class="docutils literal notranslate"><span class="pre">--tests</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#main-entry-point-m-main">Main entry point: <code class="docutils literal notranslate"><span class="pre">-m</span></code>, <code class="docutils literal notranslate"><span class="pre">--main</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#interactive-i-interactive">Interactive: <code class="docutils literal notranslate"><span class="pre">-i</span></code>, <code class="docutils literal notranslate"><span class="pre">--interactive</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#version-v-version">Version: <code class="docutils literal notranslate"><span class="pre">-v</span></code>, <code class="docutils literal notranslate"><span class="pre">--version</span></code></a></li>
 </ul>
 </li>
 </ul>
@@ -212,9 +163,11 @@
 </li>
 <li class="toctree-l2"><a class="reference internal" href="numerical_parameters.html">Numerical parameters</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="numerical_parameters.html#boxsize"><code class="docutils literal notranslate"><span class="pre">boxsize</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="numerical_parameters.html#potential-options"><code class="docutils literal notranslate"><span class="pre">potential_options</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="cosmology.html">Cosmology</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="cosmology.html#h0"><code class="docutils literal notranslate"><span class="pre">H0</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="cosmology.html#class-params"><code class="docutils literal notranslate"><span class="pre">class_params</span></code></a></li>
 </ul>
 </li>
@@ -241,19 +194,17 @@
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../utilities/utilities.html">Utilities</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/class.html">The CLASS utility</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/class.html">The class utility</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../utilities/convert.html">The convert utility</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../utilities/gadget.html">The gadget utility</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../utilities/info.html">The info utility</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../utilities/play.html">The play utility</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../utilities/powerspec.html">The powerspec utility</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/render2D.html">The render2D utility</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../utilities/render3D.html">The render3D utility</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../utilities/update.html">The update utility</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../utilities/watch.html">The watch utility</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="../under_the_hood.html">Looking under the hood</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../troubleshooting.html">Troubleshooting</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="../troubleshooting.html#installation-failed">Installation failed</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../troubleshooting.html#compilation-failed">Compilation failed</a><ul>
@@ -282,91 +233,44 @@
 </li>
 </ul>
 
-            
-          
         </div>
-        
       </div>
     </nav>
 
-    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
-
-      
-      <nav class="wy-nav-top" aria-label="top navigation">
-        
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
           <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
           <a href="../index.html">CO<em>N</em>CEPT</a>
-        
       </nav>
 
-
       <div class="wy-nav-content">
-        
         <div class="rst-content style-external-links">
-        
-          
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-<div role="navigation" aria-label="breadcrumbs navigation">
-
+          <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
-    
       <li><a href="../index.html" class="icon icon-home"></a> &raquo;</li>
-        
       <li>Parameters</li>
-    
-    
       <li class="wy-breadcrumbs-aside">
-        
-          
-            
               <a href="https://github.com/jmd-dk/concept/" class="fa fa-github"> Code Repository</a>
-            
-          
-        
       </li>
-    
-  </ul>
+  </ul><div class="rst-breadcrumbs-buttons" role="navigation" aria-label="Sequential page navigation">
 
-  
-  <div class="rst-breadcrumbs-buttons" role="navigation" aria-label="breadcrumb navigation">
-      
         <a href="input_output.html" class="btn btn-neutral float-right" title="Input/output" accesskey="n">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
-      
-      
-
-      
   </div>
-  
   <hr/>
 </div>
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
-            
+             
   <div class="section" id="parameters">
-<h1>Parameters<a class="headerlink" href="#parameters" title="Permalink to this headline">¶</a></h1>
-<p>The following sections list all the various parameters accepted by
+<h1>Parameters<a class="headerlink" href="#parameters" title="Permalink to this headline"></a></h1>
+<p>The following sections list the various parameters accepted by
 CO<em>N</em>CEPT, along with explanations, default and example values. Each
 section deals with a specific category of parameters.</p>
 <p>To learn how to <em>use</em> parameters and parameter files, see the
-<a class="reference internal" href="../tutorial/parameter_files.html"><span class="doc">tutorial</span></a>.</p>
+<a class="reference internal" href="../tutorial/parameter_files.html"><span class="doc">tutorial</span></a> as well as the <code class="docutils literal notranslate"><span class="pre">-p</span></code> and <code class="docutils literal notranslate"><span class="pre">-c</span></code>
+<a class="reference internal" href="../command_line_options.html"><span class="doc">command-line options</span></a>.</p>
 <p>Parameters are specified as live Python 3 variables. As such, it is helpful to
-be familiar with basic Python syntax and knowledge of data types, such as
+be familiar with basic Python syntax and knowledge of
+<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html">data types</a>, such as
 <code class="docutils literal notranslate"><span class="pre">str</span></code>ings, <code class="docutils literal notranslate"><span class="pre">list</span></code>s and <code class="docutils literal notranslate"><span class="pre">dict</span></code>ionaries.</p>
 <p>Below you will find the parameter categories, corresponding to the sections
 ahead. Besides bringing some organization to the large set of parameters,
@@ -416,66 +320,81 @@ equidistant in scale factor <span class="math notranslate nohighlight">\(a\)</sp
 <div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">output_times</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;powerspec&#39;</span><span class="p">:</span> <span class="n">logspace</span><span class="p">(</span><span class="n">log10</span><span class="p">(</span><span class="mf">0.01</span><span class="p">),</span> <span class="n">log10</span><span class="p">(</span><span class="mi">1</span><span class="p">),</span> <span class="mi">7</span><span class="p">)}</span>
 </pre></div>
 </div>
-<p>Also readily available for use in parameter files is the special <code class="docutils literal notranslate"><span class="pre">paths</span></code>
-variable. This is a <code class="docutils literal notranslate"><span class="pre">dict</span></code> holding the absolute paths to various useful
-directories and files. In fact, the content of the <code class="docutils literal notranslate"><span class="pre">paths</span></code> <code class="docutils literal notranslate"><span class="pre">dict</span></code> is
-supplied by the <code class="docutils literal notranslate"><span class="pre">.paths</span></code> file. In addition to all of these paths, the
-<code class="docutils literal notranslate"><span class="pre">paths</span></code> <code class="docutils literal notranslate"><span class="pre">dict</span></code> also store the absolute path to the parameter file in which
-it is used. A nice way to ensure that the output is dumped into a proper but
-unique location is then to use</p>
-<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">output_dirs</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;powerspec&#39;</span><span class="p">:</span> <span class="n">paths</span><span class="p">[</span><span class="s1">&#39;output_dir&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="s1">&#39;/&#39;</span> <span class="o">+</span> <span class="n">basename</span><span class="p">(</span><span class="n">paths</span><span class="p">[</span><span class="s1">&#39;params&#39;</span><span class="p">])}</span>
+<h4>The <code class="docutils literal notranslate">path</code> and <code class="docutils literal notranslate">param</code> objects</h4><p>Also readily available for use in parameter files is the convenient <code class="docutils literal notranslate"><span class="pre">path</span></code>
+object, which holds absolute paths to various useful directories and files.
+For example, <code class="docutils literal notranslate"><span class="pre">path.output_dir</span></code> evaluates to the output directory, which by
+default is <code class="docutils literal notranslate"><span class="pre">output</span></code>. If you prefer, you may instead use the <code class="docutils literal notranslate"><span class="pre">dict</span></code>-like
+syntax <code class="docutils literal notranslate"><span class="pre">path['output_dir']</span></code>. The contents of the <code class="docutils literal notranslate"><span class="pre">path</span></code> variable is
+supplied by the <code class="docutils literal notranslate"><span class="pre">.path</span></code> file.</p>
+<p>Another convenience object available within parameter files is <code class="docutils literal notranslate"><span class="pre">param</span></code>,
+which evaluates to the name of the parameter file in which it is used. As an
+example, consider this nice way of ensuring that the power spectrum output
+gets dumped in a subdirectory of the output directory, labelled according to
+the parameter file:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">output_dirs</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;powerspec&#39;</span><span class="p">:</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">path</span><span class="o">.</span><span class="n">output_dir</span><span class="si">}</span><span class="s1">/</span><span class="si">{</span><span class="n">param</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">}</span>
 </pre></div>
 </div>
-<p>which directs CO<em>N</em>CEPT to dump power spectra in a subdirectory with the
-same name as the parameter file, within the dedicated <code class="docutils literal notranslate"><span class="pre">output</span></code> directory as
-specified in the <code class="docutils literal notranslate"><span class="pre">.paths</span></code> file. Here, <code class="docutils literal notranslate"><span class="pre">basename</span></code> is really
-<code class="docutils literal notranslate"><span class="pre">os.path.basename</span></code>, which again is made available without the need for an
-explicit <code class="docutils literal notranslate"><span class="pre">import</span></code>.</p>
-<h3>Parameter files as <em>glorified</em> Python scripts</h3><p>The parameter files of CO<em>N</em>CEPT are in fact even more powerful than
-regular Python scripts. The additional super powers are described below.</p>
-<h4>Non-linear parsing of parameter file content</h4><p>Parameters may be defined in terms of each other. Unlike regular variables,
+<p>If used within the parameter file <code class="docutils literal notranslate"><span class="pre">param/my_param</span></code>, <code class="docutils literal notranslate"><span class="pre">f'{path.output_dir}/{param}'</span></code> then evaluates to <code class="docutils literal notranslate"><span class="pre">'output/my_param'</span></code>.</p>
+<p>The <code class="docutils literal notranslate"><span class="pre">param</span></code> object is not a plain <code class="docutils literal notranslate"><span class="pre">str</span></code> though:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">param.name</span></code>: Evaluates to the name of the parameter file (equivalent to
+to using <code class="docutils literal notranslate"><span class="pre">param</span></code> on its own within a <code class="docutils literal notranslate"><span class="pre">str</span></code>-context).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">param.path</span></code>: Evaluates to the absolute path of the parameter file.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">param.dir</span></code>: Evaluates to the absolute path to the directory containing
+the parameter file.</p></li>
+</ul>
+<h3>Parameter files as <em>glorified</em> Python scripts</h3><p>Beyond being equipped with convenience variables, the parameter files
+themselves are additionally much more powerful than regular Python scripts.
+The additional super powers are described below.</p>
+<h4>Non-linear parsing of parameter file content</h4><p>Parameters may be defined in terms of each other. Unlike with regular scripts,
 the definition order does not matter (i.e. you may reference a variable
 <em>before</em> it is defined). The magic that makes this work is cyclic execution of
 the parameter file, so that a variable that is needed on some line but only
 defined by some later line, is correctly set at the second execution. This
 non-linear variable dependence may continue arbitrarily, requiring many more
 execution passes.</p>
-<h4>Non-parameter variables</h4><p>Using additional, non-parameter variables in parameter files can help provide
+<h4>Custom non-parameter variables</h4><p>Using custom non-parameter variables in parameter files can help provide
 better organisation. For example, you may want to define both the <code class="docutils literal notranslate"><span class="pre">boxsize</span></code>
 and the resolution of the gravitational potential grid in terms of a common
 variable:</p>
-<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="c1"># Conveniently placed at the top</span>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="c1"># Non-parameter helper variable used to control the size of the simulation</span>
 <span class="n">_size</span> <span class="o">=</span> <span class="mi">256</span>
 
 <span class="c1"># Numerical parameters</span>
 <span class="n">boxsize</span> <span class="o">=</span> <span class="n">_size</span><span class="o">*</span><span class="n">Mpc</span>
-<span class="n">potential_options</span> <span class="o">=</span> <span class="p">{</span>
-    <span class="s1">&#39;gridsize&#39;</span><span class="p">:</span> <span class="p">{</span>
-        <span class="s1">&#39;gravity&#39;</span><span class="p">:</span> <span class="p">{</span>
-            <span class="s1">&#39;p3m&#39;</span><span class="p">:</span> <span class="mi">2</span><span class="o">*</span><span class="n">_size</span><span class="p">,</span>
-        <span class="p">},</span>
-    <span class="p">},</span>
-<span class="p">}</span>
+<span class="n">potential_options</span> <span class="o">=</span> <span class="mi">2</span><span class="o">*</span><span class="n">_size</span>
 </pre></div>
 </div>
-<p>Both the <code class="docutils literal notranslate"><span class="pre">boxsize</span></code> and the P³M grid size within <code class="docutils literal notranslate"><span class="pre">potential_options</span></code> can
-now be simultaneously updated through the newly introduced <code class="docutils literal notranslate"><span class="pre">_size</span></code> variable,
-which itself is not a parameter. When defined in a parameter file,
-CO<em>N</em>CEPT treats any variable whose name does not begin with an underscore
-‘<code class="docutils literal notranslate"><span class="pre">_</span></code>’ as a parameter; hence ‘<code class="docutils literal notranslate"><span class="pre">_size</span></code>’ and not ‘<code class="docutils literal notranslate"><span class="pre">size</span></code>’.</p>
+<p>Both the <code class="docutils literal notranslate"><span class="pre">boxsize</span></code> and the potential grid size given by
+<code class="docutils literal notranslate"><span class="pre">potential_options</span></code> can now be simultaneously updated through the newly
+introduced <code class="docutils literal notranslate"><span class="pre">_size</span></code> variable, which itself is not a parameter. When defined
+in a parameter file, CO<em>N</em>CEPT treats any variable whose name does not
+begin with an underscore ‘<code class="docutils literal notranslate"><span class="pre">_</span></code>’ as a proper parameter; hence ‘<code class="docutils literal notranslate"><span class="pre">_size</span></code>’ and
+not ‘<code class="docutils literal notranslate"><span class="pre">size</span></code>’.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The <code class="docutils literal notranslate"><span class="pre">potential_options</span></code> parameter is in fact much more involved than what
+it would appear from the above example. The <code class="docutils literal notranslate"><span class="pre">potential_options</span></code> is an
+example of a “nested” parameter, with many “sub-parameters” definable
+within it. For your convenience, CO<em>N</em>CEPT allows for a plethora of
+different non-complete specifications of such nested parameters (with
+non-specified sub-parameters being auto-assigned), simplicying the writing
+of parameter files. For the <a class="reference internal" href="numerical_parameters.html#potential-options"><span class="std std-ref">full specification</span></a>
+of the <code class="docutils literal notranslate"><span class="pre">potential_options</span></code> parameter for details.</p>
+</div>
 <h4>Dynamic value insertion using ellipses</h4><p>Several of the parameters are <code class="docutils literal notranslate"><span class="pre">dict</span></code>’s with which one often want the
 values to be identical for multiple keys. Instead of typing out the same
 value multiple times, this may be inferred dynamically from the placement
 of ellipses ‘<code class="docutils literal notranslate"><span class="pre">...</span></code>’ like so:</p>
 <div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">output_dirs</span> <span class="o">=</span> <span class="p">{</span>
-    <span class="s1">&#39;snapshot&#39;</span> <span class="p">:</span> <span class="n">paths</span><span class="p">[</span><span class="s1">&#39;output_dir&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="s1">&#39;/&#39;</span> <span class="o">+</span> <span class="n">basename</span><span class="p">(</span><span class="n">paths</span><span class="p">[</span><span class="s1">&#39;params&#39;</span><span class="p">]),</span>
+    <span class="s1">&#39;snapshot&#39;</span> <span class="p">:</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">path</span><span class="o">.</span><span class="n">output_dir</span><span class="si">}</span><span class="s1">/</span><span class="si">{</span><span class="n">param</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span>
     <span class="s1">&#39;powerspec&#39;</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span>
     <span class="s1">&#39;render2D&#39;</span> <span class="p">:</span> <span class="o">...</span><span class="p">,</span>
     <span class="s1">&#39;render3D&#39;</span> <span class="p">:</span> <span class="o">...</span><span class="p">,</span>
 <span class="p">}</span>
 </pre></div>
 </div>
-<p>Here, the keys <code class="docutils literal notranslate"><span class="pre">'powerspec'</span></code>, <code class="docutils literal notranslate"><span class="pre">'render2D'</span></code> and <code class="docutils literal notranslate"><span class="pre">'render23'</span></code> will map
+<p>Here, the keys <code class="docutils literal notranslate"><span class="pre">'powerspec'</span></code>, <code class="docutils literal notranslate"><span class="pre">'render2D'</span></code> and <code class="docutils literal notranslate"><span class="pre">'render3D'</span></code> will map
 to the same value as <code class="docutils literal notranslate"><span class="pre">'snapshot'</span></code>. More generally, an ellipsis is replaced
 by the first non-ellipsis value encountered when looking back up the key-value
 definitions, wrapping around if necessary. Thus,</p>
@@ -489,15 +408,25 @@ definitions, wrapping around if necessary. Thus,</p>
 </div>
 <p>results in <code class="docutils literal notranslate"><span class="pre">'snapshot'</span></code> being mapped to <code class="docutils literal notranslate"><span class="pre">[0.1,</span> <span class="pre">0.3,</span> <span class="pre">1]</span></code> and <code class="docutils literal notranslate"><span class="pre">'render2D'</span></code>
 to <code class="docutils literal notranslate"><span class="pre">1</span></code>.</p>
-<h4>Inferred parameters</h4><p>Finally, some parameters are inferred from other parameters. The value of
-these may be used to define other parameters, but they should not be
-explicitly specified themselves. Currently, the only two such <em>inferred</em>
-parameters are <code class="docutils literal notranslate"><span class="pre">h</span></code> and <code class="docutils literal notranslate"><span class="pre">Ων</span></code>:</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Another takeaway from the above example is the fact that CO<em>N</em>CEPT
+rarely is picky about the data types used when defining parameters. We see
+that the keys of the <code class="docutils literal notranslate"><span class="pre">output_times</span></code> <code class="docutils literal notranslate"><span class="pre">dict</span></code> may be either single numbers
+or <code class="docutils literal notranslate"><span class="pre">list</span></code>s of numbers, which again may be either <code class="docutils literal notranslate"><span class="pre">int</span></code>s or
+<code class="docutils literal notranslate"><span class="pre">float</span></code>s. Furhtermore, the container used did not have been a <code class="docutils literal notranslate"><span class="pre">list</span></code>,
+but might instead have been e.g. a <code class="docutils literal notranslate"><span class="pre">tuple</span></code> <code class="docutils literal notranslate"><span class="pre">(0.1,</span> <span class="pre">0.3,</span> <span class="pre">1)</span></code> or a
+<code class="docutils literal notranslate"><span class="pre">set</span></code> <code class="docutils literal notranslate"><span class="pre">{0.1,</span> <span class="pre">0.3,</span> <span class="pre">1}</span></code>.</p>
+</div>
+<h4>Inferred parameters</h4><p>Some parameters are inferred from other parameters. The value of these may be
+used to define other parameters, but they should not themselves be explicitly
+specified. Currently, the only two such <em>inferred</em> parameters are <code class="docutils literal notranslate"><span class="pre">h</span></code>
+and <code class="docutils literal notranslate"><span class="pre">Ων</span></code>:</p>
 <ul>
 <li><p><code class="docutils literal notranslate"><span class="pre">h</span></code> is simply defined through
 <span class="math notranslate nohighlight">\(h \equiv H_0/(100\, \text{km}\, \text{s}^{-1}\, \text{Mpc}^{-1})\)</span>,
-with the Hubble constant <span class="math notranslate nohighlight">\(H_0\)</span> being a normal parameter, <code class="docutils literal notranslate"><span class="pre">H0</span></code>,
-defined as e.g.</p>
+with the Hubble constant <span class="math notranslate nohighlight">\(H_0\)</span> being a normal <a class="reference internal" href="cosmology.html#h0"><span class="std std-ref">parameter</span></a>,
+<code class="docutils literal notranslate"><span class="pre">H0</span></code>, defined as e.g.</p>
 <div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">H0</span> <span class="o">=</span> <span class="mi">67</span><span class="o">*</span><span class="n">km</span><span class="o">/</span><span class="p">(</span><span class="n">s</span><span class="o">*</span><span class="n">Mpc</span><span class="p">)</span>
 </pre></div>
 </div>
@@ -512,7 +441,7 @@ defining the box size:</p>
 neutrino species. It is set based on the massive neutrino parameters defined
 by the <code class="docutils literal notranslate"><span class="pre">class_params</span></code> <a class="reference internal" href="cosmology.html#class-params"><span class="std std-ref">parameter</span></a>. As the computation
 of <span class="math notranslate nohighlight">\(\Omega_\nu\)</span> is non-trivial, this is nice to have available for
-simulations with massive neutrinos where the sum
+<a class="reference internal" href="../tutorial/beyond_matter_only.html#massive-neutrinos"><span class="std std-ref">simulations with massive neutrinos</span></a> where the sum
 <span class="math notranslate nohighlight">\(\Omega_{\text{cdm}} + \Omega_\nu\)</span> is constrained. With e.g.
 <span class="math notranslate nohighlight">\(\Omega_{\text{cdm}} + \Omega_\nu = 0.27\)</span>, one would set</p>
 <div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">Ωcdm</span> <span class="o">=</span> <span class="mf">0.27</span> <span class="o">-</span> <span class="n">Ων</span>
@@ -521,47 +450,36 @@ simulations with massive neutrinos where the sum
 </li>
 </ul>
 <p>in the parameter file. As <code class="docutils literal notranslate"><span class="pre">Ων</span></code> unlike <code class="docutils literal notranslate"><span class="pre">h</span></code> is non-trivial to compute from
-existing parameters, its value will be printed at the beginning of the
+the user-defined parameters, its value will be printed at the beginning of the
 CO<em>N</em>CEPT run (when running with massive neutrinos).</p>
 </div>
 
 
            </div>
-           
           </div>
-          <footer>
-    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
-        <a href="input_output.html" class="btn btn-neutral float-right" title="Input/output" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
 
+        <a href="input_output.html" class="btn btn-neutral float-right" title="Input/output" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>
 
   <div role="contentinfo">
-    <p>
+    <p></p>
+  </div>
 
-    </p>
-  </div> 
+   
 
 </footer>
         </div>
       </div>
-
     </section>
-
   </div>
-  
-
-  <script type="text/javascript">
+  <script>
       jQuery(function () {
           SphinxRtdTheme.Navigation.enable(true);
       });
-  </script>
-
-  
-  
-    
-   
+  </script> 
 
 </body>
 </html>

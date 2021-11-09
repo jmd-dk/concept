@@ -1,7 +1,7 @@
 Working on remote clusters
 --------------------------
-If you are running CO\ *N*\ CEPT on your local machine, you should skip this
-section.
+If you intend to run CO\ *N*\ CEPT on your local machine only,
+you should skip this section.
 
 If you are running CO\ *N*\ CEPT on a remote machine, i.e. logged in to a
 server/cluster via ``ssh``, you've so far had to supply the additional
@@ -19,22 +19,22 @@ section.
    <h3>Submitting jobs</h3>
 
 If you try to run a simulation *without* the ``--local`` option while logged
-into a remote server, CO\ *N*\ CEPT will error out immediately, letting you
-know that it has created an almost complete *job script*, simply called
-``jobscript`` and placed in the ``concept`` directory. This job script is a
-great starting point if you want to control the job submission yourself. All
-that needs to be changed/added are the directives at the top of the job
-script.
+into a remote server, CO\ *N*\ CEPT will exit immediately, letting you know
+that it has created an almost complete *job script* named
+``job/.jobscript_<date>``, where ``<date>`` is a string of numbers labelling
+the creation time. This job script is a great starting point if you want to
+control the job submission yourself. All that needs to be changed/added are
+the directives at the top of the job script.
 
 To automatically submit a complete job script, you need to specify the *queue*
 (called *partition* in Slurm) in which to submit the job using the ``-q``
 option to ``concept``. Submitting a simulation using e.g. a parameter file
-named ``params/tutorial`` using 8 cores then looks like
+named ``param/tutorial`` using 8 cores then looks like
 
 .. code-block:: bash
 
    ./concept \
-       -p params/tutorial \
+       -p param/tutorial \
        -n 8 \
        -q <queue>  # Replace <queue> with queue name
 
@@ -50,8 +50,8 @@ nodes each with 4 cores.
 To specify a memory requirement, further supply ``--memory <memory>``, where
 ``<memory>`` is the *total* memory required collectively by all cores on all
 nodes. Examples of legal memory specifications include ``--memory 8192MB``,
-``--memory 8192M``, ``--memory 8G``, ``--memory 2*4G``, which all specify 8
-gigabytes, i.e. 1 gigabyte per core for ``-n 8`` or ``-n 2:4``.
+``--memory 8192M``, ``--memory 8G``, ``--memory 2*4G``, all of which specifies
+8 gigabytes, i.e. 1 gigabyte per core if running with a total of 8 cores.
 
 To specify a wall time limit, i.e. a maximum time within which the simulation
 is expected to be completed, further supply the ``-w <wall-time>`` option.
@@ -63,7 +63,7 @@ A complete CO\ *N*\ CEPT job submission could then look like
 .. code-block:: bash
 
    ./concept \
-       -p params/tutorial \
+       -p param/tutorial \
        -n 8 \
        -q <queue> \
        --mem 8G \
@@ -75,6 +75,8 @@ A complete CO\ *N*\ CEPT job submission could then look like
    option to ``concept`` in this manner. Also, the order in which the options
    are supplied does not matter.
 
+A copy of the job script will be placed in the ``job/<ID>`` directory.
+
 
 
 .. raw:: html
@@ -82,7 +84,7 @@ A complete CO\ *N*\ CEPT job submission could then look like
    <h3>The watch utility</h3>
 
 Once a job is submitted, CO\ *N*\ CEPT will notify you that you may now kill
-(``Ctrl``\ +\ ``C``) the process. If you don't, the submitted job is
+(``Ctrl``\ +\ ``C``) the running process. If you don't, the submitted job is
 continually monitored, and its output will be printed to the screen once it
 starts running, as if you were running the simulation locally. This is handled
 by the *watch utility*, which is automatically called after job submission. It

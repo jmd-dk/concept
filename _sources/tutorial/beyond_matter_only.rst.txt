@@ -53,8 +53,8 @@ We begin our exploration by performing a standard matter-only simulation, as
 specified by the below parameter file:
 
 .. code-block:: python3
-   :caption: params/tutorial :math:`\,` (radiation)
-   :name: params-radiation
+   :caption: param/tutorial :math:`\,` (radiation)
+   :name: param-radiation
    :emphasize-lines: 12-22, 36-43, 53
 
    # Non-parameter helper variable used to control the size of the simulation
@@ -80,7 +80,7 @@ specified by the below parameter file:
            }
        )
    output_dirs = {
-       'powerspec': paths['output_dir'] + '/' + basename(paths['params']),
+       'powerspec': f'{path.output_dir}/{param}',
    }
    output_bases = {
        'powerspec': f'powerspec{_lin=}'
@@ -111,7 +111,7 @@ specified by the below parameter file:
    # Should be supplied as a command-line parameter.
    _lin = ''
 
-As usual, save the parameters as e.g. ``params/tutorial``.
+As usual, save the parameters as e.g. ``param/tutorial``.
 
 .. note::
    Before running simulations, it's best to ensure that the output directory
@@ -124,14 +124,14 @@ With a clean ``output/tutorial`` directory, run the simulation:
 
 .. code-block:: bash
 
-   ./concept -p params/tutorial
+   ./concept -p param/tutorial
 
 possibly with the addition of ``-n 4`` or some other number of processes.
 
 .. note::
-   The remainder of this tutorial leaves out explicit mention of the ``-n``
-   option to ``concept`` invocations. Please add whatever number of processes
-   you would like yourself.
+   The remainder of this section of the tutorial leaves out explicit mention
+   of the ``-n`` option to ``concept`` invocations. Please add whatever number
+   of processes you would like yourself.
 
 A relatively large number of particles :math:`N = 192^3` is used in order to
 increase the precision of the simulation. Our goal is to investigate the
@@ -140,7 +140,7 @@ scales and early times --- hence the large ``boxsize`` and early output time.
 The unfamiliar parameter specifications will be explained in due time.
 
 .. note::
-   Do not fret if :ref:`the above parameter file <params-radiation>` --- and
+   Do not fret if :ref:`the above parameter file <param-radiation>` --- and
    those to come further down in this section --- looks complicated. They
    *are* more complicated than normal parameter files, because here a single
    parameter file is designed to be used for several different simulations,
@@ -185,6 +185,7 @@ plotting script:
 
    import glob, os, re
    import numpy as np
+   import matplotlib; matplotlib.use('agg')
    import matplotlib.pyplot as plt
 
    # Read in data
@@ -301,11 +302,11 @@ We do not want to model the photons using *N*-body particles, but rather as a
 collection of spatially fixed grids, storing the energy density, momentum
 density, etc. This is referred to as the *fluid representation* --- as opposed
 to the *particle representation* --- and is generally preferable for
-non-linear components. To represent the photon component as a fluid, we
-specify ``'gridsize'`` in place of ``'N'``, where ``'gridsize'`` is the number
-of grid cells along each dimension, for the cubic fluid grids. Finally,
-the number of fluid quantities --- and corresponding grids --- to take into
-account is implicitly specified by the *Boltzmann order*. As is
+linear components. To represent the photon component as a fluid, we specify
+``'gridsize'`` in place of ``'N'``, where ``'gridsize'`` is the number of grid
+cells along each dimension, for the cubic fluid grids. Finally, the number of
+fluid quantities --- and corresponding grids --- to take into account is
+implicitly specified by the *Boltzmann order*. As is
 `customary <https://arxiv.org/abs/astro-ph/9506072>`_ in linear perturbation
 theory, we transform the Boltzmann equation for a given species into an
 infinite hierarchy of multipole moments :math:`\ell \geq 0`. We then partition
@@ -322,7 +323,7 @@ shall illuminate this concept:
   (i.e. the continuity equation for the energy density and the Euler equation
   for the momentum density) are solved non-linearly during the simulation,
   while higher moments like pressure and shear (on which the energy and
-  momentum density depend) are solved in pure linear theory.
+  momentum density depends) are solved in pure linear theory.
 - **Boltzmann order -1**: None of the moments are treated non-linearly, i.e.
   this results in a purely linear component. Though the evolution of such a
   component is independent of the simulation, a purely linear component may
@@ -338,9 +339,9 @@ We shall look into Boltzmann order :math:`+1` in the subsection on
 shall keep to the purely linear case of Boltzmann order :math:`-1`.
 
 For fluid components (whether linear or not), the only sensible gravitational
-method is that of PM. Looking at :ref:`the parameter file <params-radiation>`,
+method is that of PM. Looking at :ref:`the parameter file <param-radiation>`,
 we see that a grid size of ``_size`` is specified for ``'pm'``. This *must*
-match the *fluid grid size*, i.e. the size specified for ``'gridsize'`` for
+match the *fluid grid size*, i.e. the value specified for ``'gridsize'`` for
 the fluid component in ``initial_conditions``, so that the geometry of the
 grid(s) internal to the fluid component matches that of the potential grid.
 Now the simulation then have *two* potential grids; one for P³M self-gravity
@@ -351,7 +352,7 @@ size ``_size``).
 .. note::
    As the PM grid size has to match the fluid grid size, you do in fact not
    need to specify the ``'pm'`` item of ``potential_options`` in
-   :ref:`the parameter file <params-radiation>`. You still need to have the
+   :ref:`the parameter file <param-radiation>`. You still need to have the
    explicit specifications of ``'gridsize'``, ``'gravity'`` and ``'p3m'``,
    though. Specifying simply ``potential_options = 2*_size`` sets the P³M
    *and* PM grid size to ``2*_size``, which fails for our fluid with grid
@@ -364,7 +365,7 @@ with the inclusion of linear photons, run
 .. code-block:: bash
 
    ./concept \
-       -p params/tutorial \
+       -p param/tutorial \
        -c "_lin = 'photon'"
 
 .. tip::
@@ -375,7 +376,7 @@ with the inclusion of linear photons, run
    parameter. As ``_size`` is defined at the top, supplying ``_size`` as a
    command-line parameter will have no effect.
 
-Now redo the plot, and the results of both the matter-only and the matter plus
+Now redo the plot, and the results of both the matter-only and the matter +
 photon simulation should appear. The plot will show that --- sadly ---
 including the photons does *not* lead to better large-scale behaviour.
 
@@ -390,7 +391,7 @@ which includes both linear photons and linear massless neutrinos:
 .. code-block:: bash
 
    ./concept \
-       -p params/tutorial \
+       -p param/tutorial \
        -c "_lin = 'photon, massless neutrino'"
 
 Redoing the plot, we discover that including the neutrinos made the
@@ -428,7 +429,7 @@ photons and neutrinos in their entirety, run
 .. code-block:: bash
 
    ./concept \
-       -p params/tutorial \
+       -p param/tutorial \
        -c "_lin = 'photon, massless neutrino, metric'"
 
 Re-plotting, you should see a much better behaved simulation power spectrum at
@@ -462,13 +463,13 @@ normally write e.g.
        },
    ]
 
-Using :ref:`our clever parameter file <params-radiation>` however, we may
+Using :ref:`our clever parameter file <param-radiation>` however, we may
 specify this directly at the command-line using
 
 .. code-block:: bash
 
    ./concept \
-       -p params/tutorial \
+       -p param/tutorial \
        -c "_lin = 'photon + massless neutrino + metric'"
 
 This idea of combining species is embraced fully by CO\ *N*\ CEPT. As such,
@@ -477,16 +478,16 @@ simply as ``'radiation'``. Thus,
 
 .. code-block:: bash
 
-   ./concept -p params/tutorial -c "_lin = 'radiation + metric'"
+   ./concept -p param/tutorial -c "_lin = 'radiation + metric'"
 
-works just as well. You should run one of the above and check that you obtain
-the same result as before.
+works just as well. You should run at least one of the above and check that
+you obtain the same result as before.
 
 You are in fact already very familiar with the idea of combining species, as
 ``'matter'`` really means ``'baryon + cold dark matter'``.
 
 .. tip::
-   When performing simulaitons in a cosmology without massless neutrinos,
+   When performing simulations in a cosmology without massless neutrinos,
    specifying ``'photon + massless neutrino'`` as the species of a component
    will produce an error. However, specfying ``'radiation'`` is always safe,
    as this dynamically maps to the set of all radiation species present in the
@@ -529,8 +530,8 @@ fact that neutrinos do have some mass, we shall make use of the below
 parameter file:
 
 .. code-block:: python3
-   :caption: params/tutorial :math:`\,` (massive neutrinos)
-   :name: params-massive-neutrinos
+   :caption: param/tutorial :math:`\,` (massive neutrinos)
+   :name: param-massive-neutrinos
    :emphasize-lines: 50, 52-59, 63
 
    # Non-parameter helper variable used to control the size of the simulation
@@ -556,7 +557,7 @@ parameter file:
            }
        )
    output_dirs = {
-       'powerspec': paths['output_dir'] + '/' + basename(paths['params']),
+       'powerspec': f'{path.output_dir}/{param}',
    }
    output_bases = {
        'powerspec': f'powerspec{_mass=}{_lin=}'
@@ -598,12 +599,12 @@ parameter file:
    _mass = 0   # Sum of neutrino masses in eV
    _lin  = ''  # Linear species to include
 
-You may want to save this as e.g. ``params/tutorial`` and get a simulation
+You may want to save this as e.g. ``param/tutorial`` and get a simulation
 going --- of course using
 
 .. code-block:: bash
 
-    ./concept -p params/tutorial
+    ./concept -p param/tutorial
 
 --- while you read on.
 
@@ -617,12 +618,12 @@ The new elements appearing in the parameter file are:
 
   As with CO\ *N*\ CEPT itself, a vast number of CLASS parameters exist. The
   best source for exploring these is probably the
-  `explanatory.ini <https://github.com/lesgourg/class_public/blob/master/explanatory.ini>`_
+  `explanatory.ini <https://github.com/lesgourg/class_public/blob/v2.7.2/explanatory.ini>`_
   example CLASS parameter file, which also lists default values.
 
   .. caution::
      As :math:`H_0` (``H0``), :math:`\Omega_{\text{b}}` (``Ωb``) and
-     :math:`\Omega_{\text{cdm}}` (``Ωcdm``) already exist as CO\ *N*\ CEPT
+     :math:`\Omega_{\text{cdm}}` (``Ωcdm``) already exists as CO\ *N*\ CEPT
      parameters, these should never be specified explicitly within
      ``class_params``.
 
@@ -655,7 +656,7 @@ The new elements appearing in the parameter file are:
   Rather, if we want the total dark matter energy density parameter to equal
   e.g. 0.27, :math:`\Omega_{\text{cdm}} + \Omega_{\nu} = 0.27`, we must
   specify ``Ωcdm = 0.27 - Ων``, as is done in the
-  :ref:`above parameter file <params-massive-neutrinos>`. Just like ``h`` is
+  :ref:`above parameter file <param-massive-neutrinos>`. Just like ``h`` is
   automatically inferred from ``H0``, so is ``Ων`` automatically inferred
   from ``class_params``. As this latter inference is non-trivial, the
   resulting ``Ων`` is written to the terminal at the beginning of the
@@ -668,7 +669,7 @@ neutrinos of zero mass --- is done, run a simulation with e.g.
 .. code-block:: bash
 
     ./concept \
-       -p params/tutorial \
+       -p param/tutorial \
        -c "_mass = 0.1"
 
 With both simulations done, we can plot their relative power spectrum. To do
@@ -680,6 +681,7 @@ this, you should make use of the following script:
 
    import glob, os, re
    import numpy as np
+   import matplotlib; matplotlib.use('agg')
    import matplotlib.pyplot as plt
 
    # Read in data
@@ -738,9 +740,9 @@ spectra agrees, whereas they do not for the smallest and largest :math:`k`.
 In the case of large :math:`k`, you should see that the non-linear solution
 forms a trough below the linear one, before rising up above it near the
 largest :math:`k` shown. This is the well-known non-linear suppression dip,
-the low-:math:`k` end of which marks the beginning of the truly non-linear
-regime. We thus trust the simulated results at the high-:math:`k` end of the
-plot, while we trust the linear results at the low-:math:`k` end.
+the low-:math:`k` end of which marks the beginning of the non-linear regime.
+We thus trust the simulated results at the high-:math:`k` end of the plot,
+while we trust the linear results at the low-:math:`k` end.
 
 
 
@@ -762,7 +764,7 @@ a Bash for-loop:
 
    for mass in 0 0.1; do
        ./concept \
-           -p params/tutorial \
+           -p param/tutorial \
            -c "_mass = $mass" \
            -c "_lin = 'photon + neutrino + metric'"
    done
@@ -822,11 +824,11 @@ CO\ *N*\ CEPT, we refer to the paper on
 
    <h3>Cosmological constant <span class="math notranslate nohighlight">\(\Lambda\)</span></h3>
 
-So far this tutorial has mentioned nothing about dark energy, but really it
+So far, this tutorial has mentioned nothing about dark energy, but really it
 has been there all along, as a cosmological constant :math:`\Lambda` affecting
 the background evolution.
 
-CO\ *N*\ CEPT always assumes the universe to be flat;
+CO\ *N*\ CEPT assumes the universe to be flat;
 :math:`\sum_\alpha \Omega_\alpha = 1`, :math:`\alpha` running over all
 species. Written out in the standard cosmologies we have looked at thus far,
 this looks like
@@ -884,11 +886,11 @@ total, specifying dynamical dark energy could then look like
 To test the effect on the matter from switching from :math:`\Lambda` to
 dynamical dark energy (here :math:`w_0 = -1\, \rightarrow\, w_0 = -0.7`), we
 shall make use of the following parameter file, which you should save as e.g.
-``params/tutorial``:
+``param/tutorial``:
 
 .. code-block:: python3
-   :caption: params/tutorial :math:`\,` (dynamical dark energy)
-   :name: params-dynamical-dark-energy
+   :caption: param/tutorial :math:`\,` (dynamical dark energy)
+   :name: param-dynamical-dark-energy
    :emphasize-lines: 52-60, 62-65, 69
 
    # Non-parameter helper variable used to control the size of the simulation
@@ -914,7 +916,7 @@ shall make use of the following parameter file, which you should save as e.g.
            }
        )
    output_dirs = {
-       'powerspec': paths['output_dir'] + '/' + basename(paths['params']),
+       'powerspec': f'{path.output_dir}/{param}',
    }
    output_bases = {
        'powerspec': f'powerspec{_de=}{_lin=}'
@@ -971,7 +973,7 @@ Perform a simulation using both types of dark energy using
 
    for de in Lambda dynamical; do
        ./concept \
-           -p params/tutorial \
+           -p param/tutorial \
            -c "_de = '$de'"
    done
 
@@ -1014,6 +1016,7 @@ we shall make use of the following plotting script:
 
    import glob, os, re
    import numpy as np
+   import matplotlib; matplotlib.use('agg')
    import matplotlib.pyplot as plt
 
    # Read in data
@@ -1077,7 +1080,7 @@ the usual non-linear suppression dip. At low/linear :math:`k`, the power
 suppression is larger in the simulation power spectrum than in the linear one.
 This is due to inhomogeneities forming in the dark energy species itself, the
 tug on matter we have not incorporated into the simulation. This effect is
-enlarged as we :ref:`have specified <params-dynamical-dark-energy>` a low dark
+enlarged as we :ref:`have specified <param-dynamical-dark-energy>` a low dark
 energy sound speed ``'cs2_fld'`` (given in units of the speed of light
 squared, :math:`c^2`).
 
@@ -1099,7 +1102,7 @@ including all linear species, do e.g.
        lin="radiation + metric"
        [ $de == dynamical ] && lin+=" + dark energy"
        ./concept \
-           -p params/tutorial \
+           -p param/tutorial \
            -c "_de = '$de'" \
            -c "_lin = '$lin'"
    done
@@ -1125,7 +1128,7 @@ including only dark energy as a linear species:
 .. code-block:: bash
 
    ./concept \
-       -p params/tutorial \
+       -p param/tutorial \
        -c "_de = 'dynamical'" \
        -c "_lin = 'dark energy'"
 
@@ -1142,12 +1145,12 @@ including the metric as well,
 .. code-block:: bash
 
    ./concept \
-       -p params/tutorial \
+       -p param/tutorial \
        -c "_de = 'dynamical'" \
        -c "_lin = 'dark energy + metric'"
 
-and re-plotting, we see that we indeed achieve the same result as when running
-with radiation.
+and re-plotting, we see that we indeed achieve nearly exactly the same result
+as when running with radiation.
 
 .. note::
    As the metric always contains the total gravitational contribution from
@@ -1207,11 +1210,11 @@ the fraction of this which is of the decaying kind;
        + \widetilde{\Omega}_{\text{dcdm}}}\, .
 
 Below you'll find a parameter file set up to run simulations with dcdm, which
-you should save as e.g. ``params/tutorial``:
+you should save as e.g. ``param/tutorial``:
 
 .. code-block:: python3
-   :caption: params/tutorial :math:`\,` (decaying cold dark matter)
-   :name: params-decaying-cold-dark-matter
+   :caption: param/tutorial :math:`\,` (decaying cold dark matter)
+   :name: param-decaying-cold-dark-matter
    :emphasize-lines: 4-6, 13-17, 26-27, 30-35, 60, 76, 78-83, 90-94, 102-103
 
    # Non-parameter helper variable used to control the size of the simulation
@@ -1262,7 +1265,7 @@ you should save as e.g. ``params/tutorial``:
            }
        )
    output_dirs = {
-       'powerspec': paths['output_dir'] + '/' + basename(paths['params']),
+       'powerspec': f'{path.output_dir}/{param}',
    }
    output_bases = {
        'powerspec': f'powerspec_{boxsize=}{_frac=}{_lin=}{_combine=}'
@@ -1322,7 +1325,7 @@ Begin by running this without any additional command-line parameters;
 
 .. code-block:: bash
 
-   ./concept -p params/tutorial
+   ./concept -p param/tutorial
 
 which performs a standard simulation with just stable matter (baryons and cold
 dark matter).
@@ -1343,7 +1346,7 @@ specify ``_frac``:
 .. code-block:: bash
 
    ./concept \
-       -p params/tutorial \
+       -p param/tutorial \
        -c "_frac = 0.7"
 
 This new simulation still consists of just a single particle component, now
@@ -1372,6 +1375,7 @@ and without decaying cold dark matter, make use of the below script:
 
    import glob, os, re
    import numpy as np
+   import matplotlib; matplotlib.use('agg')
    import matplotlib.pyplot as plt
 
    # Read in data
@@ -1395,7 +1399,7 @@ and without decaying cold dark matter, make use of the below script:
    # Plot
    fig, ax = plt.subplots()
    linestyles = ['-', '--', ':', '-.']
-   colors = {}
+   colours = {}
    for (boxsize, frac, lin, combine), P_sim in P_sims.items():
        if frac == 0:
            continue
@@ -1411,9 +1415,9 @@ and without decaying cold dark matter, make use of the below script:
        if P_sim_ref is None:
            continue
        k = ks[boxsize]
-       color, label = colors.get((lin, combine)), None
-       if color is None:
-           color = colors[lin, combine] = f'C{len(colors)%10}'
+       colour, label = colours.get((lin, combine)), None
+       if colour is None:
+           colour = colours[lin, combine] = f'C{len(colours)%10}'
            label = f'simulation: {lin = }, {combine = }'
        P_rel = (P_sim/P_sim_ref - 1)*100
        linestyle = linestyles[
@@ -1422,7 +1426,7 @@ and without decaying cold dark matter, make use of the below script:
        ]
        if not combine:
            ylim = ax.get_ylim()
-       ax.semilogx(k, P_rel, f'{color}{linestyle}', label=label)
+       ax.semilogx(k, P_rel, f'{colour}{linestyle}', label=label)
        if not combine:
            ax.set_ylim(ylim)
    label = 'linear'
@@ -1464,7 +1468,7 @@ decayed matter.
 
    <h3>Decay radiation</h3>
 
-The plot resulting from the first two simulations show a familiar discrepancy
+The plot resulting from the first two simulations shows a familiar discrepancy
 between the linear and non-linear result at low :math:`k`. As usual, we may
 try to fix this by including the missing species as linear components during
 the simulation:
@@ -1473,7 +1477,7 @@ the simulation:
 
    for frac in 0 0.7; do
        ./concept \
-           -p params/tutorial \
+           -p param/tutorial \
            -c "_lin = 'photon + neutrino + metric'" \
            -c "_frac = $frac"
    done
@@ -1488,14 +1492,14 @@ radiation, of course only applicable for the dcdm simulation:
 .. code-block:: bash
 
    ./concept \
-       -p params/tutorial \
+       -p param/tutorial \
        -c "_lin = 'photon + neutrino + decay radiation + metric'" \
        -c "_frac = 0.7"
 
 Re-plotting after running the above, you should now see excellent agreement
 with the linear result at large scales.
 
-Studying :ref:`the parameter file <params-decaying-cold-dark-matter>`, we see
+Studying :ref:`the parameter file <param-decaying-cold-dark-matter>`, we see
 that the ``'species'`` of the ``'total matter'`` component gets set to
 ``'baryon + cold dark matter'`` when ``_frac`` equals ``0`` (corresponding to
 unset) and ``'baryon + cold dark matter + decaying cold dark matter'``
@@ -1505,18 +1509,18 @@ falsy. We shall make use of this special flag later.) We are used to
 it functions as a stand-in for *all* matter within the given cosmology,
 including decaying cold dark matter. Go ahead and replace this needlessly
 complicated expression for the ``'species'`` of ``'total matter'`` in
-:ref:`the parameter file <params-decaying-cold-dark-matter>` with just
+:ref:`the parameter file <param-decaying-cold-dark-matter>` with just
 ``'matter'``. Likewise, ``'radiation'`` includes not just ``'photon'`` and
 (massless) ``'neutrino'``, but also ``'decay radiation'``, when present. With
 the aforementioned change to
-:ref:`the parameter file <params-decaying-cold-dark-matter>` in place, try
+:ref:`the parameter file <param-decaying-cold-dark-matter>` in place, try
 rerunning both the dcdm and the reference simulation using simply
 
 .. code-block:: bash
 
    for frac in 0 0.7; do
        ./concept \
-           -p params/tutorial \
+           -p param/tutorial \
            -c "_lin = 'radiation + metric'" \
            -c "_frac = $frac"
    done
@@ -1542,7 +1546,7 @@ reference simulation as before, but in a much larger box:
 
    for frac in 0 0.7; do
        ./concept \
-           -p params/tutorial \
+           -p param/tutorial \
            -c "boxsize = 30*Gpc" \
            -c "_lin = 'radiation + metric'" \
            -c "_frac = $frac"
@@ -1555,8 +1559,8 @@ linear result.
 
 The continuous decay of all *N*-body particles happen in unison, according to
 the set decay rate and the flow of cosmic time. Really though, each particle
-should decay away in accordance with their own individually experienced flow
-of proper time, which is affected by the local gravitational field. At linear
+should decay away in accordance with its own individually experienced flow of
+proper time, which is affected by the local gravitational field. At linear
 order, this general relativistic effect may be implemented as a correction
 force applied to all decaying particles, with a strength proportional to their
 decay rate. This force can be described as arising from a potential, which in
@@ -1572,14 +1576,14 @@ though, as this would include the lapse potential as part of gravity,
 affecting *all* non-linear components, decaying or not (and with a force not
 satisfying the required proportionality of the decay rate). Instead, what we
 need is to let lapse be its own separate linear fluid component. As we've seen
-before, :ref:`the parameter file <params-decaying-cold-dark-matter>` has been
+before, :ref:`the parameter file <param-decaying-cold-dark-matter>` has been
 set up to allow separating linear components using '``,``', i.e. to properly
 include the lapse component we should
 use ``_lin = 'radiation + metric, lapse'``.
 
 We further need to assign the new lapse force to the decaying matter
 component. Studying the specification of ``select_forces`` in
-:ref:`the parameter file <params-decaying-cold-dark-matter>`, we see that the
+:ref:`the parameter file <param-decaying-cold-dark-matter>`, we see that the
 lapse force is already being assigned whenever ``_lin`` contains the substring
 ``'lapse'``. To run the large-box dcdm simulation with the lapse force
 included then, simply do
@@ -1587,7 +1591,7 @@ included then, simply do
 .. code-block:: bash
 
    ./concept \
-       -p params/tutorial \
+       -p param/tutorial \
        -c "boxsize = 30*Gpc" \
        -c "_lin = 'radiation + metric, lapse'" \
        -c "_frac = 0.7"
@@ -1619,14 +1623,14 @@ use of two separate particle components; one for stable matter
 (``'baryon + cold dark matter'``) and one for decaying matter
 (``'decaying cold dark matter'``). This is done simply by listing each
 particle component separately in the ``initial_conditions`` parameter in
-:ref:`the parameter file <params-decaying-cold-dark-matter>`. Specifying
+:ref:`the parameter file <param-decaying-cold-dark-matter>`. Specifying
 ``_combine = False``, we see that
-:ref:`our parameter file <params-decaying-cold-dark-matter>` file does exactly
+:ref:`our parameter file <param-decaying-cold-dark-matter>` file does exactly
 this. We further want the produced power spectrum data file to contain the
 combined power of the two particle components, rather than simply listing the
 power spectra of each component separately. Looking at the specification of
 ``powerspec_select`` in
-:ref:`the parameter file <params-decaying-cold-dark-matter>`, we see that
+:ref:`the parameter file <param-decaying-cold-dark-matter>`, we see that
 power spectra are to be produced of ``'total matter'`` and
 ``('stable matter', 'decaying matter')``. We are used to having these
 specifications refer to our non-linear component through its species (usually
@@ -1642,16 +1646,16 @@ specifies the combined, total power spectrum of the listed components.
    force to ``'stable matter'``. It was this use of name referencing which
    earlier enabled us to reformulate the ``'species'`` of the total matter
    component, without this having any effect on the component selections
-   within :ref:`the parameter file <params-decaying-cold-dark-matter>`.
+   within :ref:`the parameter file <param-decaying-cold-dark-matter>`.
 
 As everything is already handled within
-:ref:`the parameter file <params-decaying-cold-dark-matter>`, running the
+:ref:`the parameter file <param-decaying-cold-dark-matter>`, running the
 two-particle-component simulation is then as simple as
 
 .. code-block:: bash
 
    ./concept \
-       -p params/tutorial \
+       -p param/tutorial \
        -c "boxsize = 30*Gpc" \
        -c "_lin = 'radiation + metric, lapse'" \
        -c "_frac = 0.7" \
@@ -1700,11 +1704,11 @@ before carrying on with this subsection.
 The goal of this subsection is to upgrade the massive neutrinos within the
 simulations from being a simple linear density field to be a non-linearly
 evolved fluid. For this we shall make use of the below parameter file, which
-you should save as e.g. ``params/tutorial``:
+you should save as e.g. ``param/tutorial``:
 
 .. code-block:: python3
-   :caption: params/tutorial :math:`\,` (non-linear massive neutrinos)
-   :name: params-nonlinear-massive-neutrinos
+   :caption: param/tutorial :math:`\,` (non-linear massive neutrinos)
+   :name: param-nonlinear-massive-neutrinos
    :emphasize-lines: 19-35, 75-79, 83-88, 94-95
 
    # Non-parameter helper variable used to control the size of the simulation
@@ -1743,7 +1747,7 @@ you should save as e.g. ``params/tutorial``:
            },
        ]
    output_dirs = {
-       'powerspec': paths['output_dir'] + '/' + basename(paths['params']),
+       'powerspec': f'{path.output_dir}/{param}',
    }
    output_bases = {
        'powerspec': f'powerspec{_mass=}{_nunonlin=}{_nutrans=}',
@@ -1783,7 +1787,7 @@ you should save as e.g. ``params/tutorial``:
        'evolver': 0,
        # Neutrino precision parameters
        'l_max_ncdm'              : 200,
-       'Number of momentum bins' : 100,
+       'Number of momentum bins' : 50,
        'Quadrature strategy'     : 2,
        'ncdm_fluid_approximation': 3,
    }
@@ -1807,21 +1811,21 @@ Start by running this parameter file as is,
 
 .. code-block:: bash
 
-   ./concept -p params/tutorial
+   ./concept -p param/tutorial
 
 which will perform a simulation with three mass\ *less* neutrinos, with these
 as well as photons and the metric included in a combined, linear component.
 
-Once done, also perform a simulation with three massive neutrino, say with
+Once done, also perform a simulation with three massive neutrinos, say with
 :math:`\sum m_\nu = 0.5\, \text{eV}`.
-:ref:`The parameter file <params-nonlinear-massive-neutrinos>` has been set up
+:ref:`The parameter file <param-nonlinear-massive-neutrinos>` has been set up
 so that this can be achieved by supplying ``_mass`` as a command-line
 parameter:
 
 .. code-block:: bash
 
    ./concept \
-       -p params/tutorial \
+       -p param/tutorial \
        -c "_mass = 0.5"
 
 With both the linear massless and the linear massive neutrino run done, plot
@@ -1831,9 +1835,9 @@ the results using the following plotting script:
    :caption: output/tutorial/plot.py :math:`\,` (non-linear massive neutrinos)
    :name: plot-nonlinear-massive-neutrinos
 
-   import collections, glob, itertools, os, re
+   import collections, glob, os, re
    import numpy as np
-   import matplotlib
+   import matplotlib; matplotlib.use('agg')
    import matplotlib.pyplot as plt
 
    # Read in data
@@ -1979,7 +1983,7 @@ both matter and neutrinos non-linearly.
 
    <h3>Non-linear neutrinos</h3>
 
-Studying :ref:`the parameter file <params-nonlinear-massive-neutrinos>` it
+Studying :ref:`the parameter file <param-nonlinear-massive-neutrinos>` it
 should be clear that setting ``_nunonlin = True`` will result in two
 new components within the simulation, namely ``'non-linear neutrino'`` and
 ``'linear (no neutrino)'``, the latter of which supplies the simulation with
@@ -2001,16 +2005,17 @@ for the linear massive neutrino run:
 .. code-block:: bash
 
    ./concept \
-       -p params/tutorial \
+       -p param/tutorial \
        -c "_mass = 0.5" \
        -c "_nunonlin = True"
 
 Reading the output in the terminal during the simulation, it's clear that each
 time step is now quite a bit more involved. Beyond having to additionally
 evolve the energy and momentum density of the non-linear neutrinos --- which
-in turn require continual realisations of the linear pressure (written as
+in turn require continual realisation of the linear pressure (written as
 ``ς['trace']``) and shear (written as ``ς[i, j]``) --- the number of
-gravitational interactions also increases. We give an overview of these below:
+gravitational interactions also increases. Below we give an overview of the
+different kinds of gravitational interactions at play:
 
 * Gravity applied to ``'matter'``:
 
@@ -2045,7 +2050,7 @@ the entire simulation.
    relativistic corrections collected into the "metric" is constructed for the
    purpose of application to pressureless matter, it might be the case that
    the corresponding general relativistic corrections felt by neutrinos are
-   different, and so really require a separately constructed "neutrino
+   different, and so really requires a separately constructed "neutrino
    metric". Whether this is or isn't the case is currently unknown.
 
 Once the non-linear neutrino simulation has completed, update the plot by
@@ -2099,7 +2104,7 @@ high speed of sound.
 .. note::
 
    At each time step of the simulation the equation of state (EoS) parameter
-   :math:`w` of the non-linear neutrino component is show. By following the
+   :math:`w` of the non-linear neutrino component is shown. By following the
    evolution of the EoS you can get an idea about how far the neutrino
    component is on its path towards becoming non-relativistic and hence
    matter-like, with only a small pressure.
@@ -2108,7 +2113,7 @@ As the non-linear neutrino component doesn't significantly deviate from linear
 behaviour at early times, we can save on computational resources by running
 with linear neutrinos in the beginning and then transition to using non-linear
 neutrinos at some scale factor value :math:`a_{\nu\text{trans}}`.
-:ref:`The parameter file <params-nonlinear-massive-neutrinos>` is set up to do
+:ref:`The parameter file <param-nonlinear-massive-neutrinos>` is set up to do
 exactly this by specifying :math:`a_{\nu\text{trans}}` as the ``_nutrans``
 variable. To rerun the non-linear neutrino simulation, though using linear
 neutrinos for :math:`a < a_{\nu\text{trans}} = 0.1`, do
@@ -2116,7 +2121,7 @@ neutrinos for :math:`a < a_{\nu\text{trans}} = 0.1`, do
 .. code-block:: bash
 
    ./concept \
-       -p params/tutorial \
+       -p param/tutorial \
        -c "_mass = 0.5" \
        -c "_nunonlin = True" \
        -c "_nutrans = 0.1"
@@ -2126,7 +2131,7 @@ neutrinos, photons and metric) at :math:`a = a_{\nu\text{trans}}`, while
 simultaneously activating both the ``'linear (no neutrino)'`` (containing
 photons and metric) and the ``'non-linear neutrino'`` component. This is
 achieved through the ``select_lives`` parameter in the
-:ref:`the parameter file <params-nonlinear-massive-neutrinos>`, which maps
+:ref:`the parameter file <param-nonlinear-massive-neutrinos>`, which maps
 components to life spans in the format
 :math:`(a_{\text{activate}}, a_{\text{terminate}})`. When ``_nunonlin`` is
 ``False`` (default), ``select_lives`` is not set at all, and so all specified
@@ -2155,14 +2160,15 @@ ascribed to early non-linearity of the neutrinos.
    be run with a much higher precision in the neutrino sector than is used by
    default, hence the neutrino precision parameters specified in
    ``class_params`` in
-   :ref:`the parameter file <params-nonlinear-massive-neutrinos>`. Stated
+   :ref:`the parameter file <param-nonlinear-massive-neutrinos>`. Stated
    briefly, ``'l_max_ncdm'`` sets the size of the linear massive neutrino
    Boltzmann hierarchy, while ``'Number of momentum bins'`` specifies the
    number of discrete neutrino momenta to employ for mapping the neutrino
    distribution function. Setting ``'Quadrature strategy'`` to ``2`` ensures
-   that integrals over the distribution function are integrated all the way to
-   infinity. Lastly, setting ``'ncdm_fluid_approximation'`` to ``3`` disables
-   the fluid approximation used by default for massive neutrinos.
+   that momentum integrals over the distribution function are integrated all
+   the way to infinity. Lastly, setting ``'ncdm_fluid_approximation'`` to
+   ``3`` disables the fluid approximation used by default for
+   massive neutrinos.
 
    For simulations with higher resolution or lower neutrino masses, still
    higher values for ``'l_max_ncdm'`` and ``'Number of momentum bins'`` may be

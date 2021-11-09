@@ -1,42 +1,20 @@
-
-
 <!DOCTYPE html>
 <html class="writer-html5" lang="en" >
 <head>
   <meta charset="utf-8" />
-  
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  
   <title>4. Mastering gravity &mdash; CONCEPT Documentation</title>
-  
-
-  
-  <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
-  <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
-  <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
-  <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
-  <link rel="stylesheet" href="../_static/copybutton.css" type="text/css" />
-  <link rel="stylesheet" href="../_static/tabs.css" type="text/css" />
-  <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
-
-  
-  
+      <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/copybutton.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/tabs.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
     <link rel="shortcut icon" href="../_static/favicon.ico"/>
-  
-
-  
-  
-
-  
     <link rel="canonical" href="https://jmd-dk.github.io/concept/tutorial/gravity.html" />
-
-  
   <!--[if lt IE 9]>
     <script src="../_static/js/html5shiv.min.js"></script>
   <![endif]-->
   
-    
-      <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
         <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
         <script src="../_static/jquery.js"></script>
         <script src="../_static/underscore.js"></script>
@@ -44,39 +22,21 @@
         <script src="../_static/clipboard.min.js"></script>
         <script src="../_static/copybutton.js"></script>
         <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
-    
-    <script type="text/javascript" src="../_static/js/theme.js"></script>
-
-    
+    <script src="../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
     <link rel="next" title="5. Other kinds of output" href="output_types.html" />
     <link rel="prev" title="3. Working with parameter files" href="parameter_files.html" /> 
 </head>
 
-<body class="wy-body-for-nav">
-
-   
+<body class="wy-body-for-nav"> 
   <div class="wy-grid-for-nav">
-    
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
         <div class="wy-side-nav-search" >
-          
-
-          
             <a href="../index.html" class="icon icon-home"> CO<em>N</em>CEPT
-          
-
-          
-            
             <img src="../_static/logo.png" class="logo" alt="Logo"/>
-          
           </a>
-
-          
-
-          
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
     <input type="text" name="q" placeholder="Search documentation" />
@@ -84,18 +44,7 @@
     <input type="hidden" name="area" value="default" />
   </form>
 </div>
-
-          
-        </div>
-
-        
-        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
-          
-            
-            
-              
-            
-            
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
               <ul class="current">
 <li class="toctree-l1 current"><a class="reference internal" href="tutorial.html">Tutorial</a><ul class="current">
 <li class="toctree-l2"><a class="reference internal" href="installation.html">1. Effortless installation</a></li>
@@ -131,7 +80,7 @@
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="../installation.html#cloning-with-git">Cloning with Git</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../installation.html#the-installer-script-in-depth">The <code class="docutils literal notranslate"><span class="pre">installer</span></code> script in-depth</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../installation.html#the-install-script-in-depth">The <code class="docutils literal notranslate"><span class="pre">install</span></code> script in-depth</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="../installation.html#programs-installed">Programs installed</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../installation.html#command-line-options">Command-line options</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../installation.html#influential-environment-variables">Influential environment variables</a><ul>
@@ -141,7 +90,7 @@
 <li class="toctree-l4"><a class="reference internal" href="../installation.html#choosing-compiler-precedence">Choosing compiler precedence</a></li>
 <li class="toctree-l4"><a class="reference internal" href="../installation.html#installing-mpich-or-openmpi">Installing MPICH or OpenMPI</a></li>
 <li class="toctree-l4"><a class="reference internal" href="../installation.html#parallel-builds">Parallel builds</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../installation.html#using-the-installer-to-install-specific-libraries-but-not-concept-itself">Using the <code class="docutils literal notranslate"><span class="pre">installer</span></code> to install specific libraries but not CO<em>N</em>CEPT itself</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../installation.html#using-the-install-script-to-install-specific-libraries-but-not-concept-itself">Using the <code class="docutils literal notranslate"><span class="pre">install</span></code> script to install specific libraries but not CO<em>N</em>CEPT itself</a></li>
 </ul>
 </li>
 </ul>
@@ -152,8 +101,8 @@
 <li class="toctree-l3"><a class="reference internal" href="../installation.html#system-dependencies">System dependencies</a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="../installation.html#the-paths-and-env-files">The <code class="docutils literal notranslate"><span class="pre">.paths</span></code> and <code class="docutils literal notranslate"><span class="pre">.env</span></code> files</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="../installation.html#the-paths-file">The <code class="docutils literal notranslate"><span class="pre">.paths</span></code> file</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../installation.html#the-path-and-env-files">The <code class="docutils literal notranslate"><span class="pre">.path</span></code> and <code class="docutils literal notranslate"><span class="pre">.env</span></code> files</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../installation.html#the-path-file">The <code class="docutils literal notranslate"><span class="pre">.path</span></code> file</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../installation.html#the-env-file">The <code class="docutils literal notranslate"><span class="pre">.env</span></code> file</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="../installation.html#path-like-environment-variables"><code class="docutils literal notranslate"><span class="pre">PATH</span></code>-like environment variables</a></li>
 <li class="toctree-l4"><a class="reference internal" href="../installation.html#eliminating-interference-from-foreign-python-installations">Eliminating interference from foreign Python installations</a></li>
@@ -175,13 +124,13 @@
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#utility-u-utility">Utility: <code class="docutils literal notranslate"><span class="pre">-u</span></code>, <code class="docutils literal notranslate"><span class="pre">--utility</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#version-v-version">Version: <code class="docutils literal notranslate"><span class="pre">-v</span></code>, <code class="docutils literal notranslate"><span class="pre">--version</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="../command_line_options.html#remote-job-submission">Remote job submission</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#queue-q-queue">Queue: <code class="docutils literal notranslate"><span class="pre">-q</span></code>, <code class="docutils literal notranslate"><span class="pre">--queue</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#wall-time-w-wall-time">Wall time: <code class="docutils literal notranslate"><span class="pre">-w</span></code>, <code class="docutils literal notranslate"><span class="pre">--wall-time</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#wall-time-w-walltime">Wall time: <code class="docutils literal notranslate"><span class="pre">-w</span></code>, <code class="docutils literal notranslate"><span class="pre">--walltime</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#memory-memory">Memory: <code class="docutils literal notranslate"><span class="pre">--memory</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#job-name-job-name">Job name: <code class="docutils literal notranslate"><span class="pre">--job-name</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#job-directive-j-job-directive">Job directive: <code class="docutils literal notranslate"><span class="pre">-j</span></code>, <code class="docutils literal notranslate"><span class="pre">--job-directive</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#no-watching-no-watching">No watching: <code class="docutils literal notranslate"><span class="pre">--no-watching</span></code></a></li>
 </ul>
@@ -189,17 +138,19 @@
 <li class="toctree-l2"><a class="reference internal" href="../command_line_options.html#other-modes-of-building-running">Other modes of building/running</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#local-local">Local: <code class="docutils literal notranslate"><span class="pre">--local</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#pure-python-pure-python">Pure Python: <code class="docutils literal notranslate"><span class="pre">--pure-python</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#build-b-build">Build: <code class="docutils literal notranslate"><span class="pre">-b</span></code>, <code class="docutils literal notranslate"><span class="pre">--build</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#rebuild-rebuild">Rebuild: <code class="docutils literal notranslate"><span class="pre">--rebuild</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#native-optimizations-native-optimizations">Native optimizations: <code class="docutils literal notranslate"><span class="pre">--native-optimizations</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#no-link-time-optimizations-no-lto">No link time optimizations: <code class="docutils literal notranslate"><span class="pre">--no-lto</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#no-optimizations-no-optimizations">No optimizations: <code class="docutils literal notranslate"><span class="pre">--no-optimizations</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#native-optimizations-native-optimizations">Native optimizations: <code class="docutils literal notranslate"><span class="pre">--native-optimizations</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#no-recompilation-no-recompilation">No recompilation: <code class="docutils literal notranslate"><span class="pre">--no-recompilation</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#unsafe-building-unsafe-building">Unsafe building: <code class="docutils literal notranslate"><span class="pre">--unsafe-building</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="../command_line_options.html#specials">Specials</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#test-t-test">Test: <code class="docutils literal notranslate"><span class="pre">-t</span></code>, <code class="docutils literal notranslate"><span class="pre">--test</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#test-t-tests">Test: <code class="docutils literal notranslate"><span class="pre">-t</span></code>, <code class="docutils literal notranslate"><span class="pre">--tests</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#main-entry-point-m-main">Main entry point: <code class="docutils literal notranslate"><span class="pre">-m</span></code>, <code class="docutils literal notranslate"><span class="pre">--main</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#interactive-i-interactive">Interactive: <code class="docutils literal notranslate"><span class="pre">-i</span></code>, <code class="docutils literal notranslate"><span class="pre">--interactive</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#version-v-version">Version: <code class="docutils literal notranslate"><span class="pre">-v</span></code>, <code class="docutils literal notranslate"><span class="pre">--version</span></code></a></li>
 </ul>
 </li>
 </ul>
@@ -212,9 +163,11 @@
 </li>
 <li class="toctree-l2"><a class="reference internal" href="../parameters/numerical_parameters.html">Numerical parameters</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/numerical_parameters.html#boxsize"><code class="docutils literal notranslate"><span class="pre">boxsize</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/numerical_parameters.html#potential-options"><code class="docutils literal notranslate"><span class="pre">potential_options</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="../parameters/cosmology.html">Cosmology</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/cosmology.html#h0"><code class="docutils literal notranslate"><span class="pre">H0</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/cosmology.html#class-params"><code class="docutils literal notranslate"><span class="pre">class_params</span></code></a></li>
 </ul>
 </li>
@@ -241,19 +194,17 @@
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../utilities/utilities.html">Utilities</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/class.html">The CLASS utility</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/class.html">The class utility</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../utilities/convert.html">The convert utility</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../utilities/gadget.html">The gadget utility</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../utilities/info.html">The info utility</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../utilities/play.html">The play utility</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../utilities/powerspec.html">The powerspec utility</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/render2D.html">The render2D utility</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../utilities/render3D.html">The render3D utility</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../utilities/update.html">The update utility</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../utilities/watch.html">The watch utility</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="../under_the_hood.html">Looking under the hood</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../troubleshooting.html">Troubleshooting</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="../troubleshooting.html#installation-failed">Installation failed</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../troubleshooting.html#compilation-failed">Compilation failed</a><ul>
@@ -282,88 +233,38 @@
 </li>
 </ul>
 
-            
-          
         </div>
-        
       </div>
     </nav>
 
-    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
-
-      
-      <nav class="wy-nav-top" aria-label="top navigation">
-        
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
           <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
           <a href="../index.html">CO<em>N</em>CEPT</a>
-        
       </nav>
 
-
       <div class="wy-nav-content">
-        
         <div class="rst-content style-external-links">
-        
-          
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-<div role="navigation" aria-label="breadcrumbs navigation">
-
+          <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
-    
       <li><a href="../index.html" class="icon icon-home"></a> &raquo;</li>
-        
           <li><a href="tutorial.html">Tutorial</a> &raquo;</li>
-        
       <li><span class="section-number">4. </span>Mastering gravity</li>
-    
-    
       <li class="wy-breadcrumbs-aside">
-        
-          
-            
               <a href="https://github.com/jmd-dk/concept/" class="fa fa-github"> Code Repository</a>
-            
-          
-        
       </li>
-    
-  </ul>
-
-  
-  <div class="rst-breadcrumbs-buttons" role="navigation" aria-label="breadcrumb navigation">
-      
-        <a href="output_types.html" class="btn btn-neutral float-right" title="5. Other kinds of output" accesskey="n">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
-      
-      
+  </ul><div class="rst-breadcrumbs-buttons" role="navigation" aria-label="Sequential page navigation">
         <a href="parameter_files.html" class="btn btn-neutral float-left" title="3. Working with parameter files" accesskey="p"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-      
+        <a href="output_types.html" class="btn btn-neutral float-right" title="5. Other kinds of output" accesskey="n">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
   </div>
-  
   <hr/>
 </div>
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
-            
+             
   <div class="section" id="mastering-gravity">
-<h1><span class="section-number">4. </span>Mastering gravity<a class="headerlink" href="#mastering-gravity" title="Permalink to this headline">¶</a></h1>
+<h1><span class="section-number">4. </span>Mastering gravity<a class="headerlink" href="#mastering-gravity" title="Permalink to this headline"></a></h1>
 <p>The fact that gravity is extremely important for the cosmic evolution has
-already been demonstrated. We would like our simulation to be able to compute
+already been demonstrated. We would like our simulations to be able to compute
 gravity in a manner that is both accurate and efficient. In CO<em>N</em>CEPT, the
 details of the gravitational computation is controlled by a large set of
 parameters, enabling us to tune this trade-off between accuracy and efficiency
@@ -371,8 +272,8 @@ to our heart’s desire.</p>
 <p>In order to learn how to control gravity within CO<em>N</em>CEPT we shall run
 some sample simulations. The parameter specifications below are very similar
 to the ones encountered in the previous section.</p>
-<div class="literal-block-wrapper docutils container" id="params-gravity">
-<div class="code-block-caption"><span class="caption-text">params/tutorial</span><a class="headerlink" href="#params-gravity" title="Permalink to this code">¶</a></div>
+<div class="literal-block-wrapper docutils container" id="param-gravity">
+<div class="code-block-caption"><span class="caption-text">param/tutorial</span><a class="headerlink" href="#param-gravity" title="Permalink to this code"></a></div>
 <div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="c1"># Non-parameter helper variable used to control the size of the simulation</span>
 <span class="n">_size</span> <span class="o">=</span> <span class="mi">64</span>
 
@@ -382,7 +283,7 @@ to the ones encountered in the previous section.</p>
     <span class="s1">&#39;N&#39;</span>      <span class="p">:</span> <span class="n">_size</span><span class="o">**</span><span class="mi">3</span><span class="p">,</span>
 <span class="p">}</span>
 <span class="n">output_dirs</span> <span class="o">=</span> <span class="p">{</span>
-    <span class="s1">&#39;powerspec&#39;</span><span class="p">:</span> <span class="n">paths</span><span class="p">[</span><span class="s1">&#39;output_dir&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="s1">&#39;/&#39;</span> <span class="o">+</span> <span class="n">basename</span><span class="p">(</span><span class="n">paths</span><span class="p">[</span><span class="s1">&#39;params&#39;</span><span class="p">]),</span>
+    <span class="s1">&#39;powerspec&#39;</span><span class="p">:</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">path</span><span class="o">.</span><span class="n">output_dir</span><span class="si">}</span><span class="s1">/</span><span class="si">{</span><span class="n">param</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span>
 <span class="p">}</span><span class="hll"><span class="n">output_bases</span> <span class="o">=</span> <span class="p">{</span></span><span class="hll">    <span class="s1">&#39;powerspec&#39;</span><span class="p">:</span> <span class="sa">f</span><span class="s1">&#39;powerspec_</span><span class="si">{</span><span class="n">_sim</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span></span><span class="hll"><span class="p">}</span></span><span class="n">output_times</span> <span class="o">=</span> <span class="p">{</span>
     <span class="s1">&#39;powerspec&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
 <span class="p">}</span>
@@ -399,10 +300,10 @@ to the ones encountered in the previous section.</p>
 <span> </span><span class="hll"><span class="c1"># Physics</span></span><span class="hll"><span class="n">select_forces</span> <span class="o">=</span> <span class="p">{</span></span><span class="hll">    <span class="s1">&#39;matter&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;gravity&#39;</span><span class="p">:</span> <span class="s1">&#39;pm&#39;</span><span class="p">},</span></span><span class="hll"><span class="p">}</span></span></pre></div>
 </div>
 </div>
-<p>Save these parameters to e.g. <code class="docutils literal notranslate"><span class="pre">params/tutorial</span></code>.</p>
+<p>Save these parameters to e.g. <code class="docutils literal notranslate"><span class="pre">param/tutorial</span></code>.</p>
 <div class="admonition tip">
 <p class="admonition-title">Tip</p>
-<p>If the file <code class="docutils literal notranslate"><span class="pre">params/tutorial</span></code> already exists due to previous tutorial
+<p>If the file <code class="docutils literal notranslate"><span class="pre">param/tutorial</span></code> already exists due to previous tutorial
 work, you may safely overwrite the old content. Similarly, it’s best to
 clean up (or remove entirely) the <code class="docutils literal notranslate"><span class="pre">output/tutorial</span></code> directory before
 continuing. If you wish to keep the old content, you can do e.g.</p>
@@ -414,10 +315,10 @@ can also name the parameter file(s) something more imaginative than just
 ‘<code class="docutils literal notranslate"><span class="pre">tutorial</span></code>’. The output directories are set up to reflect the parameter
 file name.</p>
 </div>
-<p>Now run a simulation using the <a class="reference internal" href="#params-gravity"><span class="std std-ref">tutorial</span></a> parameter file
+<p>Now run a simulation using the <a class="reference internal" href="#param-gravity"><span class="std std-ref">tutorial</span></a> parameter file
 by executing</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept <span class="se">\</span>
-    -p params/tutorial <span class="se">\</span>
+    -p param/tutorial <span class="se">\</span>
     -c <span class="s2">&quot;_sim = &#39;A&#39;&quot;</span>
 </pre></div>
 </div>
@@ -433,8 +334,8 @@ different values for <code class="docutils literal notranslate"><span class="pre
 <span class="math notranslate nohighlight">\(a = 1\)</span>, along with the corresponding plot
 <code class="docutils literal notranslate"><span class="pre">output/tutorial/powerspec_A_a=1.00.png</span></code>.</p>
 <div class="section" id="the-pm-method">
-<h2><span class="section-number">4.1. </span>The PM method<a class="headerlink" href="#the-pm-method" title="Permalink to this headline">¶</a></h2>
-<p>A new parameter appearing in the <a class="reference internal" href="#params-gravity"><span class="std std-ref">tutorial</span></a> parameter
+<h2><span class="section-number">4.1. </span>The PM method<a class="headerlink" href="#the-pm-method" title="Permalink to this headline"></a></h2>
+<p>A new parameter appearing in the <a class="reference internal" href="#param-gravity"><span class="std std-ref">tutorial</span></a> parameter
 file is <code class="docutils literal notranslate"><span class="pre">select_forces</span></code>, which is set to map <code class="docutils literal notranslate"><span class="pre">'matter'</span></code> to the
 gravitational interaction using the particle-mesh (PM) method. This method
 works by solving the gravitational potential on a cubic grid, the size of
@@ -450,56 +351,66 @@ To try this out, update <code class="docutils literal notranslate"><span class="
 <div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">potential_options</span> <span class="o">=</span> <span class="mi">2</span><span class="o">*</span><span class="n">_size</span>
 </pre></div>
 </div>
-<p>in <code class="docutils literal notranslate"><span class="pre">params/tutorial</span></code> and run a new simulation, this time using</p>
+<p>in <code class="docutils literal notranslate"><span class="pre">param/tutorial</span></code> and run a new simulation, this time using</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept <span class="se">\</span>
-    -p params/tutorial <span class="se">\</span>
+    -p param/tutorial <span class="se">\</span>
     -c <span class="s2">&quot;_sim = &#39;B&#39;&quot;</span>
 </pre></div>
 </div>
 <p>Visually comparing <code class="docutils literal notranslate"><span class="pre">powerspec_A_a=1.00.png</span></code> to <code class="docutils literal notranslate"><span class="pre">powerspec_B_a=1.00.png</span></code>,
-we see that increasing the potential grid size produces a lager power
-spectrum, as we would perhaps expect. To check whether doubling the grid size
-was enough to achieve convergence, let’s further run a simulation C with
-triple the grid size, i.e. switch to using</p>
+we see that increasing the potential grid size leads to an increase in power,
+as we would perhaps expect. To check whether doubling the grid size was
+enough to achieve convergence, let’s further run a simulation C with triple
+the grid size, i.e. switch to using</p>
 <div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">potential_options</span> <span class="o">=</span> <span class="mi">3</span><span class="o">*</span><span class="n">_size</span>
 </pre></div>
 </div>
-<p>in <code class="docutils literal notranslate"><span class="pre">params/tutorial</span></code> and execute</p>
+<p>in <code class="docutils literal notranslate"><span class="pre">param/tutorial</span></code> and execute</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept <span class="se">\</span>
-    -p params/tutorial <span class="se">\</span>
+    -p param/tutorial <span class="se">\</span>
     -c <span class="s2">&quot;_sim = &#39;C&#39;&quot;</span>
 </pre></div>
 </div>
 <p>Properly comparing the three individual output plots is not so easy. To better
-compare the results, you should plot the different power spectra together in a
+compare the results, we should plot the different power spectra together in a
 single plot, using the information in the data files. You may do this using
-your favourite plotting tool, or — for your convenience — using the below
-script:</p>
+your favourite plotting tool, or — for your convenience — using the
+script below:</p>
 <div class="literal-block-wrapper docutils container" id="plot-gravity">
-<div class="code-block-caption"><span class="caption-text">output/tutorial/plot.py</span><a class="headerlink" href="#plot-gravity" title="Permalink to this code">¶</a></div>
+<div class="code-block-caption"><span class="caption-text">output/tutorial/plot.py</span><a class="headerlink" href="#plot-gravity" title="Permalink to this code"></a></div>
 <div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">glob</span><span class="o">,</span> <span class="nn">os</span><span class="o">,</span> <span class="nn">re</span>
 <span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">matplotlib</span><span class="p">;</span> <span class="n">matplotlib</span><span class="o">.</span><span class="n">use</span><span class="p">(</span><span class="s1">&#39;agg&#39;</span><span class="p">)</span>
 <span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
 
 <span class="c1"># Read in data</span>
-<span class="n">P_sims</span> <span class="o">=</span> <span class="p">{}</span>
 <span class="n">this_dir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">realpath</span><span class="p">(</span><span class="vm">__file__</span><span class="p">))</span>
+<span class="n">k_sims</span><span class="p">,</span> <span class="n">P_sims</span> <span class="o">=</span> <span class="p">{},</span> <span class="p">{}</span>
 <span class="k">for</span> <span class="n">filename</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">glob</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">this_dir</span><span class="si">}</span><span class="s1">/powerspec*&#39;</span><span class="p">),</span> <span class="n">key</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">getmtime</span><span class="p">):</span>
     <span class="n">match</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;powerspec_(.+)_&#39;</span><span class="p">,</span> <span class="n">filename</span><span class="p">)</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="n">match</span> <span class="ow">or</span> <span class="n">filename</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">&#39;.png&#39;</span><span class="p">):</span>
         <span class="k">continue</span>
     <span class="n">sim</span> <span class="o">=</span> <span class="n">match</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
-    <span class="n">k</span><span class="p">,</span> <span class="n">P_sims</span><span class="p">[</span><span class="n">sim</span><span class="p">],</span> <span class="n">P_lin</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">loadtxt</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="n">usecols</span><span class="o">=</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span> <span class="n">unpack</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">k_sims</span><span class="p">[</span><span class="n">sim</span><span class="p">],</span> <span class="n">P_sims</span><span class="p">[</span><span class="n">sim</span><span class="p">],</span> <span class="n">P_lin_sim</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">loadtxt</span><span class="p">(</span>
+        <span class="n">filename</span><span class="p">,</span> <span class="n">usecols</span><span class="o">=</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span> <span class="n">unpack</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">P_sims</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">k</span> <span class="o">=</span> <span class="n">k_sims</span><span class="p">[</span><span class="n">sim</span><span class="p">]</span>
+        <span class="n">P_lin</span> <span class="o">=</span> <span class="n">P_lin_sim</span>
 
 <span class="c1"># Plot</span>
 <span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">()</span>
 <span class="n">linestyles</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;-&#39;</span><span class="p">,</span> <span class="s1">&#39;--&#39;</span><span class="p">,</span> <span class="s1">&#39;:&#39;</span><span class="p">,</span> <span class="s1">&#39;-.&#39;</span><span class="p">]</span>
 <span class="k">for</span> <span class="n">sim</span><span class="p">,</span> <span class="n">P_sim</span> <span class="ow">in</span> <span class="n">P_sims</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
     <span class="n">linestyle</span> <span class="o">=</span> <span class="n">linestyles</span><span class="p">[</span>
-        <span class="nb">sum</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">allclose</span><span class="p">(</span><span class="n">line</span><span class="o">.</span><span class="n">get_ydata</span><span class="p">(),</span> <span class="n">P_sim</span><span class="p">,</span> <span class="mf">5e-2</span><span class="p">)</span> <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">ax</span><span class="o">.</span><span class="n">lines</span><span class="p">)</span>
+        <span class="nb">sum</span><span class="p">(</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">allclose</span><span class="p">(</span><span class="n">line</span><span class="o">.</span><span class="n">get_ydata</span><span class="p">(),</span> <span class="n">P_sim</span><span class="p">,</span> <span class="mf">5e-2</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">ax</span><span class="o">.</span><span class="n">lines</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">line</span><span class="o">.</span><span class="n">get_ydata</span><span class="p">())</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">P_sim</span><span class="p">)</span>
+        <span class="p">)</span>
         <span class="o">%</span><span class="nb">len</span><span class="p">(</span><span class="n">linestyles</span><span class="p">)</span>
     <span class="p">]</span>
-    <span class="n">ax</span><span class="o">.</span><span class="n">loglog</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">P_sim</span><span class="p">,</span> <span class="n">linestyle</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="sa">f</span><span class="s1">&#39;simulation </span><span class="si">{</span><span class="n">sim</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">loglog</span><span class="p">(</span><span class="n">k_sims</span><span class="p">[</span><span class="n">sim</span><span class="p">],</span> <span class="n">P_sim</span><span class="p">,</span> <span class="n">linestyle</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="sa">f</span><span class="s1">&#39;simulation </span><span class="si">{</span><span class="n">sim</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
 <span class="n">ylim</span> <span class="o">=</span> <span class="n">ax</span><span class="o">.</span><span class="n">get_ylim</span><span class="p">()</span>
 <span class="n">ax</span><span class="o">.</span><span class="n">loglog</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">P_lin</span><span class="p">,</span> <span class="s1">&#39;k--&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s1">&#39;linear&#39;</span><span class="p">,</span> <span class="n">linewidth</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
 <span class="n">ax</span><span class="o">.</span><span class="n">set_xlim</span><span class="p">(</span><span class="n">k</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">k</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
@@ -539,7 +450,7 @@ as can be for fluid (i.e. non-particle) components, used to model species
 different from matter.</p>
 </div>
 <div class="section" id="the-p3m-method">
-<h2><span class="section-number">4.2. </span>The P³M method<a class="headerlink" href="#the-p3m-method" title="Permalink to this headline">¶</a></h2>
+<h2><span class="section-number">4.2. </span>The P³M method<a class="headerlink" href="#the-p3m-method" title="Permalink to this headline"></a></h2>
 <p>A different gravitational method is the particle-particle-particle-mesh (P³M)
 method. This method also makes use of a potential grid, but here the grid is
 used only to get the gravitational force between particles separated by a
@@ -591,10 +502,10 @@ specifying gravitational P³M may then be done through either of</p>
 <div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">select_forces</span> <span class="o">=</span> <span class="p">{</span>
    <span class="s1">&#39;matter&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;gravity&#39;</span><span class="p">,</span> <span class="s1">&#39;p3m&#39;</span><span class="p">},</span>
 <span class="p">}</span>
-
-<span class="c1"># or</span>
-
-<span class="n">select_forces</span> <span class="o">=</span> <span class="p">{</span>
+</pre></div>
+</div>
+<p>or</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">select_forces</span> <span class="o">=</span> <span class="p">{</span>
    <span class="s1">&#39;matter&#39;</span><span class="p">:</span> <span class="s1">&#39;gravity&#39;</span><span class="p">,</span>
 <span class="p">}</span>
 </pre></div>
@@ -625,41 +536,30 @@ performance gains achieved by the more sophisticated methods.</p>
 
 
            </div>
-           
           </div>
-          <footer>
-    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
-        <a href="output_types.html" class="btn btn-neutral float-right" title="5. Other kinds of output" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
         <a href="parameter_files.html" class="btn btn-neutral float-left" title="3. Working with parameter files" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="output_types.html" class="btn btn-neutral float-right" title="5. Other kinds of output" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>
 
   <div role="contentinfo">
-    <p>
+    <p></p>
+  </div>
 
-    </p>
-  </div> 
+   
 
 </footer>
         </div>
       </div>
-
     </section>
-
   </div>
-  
-
-  <script type="text/javascript">
+  <script>
       jQuery(function () {
           SphinxRtdTheme.Navigation.enable(true);
       });
-  </script>
-
-  
-  
-    
-   
+  </script> 
 
 </body>
 </html>
