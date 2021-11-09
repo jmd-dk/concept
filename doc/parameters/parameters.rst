@@ -1,14 +1,16 @@
 Parameters
 ==========
-The following sections list all the various parameters accepted by
+The following sections list the various parameters accepted by
 CO\ *N*\ CEPT, along with explanations, default and example values. Each
 section deals with a specific category of parameters.
 
 To learn how to *use* parameters and parameter files, see the
-:doc:`tutorial </tutorial/parameter_files>`.
+:doc:`tutorial </tutorial/parameter_files>` as well as the ``-p`` and ``-c``
+:doc:`command-line options </command_line_options>`.
 
 Parameters are specified as live Python 3 variables. As such, it is helpful to
-be familiar with basic Python syntax and knowledge of data types, such as
+be familiar with basic Python syntax and knowledge of
+`data types <https://docs.python.org/3/library/stdtypes.html>`_, such as
 ``str``\ ings, ``list``\ s and ``dict``\ ionaries.
 
 Below you will find the parameter categories, corresponding to the sections
@@ -79,23 +81,38 @@ equidistant in scale factor :math:`a`, from :math:`a = 0.01` to :math:`a = 1`:
 
    output_times = {'powerspec': logspace(log10(0.01), log10(1), 7)}
 
-Also readily available for use in parameter files is the special ``paths``
-variable. This is a ``dict`` holding the absolute paths to various useful
-directories and files. In fact, the content of the ``paths`` ``dict`` is
-supplied by the ``.paths`` file. In addition to all of these paths, the
-``paths`` ``dict`` also store the absolute path to the parameter file in which
-it is used. A nice way to ensure that the output is dumped into a proper but
-unique location is then to use
+
+
+.. raw:: html
+
+   <h4>The <code class="docutils literal notranslate">path</code> and <code class="docutils literal notranslate">param</code> objects</h4>
+
+Also readily available for use in parameter files is the convenient ``path``
+object, which holds absolute paths to various useful directories and files.
+For example, ``path.output_dir`` evaluates to the output directory, which by
+default is ``output``. If you prefer, you may instead use the ``dict``-like
+syntax ``path['output_dir']``. The contents of the ``path`` variable is
+supplied by the ``.path`` file.
+
+Another convenience object available within parameter files is ``param``,
+which evaluates to the name of the parameter file in which it is used. As an
+example, consider this nice way of ensuring that the power spectrum output
+gets dumped in a subdirectory of the output directory, labelled according to
+the parameter file:
 
 .. code-block:: python3
 
-   output_dirs = {'powerspec': paths['output_dir'] + '/' + basename(paths['params'])}
+   output_dirs = {'powerspec': f'{path.output_dir}/{param}'}
 
-which directs CO\ *N*\ CEPT to dump power spectra in a subdirectory with the
-same name as the parameter file, within the dedicated ``output`` directory as
-specified in the ``.paths`` file. Here, ``basename`` is really
-``os.path.basename``, which again is made available without the need for an
-explicit ``import``.
+If used within the parameter file ``param/my_param``, ``f'{path.output_dir}/{param}'`` then evaluates to ``'output/my_param'``.
+
+The ``param`` object is not a plain ``str`` though:
+
+* ``param.name``: Evaluates to the name of the parameter file (equivalent to
+  to using ``param`` on its own within a ``str``-context).
+* ``param.path``: Evaluates to the absolute path of the parameter file.
+* ``param.dir``: Evaluates to the absolute path to the directory containing
+  the parameter file.
 
 
 
@@ -103,8 +120,9 @@ explicit ``import``.
 
    <h3>Parameter files as <em>glorified</em> Python scripts</h3>
 
-The parameter files of CO\ *N*\ CEPT are in fact even more powerful than
-regular Python scripts. The additional super powers are described below.
+Beyond being equipped with convenience variables, the parameter files
+themselves are additionally much more powerful than regular Python scripts.
+The additional super powers are described below.
 
 
 
@@ -112,7 +130,7 @@ regular Python scripts. The additional super powers are described below.
 
    <h4>Non-linear parsing of parameter file content</h4>
 
-Parameters may be defined in terms of each other. Unlike regular variables,
+Parameters may be defined in terms of each other. Unlike with regular scripts,
 the definition order does not matter (i.e. you may reference a variable
 *before* it is defined). The magic that makes this work is cyclic execution of
 the parameter file, so that a variable that is needed on some line but only
@@ -124,33 +142,38 @@ execution passes.
 
 .. raw:: html
 
-   <h4>Non-parameter variables</h4>
+   <h4>Custom non-parameter variables</h4>
 
-Using additional, non-parameter variables in parameter files can help provide
+Using custom non-parameter variables in parameter files can help provide
 better organisation. For example, you may want to define both the ``boxsize``
 and the resolution of the gravitational potential grid in terms of a common
 variable:
 
 .. code-block:: python3
 
-   # Conveniently placed at the top
+   # Non-parameter helper variable used to control the size of the simulation
    _size = 256
 
    # Numerical parameters
    boxsize = _size*Mpc
-   potential_options = {
-       'gridsize': {
-           'gravity': {
-               'p3m': 2*_size,
-           },
-       },
-   }
+   potential_options = 2*_size
 
-Both the ``boxsize`` and the P³M grid size within ``potential_options`` can
-now be simultaneously updated through the newly introduced ``_size`` variable,
-which itself is not a parameter. When defined in a parameter file,
-CO\ *N*\ CEPT treats any variable whose name does not begin with an underscore
-'``_``' as a parameter; hence '``_size``' and not '``size``'.
+Both the ``boxsize`` and the potential grid size given by
+``potential_options`` can now be simultaneously updated through the newly
+introduced ``_size`` variable, which itself is not a parameter. When defined
+in a parameter file, CO\ *N*\ CEPT treats any variable whose name does not
+begin with an underscore '``_``' as a proper parameter; hence '``_size``' and
+not '``size``'.
+
+.. note::
+   The ``potential_options`` parameter is in fact much more involved than what
+   it would appear from the above example. The ``potential_options`` is an
+   example of a "nested" parameter, with many "sub-parameters" definable
+   within it. For your convenience, CO\ *N*\ CEPT allows for a plethora of
+   different non-complete specifications of such nested parameters (with
+   non-specified sub-parameters being auto-assigned), simplicying the writing
+   of parameter files. For the :ref:`full specification <potential_options>`
+   of the ``potential_options`` parameter for details.
 
 
 
@@ -166,7 +189,7 @@ of ellipses '``...``' like so:
 .. code-block:: python3
 
    output_dirs = {
-       'snapshot' : paths['output_dir'] + '/' + basename(paths['params']),
+       'snapshot' : f'{path.output_dir}/{param}',
        'powerspec': ...,
        'render2D' : ...,
        'render3D' : ...,
@@ -189,21 +212,30 @@ definitions, wrapping around if necessary. Thus,
 results in ``'snapshot'`` being mapped to ``[0.1, 0.3, 1]`` and ``'render2D'``
 to ``1``.
 
+.. note::
+   Another takeaway from the above example is the fact that CO\ *N*\ CEPT
+   rarely is picky about the data types used when defining parameters. We see
+   that the keys of the ``output_times`` ``dict`` may be either single numbers
+   or ``list``\ s of numbers, which again may be either ``int``\ s or
+   ``float``\ s. Furhtermore, the container used did not have been a ``list``,
+   but might instead have been e.g. a ``tuple`` ``(0.1, 0.3, 1)`` or a
+   ``set`` ``{0.1, 0.3, 1}``.
+
 
 
 .. raw:: html
 
    <h4>Inferred parameters</h4>
 
-Finally, some parameters are inferred from other parameters. The value of
-these may be used to define other parameters, but they should not be
-explicitly specified themselves. Currently, the only two such *inferred*
-parameters are ``h`` and ``Ων``:
+Some parameters are inferred from other parameters. The value of these may be
+used to define other parameters, but they should not themselves be explicitly
+specified. Currently, the only two such *inferred* parameters are ``h``
+and ``Ων``:
 
 * ``h`` is simply defined through
   :math:`h \equiv H_0/(100\, \text{km}\, \text{s}^{-1}\, \text{Mpc}^{-1})`,
-  with the Hubble constant :math:`H_0` being a normal parameter, ``H0``,
-  defined as e.g.
+  with the Hubble constant :math:`H_0` being a normal :ref:`parameter <H0>`,
+  ``H0``, defined as e.g.
 
   .. code-block:: python3
 
@@ -221,7 +253,7 @@ parameters are ``h`` and ``Ων``:
   neutrino species. It is set based on the massive neutrino parameters defined
   by the ``class_params`` :ref:`parameter <class_params>`. As the computation
   of :math:`\Omega_\nu` is non-trivial, this is nice to have available for
-  simulations with massive neutrinos where the sum
+  :ref:`simulations with massive neutrinos <massive_neutrinos>` where the sum
   :math:`\Omega_{\text{cdm}} + \Omega_\nu` is constrained. With e.g.
   :math:`\Omega_{\text{cdm}} + \Omega_\nu = 0.27`, one would set
 
@@ -230,6 +262,6 @@ parameters are ``h`` and ``Ων``:
      Ωcdm = 0.27 - Ων
 
 in the parameter file. As ``Ων`` unlike ``h`` is non-trivial to compute from
-existing parameters, its value will be printed at the beginning of the
+the user-defined parameters, its value will be printed at the beginning of the
 CO\ *N*\ CEPT run (when running with massive neutrinos).
 

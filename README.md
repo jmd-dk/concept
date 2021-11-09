@@ -44,7 +44,7 @@ bash <(wget -O- https://raw.githubusercontent.com/jmd-dk/concept/master/install)
 ```
 
 which installs CO*N*CEPT along with all of its dependencies into a single
-directory. The installation takes about an hour or two on modern hardware.
+directory. The installation takes a couple of hours on modern hardware.
 Should the installation process end prematurely, simply rerun the installation
 command and it will pick up from where it was.
 

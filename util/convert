@@ -221,7 +221,6 @@ of the above snapshots anyway? [Y/n] " yn
                     break
                     ;;
                 *)
-                    break
                     ;;
             esac
         done

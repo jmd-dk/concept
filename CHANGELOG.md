@@ -11,7 +11,7 @@
 - Proper P³M via tiles and subtiles.
 - Adaptive particle time-stepping.
 - Overhaul of grid implementation:
-  - Grids used for for PM, power spectra and 2D renders are now separate.
+  - Grids used for PM, power spectra and 2D renders are now separate.
   - Addition of grid quantities from components are now carried out in an
     upstream → global → downstream scheme. Only the global grid is common
     to all components. Different sized upstream grids are added to the

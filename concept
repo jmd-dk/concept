@@ -378,6 +378,9 @@ cleanup_empty_tmp() {
     if [ -z "${tmp_subdir}" ]; then
         tmp_subdir="${tmp_dir}"
     fi
+    if [ ! -d "${tmp_subdir}" ]; then
+        return
+    fi
     sleep_before_rm="0.01"
     for d in "${tmp_subdir}/"* "${tmp_subdir}/"*; do
         if [ ! -d "${d}" ]; then
@@ -392,6 +395,9 @@ cleanup_empty_tmp() {
             cleanup_empty_tmp "${d}"
         fi
     done
+    if [ ! -d "${tmp_dir}" ]; then
+        return
+    fi
     if [ "${tmp_subdir}" == "${tmp_dir}" ] && [ -z "$(ls -A "${tmp_dir}")" ]; then
         sleep ${sleep_before_rm}
         if [ -z "$(ls -A "${tmp_dir}")" ]; then
@@ -1348,7 +1354,7 @@ if [ "${param}" != "${param_unspecified}" ] && [ ! -f "${param}" ]; then
 fi
 if [ "${test}" != "${test_unspecified}" ] && [ "${test}" != "all" ] && [ ! -d "${test}" ]; then
     if [ -f "${test}" ]; then
-        colorprint "Error: Test \"${test}\" is a file but should be be a directory" "red"
+        colorprint "Error: Test \"${test}\" is a file but should be a directory" "red"
     else
         colorprint "Error: Test \"${test}\" does not exist" "red"
     fi
@@ -1988,7 +1994,7 @@ An almost complete job script has been saved to\n\
     # Crucially, the resource manager should have taken a copy
     # for itself prior to this.
     mv "${jobscript}" "${job_dir}/${jobid}/jobscript" || :
-    echo "Job ${jobid} (parameter file \"$(sensible_path "${param}")\") submitted to queue ${queue}"
+    echo "Job ${jobid} submitted to queue ${queue}"
     # Deactivate traps before exiting
     trap : 0
     # Invoke the watch utility on the submitted job

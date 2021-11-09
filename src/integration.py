@@ -879,7 +879,7 @@ def init_time(reinitialize=False):
         # are set to their current values.
         if master:
             index = len(a_values) - 1
-            if not isclose(a_values[index], a_today):
+            if not isclose(a_values[index], a_today, rel_tol=1e-9):
                 abort(
                     f'Expected the last scale factor value in the '
                     f'tabulated background to be {a_today}, '
@@ -887,7 +887,7 @@ def init_time(reinitialize=False):
                 )
             a_values[index] = a_today
             unit = units.km/(units.s*units.Mpc)
-            if not isclose(H_values[index], H0):
+            if not isclose(H_values[index], H0, rel_tol=1e-6):
                 abort(
                     f'Expected the last Hubble value in the '
                     f'tabulated background to be {H0/unit} km s⁻¹ Mpc⁻¹, '

@@ -5,8 +5,8 @@ other types of output are available, as exemplified by the below parameter
 file:
 
 .. code-block:: python3
-   :caption: params/tutorial
-   :name: params-output-types
+   :caption: param/tutorial
+   :name: param-output-types
    :emphasize-lines: 10, 12-13, 16, 18-19, 21-26, 38-54
 
    # Non-parameter variable used to control the size of the simulation
@@ -18,7 +18,7 @@ file:
        'N'      : _size**3,
    }
    output_dirs = {
-       'snapshot' : paths['output_dir'] + '/' + basename(paths['params']),
+       'snapshot' : f'{path.output_dir}/{param}',
        'powerspec': ...,
        'render2D' : ...,
        'render3D' : ...,
@@ -64,13 +64,13 @@ file:
    render3D_bgcolor    = 'black'
    render3D_resolution = 640
 
-Run a simulation using the :ref:`above <params-output-types>` parameters, e.g.
-by saving them to ``params/tutorial`` and executing
+Run a simulation using the :ref:`above <param-output-types>` parameters, e.g.
+by saving them to ``param/tutorial`` and executing
 
 .. code-block:: bash
 
    ./concept \
-       -p params/tutorial \
+       -p param/tutorial \
        -n 4
 
 This will take a few minutes. You may read along in the meantime.
@@ -123,7 +123,7 @@ well as terminal images, but no data. Here, *images* refer to the 2D render
 image files you see in the output directory. *Terminal images* are rendered
 directly in the terminal as part of the printed output, as you have probably
 noticed. If you turn on the *data* output, the 2D render data will further be
-stored in an HDF5 file.
+dumped to HDF5 files.
 
 The options for the 2D renders are collected in the ``render2D_options``
 parameter. Here ``gridsize`` sets the resolution of the cubic grid onto which
@@ -146,8 +146,8 @@ for a list of available colormaps.
 
    <h3>The play utility</h3>
 
-For this next trick, the simulation need to have finished, and we need to know
-its job ID.
+For this next trick, the simulation needs to have finished, and we need to
+know its job ID.
 
 .. tip::
    To grab the job ID from a power spectra data file, you can do e.g.
@@ -164,22 +164,36 @@ With the job ID at hand, try the following:
 
 You should see a nice animation of the evolution of the large-scale structure,
 playing out right in the terminal! The animation is produced from the terminal
-images stored in the log file ``logs/<ID>``.
+images stored in the log file ``job/<ID>/log``.
 
 The ``-u`` option to the ``concept`` script signals CO\ *N*\ CEPT to start up
 a *utility* rather than running a simulation. These utilities are handy (and
-sometimes goofy) side programs baked into CO\ *N*\ CEPT. Another such utility
---- the *info utility* --- is encountered just below, and we will encounter
-others in later sections of the tutorial. For full documentation on each
-available utility, consult :doc:`Utilities </utilities/utilities>`.
+in this case goofy) side programs baked into CO\ *N*\ CEPT. You are encouraged
+to play around with the options to the play utility, a brief overview of which
+gets printed by
+
+.. code-block:: bash
+
+   ./concept -u play -h
+
+Another such utility --- the *info utility* --- is encountered just below,
+and we will encounter others in later sections of the tutorial. To see the
+available utilities, do .e.g
+
+.. code-block:: bash
+
+   ls util
+
+For focused documentation on the individual utilities,
+consult :doc:`Utilities </utilities/utilities>`.
 
 
 
 Snapshots
 .........
-Snapshots are raw dumps of the total system, in this case the position and
-momenta of all :math:`N = 64^3` particles. CO\ *N*\ CEPT uses its own snapshot
-format, which is simply a well-structured HDF5 file.
+Snapshots are raw dumps of the simulated system, in this case the positions
+and momenta of all :math:`N = 64^3` particles. By default CO\ *N*\ CEPT uses
+its own snapshot format, which is simply a well-structured HDF5 file.
 
 .. tip::
    For a great graphical tool to explore HDF5 files in general, check out
@@ -204,7 +218,7 @@ format, which is simply a well-structured HDF5 file.
 
    .. code-block:: bash
 
-      sudo apt install qt5-default
+      sudo apt install qtbase5-dev
 
 Such snapshots are useful if you want to process the raw data using some
 external program. You can also initialize a simulation from a snapshot, instead
@@ -214,7 +228,7 @@ simulation you just ran:
 
 .. code-block:: python3
 
-   initial_conditions = 'output/tutorial/snapshot_a=0.10.hdf5'
+   initial_conditions = f'{path.output_dir}/{param}/snapshot_a=0.10.hdf5'
 
 Also, you should change ``a_begin`` to be ``0.1`` as to comply with the time at
 which the snapshot was dumped. Finally, before rerunning the simulation
@@ -234,40 +248,39 @@ about the cosmology and numerical setup is stored in the snapshot as well.
    simulation may hint that something has gone wrong, meaning that the results
    perhaps should not be trusted. To make sure that no warnings go unnoticed,
    CO\ *N*\ CEPT will notify you at the end of the simulation. A separate error
-   log, ``logs/<ID>_err``, containing just warning and error messages, will
-   also be present.
+   log, ``job/<ID>/log_err``, containing just warnings and error messages,
+   will also be present.
 
 To generate a warning and error log file, try wrongly specifying e.g.
 ``Ωb = 0.05``. Once the simulation has completed, check out the error
 log file.
 
-If you intend to run many simulations using the same initial conditions, it's
-worthwhile to initialize these from a common snapshot, as it saves computation
-time in the beginning of the simulation. To produce such an initial snapshot,
-simply set ``output_times = {'snapshot': a_begin}``, in which case
-CO\ *N*\ CEPT will exit right after the snapshot has been dumped at the
-initial time, without doing any simulation. Also, the whole purpose of having
-the ``ICs`` directory is to hold such initial condition snapshots. To dump
-snapshots to this directory, set the ``'snapshot'`` entry in ``output_dirs``
-to ``paths['ics_dir']``. We can achieve both without even altering the
-parameter file:
+If you intend to run many simulations using the same initial conditions,
+it might be worthwhile to initialize these from a common snapshot. To produce
+such an initial snapshot, simply set ``output_times = {'snapshot': a_begin}``,
+in which case CO\ *N*\ CEPT will exit right after the snapshot has been dumped
+at the initial time, without doing any simulation. An ``ic`` directory should
+already exist within your CO\ *N*\ CEPT installation, the purpose of which is
+to hold such initial condition snapshots. To dump snapshots to this directory,
+set the ``'snapshot'`` entry in ``output_dirs`` to ``path.ic_dir``. We can
+achieve both without even altering the parameter file:
 
 .. code-block:: python3
 
    ./concept \
-       -p params/tutorial \
+       -p param/tutorial \
        -c "output_times = {'snapshot': a_begin}" \
-       -c "output_dirs = {'snapshot': paths['ics_dir']}" \
+       -c "output_dirs = {'snapshot': path.ic_dir}" \
        -n 4
 
 You may also want to use CO\ *N*\ CEPT purely as an initial condition
 generator, and perform the actual simulation using some other code. If so, the
 default CO\ *N*\ CEPT snapshot format is of little use. To this end,
 CO\ *N*\ CEPT also supports the binary Fortran format of
-`GADGET <https://wwwmpa.mpa-garching.mpg.de/gadget/>`_, specifically the
-*second* type (``SnapFormat = 2`` in GADGET-2), which is understood by several
-other simulation codes and tools. To use this snapshot format in place of the
-CO\ *N*\ CEPT format, add ``snapshot_type = 'gadget'`` to your parameter file.
+`GADGET <https://wwwmpa.mpa-garching.mpg.de/gadget/>`_, which is understood by
+many other simulation codes and tools. To use this snapshot format in place of
+the CO\ *N*\ CEPT format, add ``snapshot_type = 'gadget'`` to your
+parameter file.
 
 
 
@@ -284,6 +297,13 @@ simply do
 .. code-block:: bash
 
    ./concept -u info output/tutorial
+
+or
+
+
+.. code-block:: bash
+
+   ./concept -u info ic
 
 The content of all snapshots --- CO\ *N*\ CEPT (HDF5) or GADGET format --- in
 the ``output/tutorial`` directory will now be printed to the screen. Should

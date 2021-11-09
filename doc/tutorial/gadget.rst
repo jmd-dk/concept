@@ -19,12 +19,12 @@ some of the tricks to come are not directly related to GADGET-2.
    <h3>CONCEPT</h3>
 
 As always, we start with a CO\ *N*\ CEPT parameter file, which you should save
-as e.g. ``params/tutorial``:
+as e.g. ``param/tutorial``:
 
 .. code-block:: python3
-   :caption: params/tutorial
-   :name: params-gadget
-   :emphasize-lines: 4, 13, 41
+   :caption: param/tutorial
+   :name: param-gadget
+   :emphasize-lines: 4, 10, 35
 
    # Input/output
    if _gen:
@@ -34,20 +34,14 @@ as e.g. ``params/tutorial``:
            'N'      : _size**3,
        }
    else:
-       initial_conditions = (
-           paths['ics_dir'] + '/'
-           + basename(paths['params']) + f'_a={a_begin}'
-       )
+       initial_conditions = f'{path.ic_dir}/{param}_a={a_begin}'
    snapshot_type = 'gadget'
    output_dirs = {
-       'snapshot': (
-           paths['ics_dir'] if _gen
-           else paths['output_dir'] + '/' + basename(paths['params'])
-       ),
+       'snapshot': path.ic_dir if _gen else f'{path.output_dir}/{param}',
        'powerspec': ...,
    }
    output_bases = {
-      'snapshot': basename(paths['params']) if _gen else 'snapshot',
+      'snapshot': param if _gen else 'snapshot',
    }
    output_times = {
        'snapshot' : a_begin if _gen else '',
@@ -70,17 +64,17 @@ as e.g. ``params/tutorial``:
 
 To perform the same simulation with both CO\ *N*\ CEPT and GADGET-2, we shall
 want to start from a common initial snapshot. The
-:ref:`parameter file <params-gadget>` is set up to produce this initial
+:ref:`parameter file <param-gadget>` is set up to produce this initial
 snapshot when ``_gen`` is ``True``. To create the snapshot then, do
 
 .. code-block:: bash
 
    ./concept \
-       -p params/tutorial \
+       -p param/tutorial \
        -c "_gen = True"
 
 (as always, feel free to tack on the number of processes you want
-with ``-n``). The snapshot will be dumped to the ``ICs`` directory.
+with ``-n``). The snapshot will be dumped to the ``ic`` directory.
 
 As we have ``snapshot_type = 'gadget'``, the snapshot will be in
 GADGET format. Furthermore, naming the matter component ``'GADGET halo'``
@@ -91,12 +85,12 @@ ensures that this component gets mapped to GADGET particle type 1
 
 Starting from this snapshot we can now perform the CO\ *N*\ CEPT simulation by
 running with ``-c "_gen = False"``. As this is also the value set in the
-:ref:`parameter file <params-gadget>`, we may in fact start the simulation
+:ref:`parameter file <param-gadget>`, we may in fact start the simulation
 simply by
 
 .. code-block:: bash
 
-   ./concept -p params/tutorial
+   ./concept -p param/tutorial
 
 Note that the ``initial_conditions`` is set to the path of the generated
 snapshot when ``_gen`` is ``False``.
@@ -124,25 +118,25 @@ The ``Makefile`` of GADGET-2 needs to be set up with correct path information
 for its dependencies. Furthermore, various options needs to be set in order
 for the GADGET-2 simulation to come to be equivalent to the CO\ *N*\ CEPT
 simulation. Last but not least we need a GADGET-2 parameter file equivalent to
-the :ref:`CONCEPT parameter file <params-gadget>`. All of this can be
+the :ref:`CONCEPT parameter file <param-gadget>`. All of this can be
 conveniently achieved using the *gadget utility* included with CO\ *N*\ CEPT:
 
 .. code-block:: bash
 
    ./concept \
        -u gadget output/tutorial/Gadget2 \
-       -p params/tutorial
+       -p param/tutorial
 
 The ``output/tutorial/Gadget2`` directory now has a properly set up
-``Makefile`` and a parameter file called ``params``. The output times of the
-:ref:`original parameter file <params-gadget>` have also been copied to an
-``outputlist``, similarly placed in ``output/tutorial/Gadget2``.
+``Makefile`` and a parameter file called ``param``. The output times of the
+:ref:`original parameter file <param-gadget>` have also been copied to an
+``outputlist`` file, similarly placed in ``output/tutorial/Gadget2``.
 
 .. note::
-   The parameters specified in the GADGET-2 ``Makefile`` and ``params`` file
+   The parameters specified in the GADGET-2 ``Makefile`` and ``param`` file
    include the cosmology, the grid size of the PM grid, the particle softening
    lengths and more, all set to match those used by the specific CO\ *N*\ CEPT
-   simulation as specified by the :ref:`parameter file <params-gadget>`
+   simulation as specified by the :ref:`parameter file <param-gadget>`
    together with default CO\ *N*\ CEPT values.
 
    The GADGET-2 TreePM gravitational method is used, which is quite similar in
@@ -165,7 +159,7 @@ the simulation:
        && cd output/tutorial/Gadget2 \
        && make clean \
        && make \
-       && mpiexec -n 4 ./Gadget2 params)
+       && mpiexec -n 4 ./Gadget2 param)
 
 where you may wish to change the specified number of processes deployed.
 
@@ -179,7 +173,7 @@ make use of the info utility:
    ./concept -u info output/tutorial/Gadget2/output
 
 You should find that the snapshots indeed have the same values of the scale
-factor :math:`a` as specified in the :ref:`parameter file <params-gadget>`
+factor :math:`a` as specified in the :ref:`parameter file <param-gadget>`
 (perhaps with small numerical errors).
 
 To measure the power spectra of the particle distributions contained within
@@ -189,9 +183,9 @@ the snapshots, we may make use of the *powerspec utility*:
 
    ./concept \
        -u powerspec output/tutorial/Gadget2/output \
-       -p params/tutorial
+       -p param/tutorial
 
-(as always, you may choose to throw more processes at the task using ``-n``).
+(as always, you may choose to throw more processes at the task with ``-n``).
 
 
 
@@ -211,6 +205,7 @@ script below:
 
    import glob, os, re
    import numpy as np
+   import matplotlib; matplotlib.use('agg')
    import matplotlib.pyplot as plt
 
    # Read in CO𝘕CEPT data
@@ -268,20 +263,20 @@ alleviate by adjusting the CO\ *N*\ CEPT simulation.
    <h4>Cell-centred vs. cell-vertex discretisation</h4>
 
 The initial particle distribution, stored within the generated initial
-snapshot file ``ICs/tutorial_a=0.02``, should ideally be close to homogeneous
+snapshot file ``ic/tutorial_a=0.02``, should ideally be close to homogeneous
 and isotropic. We can check this qualitatively by plotting the distribution
 in 3D. For this, let's use the *render3D utility*:
 
 .. code-block:: bash
 
    ./concept \
-       -u render3D ICs/tutorial_a=0.02 \
-       -p params/tutorial \
+       -u render3D ic/tutorial_a=0.02 \
+       -p param/tutorial \
        -c "render3D_resolution = 2000" \
        -c "render3D_colors = ('black', 1.5)" \
        -c "render3D_bgcolor = 'white'"
 
-This produces an image file in the ``ICs`` directory. Zooming in on one of the
+This produces an image file in the ``ic`` directory. Zooming in on one of the
 corners of the box, it should be clear that while we do have a close to
 homogeneous system, it is far from isotropic.
 
@@ -293,13 +288,13 @@ homogeneous system, it is far from isotropic.
 The strong anisotropy of the particles is inherited from the grid used for
 realisation of the initial conditions. This grid-like structure of the
 particle distribution makes the system sensitive towards other grids used
-during the simulation, e.g. the potential grid. In CO\ *N*\ CEPT it is chosen
-to use "cell-centred" grid discretisation, whereas GADGET-2 uses
-"cell-vertex" grid discretisation. In effect this means that the potential
-grids of the two codes are shifted by half a grid cell relative to each other,
-in all three dimensions. This detail oughtn't matter much, but the grid
-structure imprinted on the particle distribution, together with the fact that
-our simulations are rather small (:math:`N = 64^3`), makes for an
+during the simulation, e.g. the potential grid. In CO\ *N*\ CEPT, a default
+choice of using 'cell-centred' grid discretisation is made, whereas GADGET-2
+uses 'cell-vertex' grid discretisation. In effect this means that the
+potential grids of the two codes are shifted by half a grid cell relative to
+each other, in all three dimensions. This detail oughtn't matter much, but the
+grid structure imprinted on the particle distribution, together with the fact
+that our simulations are rather small (:math:`N = 64^3`), makes for an
 exaggerated effect.
 
 We can force CO\ *N*\ CEPT to use cell-vertex discretisation by specifying
@@ -318,16 +313,29 @@ now much smaller, though still a few percent.
    that cell-vertex discretisation is superior to its cell-centred cousin.
    The improvement came from using the *same* discretisation.
 
-   The real solution would be to redo the initial conditions without the
-   isotropies, e.g. using what is known as *glass* (pre-)initial conditions,
-   though this feature is not (yet) available in CO\ *N*\ CEPT. Another
-   solution is to apply a random spatial shift to the potential grid at each
-   time step, an approach built into GADGET-4.
+   Presumably the observed difference in results for the two discretisation
+   schemes would be much smaller had the initial conditions not contained the
+   strong anisotropies, e.g. if they had been generated from *glass*
+   pre-initial conditions. This feature is not (yet) available
+   in CO\ *N*\ CEPT.
+
+   Though undesirable when comparing against GADGET-2, CO\ *N*\ CEPT
+   additionally effectively allows for simultaneous usage of both
+   discretisation schemes by carrying out both of them followed by an
+   *interlacing* step to combine the results. This technique effectively
+   halves the discretisation scale, reducing the numerical artefacts. For
+   more information about potential interlacing, see the ``potential_options``
+   parameter :doc:`here </parameters/numerical_parameters>`.
+
+   Another solution is to apply a random spatial shift to the potential grid
+   at each time step, an approach built into GADGET-4. While the size of
+   individual force errors remain the same, their directions are now
+   uncorrelated in time.
 
    The mismatch between results of cell-centred and cell-vertex simulations is
    reduced for larger simulations, as the details of what's going on at the
-   scale of half a grid cell become more negligible for the whole. Thus for
-   large (say :math:`N \gtrsim 512^3`) simulations, we may ignore this issue.
+   scale of a grid cell becomes more negligible for the whole. Thus for large
+   (say :math:`N \gtrsim 512^3`) simulations, we may ignore this issue.
 
 
 
@@ -371,7 +379,7 @@ scale :math:`x_{\text{s}}`, which in both CO\ *N*\ CEPT and GADGET-2 has a
 default value of :math:`x_{\text{s}} = 1.25 \Delta x`, with :math:`\Delta x`
 the cell size of the potential grid. The short-range force between pairs of
 particles separated by a distance somewhat larger than :math:`x_{\text{s}}`
-falls of exponentially with the distance. Particle pairs with a separation
+falls off exponentially with the distance. Particle pairs with a separation
 :math:`|\boldsymbol{x}_i - \boldsymbol{x}_j| > x_{\text{r}}` may then be
 neglected, provided :math:`x_{\text{r}} \gg x_{\text{s}}`.
 
@@ -382,18 +390,22 @@ particles separated by distances somewhat larger than :math:`x_{\text{r}}` are
 being taken into account as well. We can then hope to obtain still better
 agreement with GADGET-2 by increasing the value of :math:`x_{\text{r}}` in
 CO\ *N*\ CEPT slightly. Try rerunning CO\ *N*\ CEPT with
-:math:`x_{\text{r}} = 5.5x_{\text{s}}` using
+:math:`x_{\text{r}} = 5.5x_{\text{s}}` with the added parameter
 
 .. code-block:: python3
 
    shortrange_params = {'range': '5.5*scale'}
 
-and update the comparison plot. You should find that the two codes now agree
+and updating the comparison plot. You should find that the two codes now agree
 well within 1%.
 
-For still better agreement, we could continue increasing the accuracy of
-*both* the CO\ *N*\ CEPT and the GADGET-2 simulation, though we shall not do
-so here.
+For still better agreement, you may try similarly upgrading
+:math:`x_{\text{r}}` to :math:`5.5x_{\text{s}}` in GADGET-2 (either by
+including the updated ``shortrange_params`` when running the CO\ *N*\ CEPT
+``gadget`` utility or by manually setting ``RCUT`` in
+``output/tutorial/Gadget2/Makefile``) and then re-compiling and -running
+GADGET-2. Improved agreement between the two codes is also achieved by
+increasing the simulation size.
 
 
 
@@ -408,14 +420,14 @@ this section have been performed in a manner which is slightly inconsistent
 CO\ *N*\ CEPT strives to be consistent with general relativistic perturbation
 theory. It does so by using the full background from CLASS, and adding in
 gravitational effects from linear perturbations of other species (when
-:doc:`enabled <beyond_matter_only>`) and the metric itself, ensuring that the
-simulation stays in the so-called *N*-body gauge. All this fanciness is hardly
-needed when running without massive neutrinos or other exotic species, which
-GADGET-2 does not support.
+:doc:`enabled <beyond_matter_only>`), ensuring that the simulation stays in
+the so-called *N*-body gauge. All this fanciness is hardly needed when
+running without massive neutrinos or other exotic species, which GADGET-2 does
+not support.
 
 GADGET-2 only allows for the simulation of matter (though besides the standard
 cold dark matter particles, it further supports (smoothed-particle)
-hydrodynamical baryons!), and always uses a background containing just matter
+hydrodynamical baryons), and always uses a background containing just matter
 and :math:`\Lambda`. Sticking to even the simplest :math:`\Lambda`\ CDM
 cosmologies (which *do* include photons), neglecting the gravitational tug
 from radiation is unacceptable for precision simulations. To resolve this

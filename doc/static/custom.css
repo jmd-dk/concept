@@ -6,7 +6,19 @@ span.bolditalic {
 
 /* Dark orange theme colour */
 .wy-side-nav-search, .wy-nav-top {
-    background: darkorange;
+    background: darkorange !important;
+}
+
+/* Slightly less bright background and search field */
+.wy-nav-content {
+    background: #f9f9f9 !important;
+}
+.wy-side-nav-search input {
+    background-color: #fbfbfb !important;
+    border-color: #404040 !important;
+}
+.sphinx-tabs-panel, .sphinx-tabs-tab[aria-selected="true"] {
+    background: #fbfbfb !important;
 }
 
 /* Near black inline literals on near white background */
@@ -15,24 +27,29 @@ code.literal {
     background-color: #fbfbfb !important;
 }
 
+/* Background colour of code blocks */
+.highlight {
+    background-color: #fbfbfb !important;
+}
 /* Background colour of emphasized code block lines */
 .highlight .hll {
-    background-color: #fdf6d8;
+    background-color: #fdf7de !important;
 }
 
-/* Black tab headings */
-.sphinx-tabs .sphinx-menu a.item {
-    color: #000000 !important;
+/* Reduce vertical spacing below sub-headings */
+h2 {
+    margin-bottom: 1.0em !important;
 }
-
-/* Reduce vertical spacing below smaller headings */
+h3 {
+    margin-bottom: 1.0em !important;
+}
 h4 {
-    margin-bottom: 1.17em;
+    margin-bottom: 1.0em !important;
 }
 h5 {
-    margin-bottom: 1.17em;
+    margin-bottom: 1.0em !important;
 }
 h6 {
-    margin-bottom: 1.17em;
+    margin-bottom: 1.0em !important;
 }
 

@@ -2,12 +2,17 @@ Working with parameter files
 ----------------------------
 Specifying the many parameters to the ``concept`` script via the ``-c`` option
 quickly becomes tiresome. A better solution is to write all parameters in a
-text file, say ``params/tutorial`` (the ``params`` directory already exists).
-Copy the content below to such a file:
+text file.
+
+.. tip::
+   The ``param`` directory is meant as a dedicated place to store your
+   parameter files. It comes with a few example parameter files included.
+
+Copy the content below to a file named e.g. ``param/tutorial``:
 
 .. code-block:: python3
-   :caption: params/tutorial
-   :name: params-parameter-files
+   :caption: param/tutorial
+   :name: param-parameter-files
 
    # Non-parameter helper variable used to control the size of the simulation
    _size = 64
@@ -18,7 +23,7 @@ Copy the content below to such a file:
        'N'      : _size**3,
    }
    output_dirs = {
-       'powerspec': paths['output_dir'] + '/' + basename(paths['params']),
+       'powerspec': f'{path.output_dir}/{param}',
    }
    output_times = {
        'powerspec': [a_begin, 0.3, 1],
@@ -39,7 +44,7 @@ To run CO\ *N*\ CEPT using this parameter file, do
 .. code-block:: bash
 
    ./concept \
-       -p params/tutorial \
+       -p param/tutorial \
        -n 4
 
 The simulation specified by the above parameters is quite similar to the
@@ -56,31 +61,28 @@ specifications. In doing so, we've made use of several helpful tricks:
   helper variables that are not themselves parameters, like ``_size`` above,
   which here is used to simultaneously adjust the number of particles ``'N'``,
   the side length of the simulation box ``boxsize`` and the size of the
-  potential grid. Though not strictly necessary, it is preferable for such
-  helper variables to be named with a leading underscore ``_``, to separate
-  them from actual parameters.
+  potential grid via ``potential_options``. Though not strictly necessary,
+  it is preferable for such helper variables to be named with a leading
+  underscore ``_``, to separate them from actual parameters.
 
 * We have explicitly specified the directory for power spectra output in the
-  ``output_dirs`` parameter. The value is constructed using the ``paths``
-  variable, which holds absolute paths specified in the ``.paths`` file.
-  If you want to take a look at this ``.paths`` file, do e.g.
+  ``output_dirs`` parameter. The value is constructed using the magic ``path``
+  and ``param`` variables, available to all parameter files. The ``path``
+  variable holds absolute paths specified in the ``.path`` file.
+  If you want to take a look at this ``.path`` file, do e.g.
 
   .. code-block:: bash
 
-     cat ../.paths
+     cat .path
 
-  Writing ``paths['output_dir']`` then maps to whatever value is specified for
-  ``output_dir`` in the ``.paths`` file, which will be
-  ``'/path/to/concept_installation/concept/output'``. Looking up
-  ``paths['params']`` is somewhat different, as ``params`` is not in the
-  ``.paths`` file. Instead, this dynamically maps to the full path of the
-  parameter file itself. To get the file name only (i.e. ``'tutorial'``),
-  we use the ``basename`` function. In total, the power spectrum output
-  directory gets set to
-  ``'/path/to/concept_installation/concept/output/tutorial'``. We could have
-  gotten away with just writing ``'output/tutorial'`` out statically. When
-  specifying relative paths, these are always with respect to the
-  ``concept`` directory.
+  Writing ``path.output_dir`` then maps to whatever value is specified for
+  ``output_dir`` in the ``.path`` file, which will be
+  ``'/path/to/concept/output'``. When used as is, the ``param`` variable
+  maps to the file name of the parameter in which it is used, in this case
+  ``'tutorial'``. In total, the power spectrum output directory then gets set
+  to ``'/path/to/concept/output/tutorial'``. We could have gotten away with
+  just writing ``'output/tutorial'`` out statically. Such relative paths in
+  parameter files should be given with respect to the installation directory.
 
 * We've specified multiple times at which to dump power spectra in
   ``output_times``. Note that we use the parameter ``a_begin`` (creating a
@@ -118,7 +120,7 @@ code:
 .. code-block:: bash
 
    ./concept \
-       -p params/tutorial \
+       -p param/tutorial \
        -c "_size = 64" \
        -n 4
 
@@ -129,47 +131,35 @@ parameter file --- CO\ *N*\ CEPT will exit with an error, letting you know.
 
 .. raw:: html
 
-   <h3>Log files</h3>
-
-The printed output of all CO\ *N*\ CEPT runs gets logged in the ``logs``
-directory. Each run (or *job*) gets a unique integer ID, which is also used as
-the file name for the logged output. The log file name of any CO\ *N*\ CEPT
-run is stated when the program starts, and the job ID is written again at the
-end. Also, the job ID is included in the header of the power spectrum data
-files.
-
-.. tip::
-   To view the logged output of e.g. CO\ *N*\ CEPT run 1 with proper
-   coloring, use ``less -rf logs/1``. Arrow keys to navigate, ``q`` to quit.
+   <h3>Logged job information</h3>
 
 
+For each CO\ *N*\ CEPT run (or *job*) a lot of information is logged. Each new
+job gets a unique integer ID, which is stated in the beginning and end of
+the run (and further included in the header of the power spectrum data files).
+Each job gets its own subdirectory within the ``job`` directory, containing
+at least:
 
-.. raw:: html
+* ``param``: A copy of the parameter file used for the job.
 
-   <h3>Checking previously used parameters</h3>
+  .. note::
+     When mixing ``-p`` and ``-c``, the combined parameters are what's stored
+     in the copied parameter file.
 
-Among the first lines of output of any CO\ *N*\ CEPT run is the path to the
-parameter file in use. As this is included in the log file, you can always go
-back and check the parameters used by a given run. However, this information
-isn't reliable, as we may have modified the parameter file since its original
-use. To this end, a complete copy of the parameter file is made upon every
-invocation of CO\ *N*\ CEPT, and stored in the ``params`` directory. The file
-name of this copy is written together with the name of the original parameter
-file when CO\ *N*\ CEPT starts. The name is generated from the current time
-and has the format ``.YYYYMMDDhhmmssSSS`` (year, month, day, hour, minute,
-second, millisecond).
+* ``log``: A record of the information printed to the screen during the job.
 
-When mixing ``-p`` and ``-c``, the combined parameters are what's stored in the
-copied parameter file.
+  .. tip::
+     To view the logged output of e.g. CO\ *N*\ CEPT job 1 with proper
+     colouring, use
 
-As an exercise, get the job ID of the latest simulation from the header of one
-of the power spectrum data files (e.g. ``output/tutorial/powerspec_a=1.00``),
-find the file name of the parameter file copy from the corresponding log file,
-and check that the parameters specified are as you expect. Any command-line
-parameters will be placed at the bottom.
+     .. code-block:: bash
+
+        less -rf job/1/log
+
+     Arrow keys to navigate, ``q`` to quit.
 
 So far we've introduced only the most essential parameters. The remaining
 sections of this tutorial will introduce further parameters --- and expand on
-already encountered ones --- as needed. For full documentation on all
-available parameters, consult :doc:`Parameters </parameters/parameters>`.
+already encountered ones --- as needed. For more focused documentation on any
+specific parameter, consult :doc:`Parameters </parameters/parameters>`.
 

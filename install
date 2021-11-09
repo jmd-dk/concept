@@ -44,10 +44,13 @@ Options taken by this script:
                        test failures will be reported at the end of the entire
                        installation process.
 -y, --yes_to_defaults  Accept default options on future queries. These include
-                       system-wide installations of system dependencies (e.g.
-                       gcc), should they be missing, as well as termination of
+                       system-wide installations of system dependencies,
+                       should they be missing, as well as termination of
                        already running CO𝘕CEPT installation process, should
                        one exist.
+--slim                 Slim down the installation in order to save disk space.
+                       This removes uncritical content from all installed
+                       dependency programs and CO𝘕CEPT itself.
 --fix-ssh              Set up the ~/.ssh directory so that it allows for
                        password-less SSH login between nodes. This may be
                        needed in order to run multi-node MPI computations on
@@ -55,12 +58,9 @@ Options taken by this script:
                        will be backed up. Note that this option will perform
                        the changes to ~/.ssh only; no actual installation will
                        take place.
---slim                 Trim down the installation in order to save disk space.
-                       This removes uncritical content from all installed
-                       dependency programs and CO𝘕CEPT itself.
 
 The full invocation signature of this script thus looks like
-  /path/to/install [/path/to/concept] [-t] [-y]
+  /path/to/install [/path/to/concept] [-t] [-y] [--slim]
 or
   /path/to/install --fix-ssh
 where brackets indicate optional arguments.
@@ -114,7 +114,7 @@ directory consist of the following and will be installed in order:
       - H5Py
       - Sphinx
       - Sphinx-copybutton
-      - Sphinx_rtd_theme
+      - Sphinx-rtd-theme
       - Sphinx-tabs
   - CO𝘕CEPT
   - CLASS
@@ -122,104 +122,11 @@ directory consist of the following and will be installed in order:
   - GADGET
 
 Due to the numerosity of the above list, the installation process will take
-about an hour or two on modern hardware. The installation time depend strongly
-on whether make is allowed to build in parallel or not. When running locally
-(i.e. not over SSH), the default is to build in parallel using all available
-CPU cores. Conversely, when running remotely the default is to build serially.
-You can overwrite these defaults by setting the `make_jobs`
-environment variable. E.g. to build in parallel using up to 4 CPU cores,
-invoke this script as
-  make_jobs="-j 4" /path/to/install [/path/to/concept] [-t] [-y]
-
-The installation time is significantly increased when invoked with -t.
-Note that the Python test suite will be run even when invoked without -t,
-as this is done as part of the profile guided optimization used to make
-the resultant Python interpreter faster.
-
-By default, any pre-installed software on the list above will be ignored.
-No conflicts should come of this. Should you still wish CO𝘕CEPT to use one such
-pre-installed component, you can declare its directory path through the
-`programname_dir` environment variable.
-E.g. to use a pre-installedgsl library:
-  gsl_dir=/path/to/gsl /path/to/install [/path/to/concept] [-t] [-y]
-The set of such environment variables correspond to the program names
-above (using lower-case only), except for MPICH/OpenMPI and OpenBLAS, which
-are just mpi_dir and blas_dir, respectively, as the specific MPI and BLAS
-implementation does not matter.
-
-When installing CO𝘕CEPT on a cluster, it is often preferable to make use of an
-already installed MPI library (MPI standard 3, any implementation should do),
-as this is (hopefully) properly configured with e.g. InfiniBand, which may not
-be the case for the MPI installation produced by this script.
-Thus on clusters it is adviced to use
-  mpi_dir=/path/to/mpi /path/to/install [/path/to/concept] [-t] [-y]
-If you have /path/to/mpi/bin properly loaded into your PATH,
-you can get by without specifying the MPI path explicitly using
-  mpi_dir=$(which mpicc) /path/to/install [/path/to/concept] [-t] [-y]
-(Note that $(which mpicc) results in /path/to/mpi/bin/mpicc, not /path/to/mpi.
-Though both are valid in this case,
-generally you must specify precisely programname_dir=/path/to/programname.)
-
-When not using a pre-installed MPI (i.e. when mpi_dir is not specified),
-you may specify which MPI implementation to install --- either MPICH
-or OpenMPI --- by setting the `mpi` environment variable to "mpich"
-or "openmpi", respectively. E.g.
-  mpi=openmpi /path/to/install [/path/to/concept] [-t] [-y]
-The default is MPICH.
-
-Should you choose to use a pre-installed Python distribution
-(by setting the python_dir variable), any missing Python packages
-will be installed in this distribution. Pre-installed Python packages
-will not be touched; e.g. if the install script wishes to install NumPy
-1.10.4, but 1.10.3 is already installed, the package will not be
-updated. If you want such Python package updates (or downgrades),
-set the `pythonpackagename_install` environment variable to "True".
-E.g. to overwrite a pre-installed NumPy package:
-  numpy_install=True python_dir=/path/to/python /path/to/install
-If you choose to use a pre-installed Python distribution, it is your
-responsibility that pip is installed as part of this distribution.
-Also, if the blessings package is not pre-installed in the Python
-distribution, Python should at least be compiled with the ncurses
-library.
-
-Should you choose to use a pre-installed GADGET (by setting the gadget_dir
-variable), note that this must be placed in a directory to which you have
-write (as well as read and execute, naturally) permissions and that CO𝘕CEPT
-will make changes to the source files of GADGET during some tests.
-
-Should you wish to install a specific version of some dependency
-program, Python package or CO𝘕CEPT itself, simply set the environment
-variable `programname_version` when invoking the install script.
-E.g. to install GSL 2.4:
-  gsl_version=2.4 /path/to/install [/path/to/concept] [-t] [-y]
-
-When installing in a complicated environment with several available compilers
-(typical for clusters) the installation time can be up to several times longer,
-as for each program the install script tries out different compilers
-and other options until a working configuration is found.
-The available compilers located on the system will be printed out at the
-beginning, in the precedence (order) of which they will be tried out.
-You can choose this order yourself by setting the compiler_precedence
-variable. To e.g. first try out Intel compilers and then GNU compilers:
-  compiler_precedence="intel gnu" /path/to/install [/path/to/concept] [-t] [-y]
-All other compilers located will then be tried out after GNU. The complete
-list of compilers in order of default precedence is "specified_mpi",
-"default", "gnu", "clang", "mpi", "intel", "cray", "portland", "generic",
-"unset". Here, "specified_mpi" means the MPI compiler provided by the MPI
-library specified via mpi_dir, "default" means that we do not explicitly
-alter the environment to specify any compiler (and so if e.g. $CC is defined,
-this will probably be used), "mpi" means any MPI compiler (e.g. mpicc)
-found on the system, "generic" refers to compilers not fitting into any
-of the other categories (e.g. cc) and "unset" means that we explicitly
-unset e.g. $CC.
-
-Logs of the installation process are written to install_log (stdout)
-and install_log_err (stderr) in the top installation directory.
-Should the installation process end prematurely (e.g. due to network failure),
-simply rerun this script with the same arguments and environment variables
+a couple of hours on modern hardware. Should the installation process end
+prematurely, simply rerun this script with the same arguments and environment
 as originally, and it will pick up the installation from where it left off.
 
-See https://github.com/jmd-dk/concept/ for further information.
+See https://jmd-dk.github.io/concept/installation.html for further information.
 '
 # Print help text and exit, if help is requested
 for var in "$@"; do
@@ -344,8 +251,8 @@ if [ "${install_explicit_only}" == "True" ]; then
 fi
 # Specification of paths. The substring "__concept_dir__"
 # will later be replaced with the top-level directory.
+set_dir "concept"         "__concept_dir__"
 set_dir "class"           "__concept_dir__/dep/class"
-set_dir "concept"         "__concept_dir__/dep/concept"
 set_dir "fftw"            "__concept_dir__/dep/fftw"
 set_dir "freetype"        "__concept_dir__/dep/freetype"
 set_dir "gadget"          "__concept_dir__/dep/gadget"
@@ -3973,7 +3880,7 @@ use_default_compilers() {
 }
 use_specified_mpi_compilers() {
     local program program_path bin_path include_path lib_path
-    if [ -n "${mpi_dir}" ]; then
+    if [ -n "${mpi_dir}" ] && [ -d "${mpi_dir}" ]; then
         compiler_path="${mpi_compilerdir}"
         bin_path="${mpi_bindir}"
         include_path="${mpi_includedir}"
@@ -5744,12 +5651,12 @@ hdf5_install_func() {
     # Set environment variables and configure options used
     # when building against MPI and zlib.
     enable_parallel=""
-    if [ -n "${mpi_dir}" ]; then
+    if [ -n "${mpi_dir}" ] && [ -d "${mpi_dir}" ]; then
         export LIBS="-lmpi ${LIBS}"
         enable_parallel="--enable-parallel"
     fi
     with_zlib=""
-    if [ -n "${zlib_dir}" ]; then
+    if [ -n "${zlib_dir}" ] && [ -d "${zlib_dir}" ]; then
         export LDFLAGS="-L${zlib_dir}/lib ${LDFLAGS}"
         export LD_LIBRARY_PATH="${zlib_dir}/lib:${LD_LIBRARY_PATH}"
         export CFLAGS="-I${zlib_dir}/include ${CFLAGS}"
@@ -5816,7 +5723,7 @@ hdf5_install_func() {
         mkdir -p "$(dirname "${exit_code_filename}")"
         # Perform serial + parallel tests if build against MPI
         # or normal tests otherwise.
-        if [ -n "${mpi_dir}" ]; then
+        if [ -n "${mpi_dir}" ] && [ -d "${mpi_dir}" ]; then
             # Serial tests
             rm -f "${exit_code_filename}" || :
             (make ${make_jobs} check-s 2>&1 | tee "test_log"; \
@@ -5876,7 +5783,7 @@ hdf5_install_func() {
     fi
 }
 compiler_possibilities_hdf5=("${compiler_possibilities[@]}")
-if [ -n "${mpi_dir}" ]; then
+if [ -n "${mpi_dir}" ] && [ -d "${mpi_dir}" ]; then
     compiler_possibilities_hdf5=("specified_mpi")
 fi
 install "HDF5"                                             \
@@ -5893,7 +5800,7 @@ fftw_install_func() {
         return 1
     fi
     enable_mpi=""
-    if [ -n "${mpi_dir}" ]; then
+    if [ -n "${mpi_dir}" ] && [ -d "${mpi_dir}" ]; then
         enable_mpi="--enable-mpi"
         export MPICC="${CC}"
         export MPILIBS="-lmpi ${MPILIBS}"
@@ -5975,7 +5882,7 @@ fftw_install_func() {
     fi
 }
 compiler_possibilities_fftw=("${compiler_possibilities[@]}")
-if [ -n "${mpi_dir}" ]; then
+if [ -n "${mpi_dir}" ] && [ -d "${mpi_dir}" ]; then
     compiler_possibilities_fftw=("specified_mpi")
 fi
 simd_instructions_all=("--enable-sse" "--enable-sse2" \
@@ -6167,7 +6074,8 @@ python_install_func() {
     # For Python >=3.7, a stand-alone libffi is also required,
     # though we do not check explicitly for this.
     with_ensurepip_install=""
-    if [ -n "${openssl_dir}" ] && [ -n "${zlib_dir}" ]; then
+    if [ -n "${openssl_dir}" ] && [ -d "${openssl_dir}" ] \
+        && [ -n "${zlib_dir}" ] && [ -d "${zlib_dir}" ]; then
         with_ensurepip_install="--with-ensurepip=install"
     fi
     # Set up environment variables and configure options
@@ -6182,13 +6090,13 @@ python_install_func() {
     if [[ "${pyoptimizations}" == *"lto"* ]]; then
         with_lto="--with-lto"
     fi
-    if [ -n "${ncurses_dir}" ]; then
+    if [ -n "${ncurses_dir}" ] && [ -d "${ncurses_dir}" ]; then
         export CPPFLAGS="-I${ncurses_dir}/include -I${ncurses_dir}/include/ncurses ${CPPFLAGS}"
         export LD_LIBRARY_PATH="${ncurses_dir}/lib:${LD_LIBRARY_PATH}"
         export LDFLAGS="-L${ncurses_dir}/lib -Wl,-rpath=${ncurses_dir}/lib ${LDFLAGS}"
     fi
     with_openssl=""
-    if [ -n "${openssl_dir}" ]; then
+    if [ -n "${openssl_dir}" ] && [ -d "${openssl_dir}" ]; then
         export CPPFLAGS="-I${openssl_dir}/include/openssl ${CPPFLAGS}"
         export LD_LIBRARY_PATH="${openssl_dir}/lib:${LD_LIBRARY_PATH}"
         export LDFLAGS="-L${openssl_dir}/lib -Wl,-rpath=${openssl_dir}/lib ${LDFLAGS}"
@@ -6210,13 +6118,13 @@ python_install_func() {
             sed -i "${first_line}s/.*/SSL=${openssl_dir//\//\\/}/" "${modules_setup_filename}"
         fi
     fi
-    if [ -n "${zlib_dir}" ]; then
+    if [ -n "${zlib_dir}" ] && [ -d "${zlib_dir}" ]; then
         export CPPFLAGS="-I${zlib_dir}/include ${CPPFLAGS}"
         export LD_LIBRARY_PATH="${zlib_dir}/lib:${LD_LIBRARY_PATH}"
         export LDFLAGS="-L${zlib_dir}/lib -Wl,-rpath=${zlib_dir}/lib ${LDFLAGS}"
     fi
     with_system_ffi=""
-    if [ -n "${libffi_dir}" ]; then
+    if [ -n "${libffi_dir}" ] && [ -d "${libffi_dir}" ]; then
         with_system_ffi="--with-system-ffi"
         current_dir="$(pwd)"
         for lib_dir in "lib" "lib64"; do
@@ -7296,7 +7204,7 @@ if [ "${matplotlib_install}" == "True" ] && [ "${matplotlib_installed}" == "Fals
     dependencies=( \
         "pillow"   \
     )
-    if [ -n "${zlib_dir}" ]; then
+    if [ -n "${zlib_dir}" ] && [ -d "${zlib_dir}" ]; then
         export CPPFLAGS="-I${zlib_dir}/include ${CPPFLAGS}"
         export LD_LIBRARY_PATH="${zlib_dir}/lib:${LD_LIBRARY_PATH}"
         export LDFLAGS="-L${zlib_dir}/lib -Wl,-rpath=${zlib_dir}/lib ${LDFLAGS}"
@@ -7333,7 +7241,7 @@ if [ "${matplotlib_install}" == "True" ] && [ "${matplotlib_installed}" == "Fals
         cd "${concept_dir}"
         cp -r "${pillow_build_dir}" "${pillow_build_dir}_cp"
         pillow_install_func() {
-            if [ -n "${zlib_dir}" ]; then
+            if [ -n "${zlib_dir}" ] && [ -d "${zlib_dir}" ]; then
                 export CPPFLAGS="-I${zlib_dir}/include ${CPPFLAGS}"
                 export LD_LIBRARY_PATH="${zlib_dir}/lib:${LD_LIBRARY_PATH}"
                 export LDFLAGS="-L${zlib_dir}/lib -Wl,-rpath=${zlib_dir}/lib ${LDFLAGS}"
@@ -7401,10 +7309,10 @@ Attempting to install Matplotlib with compiler=${compiler}, pyuser=${pyuser}\n\n
                 # For compatibility with Matplotlib < 3.3
                 export LD_LIBRARY_PATH="${libpng_dir}/lib:${LD_LIBRARY_PATH}"
             fi
-            if [ -d "${zlib_dir}/lib" ]; then
+            if [ -n "${zlib_dir}" ] && [ -d "${zlib_dir}/lib" ]; then
                 export LD_LIBRARY_PATH="${zlib_dir}/lib:${LD_LIBRARY_PATH}"
             fi
-            if [ -d "${blas_dir}/lib" ]; then
+            if [ -n "${blas_dir}" ] && [ -d "${blas_dir}/lib" ]; then
                 export LD_LIBRARY_PATH="${blas_dir}/lib:${LD_LIBRARY_PATH}"
             fi
             pip_download "Matplotlib" "${matplotlib_version}"
@@ -8769,7 +8677,7 @@ fftw_for_gadget_install_func() {
         return 1
     fi
     enable_mpi=""
-    if [ -n "${mpi_dir}" ]; then
+    if [ -n "${mpi_dir}" ] && [ -d "${mpi_dir}" ]; then
         enable_mpi="--enable-mpi"
         export MPICC="${CC}"
         export MPILIBS="-lmpi ${MPILIBS}"
@@ -8873,7 +8781,7 @@ fftw_for_gadget_install_func() {
     fi
 }
 compiler_possibilities_fftw_for_gadget=("${compiler_possibilities[@]}")
-if [ -n "${mpi_dir}" ]; then
+if [ -n "${mpi_dir}" ] && [ -d "${mpi_dir}" ]; then
     compiler_possibilities_fftw_for_gadget=("specified_mpi")
 fi
 install "FFTW for GADGET"                                       \
@@ -9099,14 +9007,23 @@ fi
 #############################
 # Final cleanup and notices #
 #############################
-# Clean up the tmp directory except for the log files.
+# Clean up the tmp directory except for the log files
+# and the temporary log_pid file.
 # This may fail on clusters with the nfs file system
 # ("Device or resource busy") due to still
 # running background processes holding .nfs... files open.
 if [ "${cleanup_tmp}" != "False" ]; then
+    files_keep=("install_log" "install_log_err" "log_pid")
     for f in "${tmp_dir}/"* "${tmp_dir}/".[^.]*; do
         f_base="$(basename "${f}")"
-        if [ "${f_base}" != "install_log" ] && [ "${f_base}" != "install_log_err" ]; then
+        remove="True"
+        for file_keep in "${files_keep[@]}"; do
+            if [ "${f_base}" == "${file_keep}" ]; then
+                remove="False"
+                break
+            fi
+        done
+        if [ "${remove}" == "True" ]; then
             rm -rf "${f}" || :
         fi
     done
@@ -9173,6 +9090,7 @@ site-packages/scipy/misc/face.dat" || :
     if [ "${python_install}" == "True" ] && [ "${python_installed}" == "False" ]; then
         # Python packages to remove
         removable_dependencies=( \
+            "hypothesis"         \
             "pybind11"           \
             "pytest"             \
             "pythran"            \
@@ -9346,19 +9264,19 @@ if [ "${any_test_error_notices}" == "False" ]; then
 fi
 # Deactivate traps before exiting subprocess
 trap : 0
-) >> "${log}") 3>&1 1>&2 2>&3 & echo $! > "${tmp_dir}/.log_pid") \
+) >> "${log}") 3>&1 1>&2 2>&3 & echo $! > "${tmp_dir}/log_pid") \
     | tee -a "${log}" "${log}_err" > /dev/null & 3>&1 1>&2 2>&3
-# Wait for the .log_pid file to be created
+# Wait for the log_pid file to be created
 slept=0
-while [ ! -f "${tmp_dir}/.log_pid" ]; do
+while [ ! -f "${tmp_dir}/log_pid" ]; do
     sleep 1
     ((slept += 1))
     if [ ${slept} -eq 30 ]; then
         break
     fi
 done
-log_pid=$(cat "${tmp_dir}/.log_pid")
-rm -f "${tmp_dir}/.log_pid" || :
+log_pid=$(cat "${tmp_dir}/log_pid")
+rm -f "${tmp_dir}/log_pid" || :
 # End of subprocess #
 #####################
 

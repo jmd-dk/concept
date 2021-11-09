@@ -13,14 +13,13 @@ SPHINXOPTS  =
 SPHINXBUILD = $(python) -m sphinx
 SOURCEDIR   = .
 BUILDDIR    = build
-STATICDIR   = static
 PUBLISHDIR  = publish
 
 # The content of README.md placed together with the published documentation
 define README_body
 CO*N*CEPT documentation
 =======================
-<img align="right" height="300" src="/static/render2D.png"/>
+<img align="right" height="250" src="/_static/render2D.png"/>
 
 This is the git branch for the published CO*N*CEPT documentation,
 which is most likely not what you are looking for.
@@ -99,30 +98,21 @@ html: sphinx
 	@# Insert current date in place of |today|
 	@sed -i "s/|today|/$$(date '+%B %d, %Y')/g" $(BUILDDIR)/html/index.html
 	@# Remove "Next" and "Previous" buttons between chapters
-	@sed -i 's/.*Previous<.*//g' $(BUILDDIR)/html/index.html
-	@sed -i 's/.*>Next .*//g'    $(BUILDDIR)/html/index.html
-	@sed -i 's/.*Previous<.*//g' $(BUILDDIR)/html/tutorial/tutorial.html
-	@sed -i 's/.*>Next .*//g'    $(BUILDDIR)/html/tutorial/gadget.html
-	@sed -i 's/.*Previous<.*//g' $(BUILDDIR)/html/installation.html
-	@sed -i 's/.*>Next .*//g'    $(BUILDDIR)/html/installation.html
-	@sed -i 's/.*Previous<.*//g' $(BUILDDIR)/html/command_line_options.html
-	@sed -i 's/.*>Next .*//g'    $(BUILDDIR)/html/command_line_options.html
-	@sed -i 's/.*Previous<.*//g' $(BUILDDIR)/html/parameters/parameters.html
-	@sed -i 's/.*>Next .*//g'    $(BUILDDIR)/html/parameters/debugging_options.html
-	@sed -i 's/.*Previous<.*//g' $(BUILDDIR)/html/utilities/utilities.html
-	@for filename in $$(find $(BUILDDIR)/html/utilities/ -name '*.html'); do \
-	    sed -i 's/.*Previous<.*//g' "$${filename}";                          \
-	    sed -i 's/.*>Next .*//g' "$${filename}";                             \
+	@for filename in "$(BUILDDIR)/html/"*.html; do  \
+	    sed -i 's/.*Previous<.*//g' "$${filename}"; \
+	    sed -i 's/.*>Next .*//g' "$${filename}";    \
 	done
-	@sed -i 's/.*Previous<.*//g' $(BUILDDIR)/html/under_the_hood.html
-	@sed -i 's/.*>Next .*//g'    $(BUILDDIR)/html/under_the_hood.html
-	@sed -i 's/.*>Next .*//g'    $(BUILDDIR)/html/troubleshooting.html
-	@sed -i 's/.*Previous<.*//g' $(BUILDDIR)/html/troubleshooting.html
-	@sed -i 's/.*>Next .*//g'    $(BUILDDIR)/html/publications.html
-	@sed -i 's/.*Previous<.*//g' $(BUILDDIR)/html/publications.html
+	@sed -i 's/.*Previous<.*//g' "$(BUILDDIR)/html/tutorial/tutorial.html"  # first entry in tutorial
+	@sed -i 's/.*>Next .*//g'    "$(BUILDDIR)/html/tutorial/gadget.html"    # last  entry in tutorial
+	@sed -i 's/.*Previous<.*//g' "$(BUILDDIR)/html/parameters/parameters.html"         # first entry in parameters
+	@sed -i 's/.*>Next .*//g'    "$(BUILDDIR)/html/parameters/debugging_options.html"  # last  entry in parameters
+	@for filename in "$(BUILDDIR)/html/utilities/"*.html; do \
+	    sed -i 's/.*Previous<.*//g' "$${filename}";          \
+	    sed -i 's/.*>Next .*//g' "$${filename}";             \
+	done
 	@# Convert all tables in the parameter sections to plain tables
-	@for filename in $$(find $(BUILDDIR)/html/parameters/ -name '*.html'); do \
-	    sed -i 's/<table class="docutils.*"/<table/g' $${filename};           \
+	@for filename in "$(BUILDDIR)/html/parameters/"*.html; do       \
+	    sed -i 's/<table class="docutils.*"/<table/g' $${filename}; \
 	done
 	@# Remove padding at the bottom of tabs
 	@(                                                                               \

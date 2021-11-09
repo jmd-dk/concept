@@ -68,7 +68,6 @@ taking you on a guided tour through the CO\ *N*\ CEPT universe.
    command_line_options
    parameters/parameters
    utilities/utilities
-   under_the_hood
    troubleshooting
    publications
 

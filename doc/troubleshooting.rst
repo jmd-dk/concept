@@ -22,19 +22,22 @@ possible. If the
 :ref:`standard installation process <standard_installation>`
 (with every dependency allowed to be installed from scratch) keeps failing
 for some inexplicable reason, you may try looking for a clue in the logged
-installation output (of which there are a lot), in the ``install_log`` and
-``install_log_err`` files.
+installation output (of which there are a lot), in the ``.tmp/install_log``
+and ``.tmp/install_log_err`` files, with the ``.tmp`` directory located within
+the installation directory.
 
-One possible source of trouble is corrupted downloads. The ``installer``
-script downloads the source code of every primary dependency into a directory
-named ``tmp``. If you suspect a corrupt download, you can try deleting this
-entire directory, which will trigger re-downloads.
+One possible source of trouble is corrupted downloads. The ``install`` script
+downloads the source code of every primary dependency into the
+``.tmp`` directory. If you suspect a corrupt download, you can try deleting
+subdirectories within this directory, which will trigger re-downloads.
 
 It may happen that some dependency program fails to install due to some other
-dependency not working correctly. You may try adding the ``--test`` option
-when invoking the ``installer``, which test most of the dependency programs
-after/during their individual installation. Carefully looking through the
-installation log files for failed tests may then reveal something.
+dependency not working correctly. You may try adding the ``--tests``
+:ref:`option <command_line_options>`
+when invoking the ``install`` script, which tests the vast majority of the
+dependency programs after/during their individual installation. Carefully
+looking through the installation log files for failed tests may then
+reveal something.
 
 
 
@@ -47,7 +50,8 @@ process may fail for several reasons, solutions to some are described in this
 entry.
 
 To check whether the problem is confined to the compilation process, run the
-code in pure Python mode. From within the ``concept`` directory, do
+code in pure Python mode. From within the CO\ *N*\ CEPT installation
+directory, do
 
 .. code-block:: bash
 
@@ -64,27 +68,21 @@ help you.
 Insufficient memory
 ...................
 The minimum memory needed in order for compilation of the code to succeed is
-about 5 GB, though the exact number depends on the system. If you suspect the
+about 3 GB, though the exact number depends on the system. If you suspect the
 cause of compilation errors might be insufficient memory, try out the below
-steps from within the ``concept`` directory. Before attempting each step, run
-
-.. code-block:: bash
-
-   (source concept && make clean)
-
-in order to clean up from the last, failed compilation attempt.
+steps from within the CO\ *N*\ CEPT installation directory.
 
 * Standard (parallel) compilation:
 
   .. code-block:: bash
 
-     ./concept --local
+     ./concept --rebuild --local
 
 * Compile each module in serial:
 
   .. code-block:: bash
 
-     make_jobs="-j 1" ./concept --local
+     make_jobs="-j 1" ./concept --rebuild --local
 
 * Add extra swap memory: If you have root privileges on the system, you can
   temporarily increase the available memory by adding a swap file:
@@ -101,7 +99,8 @@ in order to clean up from the last, failed compilation attempt.
   space), which is plenty. If you do not have that much free disk space, you
   may try with a lower value of ``n``. With this increased amount of memory,
   try compiling the code again. If it still fails even when compiling
-  serially, memory is not the problem. To clean up the swap file, do
+  serially, insufficient memory is probably not the problem. To clean up the
+  swap file, do
 
   .. code-block:: bash
 
@@ -124,15 +123,14 @@ time optimizations:
 
 .. code-block:: bash
 
-   (source concept && make clean)  # cleanup
-   ./concept --no-lto --local
+   ./concept --rebuild --no-lto --local
 
 .. note::
 
    If this solves the problem, it may simply be because compilation without
    LTO requires significantly less memory. You are encouraged to check if
    you simply have :ref:`insufficient memory <insufficient_memory>` for a
-   full build.
+   fully optimized build.
 
 If disabling link time optimizations makes the code compile, you may consider
 this a working solution, as the performance improvements obtained through
@@ -142,18 +140,17 @@ A much more drastic thing to try is to compile without *any* optimizations:
 
 .. code-block:: bash
 
-   (source concept && make clean)  # cleanup
-   ./concept --no-optimizations --local
+   ./concept --rebuild --no-optimizations --local
 
 If this works, the problem is definitely with some of the optimization flags.
 You should however not run CO\ *N*\ CEPT simulations with the compiled code in
 a completely unoptimized state, as this reduces performance drastically.
 Instead, experiment with removing individual optimization flags added to the
-``optimizations`` variable within the ``Makefile``. Substitute the ``-O3``
-flag with ``-O2``, then ``-O1``, then ``-O0``, before removing it completely.
-For each attempt, recompile CO\ *N*\ CEPT with\ *out* ``--no-optimizations``.
-Also, remember to clean up the old compilation before attempting anew.
-
+``optimizations`` and ``optimizations_linker`` variables within
+``src/Makefile``. E.g. get rid of ``-ffast-math`` and/or ``-funroll-loops``,
+and/or substitute the ``-O3`` flag with ``-O2``, then ``-O1``, then ``-O0``,
+before removing it completely. For each attempt, recompile CO\ *N*\ CEPT
+with\ *out* ``--no-optimizations``.
 
 
 
@@ -182,8 +179,8 @@ If you want to disable colour and other formatted output altogether, set
 
    enable_terminal_formatting = False
 
-in your parameter files. Note that though this eliminates most formatting,
-a few elements are still formatted.
+in your CO\ *N*\ CEPT parameter files. Note that though this eliminates most
+formatting, a few elements are still formatted.
 
 
 
@@ -198,16 +195,16 @@ has its own dedicated Python installation, one safe choice is to follow
 which isolate the dedicated Python installation so that other Python
 installations on the system has no chance of interfering.
 
-Note that if you have installed CO\ *N*\ CEPT using the ``installer`` and not
-explicitly made use of a pre-existing Python installation, a dedicated Python
-has been installation and the Python environment has already been set up
-appropriately (see the ``.env`` file).
+Note that if you have installed CO\ *N*\ CEPT using the ``install`` script and
+not explicitly made use of a pre-existing Python installation, a dedicated
+Python has been installation and the Python environment has already been set
+up appropriately (see the ``.env`` file).
 
 
 
 Error messages containing 'Read -1'
 -----------------------------------
-If you see error messages of the format
+If you see error messages of the form
 
    Read -1, expected <int>, errno = <int>
 
@@ -219,9 +216,7 @@ otherwise produces correct results, you can silence these messages by placing
 
    export OMPI_MCA_btl_vader_single_copy_mechanism=none
 
-in the ``.env`` file (located one directory level above the ``concept``
-directory, i.e. at ``/path/to/concept_installation/.env``) of your
-CO\ *N*\ CEPT installation.
+in the ``.env`` file of your CO\ *N*\ CEPT installation.
 
 
 
@@ -257,14 +252,15 @@ behaviour, try running the full CO\ *N*\ CEPT test suite via
 
    ./concept -t all
 
-If any tests are unsuccessful and you are running a stable version of
-CO\ *N*\ CEPT (i.e. any release version, not 'master'), there is most probably
+If any tests are unsuccessful and you are running an official version of
+CO\ *N*\ CEPT (i.e. any release version or 'master'), there is most probably
 a problem with your installation. You can try reinstalling CO\ *N*\ CEPT along
 with all of its dependencies, perhaps using compilers different from the ones
 used the first time around.
 
-If all tests passes despite the observed (and reproducible!) bad behaviour,
-you may have found a bug. Please report this.
+If all tests passes despite the observed (and reproducible) bad behaviour,
+you may have found a bug in a code path not covered by the test suite.
+Please report this.
 
 
 
@@ -295,12 +291,10 @@ term used for e.g. ``mpiexec``/``mpirun`` in CO\ *N*\ CEPT, i.e. the
 executable used to launch MPI programs.
 
 To see which MPI executor is used when running remotely, check out the
-``mpi_executor`` variable in the produced ``jobscript`` file. To manually set
-the MPI executor, overwrite the dedicated ``mpi_executor`` variable in the
-``.env`` file (located one directory level above the ``concept`` directory,
-i.e. at ``/path/to/concept_installation/.env``). Helpful suggestions for the
-choice of MPI executor depends on the job scheduler in use (Slurm or
-TORQUE/PBS).
+``mpi_executor`` variable in the produced ``job/<ID>/jobscript`` file.
+To manually set the MPI executor, overwrite the dedicated ``mpi_executor``
+variable in the ``.env`` file. Helpful suggestions for the choice of MPI
+executor depends on the job scheduler in use (Slurm or TORQUE/PBS).
 
 .. tabs::
 
@@ -310,13 +304,14 @@ TORQUE/PBS).
          Even if you are using Slurm, it may be that your MPI library is not
          configured appropriately for ``srun`` to be able to correctly launch
          MPI jobs. This can happen e.g. if you are using an MPI library that
-         was installed by the CO\ *N*\ CEPT ``installer`` script, as opposed
-         to an MPI library configured and installed by a system administrator
+         was installed by the CO\ *N*\ CEPT ``install`` script, as opposed
+         to an
+         :ref:`MPI library configured and installed by a system administrator <optimal_network_performance_on_clusters>`
          of the cluster. If the below does not work, try setting the MPI
          executor as though you were using TORQUE/PBS.
 
       If Slurm is used as the job scheduler and the MPI library used was not
-      installed by the ``installer`` script as part of the CO\ *N*\ CEPT
+      installed by the ``install`` script as part of the CO\ *N*\ CEPT
       installation, the MPI executor will be set to ``srun --cpu-bind=none``
       in job scripts by default (or possibly
       ``srun --cpu-bind=none --mpi=openmpi`` if OpenMPI is used). The first
@@ -327,7 +322,7 @@ TORQUE/PBS).
          mpi_executor="srun"
 
       in the ``.env`` file. Submit a new job, and you should see the manually
-      chosen MPI executor being respected by the ``jobscript``.
+      chosen MPI executor being respected by ``job/<ID>/jobscript``.
 
       If that did not fix the issue, try specifying the MPI implementation in
       use, using the ``--mpi`` option to ``srun``. E.g. for OpenMPI, set
@@ -366,7 +361,7 @@ TORQUE/PBS).
 
       in the ``.env`` file. Note that CO\ *N*\ CEPT sets the ``PATH`` so that
       ``mpiexec``/``mpirun`` are guaranteed to be those belonging to the
-      correct MPI implementation (that specified in the ``.paths`` file). You
+      correct MPI implementation (that specified in the ``.path`` file). You
       are however allowed to specify absolute paths as well.
 
       An important option to try out with ``mpiexec``/``mpirun`` is
@@ -395,7 +390,7 @@ Different hardware architecture on front-end and remote node
 If CO\ *N*\ CEPT and its dependencies have been installed from the front-end,
 these have been somewhat tailored to the architecture of the front-end. If the
 remote node to which you are submitting the CO\ *N*\ CEPT job has a different
-architecture, things may go wrong. The easy solution is then of course to
+architecture, things might go wrong. A trivial solution is then of course to
 switch to using a different remote queue/partition with nodes that have
 similar architecture to that of the front-end.
 
@@ -403,34 +398,33 @@ If you have installed CO\ *N*\ CEPT using the
 :ref:`standard installation process <standard_installation>`, CO\ *N*\ CEPT
 itself and all of its dependencies have been built in a somewhat portable
 manner, meaning that CO\ *N*\ CEPT should run fine on architectures different
-from that on the front-end, as long as its not *too* different.
+from that on the front-end, as long as they are not *too* different.
 
-The above portability is broken if you have built CO\ *N*\ CEPT using the
-``--native-optimizations`` option. To rebuild the code without additional
-non-portable optimizations (default build), do (from the ``concept``
-directory)
+You may try rebuilding the CO\ *N*\ CEPT code from the remote node as part of
+the submitted job, either by passing the ``--rebuild`` :ref:`option <rebuild>`
+to ``concept`` or supplying a new build directory with the
+``-b`` :ref:`option <build>`.
 
-.. code-block:: bash
-
-   (source concept && make clean)  # cleanup
-   ./concept --local               # rebuild
+Note that the supposed portability is severely limited if you build
+CO\ *N*\ CEPT with the ``--native-optimizations``
+:ref:`option <native_optimizations>`. To rebuild the code without additional
+non-portable optimizations (default build), use the ``--rebuild`` option.
 
 If rebuilding the code with only portable optimizations did not fix the
 problem, it is worth submitting a remote CO\ *N*\ CEPT job without *any*
-optimizations via the ``--no-optimizations`` option to the ``concept`` script,
-just to see what happens. Remember to clean the code directory before running
-with ``--no-optimizations``, to force recompilation. If this works, you should
-experiment with the ``Makefile`` as described
-:ref:`here <dangerous_optimizations>`, as running in a completely unoptimized
-state is far from ideal.
+optimizations via the ``--no-optimizations`` :ref:`option <no_optimizations>`
+to the ``concept`` script, just to see what happens. Remember to also supply
+``--rebuild`` to force recompilation. If this works, you should experiment
+with ``src/Makefile`` as described :ref:`here <dangerous_optimizations>`,
+as running in a completely unoptimized state is far from ideal.
 
-To really ensure compatibility with the architecture of a given node,
+To fully ensure compatibility with the architecture of a given node, you may
 reinstall CO\ *N*\ CEPT --- including all of its dependencies --- from that
 node. You may either do this by ``ssh``'ing into the node and run the
 installation manually, or you may submit the installation as a remote job.
 Below you will find examples of Slurm and TORQUE/PBS job scripts for
 installing CO\ *N*\ CEPT. In both cases you may wish to change
-``concept_version`` and ``install_path``, load modules or perform other
+``concept_version`` and ``install_dir``, load modules or perform other
 environment changes, and/or make use of a pre-installed MPI library as
 described :ref:`here <optimal_network_performance_on_clusters>`.
 
@@ -438,9 +432,7 @@ described :ref:`here <optimal_network_performance_on_clusters>`.
 
    .. group-tab:: Slurm
 
-      To submit a remote Slurm job for installing CO\ *N*\ CEPT, save the code
-      below to e.g. ``jobscript`` (replacing ``<queue>`` with the partition in
-      question) and execute ``sbatch jobscript``.
+      An example Slurm job script for installing CO\ *N*\ CEPT is shown below.
 
       .. code-block:: bash
 
@@ -455,16 +447,23 @@ described :ref:`here <optimal_network_performance_on_clusters>`.
          #SBATCH --error=/dev/null
 
          concept_version=master
-         install_path="${HOME}/concept"
+         install_dir="${HOME}/concept"
 
-         installer="https://raw.githubusercontent.com/jmd-dk/concept/${concept_version}/installer"
-         make_jobs="-j" bash <(wget -O- "${installer}") "${install_path}"
+         install_url="https://raw.githubusercontent.com/jmd-dk/concept/${concept_version}/install"
+         make_jobs="-j 8" bash <(wget -O- --no-check-certificate "${install_url}") "${install_dir}"
+
+      To use this installation job script, save its content to e.g.
+      ``jobscript_install`` (replacing ``<queue>`` with the queue/partition
+      in question) and submit it using
+
+      .. code-block:: bash
+
+         sbatch jobscript_install
 
    .. group-tab:: TORQUE/PBS
 
-      To submit a remote TORQUE/PBS job for installing CO\ *N*\ CEPT, save the
-      code below to e.g. ``jobscript`` (replacing ``<queue>`` with the queue
-      in question) and execute ``qsub jobscript``.
+      An example TORQUE/PBS job script for installing CO\ *N*\ CEPT is
+      shown below.
 
       .. code-block:: bash
 
@@ -477,17 +476,25 @@ described :ref:`here <optimal_network_performance_on_clusters>`.
          #PBS -e /dev/null
 
          concept_version=master
-         install_path="${HOME}/concept"
+         install_dir="${HOME}/concept"
 
-         installer="https://raw.githubusercontent.com/jmd-dk/concept/${concept_version}/installer"
-         make_jobs="-j" bash <(wget -O- "${installer}") "${install_path}"
+         install_url="https://raw.githubusercontent.com/jmd-dk/concept/${concept_version}/install"
+         make_jobs="-j 8" bash <(wget -O- --no-check-certificate "${install_url}") "${install_dir}"
+
+      To use this installation job script, save its content to e.g.
+      ``jobscript_install`` (replacing ``<queue>`` with the queue in question)
+      and submit it using
+
+      .. code-block:: bash
+
+         qsub jobscript_install
 
 Once a CO\ *N*\ CEPT installation job has begun, you can follow the
 installation process by executing
 
 .. code-block:: bash
 
-   tail -f <install_path>/install_log
+   tail -f <install_dir>/.tmp/install_log
 
 
 
@@ -495,26 +502,43 @@ It *still* does not work!
 .........................
 If you are still struggling, in particular if CO\ *N*\ CEPT does launch but
 the MPI process binding/affinity is wrong, try removing some of the added
-environment variables that gets set in the ``jobscript`` (under the
+environment variables that gets set in ``job/<ID>/jobscript`` (under the
 'Environment variables' heading). After altering the job script, submit it
-manually using ``sbatch jobscript`` (Slurm) or ``qsub jobscript``
-(TORQUE/PBS).
+manually using
+
+.. code-block:: bash
+
+   sbatch job/<ID>/jobscript  # Slurm
+
+or
+
+.. code-block:: bash
+
+   qsub job/<ID>/jobscript  # TORQUE/PBS
+
+.. note::
+   When manually submitting an auto-generated job script, a subdirectory
+   within the ``job`` directory will be created for the new job, just as when
+   a job is auto-submitted via the ``concept`` script. This sub-directory can
+   take a minute to appear though.
 
 It is also possible that the cluster configuration just do not play nicely
 with the current MPI implementation in use. If you installed CO\ *N*\ CEPT
 using one of the MPI implementations present on the cluster, try again, using
-another pre-installed MPI library. If you let CO\ *N*\ CEPT install its own
-MPI, try switching from MPICH to OpenMPI or vice versa, as described
+another pre-installed MPI library. If you instead let CO\ *N*\ CEPT install
+its own MPI, try switching from MPICH to OpenMPI or vice versa, as described
 :ref:`here <installing_mpich_or_openmpi>`.
 
-When installing CO\ *N*\ CEPT, try having as few modules loaded as possible,
-in order to minimize the possibility of wrong MPI identification and linking.
+When installing CO\ *N*\ CEPT, try having as few environment modules loaded
+as possible, in order to minimize the possibility of wrong MPI identification
+and linking. In particular, beware of environment modules loaded and variables
+set automatically in files like ``~/.bashrc`` and ``~/.bash_profile``.
 
 
 
 Bad performance when using multiple processes/nodes
 ---------------------------------------------------
-If you are running CO\ *N*\ CEPT on a cluster and experiences a significant
+If you are running CO\ *N*\ CEPT on a cluster and experience a significant
 drop in performance as you increase the number of processes from e.g. 1 to 2
 or 2 to 4, or when using 2 nodes instead of 1 with the same total number of
 processes, the problem is likely that the MPI library used is not configured
@@ -542,15 +566,17 @@ problems as soon as you request multiple nodes, it may be a permission
 problem. For example, OpenMPI uses SSH to establish the connection between the
 nodes, and so your local ``~/.ssh`` directory need to be configured properly.
 Note that when using an MPI implementation pre-installed on the cluster, such
-additional configuration from the user ought not to be necessary.
+additional configuration from the user ought not be necessary.
 
 CO\ *N*\ CEPT comes with the ability to set up the ``~/.ssh`` as needed for
 multi-node communication. Currently this feature resides as part of the
-``installer`` script. To apply it, from the ``concept`` directory, execute
+``install`` script. To apply it, execute
 
 .. code:: bash
 
-   ../installer --fix-ssh
+   ./install --fix-ssh
+
+from the CO\ *N*\ CEPT installation directory.
 
 Note that this will move all existing content of ``~/.ssh`` to
 ``~/.ssh_backup``. Also, any configuration you might have done will not be

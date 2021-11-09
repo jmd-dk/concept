@@ -1,11 +1,9 @@
 Your first simulations
 ----------------------
-In a terminal, navigate to the ``concept`` directory within your chosen
-installation directory. Unless otherwise specified, all code examples to come
-is meant to be executed from within this directory. Here you'll find the
-various ``*.py`` files making up the code, as well as a few other files, the
-most important of which is a script similarly named ``concept``,
-used to launch the code.
+In a terminal, navigate to the directory where you installed CO\ *N*\ CEPT.
+Unless otherwise specified, all code examples to come is meant to be executed
+from within this directory. At the top level you'll find a few key files, like
+the all-important ``concept`` script used to launch the code.
 
 Try invoking the script using
 
@@ -62,6 +60,7 @@ Let's try again, this time specifying a size for the gravitational potential
 grid:
 
 .. code-block:: bash
+   :emphasize-lines: 5
 
    ./concept \
        -c "initial_conditions = {'species': 'matter', 'N': 64**3}" \
@@ -86,6 +85,7 @@ To cut down on the computation time we may make use of multiple CPU cores. To
 run with e.g. 4 CPU cores, execute
 
 .. code-block:: bash
+   :emphasize-lines: 6
 
    ./concept \
        -c "initial_conditions = {'species': 'matter', 'N': 64**3}" \

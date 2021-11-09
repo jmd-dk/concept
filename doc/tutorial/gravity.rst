@@ -1,7 +1,7 @@
 Mastering gravity
 -----------------
 The fact that gravity is extremely important for the cosmic evolution has
-already been demonstrated. We would like our simulation to be able to compute
+already been demonstrated. We would like our simulations to be able to compute
 gravity in a manner that is both accurate and efficient. In CO\ *N*\ CEPT, the
 details of the gravitational computation is controlled by a large set of
 parameters, enabling us to tune this trade-off between accuracy and efficiency
@@ -12,8 +12,8 @@ some sample simulations. The parameter specifications below are very similar
 to the ones encountered in the previous section.
 
 .. code-block:: python3
-   :caption: params/tutorial
-   :name: params-gravity
+   :caption: param/tutorial
+   :name: param-gravity
    :emphasize-lines: 12-14, 29-32
 
    # Non-parameter helper variable used to control the size of the simulation
@@ -25,7 +25,7 @@ to the ones encountered in the previous section.
        'N'      : _size**3,
    }
    output_dirs = {
-       'powerspec': paths['output_dir'] + '/' + basename(paths['params']),
+       'powerspec': f'{path.output_dir}/{param}',
    }
    output_bases = {
        'powerspec': f'powerspec_{_sim}',
@@ -49,10 +49,10 @@ to the ones encountered in the previous section.
        'matter': {'gravity': 'pm'},
    }
 
-Save these parameters to e.g. ``params/tutorial``.
+Save these parameters to e.g. ``param/tutorial``.
 
 .. tip::
-   If the file ``params/tutorial`` already exists due to previous tutorial
+   If the file ``param/tutorial`` already exists due to previous tutorial
    work, you may safely overwrite the old content. Similarly, it's best to
    clean up (or remove entirely) the ``output/tutorial`` directory before
    continuing. If you wish to keep the old content, you can do e.g.
@@ -66,13 +66,13 @@ Save these parameters to e.g. ``params/tutorial``.
    '``tutorial``'. The output directories are set up to reflect the parameter
    file name.
 
-Now run a simulation using the :ref:`tutorial <params-gravity>` parameter file
+Now run a simulation using the :ref:`tutorial <param-gravity>` parameter file
 by executing
 
 .. code-block:: bash
 
    ./concept \
-       -p params/tutorial \
+       -p param/tutorial \
        -c "_sim = 'A'"
 
 and optionally specifying whatever number of processes you'd like with the
@@ -93,7 +93,7 @@ The result of the simulation will be a data file
 
 The PM method
 .............
-A new parameter appearing in the :ref:`tutorial <params-gravity>` parameter
+A new parameter appearing in the :ref:`tutorial <param-gravity>` parameter
 file is ``select_forces``, which is set to map ``'matter'`` to the
 gravitational interaction using the particle-mesh (PM) method. This method
 works by solving the gravitational potential on a cubic grid, the size of
@@ -112,37 +112,37 @@ To try this out, update ``potential_options`` to
 
    potential_options = 2*_size
 
-in ``params/tutorial`` and run a new simulation, this time using
+in ``param/tutorial`` and run a new simulation, this time using
 
 .. code-block:: bash
 
    ./concept \
-       -p params/tutorial \
+       -p param/tutorial \
        -c "_sim = 'B'"
 
 Visually comparing ``powerspec_A_a=1.00.png`` to ``powerspec_B_a=1.00.png``,
-we see that increasing the potential grid size produces a lager power
-spectrum, as we would perhaps expect. To check whether doubling the grid size
-was enough to achieve convergence, let's further run a simulation C with
-triple the grid size, i.e. switch to using
+we see that increasing the potential grid size leads to an increase in power,
+as we would perhaps expect. To check whether doubling the grid size was
+enough to achieve convergence, let's further run a simulation C with triple
+the grid size, i.e. switch to using
 
 .. code-block:: python3
 
    potential_options = 3*_size
 
-in ``params/tutorial`` and execute
+in ``param/tutorial`` and execute
 
 .. code-block:: bash
 
    ./concept \
-       -p params/tutorial \
+       -p param/tutorial \
        -c "_sim = 'C'"
 
 Properly comparing the three individual output plots is not so easy. To better
-compare the results, you should plot the different power spectra together in a
+compare the results, we should plot the different power spectra together in a
 single plot, using the information in the data files. You may do this using
-your favourite plotting tool, or --- for your convenience --- using the below
-script:
+your favourite plotting tool, or --- for your convenience --- using the
+script below:
 
 .. code-block:: python3
    :caption: output/tutorial/plot.py
@@ -150,27 +150,37 @@ script:
 
    import glob, os, re
    import numpy as np
+   import matplotlib; matplotlib.use('agg')
    import matplotlib.pyplot as plt
 
    # Read in data
-   P_sims = {}
    this_dir = os.path.dirname(os.path.realpath(__file__))
+   k_sims, P_sims = {}, {}
    for filename in sorted(glob.glob(f'{this_dir}/powerspec*'), key=os.path.getmtime):
        match = re.search(r'powerspec_(.+)_', filename)
        if not match or filename.endswith('.png'):
            continue
        sim = match.group(1)
-       k, P_sims[sim], P_lin = np.loadtxt(filename, usecols=(0, 2, 3), unpack=True)
+       k_sims[sim], P_sims[sim], P_lin_sim = np.loadtxt(
+           filename, usecols=(0, 2, 3), unpack=True,
+       )
+       if len(P_sims) == 1:
+           k = k_sims[sim]
+           P_lin = P_lin_sim
 
    # Plot
    fig, ax = plt.subplots()
    linestyles = ['-', '--', ':', '-.']
    for sim, P_sim in P_sims.items():
        linestyle = linestyles[
-           sum(np.allclose(line.get_ydata(), P_sim, 5e-2) for line in ax.lines)
+           sum(
+               np.allclose(line.get_ydata(), P_sim, 5e-2)
+               for line in ax.lines
+               if len(line.get_ydata()) == len(P_sim)
+           )
            %len(linestyles)
        ]
-       ax.loglog(k, P_sim, linestyle, label=f'simulation {sim}')
+       ax.loglog(k_sims[sim], P_sim, linestyle, label=f'simulation {sim}')
    ylim = ax.get_ylim()
    ax.loglog(k, P_lin, 'k--', label='linear', linewidth=1)
    ax.set_xlim(k[0], k[-1])
@@ -286,7 +296,9 @@ specifying gravitational P³M may then be done through either of
       'matter': {'gravity', 'p3m'},
    }
 
-   # or
+or
+
+.. code-block:: python3
 
    select_forces = {
       'matter': 'gravity',
