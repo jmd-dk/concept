@@ -916,7 +916,7 @@ build_sudo_func() {
     fi
     # Check if sudo/su run without a password
     if [ "${sudo_exist}" == "True" ]; then
-        output="$(echo '' | sudo -S echo 'success' 2>/dev/null || :)"
+        output="$(echo '' | sudo -S echo 'hello' 2>/dev/null || :)"
         if [ "${output##* }" == "hello" ]; then
             sudo_func() {
                 args="$@"
@@ -947,7 +947,7 @@ build_sudo_func() {
             sudo_command() {
                 echo "sudo $@"
             }
-        elif [ "${sudo_exist}" == "True" ]; then
+        elif [ "${su_exist}" == "True" ]; then
             sudo_command() {
                 echo "su -c '$@'"
             }
@@ -959,16 +959,20 @@ build_sudo_func() {
         return
     fi
     # Prompt for password and try out sudo and/or su
+    first_prompt="True"
     while :; do
-        read -s -p "[sudo] password for $(whoami): " sudo_password
-        echo
+        if [ "${first_prompt}" == "False" ] || [ -z "${root_password}" ]; then
+            read -s -p "[sudo] password for $(whoami): " root_password
+            echo
+        fi
+        first_prompt="False"
         # Try out sudo
         if [ "${sudo_exist}" == "True" ]; then
-            output="$(echo "${sudo_password}" | sudo -S echo hello 2>/dev/null || :)"
+            output="$(echo "${root_password}" | sudo -S echo hello 2>/dev/null || :)"
             if [ "${output##* }" == "hello" ]; then
                 sudo_func() {
                     args="$@"
-                    echo "${sudo_password}" | sudo -S ${args}
+                    echo "${root_password}" | sudo -S ${args}
                 }
                 sudo_command() {
                     echo "sudo $@"
@@ -978,11 +982,11 @@ build_sudo_func() {
         fi
         # Try out su
         if [ "${su_exist}" == "True" ]; then
-            output="$(echo "${sudo_password}" | su -c 'echo hello' 2>/dev/null || :)"
+            output="$(echo "${root_password}" | su -c 'echo hello' 2>/dev/null || :)"
             if [ "${output##* }" == "hello" ]; then
                 sudo_func() {
                     args="$@"
-                    echo "${sudo_password}" | su -c "${args}"
+                    echo "${root_password}" | su -c "${args}"
                 }
                 sudo_command() {
                     echo "su -c '$@'"

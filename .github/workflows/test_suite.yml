@@ -47,7 +47,6 @@ jobs:
                         && rm -rf /github/build \
                         && mkdir /github/build \
                         && cp "${build_dir}/"*.so /github/build/ \
-                        && chmod a+rw /github/build/ \
                     '
           - name: 📤 Upload build
             uses: actions/upload-artifact@v2
