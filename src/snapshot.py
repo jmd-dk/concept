@@ -1188,7 +1188,7 @@ class GadgetSnapshot:
                     for component in self.components
                     if component is not None
                 ])
-                if num_particles_tot > 2**32 - 1:
+                if num_particles_tot > 2**32:
                     num_bits = 64
             elif isinstance(num_bits, str):
                 abort(
@@ -2495,8 +2495,9 @@ def out_of_bounds_check(component, snapshot_boxsize=-1):
 
 # Function that either loads existing initial conditions from a snapshot
 # or produces the initial conditions itself.
-@cython.header(
+@cython.pheader(
     # Arguments
+    initial_conditions_touse=object,  # dict, str or Nonetype
     do_realization='bint',
     # Locals
     component='Component',
@@ -2510,18 +2511,21 @@ def out_of_bounds_check(component, snapshot_boxsize=-1):
     specifications=dict,
     returns=list,
 )
-def get_initial_conditions(do_realization=True):
-    if not initial_conditions:
+def get_initial_conditions(initial_conditions_touse=None, do_realization=True):
+    if initial_conditions_touse is None:
+        # Use initial_conditions user parameter
+        initial_conditions_touse = initial_conditions
+    if not initial_conditions_touse:
         return []
-    # The initial_conditions parameter should be a list or tuple of
+    # The initial_conditions_touse variable should be a list or tuple of
     # initial conditions, each of which can be a str (path to snapshot)
     # or a dict describing a component to be realised.
-    # If the initial_conditions parameter itself is a str or dict,
+    # If the initial_conditions_touse variable itself is a str or dict,
     # wrap it in a list.
-    if isinstance(initial_conditions, (str, dict)):
-        initial_conditions_list = [initial_conditions]
+    if isinstance(initial_conditions_touse, (str, dict)):
+        initial_conditions_list = [initial_conditions_touse]
     else:
-        initial_conditions_list = list(initial_conditions)
+        initial_conditions_list = list(initial_conditions_touse)
     # Now parse the list of initial conditions
     components = []
     initial_condition_specifications = []
@@ -2564,7 +2568,7 @@ def determine_species(name, representation, only_explicit=False):
     """The species is taken from the select_species user parameter.
     If only_explicit is True, the component name must appear
     in select_species, whereas otherwise it can be matched on
-    weaker grounds such as its representation generic strings
+    weaker grounds such as its representation and generic strings
     such as 'default'.
     """
     # The species is determined from the select_species user parameter

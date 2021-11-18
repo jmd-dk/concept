@@ -34,7 +34,7 @@ to the ones encountered in the previous section.
        'powerspec': 1,
    }
 
-   # Numerical parameters
+   # Numerics
    boxsize = 256*Mpc
    potential_options = _size
 
@@ -304,11 +304,13 @@ or
       'matter': 'gravity',
    }
 
-or by leaving out a specification for ``select_forces`` entirely.
+or by leaving out a specification for ``select_forces`` entirely. See
+:ref:`here <select_forces>` for more information about the ``select_forces``
+parameter.
 
 Similarly, the ``potential_options`` parameter is really a nested parameter by
 which various details of the (PM and P³M)
-:doc:`potential can be controlled </parameters/numerical_parameters>`.
+:ref:`potential can be controlled <potential_options>`.
 
 
 

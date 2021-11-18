@@ -1821,6 +1821,7 @@ class Component:
         a='double',
         # Locals
         class_species=str,
+        class_species_canonical=str,
         Γ_class_species='double',
         Γρ_bar='double',
         ρ_bar='double',
@@ -1849,13 +1850,16 @@ class Component:
         # Sum up ρ_bar and Γ*ρ_bar
         ρ_bar = Γρ_bar = 0
         for class_species in self.class_species.split('+'):
-            species_info = species_registered.get(
-                species_canonical.get(class_species, class_species)
-            )
+            class_species_canonical = species_canonical.get(class_species, class_species)
+            species_info = species_registered.get(class_species_canonical)
+            if species_info is None:
+                continue
             Γ_class_species = species_info.Γ(cosmoresults, a)
             ρ_bar_class_species = cosmoresults.ρ_bar(a, class_species)
             ρ_bar += ρ_bar_class_species
             Γρ_bar += Γ_class_species*ρ_bar_class_species
+        if Γρ_bar == 0:
+            return 0
         return Γρ_bar/ρ_bar
 
     # This method populate the Component pos/mom arrays (for a

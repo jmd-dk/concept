@@ -2940,12 +2940,12 @@ def get_wisdom_filename(gridsize):
     - The global FFTW wisdom rigour.
     - The FFTW version.
     - The name of the node "owning" the wisdom in the case of
-      fftw_wisdom_share being True. Here a node is said to own the
+      fftw_wisdom_share being False. Here a node is said to own the
       wisdom if it hosts the majority of the processes. A more elaborate
       key like the complete MPI layout is of no use, as FFTW wisdom is
       really generated on each process, after which the wisdom of one is
       chosen arbitrarily as the wisdom to stick with.
-      When fftw_wisdom_share is False, this part of the key is constant.
+      When fftw_wisdom_share is True, this part of the key is constant.
     """
     global fftw_version, wisdom_owner
     # The master process constructs the file name

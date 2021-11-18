@@ -31,7 +31,7 @@ render2D_select = {
     'all': {'data': False, 'image': True, 'terminal image': True},
 }
 
-# Numerical parameters
+# Numerics
 boxsize = 200*Mpc/h
 potential_options = {
     'gridsize': {

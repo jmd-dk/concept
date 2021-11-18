@@ -29,7 +29,7 @@ Copy the content below to a file named e.g. ``param/tutorial``:
        'powerspec': [a_begin, 0.3, 1],
    }
 
-   # Numerical parameters
+   # Numerics
    boxsize = 4*_size*Mpc/h
    potential_options = 2*_size
 
@@ -65,7 +65,7 @@ specifications. In doing so, we've made use of several helpful tricks:
   it is preferable for such helper variables to be named with a leading
   underscore ``_``, to separate them from actual parameters.
 
-* We have explicitly specified the directory for power spectra output in the
+* We have explicitly specified the directory for power spectrum output in the
   ``output_dirs`` parameter. The value is constructed using the magic ``path``
   and ``param`` variables, available to all parameter files. The ``path``
   variable holds absolute paths specified in the ``.path`` file.
@@ -105,7 +105,7 @@ specifications. In doing so, we've made use of several helpful tricks:
   :math:`h \equiv H_0/(100\, \text{km}\, \text{s}^{-1}\, \text{Mpc}^{-1})`
   inferred dynamically from the Hubble constant ``H0`` set further down.
 
-* The parameters ``Ωb`` and ``Ωcdm`` of course set the present amount of
+* The parameters ``Ωb`` and ``Ωcdm`` of course set the present amounts of
   baryons and cold dark matter, respectively. Together, these otherwise
   distinct species are collectively referred to as just *matter*. Thus,
   declaring the species to be ``'matter'`` in the ``initial_conditions``

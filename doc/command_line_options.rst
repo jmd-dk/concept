@@ -40,7 +40,7 @@ Help: ``-h``, ``--help``
 ........................
 Displays a short description of each command-line option and exits:
 
-.. code-block::
+.. code-block:: bash
 
    ./concept -h
 
@@ -371,12 +371,14 @@ does not mean anything to TORQUE/PBS, though).
 .. caution::
    Since the value ``--exclusive`` starts with '``-``', using
    ``-j --exclusive`` or ``-j "--exclusive"`` is not legal as the
-   parser registres ``--exclusive`` as a whole new (and non-existent)
+   parser registers ``--exclusive`` as a whole new (and non-existent)
    option to the ``concept`` script.
 
 The ``-j`` option may be specified multiple times.
 
 
+
+.. _no_watching:
 
 No watching: ``--no-watching``
 ..............................
@@ -454,7 +456,7 @@ Specifies a build directory to use:
    ./concept -b my_build
 
 If a build already exists in this directory and is up-to-date with the source
-in ``src``, it will be used. Otherwise the code will be (re)build within this
+in ``src``, it will be used. Otherwise, the code will be (re)build within this
 directory. If not specified, the ``build`` directory will be used.
 
 This option is handy if you need to maintain several builds of the code, e.g.
@@ -710,7 +712,7 @@ other main entry point.
 
 As an example, consider the ``hubble.py`` script below:
 
-.. code-block:: python
+.. code-block:: python3
    :caption: hubble.py
    :name: hubble
 
@@ -759,9 +761,11 @@ we can do
 
 
 
+.. _interactive:
+
 Interactive: ``-i``, ``--interactive``
 ......................................
-Normally when running ``concept``, you are send back to the system prompt once
+Normally when running ``concept``, you are sent back to the system prompt once
 the run has completed. You can use this option to instead end up in a live
 Python prompt, with the :ref:`main <main_entry_point>` scope available for
 exploration and further execution.
@@ -776,7 +780,7 @@ You could run a simulation interactively if you wanted to:
        -i \
        --pure-python
 
-.. code-block:: python
+.. code-block:: python3
 
    >>> output_times['a']['render2D'] = render2D_times['a'] = (1, )
    >>> timeloop()
@@ -803,7 +807,7 @@ something like
 
    ./concept -i --pure-python
 
-.. code-block:: python
+.. code-block:: python3
 
    >>> # 💭 What variables are available?
    >>> dir()

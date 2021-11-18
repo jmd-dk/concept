@@ -26,7 +26,7 @@ output_dirs = f'{path.output_dir}/{param}'
 output_times = {'powerspec': [a_begin, 0.5, 1]}
 powerspec_select = {'matter': True}
 
-# Numerical parameters
+# Numerics
 boxsize = 1024*Mpc
 potential_options = {
     'gridsize': {
@@ -64,6 +64,6 @@ class_params = {
     'l_max_ur'                         : 1000,
 }
 
-# Simulation options
+# Simulation
 primordial_amplitude_fixed = True  # Replace Gaussian noise with noise of fixed amplitude
 

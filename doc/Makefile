@@ -4,7 +4,7 @@ all-doc: publish
 
 # Import variables from the main makefile
 # (must be placed below main target).
-include ../src/Makefile
+include ../Makefile
 # Set heading text
 building = documentation
 
@@ -102,17 +102,27 @@ html: sphinx
 	    sed -i 's/.*Previous<.*//g' "$${filename}"; \
 	    sed -i 's/.*>Next .*//g' "$${filename}";    \
 	done
-	@sed -i 's/.*Previous<.*//g' "$(BUILDDIR)/html/tutorial/tutorial.html"  # first entry in tutorial
-	@sed -i 's/.*>Next .*//g'    "$(BUILDDIR)/html/tutorial/gadget.html"    # last  entry in tutorial
-	@sed -i 's/.*Previous<.*//g' "$(BUILDDIR)/html/parameters/parameters.html"         # first entry in parameters
-	@sed -i 's/.*>Next .*//g'    "$(BUILDDIR)/html/parameters/debugging_options.html"  # last  entry in parameters
+	@sed -i 's/.*Previous<.*//g' "$(BUILDDIR)/html/tutorial/tutorial.html"      # first entry in tutorial
+	@sed -i 's/.*>Next .*//g'    "$(BUILDDIR)/html/tutorial/gadget.html"        # last  entry in tutorial
+	@sed -i 's/.*Previous<.*//g' "$(BUILDDIR)/html/parameters/parameters.html"  # first entry in parameters
+	@sed -i 's/.*>Next .*//g'    "$(BUILDDIR)/html/parameters/debugging.html"   # last  entry in parameters
 	@for filename in "$(BUILDDIR)/html/utilities/"*.html; do \
 	    sed -i 's/.*Previous<.*//g' "$${filename}";          \
 	    sed -i 's/.*>Next .*//g' "$${filename}";             \
 	done
-	@# Convert all tables in the parameter sections to plain tables
-	@for filename in "$(BUILDDIR)/html/parameters/"*.html; do       \
-	    sed -i 's/<table class="docutils.*"/<table/g' $${filename}; \
+	@# Convert all tables in the parameter sections to plain tables,
+	@# all using the same widths.
+	@for filename in "$(BUILDDIR)/html/parameters/"*.html; do                                                                      \
+	    sed -i 's/<table class="docutils.*"/<table/g' "$${filename}";                                                              \
+	    pat='<col *style *=" *width *: *[0-9]*% *" *\/>';                                                                          \
+	    repl='<col style="width: W%" \/>';                                                                                         \
+	    f_tmp="$(BUILDDIR)/html/parameters/.tmp_$$(basename "$${filename}")";                                                      \
+	    cat "$${filename}"                                                                                                         \
+	        | tr '\n' '\f'                                                                                                         \
+	        | sed -e "s/$${pat} *\f *$${pat} *\f *$${pat} *\f *$${pat}/$${repl/W/4}\f$${repl/W/10}\f$${repl/W/4}\f$${repl/W/82}/g" \
+	        | tr '\f' '\n'                                                                                                         \
+	    > "$${f_tmp}";                                                                                                             \
+	    mv "$${f_tmp}" $${filename};                                                                                               \
 	done
 	@# Remove padding at the bottom of tabs
 	@(                                                                               \
@@ -165,8 +175,8 @@ publish: html clean-sphinx-publish
     clean-sphinx         \
 
 clean-sphinx-build:
-	$(RM) -r $(BUILDDIR)
+	$(RM) -r "$(BUILDDIR)"
 clean-sphinx-publish:
-	$(RM) -r $(PUBLISHDIR)/{.[!.git],}*
+	$(RM) -r "$(PUBLISHDIR)"/{.[!.git],}*
 clean-sphinx: clean-sphinx-build clean-sphinx-publish
 

@@ -49,7 +49,6 @@ import interactions
 @cython.header(
     # Locals
     a='double',
-    autosave_filename=str,
     autosave_time='double',
     bottleneck=str,
     component='Component',
@@ -59,8 +58,10 @@ import interactions
     dump_times=list,
     dump_times_a=set,
     dump_times_t=set,
+    initial_time_step='Py_ssize_t',
     interaction_name=str,
     output_filenames=dict,
+    output_filenames_autosave=dict,
     recompute_Δt_max='bint',
     static_timestepping_func=object,  # callable or None
     subtiling='Tiling',
@@ -77,8 +78,10 @@ import interactions
     time_step_type=str,
     timespan='double',
     Δt='double',
+    Δt_autosave='double',
     Δt_backup='double',
     Δt_begin='double',
+    Δt_begin_autosave='double',
     Δt_min='double',
     Δt_max='double',
     Δt_print='double',
@@ -97,15 +100,43 @@ def timeloop():
     # Determine and set the correct initial values for the cosmic time
     # universals.t and the scale factor universals.a = a(universals.t).
     init_time()
-    # Get the initial components.
-    # These may be loaded from a snapshot or generated from scratch.
-    masterprint('Setting up initial conditions ...')
-    components = get_initial_conditions()
+    # Check if an autosaved snapshot exists for the current
+    # parameter file. If not, the initial_time_step will be 0.
+    (
+        initial_time_step,
+        Δt_begin_autosave,
+        Δt_autosave,
+        output_filenames_autosave,
+    ) = check_autosave()
+    # Load initial conditions or an autosaved snapshot
+    if initial_time_step == 0:
+        # Get the initial components.
+        # These may be loaded from a snapshot or generated from scratch.
+        masterprint('Setting up initial conditions ...')
+        components = get_initial_conditions()
+    else:
+        # Load autosaved snapshot as the initial conditions.
+        masterprint('Setting up simulation from autosaved snapshot ...')
+        components = get_initial_conditions(autosave_filename)
     if not components:
         masterprint('done')
         return
     # Get the dump times and the output filename patterns
-    dump_times, output_filenames = prepare_for_output(components)
+    dump_times, output_filenames = prepare_for_output(
+        components,
+        ignore_past_times=(initial_time_step > 0),
+    )
+    if initial_time_step > 0:
+        # Reassign output_filenames and remove old dump times
+        output_filenames = output_filenames_autosave
+        dump_times_updated = []
+        for dump_time in dump_times:
+            time_param = dump_time.time_param
+            time_value_dump    = {'t': dump_time .t, 'a': dump_time .a}[time_param]
+            time_value_current = {'t': universals.t, 'a': universals.a}[time_param]
+            if time_value_dump >= time_value_current:
+                dump_times_updated.append(dump_time)
+        dump_times = dump_times_updated
     # Stow away passive components into a separate (global) list.
     # We should always keep it such that
     #   components + passive_components
@@ -130,24 +161,23 @@ def timeloop():
             return
     # Set initial time step size
     static_timestepping_func = prepare_static_timestepping()
-    if Δt_begin_autosave == -1:
-        # Including the current (initial) t in initial_fac_times in
-        # order to scale Δt_max by Δt_initial_fac,
-        # making it appropriate for use as Δt_begin.
-        initial_fac_times.add(universals.t)
-        Δt_max, bottleneck = get_base_timestep_size(components, static_timestepping_func)
-        Δt_begin = Δt_max
-        # We always want the simulation time span to be at least
-        # one whole Δt_period long.
-        timespan = dump_times[len(dump_times) - 1].t - universals.t
-        if Δt_begin > timespan/Δt_period:
-            Δt_begin = timespan/Δt_period
-        # We need at least a whole base time step before the first dump
-        if Δt_begin > dump_times[0].t - universals.t:
-            Δt_begin = dump_times[0].t - universals.t
-        Δt = Δt_begin
-    else:
-        # Set Δt_begin and Δt to the autosaved values
+    # Including the current (initial) t in initial_fac_times in
+    # order to scale Δt_max by Δt_initial_fac,
+    # making it appropriate for use as Δt_begin.
+    initial_fac_times.add(universals.t)
+    Δt_max, bottleneck = get_base_timestep_size(components, static_timestepping_func)
+    Δt_begin = Δt_max
+    # We always want the simulation time span to be at least
+    # one whole Δt_period long.
+    timespan = dump_times[len(dump_times) - 1].t - universals.t
+    if Δt_begin > timespan/Δt_period:
+        Δt_begin = timespan/Δt_period
+    # We need at least a whole base time step before the first dump
+    if Δt_begin > dump_times[0].t - universals.t:
+        Δt_begin = dump_times[0].t - universals.t
+    Δt = Δt_begin
+    # Set Δt_begin and Δt to the autosaved values
+    if initial_time_step > 0:
         Δt_begin = Δt_begin_autosave
         Δt = Δt_autosave
     # Minimum allowed time step size.
@@ -167,11 +197,11 @@ def timeloop():
     # The main time loop
     masterprint('Beginning of main time loop')
     time_step = initial_time_step
+    time_step_last_sync = initial_time_step
     time_step_previous = time_step - 1
     bottleneck = ''
     time_step_type = 'init'
     sync_time = ထ
-    time_step_last_sync = 0
     recompute_Δt_max = True
     Δt_backup = -1
     for dump_index, dump_time in enumerate(dump_times):
@@ -353,7 +383,7 @@ def timeloop():
                     with unswitch:
                         if autosave_interval > 0:
                             if bcast(time() - autosave_time > ℝ[autosave_interval/units.s]):
-                                autosave(components, time_step, Δt, Δt_begin)
+                                autosave(components, time_step, Δt_begin, Δt, output_filenames)
                                 autosave_time = time()
                     # Dump output if at dump time
                     if universals.t == dump_time.t:
@@ -425,11 +455,14 @@ def timeloop():
     # All dumps completed; end of main time loop
     print_timestep_footer(components)
     print_timestep_heading(time_step, Δt, bottleneck, components, end=True)
-    # Remove dumped autosave snapshot, if any
-    if master:
-        autosave_filename = f'{autosave_dir}/autosave_{jobid}.hdf5'
-        if os.path.isfile(autosave_filename):
-            os.remove(autosave_filename)
+    # Remove dumped autosave, if any
+    if master and os.path.isdir(autosave_subdir):
+        masterprint('Removing autosave ...')
+        shutil.rmtree(autosave_subdir)
+        if not os.listdir(autosave_dir):
+            shutil.rmtree(autosave_dir)
+        masterprint('done')
+
 # Set of (cosmic) times at which the maximum time step size Δt_max
 # should be further scaled by Δt_initial_fac, which are at the initial
 # time step as well as right after component activations. This set is
@@ -1779,93 +1812,185 @@ def activate_terminate(components, a, Δt, act='activate terminate'):
     # Arguments
     components=list,
     time_step='Py_ssize_t',
-    Δt='double',
     Δt_begin='double',
+    Δt='double',
+    output_filenames=dict,
     # Locals
-    autosave_param_filename=str,
-    autosave_filename=str,
-    remaining_output_times=dict,
-    param_lines=list,
-    present='double',
-    time_param=str,
+    autosave_auxiliary_filename_new=str,
+    autosave_auxiliary_filename_old=str,
+    autosave_filename_new=str,
+    autosave_filename_old=str,
+    lines=list,
     returns='void',
 )
-def autosave(components, time_step, Δt, Δt_begin):
+def autosave(components, time_step, Δt_begin, Δt, output_filenames):
     masterprint('Autosaving ...')
-    autosave_filename        = f'{autosave_dir}/autosave_{jobid}.hdf5'
-    autosave_param_filename = f'{path.param_dir}/autosave_{jobid}.param'
-    # Save parameter file corresponding to the snapshot
+    # Temporary file names
+    autosave_filename_old = autosave_filename.removesuffix('.hdf5') + '_old.hdf5'
+    autosave_filename_new = autosave_filename.removesuffix('.hdf5') + '_new.hdf5'
+    autosave_auxiliary_filename_old = f'{autosave_auxiliary_filename}_old'
+    autosave_auxiliary_filename_new = f'{autosave_auxiliary_filename}_new'
+    # Save auxiliary file containing information
+    # about the current time stepping.
     if master:
-        masterprint(f'Writing parameter file "{autosave_param_filename}" ...')
-        with disable_numpy_summarization():
-            param_lines = []
-            # Header
-            param_lines += [
-                f'# This parameter file is the result of an autosave of job {jobid},',
-                f'# which uses the parameter file "{param}".',
-                f'# The autosave was carried out {datetime.datetime.now()}.',
-                f'# The following is a copy of this original parameter file.',
-            ]
-            param_lines += ['']*2
-            # Original parameter file
-            param_lines += param_file_content.split('\n')
-            param_lines += ['']*2
-            # Initial condition snapshot
-            param_lines += [
-                f'# The autosaved snapshot file was saved to',
-                f'initial_conditions = "{autosave_filename}"',
-            ]
-            # Present time
-            param_lines.append(f'# The autosave happened at time')
-            if enable_Hubble:
-                param_lines.append(f'a_begin = {universals.a:.16e}')
-            else:
-                param_lines.append(f't_begin = {universals.t:.16e}*{unit_time}')
-            # Time step, current and original time step size
-            param_lines += [
-                f'# The time step and time step size was',
-                f'initial_time_step = {time_step + 1}',
-                f'{unicode("Δt_autosave")} = {Δt:.16e}*{unit_time}',
-                f'# The time step size at the beginning of the simulation was',
-                f'{unicode("Δt_begin_autosave")} = {Δt_begin:.16e}*{unit_time}',
-            ]
-            # All output times
-            param_lines += [
-                f'# All output times',
-                f'output_times_full = {output_times}',
-            ]
-            # Remaining output times
-            remaining_output_times = {'a': {}, 't': {}}
-            for time_param, present in zip(('a', 't'), (universals.a, universals.t)):
-                for output_kind, output_time in output_times[time_param].items():
-                    remaining_output_times[time_param][output_kind] = [
-                        ot for ot in output_time if ot >= present
-                    ]
-            param_lines += [
-                f'# Remaining output times',
-                f'output_times = {remaining_output_times}',
-            ]
-        # Write to parameter file
+        os.makedirs(autosave_subdir, exist_ok=True)
+    if master:
+        lines = []
+        # Header
+        lines += [
+            f'# This file is the result of an autosave of job {jobid},',
+            f'# with parameter file "{param}".',
+            f'# The autosave was carried out {datetime.datetime.now()}.',
+            f'# The autosaved snapshot file was saved to',
+            f'# "{autosave_filename}"',
+        ]
+        # Present time
+        lines.append('')
+        lines.append(f'# The autosave happened at time')
+        lines.append(f't = {universals.t:.16e}  # {unit_time}')
+        if enable_Hubble:
+            lines.append(f'a = {universals.a:.16e}')
+        # Time step
+        lines.append('')
+        lines += [
+            f'# The time step was',
+            f'time_step = {time_step}',
+        ]
+        # Original current time step size
+        lines.append('')
+        lines += [
+            f'# The time step size was',
+            f'{unicode("Δt")} = {Δt:.16e}  # {unit_time}',
+        ]
+        # Original time step size
+        lines.append('')
+        lines += [
+            f'# The time step size at the beginning of the simulation was',
+            f'{unicode("Δt_begin")} = {Δt_begin:.16e}  # {unit_time}',
+        ]
+        # The patterns of the output filenames
+        lines.append('')
+        lines += [
+            f'# The output filename patterns was',
+            f'output_filenames = {repr(output_filenames)}',
+        ]
+        # Write out auxiliary file
         with open_file(
-            autosave_param_filename,
+            autosave_auxiliary_filename_new,
             mode='w', encoding='utf-8',
-        ) as autosave_param_file:
-            print('\n'.join(param_lines), file=autosave_param_file)
-        masterprint('done')
+        ) as autosave_auxiliary_file:
+            print('\n'.join(lines), file=autosave_auxiliary_file)
+    Barrier()
     # Save CO𝘕CEPT snapshot. Include all components regardless
     # of the snapshot_select['save'] user parameter.
-    save(components, autosave_filename, snapshot_type='concept', save_all_components=True)
-    # If this simulation run was started from an autosave snapshot
-    # with a different name from the one just saved, remove this
-    # now superfluous autosave snapshot.
+    save(components, autosave_filename_new, snapshot_type='concept', save_all_components=True)
+    # Cleanup, always keeping a set of autosave files intact
     if master:
-        if (    isinstance(initial_conditions, str)
-            and re.search(r'^autosave_\d+\.hdf5$', os.path.basename(initial_conditions))
-            and os.path.abspath(initial_conditions) != os.path.abspath(autosave_filename)
-            and os.path.isfile(initial_conditions)
-        ):
-            os.remove(initial_conditions)
+        # Rename old versions of the autosave files
+        if os.path.isfile(autosave_auxiliary_filename):
+            os.replace(
+                autosave_auxiliary_filename,
+                autosave_auxiliary_filename_old,
+            )
+        if os.path.isfile(autosave_filename):
+            os.replace(
+                autosave_filename,
+                autosave_filename_old,
+            )
+        # Rename new versions of the autosave files
+        if os.path.isfile(autosave_auxiliary_filename_new):
+            os.replace(
+                autosave_auxiliary_filename_new,
+                autosave_auxiliary_filename,
+            )
+        if os.path.isfile(autosave_filename_new):
+            os.replace(
+                autosave_filename_new,
+                autosave_filename,
+            )
+        # Remove old versions of the autosave files
+        if os.path.isfile(autosave_auxiliary_filename_old):
+            os.remove(autosave_auxiliary_filename_old)
+        if os.path.isfile(autosave_filename_old):
+            os.remove(autosave_filename_old)
     masterprint('done')
+
+# Function checking for the existence of an autosaved snapshot and
+# auxiliary file belonging to this run. If so, the auxiliary file will
+# be read and its contents will be returned. The universal time will
+# also be set.
+@cython.header(
+    # Locals
+    auxiliary=dict,
+    content=str,
+    output_filenames=dict,
+    time_step='Py_ssize_t',
+    use_autosave='bint',
+    Δt='double',
+    Δt_begin='double',
+    returns=tuple,
+)
+def check_autosave():
+    if master:
+        # Values of variables if no autosave is found
+        t = universals.t
+        a = universals.a
+        time_step = 0
+        Δt_begin = -1
+        Δt = -1
+        output_filenames = {}
+        # Having autosave_interval == 0 disables loading of autosaves
+        use_autosave = (autosave_interval > 0)
+        # Check existence of autosave files
+        if use_autosave:
+            autosave_exists = os.path.exists(autosave_filename)
+            autosave_auxiliary_exists = os.path.isfile(autosave_auxiliary_filename)
+            if not autosave_exists or not autosave_auxiliary_exists:
+                use_autosave = False
+            if autosave_exists and not autosave_auxiliary_exists:
+                masterwarn(
+                    f'Autosaved snapshot "{autosave_filename}" exists but matching auxiliary file '
+                    f'"{autosave_auxiliary_filename}" does not. This autosave will be ignored.'
+                )
+            elif not autosave_exists and autosave_auxiliary_exists:
+                masterwarn(
+                    f'Autosaved auxiliary file "{autosave_auxiliary_filename}" exists but matching '
+                    f'snapshot "{autosave_filename}" does not. This autosave will be ignored.'
+                )
+        if use_autosave:
+            with open_file(
+                autosave_auxiliary_filename,
+                mode='r', encoding='utf-8',
+            ) as autosave_auxiliary_file:
+                content = autosave_auxiliary_file.read()
+            auxiliary = {}
+            try:
+                exec(content, auxiliary)
+            except:
+                traceback.print_exc()
+                use_autosave = False
+            if not use_autosave:
+                masterwarn(
+                    f'Failed to parse autosaved auxiliary file "{autosave_auxiliary_filename}". '
+                    f'This autosave will be ignored.',
+                )
+        if use_autosave:
+            time_step = auxiliary['time_step']
+            t = auxiliary['t']
+            if 'a' in auxiliary:
+                a = auxiliary['a']
+            Δt_begin = auxiliary[unicode('Δt_begin')]
+            Δt = auxiliary[unicode('Δt')]
+            output_filenames = auxiliary['output_filenames']
+        # Broadcast results
+        bcast((t, a, time_step, Δt_begin, Δt, output_filenames))
+    else:
+        t, a, time_step, Δt_begin, Δt, output_filenames = bcast()
+    # Apply starting time
+    universals.time_step = time_step
+    universals.t = t
+    universals.a = a
+    return time_step, Δt_begin, Δt, output_filenames
 
 # Function which prints out basic information
 # about the current time step.
@@ -2064,8 +2189,8 @@ imbalances = empty(nprocs, dtype=C2np['double']) if master else None
 
 # Function which checks the sanity of the user supplied output times,
 # creates output directories and defines the output filename patterns.
-@cython.header()
-def prepare_for_output(components=None):
+@cython.pheader()
+def prepare_for_output(components=None, ignore_past_times=False):
     """As this function uses universals.t and universals.a as the
     initial values of the cosmic time and the scale factor, you must
     initialise these properly before calling this function.
@@ -2077,7 +2202,7 @@ def prepare_for_output(components=None):
     # attributes of the components, together with the current and the
     # final output time.
     if components:
-        dump_times, output_filenames = prepare_for_output()
+        dump_times, output_filenames = prepare_for_output(ignore_past_times=ignore_past_times)
         a_final = dump_times[len(dump_times) - 1].a
         if a_final is None:
             a_final = ထ
@@ -2091,20 +2216,21 @@ def prepare_for_output(components=None):
         for time_param in ('a', 't'):
             activation_termination_times[time_param] = output_times[time_param]['life']
     # Check that the output times are legal
-    for time_param, at_begin in zip(('a', 't'), (universals.a, universals.t)):
-        for output_kind, output_time in output_times[time_param].items():
-            if output_time and np.min(output_time) < at_begin:
-                message = [
-                    f'Cannot produce a {output_kind} at {time_param} '
-                    f'= {np.min(output_time):.6g}'
-                ]
-                if time_param == 't':
-                    message.append(f' {unit_time}')
-                message.append(f', as the simulation starts at {time_param} = {at_begin:.6g}')
-                if time_param == 't':
-                    message.append(f' {unit_time}')
-                message.append('.')
-                abort(''.join(message))
+    if not ignore_past_times:
+        for time_param, at_begin in zip(('a', 't'), (universals.a, universals.t)):
+            for output_kind, output_time in output_times[time_param].items():
+                if output_time and np.min(output_time) < at_begin:
+                    message = [
+                        f'Cannot produce a {output_kind} at {time_param} '
+                        f'= {np.min(output_time):.6g}'
+                    ]
+                    if time_param == 't':
+                        message.append(f' {unit_time}')
+                    message.append(f', as the simulation starts at {time_param} = {at_begin:.6g}')
+                    if time_param == 't':
+                        message.append(f' {unit_time}')
+                    message.append('.')
+                    abort(''.join(message))
     # Create output directories if necessary
     if master:
         for time_param in ('a', 't'):
@@ -2126,14 +2252,7 @@ def prepare_for_output(components=None):
     # the same naming convention.
     output_filenames = {}
     for time_param, at_begin in zip(('a', 't'), (universals.a, universals.t)):
-        # Here the output_times_full dict is used rather than just the
-        # output_times dict. These dicts are equal, except after
-        # starting from an autosave, where output_times will contain
-        # the remaining dump times only, whereas output_times_full
-        # will contain all the original dump times.
-        # We use output_times_full so as to stick to the original naming
-        # format used before restarting from the autosave.
-        for output_kind, output_time in output_times_full[time_param].items():
+        for output_kind, output_time in output_times[time_param].items():
             # This kind of output does not matter if
             # it should never be dumped to the disk.
             if not output_time or output_kind not in output_dirs:
@@ -2321,6 +2440,10 @@ if jobid != -1:
         # as defined by the special_params dict.
         delegate()
     else:
+        # Set paths to autosaved snapshot and auxiliary file
+        autosave_subdir = f'{autosave_dir}/{os.path.basename(param)}'
+        autosave_filename = f'{autosave_subdir}/snapshot.hdf5'
+        autosave_auxiliary_filename = f'{autosave_subdir}/auxiliary'
         # Run the time loop
         timeloop()
         # Simulation done

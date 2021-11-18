@@ -27,7 +27,7 @@ output_dirs = {  # Directories for storing output
     'powerspec': ...,
     'render2D' : ...,
     'render3D' : ...,
-    'autosave' : path.ic_dir,
+    'autosave' : f'{path.ic_dir}/autosave',
 }
 output_bases = {  # File basenames of output
     'snapshot' : 'snapshot',
@@ -79,12 +79,12 @@ gadget_snapshot_params = {  # Specifications for output GADGET snapshots
     },
     'Nall high word': 'NallHW',  # Place to store high word part of Nall
     'header': {},                # Header field values
+    'settle': 0,                 # Settle for one or the other reported block sizes in case of disagreement
     'units': {                   # Unit system used when reading/writing Gadget snapshots
         'length'  : 'kpc/h',
         'velocity': 'km/s',
         'mass'    : '10¹⁰ m☉/h',
     },
-    'settle': 0,                 # Settle for one or the other reported block sizes in case of disagreement
 }
 snapshot_wrap = False  # Wrap particles around the box upon snapshot read-in, allowing for out of bounce particles
 life_output_order = (  # Ordering of component activations/terminations relative to output dumps
@@ -94,7 +94,7 @@ class_plot_perturbations = False  # Plot CLASS perturbations?
 class_extra_background = {}       # Extra CLASS background variables to dump
 class_extra_perturbations = {}    # Extra CLASS perturbations to dump
 
-# Numerical parameters
+# Numerics
 boxsize = 256*Mpc/h  # Linear size of the simulation box
 potential_options = {  # Specifications for potential computations
     'gridsize': {  # Linear potential grid size
@@ -286,7 +286,7 @@ select_softening_length = {  # Gravitational softening length for each component
     'particles': '0.03*boxsize/cbrt(N)',
 }
 
-# Simulation options
+# Simulation
 Δt_base_background_factor = 1       # This scales the 'background' time step limiters
 Δt_base_nonlinear_factor = 1        # This scales the 'non-linear' time step limiters
 Δt_increase_max_factor = inf        # The maximum factor by which Δt is allowed to increase
@@ -385,12 +385,12 @@ render3D_colors = {  # Colour to use in 3D renders for each component
 render3D_bgcolor = 'black'  # Background colour of 3D renders
 render3D_resolution = 1080  # The height and width of 3D renders
 
-# System of units
+# Units
 unit_length = 'Mpc'    # Physical length corresponding to a numerical value of 1.0
 unit_time = 'Gyr'      # Physical time   corresponding to a numerical value of 1.0
 unit_mass = '10¹⁰ m☉'  # Physical mass   corresponding to a numerical value of 1.0
 
-# Debugging options
+# Debugging
 print_load_imbalance = True                  # Print the CPU load imbalance after each time step?
 allow_snapshot_multifile_singleload = False  # Allow loading just a single file of multi-file snapshots?
 particle_reordering = True                   # Allow in-memory particle reordering?

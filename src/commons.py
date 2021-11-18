@@ -1493,11 +1493,14 @@ def unformat_unit(unit_str):
             unit_list[i] = '*'
     unit_str = ''.join(unit_list)
     # Various replacements
-    mapping = {'×'           : '*',
-               '^'           : '**',
-               unicode('m☉') : 'm_sun',
-               unicode('m_☉'): 'm_sun',
-               }
+    mapping = {
+        '×'           : '*',
+        '^'           : '**',
+        unicode('m☉') : 'm_sun',
+        unicode('m_☉'): 'm_sun',
+        asciify('m☉') : 'm_sun',
+        asciify('m_☉'): 'm_sun',
+    }
     for pat, rep in mapping.items():
         unit_str = unit_str.replace(pat, rep)
     # Convert superscript to power
@@ -1545,6 +1548,9 @@ def eval_unit(unit_str, namespace=None, fail_on_error=True):
         **namespace,
         unicode('π'): π,
         asciify('π'): π,
+        unicode('τ'): τ,
+        asciify('τ'): τ,
+        'tau': τ,
     }
     namespace.pop('min')
     namespace.pop('max')
@@ -1677,12 +1683,14 @@ param_file_content += '\n'.join([
 cython.declare(
     machine_ϵ='double',
     π='double',
+    τ='double',
     ρ_vacuum='double',
     ထ='double',
     NaN='double',
 )
 machine_ϵ = float(np.finfo(C2np['double']).eps)
 π = float(np.pi)
+τ = 2*π
 ρ_vacuum = float(1e+2*machine_ϵ)
 ထ = float('inf')
 NaN = float('nan')  # Note: nan conflicts with the nan() function of C's math lib and NAN conflicts with the C macro
@@ -1716,7 +1724,7 @@ unit_relations['s'      ] = 1/60           *unit_relations['minutes']
 unit_relations['kpc'    ] = 1e+3           *unit_relations['pc'     ]
 unit_relations['Mpc'    ] = 1e+6           *unit_relations['pc'     ]
 unit_relations['Gpc'    ] = 1e+9           *unit_relations['pc'     ]
-unit_relations['AU'     ] = π/(60*60*180)  *unit_relations['pc'     ]  # IAU exact definition, 2015
+unit_relations['AU'     ] = τ/(60*60*360)  *unit_relations['pc'     ]  # IAU exact definition, 2015
 unit_relations['m'      ] = 1/149597870700 *unit_relations['AU'     ]  # IAU exact definition, 2012
 unit_relations['mm'     ] = 1e-3           *unit_relations['m'      ]
 unit_relations['cm'     ] = 1e-2           *unit_relations['m'      ]
@@ -1746,7 +1754,7 @@ unit_relations['TeV'    ] = 1e+12          *unit_relations['eV'     ]
 # Add additional units/constants
 unit_relations['light_speed'] = unit_relations['c'] = unit_relations['ly']/unit_relations['yr']
 unit_relations['h_bar'] = unit_relations['hbar'] = unit_relations[unicode('ħ')] = unit_relations[asciify('ħ')] = (
-    6.62607015e-34/(2*π)                                               # Exact definition, 2019
+    6.62607015e-34/τ                                                   # Exact definition, 2019
     *unit_relations['kg']*unit_relations['m']**2/unit_relations['s']
 )
 unit_relations['G_Newton'] = unit_relations['G'] = (                   # Particle data group, 2019
@@ -1818,12 +1826,17 @@ def construct_user_params_namespace(params_iteration):
         'bcast'          : bcast,
         'call_openmp_lib': call_openmp_lib,
         # Constants
-        'π'                 : π,
+        asciify('π')        : π,
         unicode('π')        : π,
-        'machine_ϵ'         : machine_ϵ,
+        asciify('τ')        : τ,
+        unicode('τ')        : τ,
+        'tau'               : τ,
+        asciify('machine_ϵ'): machine_ϵ,
         unicode('machine_ϵ'): machine_ϵ,
+        asciify('machine_ε'): machine_ϵ,
+        unicode('machine_ε'): machine_ϵ,
         'eps'               : machine_ϵ,
-        'ထ'                 : ထ,
+        asciify('ထ')        : ထ,
         unicode('ထ')        : ထ,
         # Print and abort functions
         'fancyprint' : fancyprint,
@@ -1907,9 +1920,9 @@ cython.declare(
     unit_length=str,
     unit_mass=str,
 )
-unit_time   = unformat_unit(user_params.get('unit_time'  , 'Gyr'        ))
-unit_length = unformat_unit(user_params.get('unit_length', 'Mpc'        ))
-unit_mass   = unformat_unit(user_params.get('unit_mass'  , '1e+10*m_sun'))
+unit_time   = unformat_unit(user_params.get('unit_time'  , 'Gyr'    ))
+unit_length = unformat_unit(user_params.get('unit_length', 'Mpc'    ))
+unit_mass   = unformat_unit(user_params.get('unit_mass'  , '10¹⁰ m☉'))
 # Construct a struct containing the values of all units
 units, units_dict = build_struct(
     # Values of basic units,
@@ -2145,7 +2158,9 @@ class DictWithCounter(dict):
         for key in self.keys():
             key = unicode(key)
             if self.counter[key] < 1 and not key.startswith('_'):
-                list_of_unused.append(key)
+                val = super().__getitem__(key)
+                if not isinstance(val, types.ModuleType):
+                    list_of_unused.append(key)
         return list_of_unused
 # Dict-like object constituting the namespace for the statements
 # in the user specified parameter file.
@@ -2158,9 +2173,24 @@ user_params.update({
     'units': types.SimpleNamespace(**units_dict),
     # Physical constants
     'light_speed': light_speed,
-    'ħ'          : ħ,
+    'c'          : light_speed,
+    asciify('ħ') : ħ,
+    unicode('ħ') : ħ,
     'h_bar'      : ħ,
     'G_Newton'   : G_Newton,
+    # Constants
+    asciify('π')        : π,
+    unicode('π')        : π,
+    asciify('τ')        : τ,
+    unicode('τ')        : τ,
+    'tau'               : τ,
+    asciify('machine_ϵ'): machine_ϵ,
+    unicode('machine_ϵ'): machine_ϵ,
+    asciify('machine_ε'): machine_ϵ,
+    unicode('machine_ε'): machine_ϵ,
+    'eps'               : machine_ϵ,
+    asciify('ထ')        : ထ,
+    unicode('ထ')        : ထ,
     # Inferred parameters (values not yet inferred)
     **inferred_params,
 })
@@ -2360,10 +2390,6 @@ cython.declare(
     enable_class_background='bint',
     # Hidden parameters
     special_params=dict,
-    output_times_full=dict,
-    initial_time_step='Py_ssize_t',
-    Δt_begin_autosave='double',
-    Δt_autosave='double',
 )
 # Input/output
 initial_conditions = user_params.get('initial_conditions', '')
@@ -2383,7 +2409,7 @@ for kind in output_kinds:
         output_dirs[kind] = path['output_dir']
 output_dirs['autosave'] = str(output_dirs.get('autosave', ''))
 if not output_dirs['autosave']:
-    output_dirs['autosave'] = path['ic_dir']
+    output_dirs['autosave'] = path['ic_dir'] + '/autosave'
 output_dirs = {key: sensible_path(path) for key, path in output_dirs.items()}
 user_params['output_dirs'] = output_dirs
 output_bases = dict(user_params.get('output_bases', {}))
@@ -2394,10 +2420,7 @@ user_params['output_bases'] = output_bases
 output_times = dict(user_params.get('output_times', {}))
 replace_ellipsis(output_times)
 user_params['output_times'] = output_times
-autosave_interval = float(
-    0 if not user_params.get('autosave_interval', 0)
-      else   user_params.get('autosave_interval', 0)
-)
+autosave_interval = float(user_params.get('autosave_interval', ထ))
 user_params['autosave_interval'] = autosave_interval
 snapshot_select = {}
 if 'snapshot_select' in user_params:
@@ -2482,12 +2505,12 @@ gadget_snapshot_params_defaults = {
     },
     'Nall high word': 'NallHW',
     'header': {},
+    'settle': 0,
     'units': {
         'length'  : 'kpc/h',
         'velocity': 'km/s',
         'mass'    : '10¹⁰ m☉/h',
     },
-    'settle': 0,
 }
 gadget_snapshot_params = dict(user_params.get('gadget_snapshot_params', {}))
 for key, val in gadget_snapshot_params.copy().items():
@@ -2520,6 +2543,7 @@ for key, val in gadget_snapshot_params['dataformat'].items():
             f'listed in gadget_snapshot_params["dataformat"]'
         )
     gadget_snapshot_params_dataformat[valid_key] = val
+replace_ellipsis(gadget_snapshot_params_dataformat)
 for key, val in gadget_snapshot_params_defaults['dataformat'].items():
     gadget_snapshot_params_dataformat.setdefault(key, val)
 for key, val in gadget_snapshot_params_dataformat.items():
@@ -2565,6 +2589,7 @@ for key in gadget_snapshot_params.copy():
         break
 if not gadget_snapshot_params['header']:
     gadget_snapshot_params['header'] = {}
+replace_ellipsis(gadget_snapshot_params['header'])
 gadget_snapshot_params_units = {}
 for key, val in gadget_snapshot_params['units'].items():
     for valid_key in gadget_snapshot_params_defaults['units'].keys():
@@ -3271,7 +3296,7 @@ random_seed = to_int(user_params.get('random_seed', 0))
 user_params['random_seed'] = random_seed
 primordial_amplitude_fixed = bool(user_params.get('primordial_amplitude_fixed', False))
 user_params['primordial_amplitude_fixed'] = primordial_amplitude_fixed
-primordial_phase_shift = np.mod(float(user_params.get('primordial_phase_shift', 0)), 2*π)
+primordial_phase_shift = np.mod(float(user_params.get('primordial_phase_shift', 0)), τ)
 user_params['primordial_phase_shift'] = primordial_phase_shift
 cell_centered = bool(user_params.get('cell_centered', True))
 user_params['cell_centered'] = cell_centered
@@ -3528,14 +3553,6 @@ user_params['enable_class_background'] = enable_class_background
 # Additional, hidden parameters (parameters not supplied by the user)
 special_params = dict(user_params.get('special_params', {}))
 user_params['special_params'] = special_params
-output_times_full = dict(user_params.get('output_times_full', {}))
-user_params['output_times_full'] = output_times_full
-initial_time_step = to_int(user_params.get('initial_time_step', 0))
-user_params['initial_time_step'] = initial_time_step
-Δt_begin_autosave = float(user_params.get('Δt_begin_autosave', -1))
-user_params['Δt_begin_autosave'] = Δt_begin_autosave
-Δt_autosave = float(user_params.get('Δt_autosave', -1))
-user_params['Δt_autosave'] = Δt_autosave
 
 
 
@@ -3554,7 +3571,7 @@ universals, universals_dict = build_struct(
     # Current scale factor, cosmic time and time step
     a=('double', a_begin),
     t=('double', t_begin),
-    time_step=('Py_ssize_t', initial_time_step),
+    time_step=('Py_ssize_t', 0),
     # Initial time of simulation
     a_begin=('double', a_begin),
     t_begin=('double', t_begin),
@@ -3776,25 +3793,32 @@ units_dict.setdefault(        'boxsize'  , boxsize )
 units_dict.setdefault(        't_begin'  , t_begin )
 units_dict.setdefault(        'Ωb'       , Ωb      )
 units_dict.setdefault(unicode('Ωb')      , Ωb      )
-units_dict.setdefault(        'Ωcdm'     , Ωcdm    )
+units_dict.setdefault(asciify('Ωcdm')    , Ωcdm    )
 units_dict.setdefault(unicode('Ωcdm')    , Ωcdm    )
-units_dict.setdefault(        'Ωm'       , Ωm      )
+units_dict.setdefault(asciify('Ωm')      , Ωm      )
 units_dict.setdefault(unicode('Ωm')      , Ωm      )
-units_dict.setdefault(        'ρ_vacuum' , ρ_vacuum)
+units_dict.setdefault(asciify('ρ_vacuum'), ρ_vacuum)
 units_dict.setdefault(unicode('ρ_vacuum'), ρ_vacuum)
-units_dict.setdefault(        'ρ_crit'   , ρ_crit  )
+units_dict.setdefault(asciify('ρ_crit')  , ρ_crit  )
 units_dict.setdefault(unicode('ρ_crit')  , ρ_crit  )
-units_dict.setdefault(        'ρ_mbar'   , ρ_mbar  )
+units_dict.setdefault(asciify('ρ_mbar')  , ρ_mbar  )
 units_dict.setdefault(unicode('ρ_mbar')  , ρ_mbar  )
 # Add dimensionless sizes
 units_dict.setdefault('ewald_gridsize'     , ewald_gridsize     )
 units_dict.setdefault('render3D_resolution', render3D_resolution)
 # Add numbers
-units_dict.setdefault(        'machine_ϵ' , machine_ϵ)
+units_dict.setdefault(asciify('machine_ϵ'), machine_ϵ)
 units_dict.setdefault(unicode('machine_ϵ'), machine_ϵ)
-units_dict.setdefault(        'π'         , π        )
+units_dict.setdefault(asciify('machine_ε'), machine_ϵ)
+units_dict.setdefault(unicode('machine_ε'), machine_ϵ)
+units_dict.setdefault('eps'               , machine_ϵ)
+units_dict.setdefault(asciify('π')        , π        )
 units_dict.setdefault(unicode('π')        , π        )
-units_dict.setdefault(        'ထ'         , ထ        )
+units_dict.setdefault('pi'                , π        )
+units_dict.setdefault(asciify('τ')        , τ        )
+units_dict.setdefault(unicode('τ')        , τ        )
+units_dict.setdefault('tau'               , τ        )
+units_dict.setdefault(asciify('ထ')        , ထ        )
 units_dict.setdefault(unicode('ထ')        , ထ        )
 # Add everything from NumPy
 for key, val in vars(np).items():
@@ -4900,16 +4924,12 @@ render2D_times = {
 render3D_times = {
     time_param: output_times[time_param]['render3D'] for time_param in ('a', 't')
 }
-# If no output_times_full has been given (the normal case),
-# set this equal to output_times.
-if not output_times_full:
-    output_times_full = output_times
-    user_params['output_times_full'] = output_times_full
 # Warn about cosmological autosave interval
-if autosave_interval > 1*units.yr:
-    masterwarn(f'Autosaving will take place every {autosave_interval} {unit_time}. '
-               f'Have you forgotten to specify the unit of the "autosave_interval" parameter?'
-               )
+if autosave_interval > 1*units.yr and autosave_interval != ထ:
+    masterwarn(
+        f'Autosaving will take place every {autosave_interval} {unit_time} (real-world time!). '
+        f'Have you forgotten to specify the unit of the "autosave_interval" parameter?'
+    )
 if autosave_interval < 0:
     autosave_interval = 0
     user_params['autosave_interval'] = autosave_interval
@@ -4921,7 +4941,7 @@ for d in shortrange_params.values():
         if key == 'subtiling':
             if isinstance(val, str) and val != 'automatic':
                 abort(f'Failed to interpret subtiling "{val}"')
-# Replace h in power spectrum tophat
+# Replace h in power spectrum top-hat filter
 d = powerspec_options['tophat']
 for key, val in d.copy().items():
     if isinstance(val, str):

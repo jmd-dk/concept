@@ -88,7 +88,7 @@ the modified code in a very clean state either. Sorry...
 
 # General imports
 import ast, collections, contextlib, copy, functools, importlib, inspect, itertools
-import keyword, os, re, shutil, subprocess, sys, unicodedata, warnings
+import keyword, os, re, subprocess, sys, unicodedata
 # For math
 import numpy as np
 
@@ -758,6 +758,7 @@ def float_literals(lines, no_optimization):
     # Straightforward literals
     literals = {
         'π'        : commons.π,
+        'τ'        : commons.τ,
         'machine_ϵ': commons.machine_ϵ,
     }
     # Add other literals if supported

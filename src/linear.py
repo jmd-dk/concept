@@ -4071,14 +4071,11 @@ def register_species(
     # to list of nicknames.
     if nicknames is None:
         nicknames = []
-    nicknames_unique = [name]
-    for nickname in nicknames:
-        if nickname == class_species:
-            continue
-        if nickname not in nicknames_unique:
-            nicknames_unique.append(nickname)
-    nicknames_unique.append(class_species)
-    nicknames = nicknames_unique
+    nicknames.append(name)
+    nicknames.append(class_species)
+    nicknames = [  # remove duplicates and empty nicknames
+        nickname for nickname in dict.fromkeys(nicknames) if nickname
+    ]
     # Transform Γ to function
     if isinstance(Γ, (int, float)):
         Γ = (lambda cosmoresults, a, Γ=Γ: Γ)
@@ -4225,6 +4222,17 @@ register_species(
     'massive neutrino', massive_neutrino_class_species, ['massive neutrinos', 'ncdm'],
     logs={'rho': (True, True), 'p': (True, True)},
 )
+for massive_neutrino_class_species_single in massive_neutrino_class_species.split('+'):
+    match = re.search(r'\[(.*?)\]', massive_neutrino_class_species_single)
+    if not match:
+        continue
+    nν = match.group(1)
+    register_species(
+        f'massive neutrino[{nν}]',
+        massive_neutrino_class_species_single,
+        [f'massive neutrinos[{nν}]', f'ncdm[{nν}]'],
+        logs={'rho': (True, True), 'p': (True, True)},
+    )
 register_species(
     'neutrino', neutrino_class_species, ['neutrinos', 'nu', unicode('ν'), asciify('ν')],
     logs={'rho': (True, True), 'p': (True, True)},

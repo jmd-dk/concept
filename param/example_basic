@@ -12,7 +12,7 @@ initial_conditions = {
 output_dirs = 'output/example_basic'
 output_times = {'powerspec': 1.0}
 
-# Numerical parameters
+# Numerics
 boxsize = 256*Mpc/h
 potential_options = 128  # P³M grid size
 

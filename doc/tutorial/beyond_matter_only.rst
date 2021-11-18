@@ -90,7 +90,7 @@ specified by the below parameter file:
        'powerspec': 2*a_begin,
    }
 
-   # Numerical parameters
+   # Numerics
    boxsize = 4*Gpc
    potential_options = {
        'gridsize': {
@@ -489,7 +489,7 @@ You are in fact already very familiar with the idea of combining species, as
 .. tip::
    When performing simulations in a cosmology without massless neutrinos,
    specifying ``'photon + massless neutrino'`` as the species of a component
-   will produce an error. However, specfying ``'radiation'`` is always safe,
+   will produce an error. However, specifying ``'radiation'`` is always safe,
    as this dynamically maps to the set of all radiation species present in the
    current cosmology, whatever this may be. Similarly, ``'matter'`` is safe to
    use even in a cosmology without e.g. cold dark matter.
@@ -570,7 +570,7 @@ parameter file:
        'matter': {'data': True, 'linear': True, 'plot': False},
    }
 
-   # Numerical parameters
+   # Numerics
    boxsize = 2*Gpc
    potential_options = {
        'gridsize': {
@@ -591,13 +591,13 @@ parameter file:
        # Add 3 massive neutrinos of equal mass
        'N_ncdm'  : 1,
        'deg_ncdm': 3,
-       'm_ncdm'  : max(_mass/3, 1e-100),  # Avoid exact value of 0.0
+       'm_ncdm'  : max(_mass/3, 1e-100),  # avoid exact value of 0.0
    }
 
    # Non-parameter helper variables which should
    # be supplied as command-line parameters.
-   _mass = 0   # Sum of neutrino masses in eV
-   _lin  = ''  # Linear species to include
+   _mass = 0   # sum of neutrino masses in eV
+   _lin  = ''  # linear species to include
 
 You may want to save this as e.g. ``param/tutorial`` and get a simulation
 going --- of course using
@@ -630,7 +630,7 @@ The new elements appearing in the parameter file are:
   Of interest to us now are ``'N_ur'`` and ``'N_ncdm'``; the number of
   **u**\ ltra-\ **r**\ elativistic species (massless neutrinos) and
   **n**\ on-\ **c**\ old **d**\ ark **m**\ atter species (massive neutrinos).
-  In the above parameter specifications we switch out the default use of
+  In the above parameter specifications, we switch out the default use of
   massless neutrinos with one (``'N_ncdm': 1``) 3-times degenerate
   (``'deg_ncdm': 3``) massive neutrino, which really amounts to three separate
   neutrinos but all of the same mass (``'m_ncdm'``).
@@ -736,7 +736,7 @@ invoke
 The resulting ``output/tutorial/plot.png`` should show that letting the
 neutrinos have mass results in a few percent suppression of the matter power
 spectrum. At intermediary :math:`k` the simulation and linear relative power
-spectra agrees, whereas they do not for the smallest and largest :math:`k`.
+spectra agree, whereas they do not for the smallest and largest :math:`k`.
 In the case of large :math:`k`, you should see that the non-linear solution
 forms a trough below the linear one, before rising up above it near the
 largest :math:`k` shown. This is the well-known non-linear suppression dip,
@@ -806,6 +806,8 @@ relative power spectrum should have been smoothed out at low :math:`k`,
 showing excellent agreement with the linear prediction.
 
 
+
+.. _dynamical_dark_energy:
 
 Dynamical dark energy
 .....................
@@ -891,7 +893,7 @@ shall make use of the following parameter file, which you should save as e.g.
 .. code-block:: python3
    :caption: param/tutorial :math:`\,` (dynamical dark energy)
    :name: param-dynamical-dark-energy
-   :emphasize-lines: 52-60, 62-65, 69
+   :emphasize-lines: 52-60, 63-65, 69
 
    # Non-parameter helper variable used to control the size of the simulation
    _size = 128
@@ -929,7 +931,7 @@ shall make use of the following parameter file, which you should save as e.g.
        'matter': {'data': True, 'linear': True, 'plot': False},
    }
 
-   # Numerical parameters
+   # Numerics
    boxsize = 3*Gpc
    potential_options = {
        'gridsize': {
@@ -954,15 +956,15 @@ shall make use of the following parameter file, which you should save as e.g.
            'cs2_fld': 0.01,
        }
 
-   # Simulation options
+   # Simulation
    Δt_base_background_factor = 2
    Δt_base_nonlinear_factor  = 2
    N_rungs                   = 1
 
    # Non-parameter helper variables which should
    # be supplied as command-line parameters.
-   _de  = 'Lambda'  # Type of dark energy
-   _lin = ''        # Linear species to include
+   _de  = 'Lambda'  # type of dark energy
+   _lin = ''        # linear species to include
 
 The parameter file is set up to use :math:`\Lambda` by default, while
 dynamical dark energy is enabled by supplying ``-c "_de = 'dynamical'"``. One
@@ -1165,6 +1167,8 @@ as when running with radiation.
 
 
 
+.. _decaying_cold_dark_matter:
+
 Decaying cold dark matter
 .........................
 This subsection deals with the case of :bolditalic:`d`\ *ecaying* **c**\ old
@@ -1221,8 +1225,8 @@ you should save as e.g. ``param/tutorial``:
    _size = 96
 
    # Non-parameter variables used to control the dcdm cosmology
-   _Ω_cdm_plus_dcdm = 0.27  # Total amount of stable and decaying cold dark matter
-   _Γ = 80*km/(s*Mpc)       # Decay rate
+   _Ω_cdm_plus_dcdm = 0.27  # total amount of stable and decaying cold dark matter
+   _Γ = 80*km/(s*Mpc)       # decay rate
 
    # Input/output
    if _combine:
@@ -1279,7 +1283,7 @@ you should save as e.g. ``param/tutorial``:
        ('stable matter', 'decaying matter'): ...,
    }
 
-   # Numerical parameters
+   # Numerics
    boxsize = 1*Gpc
    potential_options = {
        'gridsize': {
@@ -1312,14 +1316,14 @@ you should save as e.g. ``param/tutorial``:
            'total matter'   : 'lapse',
        }
 
-   # Simulation options
+   # Simulation
    primordial_amplitude_fixed = True
 
    # Non-parameter helper variables which should
    # be supplied as command-line parameters.
-   _lin     = ''    # Linear species to include
-   _frac    = 0     # Fraction of total cold dark matter which is decaying
-   _combine = True  # Combine decaying and stable matter into a single component?
+   _lin     = ''    # linear species to include
+   _frac    = 0     # fraction of total cold dark matter which is decaying
+   _combine = True  # combine decaying and stable matter into a single component?
 
 Begin by running this without any additional command-line parameters;
 
@@ -1760,7 +1764,7 @@ you should save as e.g. ``param/tutorial``:
        'non-linear neutrino': True,
    }
 
-   # Numerical parameters
+   # Numerics
    boxsize = 400*Mpc
    potential_options = {
        'gridsize': {
@@ -1782,7 +1786,7 @@ you should save as e.g. ``param/tutorial``:
        # Add 3 massive neutrinos of equal mass
        'N_ncdm'  : 1,
        'deg_ncdm': 3,
-       'm_ncdm'  : max(_mass/3, 1e-100),  # Avoid exact value of 0.0
+       'm_ncdm'  : max(_mass/3, 1e-100),  # avoid exact value of 0.0
        # General precision parameters
        'evolver': 0,
        # Neutrino precision parameters
@@ -1803,9 +1807,9 @@ you should save as e.g. ``param/tutorial``:
 
    # Non-parameter helper variables which should
    # be supplied as command-line parameters.
-   _mass = 0          # Sum of neutrino masses in eV
-   _nunonlin = False  # Use non-linear neutrinos?
-   _nutrans = 0       # Scale factor at which to transition to non-linear neutrinos
+   _mass = 0          # sum of neutrino masses in eV
+   _nunonlin = False  # use non-linear neutrinos?
+   _nutrans = 0       # scale factor at which to transition to non-linear neutrinos
 
 Start by running this parameter file as is,
 
@@ -2069,7 +2073,7 @@ as linear ones are shown.
 
 .. note::
 
-   Larger neutrino masses leads to stronger neutrino clustering, in turn
+   Larger neutrino masses lead to stronger neutrino clustering, in turn
    leading to further increased matter power. Though non-linear clustering in
    the neutrino component itself is clearly visible in the neutrino power
    spectrum even for small masses, the accompanying increase in matter power
@@ -2094,7 +2098,7 @@ as linear ones are shown.
 
    <h3>Transitioning from linear to non-linear neutrinos</h3>
 
-As you've now experienced first hand, non-linear neutrino simulations can take
+As you've now experienced first-hand, non-linear neutrino simulations can take
 a long time to run. As written above, a major reason for this is the small
 global time step size required by the non-linear neutrino fluid, leading to
 many more time steps than usual. This is especially true at early times and

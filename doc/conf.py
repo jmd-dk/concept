@@ -1,6 +1,7 @@
 # Project
-project = 'CONCEPT'
-author  = 'Jeppe Dakin'
+project  = 'CONCEPT'
+author   = 'Jeppe Dakin'
+language = 'en'  # English
 
 # Paths
 html_static_path = ['static']

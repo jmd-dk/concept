@@ -36,7 +36,7 @@ named ``param/tutorial`` using 8 cores then looks like
    ./concept \
        -p param/tutorial \
        -n 8 \
-       -q <queue>  # Replace <queue> with queue name
+       -q <queue>  # replace <queue> with queue name
 
 The 8 cores may be distributed over several *(compute) nodes* of the cluster.
 If you wish to control the number of nodes and number of cores per node, use
@@ -99,7 +99,7 @@ You may manually run the watch utility at any later time, like so:
 
 .. code-block:: bash
 
-   ./concept -u watch <ID>  # Replace <ID> with job ID of remote running job
+   ./concept -u watch <ID>  # replace <ID> with job ID of remote running job
 
 The job ID --- and hence log file name --- of submitted jobs is determined by
 the job scheduler, and is printed as soon as the job is submitted. You may
