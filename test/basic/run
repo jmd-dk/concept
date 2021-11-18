@@ -6,7 +6,7 @@
 
 # Absolute path and name of the directory of this file
 this_dir="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
-this_test="$(basename "${this_dir}")"
+this_test="$(basename "$(dirname "${this_dir}")")"
 
 # Set up error trapping
 ctrl_c() {

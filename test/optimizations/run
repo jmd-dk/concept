@@ -7,7 +7,7 @@
 
 # Absolute path and name of the directory of this file
 this_dir="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
-this_test="$(basename "${this_dir}")"
+this_test="$(basename "$(dirname "${this_dir}")")"
 
 # Set up error trapping
 ctrl_c() {
@@ -22,9 +22,6 @@ abort() {
 trap 'ctrl_c' SIGINT
 trap 'abort' EXIT
 set -e
-
-# Cleanup from last test run
-"${this_dir}/clean"
 
 # Run the CO𝘕CEPT code with optimizations
 if [ -d "${build_dir}" ] && [ -n "$(ls -A "${build_dir}")" ]; then

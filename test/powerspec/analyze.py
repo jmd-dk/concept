@@ -5,9 +5,9 @@ from commons import *
 from snapshot import load
 plt = get_matplotlib().pyplot
 
-# Absolute path and name of the directory of this file
+# Absolute path and name of this test
 this_dir  = os.path.dirname(os.path.realpath(__file__))
-this_test = os.path.basename(this_dir)
+this_test = os.path.basename(os.path.dirname(this_dir))
 
 # Read in the particles
 component = load(initial_conditions, only_components=True)[0]

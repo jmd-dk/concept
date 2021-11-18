@@ -7,9 +7,9 @@ plt = get_matplotlib().pyplot
 # Import CLASS
 from classy import Class
 
-# Absolute path and name of the directory of this file
+# Absolute path and name of this test
 this_dir  = os.path.dirname(os.path.realpath(__file__))
-this_test = os.path.basename(this_dir)
+this_test = os.path.basename(os.path.dirname(this_dir))
 
 # Read in power spectra
 powerspecs_all = {'particles': {}, 'fluid': {}}

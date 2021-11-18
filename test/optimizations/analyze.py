@@ -5,9 +5,9 @@ from commons import *
 from snapshot import load
 import species
 
-# Absolute path and name of the directory of this file
+# Absolute path and name of this test
 this_dir  = os.path.dirname(os.path.realpath(__file__))
-this_test = os.path.basename(this_dir)
+this_test = os.path.basename(os.path.dirname(this_dir))
 
 # Absolute and relative tolerance to be used in the
 # comparisons between power spectra and 2D renders.

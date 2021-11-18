@@ -6,7 +6,7 @@
 
 # Absolute path and name of the directory of this file
 this_dir="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
-this_test="$(basename "${this_dir}")"
+this_test="$(basename "$(dirname "${this_dir}")")"
 
 # Set up error trapping
 ctrl_c() {
@@ -19,9 +19,6 @@ abort() {
     exit ${exit_code}
 }
 set -e
-
-# Cleanup from last test run
-"${this_dir}/clean"
 
 # Get the fake _size parameter and store it in the variable 'gridsize'
 gridsize=$(get_param "_size")

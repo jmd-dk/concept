@@ -9,6 +9,6 @@
 /job
 /output
 /param
-/test
+/test/*/artifact
 /util/update_new
 

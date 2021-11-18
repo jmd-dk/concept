@@ -4,9 +4,9 @@
 from commons import *
 from snapshot import load
 
-# Absolute path and name of the directory of this file
+# Absolute path and name of this test
 this_dir  = os.path.dirname(os.path.realpath(__file__))
-this_test = os.path.basename(this_dir)
+this_test = os.path.basename(os.path.dirname(this_dir))
 
 # Read in data from the CO𝘕CEPT snapshots
 for fname in sorted(glob(this_dir + '/output/snapshot_t=*'),

@@ -288,7 +288,7 @@ clean-fftw-reusable:
 	$(RM) -r "$(reusable_dir)/fftw"
 # Remove files produced by running tests
 clean-test:
-	$(foreach clean_file,$(wildcard $(test_dir)/*/clean),$(clean_file);)
+	$(RM) -r "${test_dir}"/*/artifact
 # Remove files produced by the utilities
 clean-util:
 	$(RM) -r $(addprefix "$(util_dir)"/,$(files_util))
@@ -297,7 +297,8 @@ clean-tmp:
 	$(RM) -r "$(tmp_dir)"
 # Remove all unnecessary files,
 # leaving CO𝘕CEPT in a distribution ready state.
-# Note that no files in the ic or output directory will be removed.
+# Note that with the exception of autosaves,
+# no files in the ic or output directories will be removed.
 distclean-except-tmp: \
     clean             \
     clean-autosave    \

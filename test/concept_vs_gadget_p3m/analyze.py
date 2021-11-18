@@ -6,9 +6,9 @@ from snapshot import load
 import species
 plt = get_matplotlib().pyplot
 
-# Absolute path and name of the directory of this file
+# Absolute path and name of this test
 this_dir  = os.path.dirname(os.path.realpath(__file__))
-this_test = os.path.basename(this_dir)
+this_test = os.path.basename(os.path.dirname(this_dir))
 
 # Read in data from the CO𝘕CEPT snapshots
 species.allow_similarly_named_components = True

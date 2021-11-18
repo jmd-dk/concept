@@ -1426,6 +1426,22 @@ fi
 
 # If a test is to be run, run it and exit
 if [ "${test}" != "${test_unspecified}" ]; then
+    # Function for running a test, completely containing it within an
+    # artifact subdirectory.
+    run_test() {
+        test_name="$1"
+        test_name="$(basename "${test_name}")"
+        artifact_dir="${test_dir}/${test_name}/artifact"
+        rm -rf "${artifact_dir}"
+        mkdir "${artifact_dir}"
+        for f in "${test_dir}/${test_name}/"*; do
+            if [ "${f}" == "${artifact_dir}" ]; then
+                continue
+            fi
+            cp -r "${f}" "${artifact_dir}/"
+        done
+        "${artifact_dir}/run"
+    }
     # Function which can extract parameters from the parameter file
     # given by "${this_dir}/param". This is used by some tests.
     get_param() {
@@ -1538,7 +1554,7 @@ for test in sorted_tests:
         for test_name in ${tests}; do
             start_time_test=$("${python}" -B -c "import time; print(time.time())")
             colorprint "\nRunning ${test_name} test" "yellow"
-            "${test_dir}/${test_name}/run"
+            run_test "${test_name}"
             test_check_err_logs
             colorprint "${test_name} test ran successfully" "green"
             # Print out the execution time for this test
@@ -1550,7 +1566,7 @@ print('Total execution time: {}'.format(time_since(${start_time_test})))"
         # Run specific test
         test_name="$(basename "${test}")"
         colorprint "\nRunning ${test_name} test" "yellow"
-        "${test}/run"
+        run_test "${test}"
         test_check_err_logs
         colorprint "${test_name} test ran successfully" "green"
     fi

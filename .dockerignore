@@ -9,5 +9,6 @@
 /install_*
 /job
 /output
+/test/*/artifact
 /util/update_new
 

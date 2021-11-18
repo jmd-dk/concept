@@ -3,9 +3,9 @@ from commons import *
 from integration import cosmic_time, init_time
 plt = get_matplotlib().pyplot
 
-# Absolute path and name of the directory of this file
+# Absolute path and name of this test
 this_dir  = os.path.dirname(os.path.realpath(__file__))
-this_test = os.path.basename(this_dir)
+this_test = os.path.basename(os.path.dirname(this_dir))
 
 # As this non-compiled code should work regardless of whether
 # the main CO𝘕CEPT code is compiled or not, we need to flood
