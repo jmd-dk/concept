@@ -496,11 +496,12 @@ def get_matplotlib():
     # Customize Matplotlib
     matplotlib.rcParams.update({
         # Use a nice font that ships with Matplotlib
-        'text.usetex'       : False,
-        'font.family'       : 'serif',
-        'font.serif'        : 'cmr10',
-        'mathtext.fontset'  : 'cm',
-        'axes.unicode_minus': False,
+        'text.usetex'                : False,
+        'font.family'                : 'serif',
+        'font.serif'                 : 'cmr10',
+        'mathtext.fontset'           : 'cm',
+        'axes.formatter.use_mathtext': True,
+        'axes.unicode_minus'         : False,
         # Use outward pointing ticks
         'xtick.direction': 'out',
         'ytick.direction': 'out',

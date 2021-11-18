@@ -323,14 +323,14 @@ set_version "zlib"              "1.2.11"  "1.2.11"
 set_version "blessings"         "1.7"
 set_version "cython"            "0.29.24"
 set_version "cythongsl"         "0.2.2"
-set_version "h5py"              "3.5.0"
-set_version "matplotlib"        "3.4.3"
+set_version "h5py"              "3.6.0"
+set_version "matplotlib"        "3.5.0"
 set_version "mpi4py"            "3.1.2"
 set_version "numpy"             "1.21.4"
 set_version "pip"               "21.3.1"
-set_version "scipy"             "1.7.1"
-set_version "setuptools"        "58.5.3"
-set_version "sphinx"            "4.2.0"
+set_version "scipy"             "1.7.2"
+set_version "setuptools"        "59.1.1"
+set_version "sphinx"            "4.3.0"
 set_version "sphinx_copybutton" "0.4.0"
 set_version "sphinx_rtd_theme"  "1.0.0"
 set_version "sphinx_tabs"       "3.2.0"
@@ -585,6 +585,7 @@ env_var_names=(     \
     LIBS            \
     MPICC           \
     MPILIBS         \
+    MPLSETUPCFG     \
     PATH            \
     PERL            \
     PKG_CONFIG_PATH \
@@ -2111,6 +2112,9 @@ try:
     elif '${pypackage}' == 'pythondateutil':
         # Python-dateutil is imported as dateutil
         import dateutil
+    elif '${pypackage}' == 'fonttools':
+        # fontTools is written in camel case
+        import fontTools
     elif '${pypackage}' == 'matplotlib':
         # For Matplotlib we do a more thorough test
         import matplotlib
@@ -7190,13 +7194,11 @@ if [ "${matplotlib_install}" == "True" ] && [ "${matplotlib_installed}" == "Fals
     # packages which should already have been installed by this script.
     dependencies=(        \
         "cycler"          \
+        "fonttools"       \
         "python-dateutil" \
         "kiwisolver"      \
-        # A regression in pyparsing 3.0.0 leads to failure of e.g. the
-        # neutrino test. It looks like this will be fixed on either the
-        # pyparsing or Matplotlib side soon. See
-        # https://github.com/pyparsing/pyparsing/issues/318
-        "pyparsing<3.0.0" \
+        "packaging"       \
+        "pyparsing"       \
     )
     pip_install_pypackage_dependencies "Matplotlib"
     # The pillow packages is missing from the above list of Matplotlib
@@ -7330,7 +7332,19 @@ Attempting to install Matplotlib with compiler=${compiler}, pyuser=${pyuser}\n\n
                     break
                 fi
             done
-            cp "setup.cfg.template" "setup.cfg"
+            unset MPLSETUPCFG
+            for cfg in mplsetup setup; do
+                cfg="${cfg}.cfg"
+                if [ -f "${cfg}.template" ]; then
+                    cp "${cfg}.template" "${cfg}"
+                    export MPLSETUPCFG="$(pwd)/${cfg}"
+                    break
+                fi
+            done
+            if [ -z "${MPLSETUPCFG}" ]; then
+                error "Could not locate *.cfg.template file"
+                exit 1
+            fi
             freetype_include2="$(echo "${freetype_dir}/include/freetype"* | awk '{print $NF}')"
             basedirlist="${freetype_dir},${freetype_dir}/include,\
 ${freetype_include2},${freetype_dir}/lib"
@@ -7355,7 +7369,7 @@ ${freetype_include2},${freetype_dir}/lib"
                 PKG_CONFIG_PATH_libpng="${libpng_dir}/lib/pkgconfig:"
             fi
             basedirlist="${basedirlist},${zlib_dir},${zlib_dir}/include,${zlib_dir}/lib"
-            sed -i "/basedirlist/c\basedirlist = ${basedirlist}" "setup.cfg"
+            sed -i "/basedirlist/c\basedirlist = ${basedirlist}" "${cfg}"
             cp -r "${freetype_include2}/"* "${freetype_dir}/include/"
             export CPPFLAGS="-I${freetype_dir}/include \
                              -I${freetype_include2}    \
