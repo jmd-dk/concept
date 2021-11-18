@@ -297,9 +297,7 @@ clean-tmp:
 	$(RM) -r "$(tmp_dir)"
 # Remove all unnecessary files,
 # leaving CO𝘕CEPT in a distribution ready state.
-# Note that no files in the ic or output directory will be removed,
-# and that only auto-generated files will be removed from the
-# param directory.
+# Note that no files in the ic or output directory will be removed.
 distclean-except-tmp: \
     clean             \
     clean-autosave    \

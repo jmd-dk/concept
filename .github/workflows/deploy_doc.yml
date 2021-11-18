@@ -37,7 +37,9 @@ jobs:
                         && rm -rf "${concept_dir}/"!(dep) \
                         && cp -r /github/!(dep) "${concept_dir}/" \
                         && (cd "${concept_dir}" && make clean-doc && make doc) \
-                        && cp -r "${doc_dir}/publish" /github/ \
+                        && sudo su -c "rm -rf /github/publish" \
+                        && sudo su -c "cp -r \"${doc_dir}/publish\" /github/" \
+                        && sudo su -c "chmod -R a+rwX /github/publish" \
                     '
           - name: 🚀 Deploy documentation
             uses: peaceiris/actions-gh-pages@v3

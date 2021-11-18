@@ -1,7 +1,7 @@
 Publications
 ============
 This is a list of scientific papers produced using CO\ *N*\ CEPT.
-If you make use of CO\ *N*\ CEPT for a publication, please cite
+If you make use of CO\ *N*\ CEPT for a publication, please cite the paper
 'The cosmological simulation code CO\ *N*\ CEPT 1.0'.
 
 * **The cosmological simulation code CO**\ :bolditalic:`N`\ **CEPT 1.0**

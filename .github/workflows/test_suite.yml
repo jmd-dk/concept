@@ -44,9 +44,10 @@ jobs:
                         && rm -rf "${concept_dir}/"!(dep) \
                         && cp -r /github/!(dep) "${concept_dir}/" \
                         && concept -t ${GITHUB_JOB/test_} \
-                        && rm -rf /github/build \
-                        && mkdir /github/build \
-                        && cp "${build_dir}/"*.so /github/build/ \
+                        && sudo su -c "rm -rf /github/build" \
+                        && sudo su -c "mkdir /github/build" \
+                        && sudo su -c "cp \"${build_dir}/\"*.so /github/build/" \
+                        && sudo su -c "chmod -R a+rwX /github/build" \
                     '
           - name: 📤 Upload build
             uses: actions/upload-artifact@v2
