@@ -24,7 +24,7 @@ as e.g. ``param/tutorial``:
 .. code-block:: python3
    :caption: param/tutorial
    :name: param-gadget
-   :emphasize-lines: 4, 10, 35
+   :emphasize-lines: 4, 21, 35
 
    # Input/output
    if _gen:
@@ -35,7 +35,6 @@ as e.g. ``param/tutorial``:
        }
    else:
        initial_conditions = f'{path.ic_dir}/{param}_a={a_begin}'
-   snapshot_type = 'gadget'
    output_dirs = {
        'snapshot': path.ic_dir if _gen else f'{path.output_dir}/{param}',
        'powerspec': ...,
@@ -47,8 +46,9 @@ as e.g. ``param/tutorial``:
        'snapshot' : a_begin if _gen else '',
        'powerspec': '' if _gen else [0.1, 0.3, 1.0],
    }
+   snapshot_type = 'gadget'
 
-   # Numerical parameters
+   # Numerics
    boxsize = 512*Mpc/h
    potential_options = 2*_size
 
@@ -95,7 +95,7 @@ simply by
 Note that the ``initial_conditions`` is set to the path of the generated
 snapshot when ``_gen`` is ``False``.
 
-The power spectra outputs of the CO\ *N*\ CEPT simulation will be dumped to
+The power spectrum outputs of the CO\ *N*\ CEPT simulation will be dumped to
 ``output/tutorial`` as usual.
 
 
@@ -115,7 +115,7 @@ just for use with this tutorial:
 You now have the complete GADGET-2 code in ``output/tutorial/Gadget2``.
 
 The ``Makefile`` of GADGET-2 needs to be set up with correct path information
-for its dependencies. Furthermore, various options needs to be set in order
+for its dependencies. Furthermore, various options need to be set in order
 for the GADGET-2 simulation to come to be equivalent to the CO\ *N*\ CEPT
 simulation. Last but not least we need a GADGET-2 parameter file equivalent to
 the :ref:`CONCEPT parameter file <param-gadget>`. All of this can be
@@ -292,10 +292,11 @@ during the simulation, e.g. the potential grid. In CO\ *N*\ CEPT, a default
 choice of using 'cell-centred' grid discretisation is made, whereas GADGET-2
 uses 'cell-vertex' grid discretisation. In effect this means that the
 potential grids of the two codes are shifted by half a grid cell relative to
-each other, in all three dimensions. This detail oughtn't matter much, but the
-grid structure imprinted on the particle distribution, together with the fact
-that our simulations are rather small (:math:`N = 64^3`), makes for an
-exaggerated effect.
+each other, in all three dimensions (see the ``cell_centered``
+:ref:`parameter <cell_centered>` for more information). This detail oughtn't
+matter much, but the grid structure imprinted on the particle distribution,
+together with the fact that our simulations are rather small
+(:math:`N = 64^3`), makes for an exaggerated effect.
 
 We can force CO\ *N*\ CEPT to use cell-vertex discretisation by specifying
 
@@ -325,12 +326,12 @@ now much smaller, though still a few percent.
    *interlacing* step to combine the results. This technique effectively
    halves the discretisation scale, reducing the numerical artefacts. For
    more information about potential interlacing, see the ``potential_options``
-   parameter :doc:`here </parameters/numerical_parameters>`.
+   :ref:`parameter <potential_options>`.
 
    Another solution is to apply a random spatial shift to the potential grid
-   at each time step, an approach built into GADGET-4. While the size of
-   individual force errors remain the same, their directions are now
-   uncorrelated in time.
+   (or the particle positions) at each time step, an approach built into
+   GADGET-4. While the size of individual force errors remain the same, their
+   directions are now uncorrelated in time.
 
    The mismatch between results of cell-centred and cell-vertex simulations is
    reduced for larger simulations, as the details of what's going on at the
@@ -353,7 +354,7 @@ includes matter, :math:`\Lambda` and radiation, whereas the background of
 GADGET-2 only consists of matter and :math:`\Lambda`.
 
 One cannot remove radiation from the CLASS background, as a cosmology without
-radiation is not supported by CLASS. Instead we can deactivate the CLASS
+radiation is not supported by CLASS. Instead, we can deactivate the CLASS
 background entirely, which will turn on an internal background solver of
 CO\ *N*\ CEPT, which like that of GADGET-2 only includes matter and
 :math:`\Lambda`. To do so, add
@@ -435,7 +436,7 @@ problem, the usual trick used with Newtonian *N*-body codes is to generate
 initial conditions at :math:`a = a_{\text{begin}}` using the results of
 general relativistic perturbations theory (which also accounts for radiation)
 at :math:`a = 1`, but scaled back in time using the Newtonian growth factor.
-Thus only the :math:`a = 1` results of such *back-scaled* simulations are
+Thus, only the :math:`a = 1` results of such *back-scaled* simulations are
 really physical.
 
 As CO\ *N*\ CEPT works in *N*-body gauge, the initial conditions generated for

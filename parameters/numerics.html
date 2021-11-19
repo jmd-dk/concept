@@ -1,0 +1,1412 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Numerics &mdash; CONCEPT Documentation</title>
+      <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/copybutton.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/tabs.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
+    <link rel="shortcut icon" href="../_static/favicon.ico"/>
+    <link rel="canonical" href="https://jmd-dk.github.io/concept/parameters/numerics.html" />
+  <!--[if lt IE 9]>
+    <script src="../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/doctools.js"></script>
+        <script src="../_static/clipboard.min.js"></script>
+        <script src="../_static/copybutton.js"></script>
+        <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Cosmology" href="cosmology.html" />
+    <link rel="prev" title="Input/output" href="input_output.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+            <a href="../index.html" class="icon icon-home"> CO<em>N</em>CEPT
+            <img src="../_static/logo.png" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search documentation" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../tutorial/tutorial.html">Tutorial</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../tutorial/installation.html">1. Effortless installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorial/first_simulations.html">2. Your first simulations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorial/parameter_files.html">3. Working with parameter files</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorial/gravity.html">4. Mastering gravity</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../tutorial/gravity.html#the-pm-method">4.1. The PM method</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../tutorial/gravity.html#the-p3m-method">4.2. The P³M method</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorial/output_types.html">5. Other kinds of output</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../tutorial/output_types.html#d-renders">5.1. 3D renders</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../tutorial/output_types.html#id1">5.2. 2D renders</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../tutorial/output_types.html#snapshots">5.3. Snapshots</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorial/working_remotely.html">6. Working on remote clusters</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorial/beyond_matter_only.html">7. Beyond matter-only simulations</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../tutorial/beyond_matter_only.html#radiation">7.1. Radiation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../tutorial/beyond_matter_only.html#massive-neutrinos">7.2. Massive neutrinos</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../tutorial/beyond_matter_only.html#dynamical-dark-energy">7.3. Dynamical dark energy</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../tutorial/beyond_matter_only.html#decaying-cold-dark-matter">7.4. Decaying cold dark matter</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../tutorial/beyond_matter_only.html#non-linear-massive-neutrinos">7.5. Non-linear massive neutrinos</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorial/gadget.html">8. Comparison with GADGET-2</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../installation.html">Installation</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../installation.html#supported-platforms">Supported platforms</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../installation.html#standard-installation">Standard installation</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../installation.html#optimal-network-performance-on-clusters">Optimal network performance on clusters</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../installation.html#cloning-with-git">Cloning with Git</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../installation.html#the-install-script-in-depth">The <code class="docutils literal notranslate"><span class="pre">install</span></code> script in-depth</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../installation.html#programs-installed">Programs installed</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../installation.html#command-line-options">Command-line options</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../installation.html#influential-environment-variables">Influential environment variables</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../installation.html#making-use-of-pre-installed-libraries">Making use of pre-installed libraries</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../installation.html#specifying-dependency-versions">Specifying dependency versions</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../installation.html#specifying-dependency-urls">Specifying dependency URLs</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../installation.html#choosing-compiler-precedence">Choosing compiler precedence</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../installation.html#installing-mpich-or-openmpi">Installing MPICH or OpenMPI</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../installation.html#parallel-builds">Parallel builds</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../installation.html#using-the-install-script-to-install-specific-libraries-but-not-concept-itself">Using the <code class="docutils literal notranslate"><span class="pre">install</span></code> script to install specific libraries but not CO<em>N</em>CEPT itself</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../installation.html#dependencies">Dependencies</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../installation.html#python-dependencies">Python dependencies</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../installation.html#other-primary-dependencies">Other primary dependencies</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../installation.html#system-dependencies">System dependencies</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../installation.html#the-path-and-env-files">The <code class="docutils literal notranslate"><span class="pre">.path</span></code> and <code class="docutils literal notranslate"><span class="pre">.env</span></code> files</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../installation.html#the-path-file">The <code class="docutils literal notranslate"><span class="pre">.path</span></code> file</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../installation.html#the-env-file">The <code class="docutils literal notranslate"><span class="pre">.env</span></code> file</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../installation.html#path-like-environment-variables"><code class="docutils literal notranslate"><span class="pre">PATH</span></code>-like environment variables</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../installation.html#eliminating-interference-from-foreign-python-installations">Eliminating interference from foreign Python installations</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../installation.html#the-mpi-executor">The <code class="docutils literal notranslate"><span class="pre">mpi_executor</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../installation.html#the-make-jobs-environment-variable">The <code class="docutils literal notranslate"><span class="pre">make_jobs</span></code> environment variable</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../command_line_options.html">Command-line options</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../command_line_options.html#basics">Basics</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#help-h-help">Help: <code class="docutils literal notranslate"><span class="pre">-h</span></code>, <code class="docutils literal notranslate"><span class="pre">--help</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#parameter-file-p-params">Parameter file: <code class="docutils literal notranslate"><span class="pre">-p</span></code>, <code class="docutils literal notranslate"><span class="pre">--params</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#command-line-parameters-c-command-line-params">Command-line parameters: <code class="docutils literal notranslate"><span class="pre">-c</span></code>, <code class="docutils literal notranslate"><span class="pre">--command-line-params</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#number-of-processes-n-nprocs">Number of processes: <code class="docutils literal notranslate"><span class="pre">-n</span></code>, <code class="docutils literal notranslate"><span class="pre">--nprocs</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../command_line_options.html#specifying-multiple-nodes">Specifying multiple nodes</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#utility-u-utility">Utility: <code class="docutils literal notranslate"><span class="pre">-u</span></code>, <code class="docutils literal notranslate"><span class="pre">--utility</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../command_line_options.html#remote-job-submission">Remote job submission</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#queue-q-queue">Queue: <code class="docutils literal notranslate"><span class="pre">-q</span></code>, <code class="docutils literal notranslate"><span class="pre">--queue</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#wall-time-w-walltime">Wall time: <code class="docutils literal notranslate"><span class="pre">-w</span></code>, <code class="docutils literal notranslate"><span class="pre">--walltime</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#memory-memory">Memory: <code class="docutils literal notranslate"><span class="pre">--memory</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#job-name-job-name">Job name: <code class="docutils literal notranslate"><span class="pre">--job-name</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#job-directive-j-job-directive">Job directive: <code class="docutils literal notranslate"><span class="pre">-j</span></code>, <code class="docutils literal notranslate"><span class="pre">--job-directive</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#no-watching-no-watching">No watching: <code class="docutils literal notranslate"><span class="pre">--no-watching</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../command_line_options.html#other-modes-of-building-running">Other modes of building/running</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#local-local">Local: <code class="docutils literal notranslate"><span class="pre">--local</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#pure-python-pure-python">Pure Python: <code class="docutils literal notranslate"><span class="pre">--pure-python</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#build-b-build">Build: <code class="docutils literal notranslate"><span class="pre">-b</span></code>, <code class="docutils literal notranslate"><span class="pre">--build</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#rebuild-rebuild">Rebuild: <code class="docutils literal notranslate"><span class="pre">--rebuild</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#native-optimizations-native-optimizations">Native optimizations: <code class="docutils literal notranslate"><span class="pre">--native-optimizations</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#no-link-time-optimizations-no-lto">No link time optimizations: <code class="docutils literal notranslate"><span class="pre">--no-lto</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#no-optimizations-no-optimizations">No optimizations: <code class="docutils literal notranslate"><span class="pre">--no-optimizations</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#unsafe-building-unsafe-building">Unsafe building: <code class="docutils literal notranslate"><span class="pre">--unsafe-building</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../command_line_options.html#specials">Specials</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#test-t-tests">Test: <code class="docutils literal notranslate"><span class="pre">-t</span></code>, <code class="docutils literal notranslate"><span class="pre">--tests</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#main-entry-point-m-main">Main entry point: <code class="docutils literal notranslate"><span class="pre">-m</span></code>, <code class="docutils literal notranslate"><span class="pre">--main</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#interactive-i-interactive">Interactive: <code class="docutils literal notranslate"><span class="pre">-i</span></code>, <code class="docutils literal notranslate"><span class="pre">--interactive</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#version-v-version">Version: <code class="docutils literal notranslate"><span class="pre">-v</span></code>, <code class="docutils literal notranslate"><span class="pre">--version</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1 current"><a class="reference internal" href="parameters.html">Parameters</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="input_output.html">Input/output</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="input_output.html#initial-conditions"><code class="docutils literal notranslate"><span class="pre">initial_conditions</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="input_output.html#output-dirs"><code class="docutils literal notranslate"><span class="pre">output_dirs</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="input_output.html#output-bases"><code class="docutils literal notranslate"><span class="pre">output_bases</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="input_output.html#output-times"><code class="docutils literal notranslate"><span class="pre">output_times</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="input_output.html#autosave-interval"><code class="docutils literal notranslate"><span class="pre">autosave_interval</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="input_output.html#snapshot-select"><code class="docutils literal notranslate"><span class="pre">snapshot_select</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="input_output.html#powerspec-select"><code class="docutils literal notranslate"><span class="pre">powerspec_select</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="input_output.html#render2d-select"><code class="docutils literal notranslate"><span class="pre">render2D_select</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="input_output.html#render3d-select"><code class="docutils literal notranslate"><span class="pre">render3D_select</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="input_output.html#snapshot-type"><code class="docutils literal notranslate"><span class="pre">snapshot_type</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="input_output.html#gadget-snapshot-params"><code class="docutils literal notranslate"><span class="pre">gadget_snapshot_params</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Numerics</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#boxsize"><code class="docutils literal notranslate"><span class="pre">boxsize</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#potential-options"><code class="docutils literal notranslate"><span class="pre">potential_options</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#shortrange-params"><code class="docutils literal notranslate"><span class="pre">shortrange_params</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#powerspec-options"><code class="docutils literal notranslate"><span class="pre">powerspec_options</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#k-modes-per-decade"><code class="docutils literal notranslate"><span class="pre">k_modes_per_decade</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="cosmology.html">Cosmology</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="cosmology.html#h0"><code class="docutils literal notranslate"><span class="pre">H0</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="cosmology.html#b"><code class="docutils literal notranslate"><span class="pre">Ωb</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="cosmology.html#cdm"><code class="docutils literal notranslate"><span class="pre">Ωcdm</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="cosmology.html#a-begin"><code class="docutils literal notranslate"><span class="pre">a_begin</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="cosmology.html#t-begin"><code class="docutils literal notranslate"><span class="pre">t_begin</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="cosmology.html#primordial-spectrum"><code class="docutils literal notranslate"><span class="pre">primordial_spectrum</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="cosmology.html#class-params"><code class="docutils literal notranslate"><span class="pre">class_params</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="physics.html">Physics</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="physics.html#select-forces"><code class="docutils literal notranslate"><span class="pre">select_forces</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="physics.html#select-species"><code class="docutils literal notranslate"><span class="pre">select_species</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="physics.html#select-lives"><code class="docutils literal notranslate"><span class="pre">select_lives</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="physics.html#softening-kernel"><code class="docutils literal notranslate"><span class="pre">softening_kernel</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="physics.html#select-softening-length"><code class="docutils literal notranslate"><span class="pre">select_softening_length</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="simulation.html">Simulation</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#t-base-background-factor"><code class="docutils literal notranslate"><span class="pre">Δt_base_background_factor</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#t-base-nonlinear-factor"><code class="docutils literal notranslate"><span class="pre">Δt_base_nonlinear_factor</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#t-increase-max-factor"><code class="docutils literal notranslate"><span class="pre">Δt_increase_max_factor</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#t-rung-factor"><code class="docutils literal notranslate"><span class="pre">Δt_rung_factor</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#a-max-early"><code class="docutils literal notranslate"><span class="pre">Δa_max_early</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#a-max-late"><code class="docutils literal notranslate"><span class="pre">Δa_max_late</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#n-rungs"><code class="docutils literal notranslate"><span class="pre">N_rungs</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#fftw-wisdom-rigor"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_rigor</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#fftw-wisdom-reuse"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_reuse</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#fftw-wisdom-share"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_share</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#random-seed"><code class="docutils literal notranslate"><span class="pre">random_seed</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#primordial-amplitude-fixed"><code class="docutils literal notranslate"><span class="pre">primordial_amplitude_fixed</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#primordial-phase-shift"><code class="docutils literal notranslate"><span class="pre">primordial_phase_shift</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#cell-centered"><code class="docutils literal notranslate"><span class="pre">cell_centered</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#class-reuse"><code class="docutils literal notranslate"><span class="pre">class_reuse</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="graphics.html">Graphics</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="graphics.html#terminal-width"><code class="docutils literal notranslate"><span class="pre">terminal_width</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="graphics.html#enable-terminal-formatting"><code class="docutils literal notranslate"><span class="pre">enable_terminal_formatting</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="graphics.html#render2d-options"><code class="docutils literal notranslate"><span class="pre">render2D_options</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="graphics.html#render3d-colors"><code class="docutils literal notranslate"><span class="pre">render3D_colors</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="graphics.html#render3d-bgcolor"><code class="docutils literal notranslate"><span class="pre">render3D_bgcolor</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="graphics.html#render3d-resolution"><code class="docutils literal notranslate"><span class="pre">render3D_resolution</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="units.html">Units</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="units.html#unit-length"><code class="docutils literal notranslate"><span class="pre">unit_length</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="units.html#unit-time"><code class="docutils literal notranslate"><span class="pre">unit_time</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="units.html#unit-mass"><code class="docutils literal notranslate"><span class="pre">unit_mass</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="debugging.html">Debugging</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="debugging.html#print-load-imbalance"><code class="docutils literal notranslate"><span class="pre">print_load_imbalance</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="debugging.html#particle-reordering"><code class="docutils literal notranslate"><span class="pre">particle_reordering</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="debugging.html#enable-hubble"><code class="docutils literal notranslate"><span class="pre">enable_Hubble</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="debugging.html#enable-class-background"><code class="docutils literal notranslate"><span class="pre">enable_class_background</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../utilities/utilities.html">Utilities</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/class.html">class</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/convert.html">convert</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/gadget.html">gadget</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/info.html">info</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/play.html">play</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/powerspec.html">powerspec</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/render3D.html">render3D</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/update.html">update</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/watch.html">watch</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../troubleshooting.html">Troubleshooting</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../troubleshooting.html#installation-failed">Installation failed</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../troubleshooting.html#compilation-failed">Compilation failed</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../troubleshooting.html#insufficient-memory">Insufficient memory</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../troubleshooting.html#dangerous-optimizations">Dangerous optimizations</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../troubleshooting.html#terminal-colour-output-looks-weird">Terminal colour output looks weird</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../troubleshooting.html#problems-related-to-python-libraries-and-packages">Problems related to Python libraries and packages</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../troubleshooting.html#error-messages-containing-read-1">Error messages containing ‘Read -1’</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../troubleshooting.html#the-simulation-hangs-when-calling-class">The simulation hangs when calling CLASS</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../troubleshooting.html#crashes-or-other-bad-behaviour">Crashes or other bad behaviour</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../troubleshooting.html#problems-when-running-remotely">Problems when running remotely</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../troubleshooting.html#choosing-an-mpi-executor">Choosing an MPI executor</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../troubleshooting.html#different-hardware-architecture-on-front-end-and-remote-node">Different hardware architecture on front-end and remote node</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../troubleshooting.html#it-still-does-not-work">It <em>still</em> does not work!</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../troubleshooting.html#bad-performance-when-using-multiple-processes-nodes">Bad performance when using multiple processes/nodes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../troubleshooting.html#problems-when-using-multiple-nodes">Problems when using multiple nodes</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../publications.html">Publications</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../publications.html#theses">Theses</a></li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">CO<em>N</em>CEPT</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content style-external-links">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home"></a> &raquo;</li>
+          <li><a href="parameters.html">Parameters</a> &raquo;</li>
+      <li>Numerics</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/jmd-dk/concept/" class="fa fa-github"> Code Repository</a>
+      </li>
+  </ul><div class="rst-breadcrumbs-buttons" role="navigation" aria-label="Sequential page navigation">
+        <a href="input_output.html" class="btn btn-neutral float-left" title="Input/output" accesskey="p"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="cosmology.html" class="btn btn-neutral float-right" title="Cosmology" accesskey="n">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+  </div>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <div class="section" id="numerics">
+<h1>Numerics<a class="headerlink" href="#numerics" title="Permalink to this headline"></a></h1>
+<p>The ‘numerics’ parameter category contains parameters specifying various
+options regarding the numerical methods used within the simulation, as well as
+some numerical resolutions and length scales.</p>
+<div class="contents local topic" id="contents">
+<ul class="simple">
+<li><p><a class="reference internal" href="#boxsize" id="id5"><code class="docutils literal notranslate"><span class="pre">boxsize</span></code></a></p></li>
+<li><p><a class="reference internal" href="#potential-options" id="id6"><code class="docutils literal notranslate"><span class="pre">potential_options</span></code></a></p></li>
+<li><p><a class="reference internal" href="#shortrange-params" id="id7"><code class="docutils literal notranslate"><span class="pre">shortrange_params</span></code></a></p></li>
+<li><p><a class="reference internal" href="#powerspec-options" id="id8"><code class="docutils literal notranslate"><span class="pre">powerspec_options</span></code></a></p></li>
+<li><p><a class="reference internal" href="#k-modes-per-decade" id="id9"><code class="docutils literal notranslate"><span class="pre">k_modes_per_decade</span></code></a></p></li>
+</ul>
+</div>
+<hr class="docutils" />
+<div class="section" id="boxsize">
+<span id="id1"></span><h2><a class="toc-backref" href="#id5"><code class="docutils literal notranslate"><span class="pre">boxsize</span></code></a><a class="headerlink" href="#boxsize" title="Permalink to this headline"></a></h2>
+<table>
+<colgroup>
+<col style="width: 4%" />
+<col style="width: 10%" />
+<col style="width: 4%" />
+<col style="width: 82%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Description</strong></p></td>
+<td><p></p></td>
+<td><p>Specifies size of simulation box</p></td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Default</strong></p></td>
+<td><p></p></td>
+<td><div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="mi">512</span><span class="o">*</span><span class="n">Mpc</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Elaboration</strong></p></td>
+<td><p></p></td>
+<td><p>All CO<em>N</em>CEPT simulations take place within a cubic
+box of constant comoving side length
+<span class="math notranslate nohighlight">\(L_{\text{box}}\)</span>. This parameter sets this length.</p></td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Example 0</strong></p></td>
+<td><p></p></td>
+<td><p>Use a box size of <span class="math notranslate nohighlight">\(1024\,\mathrm{Mpc}\)</span>:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">boxsize</span> <span class="o">=</span> <span class="mi">1024</span><span class="o">*</span><span class="n">Mpc</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Example 1</strong></p></td>
+<td><p></p></td>
+<td><p>Use a box size of
+<span class="math notranslate nohighlight">\(1\,\mathrm{Gpc} = 1000\,\mathrm{Mpc}\)</span>:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">boxsize</span> <span class="o">=</span> <span class="mi">1</span><span class="o">*</span><span class="n">Gpc</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Example 2</strong></p></td>
+<td><p></p></td>
+<td><p>Use a box size of <span class="math notranslate nohighlight">\(1024\,\mathrm{Mpc}/h\)</span>:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">boxsize</span> <span class="o">=</span> <span class="mi">1024</span><span class="o">*</span><span class="n">Mpc</span><span class="o">/</span><span class="n">h</span>
+</pre></div>
+</div>
+<p>With e.g.
+<span class="math notranslate nohighlight">\(H_0 = 64\,\mathrm{km}\, \mathrm{s}^{-1}\, \mathrm{Mpc}^{-1}\)</span>,
+this is equivalent to</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">boxsize</span> <span class="o">=</span> <span class="mi">1600</span><span class="o">*</span><span class="n">Mpc</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>See the <code class="docutils literal notranslate"><span class="pre">H0</span></code> <a class="reference internal" href="cosmology.html#h0"><span class="std std-ref">parameter</span></a> for details on
+<code class="docutils literal notranslate"><span class="pre">h</span></code></p>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+<hr class="docutils" />
+</div>
+<div class="section" id="potential-options">
+<span id="id2"></span><h2><a class="toc-backref" href="#id6"><code class="docutils literal notranslate"><span class="pre">potential_options</span></code></a><a class="headerlink" href="#potential-options" title="Permalink to this headline"></a></h2>
+<table>
+<colgroup>
+<col style="width: 4%" />
+<col style="width: 10%" />
+<col style="width: 4%" />
+<col style="width: 82%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Description</strong></p></td>
+<td><p></p></td>
+<td><p>Specifications for potential computations</p></td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Default</strong></p></td>
+<td><p></p></td>
+<td><div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+    <span class="s1">&#39;gridsize&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;global&#39;</span><span class="p">:</span> <span class="p">{},</span>
+        <span class="s1">&#39;particles&#39;</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s1">&#39;gravity&#39;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="s1">&#39;pm&#39;</span> <span class="p">:</span> <span class="p">(</span>  <span class="s1">&#39;cbrt(N)&#39;</span><span class="p">,</span>   <span class="s1">&#39;cbrt(N)&#39;</span><span class="p">)</span>
+                <span class="s1">&#39;p3m&#39;</span><span class="p">:</span> <span class="p">(</span><span class="s1">&#39;2*cbrt(N)&#39;</span><span class="p">,</span> <span class="s1">&#39;2*cbrt(N)&#39;</span><span class="p">),</span>
+            <span class="p">},</span>
+            <span class="s1">&#39;lapse&#39;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="s1">&#39;pm&#39;</span><span class="p">:</span> <span class="p">(</span><span class="s1">&#39;cbrt(N)&#39;</span><span class="p">,</span> <span class="s1">&#39;cbrt(N)&#39;</span><span class="p">),</span>
+            <span class="p">},</span>
+        <span class="p">},</span>
+        <span class="s1">&#39;fluid&#39;</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s1">&#39;gravity&#39;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="s1">&#39;pm&#39;</span><span class="p">:</span> <span class="p">(</span><span class="s1">&#39;gridsize&#39;</span><span class="p">,</span> <span class="s1">&#39;gridsize&#39;</span><span class="p">),</span>
+            <span class="p">},</span>
+            <span class="s1">&#39;lapse&#39;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="s1">&#39;pm&#39;</span><span class="p">:</span> <span class="p">(</span><span class="s1">&#39;gridsize&#39;</span><span class="p">,</span> <span class="s1">&#39;gridsize&#39;</span><span class="p">),</span>
+            <span class="p">},</span>
+        <span class="p">},</span>
+    <span class="p">},</span>
+    <span class="s1">&#39;interpolation&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;gravity&#39;</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s1">&#39;pm&#39;</span> <span class="p">:</span> <span class="s1">&#39;CIC&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;p3m&#39;</span><span class="p">:</span> <span class="s1">&#39;CIC&#39;</span><span class="p">,</span>
+        <span class="p">},</span>
+        <span class="s1">&#39;lapse&#39;</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s1">&#39;pm&#39;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span>
+        <span class="p">},</span>
+    <span class="p">},</span>
+    <span class="s1">&#39;deconvolve&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;gravity&#39;</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s1">&#39;pm&#39;</span> <span class="p">:</span> <span class="p">(</span><span class="kc">True</span><span class="p">,</span> <span class="kc">True</span><span class="p">),</span>
+            <span class="s1">&#39;p3m&#39;</span><span class="p">:</span> <span class="p">(</span><span class="kc">True</span><span class="p">,</span> <span class="kc">True</span><span class="p">),</span>
+        <span class="p">},</span>
+        <span class="s1">&#39;lapse&#39;</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s1">&#39;pm&#39;</span><span class="p">:</span> <span class="p">(</span><span class="kc">True</span><span class="p">,</span> <span class="kc">True</span><span class="p">),</span>
+        <span class="p">},</span>
+    <span class="p">},</span>
+    <span class="s1">&#39;interlace&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;gravity&#39;</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s1">&#39;pm&#39;</span> <span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+            <span class="s1">&#39;p3m&#39;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="p">},</span>
+        <span class="s1">&#39;lapse&#39;</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s1">&#39;pm&#39;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="p">},</span>
+    <span class="p">},</span>
+    <span class="s1">&#39;differentiation&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s1">&#39;gravity&#39;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="s1">&#39;pm&#39;</span> <span class="p">:</span> <span class="mi">2</span><span class="p">,</span>
+                <span class="s1">&#39;p3m&#39;</span><span class="p">:</span> <span class="mi">4</span><span class="p">,</span>
+            <span class="p">},</span>
+            <span class="s1">&#39;lapse&#39;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="s1">&#39;pm&#39;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span>
+            <span class="p">},</span>
+        <span class="p">},</span>
+    <span class="p">},</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Elaboration</strong></p></td>
+<td><p></p></td>
+<td><p>This parameter is a <code class="docutils literal notranslate"><span class="pre">dict</span></code> of several individual
+sub-parameters, specifying the details of how
+potentials are constructed and applied to components.
+Below you will find a summary of how potentials are
+implemented in CO<em>N</em>CEPT, after which the
+sub-parameters are described.</p>
+<p>Potentials are discretised on grids in order to
+implement long-range interactions.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Currently, two distinct long-range
+interactions/forces are implemented; <code class="docutils literal notranslate"><span class="pre">'gravity'</span></code>
+(via the PM or P³M method, the latter of which
+further has a short-range part) and <code class="docutils literal notranslate"><span class="pre">'lapse'</span></code>
+(via the PM method). The <code class="docutils literal notranslate"><span class="pre">'lapse'</span></code> interaction is
+relatively obscure and has to do with gravitational
+time dilation. See the
+<a class="reference internal" href="../tutorial/beyond_matter_only.html#decaying-cold-dark-matter"><span class="std std-ref">decaying cold dark matter part of the tutorial</span></a>
+as well as the paper on
+“<a class="reference internal" href="../publications.html"><span class="doc">Fully relativistic treatment of decaying cold dark matter in 𝘕-body simulations</span></a>
+for details on the <code class="docutils literal notranslate"><span class="pre">'lapse'</span></code> interaction/potential.
+For specifications of forces and methods, see the
+<code class="docutils literal notranslate"><span class="pre">select_forces</span></code> <a class="reference internal" href="physics.html#select-forces"><span class="std std-ref">parameter</span></a>.
+Though we shall focus on <code class="docutils literal notranslate"><span class="pre">'gravity'</span></code> below, all
+long-range interactions and their potentials
+behave similarly.</p>
+</div>
+<p>In CO<em>N</em>CEPT a long-range interaction takes place
+between two groups of
+<a class="reference internal" href="parameters.html#components-and-selections"><span class="std std-ref">components</span></a>;
+the <em>suppliers</em> and the <em>receivers</em>, which respectively
+build the potential and receive a force due to it. In
+the simplest case of self-gravity between particles of
+a component, this component is both the sole supplier
+and receiver component.</p>
+<p>CO<em>N</em>CEPT uses an ‘<em>upstream</em> <span class="math notranslate nohighlight">\(\rightarrow\)</span>
+<em>global</em> <span class="math notranslate nohighlight">\(\rightarrow\)</span> <em>downstream</em> scheme’ for
+potentials, as outlined below:</p>
+<ol class="arabic">
+<li><p>Interpolate each supplier component onto individual
+‘upstream’ grids, the size of which are individual to
+each component. More precisely, a specific quantity
+of the supplier components is interpolated, e.g. the
+mass (particle components) or energy density (fluid
+components) in the case of gravity.</p></li>
+<li><p>Transform each upstream grid to Fourier space.</p></li>
+<li><p>Optionally perform deconvolution and interlacing of
+upstream grids constructed from particle suppliers
+(see
+“<a class="reference external" href="https://dx.doi.org/10.1201/9780367806934">Computer simulation using particles</a>”).</p></li>
+<li><p>Add upstream Fourier grids together, producing a
+‘global’ Fourier grid, with the global grid size
+being a free parameter.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Grids of different sizes can be seamlessly added
+together in Fourier space, as all
+<span class="math notranslate nohighlight">\(\boldsymbol{k}\)</span> modes (grid cells) of
+smaller grids are contained within larger grids.
+One need to be careful though, as complex phase
+shifts are needed to correct for the change of
+grid size.</p>
+</div>
+</li>
+<li><p>Convert the values within the global grid to
+potential values. For gravity, this amounts to
+solving the Poisson equation.</p></li>
+<li><p>For each receiver component, produce a ‘downstream’
+version of the global Fourier potential, by copying
+(and shifting) the modes onto grids individual to
+each receiver.</p></li>
+<li><p>Optionally perform (another) deconvolution for
+downstream grids of particle receivers, due to the
+upcoming interpolation back to the particle
+positions.</p></li>
+</ol>
+<p>For receivers obtaining the force grid from the
+downstream real-space potential grid:</p>
+<blockquote>
+<div><ol class="arabic simple" start="8">
+<li><p>Transform downstream potential to real space.</p></li>
+<li><p>Obtain force grid by differentiating the
+downstream real-space potential using some finite
+difference method.</p></li>
+</ol>
+</div></blockquote>
+<p>For receivers obtaining the force grid from the
+downstream Fourier-space potential:</p>
+<blockquote>
+<div><ol class="arabic simple" start="8">
+<li><p>Obtain Fourier-space force grid by differentiating
+the downstream Fourier-space potential through
+multiplication by
+<span class="math notranslate nohighlight">\(\mathrm{i}\boldsymbol{k}\)</span>.</p></li>
+<li><p>Transform the force grid to real space.</p></li>
+</ol>
+</div></blockquote>
+<ol class="arabic simple" start="10">
+<li><p>Apply each force grid by interpolating it back onto
+the corresponding receiver.</p></li>
+</ol>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Though the above recipe is conceptually faithful to
+the actual implementation in CO<em>N</em>CEPT, typically
+many of the steps can be combined, reducing the
+total number of steps (and grids in memory)
+significantly. In all cases, CO<em>N</em>CEPT collapses
+the above procedure to its minimal equivalence,
+which in simple (typical) cases among other things
+leaves out the upstream and downstream potentials
+completely and combines the two deconvolutions into
+one.</p>
+</div>
+<p>With the implemented potential scheme outlined above,
+the different sub-parameters of the
+<code class="docutils literal notranslate"><span class="pre">potential_options</span></code> parameter are presented below:</p>
+<ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">'gridsize'</span></code>: This is a <code class="docutils literal notranslate"><span class="pre">dict</span></code> which functions as
+a
+<a class="reference internal" href="parameters.html#components-and-selections"><span class="std std-ref">component selection</span></a>,
+mapping components to <code class="docutils literal notranslate"><span class="pre">dict</span></code>s specifying the
+various grid sizes, e.g.</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="s1">&#39;gridsize&#39;</span><span class="p">:</span> <span class="p">{</span>
+    <span class="s1">&#39;matter&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;gravity&#39;</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s1">&#39;pm&#39;</span> <span class="p">:</span> <span class="p">(</span><span class="n">gridsize_pm_upstream</span><span class="p">,</span>  <span class="n">gridsize_pm_downstream</span><span class="p">),</span>
+            <span class="s1">&#39;p3m&#39;</span><span class="p">:</span> <span class="p">(</span><span class="n">gridsize_p3m_upstream</span><span class="p">,</span> <span class="n">gridsize_p3m_downstream</span><span class="p">),</span>
+        <span class="p">},</span>
+    <span class="p">},</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>where <code class="docutils literal notranslate"><span class="pre">'matter'</span></code> is used as a stand-in for some
+component and <code class="docutils literal notranslate"><span class="pre">'gravity'</span></code> could be any long-range
+interaction. The <code class="docutils literal notranslate"><span class="pre">gridsize_*</span></code> variables are then
+integers specifying the upstream and downstream grid
+sizes (i.e. the number of grid cells along each
+dimension) for the given interaction and component.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>One can refer to the number of particles <span class="math notranslate nohighlight">\(N\)</span>
+by using <code class="docutils literal notranslate"><span class="pre">'N'</span></code> within a <code class="docutils literal notranslate"><span class="pre">str</span></code>, as used in the
+above default specifications. Similarly,
+<code class="docutils literal notranslate"><span class="pre">'gridsize'</span></code> can be used to refer to the
+intrinsic ‘fluid grid size’ of fluid components.
+Importantly, fluid components must have upstream
+and downstream grid sizes equal to their fluid grid
+size.</p>
+</div>
+<p>A special key <code class="docutils literal notranslate"><span class="pre">'global'</span></code> is further specified within
+the <code class="docutils literal notranslate"><span class="pre">'gridsize'</span></code> sub-<code class="docutils literal notranslate"><span class="pre">dict</span></code>, with a value of the
+form</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="s1">&#39;gridsize&#39;</span><span class="p">:</span> <span class="p">{</span>
+    <span class="s1">&#39;global&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;gravity&#39;</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s1">&#39;pm&#39;</span> <span class="p">:</span> <span class="n">gridsize_pm_global</span><span class="p">,</span>
+            <span class="s1">&#39;p3m&#39;</span><span class="p">:</span> <span class="n">gridsize_p3m_global</span><span class="p">,</span>
+        <span class="p">},</span>
+    <span class="p">},</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>where again <code class="docutils literal notranslate"><span class="pre">'gravity'</span></code> could be any long-range
+interaction, with the <code class="docutils literal notranslate"><span class="pre">gridsize_*_global</span></code> parameters
+specifying the global grid sizes to use for this
+interaction.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The <code class="docutils literal notranslate"><span class="pre">'global'</span></code> <code class="docutils literal notranslate"><span class="pre">dict</span></code> within the <code class="docutils literal notranslate"><span class="pre">'gridsize'</span></code>
+sub-parameter does not have a default value, as
+appropriate grid sizes depend on the components
+used within the simulation.</p>
+</div>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'interpolation'</span></code>: This is a <code class="docutils literal notranslate"><span class="pre">dict</span></code> of the form</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="s1">&#39;interpolation&#39;</span><span class="p">:</span> <span class="p">{</span>
+    <span class="s1">&#39;gravity&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;pm&#39;</span> <span class="p">:</span> <span class="n">order_interp_pm</span><span class="p">,</span>
+        <span class="s1">&#39;p3m&#39;</span><span class="p">:</span> <span class="n">order_interp_p3m</span><span class="p">,</span>
+    <span class="p">},</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>where the <code class="docutils literal notranslate"><span class="pre">order_interp_*</span></code> variables specify the
+interpolation order to use when interpolating
+particles to/from upstream/downstream grids. The
+implemented interpolations are:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">'NPG'</span></code>: ‘Nearest grid point’, order <code class="docutils literal notranslate"><span class="pre">1</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'CIC'</span></code>: ‘Cloud in cell’, order <code class="docutils literal notranslate"><span class="pre">2</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'TSC'</span></code>: ‘Triangular shaped cloud’, order <code class="docutils literal notranslate"><span class="pre">3</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'PCS'</span></code>: ‘Piecewise cubic spline’, order <code class="docutils literal notranslate"><span class="pre">4</span></code>.</p></li>
+</ul>
+<p>These may be specified using either their name (e.g.
+<code class="docutils literal notranslate"><span class="pre">'CIC'</span></code>) or integer order (e.g. <code class="docutils literal notranslate"><span class="pre">2</span></code>). See the
+paper on
+“<a class="reference internal" href="../publications.html"><span class="doc">The cosmological simulation code CO𝘕CEPT 1.0</span></a>”
+for details on these.</p>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'deconvolve'</span></code>: This is a <code class="docutils literal notranslate"><span class="pre">dict</span></code> of the form</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="s1">&#39;deconvolve&#39;</span><span class="p">:</span> <span class="p">{</span>
+    <span class="s1">&#39;gravity&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;pm&#39;</span> <span class="p">:</span> <span class="p">(</span><span class="n">deconv_pm_upstream</span><span class="p">,</span>  <span class="n">deconv_pm_downstream</span><span class="p">),</span>
+        <span class="s1">&#39;p3m&#39;</span><span class="p">:</span> <span class="p">(</span><span class="n">deconv_p3m_upstream</span><span class="p">,</span> <span class="n">deconv_p3m_downstream</span><span class="p">),</span>
+    <span class="p">},</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>with the <code class="docutils literal notranslate"><span class="pre">deconv_*</span></code> variables specifying whether
+deconvolution due to particle upstream and downstream
+interpolation should take place.</p>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'interlace'</span></code>: This is a <code class="docutils literal notranslate"><span class="pre">dict</span></code> of the form</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="s1">&#39;dinterlace&#39;</span><span class="p">:</span> <span class="p">{</span>
+    <span class="s1">&#39;gravity&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;pm&#39;</span> <span class="p">:</span> <span class="n">interlace_pm</span><span class="p">,</span>
+        <span class="s1">&#39;p3m&#39;</span><span class="p">:</span> <span class="n">interlace_p3m</span><span class="p">,</span>
+    <span class="p">},</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>with the <code class="docutils literal notranslate"><span class="pre">interlace_*</span></code> variables specifying whether
+grid interlacing should be used when interpolating
+particles onto upstream grids.</p>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'differentiation'</span></code>: This is a
+<a class="reference internal" href="parameters.html#components-and-selections"><span class="std std-ref">component selection</span></a>
+<code class="docutils literal notranslate"><span class="pre">dict</span></code> of the form</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="s1">&#39;differentiation&#39;</span><span class="p">:</span> <span class="p">{</span>
+    <span class="s1">&#39;matter&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;gravity&#39;</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s1">&#39;pm&#39;</span> <span class="p">:</span> <span class="n">order_diff_pm</span><span class="p">,</span>
+            <span class="s1">&#39;p3m&#39;</span><span class="p">:</span> <span class="n">order_diff_p3m</span><span class="p">,</span>
+        <span class="p">},</span>
+    <span class="p">},</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>with the <code class="docutils literal notranslate"><span class="pre">order_diff_*</span></code> variables specifying the
+order of differentiation to use to construct the force
+grid(s) from the (downstream) potential grid(s). For
+real-space differentiation, symmetric finite
+differencing of orders <code class="docutils literal notranslate"><span class="pre">2</span></code>, <code class="docutils literal notranslate"><span class="pre">4</span></code>, <code class="docutils literal notranslate"><span class="pre">6</span></code> and <code class="docutils literal notranslate"><span class="pre">8</span></code>
+are implemented (see the paper on
+“<a class="reference internal" href="../publications.html"><span class="doc">The cosmological simulation code CO𝘕CEPT 1.0</span></a>” for details).
+If instead you wish to make use of Fourier-space
+differentiation, set the order to either <code class="docutils literal notranslate"><span class="pre">'Fourier'</span></code>
+or <code class="docutils literal notranslate"><span class="pre">0</span></code>.</p>
+</li>
+</ul>
+</td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Example 0</strong></p></td>
+<td><p></p></td>
+<td><p>Use default potential options, but set the global
+gravitational P³M potential grid size to <span class="math notranslate nohighlight">\(128\)</span>:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">potential_options</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;gridsize&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;global&#39;</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s1">&#39;gravity&#39;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="s1">&#39;p3m&#39;</span><span class="p">:</span> <span class="mi">128</span><span class="p">,</span>
+            <span class="p">},</span>
+        <span class="p">},</span>
+    <span class="p">},</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>This can be shortened to</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">potential_options</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;gridsize&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;global&#39;</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s1">&#39;gravity&#39;</span><span class="p">:</span> <span class="mi">128</span><span class="p">,</span>
+        <span class="p">},</span>
+    <span class="p">},</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>though now both the P³M and PM method of gravity gets a
+global grid size of <span class="math notranslate nohighlight">\(128\)</span> (if the simulation does
+not make use of PM, this does not matter). The above can
+be further shortened to</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">potential_options</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;gridsize&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;global&#39;</span><span class="p">:</span> <span class="mi">128</span><span class="p">,</span>
+    <span class="p">},</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>Here it will be detected that no force/interaction has
+been specified, in which case the default one
+— <code class="docutils literal notranslate"><span class="pre">'gravity'</span></code> — will be used. The above can be
+further shortened to</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">potential_options</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;gridsize&#39;</span><span class="p">:</span> <span class="mi">128</span><span class="p">,</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>though this now also sets <code class="docutils literal notranslate"><span class="pre">128</span></code> as the upstream and
+downstream grid sizes for <code class="docutils literal notranslate"><span class="pre">'all'</span></code> components. In
+simple cases with e.g. only one component, this is
+typically what we want. Finally, this can be simplified
+to just</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">potential_options</span> <span class="o">=</span> <span class="mi">128</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Example 1</strong></p></td>
+<td><p></p></td>
+<td><p>Use default potential options, but set the
+gravitational P³M potential grid size to <span class="math notranslate nohighlight">\(128\)</span>,
+for the global potential as well as for the upstream
+and downstream potential grids for the component with a
+name/species of <code class="docutils literal notranslate"><span class="pre">'matter'</span></code>. For PM gravity, use a
+global potential grid of size <span class="math notranslate nohighlight">\(64\)</span>:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">potential_options</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;gridsize&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;global&#39;</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s1">&#39;gravity&#39;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="s1">&#39;pm&#39;</span> <span class="p">:</span>  <span class="mi">64</span><span class="p">,</span>
+                <span class="s1">&#39;p3m&#39;</span><span class="p">:</span> <span class="mi">128</span><span class="p">,</span>
+            <span class="p">},</span>
+        <span class="p">},</span>
+        <span class="s1">&#39;matter&#39;</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s1">&#39;gravity&#39;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="s1">&#39;p3m&#39;</span><span class="p">:</span> <span class="p">(</span><span class="mi">128</span><span class="p">,</span> <span class="mi">128</span><span class="p">),</span>
+            <span class="p">},</span>
+        <span class="p">},</span>
+    <span class="p">},</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>As the upstream and downstream grid size within the
+2-tuple are identical, this can be shortened to</p>
+</div>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">potential_options</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;gridsize&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;global&#39;</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s1">&#39;gravity&#39;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="s1">&#39;pm&#39;</span> <span class="p">:</span>  <span class="mi">64</span><span class="p">,</span>
+                <span class="s1">&#39;p3m&#39;</span><span class="p">:</span> <span class="mi">128</span><span class="p">,</span>
+            <span class="p">},</span>
+        <span class="p">},</span>
+        <span class="s1">&#39;matter&#39;</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s1">&#39;gravity&#39;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="s1">&#39;p3m&#39;</span><span class="p">:</span> <span class="mi">128</span><span class="p">,</span>
+            <span class="p">},</span>
+        <span class="p">},</span>
+    <span class="p">},</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>This further assigns <code class="docutils literal notranslate"><span class="pre">64</span></code> as the upstream and
+downstream gravity PM grid sizes for all components
+for which these are unset, including <code class="docutils literal notranslate"><span class="pre">'matter'</span></code>.</p>
+</div>
+</td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Example 2</strong></p></td>
+<td><p></p></td>
+<td><p>For the gravitational interaction, be it PM or P³M, make
+use of the highest available order for particle
+interpolation (PCS), as well as interlacing. Use
+<span class="math notranslate nohighlight">\(80\)</span> as the size of all potential grids.</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">potential_options</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;gridsize&#39;</span><span class="p">:</span> <span class="mi">80</span><span class="p">,</span>
+    <span class="s1">&#39;interpolation&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;gravity&#39;</span><span class="p">:</span> <span class="s1">&#39;PCS&#39;</span><span class="p">,</span>
+    <span class="p">},</span>
+    <span class="s1">&#39;interlace&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;gravity&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Example 3</strong></p></td>
+<td><p></p></td>
+<td><p>Use <span class="math notranslate nohighlight">\(128\)</span> as the size of all potential grids, use
+order-6 real-space finite differencing to obtain the
+force from the gravitational PM potential and use
+Fourier-space differentiation to obtain the force from
+the gravitational P³M potential:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">potential_options</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;gridsize&#39;</span><span class="p">:</span> <span class="mi">128</span><span class="p">,</span>
+    <span class="s1">&#39;differentiation&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;all&#39;</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s1">&#39;gravity&#39;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="s1">&#39;pm&#39;</span> <span class="p">:</span> <span class="mi">6</span><span class="p">,</span>
+                <span class="s1">&#39;p3m&#39;</span><span class="p">:</span> <span class="s1">&#39;Fourier&#39;</span><span class="p">,</span>
+            <span class="p">},</span>
+        <span class="p">},</span>
+    <span class="p">},</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+<hr class="docutils" />
+</div>
+<div class="section" id="shortrange-params">
+<span id="id3"></span><h2><a class="toc-backref" href="#id7"><code class="docutils literal notranslate"><span class="pre">shortrange_params</span></code></a><a class="headerlink" href="#shortrange-params" title="Permalink to this headline"></a></h2>
+<table>
+<colgroup>
+<col style="width: 4%" />
+<col style="width: 10%" />
+<col style="width: 4%" />
+<col style="width: 82%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Description</strong></p></td>
+<td><p></p></td>
+<td><p>Specifications for short-range forces</p></td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Default</strong></p></td>
+<td><p></p></td>
+<td><div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+    <span class="s1">&#39;gravity&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;scale&#39;</span>    <span class="p">:</span> <span class="s1">&#39;1.25*boxsize/gridsize&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;range&#39;</span>    <span class="p">:</span> <span class="s1">&#39;4.5*scale&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;tilesize&#39;</span> <span class="p">:</span> <span class="s1">&#39;range&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;subtiling&#39;</span><span class="p">:</span> <span class="p">(</span><span class="s1">&#39;automatic&#39;</span><span class="p">,</span> <span class="mi">16</span><span class="p">),</span>
+        <span class="s1">&#39;tablesize&#39;</span><span class="p">:</span> <span class="mi">4096</span><span class="p">,</span>
+    <span class="p">},</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Elaboration</strong></p></td>
+<td><p></p></td>
+<td><p>This parameter is a <code class="docutils literal notranslate"><span class="pre">dict</span></code> which maps
+short-range interactions to sub-parameter <code class="docutils literal notranslate"><span class="pre">dict</span></code>s,
+which specifies sub-parameters for each short-range
+force. Currently, <code class="docutils literal notranslate"><span class="pre">'gravity'</span></code> is the only short-range
+force implemented. For detailed information about the
+short-range force — including the short-/long-range
+force split scale <span class="math notranslate nohighlight">\(x_{\mathrm{s}}\)</span> and cut-off
+<span class="math notranslate nohighlight">\(x_{\mathrm{r}}\)</span> as well as tiles, subtiles and
+automatic refinement thereof — we refer to the paper
+on
+“<a class="reference internal" href="../publications.html"><span class="doc">The cosmological simulation code CO𝘕CEPT 1.0</span></a>”.</p>
+<p>Each of the sub-parameters are described below.</p>
+<ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">'scale'</span></code>: This is the short-/long-range force split
+scale <span class="math notranslate nohighlight">\(x_{\mathrm{s}}\)</span>, specifying the scale at
+which the short- and long-range P³M forces are
+comparable. The default value corresponds to a scale
+of <span class="math notranslate nohighlight">\(1.25\)</span> grid cell widths, as <code class="docutils literal notranslate"><span class="pre">'gridsize'</span></code> is
+dynamically substituted for the global grid size of
+the long-range potential grid. See the
+<code class="docutils literal notranslate"><span class="pre">potential_options</span></code>
+<a class="reference internal" href="#potential-options"><span class="std std-ref">parameter</span></a>
+for details on this grid.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'range'</span></code>: This is the cut-off scale
+<span class="math notranslate nohighlight">\(x_{\mathrm{r}}\)</span>, specifying the range of the
+short-range force. The default value is set to
+<span class="math notranslate nohighlight">\(4.5 x_{\mathrm{s}}\)</span>, as <code class="docutils literal notranslate"><span class="pre">'scale'</span></code> is being
+dynamically substituted.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'tilesize'</span></code>: This sets the (minimum) width of the
+tiles. To ensure that all particle pairs within
+<span class="math notranslate nohighlight">\(x_{\mathrm{r}}\)</span> of each other gets paired up,
+this should be set no lower than
+<span class="math notranslate nohighlight">\(x_{\mathrm{r}}\)</span>, i.e. <code class="docutils literal notranslate"><span class="pre">'range'</span></code>. At the same
+time, there is typically no reason to set a larger
+value, as this just slows down the short-range
+interaction without actually increasing the number of
+particle-particle interactions.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'subtiling'</span></code>: This specifies the subtile
+decomposition. It may be defined as a triplet of
+integers specifying a fixed decomposition or a single
+integer specifying a fixed cubic decomposition.
+Alternatively, it may be defined to be the <code class="docutils literal notranslate"><span class="pre">str</span></code>
+<code class="docutils literal notranslate"><span class="pre">'automatic'</span></code>, which specifies automatic and dynamic
+subtile refinement, or a 2-tuple with <code class="docutils literal notranslate"><span class="pre">'automatic'</span></code>
+as the first element and the length of the refinement
+period (in number of time steps) as the second
+element.</p>
+<div class="admonition caution">
+<p class="admonition-title">Caution</p>
+<p>The automatic subtile refinement is based on CPU
+timing measurements within the simulation and so
+breaks strict deterministic behaviour.</p>
+</div>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'tablesize'</span></code>: The gravitational short-range force
+between two particles is a complicated expression, and
+so it is pre-tabulated, with actual forces found
+through cheap (1D) NGP lookups in this table. As we do
+not even use linear interpolation, this table needs to
+be rather large. Exactly how large is controlled by
+the <code class="docutils literal notranslate"><span class="pre">'tablesize'</span></code> sub-parameter.</p></li>
+</ul>
+</td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Example 0</strong></p></td>
+<td><p></p></td>
+<td><p>Extend <span class="math notranslate nohighlight">\(x_{\mathrm{r}}\)</span> all the way to
+<span class="math notranslate nohighlight">\(5.5 x_{\mathrm{s}}\)</span>, for the gravitational
+short-range interaction:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">shortrange_params</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;gravity&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;scale&#39;</span><span class="p">:</span> <span class="s1">&#39;1.25*boxsize/gridsize&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;range&#39;</span><span class="p">:</span> <span class="s1">&#39;5.5*scale&#39;</span><span class="p">,</span>
+    <span class="p">},</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>We can shorten the above to</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">shortrange_params</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;scale&#39;</span><span class="p">:</span> <span class="s1">&#39;1.25*boxsize/gridsize&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;range&#39;</span><span class="p">:</span> <span class="s1">&#39;5.5*scale&#39;</span><span class="p">,</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>in which case <code class="docutils literal notranslate"><span class="pre">'gravity'</span></code> will be set as the
+force/interaction automatically, as it is the default
+force/interaction.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>In both cases, the remaining sub-parameters will
+receive default values</p>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Example 1</strong></p></td>
+<td><p></p></td>
+<td><p>Use a fixed subtile decomposition of
+<span class="math notranslate nohighlight">\((3, 3, 3)\)</span> for the gravitational short-range
+interaction:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">shortrange_params</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;subtiling&#39;</span><span class="p">:</span> <span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>As all three subdivisions are equal, this can be
+shortened to</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">shortrange_params</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;subtiling&#39;</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>While probably a bit slower than using automatic subtile
+refinement, this subtile decomposition has the benefit of
+being static and thus deterministic.</p>
+</td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Example 2</strong></p></td>
+<td><p></p></td>
+<td><p>Use dynamic subtile refinement with a period
+of <span class="math notranslate nohighlight">\(8\)</span> time steps for the gravitational
+short-range interaction:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">shortrange_params</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;subtiling&#39;</span><span class="p">:</span> <span class="p">(</span><span class="s1">&#39;automatic&#39;</span><span class="p">,</span> <span class="mi">8</span><span class="p">),</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+<hr class="docutils" />
+</div>
+<div class="section" id="powerspec-options">
+<span id="id4"></span><h2><a class="toc-backref" href="#id8"><code class="docutils literal notranslate"><span class="pre">powerspec_options</span></code></a><a class="headerlink" href="#powerspec-options" title="Permalink to this headline"></a></h2>
+<table>
+<colgroup>
+<col style="width: 4%" />
+<col style="width: 10%" />
+<col style="width: 4%" />
+<col style="width: 82%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Description</strong></p></td>
+<td><p></p></td>
+<td><p>Specifications for power spectrum computations
+and dumps</p></td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Default</strong></p></td>
+<td><p></p></td>
+<td><div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+    <span class="s1">&#39;upstream gridsize&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;particles&#39;</span><span class="p">:</span> <span class="s1">&#39;2*cbrt(N)&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;fluid&#39;</span>    <span class="p">:</span> <span class="s1">&#39;gridsize&#39;</span><span class="p">,</span>
+    <span class="p">},</span>
+    <span class="s1">&#39;global gridsize&#39;</span><span class="p">:</span> <span class="p">{},</span>
+    <span class="s1">&#39;interpolation&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="s1">&#39;PCS&#39;</span><span class="p">,</span>
+    <span class="p">},</span>
+    <span class="s1">&#39;deconvolve&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="p">},</span>
+    <span class="s1">&#39;interlace&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="p">},</span>
+    <span class="s1">&#39;k_max&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="s1">&#39;nyquist&#39;</span><span class="p">,</span>
+    <span class="p">},</span>
+    <span class="s1">&#39;binsize&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s1">&#39;1*k_min&#39;</span><span class="p">:</span>   <span class="n">π</span><span class="o">/</span><span class="n">boxsize</span><span class="p">,</span>
+            <span class="s1">&#39;5*k_min&#39;</span><span class="p">:</span> <span class="mi">2</span><span class="o">*</span><span class="n">π</span><span class="o">/</span><span class="n">boxsize</span><span class="p">,</span>
+        <span class="p">},</span>
+    <span class="p">},</span>
+    <span class="s1">&#39;tophat&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="mi">8</span><span class="o">*</span><span class="n">Mpc</span><span class="o">/</span><span class="n">h</span><span class="p">,</span>
+    <span class="p">},</span>
+    <span class="s1">&#39;significant figures&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="mi">8</span><span class="p">,</span>
+    <span class="p">},</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Elaboration</strong></p></td>
+<td><p></p></td>
+<td><p>This is a <code class="docutils literal notranslate"><span class="pre">dict</span></code> of several individual sub-parameters,
+specifying details of how to compute and save power
+spectra. All sub-parameters are themselves
+<a class="reference internal" href="parameters.html#components-and-selections"><span class="std std-ref">component selections</span></a>.</p>
+<p>For computing a power spectrum, one or more components
+are first interpolated onto individual <em>upstream</em> grids,
+possibly using deconvolution and interlacing, after
+which they are added together in Fourier space,
+producing a <em>global</em> grid. This scheme is similar to the
+one used for potentials, except here we never go back to
+real space, neither do we interpolate anything back to
+the particles. See the <code class="docutils literal notranslate"><span class="pre">potential_options</span></code>
+<a class="reference internal" href="#potential-options"><span class="std std-ref">parameter</span></a> for a walk-through
+of the scheme.</p>
+<p>Each sub-parameter is described below:</p>
+<ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">'upstream</span> <span class="pre">gridsize'</span></code>: Specifies the upstream grid
+sizes to use for each component.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'global</span> <span class="pre">gridsize'</span></code>: Specifies the global grid size
+to use for each power spectrum. Which power spectra to
+compute are in turn specified by the
+<code class="docutils literal notranslate"><span class="pre">powerspec_select</span></code>
+<a class="reference internal" href="input_output.html#powerspec-select"><span class="std std-ref">parameter</span></a>.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>This has no default value, as a proper global grid
+size depends on the components within the
+simulation. If this is not set when a power
+spectrum is to be computed, a value equal to the
+largest of the upstream grid sizes (in use for this
+particular power spectrum) will be used.</p>
+</div>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'interpolation'</span></code>: Specifies the interpolation order
+to use when interpolating particles to upstream grids.
+The implemented interpolations are:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">'NPG'</span></code>: ‘Nearest grid point’, order <code class="docutils literal notranslate"><span class="pre">1</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'CIC'</span></code>: ‘Cloud in cell’, order <code class="docutils literal notranslate"><span class="pre">2</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'TSC'</span></code>: ‘Triangular shaped cloud’, order <code class="docutils literal notranslate"><span class="pre">3</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'PCS'</span></code>: ‘Piecewise cubic spline’, order <code class="docutils literal notranslate"><span class="pre">4</span></code>.</p></li>
+</ul>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'deconvolve'</span></code>: Specifies whether to apply
+deconvolution for upstream particle interpolations.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'interlace'</span></code>: Specifies whether to use interlacing
+for upstream particle interpolations.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'k_max'</span></code>: Specifies the largest <span class="math notranslate nohighlight">\(k\)</span> mode to
+include in the power spectrum output files (data files
+and plots). If given as a <code class="docutils literal notranslate"><span class="pre">str</span></code>, <code class="docutils literal notranslate"><span class="pre">'nyquist'</span></code> is
+dynamically substituted for the Nyquist mode,</p>
+<div class="math notranslate nohighlight">
+\[\require{upgreek}
+k_{\mathrm{Nyquist}} = \biggl\lfloor\frac{n_{\mathrm{ps}}}{2}\biggr\rfloor \times \frac{2\uppi}{L_{\mathrm{box}}}\, ,\]</div>
+<p>with <span class="math notranslate nohighlight">\(L_{\mathrm{box}}\)</span> given by <code class="docutils literal notranslate"><span class="pre">boxsize</span></code> and
+<span class="math notranslate nohighlight">\(n_{\mathrm{ps}}\)</span> the global grid size used for
+the power spectrum.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Setting <code class="docutils literal notranslate"><span class="pre">'k_max'</span></code> above <code class="docutils literal notranslate"><span class="pre">'sqrt(3)*nyquist'</span></code>
+will not yield further data points, as no further
+data is available in the 3D grid.</p>
+</div>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'binsize'</span></code>: Specifies the width of the power
+spectrum bins. By specifying different widths at
+different <span class="math notranslate nohighlight">\(k\)</span>, a running (logarithmically
+interpolated) bin size is obtained. When the
+<span class="math notranslate nohighlight">\(k\)</span>‘s are given as <code class="docutils literal notranslate"><span class="pre">str</span></code>s, the following
+sub<code class="docutils literal notranslate"><span class="pre">str</span></code>s are dynamically substituted:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">'k_min'</span></code>: <code class="docutils literal notranslate"><span class="pre">2*π/boxsize</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'k_max'</span></code>: Value set for <code class="docutils literal notranslate"><span class="pre">'k_max'</span></code>, though at
+most <code class="docutils literal notranslate"><span class="pre">sqrt(3)*gridsize//2*k_min</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'gridsize'</span></code>: <code class="docutils literal notranslate"><span class="pre">gridsize</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'nyquist'</span></code>: <code class="docutils literal notranslate"><span class="pre">gridsize//2*k_min</span></code>.</p></li>
+</ul>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'tophat'</span></code>: Included in the power spectrum data
+files is also the root-mean-square density variation
+<span class="math notranslate nohighlight">\(\sigma_R\)</span>, smoothed with a spherical
+top-hat filter <span class="math notranslate nohighlight">\(W(s)\)</span> of radius <span class="math notranslate nohighlight">\(R\)</span>:</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}\require{upgreek}
+\sigma_R &amp;= \frac{1}{2\uppi^2} \left( \int k^2 W^2(kR) P(k)\,\mathrm{d}k \right)^{1/2}\, , \\
+W(s) &amp;= \frac{3}{s^3}\bigl(\sin(s) - s\cos(s)\bigr)\, ,\end{split}\]</div>
+<p>with <span class="math notranslate nohighlight">\(P(k)\)</span> the power spectrum.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Though the integral should really be over all
+<span class="math notranslate nohighlight">\(k\)</span>, naturally we can only use those within
+the tabulated power spectrum</p>
+</div>
+<p>The radius <span class="math notranslate nohighlight">\(R\)</span> is controlled by this
+sub-parameter. The default value of <code class="docutils literal notranslate"><span class="pre">8*Mpc/h</span></code>
+results in the standard <span class="math notranslate nohighlight">\(\sigma_8\)</span>.</p>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'significant</span> <span class="pre">figures'</span></code>: Specifies the number of
+significant figures to use for the data in the power
+spectrum data files.</p></li>
+</ul>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>For all sub-parameters above except
+<code class="docutils literal notranslate"><span class="pre">'upstream</span> <span class="pre">gridsize'</span></code>, the keys used within the
+<a class="reference internal" href="parameters.html#components-and-selections"><span class="std std-ref">component selection</span></a>
+sub-<code class="docutils literal notranslate"><span class="pre">dict</span></code>s may refer to either a single
+component or a combination of components. In the case
+of the latter, this designates a combined (auto)
+power spectrum.</p>
+</div>
+</td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Example 0</strong></p></td>
+<td><p></p></td>
+<td><p>Use an upstream grid size of <span class="math notranslate nohighlight">\(256\)</span> for the
+component with a name/species of <code class="docutils literal notranslate"><span class="pre">'matter'</span></code>:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">powerspec_options</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;upstream gridsize&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;matter&#39;</span><span class="p">:</span> <span class="mi">256</span><span class="p">,</span>
+    <span class="p">},</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>As we did not specify a global grid size, this will
+similarly be <span class="math notranslate nohighlight">\(256\)</span>. We can also set both
+explicitly by using</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">powerspec_options</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;gridsize&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;matter&#39;</span><span class="p">:</span> <span class="mi">256</span><span class="p">,</span>
+    <span class="p">},</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>Here <code class="docutils literal notranslate"><span class="pre">'gridsize'</span></code> is not a real sub-parameter of
+<code class="docutils literal notranslate"><span class="pre">powerspec_options</span></code>. It merely acts as a convenient
+shortcut for setting both <code class="docutils literal notranslate"><span class="pre">'upstream</span> <span class="pre">gridsize'</span></code> and
+<code class="docutils literal notranslate"><span class="pre">'global</span> <span class="pre">gridsize'</span></code>.</p>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Example 1</strong></p></td>
+<td><p></p></td>
+<td><p>Use small bins of the same size for all <span class="math notranslate nohighlight">\(k\)</span> of
+every power spectrum:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">powerspec_options</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;binsize&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;all&#39;</span>             <span class="p">:</span> <span class="mf">0.5</span><span class="o">*</span><span class="n">π</span><span class="o">/</span><span class="n">boxsize</span><span class="p">,</span>
+        <span class="s1">&#39;all combinations&#39;</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span>
+    <span class="p">},</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>This may be shortened to</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">powerspec_options</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;binsize&#39;</span><span class="p">:</span> <span class="mf">0.5</span><span class="o">*</span><span class="n">π</span><span class="o">/</span><span class="n">boxsize</span><span class="p">,</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Example 2</strong></p></td>
+<td><p></p></td>
+<td><p>Use CIC interpolation and disable interlacing for power
+spectra of the component with a name/species of
+<code class="docutils literal notranslate"><span class="pre">'matter'</span></code>:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">powerspec_options</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;interpolation&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;matter&#39;</span><span class="p">:</span> <span class="s1">&#39;CIC&#39;</span><span class="p">,</span>
+    <span class="p">},</span>
+    <span class="s1">&#39;interlace&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;matter&#39;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<hr class="docutils" />
+<div class="section" id="k-modes-per-decade">
+<h2><a class="toc-backref" href="#id9"><code class="docutils literal notranslate"><span class="pre">k_modes_per_decade</span></code></a><a class="headerlink" href="#k-modes-per-decade" title="Permalink to this headline"></a></h2>
+<table>
+<colgroup>
+<col style="width: 4%" />
+<col style="width: 10%" />
+<col style="width: 4%" />
+<col style="width: 82%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Description</strong></p></td>
+<td><p></p></td>
+<td><p>Number of Fourier modes <span class="math notranslate nohighlight">\(k\)</span> per decade in
+CLASS computations</p></td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Default</strong></p></td>
+<td><p></p></td>
+<td><div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+    <span class="mf">3e-3</span><span class="o">/</span><span class="n">Mpc</span><span class="p">:</span> <span class="mi">10</span><span class="p">,</span>
+    <span class="mf">3e-2</span><span class="o">/</span><span class="n">Mpc</span><span class="p">:</span> <span class="mi">30</span><span class="p">,</span>
+    <span class="mf">3e-1</span><span class="o">/</span><span class="n">Mpc</span><span class="p">:</span> <span class="mi">30</span><span class="p">,</span>
+       <span class="mi">1</span><span class="o">/</span><span class="n">Mpc</span><span class="p">:</span> <span class="mi">10</span><span class="p">,</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Elaboration</strong></p></td>
+<td><p></p></td>
+<td><p>This parameter determines the number of CLASS
+perturbations to compute, by specifying the density
+of Fourier modes <span class="math notranslate nohighlight">\(k\)</span> as a (running) number per
+decade. The resulting tabulation of <span class="math notranslate nohighlight">\(k\)</span> is
+employed for all CLASS perturbations, which are used
+for e.g. initial conditions. The default choice yields a
+relatively sparse tabulation of perturbations except
+around baryon acoustic oscillations, where more detail
+is added.</p></td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Example 0</strong></p></td>
+<td><p></p></td>
+<td><p>Use a constant <span class="math notranslate nohighlight">\(20\)</span> modes per decade, i.e.
+<span class="math notranslate nohighlight">\(20\)</span> values of <span class="math notranslate nohighlight">\(k\)</span> placed logarithmically
+equidistant between
+<span class="math notranslate nohighlight">\(k = 10^{-3}\,\mathrm{Mpc}^{-1}\)</span> and
+<span class="math notranslate nohighlight">\(k = 10^{-2}\,\mathrm{Mpc}^{-1}\)</span>, between
+<span class="math notranslate nohighlight">\(k = 10^{-2}\,\mathrm{Mpc}^{-1}\)</span> and
+<span class="math notranslate nohighlight">\(k = 10^{-1}\,\mathrm{Mpc}^{-1}\)</span>, etc:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">k_modes_per_decade</span> <span class="o">=</span> <span class="mi">20</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Example 1</strong></p></td>
+<td><p></p></td>
+<td><p>Use <span class="math notranslate nohighlight">\(50\)</span> modes per decade around
+<span class="math notranslate nohighlight">\(k = 10^{-4}\,\mathrm{Mpc}^{-1}\)</span> and <span class="math notranslate nohighlight">\(10\)</span>
+modes per decade around
+<span class="math notranslate nohighlight">\(k = 10^1\,\mathrm{Mpc}^{-1}\)</span>, with a running
+number per decade in between found through logarithmic
+interpolation (resulting in e.g. <span class="math notranslate nohighlight">\(42\)</span> modes per
+decade around <span class="math notranslate nohighlight">\(k = 10^{-3}\,\mathrm{Mpc}^{-1}\)</span>):</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">k_modes_per_decade</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="mf">1e-4</span><span class="o">/</span><span class="n">Mpc</span><span class="p">:</span> <span class="mi">50</span><span class="p">,</span>
+    <span class="mf">1e+1</span><span class="o">/</span><span class="n">Mpc</span><span class="p">:</span> <span class="mi">10</span><span class="p">,</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="input_output.html" class="btn btn-neutral float-left" title="Input/output" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="cosmology.html" class="btn btn-neutral float-right" title="Cosmology" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p></p>
+  </div>
+
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

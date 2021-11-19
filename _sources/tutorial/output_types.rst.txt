@@ -36,7 +36,7 @@ file:
        'matter': {'data': False, 'image': True, 'terminal image': True},
    }
 
-   # Numerical parameters
+   # Numeris
    boxsize = 128*Mpc
    potential_options = 2*_size
 
@@ -100,12 +100,13 @@ renders. The colours are controlled through the ``render3D_colors`` and
 ``render3D_bgcolor`` parameters, while the (square) size (in pixels) is set by
 ``render3D_resolution``. All particles of a given component gets the same
 colour, though different colours may be used for different components when
-running such simulations. The brightness of each pixel indicate the local
+running such simulations. The brightness of each pixel indicates the local
 energy density.
 
 The colours used (here ``'lime'`` and ``'black'``) may be any colour recognised
 by `Matplotlib <https://matplotlib.org/>`_. A list of named colours is
-available `here <https://matplotlib.org/gallery/color/named_colors.html>`_.
+available
+`here <https://matplotlib.org/stable/gallery/color/named_colors.html>`_.
 Alternatively, you may pass a 3-tuple of RGB values (e.g.
 ``render3D_bgcolor = (1, 0, 0)`` makes the background red).
 
@@ -137,7 +138,7 @@ render is constructed from the original 2D render, this does not show more
 details even though the resolution is higher (80 vs. 64).
 
 Also available through ``render2D_options`` is the colormap to use. Check out
-`this <https://matplotlib.org/gallery/color/colormap_reference.html>`_
+`this <https://matplotlib.org/stable/gallery/color/colormap_reference.html>`_
 for a list of available colormaps.
 
 
@@ -154,7 +155,7 @@ know its job ID.
 
    .. code-block:: bash
 
-      grep -o "job [^ ]*" output/tutorial/powerspec_a=1.00
+      grep -o "job [0-9]*" output/tutorial/powerspec_a=1.00
 
 With the job ID at hand, try the following:
 
@@ -192,7 +193,7 @@ consult :doc:`Utilities </utilities/utilities>`.
 Snapshots
 .........
 Snapshots are raw dumps of the simulated system, in this case the positions
-and momenta of all :math:`N = 64^3` particles. By default CO\ *N*\ CEPT uses
+and momenta of all :math:`N = 64^3` particles. By default, CO\ *N*\ CEPT uses
 its own snapshot format, which is simply a well-structured HDF5 file.
 
 .. tip::

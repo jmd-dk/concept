@@ -12,7 +12,7 @@ and introduce features that is not used during simulation.
 The available utilities are as follows:
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
 
    class
    convert

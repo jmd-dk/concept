@@ -575,7 +575,7 @@ or defining it as an environment variable prior to the invocation;
 
 .. code-block:: bash
 
-   export mpi_dir=/path/to/mpi  # Assuming Bash-like shell
+   export mpi_dir=/path/to/mpi  # assuming Bash-like shell
    bash install
 
 All other influential environment variables may be set in similar ways.
@@ -626,12 +626,12 @@ has a version, specified by ``blessings_version``, ``cython_version``,
 
 
 
-Specifying dependency URL's
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Specifying dependency URLs
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 When a ``*_dir`` :ref:`variable <making_use_of_preinstalled_libraries>` is
 not set for a dependency (or CO\ *N*\ CEPT itself), the ``install`` script
 will download the source code of the dependency using a pre-defined URL.
-Of course the exact URL needs to factor in the version of the dependency,
+Of course, the exact URL needs to factor in the version of the dependency,
 and so this depends on the corresponding ``*_version``
 :ref:`variable <specifying_dependency_versions>`. If you wish to install some
 non-standard version of a given dependency, you can provide the corresponding
@@ -765,7 +765,7 @@ stack is not necessary if installing CO\ *N*\ CEPT using the ``install``
 script (which is *highly* recommended), but it is important if for some reason
 you want to build (parts of) this stack yourself.
 
-Typically the exact version of any given dependency is not crucial. An effort
+Typically, the exact version of any given dependency is not crucial. An effort
 is made to ensure that CO\ *N*\ CEPT functions with recent stable versions of
 each dependency. As many of the CO\ *N*\ CEPT dependencies also depend on
 each other, finding a working set of dependency versions may be non-trivial.
@@ -829,7 +829,7 @@ dependencies, CO\ *N*\ CEPT further depends explicitly on
    CO\ *N*\ CEPT does not make use of any standard Python bindings for FFTW
    --- such as `pyFFTW <https://github.com/pyFFTW/pyFFTW>`_ --- as these
    (at least traditionally) do not include the distributed (MPI)
-   FFT's required. Instead, CO\ *N*\ CEPT provides its own minimal wrapper,
+   FFTs required. Instead, CO\ *N*\ CEPT provides its own minimal wrapper,
    ``fft.c``. This is the only C file in the CO\ *N*\ CEPT source code.
 
 If building FFTW yourself, remember to link against an MPI library. The same
@@ -1086,9 +1086,9 @@ when working remotely. To overrule this, add one of e.g.
 
 .. code-block:: bash
 
-   export make_jobs="-j 1"  # Always build serially
-   export make_jobs="-j 2"  # Always build in parallel, using 2 cores
-   export make_jobs="-j"    # Always build in parallel, using any number of cores
+   export make_jobs="-j 1"  # always build serially
+   export make_jobs="-j 2"  # always build in parallel, using 2 cores
+   export make_jobs="-j"    # always build in parallel, using any number of cores
 
 to ``.env``.
 

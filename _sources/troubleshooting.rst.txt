@@ -173,7 +173,8 @@ platforms.
   Docker or remotely via SSH) and the terminal formatting appears suboptimal,
   try using the superior `iTerm2 <https://www.iterm2.com/>`_ terminal emulator.
 
-If you want to disable colour and other formatted output altogether, set
+If you want to disable colour and other
+:ref:`formatted output <enable_terminal_formatting>` altogether, set
 
 .. code-block:: python3
 
@@ -258,9 +259,9 @@ a problem with your installation. You can try reinstalling CO\ *N*\ CEPT along
 with all of its dependencies, perhaps using compilers different from the ones
 used the first time around.
 
-If all tests passes despite the observed (and reproducible) bad behaviour,
-you may have found a bug in a code path not covered by the test suite.
-Please report this.
+If all tests pass despite the observed (and reproducible) bad behaviour, you
+may have found a bug in a code path not covered by the test suite. Please
+report this.
 
 
 
@@ -275,10 +276,10 @@ this first. If you encounter problems here as well, please see the
 
 Even if CO\ *N*\ CEPT runs fine on the front-end of a cluster (i.e. when
 supplying the ``--local`` option to the ``concept`` script), you may
-experience weird behaviour or crashes when running remote jobs. Typically this
-is either due to an improper choice of the MPI executor, or the remote nodes
-having different hardware architecture from the front-end. Possible solutions
-to both of these problems are provided below.
+experience weird behaviour or crashes when running remote jobs. Typically,
+this is either due to an improper choice of the MPI executor, or the remote
+nodes having different hardware architecture from the front-end. Possible
+solutions to both of these problems are provided below.
 
 
 
@@ -522,7 +523,7 @@ or
    a job is auto-submitted via the ``concept`` script. This sub-directory can
    take a minute to appear though.
 
-It is also possible that the cluster configuration just do not play nicely
+It is also possible that the cluster configuration just does not play nicely
 with the current MPI implementation in use. If you installed CO\ *N*\ CEPT
 using one of the MPI implementations present on the cluster, try again, using
 another pre-installed MPI library. If you instead let CO\ *N*\ CEPT install

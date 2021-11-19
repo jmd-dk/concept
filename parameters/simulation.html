@@ -1,0 +1,1368 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Simulation &mdash; CONCEPT Documentation</title>
+      <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/copybutton.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/tabs.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
+    <link rel="shortcut icon" href="../_static/favicon.ico"/>
+    <link rel="canonical" href="https://jmd-dk.github.io/concept/parameters/simulation.html" />
+  <!--[if lt IE 9]>
+    <script src="../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/doctools.js"></script>
+        <script src="../_static/clipboard.min.js"></script>
+        <script src="../_static/copybutton.js"></script>
+        <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Graphics" href="graphics.html" />
+    <link rel="prev" title="Physics" href="physics.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+            <a href="../index.html" class="icon icon-home"> CO<em>N</em>CEPT
+            <img src="../_static/logo.png" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search documentation" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../tutorial/tutorial.html">Tutorial</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../tutorial/installation.html">1. Effortless installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorial/first_simulations.html">2. Your first simulations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorial/parameter_files.html">3. Working with parameter files</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorial/gravity.html">4. Mastering gravity</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../tutorial/gravity.html#the-pm-method">4.1. The PM method</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../tutorial/gravity.html#the-p3m-method">4.2. The P³M method</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorial/output_types.html">5. Other kinds of output</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../tutorial/output_types.html#d-renders">5.1. 3D renders</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../tutorial/output_types.html#id1">5.2. 2D renders</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../tutorial/output_types.html#snapshots">5.3. Snapshots</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorial/working_remotely.html">6. Working on remote clusters</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorial/beyond_matter_only.html">7. Beyond matter-only simulations</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../tutorial/beyond_matter_only.html#radiation">7.1. Radiation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../tutorial/beyond_matter_only.html#massive-neutrinos">7.2. Massive neutrinos</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../tutorial/beyond_matter_only.html#dynamical-dark-energy">7.3. Dynamical dark energy</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../tutorial/beyond_matter_only.html#decaying-cold-dark-matter">7.4. Decaying cold dark matter</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../tutorial/beyond_matter_only.html#non-linear-massive-neutrinos">7.5. Non-linear massive neutrinos</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorial/gadget.html">8. Comparison with GADGET-2</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../installation.html">Installation</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../installation.html#supported-platforms">Supported platforms</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../installation.html#standard-installation">Standard installation</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../installation.html#optimal-network-performance-on-clusters">Optimal network performance on clusters</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../installation.html#cloning-with-git">Cloning with Git</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../installation.html#the-install-script-in-depth">The <code class="docutils literal notranslate"><span class="pre">install</span></code> script in-depth</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../installation.html#programs-installed">Programs installed</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../installation.html#command-line-options">Command-line options</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../installation.html#influential-environment-variables">Influential environment variables</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../installation.html#making-use-of-pre-installed-libraries">Making use of pre-installed libraries</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../installation.html#specifying-dependency-versions">Specifying dependency versions</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../installation.html#specifying-dependency-urls">Specifying dependency URLs</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../installation.html#choosing-compiler-precedence">Choosing compiler precedence</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../installation.html#installing-mpich-or-openmpi">Installing MPICH or OpenMPI</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../installation.html#parallel-builds">Parallel builds</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../installation.html#using-the-install-script-to-install-specific-libraries-but-not-concept-itself">Using the <code class="docutils literal notranslate"><span class="pre">install</span></code> script to install specific libraries but not CO<em>N</em>CEPT itself</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../installation.html#dependencies">Dependencies</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../installation.html#python-dependencies">Python dependencies</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../installation.html#other-primary-dependencies">Other primary dependencies</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../installation.html#system-dependencies">System dependencies</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../installation.html#the-path-and-env-files">The <code class="docutils literal notranslate"><span class="pre">.path</span></code> and <code class="docutils literal notranslate"><span class="pre">.env</span></code> files</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../installation.html#the-path-file">The <code class="docutils literal notranslate"><span class="pre">.path</span></code> file</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../installation.html#the-env-file">The <code class="docutils literal notranslate"><span class="pre">.env</span></code> file</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../installation.html#path-like-environment-variables"><code class="docutils literal notranslate"><span class="pre">PATH</span></code>-like environment variables</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../installation.html#eliminating-interference-from-foreign-python-installations">Eliminating interference from foreign Python installations</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../installation.html#the-mpi-executor">The <code class="docutils literal notranslate"><span class="pre">mpi_executor</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../installation.html#the-make-jobs-environment-variable">The <code class="docutils literal notranslate"><span class="pre">make_jobs</span></code> environment variable</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../command_line_options.html">Command-line options</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../command_line_options.html#basics">Basics</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#help-h-help">Help: <code class="docutils literal notranslate"><span class="pre">-h</span></code>, <code class="docutils literal notranslate"><span class="pre">--help</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#parameter-file-p-params">Parameter file: <code class="docutils literal notranslate"><span class="pre">-p</span></code>, <code class="docutils literal notranslate"><span class="pre">--params</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#command-line-parameters-c-command-line-params">Command-line parameters: <code class="docutils literal notranslate"><span class="pre">-c</span></code>, <code class="docutils literal notranslate"><span class="pre">--command-line-params</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#number-of-processes-n-nprocs">Number of processes: <code class="docutils literal notranslate"><span class="pre">-n</span></code>, <code class="docutils literal notranslate"><span class="pre">--nprocs</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../command_line_options.html#specifying-multiple-nodes">Specifying multiple nodes</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#utility-u-utility">Utility: <code class="docutils literal notranslate"><span class="pre">-u</span></code>, <code class="docutils literal notranslate"><span class="pre">--utility</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../command_line_options.html#remote-job-submission">Remote job submission</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#queue-q-queue">Queue: <code class="docutils literal notranslate"><span class="pre">-q</span></code>, <code class="docutils literal notranslate"><span class="pre">--queue</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#wall-time-w-walltime">Wall time: <code class="docutils literal notranslate"><span class="pre">-w</span></code>, <code class="docutils literal notranslate"><span class="pre">--walltime</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#memory-memory">Memory: <code class="docutils literal notranslate"><span class="pre">--memory</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#job-name-job-name">Job name: <code class="docutils literal notranslate"><span class="pre">--job-name</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#job-directive-j-job-directive">Job directive: <code class="docutils literal notranslate"><span class="pre">-j</span></code>, <code class="docutils literal notranslate"><span class="pre">--job-directive</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#no-watching-no-watching">No watching: <code class="docutils literal notranslate"><span class="pre">--no-watching</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../command_line_options.html#other-modes-of-building-running">Other modes of building/running</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#local-local">Local: <code class="docutils literal notranslate"><span class="pre">--local</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#pure-python-pure-python">Pure Python: <code class="docutils literal notranslate"><span class="pre">--pure-python</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#build-b-build">Build: <code class="docutils literal notranslate"><span class="pre">-b</span></code>, <code class="docutils literal notranslate"><span class="pre">--build</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#rebuild-rebuild">Rebuild: <code class="docutils literal notranslate"><span class="pre">--rebuild</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#native-optimizations-native-optimizations">Native optimizations: <code class="docutils literal notranslate"><span class="pre">--native-optimizations</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#no-link-time-optimizations-no-lto">No link time optimizations: <code class="docutils literal notranslate"><span class="pre">--no-lto</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#no-optimizations-no-optimizations">No optimizations: <code class="docutils literal notranslate"><span class="pre">--no-optimizations</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#unsafe-building-unsafe-building">Unsafe building: <code class="docutils literal notranslate"><span class="pre">--unsafe-building</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../command_line_options.html#specials">Specials</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#test-t-tests">Test: <code class="docutils literal notranslate"><span class="pre">-t</span></code>, <code class="docutils literal notranslate"><span class="pre">--tests</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#main-entry-point-m-main">Main entry point: <code class="docutils literal notranslate"><span class="pre">-m</span></code>, <code class="docutils literal notranslate"><span class="pre">--main</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#interactive-i-interactive">Interactive: <code class="docutils literal notranslate"><span class="pre">-i</span></code>, <code class="docutils literal notranslate"><span class="pre">--interactive</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#version-v-version">Version: <code class="docutils literal notranslate"><span class="pre">-v</span></code>, <code class="docutils literal notranslate"><span class="pre">--version</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1 current"><a class="reference internal" href="parameters.html">Parameters</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="input_output.html">Input/output</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="input_output.html#initial-conditions"><code class="docutils literal notranslate"><span class="pre">initial_conditions</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="input_output.html#output-dirs"><code class="docutils literal notranslate"><span class="pre">output_dirs</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="input_output.html#output-bases"><code class="docutils literal notranslate"><span class="pre">output_bases</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="input_output.html#output-times"><code class="docutils literal notranslate"><span class="pre">output_times</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="input_output.html#autosave-interval"><code class="docutils literal notranslate"><span class="pre">autosave_interval</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="input_output.html#snapshot-select"><code class="docutils literal notranslate"><span class="pre">snapshot_select</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="input_output.html#powerspec-select"><code class="docutils literal notranslate"><span class="pre">powerspec_select</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="input_output.html#render2d-select"><code class="docutils literal notranslate"><span class="pre">render2D_select</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="input_output.html#render3d-select"><code class="docutils literal notranslate"><span class="pre">render3D_select</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="input_output.html#snapshot-type"><code class="docutils literal notranslate"><span class="pre">snapshot_type</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="input_output.html#gadget-snapshot-params"><code class="docutils literal notranslate"><span class="pre">gadget_snapshot_params</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="numerics.html">Numerics</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="numerics.html#boxsize"><code class="docutils literal notranslate"><span class="pre">boxsize</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="numerics.html#potential-options"><code class="docutils literal notranslate"><span class="pre">potential_options</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="numerics.html#shortrange-params"><code class="docutils literal notranslate"><span class="pre">shortrange_params</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="numerics.html#powerspec-options"><code class="docutils literal notranslate"><span class="pre">powerspec_options</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="numerics.html#k-modes-per-decade"><code class="docutils literal notranslate"><span class="pre">k_modes_per_decade</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="cosmology.html">Cosmology</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="cosmology.html#h0"><code class="docutils literal notranslate"><span class="pre">H0</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="cosmology.html#b"><code class="docutils literal notranslate"><span class="pre">Ωb</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="cosmology.html#cdm"><code class="docutils literal notranslate"><span class="pre">Ωcdm</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="cosmology.html#a-begin"><code class="docutils literal notranslate"><span class="pre">a_begin</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="cosmology.html#t-begin"><code class="docutils literal notranslate"><span class="pre">t_begin</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="cosmology.html#primordial-spectrum"><code class="docutils literal notranslate"><span class="pre">primordial_spectrum</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="cosmology.html#class-params"><code class="docutils literal notranslate"><span class="pre">class_params</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="physics.html">Physics</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="physics.html#select-forces"><code class="docutils literal notranslate"><span class="pre">select_forces</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="physics.html#select-species"><code class="docutils literal notranslate"><span class="pre">select_species</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="physics.html#select-lives"><code class="docutils literal notranslate"><span class="pre">select_lives</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="physics.html#softening-kernel"><code class="docutils literal notranslate"><span class="pre">softening_kernel</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="physics.html#select-softening-length"><code class="docutils literal notranslate"><span class="pre">select_softening_length</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Simulation</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#t-base-background-factor"><code class="docutils literal notranslate"><span class="pre">Δt_base_background_factor</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#t-base-nonlinear-factor"><code class="docutils literal notranslate"><span class="pre">Δt_base_nonlinear_factor</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#t-increase-max-factor"><code class="docutils literal notranslate"><span class="pre">Δt_increase_max_factor</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#t-rung-factor"><code class="docutils literal notranslate"><span class="pre">Δt_rung_factor</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#a-max-early"><code class="docutils literal notranslate"><span class="pre">Δa_max_early</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#a-max-late"><code class="docutils literal notranslate"><span class="pre">Δa_max_late</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#n-rungs"><code class="docutils literal notranslate"><span class="pre">N_rungs</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#fftw-wisdom-rigor"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_rigor</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#fftw-wisdom-reuse"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_reuse</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#fftw-wisdom-share"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_share</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#random-seed"><code class="docutils literal notranslate"><span class="pre">random_seed</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#primordial-amplitude-fixed"><code class="docutils literal notranslate"><span class="pre">primordial_amplitude_fixed</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#primordial-phase-shift"><code class="docutils literal notranslate"><span class="pre">primordial_phase_shift</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#cell-centered"><code class="docutils literal notranslate"><span class="pre">cell_centered</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#class-reuse"><code class="docutils literal notranslate"><span class="pre">class_reuse</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="graphics.html">Graphics</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="graphics.html#terminal-width"><code class="docutils literal notranslate"><span class="pre">terminal_width</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="graphics.html#enable-terminal-formatting"><code class="docutils literal notranslate"><span class="pre">enable_terminal_formatting</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="graphics.html#render2d-options"><code class="docutils literal notranslate"><span class="pre">render2D_options</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="graphics.html#render3d-colors"><code class="docutils literal notranslate"><span class="pre">render3D_colors</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="graphics.html#render3d-bgcolor"><code class="docutils literal notranslate"><span class="pre">render3D_bgcolor</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="graphics.html#render3d-resolution"><code class="docutils literal notranslate"><span class="pre">render3D_resolution</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="units.html">Units</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="units.html#unit-length"><code class="docutils literal notranslate"><span class="pre">unit_length</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="units.html#unit-time"><code class="docutils literal notranslate"><span class="pre">unit_time</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="units.html#unit-mass"><code class="docutils literal notranslate"><span class="pre">unit_mass</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="debugging.html">Debugging</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="debugging.html#print-load-imbalance"><code class="docutils literal notranslate"><span class="pre">print_load_imbalance</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="debugging.html#particle-reordering"><code class="docutils literal notranslate"><span class="pre">particle_reordering</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="debugging.html#enable-hubble"><code class="docutils literal notranslate"><span class="pre">enable_Hubble</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="debugging.html#enable-class-background"><code class="docutils literal notranslate"><span class="pre">enable_class_background</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../utilities/utilities.html">Utilities</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/class.html">class</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/convert.html">convert</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/gadget.html">gadget</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/info.html">info</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/play.html">play</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/powerspec.html">powerspec</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/render3D.html">render3D</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/update.html">update</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/watch.html">watch</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../troubleshooting.html">Troubleshooting</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../troubleshooting.html#installation-failed">Installation failed</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../troubleshooting.html#compilation-failed">Compilation failed</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../troubleshooting.html#insufficient-memory">Insufficient memory</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../troubleshooting.html#dangerous-optimizations">Dangerous optimizations</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../troubleshooting.html#terminal-colour-output-looks-weird">Terminal colour output looks weird</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../troubleshooting.html#problems-related-to-python-libraries-and-packages">Problems related to Python libraries and packages</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../troubleshooting.html#error-messages-containing-read-1">Error messages containing ‘Read -1’</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../troubleshooting.html#the-simulation-hangs-when-calling-class">The simulation hangs when calling CLASS</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../troubleshooting.html#crashes-or-other-bad-behaviour">Crashes or other bad behaviour</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../troubleshooting.html#problems-when-running-remotely">Problems when running remotely</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../troubleshooting.html#choosing-an-mpi-executor">Choosing an MPI executor</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../troubleshooting.html#different-hardware-architecture-on-front-end-and-remote-node">Different hardware architecture on front-end and remote node</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../troubleshooting.html#it-still-does-not-work">It <em>still</em> does not work!</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../troubleshooting.html#bad-performance-when-using-multiple-processes-nodes">Bad performance when using multiple processes/nodes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../troubleshooting.html#problems-when-using-multiple-nodes">Problems when using multiple nodes</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../publications.html">Publications</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../publications.html#theses">Theses</a></li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">CO<em>N</em>CEPT</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content style-external-links">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home"></a> &raquo;</li>
+          <li><a href="parameters.html">Parameters</a> &raquo;</li>
+      <li>Simulation</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/jmd-dk/concept/" class="fa fa-github"> Code Repository</a>
+      </li>
+  </ul><div class="rst-breadcrumbs-buttons" role="navigation" aria-label="Sequential page navigation">
+        <a href="physics.html" class="btn btn-neutral float-left" title="Physics" accesskey="p"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="graphics.html" class="btn btn-neutral float-right" title="Graphics" accesskey="n">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+  </div>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <div class="section" id="simulation">
+<h1>Simulation<a class="headerlink" href="#simulation" title="Permalink to this headline"></a></h1>
+<p>The ‘simulation’ parameter category contains parameters specifying the
+accuracy of the time integration, as well as parameters having to do with the
+random numbers used for the primordial noise.</p>
+<div class="contents local topic" id="contents">
+<ul class="simple">
+<li><p><a class="reference internal" href="#t-base-background-factor" id="id9"><code class="docutils literal notranslate"><span class="pre">Δt_base_background_factor</span></code></a></p></li>
+<li><p><a class="reference internal" href="#t-base-nonlinear-factor" id="id10"><code class="docutils literal notranslate"><span class="pre">Δt_base_nonlinear_factor</span></code></a></p></li>
+<li><p><a class="reference internal" href="#t-increase-max-factor" id="id11"><code class="docutils literal notranslate"><span class="pre">Δt_increase_max_factor</span></code></a></p></li>
+<li><p><a class="reference internal" href="#t-rung-factor" id="id12"><code class="docutils literal notranslate"><span class="pre">Δt_rung_factor</span></code></a></p></li>
+<li><p><a class="reference internal" href="#a-max-early" id="id13"><code class="docutils literal notranslate"><span class="pre">Δa_max_early</span></code></a></p></li>
+<li><p><a class="reference internal" href="#a-max-late" id="id14"><code class="docutils literal notranslate"><span class="pre">Δa_max_late</span></code></a></p></li>
+<li><p><a class="reference internal" href="#n-rungs" id="id15"><code class="docutils literal notranslate"><span class="pre">N_rungs</span></code></a></p></li>
+<li><p><a class="reference internal" href="#fftw-wisdom-rigor" id="id16"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_rigor</span></code></a></p></li>
+<li><p><a class="reference internal" href="#fftw-wisdom-reuse" id="id17"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_reuse</span></code></a></p></li>
+<li><p><a class="reference internal" href="#fftw-wisdom-share" id="id18"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_share</span></code></a></p></li>
+<li><p><a class="reference internal" href="#random-seed" id="id19"><code class="docutils literal notranslate"><span class="pre">random_seed</span></code></a></p></li>
+<li><p><a class="reference internal" href="#primordial-amplitude-fixed" id="id20"><code class="docutils literal notranslate"><span class="pre">primordial_amplitude_fixed</span></code></a></p></li>
+<li><p><a class="reference internal" href="#primordial-phase-shift" id="id21"><code class="docutils literal notranslate"><span class="pre">primordial_phase_shift</span></code></a></p></li>
+<li><p><a class="reference internal" href="#cell-centered" id="id22"><code class="docutils literal notranslate"><span class="pre">cell_centered</span></code></a></p></li>
+<li><p><a class="reference internal" href="#class-reuse" id="id23"><code class="docutils literal notranslate"><span class="pre">class_reuse</span></code></a></p></li>
+</ul>
+</div>
+<hr class="docutils" />
+<div class="section" id="t-base-background-factor">
+<span id="deltat-base-background-factor"></span><h2><a class="toc-backref" href="#id9"><code class="docutils literal notranslate"><span class="pre">Δt_base_background_factor</span></code></a><a class="headerlink" href="#t-base-background-factor" title="Permalink to this headline"></a></h2>
+<table>
+<colgroup>
+<col style="width: 4%" />
+<col style="width: 10%" />
+<col style="width: 4%" />
+<col style="width: 82%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Description</strong></p></td>
+<td><p></p></td>
+<td><p>This scales all background time step limiters</p></td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Default</strong></p></td>
+<td><p></p></td>
+<td><div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="mi">1</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Elaboration</strong></p></td>
+<td><p></p></td>
+<td><p>The global time step size <span class="math notranslate nohighlight">\(\Delta t\)</span> within
+CO<em>N</em>CEPT depends on various <em>limiters</em> as described
+in the paper on
+“<a class="reference internal" href="../publications.html"><span class="doc">The cosmological simulation code CO𝘕CEPT 1.0</span></a>”.
+This parameter acts as a scaling factor on all
+<em>background limiters</em>.</p></td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Example 0</strong></p></td>
+<td><p></p></td>
+<td><p>Scale the background limiters by a factor <span class="math notranslate nohighlight">\(1/2\)</span>,
+typically cutting the time step size <span class="math notranslate nohighlight">\(\Delta t\)</span>
+roughly in half at early times compared to its normal
+size:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">Δt_base_background_factor</span> <span class="o">=</span> <span class="mf">0.5</span>
+</pre></div>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+<hr class="docutils" />
+</div>
+<div class="section" id="t-base-nonlinear-factor">
+<span id="deltat-base-nonlinear-factor"></span><h2><a class="toc-backref" href="#id10"><code class="docutils literal notranslate"><span class="pre">Δt_base_nonlinear_factor</span></code></a><a class="headerlink" href="#t-base-nonlinear-factor" title="Permalink to this headline"></a></h2>
+<table>
+<colgroup>
+<col style="width: 4%" />
+<col style="width: 10%" />
+<col style="width: 4%" />
+<col style="width: 82%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Description</strong></p></td>
+<td><p></p></td>
+<td><p>This scales all non-linear time step limiters</p></td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Default</strong></p></td>
+<td><p></p></td>
+<td><div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="mi">1</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Elaboration</strong></p></td>
+<td><p></p></td>
+<td><p>The global time step size <span class="math notranslate nohighlight">\(\Delta t\)</span> within
+CO<em>N</em>CEPT depends on various <em>limiters</em> as described
+in the paper on
+“<a class="reference internal" href="../publications.html"><span class="doc">The cosmological simulation code CO𝘕CEPT 1.0</span></a>”.
+This parameter acts as a scaling factor on all
+<em>non-linear limiters</em>.</p></td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Example 0</strong></p></td>
+<td><p></p></td>
+<td><p>Scale the non-linear limiters by a factor <span class="math notranslate nohighlight">\(1/3\)</span>,
+typically reducing the time step size <span class="math notranslate nohighlight">\(\Delta t\)</span>
+to about a third of its normal value at late times:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">Δt_base_nonlinear_factor</span> <span class="o">=</span> <span class="mi">1</span><span class="o">/</span><span class="mi">3</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Example 1</strong></p></td>
+<td><p></p></td>
+<td><p>Effectively remove the non-linear limiters by scaling
+them by <span class="math notranslate nohighlight">\(\infty\)</span>, so that the global time step size
+<span class="math notranslate nohighlight">\(\Delta t\)</span> is controlled solely by the background
+limiters:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">Δt_base_nonlinear_factor</span> <span class="o">=</span> <span class="n">ထ</span>
+</pre></div>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<hr class="docutils" />
+<div class="section" id="t-increase-max-factor">
+<h2><a class="toc-backref" href="#id11"><code class="docutils literal notranslate"><span class="pre">Δt_increase_max_factor</span></code></a><a class="headerlink" href="#t-increase-max-factor" title="Permalink to this headline"></a></h2>
+<table>
+<colgroup>
+<col style="width: 4%" />
+<col style="width: 10%" />
+<col style="width: 4%" />
+<col style="width: 82%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Description</strong></p></td>
+<td><p></p></td>
+<td><p>Specifies a limit to the allowed relative increase of
+the global time step size</p></td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Default</strong></p></td>
+<td><p></p></td>
+<td><div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">ထ</span>  <span class="c1"># no limit</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Elaboration</strong></p></td>
+<td><p></p></td>
+<td><p>As described in the paper on
+“<a class="reference internal" href="../publications.html"><span class="doc">The cosmological simulation code CO𝘕CEPT 1.0</span></a>”,
+the global time step size <span class="math notranslate nohighlight">\(\Delta t\)</span> is
+periodically allowed to increase. This parameter sets
+an upper limit for the allowed relative change of
+<span class="math notranslate nohighlight">\(\Delta t\)</span> each time it is increased.</p></td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Example 0</strong></p></td>
+<td><p></p></td>
+<td><p>Allow a maximum relative increase to <span class="math notranslate nohighlight">\(\Delta t\)</span> of
+<span class="math notranslate nohighlight">\(15\,\%\)</span>:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">Δt_increase_max_factor</span> <span class="o">=</span> <span class="mf">1.15</span>
+</pre></div>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+<hr class="docutils" />
+</div>
+<div class="section" id="t-rung-factor">
+<span id="deltat-rung-factor"></span><h2><a class="toc-backref" href="#id12"><code class="docutils literal notranslate"><span class="pre">Δt_rung_factor</span></code></a><a class="headerlink" href="#t-rung-factor" title="Permalink to this headline"></a></h2>
+<table>
+<colgroup>
+<col style="width: 4%" />
+<col style="width: 10%" />
+<col style="width: 4%" />
+<col style="width: 82%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Description</strong></p></td>
+<td><p></p></td>
+<td><p>This scales the rung time step size required for
+particles</p></td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Default</strong></p></td>
+<td><p></p></td>
+<td><div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="mi">1</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Elaboration</strong></p></td>
+<td><p></p></td>
+<td><p>As described in the paper on
+“<a class="reference internal" href="../publications.html"><span class="doc">The cosmological simulation code CO𝘕CEPT 1.0</span></a>”,
+adaptive particle time-stepping is achieved through
+<em>rungs</em>; power-of-two subdivisions of the global time
+step size, <span class="math notranslate nohighlight">\(\Delta t/2^{\ell}\)</span>. The rung
+<span class="math notranslate nohighlight">\(\ell \in \mathbb{N}_0\)</span> on which a given particle
+belongs depends on the (short-range) acceleration
+<span class="math notranslate nohighlight">\(\boldsymbol{a}\)</span> of the particle, as</p>
+<div class="math notranslate nohighlight">
+\[\frac{\Delta t}{2^{\ell}} \underset{\sim}{\propto} \frac{1}{\sqrt{|\boldsymbol{a}|}}\, ,\]</div>
+<p>with the proportionality scaled on the right by this
+parameter.</p>
+</td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Example 0</strong></p></td>
+<td><p></p></td>
+<td><p>Decrease the rung time step sizes by a factor of
+<span class="math notranslate nohighlight">\(2\)</span>, effectively pushing the particles up one
+rung, resulting in particle time-stepping which is
+“twice as fine” as usual:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">Δt_rung_factor</span> <span class="o">=</span> <span class="mf">0.5</span>
+</pre></div>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+<hr class="docutils" />
+</div>
+<div class="section" id="a-max-early">
+<span id="deltaa-max-early"></span><h2><a class="toc-backref" href="#id13"><code class="docutils literal notranslate"><span class="pre">Δa_max_early</span></code></a><a class="headerlink" href="#a-max-early" title="Permalink to this headline"></a></h2>
+<table>
+<colgroup>
+<col style="width: 4%" />
+<col style="width: 10%" />
+<col style="width: 4%" />
+<col style="width: 82%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Description</strong></p></td>
+<td><p></p></td>
+<td><p>Specifies the maximum allowed change to the scale factor
+at early times</p></td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Default</strong></p></td>
+<td><p></p></td>
+<td><div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="mf">0.00153</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Elaboration</strong></p></td>
+<td><p></p></td>
+<td><p>As described in the paper on
+“<a class="reference internal" href="../publications.html"><span class="doc">The cosmological simulation code CO𝘕CEPT 1.0</span></a>”,
+one of the time step limiters include the condition
+that — at early times — the global time step size
+<span class="math notranslate nohighlight">\(\Delta t\)</span> must not be so large as to correspond
+to an absolute change in scale factor <span class="math notranslate nohighlight">\(\Delta a\)</span>
+larger than some value. This parameter sets this value.</p></td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Example 0</strong></p></td>
+<td><p></p></td>
+<td><p>Allow only a much smaller change <span class="math notranslate nohighlight">\(\Delta a\)</span> at
+early times, typically leading to finer time-stepping at
+such times:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">Δa_max_early</span> <span class="o">=</span> <span class="mf">0.0008</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Example 1</strong></p></td>
+<td><p></p></td>
+<td><p>Effectively disregard this limiter completely by setting
+it equal to its
+<a class="reference internal" href="#deltaa-max-late"><span class="std std-ref">late-time version</span></a>:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">Δa_max_early</span> <span class="o">=</span> <span class="n">Δa_max_late</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>For this to work, you must explicitly set a value for
+the <code class="docutils literal notranslate"><span class="pre">Δa_max_late</span></code>
+<a class="reference internal" href="#deltaa-max-late"><span class="std std-ref">parameter</span></a>.</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>As the instantaneous Hubble time <span class="math notranslate nohighlight">\(H^{-1}\)</span> is
+part of the same limiter as the early-time
+<span class="math notranslate nohighlight">\(\Delta a\)</span> (again, see the paper on
+“<a class="reference internal" href="../publications.html"><span class="doc">The cosmological simulation code CO𝘕CEPT 1.0</span></a>”),
+this also removes any explicit limitation of the
+global time step size due to <span class="math notranslate nohighlight">\(H^{-1}\)</span>.</p>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+<hr class="docutils" />
+</div>
+<div class="section" id="a-max-late">
+<span id="deltaa-max-late"></span><h2><a class="toc-backref" href="#id14"><code class="docutils literal notranslate"><span class="pre">Δa_max_late</span></code></a><a class="headerlink" href="#a-max-late" title="Permalink to this headline"></a></h2>
+<table>
+<colgroup>
+<col style="width: 4%" />
+<col style="width: 10%" />
+<col style="width: 4%" />
+<col style="width: 82%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Description</strong></p></td>
+<td><p></p></td>
+<td><p>Specifies the maximum allowed change to the scale factor
+at late times</p></td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Default</strong></p></td>
+<td><p></p></td>
+<td><div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="mf">0.022</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Elaboration</strong></p></td>
+<td><p></p></td>
+<td><p>As described in the paper on
+“<a class="reference internal" href="../publications.html"><span class="doc">The cosmological simulation code CO𝘕CEPT 1.0</span></a>”,
+one of the time step limiters include the condition
+that — at late times — the global time step size
+<span class="math notranslate nohighlight">\(\Delta t\)</span> must not be so large as to correspond
+to an absolute change in scale factor <span class="math notranslate nohighlight">\(\Delta a\)</span>
+larger than some value. This parameter sets this value.</p></td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Example 0</strong></p></td>
+<td><p></p></td>
+<td><p>Significantly decrease the allowed <span class="math notranslate nohighlight">\(\Delta a\)</span> at
+late times, leading to finer late-time time-stepping
+for simulations with low resolution (in simulations of
+high resolution, non-linear limiters probably dominate
+at late times regardless of this):</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">Δa_max_late</span> <span class="o">=</span> <span class="mf">0.01</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Example 1</strong></p></td>
+<td><p></p></td>
+<td><p>Effectively disregard this limiter by setting it equal
+to <span class="math notranslate nohighlight">\(\infty\)</span>:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">Δa_max_late</span> <span class="o">=</span> <span class="n">ထ</span>
+</pre></div>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<hr class="docutils" />
+<div class="section" id="n-rungs">
+<h2><a class="toc-backref" href="#id15"><code class="docutils literal notranslate"><span class="pre">N_rungs</span></code></a><a class="headerlink" href="#n-rungs" title="Permalink to this headline"></a></h2>
+<table>
+<colgroup>
+<col style="width: 4%" />
+<col style="width: 10%" />
+<col style="width: 4%" />
+<col style="width: 82%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Description</strong></p></td>
+<td><p></p></td>
+<td><p>Specifies the number of available rungs</p></td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Default</strong></p></td>
+<td><p></p></td>
+<td><div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="mi">8</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Elaboration</strong></p></td>
+<td><p></p></td>
+<td><p>As described in the paper on
+“<a class="reference internal" href="../publications.html"><span class="doc">The cosmological simulation code CO𝘕CEPT 1.0</span></a>”,
+adaptive particle time-stepping is achieved by placing
+the particles on <em>rungs</em> <span class="math notranslate nohighlight">\(\ell \in \mathbb{N}_0\)</span>
+according to their acceleration. This parameter
+specifies the maximum number <span class="math notranslate nohighlight">\(n_{\text{rung}}\)</span> of
+these rungs, with <span class="math notranslate nohighlight">\(0 \leq \ell &lt; n_{\text{rung}}\)</span>.
+Particles with accelerations large enough for them to
+belong to rung <span class="math notranslate nohighlight">\(\ell \geq n_{\text{rung}}\)</span> (see
+the <code class="docutils literal notranslate"><span class="pre">Δt_rung_factor</span></code>
+<a class="reference internal" href="#deltat-rung-factor"><span class="std std-ref">parameter</span></a>) will remain on
+rung <span class="math notranslate nohighlight">\(\ell = n_{\text{rung}} - 1\)</span>.</p></td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Example 0</strong></p></td>
+<td><p></p></td>
+<td><p>Increase the number of available rungs to <span class="math notranslate nohighlight">\(10\)</span>:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">N_rungs</span> <span class="o">=</span> <span class="mi">10</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>As demonstrated in
+“<a class="reference internal" href="../publications.html"><span class="doc">The cosmological simulation code CO𝘕CEPT 1.0</span></a>”,
+the time step limiters (see the
+<code class="docutils literal notranslate"><span class="pre">Δt_base_background_factor</span></code>
+<a class="reference internal" href="#deltat-base-background-factor"><span class="std std-ref">parameter</span></a>, the
+<code class="docutils literal notranslate"><span class="pre">Δt_base_nonlinear_factor</span></code>
+<a class="reference internal" href="#deltat-base-nonlinear-factor"><span class="std std-ref">parameter</span></a>, the
+<code class="docutils literal notranslate"><span class="pre">Δa_max_early</span></code>
+<a class="reference internal" href="#deltaa-max-early"><span class="std std-ref">parameter</span></a>, the
+<code class="docutils literal notranslate"><span class="pre">Δa_max_late</span></code> <a class="reference internal" href="#deltaa-max-late"><span class="std std-ref">parameter</span></a>)
+serve to keep the highest occupied rung rather low,
+and so typically we do not gain anything from
+increasing <code class="docutils literal notranslate"><span class="pre">N_rungs</span></code>. It does however come with a
+hefty performance penalty if <code class="docutils literal notranslate"><span class="pre">N_rungs</span></code> is increased
+significantly.</p>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+<hr class="docutils" />
+</div>
+<div class="section" id="fftw-wisdom-rigor">
+<span id="id1"></span><h2><a class="toc-backref" href="#id16"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_rigor</span></code></a><a class="headerlink" href="#fftw-wisdom-rigor" title="Permalink to this headline"></a></h2>
+<table>
+<colgroup>
+<col style="width: 4%" />
+<col style="width: 10%" />
+<col style="width: 4%" />
+<col style="width: 82%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Description</strong></p></td>
+<td><p></p></td>
+<td><p>Specifies the rigour level to use when gathering FFTW
+wisdom</p></td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Default</strong></p></td>
+<td><p></p></td>
+<td><div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="s1">&#39;measure&#39;</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Elaboration</strong></p></td>
+<td><p></p></td>
+<td><p>The FFTW library used by CO<em>N</em>CEPT to compute
+distributed FFTs knows of a multitude of different
+methods for computing a given FFT. Which method is the
+fastest is not obvious, and so FFTW
+<a class="reference external" href="https://www.fftw.org/fftw3_doc/Planner-Flags.html">plan</a>
+the FFT ahead of time, deciding on some strategy.
+The knowledge gathered by this planning step is called
+<em>wisdom</em>. This parameter sets the rigour level to use
+when gathering said wisdom, with a higher level taking
+longer to gather, but hopefully also resulting in a
+superior plan, saving time in the long run. The
+available rigour levels — from lowest to highest —
+are:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">'estimate'</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'measure'</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'patient'</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'exhaustive'</span></code></p></li>
+</ul>
+<div class="admonition caution">
+<p class="admonition-title">Caution</p>
+<p>Only wisdom gathering with the lowest-level rigour
+<code class="docutils literal notranslate"><span class="pre">'estimate'</span></code> will result in deterministic plans.
+By reusing the wisdom between simulations (see the
+<code class="docutils literal notranslate"><span class="pre">fftw_wisdom_reuse</span></code>
+<a class="reference internal" href="#fftw-wisdom-reuse"><span class="std std-ref">parameter</span></a> and the
+<code class="docutils literal notranslate"><span class="pre">fftw_wisdom_share</span></code> <a class="reference internal" href="#fftw-wisdom-share"><span class="std std-ref">parameter</span></a>) you can still reliably have
+deterministic simulations.</p>
+</div>
+</td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Example 0</strong></p></td>
+<td><p></p></td>
+<td><p>Run with the highest possible level of FFTW wisdom
+rigour, producing optimal FFTW plans at the cost of
+slow planning:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">fftw_wisdom_rigor</span> <span class="o">=</span> <span class="s1">&#39;exhaustive&#39;</span>
+</pre></div>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+<hr class="docutils" />
+</div>
+<div class="section" id="fftw-wisdom-reuse">
+<span id="id2"></span><h2><a class="toc-backref" href="#id17"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_reuse</span></code></a><a class="headerlink" href="#fftw-wisdom-reuse" title="Permalink to this headline"></a></h2>
+<table>
+<colgroup>
+<col style="width: 4%" />
+<col style="width: 10%" />
+<col style="width: 4%" />
+<col style="width: 82%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Description</strong></p></td>
+<td><p></p></td>
+<td><p>Specifies whether to reuse FFTW wisdom between
+simulations</p></td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Default</strong></p></td>
+<td><p></p></td>
+<td><div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="kc">True</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Elaboration</strong></p></td>
+<td><p></p></td>
+<td><p>The gathered FFTW wisdom (see the <code class="docutils literal notranslate"><span class="pre">fftw_wisdom_rigor</span></code>
+<a class="reference internal" href="#fftw-wisdom-rigor"><span class="std std-ref">parameter</span></a>) can be reused
+between simulations by
+<a class="reference external" href="https://www.fftw.org/fftw3_doc/Words-of-Wisdom_002dSaving-Plans.html">saving it to disk</a>
+(specifically to the <code class="docutils literal notranslate"><span class="pre">.reusable/fftw</span></code> directory). When
+<code class="docutils literal notranslate"><span class="pre">fftw_wisdom_reuse</span></code> is <code class="docutils literal notranslate"><span class="pre">True</span></code>, any gathered wisdom
+will be saved. Any already existing wisdom will be read
+and used, providing it matches the given problem (grid
+size, number of processes) and rigour level. See the
+<code class="docutils literal notranslate"><span class="pre">fftw_wisdom_share</span></code>
+<a class="reference internal" href="#fftw-wisdom-share"><span class="std std-ref">parameter</span></a> for further
+restrictions on reused wisdom.</p>
+<div class="admonition caution">
+<p class="admonition-title">Caution</p>
+<p>Depending on the
+<a class="reference internal" href="#fftw-wisdom-rigor"><span class="std std-ref">rigour level</span></a>, the
+gathering of wisdom may not be a deterministic
+process. When not reusing wisdom between simulations,
+they may then end up with different FFTW plans for
+the same problem, introducing indeterminism.</p>
+</div>
+</td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Example 0</strong></p></td>
+<td><p></p></td>
+<td><p>Always gather FFTW wisdom anew, disregarding available
+stored wisdom:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">fftw_wisdom_reuse</span> <span class="o">=</span> <span class="kc">False</span>
+</pre></div>
+</div>
+<p>The gathered wisdom will similarly not be stored on the
+disk.</p>
+</td>
+</tr>
+</tbody>
+</table>
+<hr class="docutils" />
+</div>
+<div class="section" id="fftw-wisdom-share">
+<span id="id3"></span><h2><a class="toc-backref" href="#id18"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_share</span></code></a><a class="headerlink" href="#fftw-wisdom-share" title="Permalink to this headline"></a></h2>
+<table>
+<colgroup>
+<col style="width: 4%" />
+<col style="width: 10%" />
+<col style="width: 4%" />
+<col style="width: 82%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Description</strong></p></td>
+<td><p></p></td>
+<td><p>Specifies whether to reuse FFTW wisdom between
+simulations running on a different set of nodes</p></td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Default</strong></p></td>
+<td><p></p></td>
+<td><div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="kc">False</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Elaboration</strong></p></td>
+<td><p></p></td>
+<td><p>The gathered FFTW wisdom (see the <code class="docutils literal notranslate"><span class="pre">fftw_wisdom_rigor</span></code>
+<a class="reference internal" href="#fftw-wisdom-rigor"><span class="std std-ref">parameter</span></a>) can be reused
+between simulations (see the <code class="docutils literal notranslate"><span class="pre">fftw_wisdom_reuse</span></code>
+<a class="reference internal" href="#fftw-wisdom-reuse"><span class="std std-ref">parameter</span></a>) by caching it to
+disk. Even for the same problem (grid size, number of
+processes) the optimal plan may be highly dependent on
+the process configuration, i.e. how the MPI processes
+are mapped to physical CPU cores on the nodes. For this
+reason, it may not be ideal to reuse wisdom, unless we
+know that it was generated using a similar process
+configuration to what is used this time around, i.e.
+with processes belonging to the same nodes as currently.
+This parameter specifies whether wisdom should be reused
+regardless of mismatches between process configurations.</p>
+<div class="admonition caution">
+<p class="admonition-title">Caution</p>
+<p>Not sharing FFTW wisdom (the default) comes at the
+price of indeterminism, as different simulations
+might now end up using different plans for the same
+problem.</p>
+</div>
+</td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Example 0</strong></p></td>
+<td><p></p></td>
+<td><p>Allow sharing of FFTW wisdom between simulations running
+on different nodes, guaranteeing deterministic behaviour
+regardless of how the processes of the MPI job gets
+distributed across the compute nodes of a cluster:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">fftw_wisdom_share</span> <span class="o">=</span> <span class="kc">True</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>This does not have any effect if the FFTW wisdom is
+not <a class="reference internal" href="#fftw-wisdom-share"><span class="std std-ref">shared</span></a> in the first
+place.</p>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+<hr class="docutils" />
+</div>
+<div class="section" id="random-seed">
+<span id="id4"></span><h2><a class="toc-backref" href="#id19"><code class="docutils literal notranslate"><span class="pre">random_seed</span></code></a><a class="headerlink" href="#random-seed" title="Permalink to this headline"></a></h2>
+<table>
+<colgroup>
+<col style="width: 4%" />
+<col style="width: 10%" />
+<col style="width: 4%" />
+<col style="width: 82%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Description</strong></p></td>
+<td><p></p></td>
+<td><p>Number with which to seed the pseudo-random number
+generator, used for generating noise for initial
+conditions</p></td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Default</strong></p></td>
+<td><p></p></td>
+<td><div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="mi">0</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Elaboration</strong></p></td>
+<td><p></p></td>
+<td><p>The initial, linear density field (from which e.g. particle
+positions are constructed) is given as</p>
+<div class="math notranslate nohighlight">
+\[\delta(a_{\text{begin}}, \boldsymbol{x}) \propto \underset{\hspace{-0.5em}\boldsymbol{x}\leftarrow\boldsymbol{k}}{\mathcal{F}^{-1}}\bigl[\mathcal{R}(\boldsymbol{k}) \zeta(|\boldsymbol{k}|) T_\delta(a_{\text{begin}}, |\boldsymbol{k}|)\bigr]\, ,\]</div>
+<p>with <span class="math notranslate nohighlight">\(\zeta(k)\)</span> and <span class="math notranslate nohighlight">\(T_{\delta}(a, k)\)</span> the
+primordial curvature perturbation and <span class="math notranslate nohighlight">\(\delta\)</span>
+(density) transfer function (see the <code class="docutils literal notranslate"><span class="pre">class_params</span></code>
+<a class="reference internal" href="cosmology.html#class-params"><span class="std std-ref">parameter</span></a>), respectively, and
+<span class="math notranslate nohighlight">\(\underset{\hspace{-0.5em}\boldsymbol{x}\leftarrow\boldsymbol{k}}{\mathcal{F}^{-1}}\)</span>
+being the (inverse) Fourier transform from Fourier
+<span class="math notranslate nohighlight">\(\boldsymbol{k}\)</span> space to real
+<span class="math notranslate nohighlight">\(\boldsymbol{x}\)</span> space. Finally,
+<span class="math notranslate nohighlight">\(\mathcal{R}(\boldsymbol{k})\)</span> is the primordial
+noise, which is a field of uncorrelated random complex
+numbers drawn from a Gaussian (normal) distribution with
+mean 0 and standard deviation <span class="math notranslate nohighlight">\(1\)</span>
+(i.e. <span class="math notranslate nohighlight">\(1/\sqrt{2}\)</span> for the real and imaginary
+components separately). The sequence of pseudo-random
+numbers with which to populate
+<span class="math notranslate nohighlight">\(\mathcal{R}(\boldsymbol{k})\)</span> is generated by a
+pseudo-random number generator, seeded with a
+non-negative integer value of <code class="docutils literal notranslate"><span class="pre">random_seed</span></code>. To change
+the underlying primordial random noise, change the value
+for <code class="docutils literal notranslate"><span class="pre">random_seed</span></code>. For running multiple simulations
+with the same noise, use the same <code class="docutils literal notranslate"><span class="pre">random_seed</span></code>.</p>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>The random seed is common for all processes in the
+simulation, implemented in such a way as to ensure
+the same random noise regardless of the number of
+processes used to run the simulation and thus for
+generating the initial conditions.</p>
+</div>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>When running successive simulations with different
+resolution (e.g. number of particles) but fixed box
+size, the random noise will be identical for the
+<span class="math notranslate nohighlight">\(k\)</span> modes shared between the simulations, with
+new values used only for the higher <span class="math notranslate nohighlight">\(k\)</span> not
+available in the lower-resolution simulations. This
+allows for e.g. convergence tests without fear of
+changes to the random realisation.</p>
+</div>
+</td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Example 0</strong></p></td>
+<td><p></p></td>
+<td><p>Use some particular random sequence for the initial
+conditions:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">random_seed</span> <span class="o">=</span> <span class="mi">42</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Example 1</strong></p></td>
+<td><p></p></td>
+<td><p>Have each successive simulation use a unique
+random realisation of the primordial noise:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">random_seed</span> <span class="o">=</span> <span class="n">jobid</span>
+</pre></div>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+<hr class="docutils" />
+</div>
+<div class="section" id="primordial-amplitude-fixed">
+<span id="id5"></span><h2><a class="toc-backref" href="#id20"><code class="docutils literal notranslate"><span class="pre">primordial_amplitude_fixed</span></code></a><a class="headerlink" href="#primordial-amplitude-fixed" title="Permalink to this headline"></a></h2>
+<table>
+<colgroup>
+<col style="width: 4%" />
+<col style="width: 10%" />
+<col style="width: 4%" />
+<col style="width: 82%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Description</strong></p></td>
+<td><p></p></td>
+<td><p>Specifies whether to use fixed primordial amplitudes</p></td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Default</strong></p></td>
+<td><p></p></td>
+<td><div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="kc">False</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Elaboration</strong></p></td>
+<td><p></p></td>
+<td><p>See the <code class="docutils literal notranslate"><span class="pre">random_seed</span></code> <a class="reference internal" href="#random-seed"><span class="std std-ref">parameter</span></a>
+for how the primordial complex Gaussian random noise is
+normally defined. For each mode <span class="math notranslate nohighlight">\(\boldsymbol{k}\)</span>,
+instead of drawing the real and imaginary components of
+<span class="math notranslate nohighlight">\(\mathcal{R}(\boldsymbol{k})\)</span> from a Gaussian
+distribution separately, we may fix the amplitude of the
+complex number to its mean value (<span class="math notranslate nohighlight">\(1\)</span>), and draw
+a random complex phase from a uniform distribution.
+While not physically sound, statistic such as the
+power spectrum become much smoother by doing this, as
+the discretised Fourier modes now all have amplitudes
+corresponding to the average amplitude taken
+over an infinite ensemble. See
+<a class="reference external" href="https://academic.oup.com/mnrasl/article/462/1/L1/2589516">this paper</a>
+for more information about such ‘<em>fixed</em> simulations’.</p>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>The random complex numbers generated when using fixed
+amplitudes will have the same phases as when not using
+fixed amplitudes. Though not equal, the underlying
+random noise of two sets of initial conditions,
+one generated with fixed amplitudes and the other
+without, will then be similar (provided they use the
+same value for the <code class="docutils literal notranslate"><span class="pre">random_seed</span></code> <a class="reference internal" href="#random-seed"><span class="std std-ref">parameter</span></a>).</p>
+</div>
+</td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Example 0</strong></p></td>
+<td><p></p></td>
+<td><p>Use fixed primordial amplitudes, leading to smoother
+power spectra:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">primordial_amplitude_fixed</span> <span class="o">=</span> <span class="kc">True</span>
+</pre></div>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+<hr class="docutils" />
+</div>
+<div class="section" id="primordial-phase-shift">
+<span id="id6"></span><h2><a class="toc-backref" href="#id21"><code class="docutils literal notranslate"><span class="pre">primordial_phase_shift</span></code></a><a class="headerlink" href="#primordial-phase-shift" title="Permalink to this headline"></a></h2>
+<table>
+<colgroup>
+<col style="width: 4%" />
+<col style="width: 10%" />
+<col style="width: 4%" />
+<col style="width: 82%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Description</strong></p></td>
+<td><p></p></td>
+<td><p>Specifies a constant offset to use for the primordial
+phases</p></td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Default</strong></p></td>
+<td><p></p></td>
+<td><div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="mi">0</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Elaboration</strong></p></td>
+<td><p></p></td>
+<td><p>See the <code class="docutils literal notranslate"><span class="pre">random_seed</span></code> <a class="reference internal" href="#random-seed"><span class="std std-ref">parameter</span></a>
+for how the primordial complex Gaussian random noise is
+normally defined. The phase of each random complex
+number will be shifted by the value of this parameter.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>This is typically used together with
+<a class="reference internal" href="#primordial-amplitude-fixed"><span class="std std-ref">fixed amplitudes</span></a>,
+but it does not have to be.</p>
+</div>
+</td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Example 0</strong></p></td>
+<td><p></p></td>
+<td><p>Use completely out-of-phase primordial noise compared to
+the default:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">primordial_phase_shift</span> <span class="o">=</span> <span class="n">π</span>
+</pre></div>
+</div>
+<p>By taking the average of e.g. power spectra from this
+simulation and a simulation with
+<code class="docutils literal notranslate"><span class="pre">primordial_phase_shift</span> <span class="pre">=</span> <span class="pre">0</span></code>, much of the statistical
+noise coming about due to the finite simulation size
+will vanish. This is typically used together with
+<a class="reference internal" href="#primordial-amplitude-fixed"><span class="std std-ref">fixed amplitudes</span></a>.
+See
+<a class="reference external" href="https://academic.oup.com/mnrasl/article/462/1/L1/2589516">this paper</a>
+for more information about such ‘<em>paired</em>-and-<em>fixed</em>
+simulations’.</p>
+</td>
+</tr>
+</tbody>
+</table>
+<hr class="docutils" />
+</div>
+<div class="section" id="cell-centered">
+<span id="id8"></span><h2><a class="toc-backref" href="#id22"><code class="docutils literal notranslate"><span class="pre">cell_centered</span></code></a><a class="headerlink" href="#cell-centered" title="Permalink to this headline"></a></h2>
+<table>
+<colgroup>
+<col style="width: 4%" />
+<col style="width: 10%" />
+<col style="width: 4%" />
+<col style="width: 82%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Description</strong></p></td>
+<td><p></p></td>
+<td><p>Specifies whether to use cell-centred as opposed to
+cell-vertex grid discretisation</p></td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Default</strong></p></td>
+<td><p></p></td>
+<td><div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="kc">True</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Elaboration</strong></p></td>
+<td><p></p></td>
+<td><p>The geometry of a CO<em>N</em>CEPT simulation is that of a
+fixed (in comoving coordinates), periodic, cubic box of
+size length <span class="math notranslate nohighlight">\(L_{\mathrm{box}}\)</span> (corresponding to
+the <code class="docutils literal notranslate"><span class="pre">boxsize</span></code> <a class="reference internal" href="numerics.html#boxsize"><span class="std std-ref">parameter</span></a>), with one
+corner at <span class="math notranslate nohighlight">\((0, 0, 0)\)</span> and another at
+<span class="math notranslate nohighlight">\((L_{\mathrm{box}}, L_{\mathrm{box}}, L_{\mathrm{box}})\)</span>.
+This allows us to talk about e.g. the absolute position
+of individual particles. Various global, Cartesian,
+periodic grids — such as
+<a class="reference internal" href="numerics.html#potential-options"><span class="std std-ref">potential grids</span></a> — need to be
+embedded within this box. We do this in the obvious way,
+with the corner of one of the grid cells at the box
+origin <span class="math notranslate nohighlight">\((0, 0, 0)\)</span>, and with cell faces aligned
+with the faces of the box. With each extended cell
+storing a single value, corresponding to a discrete
+tabulation of some underlying continuous field, we must
+now decide on exactly where within the cell volume this
+single value supposedly matches that of the underlying
+field. We refer to this choice as the grid
+discretisation strategy. Typical choices for this
+strategy are those of <strong>cell-centred</strong> or
+<strong>cell-vertex</strong> discretisation, corresponding to
+choosing the cell centre or (lower) corner as the
+point of tabulation. If we think of the cell value as
+an average of the underlying field over a cell volume,
+the cell-centred strategy simply corresponds to
+averaging over the cell itself (for a sufficiently
+smooth underlying field), while the cell-vertex
+strategy corresponds to averaging over a cell-shaped
+volume centred at the (lower) cell corner.</p>
+<p>In effect, the two choices of grid discretisation come
+down to whether they tabulate the underlying field at
+<span class="math notranslate nohighlight">\((L_{\text{c}}/2, 3L_{\text{c}}/2, 5L_{\text{c}}/2, \dots)\)</span>
+(cell-centred) or
+<span class="math notranslate nohighlight">\((0, L_{\text{c}}, 2L_{\text{c}}, \dots)\)</span>
+(cell-vertex), with <span class="math notranslate nohighlight">\(L_{\text{c}}\)</span> the cell width
+and the tabulations applying for each of the <span class="math notranslate nohighlight">\(3\)</span>
+dimensions separately. Ideally the discretisation
+strategy should not alter the simulation results
+noticeably, but for low-resolution simulations
+<a class="reference internal" href="../tutorial/gadget.html"><span class="doc">this is not so</span></a>.</p>
+</td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Example 0</strong></p></td>
+<td><p></p></td>
+<td><p>Swap out the default cell-centred grid discretisation
+strategy for cell-vertex, as used by e.g. GADGET:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">cell_centered</span> <span class="o">=</span> <span class="kc">False</span>
+</pre></div>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<hr class="docutils" />
+<div class="section" id="class-reuse">
+<h2><a class="toc-backref" href="#id23"><code class="docutils literal notranslate"><span class="pre">class_reuse</span></code></a><a class="headerlink" href="#class-reuse" title="Permalink to this headline"></a></h2>
+<table>
+<colgroup>
+<col style="width: 4%" />
+<col style="width: 10%" />
+<col style="width: 4%" />
+<col style="width: 82%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Description</strong></p></td>
+<td><p></p></td>
+<td><p>Specifies whether to reuse results of CLASS computations
+between simulations</p></td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Default</strong></p></td>
+<td><p></p></td>
+<td><div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="kc">True</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Elaboration</strong></p></td>
+<td><p></p></td>
+<td><p>CO<em>N</em>CEPT delegates the computation of background
+quantities (unless the <code class="docutils literal notranslate"><span class="pre">enable_class_background</span></code>
+<a class="reference internal" href="debugging.html#enable-class-background"><span class="std std-ref">parameter</span></a> is set to
+<code class="docutils literal notranslate"><span class="pre">False</span></code>) as well as linear perturbations to the
+<a class="reference external" href="http://class-code.net/">CLASS</a> code. Though
+typically inexpensive, running precision simulations
+with e.g.
+<a class="reference internal" href="../tutorial/beyond_matter_only.html#nonlinear-massive-neutrinos"><span class="std std-ref">non-linear massive neutrinos</span></a>
+tend to increase the CLASS computation time
+substantially. All CLASS results are always cached to
+disk (specifically to the <code class="docutils literal notranslate"><span class="pre">.reusable/class</span></code>
+directory). If a CLASS computation is about to be run
+for which the results are already cached, these will be
+reused if this parameter is <code class="docutils literal notranslate"><span class="pre">True</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Example 0</strong></p></td>
+<td><p></p></td>
+<td><p>Do not make use any pre-existing CLASS results:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">class_reuse</span> <span class="o">=</span> <span class="kc">False</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Even when not making use of cached CLASS results,
+new CLASS runs will still be cached to disk</p>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="physics.html" class="btn btn-neutral float-left" title="Physics" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="graphics.html" class="btn btn-neutral float-right" title="Graphics" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p></p>
+  </div>
+
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

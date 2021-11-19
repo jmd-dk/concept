@@ -21,10 +21,11 @@
         <script src="../_static/doctools.js"></script>
         <script src="../_static/clipboard.min.js"></script>
         <script src="../_static/copybutton.js"></script>
+        <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <script src="../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="Simulation options" href="simulation_options.html" />
+    <link rel="next" title="Simulation" href="simulation.html" />
     <link rel="prev" title="Cosmology" href="cosmology.html" /> 
 </head>
 
@@ -85,7 +86,7 @@
 <li class="toctree-l3"><a class="reference internal" href="../installation.html#influential-environment-variables">Influential environment variables</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="../installation.html#making-use-of-pre-installed-libraries">Making use of pre-installed libraries</a></li>
 <li class="toctree-l4"><a class="reference internal" href="../installation.html#specifying-dependency-versions">Specifying dependency versions</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../installation.html#specifying-dependency-url-s">Specifying dependency URL’s</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../installation.html#specifying-dependency-urls">Specifying dependency URLs</a></li>
 <li class="toctree-l4"><a class="reference internal" href="../installation.html#choosing-compiler-precedence">Choosing compiler precedence</a></li>
 <li class="toctree-l4"><a class="reference internal" href="../installation.html#installing-mpich-or-openmpi">Installing MPICH or OpenMPI</a></li>
 <li class="toctree-l4"><a class="reference internal" href="../installation.html#parallel-builds">Parallel builds</a></li>
@@ -157,51 +158,96 @@
 <li class="toctree-l1 current"><a class="reference internal" href="parameters.html">Parameters</a><ul class="current">
 <li class="toctree-l2"><a class="reference internal" href="input_output.html">Input/output</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="input_output.html#initial-conditions"><code class="docutils literal notranslate"><span class="pre">initial_conditions</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="input_output.html#output-dirs"><code class="docutils literal notranslate"><span class="pre">output_dirs</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="input_output.html#output-bases"><code class="docutils literal notranslate"><span class="pre">output_bases</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="input_output.html#output-times"><code class="docutils literal notranslate"><span class="pre">output_times</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="input_output.html#autosave-interval"><code class="docutils literal notranslate"><span class="pre">autosave_interval</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="input_output.html#snapshot-select"><code class="docutils literal notranslate"><span class="pre">snapshot_select</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="input_output.html#powerspec-select"><code class="docutils literal notranslate"><span class="pre">powerspec_select</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="input_output.html#render2d-select"><code class="docutils literal notranslate"><span class="pre">render2D_select</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="input_output.html#render3d-select"><code class="docutils literal notranslate"><span class="pre">render3D_select</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="input_output.html#snapshot-type"><code class="docutils literal notranslate"><span class="pre">snapshot_type</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="input_output.html#gadget-snapshot-params"><code class="docutils literal notranslate"><span class="pre">gadget_snapshot_params</span></code></a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="numerical_parameters.html">Numerical parameters</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="numerical_parameters.html#boxsize"><code class="docutils literal notranslate"><span class="pre">boxsize</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="numerical_parameters.html#potential-options"><code class="docutils literal notranslate"><span class="pre">potential_options</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="numerics.html">Numerics</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="numerics.html#boxsize"><code class="docutils literal notranslate"><span class="pre">boxsize</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="numerics.html#potential-options"><code class="docutils literal notranslate"><span class="pre">potential_options</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="numerics.html#shortrange-params"><code class="docutils literal notranslate"><span class="pre">shortrange_params</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="numerics.html#powerspec-options"><code class="docutils literal notranslate"><span class="pre">powerspec_options</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="numerics.html#k-modes-per-decade"><code class="docutils literal notranslate"><span class="pre">k_modes_per_decade</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="cosmology.html">Cosmology</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="cosmology.html#h0"><code class="docutils literal notranslate"><span class="pre">H0</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="cosmology.html#b"><code class="docutils literal notranslate"><span class="pre">Ωb</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="cosmology.html#cdm"><code class="docutils literal notranslate"><span class="pre">Ωcdm</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="cosmology.html#a-begin"><code class="docutils literal notranslate"><span class="pre">a_begin</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="cosmology.html#t-begin"><code class="docutils literal notranslate"><span class="pre">t_begin</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="cosmology.html#primordial-spectrum"><code class="docutils literal notranslate"><span class="pre">primordial_spectrum</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="cosmology.html#class-params"><code class="docutils literal notranslate"><span class="pre">class_params</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l2 current"><a class="current reference internal" href="#">Physics</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#select-forces"><code class="docutils literal notranslate"><span class="pre">select_forces</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#select-species"><code class="docutils literal notranslate"><span class="pre">select_species</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#select-lives"><code class="docutils literal notranslate"><span class="pre">select_lives</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#softening-kernel"><code class="docutils literal notranslate"><span class="pre">softening_kernel</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#select-softening-length"><code class="docutils literal notranslate"><span class="pre">select_softening_length</span></code></a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="simulation_options.html">Simulation options</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="simulation_options.html#t-base-background-factor"><code class="docutils literal notranslate"><span class="pre">Δt_base_background_factor</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="simulation.html">Simulation</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#t-base-background-factor"><code class="docutils literal notranslate"><span class="pre">Δt_base_background_factor</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#t-base-nonlinear-factor"><code class="docutils literal notranslate"><span class="pre">Δt_base_nonlinear_factor</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#t-increase-max-factor"><code class="docutils literal notranslate"><span class="pre">Δt_increase_max_factor</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#t-rung-factor"><code class="docutils literal notranslate"><span class="pre">Δt_rung_factor</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#a-max-early"><code class="docutils literal notranslate"><span class="pre">Δa_max_early</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#a-max-late"><code class="docutils literal notranslate"><span class="pre">Δa_max_late</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#n-rungs"><code class="docutils literal notranslate"><span class="pre">N_rungs</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#fftw-wisdom-rigor"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_rigor</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#fftw-wisdom-reuse"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_reuse</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#fftw-wisdom-share"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_share</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#random-seed"><code class="docutils literal notranslate"><span class="pre">random_seed</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#primordial-amplitude-fixed"><code class="docutils literal notranslate"><span class="pre">primordial_amplitude_fixed</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#primordial-phase-shift"><code class="docutils literal notranslate"><span class="pre">primordial_phase_shift</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#cell-centered"><code class="docutils literal notranslate"><span class="pre">cell_centered</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#class-reuse"><code class="docutils literal notranslate"><span class="pre">class_reuse</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="graphics.html">Graphics</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="graphics.html#terminal-width"><code class="docutils literal notranslate"><span class="pre">terminal_width</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="graphics.html#enable-terminal-formatting"><code class="docutils literal notranslate"><span class="pre">enable_terminal_formatting</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="graphics.html#render2d-options"><code class="docutils literal notranslate"><span class="pre">render2D_options</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="graphics.html#render3d-colors"><code class="docutils literal notranslate"><span class="pre">render3D_colors</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="graphics.html#render3d-bgcolor"><code class="docutils literal notranslate"><span class="pre">render3D_bgcolor</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="graphics.html#render3d-resolution"><code class="docutils literal notranslate"><span class="pre">render3D_resolution</span></code></a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="system_of_units.html">System of units</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="system_of_units.html#unit-length"><code class="docutils literal notranslate"><span class="pre">unit_length</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="units.html">Units</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="units.html#unit-length"><code class="docutils literal notranslate"><span class="pre">unit_length</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="units.html#unit-time"><code class="docutils literal notranslate"><span class="pre">unit_time</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="units.html#unit-mass"><code class="docutils literal notranslate"><span class="pre">unit_mass</span></code></a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="debugging_options.html">Debugging options</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="debugging_options.html#print-load-imbalance"><code class="docutils literal notranslate"><span class="pre">print_load_imbalance</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="debugging.html">Debugging</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="debugging.html#print-load-imbalance"><code class="docutils literal notranslate"><span class="pre">print_load_imbalance</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="debugging.html#particle-reordering"><code class="docutils literal notranslate"><span class="pre">particle_reordering</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="debugging.html#enable-hubble"><code class="docutils literal notranslate"><span class="pre">enable_Hubble</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="debugging.html#enable-class-background"><code class="docutils literal notranslate"><span class="pre">enable_class_background</span></code></a></li>
 </ul>
 </li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../utilities/utilities.html">Utilities</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/class.html">The class utility</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/convert.html">The convert utility</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/gadget.html">The gadget utility</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/info.html">The info utility</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/play.html">The play utility</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/powerspec.html">The powerspec utility</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/render3D.html">The render3D utility</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/update.html">The update utility</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/watch.html">The watch utility</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/class.html">class</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/convert.html">convert</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/gadget.html">gadget</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/info.html">info</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/play.html">play</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/powerspec.html">powerspec</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/render3D.html">render3D</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/update.html">update</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/watch.html">watch</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../troubleshooting.html">Troubleshooting</a><ul>
@@ -253,7 +299,7 @@
       </li>
   </ul><div class="rst-breadcrumbs-buttons" role="navigation" aria-label="Sequential page navigation">
         <a href="cosmology.html" class="btn btn-neutral float-left" title="Cosmology" accesskey="p"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="simulation_options.html" class="btn btn-neutral float-right" title="Simulation options" accesskey="n">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="simulation.html" class="btn btn-neutral float-right" title="Simulation" accesskey="n">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
   </div>
   <hr/>
 </div>
@@ -262,43 +308,535 @@
              
   <div class="section" id="physics">
 <h1>Physics<a class="headerlink" href="#physics" title="Permalink to this headline"></a></h1>
-<p>The physics parameter category contains parameters specifying various physical
-models and approximation schemes to be used. You will find the complete list
-of such parameters below.</p>
+<p>The ‘physics’ parameter category contains parameters specifying various
+physical models and schemes to be used.</p>
 <div class="contents local topic" id="contents">
 <ul class="simple">
-<li><p><a class="reference internal" href="#select-forces" id="id1"><code class="docutils literal notranslate"><span class="pre">select_forces</span></code></a></p></li>
+<li><p><a class="reference internal" href="#select-forces" id="id6"><code class="docutils literal notranslate"><span class="pre">select_forces</span></code></a></p></li>
+<li><p><a class="reference internal" href="#select-species" id="id7"><code class="docutils literal notranslate"><span class="pre">select_species</span></code></a></p></li>
+<li><p><a class="reference internal" href="#select-lives" id="id8"><code class="docutils literal notranslate"><span class="pre">select_lives</span></code></a></p></li>
+<li><p><a class="reference internal" href="#softening-kernel" id="id9"><code class="docutils literal notranslate"><span class="pre">softening_kernel</span></code></a></p></li>
+<li><p><a class="reference internal" href="#select-softening-length" id="id10"><code class="docutils literal notranslate"><span class="pre">select_softening_length</span></code></a></p></li>
 </ul>
 </div>
 <hr class="docutils" />
 <div class="section" id="select-forces">
-<h2><a class="toc-backref" href="#id1"><code class="docutils literal notranslate"><span class="pre">select_forces</span></code></a><a class="headerlink" href="#select-forces" title="Permalink to this headline"></a></h2>
+<span id="id1"></span><h2><a class="toc-backref" href="#id6"><code class="docutils literal notranslate"><span class="pre">select_forces</span></code></a><a class="headerlink" href="#select-forces" title="Permalink to this headline"></a></h2>
 <table>
 <colgroup>
-<col style="width: 8%" />
-<col style="width: 38%" />
-<col style="width: 54%" />
+<col style="width: 4%" />
+<col style="width: 10%" />
+<col style="width: 4%" />
+<col style="width: 82%" />
 </colgroup>
 <tbody>
 <tr class="row-odd"><td><p></p></td>
-<td><p><strong>Type</strong></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">dict</span></code></p></td>
+<td><p><strong>Description</strong></p></td>
+<td><p></p></td>
+<td><p>Specifies which forces to enable</p></td>
 </tr>
 <tr class="row-even"><td><p></p></td>
 <td><p><strong>Default</strong></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">{}</span></code></p></td>
+<td><p></p></td>
+<td><div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="p">{}</span>  <span class="c1"># no forces enabled</span>
+</pre></div>
+</div>
+</td>
 </tr>
 <tr class="row-odd"><td><p></p></td>
-<td><p><strong>Description</strong></p></td>
-<td><p><em>Under construction!</em></p></td>
+<td><p><strong>Elaboration</strong></p></td>
+<td><p></p></td>
+<td><p>This is a
+<a class="reference internal" href="parameters.html#components-and-selections"><span class="std std-ref">component selection</span></a>
+<code class="docutils literal notranslate"><span class="pre">dict</span></code>, mapping components to sub-<code class="docutils literal notranslate"><span class="pre">dict</span></code>s of the
+form</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="p">{</span><span class="n">force</span><span class="p">:</span> <span class="n">method</span><span class="p">}</span>
+</pre></div>
+</div>
+<p>specifying which forces/interactions affect the given
+component, as well as what method/implementation to use
+for the given forces. Currently, the only forces in
+CO<em>N</em>CEPT are <code class="docutils literal notranslate"><span class="pre">'gravity'</span></code> and <code class="docutils literal notranslate"><span class="pre">'lapse'</span></code>, with the
+latter having to do with gravitational
+<a class="reference internal" href="../tutorial/beyond_matter_only.html#decaying-cold-dark-matter"><span class="std std-ref">time dilation</span></a>. The
+implemented methods for the forces are:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">'gravity'</span></code>:</p>
+<ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">'pp'</span></code> (PP, particle-particle)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'pm'</span></code> (PM, particle-mesh)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'p3m'</span></code> (P³M, particle-particle-mesh)</p></li>
+</ul>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'lapse'</span></code>:</p>
+<ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">'pm'</span></code> (PM, particle-mesh)</p></li>
+</ul>
+</li>
+</ul>
+<p>For details on these methods, consult the paper on
+“<a class="reference internal" href="../publications.html"><span class="doc">The cosmological simulation code CO𝘕CEPT 1.0</span></a>”.
+As <code class="docutils literal notranslate"><span class="pre">select_forces</span></code> is empty by default, no forces (not
+even gravity) are enabled. If however a global potential
+grid size is specified within the <code class="docutils literal notranslate"><span class="pre">potential_options</span></code>
+<a class="reference internal" href="numerics.html#potential-options"><span class="std std-ref">parameter</span></a>, this places the
+following default entries within <code class="docutils literal notranslate"><span class="pre">select_forces</span></code>:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+    <span class="s1">&#39;particles&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;gravity&#39;</span><span class="p">:</span> <span class="s1">&#39;p3m&#39;</span><span class="p">,</span>
+    <span class="p">},</span>
+    <span class="s1">&#39;fluid&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;gravity&#39;</span><span class="p">:</span> <span class="s1">&#39;pm&#39;</span><span class="p">,</span>
+    <span class="p">},</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>so that particle components will participate in the
+gravitational interaction using P³M, while fluid
+components will participate in the gravitational
+interaction using PM.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>All interactions for fluid components may only ever
+use the PM method</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>With the gravitational force specified for particle
+and fluid components as above, gravity will really be
+applied to such components in the following manner:</p>
+<ul>
+<li><p>Gravity applied to particle components:</p>
+<blockquote>
+<div><ul>
+<li><p>From particle components:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>P³M (long-range)</p></li>
+<li><p>P³M (short-range)</p></li>
+</ul>
+</div></blockquote>
+</li>
+<li><p>From fluid components:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>PM</p></li>
+</ul>
+</div></blockquote>
+</li>
+</ul>
+</div></blockquote>
+</li>
+<li><p>Gravity applied to fluid components:</p>
+<blockquote>
+<div><ul>
+<li><p>From particle and fluid components:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>PM</p></li>
+</ul>
+</div></blockquote>
+</li>
+</ul>
+</div></blockquote>
+</li>
+</ul>
+<p>Besides P³M being split up into a long-range and a
+short-range part, we see that the interactions
+between particle and fluid components make use of
+PM, even though PM is only selected for the fluid
+components.</p>
+</div>
+<p>For more information on these
+mesh-based methods, see the <code class="docutils literal notranslate"><span class="pre">potential_options</span></code>
+<a class="reference internal" href="numerics.html#potential-options"><span class="std std-ref">parameter</span></a>. For a more casual
+walk-trough of how to specify forces and methods within
+CO<em>N</em>CEPT, see the
+<a class="reference internal" href="../tutorial/gravity.html"><span class="doc">tutorial</span></a>.</p>
+</td>
 </tr>
 <tr class="row-even"><td><p></p></td>
-<td><p><strong>Examples</strong></p></td>
-<td><p><em>Under construction!</em></p></td>
+<td><p><strong>Example 0</strong></p></td>
+<td><p></p></td>
+<td><p>Explicitly specify the component with a name/species of
+<code class="docutils literal notranslate"><span class="pre">'matter</span></code> to be under the influence of gravity, using
+the P³M method:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">select_forces</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;matter&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;gravity&#39;</span><span class="p">:</span> <span class="s1">&#39;p3m&#39;</span><span class="p">,</span>
+    <span class="p">},</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>As P³M is the default gravitational method, we can
+shorten this to</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">select_forces</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;matter&#39;</span><span class="p">:</span> <span class="s1">&#39;gravity&#39;</span><span class="p">,</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>As mentioned above, this can be shortened further by
+simply removing any mention of <code class="docutils literal notranslate"><span class="pre">select_forces</span></code> from
+the parameter file, provided that a global grid size is
+set within the <code class="docutils literal notranslate"><span class="pre">potential_options</span></code>
+<a class="reference internal" href="numerics.html#potential-options"><span class="std std-ref">parameter</span></a>.</p>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Example 1</strong></p></td>
+<td><p></p></td>
+<td><p>Explicitly specify the component with a name/species of
+<code class="docutils literal notranslate"><span class="pre">'matter</span></code> to be under the influence of gravity, using
+the PM method:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">select_forces</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;matter&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;gravity&#39;</span><span class="p">:</span> <span class="s1">&#39;pm&#39;</span><span class="p">,</span>
+    <span class="p">},</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</td>
 </tr>
 </tbody>
 </table>
-<p><em>Under construction!</em></p>
+<hr class="docutils" />
+</div>
+<div class="section" id="select-species">
+<span id="id2"></span><h2><a class="toc-backref" href="#id7"><code class="docutils literal notranslate"><span class="pre">select_species</span></code></a><a class="headerlink" href="#select-species" title="Permalink to this headline"></a></h2>
+<table>
+<colgroup>
+<col style="width: 4%" />
+<col style="width: 10%" />
+<col style="width: 4%" />
+<col style="width: 82%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Description</strong></p></td>
+<td><p></p></td>
+<td><p>Specifies the species of components read in from snapshots</p></td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Default</strong></p></td>
+<td><p></p></td>
+<td><div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+    <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="s1">&#39;matter&#39;</span><span class="p">,</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Elaboration</strong></p></td>
+<td><p></p></td>
+<td><p>This is a
+<a class="reference internal" href="parameters.html#components-and-selections"><span class="std std-ref">component selection</span></a>
+<code class="docutils literal notranslate"><span class="pre">dict</span></code> for mapping components to species. While the
+<code class="docutils literal notranslate"><span class="pre">'species'</span></code> of a component is explicitly specified in
+the <code class="docutils literal notranslate"><span class="pre">initial_conditions</span></code>
+<a class="reference internal" href="input_output.html#initial-conditions"><span class="std std-ref">parameter</span></a>, no species are
+necessarily defined for components read in from
+snapshots. For components within snapshots of the
+<code class="docutils literal notranslate"><span class="pre">'concept'</span></code> <a class="reference internal" href="input_output.html#snapshot-type"><span class="std std-ref">type</span></a>, their species
+are explicitly included within the snapshots. For
+components read from <code class="docutils literal notranslate"><span class="pre">'gadget'</span></code>
+<a class="reference internal" href="input_output.html#snapshot-type"><span class="std std-ref">type</span></a> snapshots, their GADGET
+particle type (see table 3 of the
+<a class="reference external" href="https://wwwmpa.mpa-garching.mpg.de/gadget/users-guide.pdf">user guide for GADGET-2</a>)
+is known, but this needs to be mapped to a species in
+CO<em>N</em>CEPT. This is what this parameter is for.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Though a species is explicitly defined for each
+component within a <code class="docutils literal notranslate"><span class="pre">'concept'</span></code> snapshot, the species
+to use within a simulation may be overruled by
+setting this parameter</p>
+</div>
+</td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Example 0</strong></p></td>
+<td><p></p></td>
+<td><p>Explicitly map the GADGET particle type 1 (<code class="docutils literal notranslate"><span class="pre">halo</span></code>) to
+correspond to the <code class="docutils literal notranslate"><span class="pre">'matter'</span></code> species within
+CO<em>N</em>CEPT:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">select_species</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;GADGET halo&#39;</span><span class="p">:</span> <span class="s1">&#39;matter&#39;</span><span class="p">,</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The name <code class="docutils literal notranslate"><span class="pre">'GADGET</span> <span class="pre">halo'</span></code> will automatically be
+assigned to the component containing the particles of
+type 1. See table 3 of the
+<a class="reference external" href="https://wwwmpa.mpa-garching.mpg.de/gadget/users-guide.pdf">user guide for GADGET-2</a>
+for other names.</p>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Example 1</strong></p></td>
+<td><p></p></td>
+<td><p>Map the GADGET particle type 2 (<code class="docutils literal notranslate"><span class="pre">disk</span></code>) to the
+<code class="docutils literal notranslate"><span class="pre">'neutrino'</span></code> species within CO<em>N</em>CEPT, while
+mapping everything else to <code class="docutils literal notranslate"><span class="pre">'matter'</span></code>:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">select_species</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;GADGET disk&#39;</span><span class="p">:</span> <span class="s1">&#39;neutrino&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;all&#39;</span>        <span class="p">:</span> <span class="s1">&#39;matter&#39;</span><span class="p">,</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<hr class="docutils" />
+<div class="section" id="select-lives">
+<h2><a class="toc-backref" href="#id8"><code class="docutils literal notranslate"><span class="pre">select_lives</span></code></a><a class="headerlink" href="#select-lives" title="Permalink to this headline"></a></h2>
+<table>
+<colgroup>
+<col style="width: 4%" />
+<col style="width: 10%" />
+<col style="width: 4%" />
+<col style="width: 82%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Description</strong></p></td>
+<td><p></p></td>
+<td><p>Specifies life spans of components</p></td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Default</strong></p></td>
+<td><p></p></td>
+<td><div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+    <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">ထ</span><span class="p">),</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Elaboration</strong></p></td>
+<td><p></p></td>
+<td><p>This is a
+<a class="reference internal" href="parameters.html#components-and-selections"><span class="std std-ref">component selection</span></a>
+<code class="docutils literal notranslate"><span class="pre">dict</span></code>, specifying the <em>life span</em> of individual
+components. Here, a life span is a 2-tuple in the format</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="p">(</span><span class="n">a_activate</span><span class="p">,</span> <span class="n">a_terminate</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>specifying the values of the scale factor <span class="math notranslate nohighlight">\(a\)</span> at
+which components should be <em>activated</em> and <em>terminated</em>,
+respectively. Prior to its activation time, a given
+component will not take part in the simulation. At the
+activation time, it will then be realised and included
+in the simulation. At termination time, the component
+will be removed from the simulation, and it cannot be
+reintroduced. The default specifications of this
+parameter ensures that — by default — all components
+are active from the beginning to the end of the
+simulation.</p>
+</td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Example 0</strong></p></td>
+<td><p></p></td>
+<td><p>Let the component with the name <code class="docutils literal notranslate"><span class="pre">'linear</span> <span class="pre">neutrino'</span></code>
+participate actively in the simulation until
+<span class="math notranslate nohighlight">\(a = 0.1\)</span>, at which point the component with the
+name <code class="docutils literal notranslate"><span class="pre">'non-linear</span> <span class="pre">neutrino'</span></code> should take its place:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">select_lives</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s1">&#39;linear neutrino&#39;</span><span class="p">:</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span>   <span class="mf">0.1</span><span class="p">),</span>
+    <span class="s1">&#39;non-linear neutrino&#39;</span><span class="p">:</span> <span class="p">(</span><span class="mf">0.1</span><span class="p">,</span>   <span class="n">ထ</span><span class="p">),</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>Assuming the two components both represent the
+<code class="docutils literal notranslate"><span class="pre">'neutrino'</span></code> species, but makes use of linear and
+non-linear evolution, this then effectively sets
+<span class="math notranslate nohighlight">\(a = 0.1\)</span> to be the time at which the neutrino
+species should be treated non-linearly. This can spare
+the simulation from a lot of unnecessary computation.
+See the <a class="reference internal" href="../tutorial/beyond_matter_only.html#nonlinear-massive-neutrinos"><span class="std std-ref">tutorial</span></a>
+for a similar example use case.</p>
+</td>
+</tr>
+</tbody>
+</table>
+<hr class="docutils" />
+</div>
+<div class="section" id="softening-kernel">
+<span id="id4"></span><h2><a class="toc-backref" href="#id9"><code class="docutils literal notranslate"><span class="pre">softening_kernel</span></code></a><a class="headerlink" href="#softening-kernel" title="Permalink to this headline"></a></h2>
+<table>
+<colgroup>
+<col style="width: 4%" />
+<col style="width: 10%" />
+<col style="width: 4%" />
+<col style="width: 82%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Description</strong></p></td>
+<td><p></p></td>
+<td><p>The kernel to use for particle softening</p></td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Default</strong></p></td>
+<td><p></p></td>
+<td><div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="s1">&#39;spline&#39;</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Elaboration</strong></p></td>
+<td><p></p></td>
+<td><p>For direct particle-particle forces (PP gravity,
+short-range P³M gravity), the force needs to be
+<em>softened</em> at short distances in order to avoid
+numerical problems with insufficient time resolution for
+two-body encounters. See the paper on
+“<a class="reference internal" href="../publications.html"><span class="doc">The cosmological simulation code CO𝘕CEPT 1.0</span></a>”
+for details. This parameter sets the type of softening
+to use for all such forces and components. All softening
+kernels may be described as a transformation on
+<span class="math notranslate nohighlight">\(|\boldsymbol{x}|^{-3}\)</span> in the force</p>
+<div class="math notranslate nohighlight">
+\[\boldsymbol{f} \propto |\boldsymbol{x}|^{-3}\boldsymbol{x}\, .\]</div>
+<p>The implemented softening kernels are:</p>
+<ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">'none'</span></code>: Do not use any softening;</p>
+<div class="math notranslate nohighlight">
+\[|\boldsymbol{x}|^{-3} \rightarrow |\boldsymbol{x}|^{-3}\, .\]</div>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'plummer'</span></code>: Make use of the Plummer softening
+kernel;</p>
+<div class="math notranslate nohighlight">
+\[|\boldsymbol{x}|^{-3} \rightarrow \bigl(|\boldsymbol{x}|^2 + \epsilon^2\bigr)^{-3/2}\, ,\]</div>
+<p>with <span class="math notranslate nohighlight">\(\epsilon\)</span> the
+<a class="reference internal" href="#select-softening-length"><span class="std std-ref">softening length</span></a>.</p>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'spline'</span></code>: Make use of the cubic spline softening
+kernel, also used by e.g. GADGET;</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}|\boldsymbol{x}|^{-3} \rightarrow \begin{cases}
+    \displaystyle \frac{32}{\epsilon_{\text{B}}^3}\biggl( x_{\text{B}}^3 - \frac{6}{5}x_{\text{B}}^2 + \frac{1}{3} \biggr) &amp; \displaystyle x_{\text{B}} &lt; \frac{1}{2} \\
+    \displaystyle \frac{32}{\epsilon_{\text{B}}^3}\biggl( -\frac{1}{3}x_{\text{B}}^3 + \frac{6}{5}x_{\text{B}}^2 - \frac{3}{2}x_{\text{B}} + \frac{2}{3} - \frac{1}{480}x_{\text{B}}^{-3} \biggr) &amp; \displaystyle \frac{1}{2} \leq x_{\text{B}} &lt; 1 \\
+    \displaystyle |\boldsymbol{x}|^{-3} &amp; \displaystyle 1 \leq x_{\text{B}}\, ,
+\end{cases}\end{split}\]</div>
+<p>with
+<span class="math notranslate nohighlight">\(x_{\text{B}} \equiv |\boldsymbol{x}|/\epsilon_{\text{B}}\)</span>
+and <span class="math notranslate nohighlight">\(\epsilon_{\text{B}} = 2.8\epsilon\)</span>, with
+<span class="math notranslate nohighlight">\(\epsilon\)</span> being the specified
+“Plummer-equivalent”
+<a class="reference internal" href="#select-softening-length"><span class="std std-ref">softening length</span></a>.</p>
+</li>
+</ul>
+</td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Example 0</strong></p></td>
+<td><p></p></td>
+<td><p>Use simple Plummer softening:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">softening_kernel</span> <span class="o">=</span> <span class="s1">&#39;plummer&#39;</span>
+</pre></div>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+<hr class="docutils" />
+</div>
+<div class="section" id="select-softening-length">
+<span id="id5"></span><h2><a class="toc-backref" href="#id10"><code class="docutils literal notranslate"><span class="pre">select_softening_length</span></code></a><a class="headerlink" href="#select-softening-length" title="Permalink to this headline"></a></h2>
+<table>
+<colgroup>
+<col style="width: 4%" />
+<col style="width: 10%" />
+<col style="width: 4%" />
+<col style="width: 82%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Description</strong></p></td>
+<td><p></p></td>
+<td><p>Specifies particle softening lengths</p></td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Default</strong></p></td>
+<td><p></p></td>
+<td><div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+    <span class="s1">&#39;particles&#39;</span><span class="p">:</span> <span class="s1">&#39;0.03*boxsize/cbrt(N)&#39;</span><span class="p">,</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Elaboration</strong></p></td>
+<td><p></p></td>
+<td><p>Direct particle-particle forces are softened according
+to the chosen
+<a class="reference internal" href="#softening-kernel"><span class="std std-ref">softening kernel</span></a>. Regardless
+of the chosen kernel, the associated length scale is
+expressed in terms of the “Plummer-equivalent” softening
+length <span class="math notranslate nohighlight">\(\epsilon\)</span>. This parameter is a
+<a class="reference internal" href="parameters.html#components-and-selections"><span class="std std-ref">component selection</span></a>
+<code class="docutils literal notranslate"><span class="pre">dict</span></code> specifying this <span class="math notranslate nohighlight">\(\epsilon\)</span> for the
+particle components within the simulation (fluid
+components have no need for softening).</p>
+<p>The default value sets <span class="math notranslate nohighlight">\(\epsilon\)</span> to be
+<span class="math notranslate nohighlight">\(3\,\%\)</span> of the mean inter-particle distance,
+within each particle component separately. Here <code class="docutils literal notranslate"><span class="pre">'N'</span></code>
+is dynamically substituted for the number of of
+particles <span class="math notranslate nohighlight">\(N\)</span> within the given component.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The specified softening lengths are always comoving</p>
+</div>
+</td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Example 0</strong></p></td>
+<td><p></p></td>
+<td><p>Use a softening length of <span class="math notranslate nohighlight">\(10\,\mathrm{kpc}/h\)</span> for
+all components:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">select_softening_length</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;all&#39;</span><span class="p">:</span> <span class="mi">10</span><span class="o">*</span><span class="n">kpc</span><span class="o">/</span><span class="n">h</span><span class="p">,</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Example 1</strong></p></td>
+<td><p></p></td>
+<td><p>Use a softening length of <span class="math notranslate nohighlight">\(1/10\,000\)</span> of the box
+size for the component with a name/species of
+<code class="docutils literal notranslate"><span class="pre">'cold</span> <span class="pre">dark</span> <span class="pre">matter'</span></code> and a softening length of
+<span class="math notranslate nohighlight">\(2\,\%\)</span> of the mean inter-particle distance
+(between particles of each given component) for all other
+components:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">select_softening_length</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;cold dark matter&#39;</span><span class="p">:</span> <span class="n">boxsize</span><span class="o">/</span><span class="mi">10_000</span><span class="p">,</span>
+    <span class="s1">&#39;all&#39;</span>             <span class="p">:</span> <span class="s1">&#39;0.02*boxsize/cbrt(N)&#39;</span><span class="p">,</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Parameters like <code class="docutils literal notranslate"><span class="pre">boxsize</span></code> may be used either
+directly or referred to inside <code class="docutils literal notranslate"><span class="pre">str</span></code>s.
+Component-specific attributes like <code class="docutils literal notranslate"><span class="pre">N</span></code> must be
+specified within a <code class="docutils literal notranslate"><span class="pre">str</span></code>.</p>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
 </div>
 </div>
 
@@ -307,7 +845,7 @@ of such parameters below.</p>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
         <a href="cosmology.html" class="btn btn-neutral float-left" title="Cosmology" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="simulation_options.html" class="btn btn-neutral float-right" title="Simulation options" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="simulation.html" class="btn btn-neutral float-right" title="Simulation" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>

@@ -24,8 +24,8 @@
     <script src="../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="System of units" href="system_of_units.html" />
-    <link rel="prev" title="Simulation options" href="simulation_options.html" /> 
+    <link rel="next" title="Units" href="units.html" />
+    <link rel="prev" title="Simulation" href="simulation.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -85,7 +85,7 @@
 <li class="toctree-l3"><a class="reference internal" href="../installation.html#influential-environment-variables">Influential environment variables</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="../installation.html#making-use-of-pre-installed-libraries">Making use of pre-installed libraries</a></li>
 <li class="toctree-l4"><a class="reference internal" href="../installation.html#specifying-dependency-versions">Specifying dependency versions</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../installation.html#specifying-dependency-url-s">Specifying dependency URL’s</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../installation.html#specifying-dependency-urls">Specifying dependency URLs</a></li>
 <li class="toctree-l4"><a class="reference internal" href="../installation.html#choosing-compiler-precedence">Choosing compiler precedence</a></li>
 <li class="toctree-l4"><a class="reference internal" href="../installation.html#installing-mpich-or-openmpi">Installing MPICH or OpenMPI</a></li>
 <li class="toctree-l4"><a class="reference internal" href="../installation.html#parallel-builds">Parallel builds</a></li>
@@ -157,51 +157,96 @@
 <li class="toctree-l1 current"><a class="reference internal" href="parameters.html">Parameters</a><ul class="current">
 <li class="toctree-l2"><a class="reference internal" href="input_output.html">Input/output</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="input_output.html#initial-conditions"><code class="docutils literal notranslate"><span class="pre">initial_conditions</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="input_output.html#output-dirs"><code class="docutils literal notranslate"><span class="pre">output_dirs</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="input_output.html#output-bases"><code class="docutils literal notranslate"><span class="pre">output_bases</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="input_output.html#output-times"><code class="docutils literal notranslate"><span class="pre">output_times</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="input_output.html#autosave-interval"><code class="docutils literal notranslate"><span class="pre">autosave_interval</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="input_output.html#snapshot-select"><code class="docutils literal notranslate"><span class="pre">snapshot_select</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="input_output.html#powerspec-select"><code class="docutils literal notranslate"><span class="pre">powerspec_select</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="input_output.html#render2d-select"><code class="docutils literal notranslate"><span class="pre">render2D_select</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="input_output.html#render3d-select"><code class="docutils literal notranslate"><span class="pre">render3D_select</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="input_output.html#snapshot-type"><code class="docutils literal notranslate"><span class="pre">snapshot_type</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="input_output.html#gadget-snapshot-params"><code class="docutils literal notranslate"><span class="pre">gadget_snapshot_params</span></code></a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="numerical_parameters.html">Numerical parameters</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="numerical_parameters.html#boxsize"><code class="docutils literal notranslate"><span class="pre">boxsize</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="numerical_parameters.html#potential-options"><code class="docutils literal notranslate"><span class="pre">potential_options</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="numerics.html">Numerics</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="numerics.html#boxsize"><code class="docutils literal notranslate"><span class="pre">boxsize</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="numerics.html#potential-options"><code class="docutils literal notranslate"><span class="pre">potential_options</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="numerics.html#shortrange-params"><code class="docutils literal notranslate"><span class="pre">shortrange_params</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="numerics.html#powerspec-options"><code class="docutils literal notranslate"><span class="pre">powerspec_options</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="numerics.html#k-modes-per-decade"><code class="docutils literal notranslate"><span class="pre">k_modes_per_decade</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="cosmology.html">Cosmology</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="cosmology.html#h0"><code class="docutils literal notranslate"><span class="pre">H0</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="cosmology.html#b"><code class="docutils literal notranslate"><span class="pre">Ωb</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="cosmology.html#cdm"><code class="docutils literal notranslate"><span class="pre">Ωcdm</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="cosmology.html#a-begin"><code class="docutils literal notranslate"><span class="pre">a_begin</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="cosmology.html#t-begin"><code class="docutils literal notranslate"><span class="pre">t_begin</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="cosmology.html#primordial-spectrum"><code class="docutils literal notranslate"><span class="pre">primordial_spectrum</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="cosmology.html#class-params"><code class="docutils literal notranslate"><span class="pre">class_params</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="physics.html">Physics</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="physics.html#select-forces"><code class="docutils literal notranslate"><span class="pre">select_forces</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="physics.html#select-species"><code class="docutils literal notranslate"><span class="pre">select_species</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="physics.html#select-lives"><code class="docutils literal notranslate"><span class="pre">select_lives</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="physics.html#softening-kernel"><code class="docutils literal notranslate"><span class="pre">softening_kernel</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="physics.html#select-softening-length"><code class="docutils literal notranslate"><span class="pre">select_softening_length</span></code></a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="simulation_options.html">Simulation options</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="simulation_options.html#t-base-background-factor"><code class="docutils literal notranslate"><span class="pre">Δt_base_background_factor</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="simulation.html">Simulation</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#t-base-background-factor"><code class="docutils literal notranslate"><span class="pre">Δt_base_background_factor</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#t-base-nonlinear-factor"><code class="docutils literal notranslate"><span class="pre">Δt_base_nonlinear_factor</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#t-increase-max-factor"><code class="docutils literal notranslate"><span class="pre">Δt_increase_max_factor</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#t-rung-factor"><code class="docutils literal notranslate"><span class="pre">Δt_rung_factor</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#a-max-early"><code class="docutils literal notranslate"><span class="pre">Δa_max_early</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#a-max-late"><code class="docutils literal notranslate"><span class="pre">Δa_max_late</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#n-rungs"><code class="docutils literal notranslate"><span class="pre">N_rungs</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#fftw-wisdom-rigor"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_rigor</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#fftw-wisdom-reuse"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_reuse</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#fftw-wisdom-share"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_share</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#random-seed"><code class="docutils literal notranslate"><span class="pre">random_seed</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#primordial-amplitude-fixed"><code class="docutils literal notranslate"><span class="pre">primordial_amplitude_fixed</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#primordial-phase-shift"><code class="docutils literal notranslate"><span class="pre">primordial_phase_shift</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#cell-centered"><code class="docutils literal notranslate"><span class="pre">cell_centered</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#class-reuse"><code class="docutils literal notranslate"><span class="pre">class_reuse</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l2 current"><a class="current reference internal" href="#">Graphics</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#terminal-width"><code class="docutils literal notranslate"><span class="pre">terminal_width</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#enable-terminal-formatting"><code class="docutils literal notranslate"><span class="pre">enable_terminal_formatting</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#render2d-options"><code class="docutils literal notranslate"><span class="pre">render2D_options</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#render3d-colors"><code class="docutils literal notranslate"><span class="pre">render3D_colors</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#render3d-bgcolor"><code class="docutils literal notranslate"><span class="pre">render3D_bgcolor</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#render3d-resolution"><code class="docutils literal notranslate"><span class="pre">render3D_resolution</span></code></a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="system_of_units.html">System of units</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="system_of_units.html#unit-length"><code class="docutils literal notranslate"><span class="pre">unit_length</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="units.html">Units</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="units.html#unit-length"><code class="docutils literal notranslate"><span class="pre">unit_length</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="units.html#unit-time"><code class="docutils literal notranslate"><span class="pre">unit_time</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="units.html#unit-mass"><code class="docutils literal notranslate"><span class="pre">unit_mass</span></code></a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="debugging_options.html">Debugging options</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="debugging_options.html#print-load-imbalance"><code class="docutils literal notranslate"><span class="pre">print_load_imbalance</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="debugging.html">Debugging</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="debugging.html#print-load-imbalance"><code class="docutils literal notranslate"><span class="pre">print_load_imbalance</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="debugging.html#particle-reordering"><code class="docutils literal notranslate"><span class="pre">particle_reordering</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="debugging.html#enable-hubble"><code class="docutils literal notranslate"><span class="pre">enable_Hubble</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="debugging.html#enable-class-background"><code class="docutils literal notranslate"><span class="pre">enable_class_background</span></code></a></li>
 </ul>
 </li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../utilities/utilities.html">Utilities</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/class.html">The class utility</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/convert.html">The convert utility</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/gadget.html">The gadget utility</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/info.html">The info utility</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/play.html">The play utility</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/powerspec.html">The powerspec utility</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/render3D.html">The render3D utility</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/update.html">The update utility</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/watch.html">The watch utility</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/class.html">class</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/convert.html">convert</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/gadget.html">gadget</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/info.html">info</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/play.html">play</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/powerspec.html">powerspec</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/render3D.html">render3D</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/update.html">update</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/watch.html">watch</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../troubleshooting.html">Troubleshooting</a><ul>
@@ -252,8 +297,8 @@
               <a href="https://github.com/jmd-dk/concept/" class="fa fa-github"> Code Repository</a>
       </li>
   </ul><div class="rst-breadcrumbs-buttons" role="navigation" aria-label="Sequential page navigation">
-        <a href="simulation_options.html" class="btn btn-neutral float-left" title="Simulation options" accesskey="p"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="system_of_units.html" class="btn btn-neutral float-right" title="System of units" accesskey="n">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="simulation.html" class="btn btn-neutral float-left" title="Simulation" accesskey="p"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="units.html" class="btn btn-neutral float-right" title="Units" accesskey="n">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
   </div>
   <hr/>
 </div>
@@ -262,43 +307,477 @@
              
   <div class="section" id="graphics">
 <h1>Graphics<a class="headerlink" href="#graphics" title="Permalink to this headline"></a></h1>
-<p>The graphics parameter category contains parameters specifying the look of 2D
-and 3D renders, as well as terminal output in general. You will find the
-complete list of such parameters below.</p>
+<p>The ‘graphics’ parameter category contains parameters specifying the look of
+2D and 3D renders, as well as of the general terminal output.</p>
 <div class="contents local topic" id="contents">
 <ul class="simple">
-<li><p><a class="reference internal" href="#terminal-width" id="id1"><code class="docutils literal notranslate"><span class="pre">terminal_width</span></code></a></p></li>
+<li><p><a class="reference internal" href="#terminal-width" id="id4"><code class="docutils literal notranslate"><span class="pre">terminal_width</span></code></a></p></li>
+<li><p><a class="reference internal" href="#enable-terminal-formatting" id="id5"><code class="docutils literal notranslate"><span class="pre">enable_terminal_formatting</span></code></a></p></li>
+<li><p><a class="reference internal" href="#render2d-options" id="id6"><code class="docutils literal notranslate"><span class="pre">render2D_options</span></code></a></p></li>
+<li><p><a class="reference internal" href="#render3d-colors" id="id7"><code class="docutils literal notranslate"><span class="pre">render3D_colors</span></code></a></p></li>
+<li><p><a class="reference internal" href="#render3d-bgcolor" id="id8"><code class="docutils literal notranslate"><span class="pre">render3D_bgcolor</span></code></a></p></li>
+<li><p><a class="reference internal" href="#render3d-resolution" id="id9"><code class="docutils literal notranslate"><span class="pre">render3D_resolution</span></code></a></p></li>
 </ul>
 </div>
 <hr class="docutils" />
 <div class="section" id="terminal-width">
-<h2><a class="toc-backref" href="#id1"><code class="docutils literal notranslate"><span class="pre">terminal_width</span></code></a><a class="headerlink" href="#terminal-width" title="Permalink to this headline"></a></h2>
+<span id="id1"></span><h2><a class="toc-backref" href="#id4"><code class="docutils literal notranslate"><span class="pre">terminal_width</span></code></a><a class="headerlink" href="#terminal-width" title="Permalink to this headline"></a></h2>
 <table>
 <colgroup>
-<col style="width: 8%" />
-<col style="width: 38%" />
-<col style="width: 54%" />
+<col style="width: 4%" />
+<col style="width: 10%" />
+<col style="width: 4%" />
+<col style="width: 82%" />
 </colgroup>
 <tbody>
 <tr class="row-odd"><td><p></p></td>
-<td><p><strong>Type</strong></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">int</span></code></p></td>
+<td><p><strong>Description</strong></p></td>
+<td><p></p></td>
+<td><p>Specifies the maximum width of the terminal output</p></td>
 </tr>
 <tr class="row-even"><td><p></p></td>
 <td><p><strong>Default</strong></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">80</span></code></p></td>
+<td><p></p></td>
+<td><div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="mi">80</span>
+</pre></div>
+</div>
+</td>
 </tr>
 <tr class="row-odd"><td><p></p></td>
-<td><p><strong>Description</strong></p></td>
-<td><p><em>Under construction!</em></p></td>
+<td><p><strong>Elaboration</strong></p></td>
+<td><p></p></td>
+<td><p>Long lines of terminal output from CO<em>N</em>CEPT is
+generally wrapped into multiple lines before they are
+printed. This is preferable to having the wrapping done
+automatically by the terminal emulator, as these often
+do not care about e.g. splitting sentences at word
+boundaries. This parameter sets the width of the
+terminal in characters, beyond which line-wrapping
+should occur.</p></td>
 </tr>
 <tr class="row-even"><td><p></p></td>
-<td><p><strong>Examples</strong></p></td>
-<td><p><em>Under construction!</em></p></td>
+<td><p><strong>Example 0</strong></p></td>
+<td><p></p></td>
+<td><p>Use a larger, more modern terminal width:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">terminal_width</span> <span class="o">=</span> <span class="mi">120</span>
+</pre></div>
+</div>
+</td>
 </tr>
 </tbody>
 </table>
-<p><em>Under construction!</em></p>
+<hr class="docutils" />
+</div>
+<div class="section" id="enable-terminal-formatting">
+<span id="id2"></span><h2><a class="toc-backref" href="#id5"><code class="docutils literal notranslate"><span class="pre">enable_terminal_formatting</span></code></a><a class="headerlink" href="#enable-terminal-formatting" title="Permalink to this headline"></a></h2>
+<table>
+<colgroup>
+<col style="width: 4%" />
+<col style="width: 10%" />
+<col style="width: 4%" />
+<col style="width: 82%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Description</strong></p></td>
+<td><p></p></td>
+<td><p>Specifies whether to use formatted text in terminal
+output</p></td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Default</strong></p></td>
+<td><p></p></td>
+<td><div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="kc">True</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Elaboration</strong></p></td>
+<td><p></p></td>
+<td><p>By default, CO<em>N</em>CEPT makes use of various
+formatting when printing to the terminal, e.g. bold red
+text for warnings and errors. This can be disabled by
+this parameter.</p></td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Example 0</strong></p></td>
+<td><p></p></td>
+<td><p>Do not make use of terminal formatting:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">enable_terminal_formatting</span> <span class="o">=</span> <span class="kc">False</span>
+</pre></div>
+</div>
+<p>This can be helpful if you e.g. want to programmatically
+search the generated log files.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Though this disables the majority of the terminal
+formatting, a few bits and pieces remain</p>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+<hr class="docutils" />
+</div>
+<div class="section" id="render2d-options">
+<span id="id3"></span><h2><a class="toc-backref" href="#id6"><code class="docutils literal notranslate"><span class="pre">render2D_options</span></code></a><a class="headerlink" href="#render2d-options" title="Permalink to this headline"></a></h2>
+<table>
+<colgroup>
+<col style="width: 4%" />
+<col style="width: 10%" />
+<col style="width: 4%" />
+<col style="width: 82%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Description</strong></p></td>
+<td><p></p></td>
+<td><p>Specifications for 2D render computations</p></td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Default</strong></p></td>
+<td><p></p></td>
+<td><div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+    <span class="s1">&#39;upstream gridsize&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;particles&#39;</span><span class="p">:</span> <span class="s1">&#39;cbrt(N)&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;fluid&#39;</span>    <span class="p">:</span> <span class="s1">&#39;gridsize&#39;</span><span class="p">,</span>
+    <span class="p">},</span>
+    <span class="s1">&#39;global gridsize&#39;</span><span class="p">:</span> <span class="p">{},</span>
+    <span class="s1">&#39;terminal resolution&#39;</span><span class="p">:</span> <span class="p">{},</span>
+    <span class="s1">&#39;interpolation&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="s1">&#39;PCS&#39;</span><span class="p">,</span>
+    <span class="p">},</span>
+    <span class="s1">&#39;deconvolve&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="p">},</span>
+    <span class="s1">&#39;interlace&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="p">},</span>
+    <span class="s1">&#39;axis&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="s1">&#39;z&#39;</span><span class="p">,</span>
+    <span class="p">},</span>
+    <span class="s1">&#39;extent&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mf">0.1</span><span class="o">*</span><span class="n">boxsize</span><span class="p">),</span>
+    <span class="p">},</span>
+    <span class="s1">&#39;colormap&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="s1">&#39;inferno&#39;</span><span class="p">,</span>
+    <span class="p">},</span>
+    <span class="s1">&#39;enhance&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="p">},</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Elaboration</strong></p></td>
+<td><p></p></td>
+<td><p>This is a <code class="docutils literal notranslate"><span class="pre">dict</span></code> of several individual sub-parameters,
+specifying details of how to compute 2D renders. All
+sub-parameters are themselves
+<a class="reference internal" href="parameters.html#components-and-selections"><span class="std std-ref">component selections</span></a>.</p>
+<p>For constructing a 2D render, one or more components (or
+more precisely their energy densities) are first
+interpolated onto individual <em>upstream</em> grids, possibly
+using deconvolution and interlacing, after which they
+are added together, producing a <em>global</em> grid. This
+scheme is similar to the one used for potentials, except
+here we stay in real space (though with a round-trip to
+Fourier space if upstream grids of different sizes are
+to be added together) and we do not interpolate anything
+back to the particles. See the <code class="docutils literal notranslate"><span class="pre">potential_options</span></code>
+<a class="reference internal" href="numerics.html#potential-options"><span class="std std-ref">parameter</span></a> for a walk-through
+of the scheme. A slab of a given thickness along a
+particular axis is then projected along this axis,
+resulting in a greyscale image. The contrast within the
+image is then possibly enhanced, and colours applied
+according to a given colormap.</p>
+<p>Each sub-parameter is described below:</p>
+<ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">'upstream</span> <span class="pre">gridsize'</span></code>: Specifies the upstream grid
+sizes to use for each component.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'global</span> <span class="pre">gridsize'</span></code>: Specifies the global grid size
+to use for each 2D render. Which 2D renders to compute
+are in turn specified by the
+<code class="docutils literal notranslate"><span class="pre">render2D_select</span></code>
+<a class="reference internal" href="input_output.html#render2d-select"><span class="std std-ref">parameter</span></a>.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>This has no default value, as a proper global grid
+size depends on the components within the
+simulation. If this is not set when a 2D render is
+to be computed, a value equal to the largest of the
+upstream grid sizes (in use for this particular 2D
+render) will be used.</p>
+</div>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'terminal</span> <span class="pre">resolution'</span></code>: Specifies the resolution (in
+characters) to use for the 2D terminal render, if
+<a class="reference internal" href="input_output.html#render2d-select"><span class="std std-ref">selected</span></a> as an output.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>This has no default value, as a proper terminal
+resolution depends on the components within the
+simulation. If this is not set when a 2D render is
+to be computed, a value equal to the minimum of
+<code class="docutils literal notranslate"><span class="pre">'global</span> <span class="pre">gridsize'</span></code> (in use for this particular
+2D render) and the <code class="docutils literal notranslate"><span class="pre">terminal_width</span></code>
+<a class="reference internal" href="#terminal-width"><span class="std std-ref">parameter</span></a> will be used.</p>
+</div>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'interpolation'</span></code>: Specifies the interpolation order
+to use when interpolating particles to upstream grids.
+The implemented interpolations are:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">'NPG'</span></code>: ‘Nearest grid point’, order <code class="docutils literal notranslate"><span class="pre">1</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'CIC'</span></code>: ‘Cloud in cell’, order <code class="docutils literal notranslate"><span class="pre">2</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'TSC'</span></code>: ‘Triangular shaped cloud’, order <code class="docutils literal notranslate"><span class="pre">3</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'PCS'</span></code>: ‘Piecewise cubic spline’, order <code class="docutils literal notranslate"><span class="pre">4</span></code>.</p></li>
+</ul>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'deconvolve'</span></code>: Specifies whether to apply
+deconvolution for upstream particle interpolations.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'interlace'</span></code>: Specifies whether to use interlacing
+for upstream particle interpolations.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'axis'</span></code>: Specifies the projection axis. Valid axes
+are <code class="docutils literal notranslate"><span class="pre">'x'</span></code>, <code class="docutils literal notranslate"><span class="pre">'y'</span></code>, <code class="docutils literal notranslate"><span class="pre">'z'</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'extent'</span></code>: Specifies the thickness of a slab
+along the given axis to project, or a specific
+interval for said slab. Only data within this slab
+will contribute to the projected image.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'colormap'</span></code>: The
+<a class="reference external" href="https://matplotlib.org/stable/gallery/color/colormap_reference.html">colormap</a>
+to apply to the image.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'enhance'</span></code>: Specifies whether to apply non-linear
+contrast enhancement to the image.</p></li>
+</ul>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>For all sub-parameters above except
+<code class="docutils literal notranslate"><span class="pre">'upstream</span> <span class="pre">gridsize'</span></code>, the keys used within the
+<a class="reference internal" href="parameters.html#components-and-selections"><span class="std std-ref">component selection</span></a>
+sub-<code class="docutils literal notranslate"><span class="pre">dict</span></code>s may refer to either a single
+component or a combination of components.</p>
+</div>
+</td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Example 0</strong></p></td>
+<td><p></p></td>
+<td><p>Do the projection along the <code class="docutils literal notranslate"><span class="pre">'x'</span></code> axis and include a
+quarter of the simulation box in the projection, for
+every 2D render:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">render2D_options</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;axis&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;all&#39;</span>             <span class="p">:</span> <span class="s1">&#39;x&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;all combinations&#39;</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span>
+    <span class="p">},</span>
+    <span class="s1">&#39;extent&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;all&#39;</span>             <span class="p">:</span> <span class="n">boxsize</span><span class="o">/</span><span class="mi">4</span><span class="p">,</span>
+        <span class="s1">&#39;all combinations&#39;</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span>
+    <span class="p">},</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>When only specifying a single number (the slab
+thickness) for <code class="docutils literal notranslate"><span class="pre">'extent'</span></code> as above, the actual
+extent will be <code class="docutils literal notranslate"><span class="pre">(0,</span> <span class="pre">boxsize/4)</span></code></p>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Example 1</strong></p></td>
+<td><p></p></td>
+<td><p>Apply different colormaps to the two components with
+names/species of <code class="docutils literal notranslate"><span class="pre">'matter'</span></code> and <code class="docutils literal notranslate"><span class="pre">'neutrino'</span></code>,
+and only enhance the 2D render of the latter:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">render2D_options</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;colormap&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;matter&#39;</span>  <span class="p">:</span> <span class="s1">&#39;cool&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;neutrino&#39;</span><span class="p">:</span> <span class="s1">&#39;hot&#39;</span><span class="p">,</span>
+    <span class="p">},</span>
+    <span class="s1">&#39;enhance&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;matter&#39;</span>  <span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="s1">&#39;neutrino&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="p">},</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The colormaps are applied for both the saved PNG and
+for the terminal renders. The colours in the terminal
+are however defined using global state, meaning that
+only a single colormap can be applied within the
+terminal at any given time. When playing back the 2D
+terminal renders of a given component from a simulation
+using the <a class="reference internal" href="../utilities/play.html"><span class="doc">play utility</span></a>, the
+proper colormap will be applied.</p>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<hr class="docutils" />
+<div class="section" id="render3d-colors">
+<h2><a class="toc-backref" href="#id7"><code class="docutils literal notranslate"><span class="pre">render3D_colors</span></code></a><a class="headerlink" href="#render3d-colors" title="Permalink to this headline"></a></h2>
+<table>
+<colgroup>
+<col style="width: 4%" />
+<col style="width: 10%" />
+<col style="width: 4%" />
+<col style="width: 82%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Description</strong></p></td>
+<td><p></p></td>
+<td><p>Specifies the colour in which to 3D render components</p></td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Default</strong></p></td>
+<td><p></p></td>
+<td><div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="p">{}</span>  <span class="c1"># use default Matpotlib colours</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Elaboration</strong></p></td>
+<td><p></p></td>
+<td><p>This is a
+<a class="reference internal" href="parameters.html#components-and-selections"><span class="std std-ref">component selection</span></a>
+<code class="docutils literal notranslate"><span class="pre">dict</span></code> for specifying the colour to use for each
+component within 3D renders. The specified colours may
+be
+<a class="reference external" href="https://matplotlib.org/stable/gallery/color/named_colors.html">any of the recognised Matplotlib colours</a>,
+a 3-tuple of RGB values or a single number for
+greyscale (valued 0–1). In all cases, a
+default alpha (opacity) value of <code class="docutils literal notranslate"><span class="pre">0.2</span></code> will
+additionally be assigned. To further set this alpha
+yourself, define this parameter as a tuple with the
+alpha as the last element.</p></td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Example 0</strong></p></td>
+<td><p></p></td>
+<td><p>Set the component with a name/species of <code class="docutils literal notranslate"><span class="pre">'matter'</span></code> to
+be 3D rendered in turquoise and the component with a
+name/species of <code class="docutils literal notranslate"><span class="pre">'neutrino'</span></code> to be 3D rendered in
+violet, with the latter being less transparent than the
+default:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">render3D_colors</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;matter&#39;</span>  <span class="p">:</span> <span class="s1">&#39;turquoise&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;neutrino&#39;</span><span class="p">:</span> <span class="p">(</span><span class="s1">&#39;violet&#39;</span><span class="p">,</span> <span class="mf">0.3</span><span class="p">),</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<hr class="docutils" />
+<div class="section" id="render3d-bgcolor">
+<h2><a class="toc-backref" href="#id8"><code class="docutils literal notranslate"><span class="pre">render3D_bgcolor</span></code></a><a class="headerlink" href="#render3d-bgcolor" title="Permalink to this headline"></a></h2>
+<table>
+<colgroup>
+<col style="width: 4%" />
+<col style="width: 10%" />
+<col style="width: 4%" />
+<col style="width: 82%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Description</strong></p></td>
+<td><p></p></td>
+<td><p>Specifies the background colour for 3D renders</p></td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Default</strong></p></td>
+<td><p></p></td>
+<td><div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="s1">&#39;black&#39;</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Elaboration</strong></p></td>
+<td><p></p></td>
+<td><p>All 3D renders within a simulation will have the
+background colour as specified by this parameter, with
+the particles or fluid cells of the rendered
+component(s) (as well as time stamps) on top. The
+specified colour may be
+<a class="reference external" href="https://matplotlib.org/stable/gallery/color/named_colors.html">any colour recognised by Matplotlib</a>,
+a 3-tuple of RGB values or a single greyscale number
+(valued 0–1).</p></td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Example 0</strong></p></td>
+<td><p></p></td>
+<td><p>Use a light background colour, though not quite white:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">render3D_bgcolor</span> <span class="o">=</span> <span class="s1">&#39;ivory&#39;</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The text (time stamps) on the 3D renders will now be
+in black rather than their usual white, maximizing the
+contrast</p>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<hr class="docutils" />
+<div class="section" id="render3d-resolution">
+<h2><a class="toc-backref" href="#id9"><code class="docutils literal notranslate"><span class="pre">render3D_resolution</span></code></a><a class="headerlink" href="#render3d-resolution" title="Permalink to this headline"></a></h2>
+<table>
+<colgroup>
+<col style="width: 4%" />
+<col style="width: 10%" />
+<col style="width: 4%" />
+<col style="width: 82%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Description</strong></p></td>
+<td><p></p></td>
+<td><p>Specifies the size of 3D renders</p></td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Default</strong></p></td>
+<td><p></p></td>
+<td><div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="mi">1080</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Elaboration</strong></p></td>
+<td><p></p></td>
+<td><p>The 3D renders are always stored as square images
+(PNG files). This parameter specifies the height and
+width of these images, in pixels.</p></td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Example 0</strong></p></td>
+<td><p></p></td>
+<td><p>Generate high-resolution ‘4K’ 3D renders:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">render3D_resolution</span> <span class="o">=</span> <span class="mi">4096</span>
+</pre></div>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
 </div>
 </div>
 
@@ -306,8 +785,8 @@ complete list of such parameters below.</p>
            </div>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
-        <a href="simulation_options.html" class="btn btn-neutral float-left" title="Simulation options" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="system_of_units.html" class="btn btn-neutral float-right" title="System of units" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="simulation.html" class="btn btn-neutral float-left" title="Simulation" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="units.html" class="btn btn-neutral float-right" title="Units" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>

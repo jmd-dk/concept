@@ -21,7 +21,7 @@
         <script src="../_static/doctools.js"></script>
         <script src="../_static/clipboard.min.js"></script>
         <script src="../_static/copybutton.js"></script>
-        <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+        <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <script src="../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
@@ -86,7 +86,7 @@
 <li class="toctree-l3"><a class="reference internal" href="../installation.html#influential-environment-variables">Influential environment variables</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="../installation.html#making-use-of-pre-installed-libraries">Making use of pre-installed libraries</a></li>
 <li class="toctree-l4"><a class="reference internal" href="../installation.html#specifying-dependency-versions">Specifying dependency versions</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../installation.html#specifying-dependency-url-s">Specifying dependency URL’s</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../installation.html#specifying-dependency-urls">Specifying dependency URLs</a></li>
 <li class="toctree-l4"><a class="reference internal" href="../installation.html#choosing-compiler-precedence">Choosing compiler precedence</a></li>
 <li class="toctree-l4"><a class="reference internal" href="../installation.html#installing-mpich-or-openmpi">Installing MPICH or OpenMPI</a></li>
 <li class="toctree-l4"><a class="reference internal" href="../installation.html#parallel-builds">Parallel builds</a></li>
@@ -158,51 +158,96 @@
 <li class="toctree-l1"><a class="reference internal" href="../parameters/parameters.html">Parameters</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="../parameters/input_output.html">Input/output</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/input_output.html#initial-conditions"><code class="docutils literal notranslate"><span class="pre">initial_conditions</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/input_output.html#output-dirs"><code class="docutils literal notranslate"><span class="pre">output_dirs</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/input_output.html#output-bases"><code class="docutils literal notranslate"><span class="pre">output_bases</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/input_output.html#output-times"><code class="docutils literal notranslate"><span class="pre">output_times</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/input_output.html#autosave-interval"><code class="docutils literal notranslate"><span class="pre">autosave_interval</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/input_output.html#snapshot-select"><code class="docutils literal notranslate"><span class="pre">snapshot_select</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/input_output.html#powerspec-select"><code class="docutils literal notranslate"><span class="pre">powerspec_select</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/input_output.html#render2d-select"><code class="docutils literal notranslate"><span class="pre">render2D_select</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/input_output.html#render3d-select"><code class="docutils literal notranslate"><span class="pre">render3D_select</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/input_output.html#snapshot-type"><code class="docutils literal notranslate"><span class="pre">snapshot_type</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/input_output.html#gadget-snapshot-params"><code class="docutils literal notranslate"><span class="pre">gadget_snapshot_params</span></code></a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="../parameters/numerical_parameters.html">Numerical parameters</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="../parameters/numerical_parameters.html#boxsize"><code class="docutils literal notranslate"><span class="pre">boxsize</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="../parameters/numerical_parameters.html#potential-options"><code class="docutils literal notranslate"><span class="pre">potential_options</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="../parameters/numerics.html">Numerics</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/numerics.html#boxsize"><code class="docutils literal notranslate"><span class="pre">boxsize</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/numerics.html#potential-options"><code class="docutils literal notranslate"><span class="pre">potential_options</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/numerics.html#shortrange-params"><code class="docutils literal notranslate"><span class="pre">shortrange_params</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/numerics.html#powerspec-options"><code class="docutils literal notranslate"><span class="pre">powerspec_options</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/numerics.html#k-modes-per-decade"><code class="docutils literal notranslate"><span class="pre">k_modes_per_decade</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="../parameters/cosmology.html">Cosmology</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/cosmology.html#h0"><code class="docutils literal notranslate"><span class="pre">H0</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/cosmology.html#b"><code class="docutils literal notranslate"><span class="pre">Ωb</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/cosmology.html#cdm"><code class="docutils literal notranslate"><span class="pre">Ωcdm</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/cosmology.html#a-begin"><code class="docutils literal notranslate"><span class="pre">a_begin</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/cosmology.html#t-begin"><code class="docutils literal notranslate"><span class="pre">t_begin</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/cosmology.html#primordial-spectrum"><code class="docutils literal notranslate"><span class="pre">primordial_spectrum</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/cosmology.html#class-params"><code class="docutils literal notranslate"><span class="pre">class_params</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="../parameters/physics.html">Physics</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/physics.html#select-forces"><code class="docutils literal notranslate"><span class="pre">select_forces</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/physics.html#select-species"><code class="docutils literal notranslate"><span class="pre">select_species</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/physics.html#select-lives"><code class="docutils literal notranslate"><span class="pre">select_lives</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/physics.html#softening-kernel"><code class="docutils literal notranslate"><span class="pre">softening_kernel</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/physics.html#select-softening-length"><code class="docutils literal notranslate"><span class="pre">select_softening_length</span></code></a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="../parameters/simulation_options.html">Simulation options</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="../parameters/simulation_options.html#t-base-background-factor"><code class="docutils literal notranslate"><span class="pre">Δt_base_background_factor</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="../parameters/simulation.html">Simulation</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#t-base-background-factor"><code class="docutils literal notranslate"><span class="pre">Δt_base_background_factor</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#t-base-nonlinear-factor"><code class="docutils literal notranslate"><span class="pre">Δt_base_nonlinear_factor</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#t-increase-max-factor"><code class="docutils literal notranslate"><span class="pre">Δt_increase_max_factor</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#t-rung-factor"><code class="docutils literal notranslate"><span class="pre">Δt_rung_factor</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#a-max-early"><code class="docutils literal notranslate"><span class="pre">Δa_max_early</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#a-max-late"><code class="docutils literal notranslate"><span class="pre">Δa_max_late</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#n-rungs"><code class="docutils literal notranslate"><span class="pre">N_rungs</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#fftw-wisdom-rigor"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_rigor</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#fftw-wisdom-reuse"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_reuse</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#fftw-wisdom-share"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_share</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#random-seed"><code class="docutils literal notranslate"><span class="pre">random_seed</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#primordial-amplitude-fixed"><code class="docutils literal notranslate"><span class="pre">primordial_amplitude_fixed</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#primordial-phase-shift"><code class="docutils literal notranslate"><span class="pre">primordial_phase_shift</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#cell-centered"><code class="docutils literal notranslate"><span class="pre">cell_centered</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#class-reuse"><code class="docutils literal notranslate"><span class="pre">class_reuse</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="../parameters/graphics.html">Graphics</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/graphics.html#terminal-width"><code class="docutils literal notranslate"><span class="pre">terminal_width</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/graphics.html#enable-terminal-formatting"><code class="docutils literal notranslate"><span class="pre">enable_terminal_formatting</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/graphics.html#render2d-options"><code class="docutils literal notranslate"><span class="pre">render2D_options</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/graphics.html#render3d-colors"><code class="docutils literal notranslate"><span class="pre">render3D_colors</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/graphics.html#render3d-bgcolor"><code class="docutils literal notranslate"><span class="pre">render3D_bgcolor</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/graphics.html#render3d-resolution"><code class="docutils literal notranslate"><span class="pre">render3D_resolution</span></code></a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="../parameters/system_of_units.html">System of units</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="../parameters/system_of_units.html#unit-length"><code class="docutils literal notranslate"><span class="pre">unit_length</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="../parameters/units.html">Units</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/units.html#unit-length"><code class="docutils literal notranslate"><span class="pre">unit_length</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/units.html#unit-time"><code class="docutils literal notranslate"><span class="pre">unit_time</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/units.html#unit-mass"><code class="docutils literal notranslate"><span class="pre">unit_mass</span></code></a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="../parameters/debugging_options.html">Debugging options</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="../parameters/debugging_options.html#print-load-imbalance"><code class="docutils literal notranslate"><span class="pre">print_load_imbalance</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="../parameters/debugging.html">Debugging</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/debugging.html#print-load-imbalance"><code class="docutils literal notranslate"><span class="pre">print_load_imbalance</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/debugging.html#particle-reordering"><code class="docutils literal notranslate"><span class="pre">particle_reordering</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/debugging.html#enable-hubble"><code class="docutils literal notranslate"><span class="pre">enable_Hubble</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/debugging.html#enable-class-background"><code class="docutils literal notranslate"><span class="pre">enable_class_background</span></code></a></li>
 </ul>
 </li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../utilities/utilities.html">Utilities</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/class.html">The class utility</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/convert.html">The convert utility</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/gadget.html">The gadget utility</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/info.html">The info utility</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/play.html">The play utility</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/powerspec.html">The powerspec utility</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/render3D.html">The render3D utility</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/update.html">The update utility</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/watch.html">The watch utility</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/class.html">class</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/convert.html">convert</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/gadget.html">gadget</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/info.html">info</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/play.html">play</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/powerspec.html">powerspec</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/render3D.html">render3D</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/update.html">update</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/watch.html">watch</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../troubleshooting.html">Troubleshooting</a><ul>
@@ -283,7 +328,8 @@ as e.g. <code class="docutils literal notranslate"><span class="pre">param/tutor
         <span class="s1">&#39;N&#39;</span>      <span class="p">:</span> <span class="n">_size</span><span class="o">**</span><span class="mi">3</span><span class="p">,</span>
     <span class="p">}</span>
 <span class="k">else</span><span class="p">:</span>
-    <span class="n">initial_conditions</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">path</span><span class="o">.</span><span class="n">ic_dir</span><span class="si">}</span><span class="s1">/</span><span class="si">{</span><span class="n">param</span><span class="si">}</span><span class="s1">_a=</span><span class="si">{</span><span class="n">a_begin</span><span class="si">}</span><span class="s1">&#39;</span><span class="hll"><span class="n">snapshot_type</span> <span class="o">=</span> <span class="s1">&#39;gadget&#39;</span></span><span class="n">output_dirs</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="n">initial_conditions</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">path</span><span class="o">.</span><span class="n">ic_dir</span><span class="si">}</span><span class="s1">/</span><span class="si">{</span><span class="n">param</span><span class="si">}</span><span class="s1">_a=</span><span class="si">{</span><span class="n">a_begin</span><span class="si">}</span><span class="s1">&#39;</span>
+<span class="n">output_dirs</span> <span class="o">=</span> <span class="p">{</span>
     <span class="s1">&#39;snapshot&#39;</span><span class="p">:</span> <span class="n">path</span><span class="o">.</span><span class="n">ic_dir</span> <span class="k">if</span> <span class="n">_gen</span> <span class="k">else</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">path</span><span class="o">.</span><span class="n">output_dir</span><span class="si">}</span><span class="s1">/</span><span class="si">{</span><span class="n">param</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span>
     <span class="s1">&#39;powerspec&#39;</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span>
 <span class="p">}</span>
@@ -293,9 +339,8 @@ as e.g. <code class="docutils literal notranslate"><span class="pre">param/tutor
 <span class="n">output_times</span> <span class="o">=</span> <span class="p">{</span>
     <span class="s1">&#39;snapshot&#39;</span> <span class="p">:</span> <span class="n">a_begin</span> <span class="k">if</span> <span class="n">_gen</span> <span class="k">else</span> <span class="s1">&#39;&#39;</span><span class="p">,</span>
     <span class="s1">&#39;powerspec&#39;</span><span class="p">:</span> <span class="s1">&#39;&#39;</span> <span class="k">if</span> <span class="n">_gen</span> <span class="k">else</span> <span class="p">[</span><span class="mf">0.1</span><span class="p">,</span> <span class="mf">0.3</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">],</span>
-<span class="p">}</span>
-
-<span class="c1"># Numerical parameters</span>
+<span class="p">}</span><span class="hll"><span class="n">snapshot_type</span> <span class="o">=</span> <span class="s1">&#39;gadget&#39;</span></span>
+<span class="c1"># Numerics</span>
 <span class="n">boxsize</span> <span class="o">=</span> <span class="mi">512</span><span class="o">*</span><span class="n">Mpc</span><span class="o">/</span><span class="n">h</span>
 <span class="n">potential_options</span> <span class="o">=</span> <span class="mi">2</span><span class="o">*</span><span class="n">_size</span>
 
@@ -335,7 +380,7 @@ simply by</p>
 </div>
 <p>Note that the <code class="docutils literal notranslate"><span class="pre">initial_conditions</span></code> is set to the path of the generated
 snapshot when <code class="docutils literal notranslate"><span class="pre">_gen</span></code> is <code class="docutils literal notranslate"><span class="pre">False</span></code>.</p>
-<p>The power spectra outputs of the CO<em>N</em>CEPT simulation will be dumped to
+<p>The power spectrum outputs of the CO<em>N</em>CEPT simulation will be dumped to
 <code class="docutils literal notranslate"><span class="pre">output/tutorial</span></code> as usual.</p>
 <h3>GADGET-2</h3><p>For GADGET-2, the first thing we need is the source code itself. If you have
 installed CO<em>N</em>CEPT the easy way, you already have it! Let’s make a copy
@@ -345,7 +390,7 @@ just for use with this tutorial:</p>
 </div>
 <p>You now have the complete GADGET-2 code in <code class="docutils literal notranslate"><span class="pre">output/tutorial/Gadget2</span></code>.</p>
 <p>The <code class="docutils literal notranslate"><span class="pre">Makefile</span></code> of GADGET-2 needs to be set up with correct path information
-for its dependencies. Furthermore, various options needs to be set in order
+for its dependencies. Furthermore, various options need to be set in order
 for the GADGET-2 simulation to come to be equivalent to the CO<em>N</em>CEPT
 simulation. Last but not least we need a GADGET-2 parameter file equivalent to
 the <a class="reference internal" href="#param-gadget"><span class="std std-ref">CO<em>N</em>CEPT parameter file</span></a>. All of this can be
@@ -491,10 +536,11 @@ during the simulation, e.g. the potential grid. In CO<em>N</em>CEPT, a default
 choice of using ‘cell-centred’ grid discretisation is made, whereas GADGET-2
 uses ‘cell-vertex’ grid discretisation. In effect this means that the
 potential grids of the two codes are shifted by half a grid cell relative to
-each other, in all three dimensions. This detail oughtn’t matter much, but the
-grid structure imprinted on the particle distribution, together with the fact
-that our simulations are rather small (<span class="math notranslate nohighlight">\(N = 64^3\)</span>), makes for an
-exaggerated effect.</p>
+each other, in all three dimensions (see the <code class="docutils literal notranslate"><span class="pre">cell_centered</span></code>
+<a class="reference internal" href="../parameters/simulation.html#cell-centered"><span class="std std-ref">parameter</span></a> for more information). This detail oughtn’t
+matter much, but the grid structure imprinted on the particle distribution,
+together with the fact that our simulations are rather small
+(<span class="math notranslate nohighlight">\(N = 64^3\)</span>), makes for an exaggerated effect.</p>
 <p>We can force CO<em>N</em>CEPT to use cell-vertex discretisation by specifying</p>
 <div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">cell_centered</span> <span class="o">=</span> <span class="kc">False</span>
 </pre></div>
@@ -519,11 +565,11 @@ discretisation schemes by carrying out both of them followed by an
 <em>interlacing</em> step to combine the results. This technique effectively
 halves the discretisation scale, reducing the numerical artefacts. For
 more information about potential interlacing, see the <code class="docutils literal notranslate"><span class="pre">potential_options</span></code>
-parameter <a class="reference internal" href="../parameters/numerical_parameters.html"><span class="doc">here</span></a>.</p>
+<a class="reference internal" href="../parameters/numerics.html#potential-options"><span class="std std-ref">parameter</span></a>.</p>
 <p>Another solution is to apply a random spatial shift to the potential grid
-at each time step, an approach built into GADGET-4. While the size of
-individual force errors remain the same, their directions are now
-uncorrelated in time.</p>
+(or the particle positions) at each time step, an approach built into
+GADGET-4. While the size of individual force errors remain the same, their
+directions are now uncorrelated in time.</p>
 <p>The mismatch between results of cell-centred and cell-vertex simulations is
 reduced for larger simulations, as the details of what’s going on at the
 scale of a grid cell becomes more negligible for the whole. Thus for large
@@ -538,7 +584,7 @@ a full background evolution obtained from the
 includes matter, <span class="math notranslate nohighlight">\(\Lambda\)</span> and radiation, whereas the background of
 GADGET-2 only consists of matter and <span class="math notranslate nohighlight">\(\Lambda\)</span>.</p>
 <p>One cannot remove radiation from the CLASS background, as a cosmology without
-radiation is not supported by CLASS. Instead we can deactivate the CLASS
+radiation is not supported by CLASS. Instead, we can deactivate the CLASS
 background entirely, which will turn on an internal background solver of
 CO<em>N</em>CEPT, which like that of GADGET-2 only includes matter and
 <span class="math notranslate nohighlight">\(\Lambda\)</span>. To do so, add</p>
@@ -597,7 +643,7 @@ problem, the usual trick used with Newtonian <em>N</em>-body codes is to generat
 initial conditions at <span class="math notranslate nohighlight">\(a = a_{\text{begin}}\)</span> using the results of
 general relativistic perturbations theory (which also accounts for radiation)
 at <span class="math notranslate nohighlight">\(a = 1\)</span>, but scaled back in time using the Newtonian growth factor.
-Thus only the <span class="math notranslate nohighlight">\(a = 1\)</span> results of such <em>back-scaled</em> simulations are
+Thus, only the <span class="math notranslate nohighlight">\(a = 1\)</span> results of such <em>back-scaled</em> simulations are
 really physical.</p>
 <p>As CO<em>N</em>CEPT works in <em>N</em>-body gauge, the initial conditions generated for
 this section are in this gauge. As the corresponding <em>N</em>-body gauge

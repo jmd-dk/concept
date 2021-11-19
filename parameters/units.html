@@ -3,14 +3,14 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Simulation options &mdash; CONCEPT Documentation</title>
+  <title>Units &mdash; CONCEPT Documentation</title>
       <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
       <link rel="stylesheet" href="../_static/copybutton.css" type="text/css" />
       <link rel="stylesheet" href="../_static/tabs.css" type="text/css" />
       <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
     <link rel="shortcut icon" href="../_static/favicon.ico"/>
-    <link rel="canonical" href="https://jmd-dk.github.io/concept/parameters/simulation_options.html" />
+    <link rel="canonical" href="https://jmd-dk.github.io/concept/parameters/units.html" />
   <!--[if lt IE 9]>
     <script src="../_static/js/html5shiv.min.js"></script>
   <![endif]-->
@@ -21,11 +21,12 @@
         <script src="../_static/doctools.js"></script>
         <script src="../_static/clipboard.min.js"></script>
         <script src="../_static/copybutton.js"></script>
+        <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <script src="../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="Graphics" href="graphics.html" />
-    <link rel="prev" title="Physics" href="physics.html" /> 
+    <link rel="next" title="Debugging" href="debugging.html" />
+    <link rel="prev" title="Graphics" href="graphics.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -85,7 +86,7 @@
 <li class="toctree-l3"><a class="reference internal" href="../installation.html#influential-environment-variables">Influential environment variables</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="../installation.html#making-use-of-pre-installed-libraries">Making use of pre-installed libraries</a></li>
 <li class="toctree-l4"><a class="reference internal" href="../installation.html#specifying-dependency-versions">Specifying dependency versions</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../installation.html#specifying-dependency-url-s">Specifying dependency URL’s</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../installation.html#specifying-dependency-urls">Specifying dependency URLs</a></li>
 <li class="toctree-l4"><a class="reference internal" href="../installation.html#choosing-compiler-precedence">Choosing compiler precedence</a></li>
 <li class="toctree-l4"><a class="reference internal" href="../installation.html#installing-mpich-or-openmpi">Installing MPICH or OpenMPI</a></li>
 <li class="toctree-l4"><a class="reference internal" href="../installation.html#parallel-builds">Parallel builds</a></li>
@@ -157,51 +158,96 @@
 <li class="toctree-l1 current"><a class="reference internal" href="parameters.html">Parameters</a><ul class="current">
 <li class="toctree-l2"><a class="reference internal" href="input_output.html">Input/output</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="input_output.html#initial-conditions"><code class="docutils literal notranslate"><span class="pre">initial_conditions</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="input_output.html#output-dirs"><code class="docutils literal notranslate"><span class="pre">output_dirs</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="input_output.html#output-bases"><code class="docutils literal notranslate"><span class="pre">output_bases</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="input_output.html#output-times"><code class="docutils literal notranslate"><span class="pre">output_times</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="input_output.html#autosave-interval"><code class="docutils literal notranslate"><span class="pre">autosave_interval</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="input_output.html#snapshot-select"><code class="docutils literal notranslate"><span class="pre">snapshot_select</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="input_output.html#powerspec-select"><code class="docutils literal notranslate"><span class="pre">powerspec_select</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="input_output.html#render2d-select"><code class="docutils literal notranslate"><span class="pre">render2D_select</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="input_output.html#render3d-select"><code class="docutils literal notranslate"><span class="pre">render3D_select</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="input_output.html#snapshot-type"><code class="docutils literal notranslate"><span class="pre">snapshot_type</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="input_output.html#gadget-snapshot-params"><code class="docutils literal notranslate"><span class="pre">gadget_snapshot_params</span></code></a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="numerical_parameters.html">Numerical parameters</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="numerical_parameters.html#boxsize"><code class="docutils literal notranslate"><span class="pre">boxsize</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="numerical_parameters.html#potential-options"><code class="docutils literal notranslate"><span class="pre">potential_options</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="numerics.html">Numerics</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="numerics.html#boxsize"><code class="docutils literal notranslate"><span class="pre">boxsize</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="numerics.html#potential-options"><code class="docutils literal notranslate"><span class="pre">potential_options</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="numerics.html#shortrange-params"><code class="docutils literal notranslate"><span class="pre">shortrange_params</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="numerics.html#powerspec-options"><code class="docutils literal notranslate"><span class="pre">powerspec_options</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="numerics.html#k-modes-per-decade"><code class="docutils literal notranslate"><span class="pre">k_modes_per_decade</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="cosmology.html">Cosmology</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="cosmology.html#h0"><code class="docutils literal notranslate"><span class="pre">H0</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="cosmology.html#b"><code class="docutils literal notranslate"><span class="pre">Ωb</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="cosmology.html#cdm"><code class="docutils literal notranslate"><span class="pre">Ωcdm</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="cosmology.html#a-begin"><code class="docutils literal notranslate"><span class="pre">a_begin</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="cosmology.html#t-begin"><code class="docutils literal notranslate"><span class="pre">t_begin</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="cosmology.html#primordial-spectrum"><code class="docutils literal notranslate"><span class="pre">primordial_spectrum</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="cosmology.html#class-params"><code class="docutils literal notranslate"><span class="pre">class_params</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="physics.html">Physics</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="physics.html#select-forces"><code class="docutils literal notranslate"><span class="pre">select_forces</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="physics.html#select-species"><code class="docutils literal notranslate"><span class="pre">select_species</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="physics.html#select-lives"><code class="docutils literal notranslate"><span class="pre">select_lives</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="physics.html#softening-kernel"><code class="docutils literal notranslate"><span class="pre">softening_kernel</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="physics.html#select-softening-length"><code class="docutils literal notranslate"><span class="pre">select_softening_length</span></code></a></li>
 </ul>
 </li>
-<li class="toctree-l2 current"><a class="current reference internal" href="#">Simulation options</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#t-base-background-factor"><code class="docutils literal notranslate"><span class="pre">Δt_base_background_factor</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="simulation.html">Simulation</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#t-base-background-factor"><code class="docutils literal notranslate"><span class="pre">Δt_base_background_factor</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#t-base-nonlinear-factor"><code class="docutils literal notranslate"><span class="pre">Δt_base_nonlinear_factor</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#t-increase-max-factor"><code class="docutils literal notranslate"><span class="pre">Δt_increase_max_factor</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#t-rung-factor"><code class="docutils literal notranslate"><span class="pre">Δt_rung_factor</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#a-max-early"><code class="docutils literal notranslate"><span class="pre">Δa_max_early</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#a-max-late"><code class="docutils literal notranslate"><span class="pre">Δa_max_late</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#n-rungs"><code class="docutils literal notranslate"><span class="pre">N_rungs</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#fftw-wisdom-rigor"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_rigor</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#fftw-wisdom-reuse"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_reuse</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#fftw-wisdom-share"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_share</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#random-seed"><code class="docutils literal notranslate"><span class="pre">random_seed</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#primordial-amplitude-fixed"><code class="docutils literal notranslate"><span class="pre">primordial_amplitude_fixed</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#primordial-phase-shift"><code class="docutils literal notranslate"><span class="pre">primordial_phase_shift</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#cell-centered"><code class="docutils literal notranslate"><span class="pre">cell_centered</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#class-reuse"><code class="docutils literal notranslate"><span class="pre">class_reuse</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="graphics.html">Graphics</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="graphics.html#terminal-width"><code class="docutils literal notranslate"><span class="pre">terminal_width</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="graphics.html#enable-terminal-formatting"><code class="docutils literal notranslate"><span class="pre">enable_terminal_formatting</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="graphics.html#render2d-options"><code class="docutils literal notranslate"><span class="pre">render2D_options</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="graphics.html#render3d-colors"><code class="docutils literal notranslate"><span class="pre">render3D_colors</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="graphics.html#render3d-bgcolor"><code class="docutils literal notranslate"><span class="pre">render3D_bgcolor</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="graphics.html#render3d-resolution"><code class="docutils literal notranslate"><span class="pre">render3D_resolution</span></code></a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="system_of_units.html">System of units</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="system_of_units.html#unit-length"><code class="docutils literal notranslate"><span class="pre">unit_length</span></code></a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Units</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#unit-length"><code class="docutils literal notranslate"><span class="pre">unit_length</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#unit-time"><code class="docutils literal notranslate"><span class="pre">unit_time</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#unit-mass"><code class="docutils literal notranslate"><span class="pre">unit_mass</span></code></a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="debugging_options.html">Debugging options</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="debugging_options.html#print-load-imbalance"><code class="docutils literal notranslate"><span class="pre">print_load_imbalance</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="debugging.html">Debugging</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="debugging.html#print-load-imbalance"><code class="docutils literal notranslate"><span class="pre">print_load_imbalance</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="debugging.html#particle-reordering"><code class="docutils literal notranslate"><span class="pre">particle_reordering</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="debugging.html#enable-hubble"><code class="docutils literal notranslate"><span class="pre">enable_Hubble</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="debugging.html#enable-class-background"><code class="docutils literal notranslate"><span class="pre">enable_class_background</span></code></a></li>
 </ul>
 </li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../utilities/utilities.html">Utilities</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/class.html">The class utility</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/convert.html">The convert utility</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/gadget.html">The gadget utility</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/info.html">The info utility</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/play.html">The play utility</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/powerspec.html">The powerspec utility</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/render3D.html">The render3D utility</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/update.html">The update utility</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/watch.html">The watch utility</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/class.html">class</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/convert.html">convert</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/gadget.html">gadget</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/info.html">info</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/play.html">play</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/powerspec.html">powerspec</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/render3D.html">render3D</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/update.html">update</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/watch.html">watch</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../troubleshooting.html">Troubleshooting</a><ul>
@@ -247,59 +293,209 @@
   <ul class="wy-breadcrumbs">
       <li><a href="../index.html" class="icon icon-home"></a> &raquo;</li>
           <li><a href="parameters.html">Parameters</a> &raquo;</li>
-      <li>Simulation options</li>
+      <li>Units</li>
       <li class="wy-breadcrumbs-aside">
               <a href="https://github.com/jmd-dk/concept/" class="fa fa-github"> Code Repository</a>
       </li>
   </ul><div class="rst-breadcrumbs-buttons" role="navigation" aria-label="Sequential page navigation">
-        <a href="physics.html" class="btn btn-neutral float-left" title="Physics" accesskey="p"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="graphics.html" class="btn btn-neutral float-right" title="Graphics" accesskey="n">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="graphics.html" class="btn btn-neutral float-left" title="Graphics" accesskey="p"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="debugging.html" class="btn btn-neutral float-right" title="Debugging" accesskey="n">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
   </div>
   <hr/>
 </div>
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
              
-  <div class="section" id="simulation-options">
-<h1>Simulation options<a class="headerlink" href="#simulation-options" title="Permalink to this headline"></a></h1>
-<p>The simulation options parameter category contains parameters specifying
-the simulation accuracy, as well as parameters having to do with the random
-numbers used for the primordial noise. You will find the complete list of such
-parameters below.</p>
+  <div class="section" id="units">
+<h1>Units<a class="headerlink" href="#units" title="Permalink to this headline"></a></h1>
+<p>The ‘units’ parameter category contains parameters specifying the unit system
+used by CO<em>N</em>CEPT. This system of units is used both internally and
+for output.</p>
 <div class="contents local topic" id="contents">
 <ul class="simple">
-<li><p><a class="reference internal" href="#t-base-background-factor" id="id1"><code class="docutils literal notranslate"><span class="pre">Δt_base_background_factor</span></code></a></p></li>
+<li><p><a class="reference internal" href="#unit-length" id="id1"><code class="docutils literal notranslate"><span class="pre">unit_length</span></code></a></p></li>
+<li><p><a class="reference internal" href="#unit-time" id="id2"><code class="docutils literal notranslate"><span class="pre">unit_time</span></code></a></p></li>
+<li><p><a class="reference internal" href="#unit-mass" id="id3"><code class="docutils literal notranslate"><span class="pre">unit_mass</span></code></a></p></li>
 </ul>
 </div>
 <hr class="docutils" />
-<div class="section" id="t-base-background-factor">
-<h2><a class="toc-backref" href="#id1"><code class="docutils literal notranslate"><span class="pre">Δt_base_background_factor</span></code></a><a class="headerlink" href="#t-base-background-factor" title="Permalink to this headline"></a></h2>
+<div class="section" id="unit-length">
+<h2><a class="toc-backref" href="#id1"><code class="docutils literal notranslate"><span class="pre">unit_length</span></code></a><a class="headerlink" href="#unit-length" title="Permalink to this headline"></a></h2>
 <table>
 <colgroup>
-<col style="width: 8%" />
-<col style="width: 38%" />
-<col style="width: 54%" />
+<col style="width: 4%" />
+<col style="width: 10%" />
+<col style="width: 4%" />
+<col style="width: 82%" />
 </colgroup>
 <tbody>
 <tr class="row-odd"><td><p></p></td>
-<td><p><strong>Type</strong></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">float</span></code></p></td>
+<td><p><strong>Description</strong></p></td>
+<td><p></p></td>
+<td><p>Specifies the base length unit to use</p></td>
 </tr>
 <tr class="row-even"><td><p></p></td>
 <td><p><strong>Default</strong></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">1</span></code></p></td>
+<td><p></p></td>
+<td><div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="s1">&#39;Mpc&#39;</span>
+</pre></div>
+</div>
+</td>
 </tr>
 <tr class="row-odd"><td><p></p></td>
-<td><p><strong>Description</strong></p></td>
-<td><p><em>Under construction!</em></p></td>
+<td><p><strong>Elaboration</strong></p></td>
+<td><p></p></td>
+<td><p>Internally, all dimensional values (be it lengths or
+otherwise) are represented as bare floating-point
+numbers. The number <code class="docutils literal notranslate"><span class="pre">1.0</span></code> then corresponds to some
+length. This length is what this parameter specifies.</p></td>
 </tr>
 <tr class="row-even"><td><p></p></td>
-<td><p><strong>Examples</strong></p></td>
-<td><p><em>Under construction!</em></p></td>
+<td><p><strong>Example 0</strong></p></td>
+<td><p></p></td>
+<td><p>Use kiloparsec as the base length unit:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">unit_length</span> <span class="o">=</span> <span class="s1">&#39;kpc&#39;</span>
+</pre></div>
+</div>
+<div class="admonition caution">
+<p class="admonition-title">Caution</p>
+<p>Note that unlike when using units when defining other
+parameters, here <code class="docutils literal notranslate"><span class="pre">'kpc'</span></code> is used as a <code class="docutils literal notranslate"><span class="pre">str</span></code>. This
+is because here we want the symbolic meaning of a
+‘kiloparsec’, whereas in other places what we are
+after is its numeric value (which really is not
+defined prior to specifying <code class="docutils literal notranslate"><span class="pre">unit_length</span></code>).</p>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Example 1</strong></p></td>
+<td><p></p></td>
+<td><p>Many other codes make use of units like
+<span class="math notranslate nohighlight">\(\mathrm{Mpc}/h\)</span> or <span class="math notranslate nohighlight">\(\mathrm{kpc}/h\)</span>, where
+<span class="math notranslate nohighlight">\(h \equiv H_0/(100\, \text{km}\, \text{s}^{-1}\, \text{Mpc}^{-1})\)</span>
+and <span class="math notranslate nohighlight">\(H_0\)</span> is the <a class="reference internal" href="cosmology.html#h0"><span class="std std-ref">Hubble constant</span></a>.
+Specifying simply <code class="docutils literal notranslate"><span class="pre">'Mpc/h'</span></code> as <code class="docutils literal notranslate"><span class="pre">unit_length</span></code> will
+not work however, since <code class="docutils literal notranslate"><span class="pre">h</span></code> itself can only be
+inferred from <code class="docutils literal notranslate"><span class="pre">H0</span></code> once the numeric value of <code class="docutils literal notranslate"><span class="pre">Mpc</span></code>
+has been established, which itself depends on
+<code class="docutils literal notranslate"><span class="pre">unit_length</span></code>. To bypass this issue, we can use</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">unit_length</span> <span class="o">=</span> <span class="s1">&#39;Mpc/0.67&#39;</span>
+</pre></div>
+</div>
+<p>given that <code class="docutils literal notranslate"><span class="pre">h</span> <span class="pre">=</span> <span class="pre">0.67</span></code>, corresponding to
+<code class="docutils literal notranslate"><span class="pre">H0</span> <span class="pre">=</span> <span class="pre">67*km/(s*Mpc)</span></code>.</p>
+</td>
 </tr>
 </tbody>
 </table>
-<p><em>Under construction!</em></p>
+</div>
+<hr class="docutils" />
+<div class="section" id="unit-time">
+<h2><a class="toc-backref" href="#id2"><code class="docutils literal notranslate"><span class="pre">unit_time</span></code></a><a class="headerlink" href="#unit-time" title="Permalink to this headline"></a></h2>
+<table>
+<colgroup>
+<col style="width: 4%" />
+<col style="width: 10%" />
+<col style="width: 4%" />
+<col style="width: 82%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Description</strong></p></td>
+<td><p></p></td>
+<td><p>Specifies the base time unit to use</p></td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Default</strong></p></td>
+<td><p></p></td>
+<td><div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="s1">&#39;Gyr&#39;</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Elaboration</strong></p></td>
+<td><p></p></td>
+<td><p>Internally, all dimensional values (be it times or
+otherwise) are represented as bare floating-point
+numbers. The number <code class="docutils literal notranslate"><span class="pre">1.0</span></code> then corresponds to some
+time. This time is what this parameter specifies.</p></td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Example 0</strong></p></td>
+<td><p></p></td>
+<td><p>Use seconds as the base time unit:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">unit_time</span> <span class="o">=</span> <span class="s1">&#39;s&#39;</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Example 1</strong></p></td>
+<td><p></p></td>
+<td><p>Use the same base time unit as is (implicitly) used in
+CLASS:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">unit_time</span> <span class="o">=</span> <span class="s1">&#39;Mpc/c&#39;</span>
+</pre></div>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<hr class="docutils" />
+<div class="section" id="unit-mass">
+<h2><a class="toc-backref" href="#id3"><code class="docutils literal notranslate"><span class="pre">unit_mass</span></code></a><a class="headerlink" href="#unit-mass" title="Permalink to this headline"></a></h2>
+<table>
+<colgroup>
+<col style="width: 4%" />
+<col style="width: 10%" />
+<col style="width: 4%" />
+<col style="width: 82%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Description</strong></p></td>
+<td><p></p></td>
+<td><p>Specifies the base mass unit to use</p></td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Default</strong></p></td>
+<td><p></p></td>
+<td><div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="s1">&#39;10¹⁰ m☉&#39;</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Elaboration</strong></p></td>
+<td><p></p></td>
+<td><p>Internally, all dimensional values (be it masses or
+otherwise) are represented as bare floating-point
+numbers. The number <code class="docutils literal notranslate"><span class="pre">1.0</span></code> then corresponds to some
+mass. This mass is what this parameter specifies.</p></td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Example 0</strong></p></td>
+<td><p></p></td>
+<td><p>Use the same base mass unit as is (implicitly) used in
+CLASS (at least in the background module):</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">unit_mass</span> <span class="o">=</span> <span class="s1">&#39;3/(8 π G) c² Mpc&#39;</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>In specifying the symbolic unit, we are allowed to be
+fancy as above. We could equivalently use e.g.</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">unit_mass</span> <span class="o">=</span> <span class="s1">&#39;119366.2073189215*light_speed**2*pc/G_Newton&#39;</span>
+</pre></div>
+</div>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
 </div>
 </div>
 
@@ -307,8 +503,8 @@ parameters below.</p>
            </div>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
-        <a href="physics.html" class="btn btn-neutral float-left" title="Physics" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="graphics.html" class="btn btn-neutral float-right" title="Graphics" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="graphics.html" class="btn btn-neutral float-left" title="Graphics" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="debugging.html" class="btn btn-neutral float-right" title="Debugging" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>

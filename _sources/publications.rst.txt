@@ -1,7 +1,17 @@
 Publications
 ============
 This is a list of scientific papers produced using CO\ *N*\ CEPT.
-For the physics implemented in the code, refer to these papers.
+If you make use of CO\ *N*\ CEPT for a publication, please cite the paper
+'The cosmological simulation code CO\ *N*\ CEPT 1.0'.
+
+* **The cosmological simulation code CO**\ :bolditalic:`N`\ **CEPT 1.0**
+
+   - This is the primary paper on CO\ *N*\ CEPT itself. Please cite this if
+     you make use of CO\ *N*\ CEPT for a publication.
+   - Introduced short-range dynamics via proper P³M gravity and adaptive
+     time-stepping, as well as a vast number of other improvements
+     (available as of release 1.0.0).
+   - arXiv: *coming soon!*
 
 * **Fully relativistic treatment of decaying cold dark matter in**
   :bolditalic:`N`\ **-body simulations**
@@ -38,8 +48,7 @@ Theses
 ------
 In addition to the above scientific papers, the PhD and master's thesis of the
 author --- both of which focus on the development of CO\ *N*\ CEPT --- are
-also available. You may consult both of these for the numerical methods
-implemented. For the physics, see the PhD thesis.
+also available.
 
 * `PhD thesis <https://pure.au.dk/portal/files/221374977/thesis_phd_b5.pdf>`_
 

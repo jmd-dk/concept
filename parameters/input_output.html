@@ -21,11 +21,11 @@
         <script src="../_static/doctools.js"></script>
         <script src="../_static/clipboard.min.js"></script>
         <script src="../_static/copybutton.js"></script>
-        <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+        <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <script src="../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="Numerical parameters" href="numerical_parameters.html" />
+    <link rel="next" title="Numerics" href="numerics.html" />
     <link rel="prev" title="Parameters" href="parameters.html" /> 
 </head>
 
@@ -86,7 +86,7 @@
 <li class="toctree-l3"><a class="reference internal" href="../installation.html#influential-environment-variables">Influential environment variables</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="../installation.html#making-use-of-pre-installed-libraries">Making use of pre-installed libraries</a></li>
 <li class="toctree-l4"><a class="reference internal" href="../installation.html#specifying-dependency-versions">Specifying dependency versions</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../installation.html#specifying-dependency-url-s">Specifying dependency URL’s</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../installation.html#specifying-dependency-urls">Specifying dependency URLs</a></li>
 <li class="toctree-l4"><a class="reference internal" href="../installation.html#choosing-compiler-precedence">Choosing compiler precedence</a></li>
 <li class="toctree-l4"><a class="reference internal" href="../installation.html#installing-mpich-or-openmpi">Installing MPICH or OpenMPI</a></li>
 <li class="toctree-l4"><a class="reference internal" href="../installation.html#parallel-builds">Parallel builds</a></li>
@@ -158,51 +158,96 @@
 <li class="toctree-l1 current"><a class="reference internal" href="parameters.html">Parameters</a><ul class="current">
 <li class="toctree-l2 current"><a class="current reference internal" href="#">Input/output</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#initial-conditions"><code class="docutils literal notranslate"><span class="pre">initial_conditions</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#output-dirs"><code class="docutils literal notranslate"><span class="pre">output_dirs</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#output-bases"><code class="docutils literal notranslate"><span class="pre">output_bases</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#output-times"><code class="docutils literal notranslate"><span class="pre">output_times</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#autosave-interval"><code class="docutils literal notranslate"><span class="pre">autosave_interval</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#snapshot-select"><code class="docutils literal notranslate"><span class="pre">snapshot_select</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#powerspec-select"><code class="docutils literal notranslate"><span class="pre">powerspec_select</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#render2d-select"><code class="docutils literal notranslate"><span class="pre">render2D_select</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#render3d-select"><code class="docutils literal notranslate"><span class="pre">render3D_select</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#snapshot-type"><code class="docutils literal notranslate"><span class="pre">snapshot_type</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#gadget-snapshot-params"><code class="docutils literal notranslate"><span class="pre">gadget_snapshot_params</span></code></a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="numerical_parameters.html">Numerical parameters</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="numerical_parameters.html#boxsize"><code class="docutils literal notranslate"><span class="pre">boxsize</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="numerical_parameters.html#potential-options"><code class="docutils literal notranslate"><span class="pre">potential_options</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="numerics.html">Numerics</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="numerics.html#boxsize"><code class="docutils literal notranslate"><span class="pre">boxsize</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="numerics.html#potential-options"><code class="docutils literal notranslate"><span class="pre">potential_options</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="numerics.html#shortrange-params"><code class="docutils literal notranslate"><span class="pre">shortrange_params</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="numerics.html#powerspec-options"><code class="docutils literal notranslate"><span class="pre">powerspec_options</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="numerics.html#k-modes-per-decade"><code class="docutils literal notranslate"><span class="pre">k_modes_per_decade</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="cosmology.html">Cosmology</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="cosmology.html#h0"><code class="docutils literal notranslate"><span class="pre">H0</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="cosmology.html#b"><code class="docutils literal notranslate"><span class="pre">Ωb</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="cosmology.html#cdm"><code class="docutils literal notranslate"><span class="pre">Ωcdm</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="cosmology.html#a-begin"><code class="docutils literal notranslate"><span class="pre">a_begin</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="cosmology.html#t-begin"><code class="docutils literal notranslate"><span class="pre">t_begin</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="cosmology.html#primordial-spectrum"><code class="docutils literal notranslate"><span class="pre">primordial_spectrum</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="cosmology.html#class-params"><code class="docutils literal notranslate"><span class="pre">class_params</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="physics.html">Physics</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="physics.html#select-forces"><code class="docutils literal notranslate"><span class="pre">select_forces</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="physics.html#select-species"><code class="docutils literal notranslate"><span class="pre">select_species</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="physics.html#select-lives"><code class="docutils literal notranslate"><span class="pre">select_lives</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="physics.html#softening-kernel"><code class="docutils literal notranslate"><span class="pre">softening_kernel</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="physics.html#select-softening-length"><code class="docutils literal notranslate"><span class="pre">select_softening_length</span></code></a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="simulation_options.html">Simulation options</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="simulation_options.html#t-base-background-factor"><code class="docutils literal notranslate"><span class="pre">Δt_base_background_factor</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="simulation.html">Simulation</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#t-base-background-factor"><code class="docutils literal notranslate"><span class="pre">Δt_base_background_factor</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#t-base-nonlinear-factor"><code class="docutils literal notranslate"><span class="pre">Δt_base_nonlinear_factor</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#t-increase-max-factor"><code class="docutils literal notranslate"><span class="pre">Δt_increase_max_factor</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#t-rung-factor"><code class="docutils literal notranslate"><span class="pre">Δt_rung_factor</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#a-max-early"><code class="docutils literal notranslate"><span class="pre">Δa_max_early</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#a-max-late"><code class="docutils literal notranslate"><span class="pre">Δa_max_late</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#n-rungs"><code class="docutils literal notranslate"><span class="pre">N_rungs</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#fftw-wisdom-rigor"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_rigor</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#fftw-wisdom-reuse"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_reuse</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#fftw-wisdom-share"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_share</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#random-seed"><code class="docutils literal notranslate"><span class="pre">random_seed</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#primordial-amplitude-fixed"><code class="docutils literal notranslate"><span class="pre">primordial_amplitude_fixed</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#primordial-phase-shift"><code class="docutils literal notranslate"><span class="pre">primordial_phase_shift</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#cell-centered"><code class="docutils literal notranslate"><span class="pre">cell_centered</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#class-reuse"><code class="docutils literal notranslate"><span class="pre">class_reuse</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="graphics.html">Graphics</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="graphics.html#terminal-width"><code class="docutils literal notranslate"><span class="pre">terminal_width</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="graphics.html#enable-terminal-formatting"><code class="docutils literal notranslate"><span class="pre">enable_terminal_formatting</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="graphics.html#render2d-options"><code class="docutils literal notranslate"><span class="pre">render2D_options</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="graphics.html#render3d-colors"><code class="docutils literal notranslate"><span class="pre">render3D_colors</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="graphics.html#render3d-bgcolor"><code class="docutils literal notranslate"><span class="pre">render3D_bgcolor</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="graphics.html#render3d-resolution"><code class="docutils literal notranslate"><span class="pre">render3D_resolution</span></code></a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="system_of_units.html">System of units</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="system_of_units.html#unit-length"><code class="docutils literal notranslate"><span class="pre">unit_length</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="units.html">Units</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="units.html#unit-length"><code class="docutils literal notranslate"><span class="pre">unit_length</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="units.html#unit-time"><code class="docutils literal notranslate"><span class="pre">unit_time</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="units.html#unit-mass"><code class="docutils literal notranslate"><span class="pre">unit_mass</span></code></a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="debugging_options.html">Debugging options</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="debugging_options.html#print-load-imbalance"><code class="docutils literal notranslate"><span class="pre">print_load_imbalance</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="debugging.html">Debugging</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="debugging.html#print-load-imbalance"><code class="docutils literal notranslate"><span class="pre">print_load_imbalance</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="debugging.html#particle-reordering"><code class="docutils literal notranslate"><span class="pre">particle_reordering</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="debugging.html#enable-hubble"><code class="docutils literal notranslate"><span class="pre">enable_Hubble</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="debugging.html#enable-class-background"><code class="docutils literal notranslate"><span class="pre">enable_class_background</span></code></a></li>
 </ul>
 </li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../utilities/utilities.html">Utilities</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/class.html">The class utility</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/convert.html">The convert utility</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/gadget.html">The gadget utility</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/info.html">The info utility</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/play.html">The play utility</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/powerspec.html">The powerspec utility</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/render3D.html">The render3D utility</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/update.html">The update utility</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/watch.html">The watch utility</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/class.html">class</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/convert.html">convert</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/gadget.html">gadget</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/info.html">info</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/play.html">play</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/powerspec.html">powerspec</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/render3D.html">render3D</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/update.html">update</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/watch.html">watch</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../troubleshooting.html">Troubleshooting</a><ul>
@@ -254,7 +299,7 @@
       </li>
   </ul><div class="rst-breadcrumbs-buttons" role="navigation" aria-label="Sequential page navigation">
         <a href="parameters.html" class="btn btn-neutral float-left" title="Parameters" accesskey="p"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="numerical_parameters.html" class="btn btn-neutral float-right" title="Numerical parameters" accesskey="n">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="numerics.html" class="btn btn-neutral float-right" title="Numerics" accesskey="n">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
   </div>
   <hr/>
 </div>
@@ -263,80 +308,127 @@
              
   <div class="section" id="input-output">
 <h1>Input/output<a class="headerlink" href="#input-output" title="Permalink to this headline"></a></h1>
-<p>The input/output parameter category contains parameters specifying the
+<p>The ‘input/output’ parameter category contains parameters specifying the
 initial conditions as well as the wanted results to be outputted from the
-CO<em>N</em>CEPT run. You will find the complete list of such parameters below.</p>
+CO<em>N</em>CEPT run.</p>
 <div class="contents local topic" id="contents">
 <ul class="simple">
-<li><p><a class="reference internal" href="#initial-conditions" id="id1"><code class="docutils literal notranslate"><span class="pre">initial_conditions</span></code></a></p></li>
-<li><p><a class="reference internal" href="#snapshot-type" id="id2"><code class="docutils literal notranslate"><span class="pre">snapshot_type</span></code></a></p></li>
+<li><p><a class="reference internal" href="#initial-conditions" id="id13"><code class="docutils literal notranslate"><span class="pre">initial_conditions</span></code></a></p></li>
+<li><p><a class="reference internal" href="#output-dirs" id="id14"><code class="docutils literal notranslate"><span class="pre">output_dirs</span></code></a></p></li>
+<li><p><a class="reference internal" href="#output-bases" id="id15"><code class="docutils literal notranslate"><span class="pre">output_bases</span></code></a></p></li>
+<li><p><a class="reference internal" href="#output-times" id="id16"><code class="docutils literal notranslate"><span class="pre">output_times</span></code></a></p></li>
+<li><p><a class="reference internal" href="#autosave-interval" id="id17"><code class="docutils literal notranslate"><span class="pre">autosave_interval</span></code></a></p></li>
+<li><p><a class="reference internal" href="#snapshot-select" id="id18"><code class="docutils literal notranslate"><span class="pre">snapshot_select</span></code></a></p></li>
+<li><p><a class="reference internal" href="#powerspec-select" id="id19"><code class="docutils literal notranslate"><span class="pre">powerspec_select</span></code></a></p></li>
+<li><p><a class="reference internal" href="#render2d-select" id="id20"><code class="docutils literal notranslate"><span class="pre">render2D_select</span></code></a></p></li>
+<li><p><a class="reference internal" href="#render3d-select" id="id21"><code class="docutils literal notranslate"><span class="pre">render3D_select</span></code></a></p></li>
+<li><p><a class="reference internal" href="#snapshot-type" id="id22"><code class="docutils literal notranslate"><span class="pre">snapshot_type</span></code></a></p></li>
+<li><p><a class="reference internal" href="#gadget-snapshot-params" id="id23"><code class="docutils literal notranslate"><span class="pre">gadget_snapshot_params</span></code></a></p></li>
 </ul>
 </div>
 <hr class="docutils" />
 <div class="section" id="initial-conditions">
-<h2><a class="toc-backref" href="#id1"><code class="docutils literal notranslate"><span class="pre">initial_conditions</span></code></a><a class="headerlink" href="#initial-conditions" title="Permalink to this headline"></a></h2>
+<span id="id1"></span><h2><a class="toc-backref" href="#id13"><code class="docutils literal notranslate"><span class="pre">initial_conditions</span></code></a><a class="headerlink" href="#initial-conditions" title="Permalink to this headline"></a></h2>
 <table>
 <colgroup>
 <col style="width: 4%" />
-<col style="width: 19%" />
-<col style="width: 77%" />
+<col style="width: 10%" />
+<col style="width: 4%" />
+<col style="width: 82%" />
 </colgroup>
 <tbody>
 <tr class="row-odd"><td><p></p></td>
-<td><p><strong>Type</strong></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">list</span></code> of <code class="docutils literal notranslate"><span class="pre">dict</span></code>‘s <span class="math notranslate nohighlight">\(\ |\ \)</span> <code class="docutils literal notranslate"><span class="pre">str</span></code></p></td>
+<td><p><strong>Description</strong></p></td>
+<td><p></p></td>
+<td><p>Specifies the initial conditions of the simulation</p></td>
 </tr>
 <tr class="row-even"><td><p></p></td>
 <td><p><strong>Default</strong></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">''</span></code></p></td>
-</tr>
-<tr class="row-odd"><td><p></p></td>
-<td><p><strong>Description</strong></p></td>
-<td><p>Specifies the initial conditions of the simulation, either
-as a <code class="docutils literal notranslate"><span class="pre">list</span></code> of <code class="docutils literal notranslate"><span class="pre">dict</span></code>‘s — each specifying a
-component to generate initial conditions for — or
-alternatively as a <code class="docutils literal notranslate"><span class="pre">str</span></code> specifying the path to an
-existing snapshot.</p></td>
-</tr>
-<tr class="row-even"><td><p></p></td>
-<td><p><strong>Examples</strong></p></td>
-<td><p>Generate initial conditions consisting of a single
-component comprised of <span class="math notranslate nohighlight">\(128^3\)</span> matter particles. The
-particle positions and momenta will be set according to the
-combined baryonic and cold dark matter transfer functions:</p>
-<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">initial_conditions</span> <span class="o">=</span> <span class="p">[{</span>
-   <span class="s1">&#39;name&#39;</span>   <span class="p">:</span> <span class="s1">&#39;matter component&#39;</span><span class="p">,</span>
-   <span class="s1">&#39;species&#39;</span><span class="p">:</span> <span class="s1">&#39;matter&#39;</span><span class="p">,</span>
-   <span class="s1">&#39;N&#39;</span>      <span class="p">:</span> <span class="mi">128</span><span class="o">**</span><span class="mi">3</span><span class="p">,</span>
-<span class="p">}]</span>
+<td><p></p></td>
+<td><div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="s1">&#39;&#39;</span>  <span class="c1"># no initial conditions</span>
 </pre></div>
 </div>
-<p>Generate initial conditions where baryonic and cold dark
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Elaboration</strong></p></td>
+<td><p></p></td>
+<td><p>There are two kinds of initial condition specifications:</p>
+<ul class="simple">
+<li><p>Component specifications, describing a component for
+which initial conditions should be generated.</p></li>
+<li><p>Paths to snapshot files containing the initial
+conditions.</p></li>
+</ul>
+<p>Several such specifications may be used together when
+defining <code class="docutils literal notranslate"><span class="pre">initial_conditions</span></code>, and the two kinds may
+be used together.</p>
+</td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Example 0</strong></p></td>
+<td><p></p></td>
+<td><p>Generate initial conditions consisting of a single
+component comprised of <span class="math notranslate nohighlight">\(128^3\)</span> matter particles.
+The particle positions and momenta will be set according
+to the combined baryonic and cold dark matter transfer
+functions:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">initial_conditions</span> <span class="o">=</span> <span class="p">{</span>
+   <span class="s1">&#39;species&#39;</span><span class="p">:</span> <span class="s1">&#39;matter&#39;</span><span class="p">,</span>
+   <span class="s1">&#39;N&#39;</span>      <span class="p">:</span> <span class="mi">128</span><span class="o">**</span><span class="mi">3</span><span class="p">,</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Example 1</strong></p></td>
+<td><p></p></td>
+<td><p>Load initial conditions from the snapshot <code class="docutils literal notranslate"><span class="pre">snapshot</span></code>
+in the <code class="docutils literal notranslate"><span class="pre">ic</span></code> directory:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">initial_conditions</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">path</span><span class="o">.</span><span class="n">ic</span><span class="si">}</span><span class="s1">/snapshot&#39;</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>If the snapshot is distributed over multiple files,
+use the path to either the first file, the directory
+containing the files (and nothing else) or use
+globbing as in <code class="docutils literal notranslate"><span class="pre">f'{path.ic}/snapshot*'</span></code>.</p>
+</div>
+</td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Example 2</strong></p></td>
+<td><p></p></td>
+<td><p>Generate initial conditions where baryonic and cold dark
 matter particles are realised separately as individual
 components, each comprised of <span class="math notranslate nohighlight">\(64^3\)</span> particles:</p>
 <div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">initial_conditions</span> <span class="o">=</span> <span class="p">[</span>
     <span class="p">{</span>
-        <span class="s1">&#39;name&#39;</span>   <span class="p">:</span> <span class="s1">&#39;dark matter component&#39;</span><span class="p">,</span>
         <span class="s1">&#39;species&#39;</span><span class="p">:</span> <span class="s1">&#39;cold dark matter&#39;</span><span class="p">,</span>
         <span class="s1">&#39;N&#39;</span>      <span class="p">:</span> <span class="mi">64</span><span class="o">**</span><span class="mi">3</span><span class="p">,</span>
     <span class="p">},</span>
     <span class="p">{</span>
-        <span class="s1">&#39;name&#39;</span>   <span class="p">:</span> <span class="s1">&#39;baryonic component&#39;</span><span class="p">,</span>
         <span class="s1">&#39;species&#39;</span><span class="p">:</span> <span class="s1">&#39;baryon&#39;</span><span class="p">,</span>
         <span class="s1">&#39;N&#39;</span>      <span class="p">:</span> <span class="mi">64</span><span class="o">**</span><span class="mi">3</span><span class="p">,</span>
     <span class="p">},</span>
 <span class="p">]</span>
 </pre></div>
 </div>
-<p>Generate initial conditions consisting of a combined
-matter component with <span class="math notranslate nohighlight">\(64^3\)</span> particles, as well as a
-fluid component containing the combined linear energy
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Example 3</strong></p></td>
+<td><p></p></td>
+<td><p>Generate initial conditions consisting of a combined
+matter component with <span class="math notranslate nohighlight">\(64^3\)</span> particles, as well as
+a fluid component containing the combined linear energy
 density perturbations of the photons, the neutrinos and
 the metric, having a linear grid size of <span class="math notranslate nohighlight">\(64\)</span> (and
 thus <span class="math notranslate nohighlight">\(64^3\)</span> fluid elements):</p>
 <div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">initial_conditions</span> <span class="o">=</span> <span class="p">[</span>
     <span class="p">{</span>
-        <span class="s1">&#39;name&#39;</span>   <span class="p">:</span> <span class="s1">&#39;matter component&#39;</span><span class="p">,</span>
         <span class="s1">&#39;species&#39;</span><span class="p">:</span> <span class="s1">&#39;matter&#39;</span><span class="p">,</span>
         <span class="s1">&#39;N&#39;</span>      <span class="p">:</span> <span class="mi">64</span><span class="o">**</span><span class="mi">3</span><span class="p">,</span>
     <span class="p">},</span>
@@ -349,62 +441,1017 @@ thus <span class="math notranslate nohighlight">\(64^3\)</span> fluid elements):
 <span class="p">]</span>
 </pre></div>
 </div>
-<p>In all of the above, the <code class="docutils literal notranslate"><span class="pre">'name'</span></code> given to each component
-is used only for referencing by other parameters, and may
-be omitted. For further examples on the
-possible component specifications, check out the
-‘<a class="reference internal" href="../tutorial/beyond_matter_only.html"><span class="doc">beyond matter-only</span></a>’
-part of the tutorial.</p>
-<p>Load initial conditions from an existing snapshot:</p>
-<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">initial_conditions</span> <span class="o">=</span> <span class="s1">&#39;/path/to/snapshot&#39;</span>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The <code class="docutils literal notranslate"><span class="pre">'name'</span></code> assigned to a component is used only
+for referencing by other parameters and may generally
+be omitted. If so, this will be set equal to the
+value of <code class="docutils literal notranslate"><span class="pre">'species'</span></code>.</p>
+</div>
+</td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Example 4</strong></p></td>
+<td><p></p></td>
+<td><p>Use combined initial conditions from the two snapshots
+<code class="docutils literal notranslate"><span class="pre">snapshot_b</span></code> and <code class="docutils literal notranslate"><span class="pre">snapshot_cdm</span></code> in the <code class="docutils literal notranslate"><span class="pre">ic</span></code>
+directory, supplemented by a non-linear neutrino
+component generated on the fly:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">initial_conditions</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">path</span><span class="o">.</span><span class="n">ic</span><span class="si">}</span><span class="s1">/snapshot_b&#39;</span><span class="p">,</span>
+    <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">path</span><span class="o">.</span><span class="n">ic</span><span class="si">}</span><span class="s1">/snapshot_cdm&#39;</span><span class="p">,</span>
+    <span class="p">{</span>
+        <span class="s1">&#39;species&#39;</span>        <span class="p">:</span> <span class="s1">&#39;neutrino&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;gridsize&#39;</span>       <span class="p">:</span> <span class="mi">128</span><span class="p">,</span>
+        <span class="s1">&#39;boltzmann order&#39;</span><span class="p">:</span> <span class="o">+</span><span class="mi">1</span><span class="p">,</span>  <span class="c1"># non-linear</span>
+    <span class="p">},</span>
+<span class="p">]</span>
 </pre></div>
 </div>
 </td>
 </tr>
 </tbody>
 </table>
+<hr class="docutils" />
 </div>
-<div class="section" id="snapshot-type">
-<h2><a class="toc-backref" href="#id2"><code class="docutils literal notranslate"><span class="pre">snapshot_type</span></code></a><a class="headerlink" href="#snapshot-type" title="Permalink to this headline"></a></h2>
+<div class="section" id="output-dirs">
+<span id="id2"></span><h2><a class="toc-backref" href="#id14"><code class="docutils literal notranslate"><span class="pre">output_dirs</span></code></a><a class="headerlink" href="#output-dirs" title="Permalink to this headline"></a></h2>
 <table>
 <colgroup>
 <col style="width: 4%" />
-<col style="width: 20%" />
-<col style="width: 76%" />
+<col style="width: 10%" />
+<col style="width: 4%" />
+<col style="width: 82%" />
 </colgroup>
 <tbody>
 <tr class="row-odd"><td><p></p></td>
-<td><p><strong>Type</strong></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">str</span></code></p></td>
+<td><p><strong>Description</strong></p></td>
+<td><p></p></td>
+<td><p>Directories for storing output</p></td>
 </tr>
 <tr class="row-even"><td><p></p></td>
 <td><p><strong>Default</strong></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">'concept'</span></code></p></td>
+<td><p></p></td>
+<td><div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+    <span class="s1">&#39;snapshot&#39;</span> <span class="p">:</span> <span class="n">path</span><span class="o">.</span><span class="n">output_dir</span><span class="p">,</span>
+    <span class="s1">&#39;powerspec&#39;</span><span class="p">:</span> <span class="n">path</span><span class="o">.</span><span class="n">output_dir</span><span class="p">,</span>
+    <span class="s1">&#39;render2D&#39;</span> <span class="p">:</span> <span class="n">path</span><span class="o">.</span><span class="n">output_dir</span><span class="p">,</span>
+    <span class="s1">&#39;render3D&#39;</span> <span class="p">:</span> <span class="n">path</span><span class="o">.</span><span class="n">output_dir</span><span class="p">,</span>
+    <span class="s1">&#39;autosave&#39;</span> <span class="p">:</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">path</span><span class="o">.</span><span class="n">ic_dir</span><span class="si">}</span><span class="s1">/autosave&#39;</span><span class="p">,</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</td>
 </tr>
 <tr class="row-odd"><td><p></p></td>
-<td><p><strong>Description</strong></p></td>
-<td><p>Specifies the snapshot format to use when dumping
-snapshots. CO<em>N</em>CEPT understands two snapshot formats;
-<code class="docutils literal notranslate"><span class="pre">'concept'</span></code>, which is its own, well-structured
-<a class="reference external" href="https://www.hdfgroup.org/solutions/hdf5/">HDF5</a> format,
-and <code class="docutils literal notranslate"><span class="pre">'gadget'</span></code>, which is the binary Fortran format of
-<a class="reference external" href="https://wwwmpa.mpa-garching.mpg.de/gadget/">GADGET</a>,
-specifically the <em>second</em> type (<code class="docutils literal notranslate"><span class="pre">SnapFormat</span> <span class="pre">=</span> <span class="pre">2</span></code> in
-GADGET-2). Note that the value of <code class="docutils literal notranslate"><span class="pre">snapshot_type</span></code> does
-not affect which snapshots may be <em>read</em>, e.g. used as
-<code class="docutils literal notranslate"><span class="pre">initial_conditions</span></code>.</p></td>
+<td><p><strong>Elaboration</strong></p></td>
+<td><p></p></td>
+<td><p>This is a <code class="docutils literal notranslate"><span class="pre">dict</span></code> with the keys <code class="docutils literal notranslate"><span class="pre">'snapshot'</span></code>,
+<code class="docutils literal notranslate"><span class="pre">'powerspec'</span></code>, <code class="docutils literal notranslate"><span class="pre">'render2D'</span></code>, <code class="docutils literal notranslate"><span class="pre">'render3D'</span></code> and
+<code class="docutils literal notranslate"><span class="pre">'autosave'</span></code>, mapping to directory paths to use for
+snapshot outputs, power spectrum outputs, 2D render
+outputs, 3D render outputs and autosaves, respectively.</p></td>
 </tr>
 <tr class="row-even"><td><p></p></td>
-<td><p><strong>Example</strong></p></td>
-<td><p>Dump output snapshots in GADGET-2 format:</p>
-<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">snapshot_type</span> <span class="o">=</span> <span class="s1">&#39;gadget&#39;</span>
+<td><p><strong>Example 0</strong></p></td>
+<td><p></p></td>
+<td><p>Dump power spectra to a directory with a name that
+reflects the name of the parameter file:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">output_dirs</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;powerspec&#39;</span><span class="p">:</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">path</span><span class="o">.</span><span class="n">output_dir</span><span class="si">}</span><span class="s1">/</span><span class="si">{</span><span class="n">param</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Unspecified entries will take on their
+default values</p>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Example 1</strong></p></td>
+<td><p></p></td>
+<td><p>Use the same directory for all output, and let its name
+reflect the ID of the running job:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">output_dirs</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;snapshot&#39;</span> <span class="p">:</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">path</span><span class="o">.</span><span class="n">output_dir</span><span class="si">}</span><span class="s1">/</span><span class="si">{</span><span class="n">jobid</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;powerspec&#39;</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span>
+    <span class="s1">&#39;render2D&#39;</span> <span class="p">:</span> <span class="o">...</span><span class="p">,</span>
+    <span class="s1">&#39;render3D&#39;</span> <span class="p">:</span> <span class="o">...</span><span class="p">,</span>
+<span class="p">}</span>
 </pre></div>
 </div>
 </td>
 </tr>
 </tbody>
 </table>
-<p><em>Under construction!</em></p>
+</div>
+<hr class="docutils" />
+<div class="section" id="output-bases">
+<h2><a class="toc-backref" href="#id15"><code class="docutils literal notranslate"><span class="pre">output_bases</span></code></a><a class="headerlink" href="#output-bases" title="Permalink to this headline"></a></h2>
+<table>
+<colgroup>
+<col style="width: 4%" />
+<col style="width: 10%" />
+<col style="width: 4%" />
+<col style="width: 82%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Description</strong></p></td>
+<td><p></p></td>
+<td><p>File base names for output</p></td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Default</strong></p></td>
+<td><p></p></td>
+<td><div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+    <span class="s1">&#39;snapshot&#39;</span> <span class="p">:</span> <span class="s1">&#39;snapshot&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;powerspec&#39;</span><span class="p">:</span> <span class="s1">&#39;powerspec&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;render2D&#39;</span> <span class="p">:</span> <span class="s1">&#39;render2D&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;render3D&#39;</span> <span class="p">:</span> <span class="s1">&#39;render3D&#39;</span><span class="p">,</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Elaboration</strong></p></td>
+<td><p></p></td>
+<td><p>This is a <code class="docutils literal notranslate"><span class="pre">dict</span></code> with the keys <code class="docutils literal notranslate"><span class="pre">'snapshot'</span></code>,
+<code class="docutils literal notranslate"><span class="pre">'powerspec'</span></code>, <code class="docutils literal notranslate"><span class="pre">'render2D'</span></code> and <code class="docutils literal notranslate"><span class="pre">'render3D'</span></code>,
+mapping to file base names of the respective
+output types.</p>
+<p>The file name of e.g. a power spectrum output at scale
+factor <span class="math notranslate nohighlight">\(a = 1.0\)</span> will be
+<code class="docutils literal notranslate"><span class="pre">output_bases['powerspec']</span> <span class="pre">+</span> <span class="pre">'_a=1.0'</span></code>. The directory
+of this file is <a class="reference internal" href="#output-dirs"><span class="std std-ref">controlled by</span></a>
+<code class="docutils literal notranslate"><span class="pre">output_dirs['powerspec']</span></code>.</p>
+</td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Example 0</strong></p></td>
+<td><p></p></td>
+<td><p>Use a shorter name for power spectrum files:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">output_bases</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;powerspec&#39;</span><span class="p">:</span> <span class="s1">&#39;p&#39;</span><span class="p">,</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Unspecified entries will take on their
+default values</p>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<hr class="docutils" />
+<div class="section" id="output-times">
+<h2><a class="toc-backref" href="#id16"><code class="docutils literal notranslate"><span class="pre">output_times</span></code></a><a class="headerlink" href="#output-times" title="Permalink to this headline"></a></h2>
+<table>
+<colgroup>
+<col style="width: 4%" />
+<col style="width: 10%" />
+<col style="width: 4%" />
+<col style="width: 82%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Description</strong></p></td>
+<td><p></p></td>
+<td><p>Times at which to dump output</p></td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Default</strong></p></td>
+<td><p></p></td>
+<td><div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="p">{}</span>  <span class="c1"># no output times</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Elaboration</strong></p></td>
+<td><p></p></td>
+<td><p>In its simplest form this is a <code class="docutils literal notranslate"><span class="pre">dict</span></code> with the keys
+<code class="docutils literal notranslate"><span class="pre">'snapshot'</span></code>, <code class="docutils literal notranslate"><span class="pre">'powerspec'</span></code>, <code class="docutils literal notranslate"><span class="pre">'render2D'</span></code> and
+<code class="docutils literal notranslate"><span class="pre">'render3D'</span></code>, mapping to scale factor values <span class="math notranslate nohighlight">\(a\)</span>
+at which to dump the respective outputs.</p>
+<p>Alternatively, such <code class="docutils literal notranslate"><span class="pre">dict</span></code>s can be used as values
+within an outer <code class="docutils literal notranslate"><span class="pre">dict</span></code> with keys <code class="docutils literal notranslate"><span class="pre">'a'</span></code> and <code class="docutils literal notranslate"><span class="pre">'t'</span></code>,
+for specifying output times at either scale factor
+values <span class="math notranslate nohighlight">\(a\)</span> or cosmic times <span class="math notranslate nohighlight">\(t\)</span>.</p>
+</td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Example 0</strong></p></td>
+<td><p></p></td>
+<td><p>Specify a single power spectrum output at <span class="math notranslate nohighlight">\(a = 1\)</span>:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">output_times</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;powerspec&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Example 1</strong></p></td>
+<td><p></p></td>
+<td><p>Specify snapshot outputs at <span class="math notranslate nohighlight">\(a = 0.1\)</span>,
+<span class="math notranslate nohighlight">\(a = 0.3\)</span> and <span class="math notranslate nohighlight">\(a = 1\)</span>:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">output_times</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;snapshot&#39;</span><span class="p">:</span> <span class="p">[</span><span class="mf">0.1</span><span class="p">,</span> <span class="mf">0.3</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Example 2</strong></p></td>
+<td><p></p></td>
+<td><p>Specify 8 power spectrum outputs between the initial
+<span class="math notranslate nohighlight">\(a = a_{\mathrm{begin}}\)</span> and final <span class="math notranslate nohighlight">\(a = 1\)</span>,
+placed logarithmically equidistant:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">output_times</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;powerspec&#39;</span><span class="p">:</span> <span class="n">logspace</span><span class="p">(</span><span class="n">log10</span><span class="p">(</span><span class="n">a_begin</span><span class="p">),</span> <span class="n">log10</span><span class="p">(</span><span class="mi">1</span><span class="p">),</span> <span class="mi">8</span><span class="p">),</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Example 3</strong></p></td>
+<td><p></p></td>
+<td><p>Specify a series of power spectrum outputs and use these
+same values for 2D renders:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">output_times</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;powerspec&#39;</span><span class="p">:</span> <span class="p">[</span><span class="mf">0.03</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">,</span> <span class="mf">0.3</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span>
+    <span class="s1">&#39;render2D&#39;</span> <span class="p">:</span> <span class="o">...</span><span class="p">,</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Example 4</strong></p></td>
+<td><p></p></td>
+<td><p>Specify snapshots at cosmic times
+<span class="math notranslate nohighlight">\(t = 1729\,\mathrm{Myr}\)</span> and
+<span class="math notranslate nohighlight">\(t = 13\,\mathrm{Gyr}\)</span>, as well as at scale factor
+<span class="math notranslate nohighlight">\(a = 1\)</span>.</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">output_times</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;t&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;snapshot&#39;</span><span class="p">:</span> <span class="p">[</span><span class="mi">1729</span><span class="o">*</span><span class="n">Myr</span><span class="p">,</span> <span class="mi">13</span><span class="o">*</span><span class="n">Gyr</span><span class="p">],</span>
+    <span class="p">},</span>
+    <span class="s1">&#39;a&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;snapshot&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+    <span class="p">},</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<hr class="docutils" />
+<div class="section" id="autosave-interval">
+<h2><a class="toc-backref" href="#id17"><code class="docutils literal notranslate"><span class="pre">autosave_interval</span></code></a><a class="headerlink" href="#autosave-interval" title="Permalink to this headline"></a></h2>
+<table>
+<colgroup>
+<col style="width: 4%" />
+<col style="width: 10%" />
+<col style="width: 4%" />
+<col style="width: 82%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Description</strong></p></td>
+<td><p></p></td>
+<td><p>Time interval between successive automated saves of the
+simulation to disk</p></td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Default</strong></p></td>
+<td><p></p></td>
+<td><div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">ထ</span>  <span class="c1"># never autosave</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Elaboration</strong></p></td>
+<td><p></p></td>
+<td><p>Setting this to some finite time will periodically dump
+a snapshot, intended for use with restarting the
+simulation in case of crashes or similar. The autosaved
+snapshot is written to a subdirectory
+<a class="reference internal" href="#output-dirs"><span class="std std-ref">of</span></a> <code class="docutils literal notranslate"><span class="pre">output_dirs['autosave']</span></code> and
+named in accordance with the parameter file in use.</p>
+<p>Starting a simulation with the same parameter file will
+pick up on such an autosaved snapshot, if it exists.</p>
+<p>When autosaving, the previous autosave will be
+overwritten (in a fail-safe manner), so that only the
+newest autosave remains.</p>
+</td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Example 0</strong></p></td>
+<td><p></p></td>
+<td><p>Autosave about every hour:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">autosave_interval</span> <span class="o">=</span> <span class="mi">1</span><span class="o">*</span><span class="n">hr</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Example 1</strong></p></td>
+<td><p></p></td>
+<td><p>Autosave 5 times a day:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">autosave_interval</span> <span class="o">=</span> <span class="n">day</span><span class="o">/</span><span class="mi">5</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Example 2</strong></p></td>
+<td><p></p></td>
+<td><p>Disabling autosaving, including starting from an
+existing autosave on disk:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">autosave_interval</span> <span class="o">=</span> <span class="mi">0</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>This is different from having an infinitely long
+autosave interval,</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">autosave_interval</span> <span class="o">=</span> <span class="n">ထ</span>
+</pre></div>
+</div>
+<p>as this still makes use of already existing
+autosaves on disk.</p>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+<hr class="docutils" />
+</div>
+<div class="section" id="snapshot-select">
+<span id="id3"></span><h2><a class="toc-backref" href="#id18"><code class="docutils literal notranslate"><span class="pre">snapshot_select</span></code></a><a class="headerlink" href="#snapshot-select" title="Permalink to this headline"></a></h2>
+<table>
+<colgroup>
+<col style="width: 4%" />
+<col style="width: 10%" />
+<col style="width: 4%" />
+<col style="width: 82%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Description</strong></p></td>
+<td><p></p></td>
+<td><p>Specifies which components to include when reading and
+writing snapshots</p></td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Default</strong></p></td>
+<td><p></p></td>
+<td><div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+    <span class="s1">&#39;save&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;all&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="p">},</span>
+    <span class="s1">&#39;load&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;all&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="p">},</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Elaboration</strong></p></td>
+<td><p></p></td>
+<td><p>The sub<code class="docutils literal notranslate"><span class="pre">dict</span></code>s <code class="docutils literal notranslate"><span class="pre">snapshot_select['save']</span></code> and
+<code class="docutils literal notranslate"><span class="pre">snapshot_select['load']</span></code> are
+<a class="reference internal" href="parameters.html#components-and-selections"><span class="std std-ref">component selections</span></a>
+determining which components to include when writing
+and reading snapshots, respectively.</p></td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Example 0</strong></p></td>
+<td><p></p></td>
+<td><p>Only include the component with a name/species of
+<code class="docutils literal notranslate"><span class="pre">'matter'</span></code>, for both reading and writing:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">snapshot_select</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;save&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;matter&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="p">},</span>
+    <span class="s1">&#39;load&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;matter&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="p">},</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>Equivalently, but a bit shorter:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">snapshot_select</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;save&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;matter&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="p">},</span>
+    <span class="s1">&#39;load&#39;</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>Even shorter still:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">snapshot_select</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;matter&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Example 1</strong></p></td>
+<td><p></p></td>
+<td><p>Exclude any (and only) fluid components when
+writing snapshots:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">snapshot_select</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;save&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;all&#39;</span>  <span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="s1">&#39;fluid&#39;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="p">},</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+<hr class="docutils" />
+</div>
+<div class="section" id="powerspec-select">
+<span id="id4"></span><h2><a class="toc-backref" href="#id19"><code class="docutils literal notranslate"><span class="pre">powerspec_select</span></code></a><a class="headerlink" href="#powerspec-select" title="Permalink to this headline"></a></h2>
+<table>
+<colgroup>
+<col style="width: 4%" />
+<col style="width: 10%" />
+<col style="width: 4%" />
+<col style="width: 82%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Description</strong></p></td>
+<td><p></p></td>
+<td><p>Specifies the kind of power spectrum output to include
+for different components</p></td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Default</strong></p></td>
+<td><p></p></td>
+<td><div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+    <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;data&#39;</span>  <span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="s1">&#39;linear&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="s1">&#39;plot&#39;</span>  <span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="p">},</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Elaboration</strong></p></td>
+<td><p></p></td>
+<td><p>This is a
+<a class="reference internal" href="parameters.html#components-and-selections"><span class="std std-ref">component selection</span></a>
+determining which components participate in power
+spectrum output, as well as what kind of power
+spectrum outputs to include.</p>
+<p>Here <code class="docutils literal notranslate"><span class="pre">'data'</span></code> refers to text files containing
+tabulated values of the (auto) power spectrum
+<span class="math notranslate nohighlight">\(P(k)\)</span>. A separate data column within these files
+containing the corresponding linear-theory power
+spectrum is added if <code class="docutils literal notranslate"><span class="pre">'linear'</span></code> is also selected.
+Selecting <code class="docutils literal notranslate"><span class="pre">'plot'</span></code> results in a plot of the selected
+(non-)linear data, stored as a PNG file.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>As CO<em>N</em>CEPT runs in <em>N</em>-body gauge, the output
+power spectra will also be in this gauge.
+This includes the linear power spectra.</p>
+</div>
+<p>To tune the specifics of how power spectra are computed,
+see the <code class="docutils literal notranslate"><span class="pre">powerspec_options</span></code>
+<a class="reference internal" href="numerics.html#powerspec-options"><span class="std std-ref">parameter</span></a>.</p>
+</td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Example 0</strong></p></td>
+<td><p></p></td>
+<td><p>Dump power spectrum data files containing spectra for all
+components, including both non-linear and linear data.
+Do not dump any plots of this data:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">powerspec_select</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;all&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;data&#39;</span>  <span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="s1">&#39;linear&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="s1">&#39;plot&#39;</span>  <span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="p">},</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Example 1</strong></p></td>
+<td><p></p></td>
+<td><p>Leave out the linear power spectrum for every component
+except the one with a name/species of <code class="docutils literal notranslate"><span class="pre">'matter'</span></code>,
+and do not make any plots:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">powerspec_select</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;all&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;data&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="p">},</span>
+    <span class="s1">&#39;matter&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;data&#39;</span>  <span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="s1">&#39;linear&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="p">},</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Unspecified values are assigned <code class="docutils literal notranslate"><span class="pre">False</span></code></p>
+</div>
+</td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Example 2</strong></p></td>
+<td><p></p></td>
+<td><p>Do not create any power spectrum outputs except plots
+of the component with a name/species of <code class="docutils literal notranslate"><span class="pre">'matter'</span></code>:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">powerspec_select</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;all&#39;</span>   <span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="s1">&#39;matter&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;plot&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="p">},</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Example 3</strong></p></td>
+<td><p></p></td>
+<td><p>Create full (auto) power spectrum outputs for
+all components, as well as for the combined
+<code class="docutils literal notranslate"><span class="pre">'matter'</span></code> and <code class="docutils literal notranslate"><span class="pre">'neutrino'</span></code> components:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">powerspec_select</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;all&#39;</span>                 <span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="p">(</span><span class="s1">&#39;matter&#39;</span><span class="p">,</span> <span class="s1">&#39;neutrino&#39;</span><span class="p">):</span> <span class="kc">True</span><span class="p">,</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+<hr class="docutils" />
+</div>
+<div class="section" id="render2d-select">
+<span id="id5"></span><h2><a class="toc-backref" href="#id20"><code class="docutils literal notranslate"><span class="pre">render2D_select</span></code></a><a class="headerlink" href="#render2d-select" title="Permalink to this headline"></a></h2>
+<table>
+<colgroup>
+<col style="width: 4%" />
+<col style="width: 10%" />
+<col style="width: 4%" />
+<col style="width: 82%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Description</strong></p></td>
+<td><p></p></td>
+<td><p>Specifies the kind of 2D render output to include
+for different components</p></td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Default</strong></p></td>
+<td><p></p></td>
+<td><div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+    <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;data&#39;</span>          <span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="s1">&#39;image&#39;</span>         <span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="s1">&#39;terminal image&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="p">},</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Elaboration</strong></p></td>
+<td><p></p></td>
+<td><p>This is a
+<a class="reference internal" href="parameters.html#components-and-selections"><span class="std std-ref">component selection</span></a>
+determining which components participate in 2D
+render outputs, as well as what kind of 2D render
+outputs to include.</p>
+<p>Here <code class="docutils literal notranslate"><span class="pre">'data'</span></code> refers to HDF5 files containing the
+values of the 2D projection, while <code class="docutils literal notranslate"><span class="pre">'image'</span></code> refers to
+an actual rendered image, stored as a PNG file.
+Finally, <code class="docutils literal notranslate"><span class="pre">'terminal</span> <span class="pre">image'</span></code> refers to colour renders
+printed directly in the terminal, which thus become part
+of the job log.</p>
+<p>To tune the specifics of how 2D renders are created,
+see the <code class="docutils literal notranslate"><span class="pre">render2D_options</span></code>
+<a class="reference internal" href="graphics.html#render2d-options"><span class="std std-ref">parameter</span></a>.</p>
+</td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Example 0</strong></p></td>
+<td><p></p></td>
+<td><p>Store 2D renders as image files for all components,
+and also display these in the terminal. Do not store
+the raw 2D render data.</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">render2D_select</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;all&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;data&#39;</span>          <span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="s1">&#39;image&#39;</span>         <span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="s1">&#39;terminal image&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="p">},</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Example 1</strong></p></td>
+<td><p></p></td>
+<td><p>Dump 2D render images for all components, but only show
+the ones for the component with a name/species of
+<code class="docutils literal notranslate"><span class="pre">'neutrino'</span></code> in the terminal:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">render2D_select</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;all&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;image&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="p">},</span>
+    <span class="s1">&#39;neutrino&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;image&#39;</span>         <span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="s1">&#39;terminal image&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="p">},</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Unspecified values are assigned <code class="docutils literal notranslate"><span class="pre">False</span></code></p>
+</div>
+</td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Example 2</strong></p></td>
+<td><p></p></td>
+<td><p>Create full 2D render outputs for the combined
+<code class="docutils literal notranslate"><span class="pre">'matter'</span></code> and <code class="docutils literal notranslate"><span class="pre">'neutrino'</span></code> components,
+and nothing else:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">render2D_select</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="p">(</span><span class="s1">&#39;matter&#39;</span><span class="p">,</span> <span class="s1">&#39;neutrino&#39;</span><span class="p">):</span> <span class="kc">True</span><span class="p">,</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<hr class="docutils" />
+<div class="section" id="render3d-select">
+<h2><a class="toc-backref" href="#id21"><code class="docutils literal notranslate"><span class="pre">render3D_select</span></code></a><a class="headerlink" href="#render3d-select" title="Permalink to this headline"></a></h2>
+<table>
+<colgroup>
+<col style="width: 4%" />
+<col style="width: 10%" />
+<col style="width: 4%" />
+<col style="width: 82%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Description</strong></p></td>
+<td><p></p></td>
+<td><p>Specifies which components to include in 3D
+render outputs</p></td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Default</strong></p></td>
+<td><p></p></td>
+<td><div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="p">{</span><span class="s1">&#39;all&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">}</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Elaboration</strong></p></td>
+<td><p></p></td>
+<td><p>This is a
+<a class="reference internal" href="parameters.html#components-and-selections"><span class="std std-ref">component selection</span></a>
+determining which components participate in 3D
+render outputs. These are stored as PNG files.</p>
+<p>Note that you cannot use component combinations as keys
+in <code class="docutils literal notranslate"><span class="pre">render3D_select</span></code>. If multiple components are 3D
+rendered (separately), one additional, total 3D render
+will also be produced, combining all into one.</p>
+</td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Example 0</strong></p></td>
+<td><p></p></td>
+<td><p>Only do 3D renders of the component with a name/species
+of <code class="docutils literal notranslate"><span class="pre">'matter'</span></code>:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">render3D_select</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;matter&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+<hr class="docutils" />
+</div>
+<div class="section" id="snapshot-type">
+<span id="id6"></span><h2><a class="toc-backref" href="#id22"><code class="docutils literal notranslate"><span class="pre">snapshot_type</span></code></a><a class="headerlink" href="#snapshot-type" title="Permalink to this headline"></a></h2>
+<table>
+<colgroup>
+<col style="width: 4%" />
+<col style="width: 10%" />
+<col style="width: 4%" />
+<col style="width: 82%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Description</strong></p></td>
+<td><p></p></td>
+<td><p>Specifies the snapshot format to use when dumping
+snapshots</p></td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Default</strong></p></td>
+<td><p></p></td>
+<td><div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="s1">&#39;concept&#39;</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Elaboration</strong></p></td>
+<td><p></p></td>
+<td><p>CO<em>N</em>CEPT understands two snapshot
+formats; <code class="docutils literal notranslate"><span class="pre">'concept'</span></code>, which is its own,
+well-structured
+<a class="reference external" href="https://www.hdfgroup.org/solutions/hdf5/">HDF5</a>
+format, and <code class="docutils literal notranslate"><span class="pre">'gadget'</span></code>, which is the binary, non-HDF5
+format of
+<a class="reference external" href="https://wwwmpa.mpa-garching.mpg.de/gadget/">GADGET</a>.
+Note that the value of <code class="docutils literal notranslate"><span class="pre">snapshot_type</span></code> does
+not affect which snapshots may be <em>read</em>, e.g. used
+within the <code class="docutils literal notranslate"><span class="pre">initial_conditions</span></code>
+<a class="reference internal" href="#initial-conditions"><span class="std std-ref">parameter</span></a>.</p></td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Example 0</strong></p></td>
+<td><p></p></td>
+<td><p>Dump output snapshots in GADGET format:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">snapshot_type</span> <span class="o">=</span> <span class="s1">&#39;gadget&#39;</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Though which components to include in/from snapshots
+are generally determined by the <code class="docutils literal notranslate"><span class="pre">snapshot_select</span></code>
+<a class="reference internal" href="#snapshot-select"><span class="std std-ref">parameter</span></a>, additional
+information is needed to map components to/from the
+<em>particle types</em> of GADGET (see table 3 of the
+<a class="reference external" href="https://wwwmpa.mpa-garching.mpg.de/gadget/users-guide.pdf">user guide for GADGET-2</a>).
+When loading in a GADGET snapshot, the available
+particle types will be read into separate components,
+with names matching the particle type, e.g.
+<code class="docutils literal notranslate"><span class="pre">'GADGET</span> <span class="pre">halo'</span></code> (particle type <code class="docutils literal notranslate"><span class="pre">1</span></code>),
+<code class="docutils literal notranslate"><span class="pre">'GADGET</span> <span class="pre">disk'</span></code> (particle type <code class="docutils literal notranslate"><span class="pre">2</span></code>), etc. To
+similarly map components in CO<em>N</em>CEPT to specific
+particle types when writing GADGET snapshots, simply
+use the appropriate names for the components within
+CO<em>N</em>CEPT (i.e. set the <code class="docutils literal notranslate"><span class="pre">'name'</span></code> according to
+the GADGET particle type when defining the
+<code class="docutils literal notranslate"><span class="pre">initial_conditions</span></code>
+<a class="reference internal" href="#initial-conditions"><span class="std std-ref">parameter</span></a>). If a single
+particle component is to be saved and its name does
+not correspond to a GADGET particle type, the <code class="docutils literal notranslate"><span class="pre">halo</span></code>
+type will be used.</p>
+<p>By default, the species of all components read from
+GADGET snapshots will be <code class="docutils literal notranslate"><span class="pre">'matter'</span></code>. This can be
+changed through the <code class="docutils literal notranslate"><span class="pre">select_species</span></code>
+<a class="reference internal" href="physics.html#select-species"><span class="std std-ref">parameter</span></a>.</p>
+</div>
+<p>To adjust the specifics of the GADGET format to
+your needs, see the <code class="docutils literal notranslate"><span class="pre">gadget_snapshot_params</span></code>
+<a class="reference internal" href="#gadget-snapshot-params"><span class="std std-ref">parameter</span></a>.</p>
+</td>
+</tr>
+</tbody>
+</table>
+<hr class="docutils" />
+</div>
+<div class="section" id="gadget-snapshot-params">
+<span id="id7"></span><h2><a class="toc-backref" href="#id23"><code class="docutils literal notranslate"><span class="pre">gadget_snapshot_params</span></code></a><a class="headerlink" href="#gadget-snapshot-params" title="Permalink to this headline"></a></h2>
+<table>
+<colgroup>
+<col style="width: 4%" />
+<col style="width: 10%" />
+<col style="width: 4%" />
+<col style="width: 82%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Description</strong></p></td>
+<td><p></p></td>
+<td><p>Specifies various details for reading and writing of
+GADGET snapshots</p></td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Default</strong></p></td>
+<td><p></p></td>
+<td><div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+    <span class="s1">&#39;snapformat&#39;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span>
+    <span class="s1">&#39;dataformat&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;POS&#39;</span><span class="p">:</span> <span class="mi">32</span><span class="p">,</span>
+        <span class="s1">&#39;VEL&#39;</span><span class="p">:</span> <span class="mi">32</span><span class="p">,</span>
+        <span class="s1">&#39;ID&#39;</span> <span class="p">:</span> <span class="s1">&#39;automatic&#39;</span><span class="p">,</span>
+    <span class="p">},</span>
+    <span class="s1">&#39;Nall high word&#39;</span><span class="p">:</span> <span class="s1">&#39;NallHW&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;header&#39;</span><span class="p">:</span> <span class="p">{},</span>
+    <span class="s1">&#39;settle&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+    <span class="s1">&#39;units&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;length&#39;</span>  <span class="p">:</span> <span class="s1">&#39;kpc/h&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;velocity&#39;</span><span class="p">:</span> <span class="s1">&#39;km/s&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;mass&#39;</span>    <span class="p">:</span> <span class="s1">&#39;10¹⁰ m☉/h&#39;</span><span class="p">,</span>
+    <span class="p">},</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Elaboration</strong></p></td>
+<td><p></p></td>
+<td><p>This parameter is a <code class="docutils literal notranslate"><span class="pre">dict</span></code> of several individual
+sub-parameters, each of which is described below.</p>
+<p>Sub-parameters which affect the <em>writing</em> of
+GADGET-snapshots:</p>
+<ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">'snapformat'</span></code>: Specifies whether GADGET snapshots
+should use a <code class="docutils literal notranslate"><span class="pre">SnapFormat</span></code> of <code class="docutils literal notranslate"><span class="pre">1</span></code> or <code class="docutils literal notranslate"><span class="pre">2</span></code>. Note
+that <code class="docutils literal notranslate"><span class="pre">SnapFormat</span></code> <code class="docutils literal notranslate"><span class="pre">3</span></code> (the HDF5 format) is not
+available. See section 5.1 in the
+<a class="reference external" href="https://wwwmpa.mpa-garching.mpg.de/gadget/users-guide.pdf">user guide for GADGET-2</a>
+for more information.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'dataformat'</span></code>: This is a <code class="docutils literal notranslate"><span class="pre">dict</span></code> specifying the
+data type sizes to use when writing out particle
+positions, velocities and ID’s. The corresponding keys
+are <code class="docutils literal notranslate"><span class="pre">'POS'</span></code>, <code class="docutils literal notranslate"><span class="pre">'VEL'</span></code> and <code class="docutils literal notranslate"><span class="pre">'ID'</span></code>, which may all
+have a value of either <code class="docutils literal notranslate"><span class="pre">32</span></code> or <code class="docutils literal notranslate"><span class="pre">64</span></code>, specifying
+the size in bits (corresponding to single- or double-
+precision for <code class="docutils literal notranslate"><span class="pre">'POS'</span></code> and <code class="docutils literal notranslate"><span class="pre">'VEL'</span></code>, and 4- or
+8-byte unsigned integers (typically corresponding to
+<code class="docutils literal notranslate"><span class="pre">unsigned</span> <span class="pre">int</span></code> and <code class="docutils literal notranslate"><span class="pre">unsigned</span> <span class="pre">long</span> <span class="pre">long</span></code> in C) for
+<code class="docutils literal notranslate"><span class="pre">'ID'</span></code>). In addition, the value of <code class="docutils literal notranslate"><span class="pre">'ID'</span></code> may also
+be set to <code class="docutils literal notranslate"><span class="pre">'automatic'</span></code>, in which case 32 bits will
+be used if this is enough to uniquely label each
+particle (<span class="math notranslate nohighlight">\(N \leq 2^{32}\)</span>). If not, 64 bits will
+be used.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'Nall</span> <span class="pre">high</span> <span class="pre">word'</span></code>: The <code class="docutils literal notranslate"><span class="pre">Nall</span></code> field of the header
+(see table 4 of the
+<a class="reference external" href="https://wwwmpa.mpa-garching.mpg.de/gadget/users-guide.pdf">user guide for GADGET-2</a>)
+is meant to store the total number <span class="math notranslate nohighlight">\(N\)</span> of
+particles (of each type) within the snapshot, summed
+over all files in case of the snapshot being
+distributed over several files. Unfortunately, this is
+a 32-bit field, and so cannot store <span class="math notranslate nohighlight">\(N\)</span> in the
+case of <span class="math notranslate nohighlight">\(N &gt; 2^{32}\)</span>. To overcome this
+limitation, another 32-bit field <code class="docutils literal notranslate"><span class="pre">NallHW</span></code> exists,
+meant to contain the “high word” part of a now
+distributed 64-integer, with <code class="docutils literal notranslate"><span class="pre">Nall</span></code> supplying the
+“low word” part. This is the behaviour given the
+default</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="s1">&#39;Nall high word&#39;</span><span class="p">:</span> <span class="s1">&#39;NallHW&#39;</span>
+</pre></div>
+</div>
+<p>A separate convention (used by at least some versions
+of
+<a class="reference external" href="https://www.h-its.org/2014/11/05/ngenic-code/">NGenIC</a>)
+is to only allow for particle type 1 (<code class="docutils literal notranslate"><span class="pre">halo</span></code>
+particles, corresponding to (cold dark) matter; see
+table 3 of the
+<a class="reference external" href="https://wwwmpa.mpa-garching.mpg.de/gadget/users-guide.pdf">user guide for GADGET-2</a>)
+and store all 64 bits within <code class="docutils literal notranslate"><span class="pre">Nall</span></code>, overflowing into
+the (now unused) slot usually designated to particle
+type 2. This convention can be chosen by specifying</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="s1">&#39;Nall high word&#39;</span><span class="p">:</span> <span class="s1">&#39;Nall&#39;</span>
+</pre></div>
+</div>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'header'</span></code>: The contents of the GADGET header (the
+<code class="docutils literal notranslate"><span class="pre">HEAD</span></code> block) will match the specifications in table
+4 of the
+<a class="reference external" href="https://wwwmpa.mpa-garching.mpg.de/gadget/users-guide.pdf">user guide for GADGET-2</a>.
+You may overwrite the values of the various fields by
+specifying them in the <code class="docutils literal notranslate"><span class="pre">'header'</span></code> sub-<code class="docutils literal notranslate"><span class="pre">dict</span></code>,
+e.g.</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="s1">&#39;header&#39;</span><span class="p">:</span> <span class="p">{</span>
+    <span class="s1">&#39;HubbleParam&#39;</span><span class="p">:</span> <span class="mf">0.7</span><span class="p">,</span>
+    <span class="s1">&#39;FlagSfr&#39;</span>    <span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>Here <code class="docutils literal notranslate"><span class="pre">'HubbleParam'</span></code>
+(<span class="math notranslate nohighlight">\(h \equiv H_0/(100\, \text{km}\, \text{s}^{-1}\, \text{Mpc}^{-1})\)</span>)
+will be set to <code class="docutils literal notranslate"><span class="pre">0.7</span></code>, disregarding the value of the
+<a class="reference internal" href="cosmology.html#h0"><span class="std std-ref">Hubble constant</span></a> <code class="docutils literal notranslate"><span class="pre">H0</span></code> actually in use.
+The <code class="docutils literal notranslate"><span class="pre">FlagSfr</span></code> field does not mean anything to
+CO<em>N</em>CEPT and as so will always be set equal to
+<code class="docutils literal notranslate"><span class="pre">0</span></code>. This is changed to <code class="docutils literal notranslate"><span class="pre">1</span></code> by the above parameter
+specification.</p>
+</li>
+</ul>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>CO<em>N</em>CEPT does not provide a way to specify the
+number of files over which to distribute each GADGET
+snapshot. It simply writes as few files as possible,
+with the maximum number of particles per file
+(assuming single-precision data) being
+<span class="math notranslate nohighlight">\(178\,956\,969 \approx 563^3\)</span>, the exact number
+coming about due to the details of the GADGET format.
+When using double-precision, this number is adjusted
+accordingly.</p>
+</div>
+<p>Sub-parameters which affect the <em>reading</em> of
+GADGET-snapshots:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">'settle'</span></code>: If a GADGET snapshot is stored in
+<code class="docutils literal notranslate"><span class="pre">SnapFormat</span></code> <code class="docutils literal notranslate"><span class="pre">2</span></code> (see the
+<a class="reference external" href="https://wwwmpa.mpa-garching.mpg.de/gadget/users-guide.pdf">user guide for GADGET-2</a>),
+the size of a block is effectively stored twice before
+its data begins. If these two sizes disagree, we need
+to settle for one of them. A value of <code class="docutils literal notranslate"><span class="pre">0</span></code> for
+<code class="docutils literal notranslate"><span class="pre">'settle'</span></code> picks the first size, while a value of
+<code class="docutils literal notranslate"><span class="pre">1</span></code> picks the second size. Regardless, a warning
+will be given if the two sizes disagree.</p></li>
+</ul>
+<p>Sub-parameters which affect <em>both</em> the reading
+and writing of GADGET-snapshots:</p>
+<ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">'units'</span></code>: While the units used for the data within
+GADGET snapshots are typically as shown above, i.e.</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="s1">&#39;units&#39;</span><span class="p">:</span> <span class="p">{</span>
+    <span class="s1">&#39;length&#39;</span>  <span class="p">:</span> <span class="s1">&#39;kpc/h&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;velocity&#39;</span><span class="p">:</span> <span class="s1">&#39;km/s&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;mass&#39;</span>    <span class="p">:</span> <span class="s1">&#39;10¹⁰ m☉/h&#39;</span><span class="p">,</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>this is not guaranteed. Information about the unit
+system actually in use is however not stored within
+the snapshot. Thus, this sub-parameter allows you to
+specify the units used within existing snapshots, as
+well as what units should be used when writing out new
+snapshots.</p>
+</li>
+</ul>
+</td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Example 0</strong></p></td>
+<td><p></p></td>
+<td><p>Use <code class="docutils literal notranslate"><span class="pre">SnapFormat</span></code> <code class="docutils literal notranslate"><span class="pre">1</span></code> with all data being stored in
+64-bit, and using <code class="docutils literal notranslate"><span class="pre">Mpc/h</span></code> for the base length unit:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">gadget_snapshot_params</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;snapformat&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+    <span class="s1">&#39;dataformat&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;POS&#39;</span><span class="p">:</span> <span class="mi">64</span><span class="p">,</span>
+        <span class="s1">&#39;VEL&#39;</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span>
+        <span class="s1">&#39;ID&#39;</span> <span class="p">:</span> <span class="o">...</span>
+    <span class="p">},</span>
+    <span class="s1">&#39;units&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;length&#39;</span><span class="p">:</span> <span class="s1">&#39;Mpc/h&#39;</span><span class="p">,</span>
+    <span class="p">},</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
 </div>
 </div>
 
@@ -413,7 +1460,7 @@ not affect which snapshots may be <em>read</em>, e.g. used as
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
         <a href="parameters.html" class="btn btn-neutral float-left" title="Parameters" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="numerical_parameters.html" class="btn btn-neutral float-right" title="Numerical parameters" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="numerics.html" class="btn btn-neutral float-right" title="Numerics" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>

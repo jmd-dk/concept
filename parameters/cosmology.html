@@ -21,11 +21,12 @@
         <script src="../_static/doctools.js"></script>
         <script src="../_static/clipboard.min.js"></script>
         <script src="../_static/copybutton.js"></script>
+        <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <script src="../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
     <link rel="next" title="Physics" href="physics.html" />
-    <link rel="prev" title="Numerical parameters" href="numerical_parameters.html" /> 
+    <link rel="prev" title="Numerics" href="numerics.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -85,7 +86,7 @@
 <li class="toctree-l3"><a class="reference internal" href="../installation.html#influential-environment-variables">Influential environment variables</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="../installation.html#making-use-of-pre-installed-libraries">Making use of pre-installed libraries</a></li>
 <li class="toctree-l4"><a class="reference internal" href="../installation.html#specifying-dependency-versions">Specifying dependency versions</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../installation.html#specifying-dependency-url-s">Specifying dependency URL’s</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../installation.html#specifying-dependency-urls">Specifying dependency URLs</a></li>
 <li class="toctree-l4"><a class="reference internal" href="../installation.html#choosing-compiler-precedence">Choosing compiler precedence</a></li>
 <li class="toctree-l4"><a class="reference internal" href="../installation.html#installing-mpich-or-openmpi">Installing MPICH or OpenMPI</a></li>
 <li class="toctree-l4"><a class="reference internal" href="../installation.html#parallel-builds">Parallel builds</a></li>
@@ -157,51 +158,96 @@
 <li class="toctree-l1 current"><a class="reference internal" href="parameters.html">Parameters</a><ul class="current">
 <li class="toctree-l2"><a class="reference internal" href="input_output.html">Input/output</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="input_output.html#initial-conditions"><code class="docutils literal notranslate"><span class="pre">initial_conditions</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="input_output.html#output-dirs"><code class="docutils literal notranslate"><span class="pre">output_dirs</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="input_output.html#output-bases"><code class="docutils literal notranslate"><span class="pre">output_bases</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="input_output.html#output-times"><code class="docutils literal notranslate"><span class="pre">output_times</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="input_output.html#autosave-interval"><code class="docutils literal notranslate"><span class="pre">autosave_interval</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="input_output.html#snapshot-select"><code class="docutils literal notranslate"><span class="pre">snapshot_select</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="input_output.html#powerspec-select"><code class="docutils literal notranslate"><span class="pre">powerspec_select</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="input_output.html#render2d-select"><code class="docutils literal notranslate"><span class="pre">render2D_select</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="input_output.html#render3d-select"><code class="docutils literal notranslate"><span class="pre">render3D_select</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="input_output.html#snapshot-type"><code class="docutils literal notranslate"><span class="pre">snapshot_type</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="input_output.html#gadget-snapshot-params"><code class="docutils literal notranslate"><span class="pre">gadget_snapshot_params</span></code></a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="numerical_parameters.html">Numerical parameters</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="numerical_parameters.html#boxsize"><code class="docutils literal notranslate"><span class="pre">boxsize</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="numerical_parameters.html#potential-options"><code class="docutils literal notranslate"><span class="pre">potential_options</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="numerics.html">Numerics</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="numerics.html#boxsize"><code class="docutils literal notranslate"><span class="pre">boxsize</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="numerics.html#potential-options"><code class="docutils literal notranslate"><span class="pre">potential_options</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="numerics.html#shortrange-params"><code class="docutils literal notranslate"><span class="pre">shortrange_params</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="numerics.html#powerspec-options"><code class="docutils literal notranslate"><span class="pre">powerspec_options</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="numerics.html#k-modes-per-decade"><code class="docutils literal notranslate"><span class="pre">k_modes_per_decade</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l2 current"><a class="current reference internal" href="#">Cosmology</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#h0"><code class="docutils literal notranslate"><span class="pre">H0</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#b"><code class="docutils literal notranslate"><span class="pre">Ωb</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#cdm"><code class="docutils literal notranslate"><span class="pre">Ωcdm</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#a-begin"><code class="docutils literal notranslate"><span class="pre">a_begin</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#t-begin"><code class="docutils literal notranslate"><span class="pre">t_begin</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#primordial-spectrum"><code class="docutils literal notranslate"><span class="pre">primordial_spectrum</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#class-params"><code class="docutils literal notranslate"><span class="pre">class_params</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="physics.html">Physics</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="physics.html#select-forces"><code class="docutils literal notranslate"><span class="pre">select_forces</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="physics.html#select-species"><code class="docutils literal notranslate"><span class="pre">select_species</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="physics.html#select-lives"><code class="docutils literal notranslate"><span class="pre">select_lives</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="physics.html#softening-kernel"><code class="docutils literal notranslate"><span class="pre">softening_kernel</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="physics.html#select-softening-length"><code class="docutils literal notranslate"><span class="pre">select_softening_length</span></code></a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="simulation_options.html">Simulation options</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="simulation_options.html#t-base-background-factor"><code class="docutils literal notranslate"><span class="pre">Δt_base_background_factor</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="simulation.html">Simulation</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#t-base-background-factor"><code class="docutils literal notranslate"><span class="pre">Δt_base_background_factor</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#t-base-nonlinear-factor"><code class="docutils literal notranslate"><span class="pre">Δt_base_nonlinear_factor</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#t-increase-max-factor"><code class="docutils literal notranslate"><span class="pre">Δt_increase_max_factor</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#t-rung-factor"><code class="docutils literal notranslate"><span class="pre">Δt_rung_factor</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#a-max-early"><code class="docutils literal notranslate"><span class="pre">Δa_max_early</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#a-max-late"><code class="docutils literal notranslate"><span class="pre">Δa_max_late</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#n-rungs"><code class="docutils literal notranslate"><span class="pre">N_rungs</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#fftw-wisdom-rigor"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_rigor</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#fftw-wisdom-reuse"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_reuse</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#fftw-wisdom-share"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_share</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#random-seed"><code class="docutils literal notranslate"><span class="pre">random_seed</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#primordial-amplitude-fixed"><code class="docutils literal notranslate"><span class="pre">primordial_amplitude_fixed</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#primordial-phase-shift"><code class="docutils literal notranslate"><span class="pre">primordial_phase_shift</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#cell-centered"><code class="docutils literal notranslate"><span class="pre">cell_centered</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#class-reuse"><code class="docutils literal notranslate"><span class="pre">class_reuse</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="graphics.html">Graphics</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="graphics.html#terminal-width"><code class="docutils literal notranslate"><span class="pre">terminal_width</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="graphics.html#enable-terminal-formatting"><code class="docutils literal notranslate"><span class="pre">enable_terminal_formatting</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="graphics.html#render2d-options"><code class="docutils literal notranslate"><span class="pre">render2D_options</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="graphics.html#render3d-colors"><code class="docutils literal notranslate"><span class="pre">render3D_colors</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="graphics.html#render3d-bgcolor"><code class="docutils literal notranslate"><span class="pre">render3D_bgcolor</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="graphics.html#render3d-resolution"><code class="docutils literal notranslate"><span class="pre">render3D_resolution</span></code></a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="system_of_units.html">System of units</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="system_of_units.html#unit-length"><code class="docutils literal notranslate"><span class="pre">unit_length</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="units.html">Units</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="units.html#unit-length"><code class="docutils literal notranslate"><span class="pre">unit_length</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="units.html#unit-time"><code class="docutils literal notranslate"><span class="pre">unit_time</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="units.html#unit-mass"><code class="docutils literal notranslate"><span class="pre">unit_mass</span></code></a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="debugging_options.html">Debugging options</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="debugging_options.html#print-load-imbalance"><code class="docutils literal notranslate"><span class="pre">print_load_imbalance</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="debugging.html">Debugging</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="debugging.html#print-load-imbalance"><code class="docutils literal notranslate"><span class="pre">print_load_imbalance</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="debugging.html#particle-reordering"><code class="docutils literal notranslate"><span class="pre">particle_reordering</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="debugging.html#enable-hubble"><code class="docutils literal notranslate"><span class="pre">enable_Hubble</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="debugging.html#enable-class-background"><code class="docutils literal notranslate"><span class="pre">enable_class_background</span></code></a></li>
 </ul>
 </li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../utilities/utilities.html">Utilities</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/class.html">The class utility</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/convert.html">The convert utility</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/gadget.html">The gadget utility</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/info.html">The info utility</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/play.html">The play utility</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/powerspec.html">The powerspec utility</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/render3D.html">The render3D utility</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/update.html">The update utility</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/watch.html">The watch utility</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/class.html">class</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/convert.html">convert</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/gadget.html">gadget</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/info.html">info</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/play.html">play</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/powerspec.html">powerspec</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/render3D.html">render3D</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/update.html">update</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/watch.html">watch</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../troubleshooting.html">Troubleshooting</a><ul>
@@ -252,7 +298,7 @@
               <a href="https://github.com/jmd-dk/concept/" class="fa fa-github"> Code Repository</a>
       </li>
   </ul><div class="rst-breadcrumbs-buttons" role="navigation" aria-label="Sequential page navigation">
-        <a href="numerical_parameters.html" class="btn btn-neutral float-left" title="Numerical parameters" accesskey="p"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="numerics.html" class="btn btn-neutral float-left" title="Numerics" accesskey="p"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
         <a href="physics.html" class="btn btn-neutral float-right" title="Physics" accesskey="n">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
   </div>
   <hr/>
@@ -262,52 +308,567 @@
              
   <div class="section" id="cosmology">
 <h1>Cosmology<a class="headerlink" href="#cosmology" title="Permalink to this headline"></a></h1>
-<p>The cosmology parameter category contains parameters specifying the cosmology,
-as well as the starting time for the simulation. You will find the complete
-list of such parameters below.</p>
+<p>The ‘cosmology’ parameter category contains parameters specifying the
+cosmology, as well as the starting time for the simulation.</p>
 <div class="contents local topic" id="contents">
 <ul class="simple">
-<li><p><a class="reference internal" href="#h0" id="id3"><code class="docutils literal notranslate"><span class="pre">H0</span></code></a></p></li>
-<li><p><a class="reference internal" href="#class-params" id="id4"><code class="docutils literal notranslate"><span class="pre">class_params</span></code></a></p></li>
+<li><p><a class="reference internal" href="#h0" id="id6"><code class="docutils literal notranslate"><span class="pre">H0</span></code></a></p></li>
+<li><p><a class="reference internal" href="#b" id="id7"><code class="docutils literal notranslate"><span class="pre">Ωb</span></code></a></p></li>
+<li><p><a class="reference internal" href="#cdm" id="id8"><code class="docutils literal notranslate"><span class="pre">Ωcdm</span></code></a></p></li>
+<li><p><a class="reference internal" href="#a-begin" id="id9"><code class="docutils literal notranslate"><span class="pre">a_begin</span></code></a></p></li>
+<li><p><a class="reference internal" href="#t-begin" id="id10"><code class="docutils literal notranslate"><span class="pre">t_begin</span></code></a></p></li>
+<li><p><a class="reference internal" href="#primordial-spectrum" id="id11"><code class="docutils literal notranslate"><span class="pre">primordial_spectrum</span></code></a></p></li>
+<li><p><a class="reference internal" href="#class-params" id="id12"><code class="docutils literal notranslate"><span class="pre">class_params</span></code></a></p></li>
 </ul>
 </div>
 <hr class="docutils" />
 <div class="section" id="h0">
-<span id="id1"></span><h2><a class="toc-backref" href="#id3"><code class="docutils literal notranslate"><span class="pre">H0</span></code></a><a class="headerlink" href="#h0" title="Permalink to this headline"></a></h2>
-<p><em>Under construction!</em></p>
-<hr class="docutils" />
-</div>
-<div class="section" id="class-params">
-<span id="id2"></span><h2><a class="toc-backref" href="#id4"><code class="docutils literal notranslate"><span class="pre">class_params</span></code></a><a class="headerlink" href="#class-params" title="Permalink to this headline"></a></h2>
+<span id="id1"></span><h2><a class="toc-backref" href="#id6"><code class="docutils literal notranslate"><span class="pre">H0</span></code></a><a class="headerlink" href="#h0" title="Permalink to this headline"></a></h2>
 <table>
 <colgroup>
 <col style="width: 4%" />
-<col style="width: 20%" />
-<col style="width: 76%" />
+<col style="width: 10%" />
+<col style="width: 4%" />
+<col style="width: 82%" />
 </colgroup>
 <tbody>
 <tr class="row-odd"><td><p></p></td>
-<td><p><strong>Type</strong></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">dict</span></code></p></td>
+<td><p><strong>Description</strong></p></td>
+<td><p></p></td>
+<td><p>The Hubble constant <span class="math notranslate nohighlight">\(H_0\)</span>, i.e. the value of the
+Hubble parameter at the present time <span class="math notranslate nohighlight">\(a = 1\)</span></p></td>
 </tr>
 <tr class="row-even"><td><p></p></td>
 <td><p><strong>Default</strong></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">{}</span></code></p></td>
+<td><p></p></td>
+<td><div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="mi">67</span><span class="o">*</span><span class="n">km</span><span class="o">/</span><span class="p">(</span><span class="n">s</span><span class="o">*</span><span class="n">Mpc</span><span class="p">)</span>
+</pre></div>
+</div>
+</td>
 </tr>
 <tr class="row-odd"><td><p></p></td>
-<td><p><strong>Description</strong></p></td>
-<td><p>Parameters to pass on to the CLASS code, providing
-CO<em>N</em>CEPT with the background evolution as well as the
-linear perturbations needed for e.g. the initial condition
-generation.</p></td>
+<td><p><strong>Elaboration</strong></p></td>
+<td><p></p></td>
+<td><p>Setting <code class="docutils literal notranslate"><span class="pre">H0</span></code> also defines the <em>inferred</em> parameter
+<code class="docutils literal notranslate"><span class="pre">h</span></code> as <code class="docutils literal notranslate"><span class="pre">h</span> <span class="pre">=</span> <span class="pre">H0/(100*km/(s*Mpc))</span></code>. With e.g.</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">H0</span> <span class="o">=</span> <span class="mi">67</span><span class="o">*</span><span class="n">km</span><span class="o">/</span><span class="p">(</span><span class="n">s</span><span class="o">*</span><span class="n">Mpc</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>we then have <code class="docutils literal notranslate"><span class="pre">h</span> <span class="pre">=</span> <span class="pre">0.67</span></code>. This <code class="docutils literal notranslate"><span class="pre">h</span></code> is available for
+other parameters to use, see e.g. the <code class="docutils literal notranslate"><span class="pre">boxsize</span></code>
+<a class="reference internal" href="numerics.html#boxsize"><span class="std std-ref">parameter</span></a> for an example.</p>
+<div class="admonition caution">
+<p class="admonition-title">Caution</p>
+<p>The value of <code class="docutils literal notranslate"><span class="pre">h</span></code> will not be properly set unless
+you explicitly define <code class="docutils literal notranslate"><span class="pre">H0</span></code>.</p>
+</div>
+</td>
 </tr>
 <tr class="row-even"><td><p></p></td>
-<td><p><strong>Examples</strong></p></td>
-<td><p><em>Under construction!</em></p></td>
+<td><p><strong>Example 0</strong></p></td>
+<td><p></p></td>
+<td><p>Use a value of
+<span class="math notranslate nohighlight">\(H_0 = 74\,\mathrm{km}\, \mathrm{s}^{-1}\, \mathrm{Mpc}^{-1}\)</span>
+for the Hubble constant:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">H0</span> <span class="o">=</span> <span class="mi">74</span><span class="o">*</span><span class="n">km</span><span class="o">/</span><span class="p">(</span><span class="n">s</span><span class="o">*</span><span class="n">Mpc</span><span class="p">)</span>
+</pre></div>
+</div>
+</td>
 </tr>
 </tbody>
 </table>
-<p><em>Under construction!</em></p>
+<hr class="docutils" />
+</div>
+<div class="section" id="b">
+<span id="omegab"></span><h2><a class="toc-backref" href="#id7"><code class="docutils literal notranslate"><span class="pre">Ωb</span></code></a><a class="headerlink" href="#b" title="Permalink to this headline"></a></h2>
+<table>
+<colgroup>
+<col style="width: 4%" />
+<col style="width: 10%" />
+<col style="width: 4%" />
+<col style="width: 82%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Description</strong></p></td>
+<td><p></p></td>
+<td><p>Density parameter for baryonic matter
+<span class="math notranslate nohighlight">\(\Omega_{\text{b}}\)</span> at the present
+time <span class="math notranslate nohighlight">\(a = 1\)</span></p></td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Default</strong></p></td>
+<td><p></p></td>
+<td><div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="mf">0.049</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Elaboration</strong></p></td>
+<td><p></p></td>
+<td><p>Within a simulation CO<em>N</em>CEPT treats baryonic matter
+as though it were cold dark matter, i.e. it has no gas
+physics. Typically, the species used for the particles in
+a simulation is (total) ‘matter’, meaning combined
+baryonic and cold dark matter. As the baryons and the
+cold dark matter have different linear perturbations
+(from CLASS), a distinction must still be made within
+CO<em>N</em>CEPT as they have different initial conditions.
+This is why we need both the <code class="docutils literal notranslate"><span class="pre">Ωb</span></code> parameter and the
+<code class="docutils literal notranslate"><span class="pre">Ωcdm</span></code> <a class="reference internal" href="#omegacdm"><span class="std std-ref">parameter</span></a>.</p></td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Example 0</strong></p></td>
+<td><p></p></td>
+<td><p>Specify <span class="math notranslate nohighlight">\(\Omega_{\text{b}} = 0.05\)</span>:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">Ωb</span> <span class="o">=</span> <span class="mf">0.05</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Example 1</strong></p></td>
+<td><p></p></td>
+<td><p>Specify <span class="math notranslate nohighlight">\(\Omega_{\text{b}}\)</span> via known value of
+<span class="math notranslate nohighlight">\(h^2\Omega_{\text{b}} \equiv \omega_{\text{b}} = 0.022\)</span>:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">Ωb</span> <span class="o">=</span> <span class="mf">0.022</span><span class="o">/</span><span class="n">h</span><span class="o">**</span><span class="mi">2</span>
+</pre></div>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+<hr class="docutils" />
+</div>
+<div class="section" id="cdm">
+<span id="omegacdm"></span><h2><a class="toc-backref" href="#id8"><code class="docutils literal notranslate"><span class="pre">Ωcdm</span></code></a><a class="headerlink" href="#cdm" title="Permalink to this headline"></a></h2>
+<table>
+<colgroup>
+<col style="width: 4%" />
+<col style="width: 10%" />
+<col style="width: 4%" />
+<col style="width: 82%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Description</strong></p></td>
+<td><p></p></td>
+<td><p>Density parameter for cold dark matter
+<span class="math notranslate nohighlight">\(\Omega_{\text{cdm}}\)</span> at the present
+time <span class="math notranslate nohighlight">\(a = 1\)</span></p></td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Default</strong></p></td>
+<td><p></p></td>
+<td><div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="mf">0.27</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Elaboration</strong></p></td>
+<td><p></p></td>
+<td><p>Typically, the species used for the particles in a
+simulation is (total) ‘matter’, meaning combined
+<a class="reference internal" href="#omegab"><span class="std std-ref">baryonic</span></a> and cold dark matter.</p></td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Example 0</strong></p></td>
+<td><p></p></td>
+<td><p>Specify <span class="math notranslate nohighlight">\(\Omega_{\text{cdm}} = 0.28\)</span>:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">Ωcdm</span> <span class="o">=</span> <span class="mf">0.28</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Example 1</strong></p></td>
+<td><p></p></td>
+<td><p>Specify <span class="math notranslate nohighlight">\(\Omega_{\text{cdm}}\)</span> via known value of
+<span class="math notranslate nohighlight">\(h^2\Omega_{\text{cdm}} \equiv \omega_{\text{cdm}} = 0.12\)</span>:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">Ωcdm</span> <span class="o">=</span> <span class="mf">0.12</span><span class="o">/</span><span class="n">h</span><span class="o">**</span><span class="mi">2</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Example 2</strong></p></td>
+<td><p></p></td>
+<td><p>Specify <span class="math notranslate nohighlight">\(\Omega_{\text{cdm}}\)</span> such that
+<span class="math notranslate nohighlight">\(\Omega_{\text{m}} \equiv \Omega_{\text{b}} + \Omega_{\text{cdm}} + \Omega_{\nu} = 0.30\)</span>:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">Ωcdm</span> <span class="o">=</span> <span class="mf">0.30</span> <span class="o">-</span> <span class="n">Ωb</span> <span class="o">-</span> <span class="n">Ων</span>
+</pre></div>
+</div>
+<p>Here <code class="docutils literal notranslate"><span class="pre">Ων</span></code> is the current total density parameter for
+massive neutrinos, automatically inferred from the
+<code class="docutils literal notranslate"><span class="pre">class_params</span></code> <a class="reference internal" href="#class-params"><span class="std std-ref">parameter</span></a>.</p>
+</td>
+</tr>
+</tbody>
+</table>
+<hr class="docutils" />
+</div>
+<div class="section" id="a-begin">
+<span id="id2"></span><h2><a class="toc-backref" href="#id9"><code class="docutils literal notranslate"><span class="pre">a_begin</span></code></a><a class="headerlink" href="#a-begin" title="Permalink to this headline"></a></h2>
+<table>
+<colgroup>
+<col style="width: 4%" />
+<col style="width: 10%" />
+<col style="width: 4%" />
+<col style="width: 82%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Description</strong></p></td>
+<td><p></p></td>
+<td><p>Scale factor value <span class="math notranslate nohighlight">\(a\)</span> at the start of the
+simulation</p></td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Default</strong></p></td>
+<td><p></p></td>
+<td><div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="mi">1</span>
+</pre></div>
+</div>
+<p>You should not rely on this default, as the code detects
+if you do not specify <code class="docutils literal notranslate"><span class="pre">a_begin</span></code> explicitly.</p>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Elaboration</strong></p></td>
+<td><p></p></td>
+<td><p>If you
+<a class="reference internal" href="input_output.html#initial-conditions"><span class="std std-ref">start the simulation from a snapshot</span></a>
+you should make sure to set <code class="docutils literal notranslate"><span class="pre">a_begin</span></code> to the value of
+<span class="math notranslate nohighlight">\(a\)</span> set in the snapshot.</p>
+<p>Alternatively, you may <a class="reference internal" href="#t-begin"><span class="std std-ref">define</span></a>
+<code class="docutils literal notranslate"><span class="pre">t_begin</span></code>, the cosmic time <span class="math notranslate nohighlight">\(t\)</span> at the start of
+the simulation.</p>
+</td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Example 0</strong></p></td>
+<td><p></p></td>
+<td><p>Begin simulation at <span class="math notranslate nohighlight">\(a = 0.01\)</span>:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">a_begin</span> <span class="o">=</span> <span class="mf">0.01</span>
+</pre></div>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+<hr class="docutils" />
+</div>
+<div class="section" id="t-begin">
+<span id="id3"></span><h2><a class="toc-backref" href="#id10"><code class="docutils literal notranslate"><span class="pre">t_begin</span></code></a><a class="headerlink" href="#t-begin" title="Permalink to this headline"></a></h2>
+<table>
+<colgroup>
+<col style="width: 4%" />
+<col style="width: 10%" />
+<col style="width: 4%" />
+<col style="width: 82%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Description</strong></p></td>
+<td><p></p></td>
+<td><p>Cosmic time <span class="math notranslate nohighlight">\(t\)</span> at the start of the simulation</p></td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Default</strong></p></td>
+<td><p></p></td>
+<td><div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="mi">0</span>
+</pre></div>
+</div>
+<p>If unset and running a <em>cosmological</em> simulation
+(the <a class="reference internal" href="debugging.html#enable-hubble"><span class="std std-ref">default</span></a>), the initial
+<span class="math notranslate nohighlight">\(t\)</span> will really be set in accordance with the
+<a class="reference internal" href="#a-begin"><span class="std std-ref">initial scale factor</span></a> and the cosmology.</p>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Elaboration</strong></p></td>
+<td><p></p></td>
+<td><p>You may not set both <code class="docutils literal notranslate"><span class="pre">t_begin</span></code> and <code class="docutils literal notranslate"><span class="pre">a_begin</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Example 0</strong></p></td>
+<td><p></p></td>
+<td><p>Begin simulation at time <span class="math notranslate nohighlight">\(t = 10\,\text{Myr}\)</span>:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">t_begin</span> <span class="o">=</span> <span class="mi">10</span><span class="o">*</span><span class="n">Myr</span>
+</pre></div>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+<hr class="docutils" />
+</div>
+<div class="section" id="primordial-spectrum">
+<span id="id4"></span><h2><a class="toc-backref" href="#id11"><code class="docutils literal notranslate"><span class="pre">primordial_spectrum</span></code></a><a class="headerlink" href="#primordial-spectrum" title="Permalink to this headline"></a></h2>
+<table>
+<colgroup>
+<col style="width: 4%" />
+<col style="width: 10%" />
+<col style="width: 4%" />
+<col style="width: 82%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Description</strong></p></td>
+<td><p></p></td>
+<td><p>Parameters for specifying the primordial curvature
+perturbation (power spectrum)</p></td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Default</strong></p></td>
+<td><p></p></td>
+<td><div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+    <span class="s1">&#39;A_s&#39;</span>  <span class="p">:</span> <span class="mf">2.1e-9</span><span class="p">,</span>    <span class="c1"># amplitude</span>
+    <span class="s1">&#39;n_s&#39;</span>  <span class="p">:</span> <span class="mf">0.96</span><span class="p">,</span>      <span class="c1"># tilt / spectral index</span>
+    <span class="s1">&#39;α_s&#39;</span>  <span class="p">:</span> <span class="mi">0</span><span class="p">,</span>         <span class="c1"># tilt running</span>
+    <span class="s1">&#39;pivot&#39;</span><span class="p">:</span> <span class="mf">0.05</span><span class="o">/</span><span class="n">Mpc</span><span class="p">,</span>  <span class="c1"># pivot scale</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Elaboration</strong></p></td>
+<td><p></p></td>
+<td><p>Linear power spectra can be written as
+<span class="math notranslate nohighlight">\(P_{\text{lin}}(a, k) = \zeta^2(k) T^2(a, k)\)</span>,
+with <span class="math notranslate nohighlight">\(T(a, k)\)</span> some transfer function (obtained
+from CLASS) and <span class="math notranslate nohighlight">\(\zeta(k)\)</span> the primordial
+curvature perturbation. CO<em>N</em>CEPT adopts the
+parametrisation</p>
+<div class="math notranslate nohighlight">
+\[\require{upgreek}
+\zeta(k) = \uppi \sqrt{2A_{\text{s}}} k^{-3/2} \biggl(\frac{k}{k_{\text{pivot}}}\biggr)^{\frac{n_{\text{s}} - 1}{2}} \exp\biggl[\frac{\alpha_{\text{s}}}{4} \ln\biggl(\frac{k}{k_{\text{pivot}}}\biggr)^2\biggr]\, ,\]</div>
+<p>where <span class="math notranslate nohighlight">\(A_{\text{s}}\)</span> (<code class="docutils literal notranslate"><span class="pre">'A_s'</span></code>) is the amplitude,
+<span class="math notranslate nohighlight">\(n_{\text{s}}\)</span> (<code class="docutils literal notranslate"><span class="pre">'n_s'</span></code>) is the ‘tilt’ or
+‘spectral index’, <span class="math notranslate nohighlight">\(\alpha_{\text{s}}\)</span> (<code class="docutils literal notranslate"><span class="pre">'α_s'</span></code>)
+is the ‘tilt running’ and <span class="math notranslate nohighlight">\(k_{\text{pivot}}\)</span>
+(<code class="docutils literal notranslate"><span class="pre">'pivot'</span></code>) is the ‘pivot scale’.</p>
+<p>Note that though these exists as CLASS parameters, you
+should never set any of these primordial parameters in
+<a class="reference internal" href="#class-params"><span class="std std-ref">class_params</span></a>. CLASS is only responsible for the
+transfer functions <span class="math notranslate nohighlight">\(T(a, k)\)</span>, with CO<em>N</em>CEPT
+performing the scaling by <span class="math notranslate nohighlight">\(\zeta(k)\)</span>.</p>
+</td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Example 0</strong></p></td>
+<td><p></p></td>
+<td><p>Enhance the primordial perturbations, leading to
+stronger clustering:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">primordial_spectrum</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;A_s&#39;</span><span class="p">:</span> <span class="mf">2.3e-9</span><span class="p">,</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Non-specified items in <code class="docutils literal notranslate"><span class="pre">primordial_spectrum</span></code> will
+be set to their default values.</p>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+<hr class="docutils" />
+</div>
+<div class="section" id="class-params">
+<span id="id5"></span><h2><a class="toc-backref" href="#id12"><code class="docutils literal notranslate"><span class="pre">class_params</span></code></a><a class="headerlink" href="#class-params" title="Permalink to this headline"></a></h2>
+<table>
+<colgroup>
+<col style="width: 4%" />
+<col style="width: 10%" />
+<col style="width: 4%" />
+<col style="width: 82%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Description</strong></p></td>
+<td><p></p></td>
+<td><p>Parameters to pass on to the CLASS code</p></td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Default</strong></p></td>
+<td><p></p></td>
+<td><div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="p">{}</span>  <span class="c1"># default CLASS parameters except H0, Omega_b, Omega_cdm</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Elaboration</strong></p></td>
+<td><p></p></td>
+<td><p>CO<em>N</em>CEPT relies on the
+<a class="reference external" href="http://class-code.net/">CLASS</a> code for computing the
+cosmological background (unless
+<a class="reference internal" href="debugging.html#enable-class-background"><span class="std std-ref">enable_class_background</span></a> is <code class="docutils literal notranslate"><span class="pre">False</span></code>) as well as
+linear perturbations. As such it is vital that CLASS is
+run with the correct cosmological parameters. These
+parameters are exactly the ones specified in
+<code class="docutils literal notranslate"><span class="pre">class_params</span></code>, with the addition of the <code class="docutils literal notranslate"><span class="pre">H0</span></code>
+<a class="reference internal" href="#h0"><span class="std std-ref">parameter</span></a>, the <code class="docutils literal notranslate"><span class="pre">Ωb</span></code>
+<a class="reference internal" href="#omegab"><span class="std std-ref">parameter</span></a> and the <code class="docutils literal notranslate"><span class="pre">Ωcdm</span></code>
+<a class="reference internal" href="#omegacdm"><span class="std std-ref">parameter</span></a>. That is, specifying
+<code class="docutils literal notranslate"><span class="pre">class_params</span> <span class="pre">=</span> <span class="pre">{}</span></code> (the default) really amounts to</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">class_params</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;H0&#39;</span>       <span class="p">:</span> <span class="n">H0</span><span class="o">/</span><span class="p">(</span><span class="n">km</span><span class="o">/</span><span class="p">(</span><span class="n">s</span><span class="o">*</span><span class="n">Mpc</span><span class="p">)),</span>
+    <span class="s1">&#39;Omega_b&#39;</span>  <span class="p">:</span> <span class="n">Ωb</span><span class="p">,</span>
+    <span class="s1">&#39;Omega_cdm&#39;</span><span class="p">:</span> <span class="n">Ωcdm</span><span class="p">,</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>You thus never have to (and should not) include any of
+these three parameters in <code class="docutils literal notranslate"><span class="pre">class_params</span></code>.</p>
+<p>Any CLASS parameters not specified in <code class="docutils literal notranslate"><span class="pre">class_params</span></code>
+(besides <code class="docutils literal notranslate"><span class="pre">'H0'</span></code>, <code class="docutils literal notranslate"><span class="pre">'Omega_b'</span></code> and <code class="docutils literal notranslate"><span class="pre">'Omega_cdm'</span></code>)
+will take on default values as defined by CLASS.
+To find out what they are, consult e.g. the
+<a class="reference external" href="https://github.com/lesgourg/class_public/blob/v2.7.2/explanatory.ini">explanatory.ini</a>
+example CLASS parameter file.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Note that the most basic CLASS cosmology obtained
+from <code class="docutils literal notranslate"><span class="pre">class_params</span> <span class="pre">=</span> <span class="pre">{}</span></code> contains photons,
+massless neutrinos, baryons, cold dark matter and a
+cosmological constant. If you want to run simulations
+with no radiation included in the background,
+see the <a class="reference internal" href="debugging.html#enable-class-background"><span class="std std-ref">enable_class_background</span></a> parameter.</p>
+</div>
+</td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Example 0</strong></p></td>
+<td><p></p></td>
+<td><p>Use a cosmology with a slightly warmer CMB:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">class_params</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;T_cmb&#39;</span><span class="p">:</span> <span class="mf">2.8</span><span class="p">,</span>  <span class="c1"># in K</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Unlike CO<em>N</em>CEPT, CLASS do assume its input
+parameters to be specified using particular units.
+As the <code class="docutils literal notranslate"><span class="pre">class_params</span></code> are fed more or less directly
+to CLASS as is, these unit conventions must be
+respected when adding items to <code class="docutils literal notranslate"><span class="pre">class_params</span></code>.</p>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Example 1</strong></p></td>
+<td><p></p></td>
+<td><p>Use a cosmology with three massive neutrinos with a
+total mass of <span class="math notranslate nohighlight">\(\sum m_\nu = 0.1\, \text{eV}\)</span>:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">class_params</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;N_ur&#39;</span>    <span class="p">:</span> <span class="mi">0</span><span class="p">,</span>      <span class="c1"># no massless neutrinos</span>
+    <span class="s1">&#39;N_ncdm&#39;</span>  <span class="p">:</span> <span class="mi">1</span><span class="p">,</span>      <span class="c1"># one massive neutrino</span>
+    <span class="s1">&#39;deg_ncdm&#39;</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span>      <span class="c1"># three times degenerate</span>
+    <span class="s1">&#39;m_ncdm&#39;</span>  <span class="p">:</span> <span class="mf">0.1</span><span class="o">/</span><span class="mi">3</span><span class="p">,</span>  <span class="c1"># Σmν = 0.1 eV</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Using a cosmology with massive neutrinos also defines
+the <em>inferred</em> parameter <code class="docutils literal notranslate"><span class="pre">Ων</span></code>, the total density
+parameter for all massive neutrino species
+<span class="math notranslate nohighlight">\(\Omega_{\nu}\)</span> at the present time
+<span class="math notranslate nohighlight">\(a = 1\)</span>. This may then be used to set other
+parameters (see the <code class="docutils literal notranslate"><span class="pre">Ωcdm</span></code>
+<a class="reference internal" href="#omegacdm"><span class="std std-ref">parameter</span></a>).</p>
+</div>
+<p>See the <a class="reference internal" href="../tutorial/beyond_matter_only.html#massive-neutrinos"><span class="std std-ref">tuturial</span></a> for a
+walk-through of using a cosmology with massive
+neutrinos.</p>
+</td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Example 2</strong></p></td>
+<td><p></p></td>
+<td><p>Use a cosmology with massive neutrinos of (possibly)
+different masses:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="c1"># List of neutrino (ν) masses, possibly containing duplicates</span>
+<span class="n">_mν</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="o">*</span><span class="n">eV</span><span class="p">,</span> <span class="mf">8.7e-3</span><span class="o">*</span><span class="n">eV</span><span class="p">,</span> <span class="mf">5.0e-2</span><span class="o">*</span><span class="n">eV</span><span class="p">]</span>  <span class="c1"># any number of masses allowed</span>
+
+<span class="n">_N_eff</span> <span class="o">=</span> <span class="mf">3.046</span>  <span class="c1"># effective number of ν species</span>
+<span class="n">class_params</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;N_ur&#39;</span>    <span class="p">:</span> <span class="mi">0</span><span class="p">,</span>              <span class="c1"># no massless ν</span>
+    <span class="s1">&#39;N_ncdm&#39;</span>  <span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">_mν</span><span class="p">)),</span>  <span class="c1"># number of ν species with unique masses</span>
+    <span class="s1">&#39;deg_ncdm&#39;</span><span class="p">:</span> <span class="p">[</span>               <span class="c1"># number of ν species for each mass</span>
+        <span class="n">_mν</span><span class="o">.</span><span class="n">count</span><span class="p">(</span><span class="n">mν</span><span class="p">)</span> <span class="k">for</span> <span class="n">mν</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">_mν</span><span class="p">))</span>
+    <span class="p">],</span>
+    <span class="s1">&#39;m_ncdm&#39;</span>  <span class="p">:</span> <span class="p">[</span>               <span class="c1"># ν masses (avoid exact value of 0.0)</span>
+        <span class="nb">max</span><span class="p">(</span><span class="n">mν</span><span class="o">/</span><span class="n">eV</span><span class="p">,</span> <span class="mf">1e-100</span><span class="p">)</span> <span class="k">for</span> <span class="n">mν</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">_mν</span><span class="p">))</span>
+    <span class="p">],</span>
+    <span class="s1">&#39;T_ncdm&#39;</span>  <span class="p">:</span> <span class="p">[</span>               <span class="c1"># ν temperatures</span>
+        <span class="p">(</span><span class="mi">4</span><span class="o">/</span><span class="mi">11</span><span class="p">)</span><span class="o">**</span><span class="p">(</span><span class="mi">1</span><span class="o">/</span><span class="mi">3</span><span class="p">)</span><span class="o">*</span><span class="p">(</span><span class="n">_N_eff</span><span class="o">/</span><span class="nb">len</span><span class="p">(</span><span class="n">_mν</span><span class="p">))</span><span class="o">**</span><span class="p">(</span><span class="mi">1</span><span class="o">/</span><span class="mi">4</span><span class="p">)</span>
+    <span class="p">]</span><span class="o">*</span><span class="nb">len</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">_mν</span><span class="p">)),</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>In the above we additionally specify the neutrino
+temperature (equal for all neutrino species),
+parametrised via the effective number of neutrinos
+<span class="math notranslate nohighlight">\(N_{\mathrm{eff}}\)</span>, as</p>
+<div class="math notranslate nohighlight">
+\[T_{\nu} = \biggl(\frac{4}{11}\biggr)^{1/3} \biggl(\frac{N_{\mathrm{eff}}}{N_{\nu}}\biggr)^{1/4} T_{\gamma}\, ,\]</div>
+<p>with <span class="math notranslate nohighlight">\(N_{\nu}\)</span> the integer number of massive
+neutrino species and <span class="math notranslate nohighlight">\(T_{\gamma}\)</span> the photon
+temperature <code class="docutils literal notranslate"><span class="pre">T_cmb</span></code> (not explicitly referenced in the
+above <code class="docutils literal notranslate"><span class="pre">class_params</span></code>).</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>In the above parameter specification we use
+<code class="docutils literal notranslate"><span class="pre">list</span></code>s for multi-valued items within
+<code class="docutils literal notranslate"><span class="pre">class_params</span></code>. When using standard CLASS, such
+values must be specified as single <code class="docutils literal notranslate"><span class="pre">str</span></code>s of
+comma-separated values. CO<em>N</em>CEPT takes care of
+the required conversion.</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The above parameter specification is more involved
+than it needs to be. What one gains from this is a
+more efficient CLASS computation, as specifying
+multiple neutrinos with equal mass in <code class="docutils literal notranslate"><span class="pre">_mν</span></code> here is
+picked up and used to properly set the
+degeneracy <code class="docutils literal notranslate"><span class="pre">'deg_ncdm'</span></code>.</p>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Example 3</strong></p></td>
+<td><p></p></td>
+<td><p>By default, CLASS adjusts the density parameter
+<span class="math notranslate nohighlight">\(\Omega_{\Lambda}\)</span> of the cosmological constant
+<span class="math notranslate nohighlight">\(\Lambda\)</span> to ensure a flat universe, given the
+specified amounts of matter, photons, neutrinos, etc.
+If we instead wish to have <em>dynamic</em> dark energy, with
+equation of state parametrised as
+<span class="math notranslate nohighlight">\(w(a) = w_0 + (1 - a)w_a\)</span>, we can request it
+like so:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">class_params</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;Omega_Lambda&#39;</span><span class="p">:</span>    <span class="mi">0</span><span class="p">,</span>  <span class="c1"># disable cosmological constant</span>
+    <span class="s1">&#39;w0_fld&#39;</span>      <span class="p">:</span> <span class="o">-</span><span class="mf">0.8</span><span class="p">,</span>
+    <span class="s1">&#39;wa_fld&#39;</span>      <span class="p">:</span>  <span class="mf">0.1</span><span class="p">,</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>See the <a class="reference internal" href="../tutorial/beyond_matter_only.html#dynamical-dark-energy"><span class="std std-ref">tuturial</span></a> for a
+walk-through of using a cosmology with dynamical dark
+energy.</p>
+</td>
+</tr>
+</tbody>
+</table>
 </div>
 </div>
 
@@ -315,7 +876,7 @@ generation.</p></td>
            </div>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
-        <a href="numerical_parameters.html" class="btn btn-neutral float-left" title="Numerical parameters" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="numerics.html" class="btn btn-neutral float-left" title="Numerics" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
         <a href="physics.html" class="btn btn-neutral float-right" title="Physics" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 

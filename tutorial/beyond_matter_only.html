@@ -21,7 +21,7 @@
         <script src="../_static/doctools.js"></script>
         <script src="../_static/clipboard.min.js"></script>
         <script src="../_static/copybutton.js"></script>
-        <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+        <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <script src="../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
@@ -86,7 +86,7 @@
 <li class="toctree-l3"><a class="reference internal" href="../installation.html#influential-environment-variables">Influential environment variables</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="../installation.html#making-use-of-pre-installed-libraries">Making use of pre-installed libraries</a></li>
 <li class="toctree-l4"><a class="reference internal" href="../installation.html#specifying-dependency-versions">Specifying dependency versions</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../installation.html#specifying-dependency-url-s">Specifying dependency URL’s</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../installation.html#specifying-dependency-urls">Specifying dependency URLs</a></li>
 <li class="toctree-l4"><a class="reference internal" href="../installation.html#choosing-compiler-precedence">Choosing compiler precedence</a></li>
 <li class="toctree-l4"><a class="reference internal" href="../installation.html#installing-mpich-or-openmpi">Installing MPICH or OpenMPI</a></li>
 <li class="toctree-l4"><a class="reference internal" href="../installation.html#parallel-builds">Parallel builds</a></li>
@@ -158,51 +158,96 @@
 <li class="toctree-l1"><a class="reference internal" href="../parameters/parameters.html">Parameters</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="../parameters/input_output.html">Input/output</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/input_output.html#initial-conditions"><code class="docutils literal notranslate"><span class="pre">initial_conditions</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/input_output.html#output-dirs"><code class="docutils literal notranslate"><span class="pre">output_dirs</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/input_output.html#output-bases"><code class="docutils literal notranslate"><span class="pre">output_bases</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/input_output.html#output-times"><code class="docutils literal notranslate"><span class="pre">output_times</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/input_output.html#autosave-interval"><code class="docutils literal notranslate"><span class="pre">autosave_interval</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/input_output.html#snapshot-select"><code class="docutils literal notranslate"><span class="pre">snapshot_select</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/input_output.html#powerspec-select"><code class="docutils literal notranslate"><span class="pre">powerspec_select</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/input_output.html#render2d-select"><code class="docutils literal notranslate"><span class="pre">render2D_select</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/input_output.html#render3d-select"><code class="docutils literal notranslate"><span class="pre">render3D_select</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/input_output.html#snapshot-type"><code class="docutils literal notranslate"><span class="pre">snapshot_type</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/input_output.html#gadget-snapshot-params"><code class="docutils literal notranslate"><span class="pre">gadget_snapshot_params</span></code></a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="../parameters/numerical_parameters.html">Numerical parameters</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="../parameters/numerical_parameters.html#boxsize"><code class="docutils literal notranslate"><span class="pre">boxsize</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="../parameters/numerical_parameters.html#potential-options"><code class="docutils literal notranslate"><span class="pre">potential_options</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="../parameters/numerics.html">Numerics</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/numerics.html#boxsize"><code class="docutils literal notranslate"><span class="pre">boxsize</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/numerics.html#potential-options"><code class="docutils literal notranslate"><span class="pre">potential_options</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/numerics.html#shortrange-params"><code class="docutils literal notranslate"><span class="pre">shortrange_params</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/numerics.html#powerspec-options"><code class="docutils literal notranslate"><span class="pre">powerspec_options</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/numerics.html#k-modes-per-decade"><code class="docutils literal notranslate"><span class="pre">k_modes_per_decade</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="../parameters/cosmology.html">Cosmology</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/cosmology.html#h0"><code class="docutils literal notranslate"><span class="pre">H0</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/cosmology.html#b"><code class="docutils literal notranslate"><span class="pre">Ωb</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/cosmology.html#cdm"><code class="docutils literal notranslate"><span class="pre">Ωcdm</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/cosmology.html#a-begin"><code class="docutils literal notranslate"><span class="pre">a_begin</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/cosmology.html#t-begin"><code class="docutils literal notranslate"><span class="pre">t_begin</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/cosmology.html#primordial-spectrum"><code class="docutils literal notranslate"><span class="pre">primordial_spectrum</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/cosmology.html#class-params"><code class="docutils literal notranslate"><span class="pre">class_params</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="../parameters/physics.html">Physics</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/physics.html#select-forces"><code class="docutils literal notranslate"><span class="pre">select_forces</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/physics.html#select-species"><code class="docutils literal notranslate"><span class="pre">select_species</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/physics.html#select-lives"><code class="docutils literal notranslate"><span class="pre">select_lives</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/physics.html#softening-kernel"><code class="docutils literal notranslate"><span class="pre">softening_kernel</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/physics.html#select-softening-length"><code class="docutils literal notranslate"><span class="pre">select_softening_length</span></code></a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="../parameters/simulation_options.html">Simulation options</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="../parameters/simulation_options.html#t-base-background-factor"><code class="docutils literal notranslate"><span class="pre">Δt_base_background_factor</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="../parameters/simulation.html">Simulation</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#t-base-background-factor"><code class="docutils literal notranslate"><span class="pre">Δt_base_background_factor</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#t-base-nonlinear-factor"><code class="docutils literal notranslate"><span class="pre">Δt_base_nonlinear_factor</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#t-increase-max-factor"><code class="docutils literal notranslate"><span class="pre">Δt_increase_max_factor</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#t-rung-factor"><code class="docutils literal notranslate"><span class="pre">Δt_rung_factor</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#a-max-early"><code class="docutils literal notranslate"><span class="pre">Δa_max_early</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#a-max-late"><code class="docutils literal notranslate"><span class="pre">Δa_max_late</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#n-rungs"><code class="docutils literal notranslate"><span class="pre">N_rungs</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#fftw-wisdom-rigor"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_rigor</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#fftw-wisdom-reuse"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_reuse</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#fftw-wisdom-share"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_share</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#random-seed"><code class="docutils literal notranslate"><span class="pre">random_seed</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#primordial-amplitude-fixed"><code class="docutils literal notranslate"><span class="pre">primordial_amplitude_fixed</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#primordial-phase-shift"><code class="docutils literal notranslate"><span class="pre">primordial_phase_shift</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#cell-centered"><code class="docutils literal notranslate"><span class="pre">cell_centered</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#class-reuse"><code class="docutils literal notranslate"><span class="pre">class_reuse</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="../parameters/graphics.html">Graphics</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/graphics.html#terminal-width"><code class="docutils literal notranslate"><span class="pre">terminal_width</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/graphics.html#enable-terminal-formatting"><code class="docutils literal notranslate"><span class="pre">enable_terminal_formatting</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/graphics.html#render2d-options"><code class="docutils literal notranslate"><span class="pre">render2D_options</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/graphics.html#render3d-colors"><code class="docutils literal notranslate"><span class="pre">render3D_colors</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/graphics.html#render3d-bgcolor"><code class="docutils literal notranslate"><span class="pre">render3D_bgcolor</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/graphics.html#render3d-resolution"><code class="docutils literal notranslate"><span class="pre">render3D_resolution</span></code></a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="../parameters/system_of_units.html">System of units</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="../parameters/system_of_units.html#unit-length"><code class="docutils literal notranslate"><span class="pre">unit_length</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="../parameters/units.html">Units</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/units.html#unit-length"><code class="docutils literal notranslate"><span class="pre">unit_length</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/units.html#unit-time"><code class="docutils literal notranslate"><span class="pre">unit_time</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/units.html#unit-mass"><code class="docutils literal notranslate"><span class="pre">unit_mass</span></code></a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="../parameters/debugging_options.html">Debugging options</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="../parameters/debugging_options.html#print-load-imbalance"><code class="docutils literal notranslate"><span class="pre">print_load_imbalance</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="../parameters/debugging.html">Debugging</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/debugging.html#print-load-imbalance"><code class="docutils literal notranslate"><span class="pre">print_load_imbalance</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/debugging.html#particle-reordering"><code class="docutils literal notranslate"><span class="pre">particle_reordering</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/debugging.html#enable-hubble"><code class="docutils literal notranslate"><span class="pre">enable_Hubble</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/debugging.html#enable-class-background"><code class="docutils literal notranslate"><span class="pre">enable_class_background</span></code></a></li>
 </ul>
 </li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../utilities/utilities.html">Utilities</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/class.html">The class utility</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/convert.html">The convert utility</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/gadget.html">The gadget utility</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/info.html">The info utility</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/play.html">The play utility</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/powerspec.html">The powerspec utility</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/render3D.html">The render3D utility</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/update.html">The update utility</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/watch.html">The watch utility</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/class.html">class</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/convert.html">convert</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/gadget.html">gadget</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/info.html">info</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/play.html">play</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/powerspec.html">powerspec</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/render3D.html">render3D</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/update.html">update</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/watch.html">watch</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../troubleshooting.html">Troubleshooting</a><ul>
@@ -280,15 +325,15 @@ a particular species in isolation, these may be mixed and matched at will when
 running simulations.</p>
 <div class="contents local topic" id="contents">
 <ul class="simple">
-<li><p><a class="reference internal" href="#radiation" id="id4">Radiation</a></p></li>
-<li><p><a class="reference internal" href="#massive-neutrinos" id="id5">Massive neutrinos</a></p></li>
-<li><p><a class="reference internal" href="#dynamical-dark-energy" id="id6">Dynamical dark energy</a></p></li>
-<li><p><a class="reference internal" href="#decaying-cold-dark-matter" id="id7">Decaying cold dark matter</a></p></li>
-<li><p><a class="reference internal" href="#non-linear-massive-neutrinos" id="id8">Non-linear massive neutrinos</a></p></li>
+<li><p><a class="reference internal" href="#radiation" id="id6">Radiation</a></p></li>
+<li><p><a class="reference internal" href="#massive-neutrinos" id="id7">Massive neutrinos</a></p></li>
+<li><p><a class="reference internal" href="#dynamical-dark-energy" id="id8">Dynamical dark energy</a></p></li>
+<li><p><a class="reference internal" href="#decaying-cold-dark-matter" id="id9">Decaying cold dark matter</a></p></li>
+<li><p><a class="reference internal" href="#non-linear-massive-neutrinos" id="id10">Non-linear massive neutrinos</a></p></li>
 </ul>
 </div>
 <div class="section" id="radiation">
-<span id="id1"></span><h2><a class="toc-backref" href="#id4"><span class="section-number">7.1. </span>Radiation</a><a class="headerlink" href="#radiation" title="Permalink to this headline"></a></h2>
+<span id="id1"></span><h2><a class="toc-backref" href="#id6"><span class="section-number">7.1. </span>Radiation</a><a class="headerlink" href="#radiation" title="Permalink to this headline"></a></h2>
 <h3>Introduction</h3><p>Though universes of interest may contain several different species, in
 cosmological <em>N</em>-body simulations we are typically interested in following the
 evolution of the matter component only, as this is the only component which is
@@ -328,7 +373,7 @@ specified by the below parameter file:</p>
     <span class="s1">&#39;powerspec&#39;</span><span class="p">:</span> <span class="mi">2</span><span class="o">*</span><span class="n">a_begin</span><span class="p">,</span>
 <span class="p">}</span>
 
-<span class="c1"># Numerical parameters</span>
+<span class="c1"># Numerics</span>
 <span class="n">boxsize</span> <span class="o">=</span> <span class="mi">4</span><span class="o">*</span><span class="n">Gpc</span><span class="hll"><span class="n">potential_options</span> <span class="o">=</span> <span class="p">{</span></span><span class="hll">    <span class="s1">&#39;gridsize&#39;</span><span class="p">:</span> <span class="p">{</span></span><span class="hll">        <span class="s1">&#39;gravity&#39;</span><span class="p">:</span> <span class="p">{</span></span><span class="hll">            <span class="s1">&#39;pm&#39;</span> <span class="p">:</span>   <span class="n">_size</span><span class="p">,</span></span><span class="hll">            <span class="s1">&#39;p3m&#39;</span><span class="p">:</span> <span class="mi">2</span><span class="o">*</span><span class="n">_size</span><span class="p">,</span></span><span class="hll">        <span class="p">},</span></span><span class="hll">    <span class="p">},</span></span><span class="hll"><span class="p">}</span></span>
 <span class="c1"># Cosmology</span>
 <span class="n">H0</span>      <span class="o">=</span> <span class="mi">67</span><span class="o">*</span><span class="n">km</span><span class="o">/</span><span class="p">(</span><span class="n">s</span><span class="o">*</span><span class="n">Mpc</span><span class="p">)</span>
@@ -668,14 +713,14 @@ you obtain the same result as before.</p>
 <p class="admonition-title">Tip</p>
 <p>When performing simulations in a cosmology without massless neutrinos,
 specifying <code class="docutils literal notranslate"><span class="pre">'photon</span> <span class="pre">+</span> <span class="pre">massless</span> <span class="pre">neutrino'</span></code> as the species of a component
-will produce an error. However, specfying <code class="docutils literal notranslate"><span class="pre">'radiation'</span></code> is always safe,
+will produce an error. However, specifying <code class="docutils literal notranslate"><span class="pre">'radiation'</span></code> is always safe,
 as this dynamically maps to the set of all radiation species present in the
 current cosmology, whatever this may be. Similarly, <code class="docutils literal notranslate"><span class="pre">'matter'</span></code> is safe to
 use even in a cosmology without e.g. cold dark matter.</p>
 </div>
 </div>
 <div class="section" id="massive-neutrinos">
-<span id="id3"></span><h2><a class="toc-backref" href="#id5"><span class="section-number">7.2. </span>Massive neutrinos</a><a class="headerlink" href="#massive-neutrinos" title="Permalink to this headline"></a></h2>
+<span id="id3"></span><h2><a class="toc-backref" href="#id7"><span class="section-number">7.2. </span>Massive neutrinos</a><a class="headerlink" href="#massive-neutrinos" title="Permalink to this headline"></a></h2>
 <p>The previous subsection demonstrated how simulations of matter can be made to
 agree extremely well with linear theory at linear scales, if we include the
 gravitational contributions from the otherwise missing species, which were
@@ -733,7 +778,7 @@ parameter file:</p>
     <span class="s1">&#39;matter&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;data&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span> <span class="s1">&#39;linear&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span> <span class="s1">&#39;plot&#39;</span><span class="p">:</span> <span class="kc">False</span><span class="p">},</span>
 <span class="p">}</span>
 
-<span class="c1"># Numerical parameters</span>
+<span class="c1"># Numerics</span>
 <span class="n">boxsize</span> <span class="o">=</span> <span class="mi">2</span><span class="o">*</span><span class="n">Gpc</span>
 <span class="n">potential_options</span> <span class="o">=</span> <span class="p">{</span>
     <span class="s1">&#39;gridsize&#39;</span><span class="p">:</span> <span class="p">{</span>
@@ -745,9 +790,9 @@ parameter file:</p>
 
 <span class="c1"># Cosmology</span>
 <span class="n">H0</span>      <span class="o">=</span> <span class="mi">67</span><span class="o">*</span><span class="n">km</span><span class="o">/</span><span class="p">(</span><span class="n">s</span><span class="o">*</span><span class="n">Mpc</span><span class="p">)</span>
-<span class="n">Ωb</span>      <span class="o">=</span> <span class="mf">0.049</span><span class="hll"><span class="n">Ωcdm</span>    <span class="o">=</span> <span class="mf">0.27</span> <span class="o">-</span> <span class="n">Ων</span></span><span class="n">a_begin</span> <span class="o">=</span> <span class="mf">0.01</span><span class="hll"><span class="n">class_params</span> <span class="o">=</span> <span class="p">{</span></span><span class="hll">    <span class="c1"># Disable massless neutrinos</span></span><span class="hll">    <span class="s1">&#39;N_ur&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span></span><span class="hll">    <span class="c1"># Add 3 massive neutrinos of equal mass</span></span><span class="hll">    <span class="s1">&#39;N_ncdm&#39;</span>  <span class="p">:</span> <span class="mi">1</span><span class="p">,</span></span><span class="hll">    <span class="s1">&#39;deg_ncdm&#39;</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span></span><span class="hll">    <span class="s1">&#39;m_ncdm&#39;</span>  <span class="p">:</span> <span class="nb">max</span><span class="p">(</span><span class="n">_mass</span><span class="o">/</span><span class="mi">3</span><span class="p">,</span> <span class="mf">1e-100</span><span class="p">),</span>  <span class="c1"># Avoid exact value of 0.0</span></span><span class="hll"><span class="p">}</span></span>
+<span class="n">Ωb</span>      <span class="o">=</span> <span class="mf">0.049</span><span class="hll"><span class="n">Ωcdm</span>    <span class="o">=</span> <span class="mf">0.27</span> <span class="o">-</span> <span class="n">Ων</span></span><span class="n">a_begin</span> <span class="o">=</span> <span class="mf">0.01</span><span class="hll"><span class="n">class_params</span> <span class="o">=</span> <span class="p">{</span></span><span class="hll">    <span class="c1"># Disable massless neutrinos</span></span><span class="hll">    <span class="s1">&#39;N_ur&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span></span><span class="hll">    <span class="c1"># Add 3 massive neutrinos of equal mass</span></span><span class="hll">    <span class="s1">&#39;N_ncdm&#39;</span>  <span class="p">:</span> <span class="mi">1</span><span class="p">,</span></span><span class="hll">    <span class="s1">&#39;deg_ncdm&#39;</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span></span><span class="hll">    <span class="s1">&#39;m_ncdm&#39;</span>  <span class="p">:</span> <span class="nb">max</span><span class="p">(</span><span class="n">_mass</span><span class="o">/</span><span class="mi">3</span><span class="p">,</span> <span class="mf">1e-100</span><span class="p">),</span>  <span class="c1"># avoid exact value of 0.0</span></span><span class="hll"><span class="p">}</span></span>
 <span class="c1"># Non-parameter helper variables which should</span>
-<span class="c1"># be supplied as command-line parameters.</span><span class="hll"><span class="n">_mass</span> <span class="o">=</span> <span class="mi">0</span>   <span class="c1"># Sum of neutrino masses in eV</span></span><span class="n">_lin</span>  <span class="o">=</span> <span class="s1">&#39;&#39;</span>  <span class="c1"># Linear species to include</span>
+<span class="c1"># be supplied as command-line parameters.</span><span class="hll"><span class="n">_mass</span> <span class="o">=</span> <span class="mi">0</span>   <span class="c1"># sum of neutrino masses in eV</span></span><span class="n">_lin</span>  <span class="o">=</span> <span class="s1">&#39;&#39;</span>  <span class="c1"># linear species to include</span>
 </pre></div>
 </div>
 </div>
@@ -778,7 +823,7 @@ parameters, these should never be specified explicitly within
 <p>Of interest to us now are <code class="docutils literal notranslate"><span class="pre">'N_ur'</span></code> and <code class="docutils literal notranslate"><span class="pre">'N_ncdm'</span></code>; the number of
 <strong>u</strong>ltra-<strong>r</strong>elativistic species (massless neutrinos) and
 <strong>n</strong>on-<strong>c</strong>old <strong>d</strong>ark <strong>m</strong>atter species (massive neutrinos).
-In the above parameter specifications we switch out the default use of
+In the above parameter specifications, we switch out the default use of
 massless neutrinos with one (<code class="docutils literal notranslate"><span class="pre">'N_ncdm':</span> <span class="pre">1</span></code>) 3-times degenerate
 (<code class="docutils literal notranslate"><span class="pre">'deg_ncdm':</span> <span class="pre">3</span></code>) massive neutrino, which really amounts to three separate
 neutrinos but all of the same mass (<code class="docutils literal notranslate"><span class="pre">'m_ncdm'</span></code>).</p>
@@ -878,7 +923,7 @@ invoke</p>
 <p>The resulting <code class="docutils literal notranslate"><span class="pre">output/tutorial/plot.png</span></code> should show that letting the
 neutrinos have mass results in a few percent suppression of the matter power
 spectrum. At intermediary <span class="math notranslate nohighlight">\(k\)</span> the simulation and linear relative power
-spectra agrees, whereas they do not for the smallest and largest <span class="math notranslate nohighlight">\(k\)</span>.
+spectra agree, whereas they do not for the smallest and largest <span class="math notranslate nohighlight">\(k\)</span>.
 In the case of large <span class="math notranslate nohighlight">\(k\)</span>, you should see that the non-linear solution
 forms a trough below the linear one, before rising up above it near the
 largest <span class="math notranslate nohighlight">\(k\)</span> shown. This is the well-known non-linear suppression dip,
@@ -928,7 +973,7 @@ relative power spectrum should have been smoothed out at low <span class="math n
 showing excellent agreement with the linear prediction.</p>
 </div>
 <div class="section" id="dynamical-dark-energy">
-<h2><a class="toc-backref" href="#id6"><span class="section-number">7.3. </span>Dynamical dark energy</a><a class="headerlink" href="#dynamical-dark-energy" title="Permalink to this headline"></a></h2>
+<span id="id4"></span><h2><a class="toc-backref" href="#id8"><span class="section-number">7.3. </span>Dynamical dark energy</a><a class="headerlink" href="#dynamical-dark-energy" title="Permalink to this headline"></a></h2>
 <p>This subsection investigates how to perform simulations where dark energy is
 dynamic, specifically using the equation of state
 <span class="math notranslate nohighlight">\(w(a) = w_0 + (1 - a)w_a\)</span>. Beyond just changing the background
@@ -1024,7 +1069,7 @@ shall make use of the following parameter file, which you should save as e.g.
     <span class="s1">&#39;matter&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;data&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span> <span class="s1">&#39;linear&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span> <span class="s1">&#39;plot&#39;</span><span class="p">:</span> <span class="kc">False</span><span class="p">},</span>
 <span class="p">}</span>
 
-<span class="c1"># Numerical parameters</span>
+<span class="c1"># Numerics</span>
 <span class="n">boxsize</span> <span class="o">=</span> <span class="mi">3</span><span class="o">*</span><span class="n">Gpc</span>
 <span class="n">potential_options</span> <span class="o">=</span> <span class="p">{</span>
     <span class="s1">&#39;gridsize&#39;</span><span class="p">:</span> <span class="p">{</span>
@@ -1038,9 +1083,10 @@ shall make use of the following parameter file, which you should save as e.g.
 <span class="n">H0</span>      <span class="o">=</span> <span class="mi">67</span><span class="o">*</span><span class="n">km</span><span class="o">/</span><span class="p">(</span><span class="n">s</span><span class="o">*</span><span class="n">Mpc</span><span class="p">)</span>
 <span class="n">Ωb</span>      <span class="o">=</span> <span class="mf">0.049</span>
 <span class="n">Ωcdm</span>    <span class="o">=</span> <span class="mf">0.27</span>
-<span class="n">a_begin</span> <span class="o">=</span> <span class="mf">0.1</span><span class="hll"><span class="k">if</span> <span class="n">_de</span> <span class="o">!=</span> <span class="s1">&#39;Lambda&#39;</span><span class="p">:</span></span><span class="hll">    <span class="n">class_params</span> <span class="o">=</span> <span class="p">{</span></span><span class="hll">        <span class="c1"># Disable cosmological constant</span></span><span class="hll">        <span class="s1">&#39;Omega_Lambda&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span></span><span class="hll">        <span class="c1"># Dark energy fluid parameters</span></span><span class="hll">        <span class="s1">&#39;w0_fld&#39;</span> <span class="p">:</span> <span class="o">-</span><span class="mf">0.7</span><span class="p">,</span></span><span class="hll">        <span class="s1">&#39;wa_fld&#39;</span> <span class="p">:</span> <span class="mi">0</span><span class="p">,</span></span><span class="hll">        <span class="s1">&#39;cs2_fld&#39;</span><span class="p">:</span> <span class="mf">0.01</span><span class="p">,</span></span><span class="hll">    <span class="p">}</span></span><span class="hll"><span class="c1"># Simulation options</span></span><span class="hll"><span class="n">Δt_base_background_factor</span> <span class="o">=</span> <span class="mi">2</span></span><span class="hll"><span class="n">Δt_base_nonlinear_factor</span>  <span class="o">=</span> <span class="mi">2</span></span><span class="hll"><span class="n">N_rungs</span>                   <span class="o">=</span> <span class="mi">1</span></span>
+<span class="n">a_begin</span> <span class="o">=</span> <span class="mf">0.1</span><span class="hll"><span class="k">if</span> <span class="n">_de</span> <span class="o">!=</span> <span class="s1">&#39;Lambda&#39;</span><span class="p">:</span></span><span class="hll">    <span class="n">class_params</span> <span class="o">=</span> <span class="p">{</span></span><span class="hll">        <span class="c1"># Disable cosmological constant</span></span><span class="hll">        <span class="s1">&#39;Omega_Lambda&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span></span><span class="hll">        <span class="c1"># Dark energy fluid parameters</span></span><span class="hll">        <span class="s1">&#39;w0_fld&#39;</span> <span class="p">:</span> <span class="o">-</span><span class="mf">0.7</span><span class="p">,</span></span><span class="hll">        <span class="s1">&#39;wa_fld&#39;</span> <span class="p">:</span> <span class="mi">0</span><span class="p">,</span></span><span class="hll">        <span class="s1">&#39;cs2_fld&#39;</span><span class="p">:</span> <span class="mf">0.01</span><span class="p">,</span></span><span class="hll">    <span class="p">}</span></span>
+<span class="c1"># Simulation</span><span class="hll"><span class="n">Δt_base_background_factor</span> <span class="o">=</span> <span class="mi">2</span></span><span class="hll"><span class="n">Δt_base_nonlinear_factor</span>  <span class="o">=</span> <span class="mi">2</span></span><span class="hll"><span class="n">N_rungs</span>                   <span class="o">=</span> <span class="mi">1</span></span>
 <span class="c1"># Non-parameter helper variables which should</span>
-<span class="c1"># be supplied as command-line parameters.</span><span class="hll"><span class="n">_de</span>  <span class="o">=</span> <span class="s1">&#39;Lambda&#39;</span>  <span class="c1"># Type of dark energy</span></span><span class="n">_lin</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>        <span class="c1"># Linear species to include</span>
+<span class="c1"># be supplied as command-line parameters.</span><span class="hll"><span class="n">_de</span>  <span class="o">=</span> <span class="s1">&#39;Lambda&#39;</span>  <span class="c1"># type of dark energy</span></span><span class="n">_lin</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>        <span class="c1"># linear species to include</span>
 </pre></div>
 </div>
 </div>
@@ -1224,7 +1270,7 @@ the metric.</p>
 </div>
 </div>
 <div class="section" id="decaying-cold-dark-matter">
-<h2><a class="toc-backref" href="#id7"><span class="section-number">7.4. </span>Decaying cold dark matter</a><a class="headerlink" href="#decaying-cold-dark-matter" title="Permalink to this headline"></a></h2>
+<span id="id5"></span><h2><a class="toc-backref" href="#id9"><span class="section-number">7.4. </span>Decaying cold dark matter</a><a class="headerlink" href="#decaying-cold-dark-matter" title="Permalink to this headline"></a></h2>
 <p>This subsection deals with the case of <span class="bolditalic">d</span><em>ecaying</em> <strong>c</strong>old
 <strong>d</strong>ark <strong>m</strong>atter (‘dcdm’), in particular the scenario where it decays
 to some new form of massless non-interacting radiation; what we might call
@@ -1262,7 +1308,7 @@ you should save as e.g. <code class="docutils literal notranslate"><span class="
 <div class="code-block-caption"><span class="caption-text">param/tutorial <span class="math notranslate nohighlight">\(\,\)</span> (decaying cold dark matter)</span><a class="headerlink" href="#param-decaying-cold-dark-matter" title="Permalink to this code"></a></div>
 <div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="c1"># Non-parameter helper variable used to control the size of the simulation</span>
 <span class="n">_size</span> <span class="o">=</span> <span class="mi">96</span>
-<span> </span><span class="hll"><span class="c1"># Non-parameter variables used to control the dcdm cosmology</span></span><span class="hll"><span class="n">_Ω_cdm_plus_dcdm</span> <span class="o">=</span> <span class="mf">0.27</span>  <span class="c1"># Total amount of stable and decaying cold dark matter</span></span><span class="hll"><span class="n">_Γ</span> <span class="o">=</span> <span class="mi">80</span><span class="o">*</span><span class="n">km</span><span class="o">/</span><span class="p">(</span><span class="n">s</span><span class="o">*</span><span class="n">Mpc</span><span class="p">)</span>       <span class="c1"># Decay rate</span></span>
+<span> </span><span class="hll"><span class="c1"># Non-parameter variables used to control the dcdm cosmology</span></span><span class="hll"><span class="n">_Ω_cdm_plus_dcdm</span> <span class="o">=</span> <span class="mf">0.27</span>  <span class="c1"># total amount of stable and decaying cold dark matter</span></span><span class="hll"><span class="n">_Γ</span> <span class="o">=</span> <span class="mi">80</span><span class="o">*</span><span class="n">km</span><span class="o">/</span><span class="p">(</span><span class="n">s</span><span class="o">*</span><span class="n">Mpc</span><span class="p">)</span>       <span class="c1"># decay rate</span></span>
 <span class="c1"># Input/output</span>
 <span class="k">if</span> <span class="n">_combine</span><span class="p">:</span>
     <span class="n">initial_conditions</span> <span class="o">=</span> <span class="p">[</span>
@@ -1300,7 +1346,7 @@ you should save as e.g. <code class="docutils literal notranslate"><span class="
 <span class="n">powerspec_select</span> <span class="o">=</span> <span class="p">{</span>
     <span class="s1">&#39;total matter&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;data&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span> <span class="s1">&#39;linear&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span> <span class="s1">&#39;plot&#39;</span><span class="p">:</span> <span class="kc">False</span><span class="p">},</span><span class="hll">    <span class="p">(</span><span class="s1">&#39;stable matter&#39;</span><span class="p">,</span> <span class="s1">&#39;decaying matter&#39;</span><span class="p">):</span> <span class="o">...</span><span class="p">,</span></span><span class="p">}</span>
 
-<span class="c1"># Numerical parameters</span>
+<span class="c1"># Numerics</span>
 <span class="n">boxsize</span> <span class="o">=</span> <span class="mi">1</span><span class="o">*</span><span class="n">Gpc</span>
 <span class="n">potential_options</span> <span class="o">=</span> <span class="p">{</span>
     <span class="s1">&#39;gridsize&#39;</span><span class="p">:</span> <span class="p">{</span>
@@ -1318,12 +1364,12 @@ you should save as e.g. <code class="docutils literal notranslate"><span class="
     <span class="s1">&#39;particles&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;gravity&#39;</span><span class="p">:</span> <span class="s1">&#39;p3m&#39;</span><span class="p">},</span>
     <span class="s1">&#39;fluid&#39;</span>    <span class="p">:</span> <span class="p">{</span><span class="s1">&#39;gravity&#39;</span><span class="p">:</span> <span class="s1">&#39;pm&#39;</span><span class="p">},</span>
 <span class="p">}</span><span class="hll"><span class="k">if</span> <span class="s1">&#39;lapse&#39;</span> <span class="ow">in</span> <span class="n">_lin</span><span class="p">:</span></span><span class="hll">    <span class="n">select_forces</span> <span class="o">|=</span> <span class="p">{</span></span><span class="hll">        <span class="s1">&#39;decaying matter&#39;</span><span class="p">:</span> <span class="s1">&#39;lapse&#39;</span><span class="p">,</span></span><span class="hll">        <span class="s1">&#39;total matter&#39;</span>   <span class="p">:</span> <span class="s1">&#39;lapse&#39;</span><span class="p">,</span></span><span class="hll">    <span class="p">}</span></span>
-<span class="c1"># Simulation options</span>
+<span class="c1"># Simulation</span>
 <span class="n">primordial_amplitude_fixed</span> <span class="o">=</span> <span class="kc">True</span>
 
 <span class="c1"># Non-parameter helper variables which should</span>
 <span class="c1"># be supplied as command-line parameters.</span>
-<span class="n">_lin</span>     <span class="o">=</span> <span class="s1">&#39;&#39;</span>    <span class="c1"># Linear species to include</span><span class="hll"><span class="n">_frac</span>    <span class="o">=</span> <span class="mi">0</span>     <span class="c1"># Fraction of total cold dark matter which is decaying</span></span><span class="hll"><span class="n">_combine</span> <span class="o">=</span> <span class="kc">True</span>  <span class="c1"># Combine decaying and stable matter into a single component?</span></span></pre></div>
+<span class="n">_lin</span>     <span class="o">=</span> <span class="s1">&#39;&#39;</span>    <span class="c1"># linear species to include</span><span class="hll"><span class="n">_frac</span>    <span class="o">=</span> <span class="mi">0</span>     <span class="c1"># fraction of total cold dark matter which is decaying</span></span><span class="hll"><span class="n">_combine</span> <span class="o">=</span> <span class="kc">True</span>  <span class="c1"># combine decaying and stable matter into a single component?</span></span></pre></div>
 </div>
 </div>
 <p>Begin by running this without any additional command-line parameters;</p>
@@ -1645,7 +1691,7 @@ for each component.</p>
 </div>
 </div>
 <div class="section" id="non-linear-massive-neutrinos">
-<span id="nonlinear-massive-neutrinos"></span><h2><a class="toc-backref" href="#id8"><span class="section-number">7.5. </span>Non-linear massive neutrinos</a><a class="headerlink" href="#non-linear-massive-neutrinos" title="Permalink to this headline"></a></h2>
+<span id="nonlinear-massive-neutrinos"></span><h2><a class="toc-backref" href="#id10"><span class="section-number">7.5. </span>Non-linear massive neutrinos</a><a class="headerlink" href="#non-linear-massive-neutrinos" title="Permalink to this headline"></a></h2>
 <p>Here we’ll explore simulations with massive neutrinos, solved <em>non</em>-linearly
 within CO<em>N</em>CEPT. You should have already completed the <em>linear</em>
 <a class="reference internal" href="#massive-neutrinos"><span class="std std-ref">massive neutrinos</span></a> subsection of this tutorial
@@ -1687,7 +1733,7 @@ you should save as e.g. <code class="docutils literal notranslate"><span class="
     <span class="s1">&#39;non-linear neutrino&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
 <span class="p">}</span>
 
-<span class="c1"># Numerical parameters</span>
+<span class="c1"># Numerics</span>
 <span class="n">boxsize</span> <span class="o">=</span> <span class="mi">400</span><span class="o">*</span><span class="n">Mpc</span>
 <span class="n">potential_options</span> <span class="o">=</span> <span class="p">{</span>
     <span class="s1">&#39;gridsize&#39;</span><span class="p">:</span> <span class="p">{</span>
@@ -1709,7 +1755,7 @@ you should save as e.g. <code class="docutils literal notranslate"><span class="
     <span class="c1"># Add 3 massive neutrinos of equal mass</span>
     <span class="s1">&#39;N_ncdm&#39;</span>  <span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
     <span class="s1">&#39;deg_ncdm&#39;</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span>
-    <span class="s1">&#39;m_ncdm&#39;</span>  <span class="p">:</span> <span class="nb">max</span><span class="p">(</span><span class="n">_mass</span><span class="o">/</span><span class="mi">3</span><span class="p">,</span> <span class="mf">1e-100</span><span class="p">),</span>  <span class="c1"># Avoid exact value of 0.0</span>
+    <span class="s1">&#39;m_ncdm&#39;</span>  <span class="p">:</span> <span class="nb">max</span><span class="p">(</span><span class="n">_mass</span><span class="o">/</span><span class="mi">3</span><span class="p">,</span> <span class="mf">1e-100</span><span class="p">),</span>  <span class="c1"># avoid exact value of 0.0</span>
     <span class="c1"># General precision parameters</span>
     <span class="s1">&#39;evolver&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span><span class="hll">    <span class="c1"># Neutrino precision parameters</span></span><span class="hll">    <span class="s1">&#39;l_max_ncdm&#39;</span>              <span class="p">:</span> <span class="mi">200</span><span class="p">,</span></span><span class="hll">    <span class="s1">&#39;Number of momentum bins&#39;</span> <span class="p">:</span> <span class="mi">50</span><span class="p">,</span></span><span class="hll">    <span class="s1">&#39;Quadrature strategy&#39;</span>     <span class="p">:</span> <span class="mi">2</span><span class="p">,</span></span><span class="hll">    <span class="s1">&#39;ncdm_fluid_approximation&#39;</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span></span><span class="p">}</span>
 
@@ -1717,7 +1763,7 @@ you should save as e.g. <code class="docutils literal notranslate"><span class="
 
 <span class="c1"># Non-parameter helper variables which should</span>
 <span class="c1"># be supplied as command-line parameters.</span>
-<span class="n">_mass</span> <span class="o">=</span> <span class="mi">0</span>          <span class="c1"># Sum of neutrino masses in eV</span><span class="hll"><span class="n">_nunonlin</span> <span class="o">=</span> <span class="kc">False</span>  <span class="c1"># Use non-linear neutrinos?</span></span><span class="hll"><span class="n">_nutrans</span> <span class="o">=</span> <span class="mi">0</span>       <span class="c1"># Scale factor at which to transition to non-linear neutrinos</span></span></pre></div>
+<span class="n">_mass</span> <span class="o">=</span> <span class="mi">0</span>          <span class="c1"># sum of neutrino masses in eV</span><span class="hll"><span class="n">_nunonlin</span> <span class="o">=</span> <span class="kc">False</span>  <span class="c1"># use non-linear neutrinos?</span></span><span class="hll"><span class="n">_nutrans</span> <span class="o">=</span> <span class="mi">0</span>       <span class="c1"># scale factor at which to transition to non-linear neutrinos</span></span></pre></div>
 </div>
 </div>
 <p>Start by running this parameter file as is,</p>
@@ -1980,7 +2026,7 @@ in a better view of the data. Both the non-linearly evolved neutrinos as well
 as linear ones are shown.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>Larger neutrino masses leads to stronger neutrino clustering, in turn
+<p>Larger neutrino masses lead to stronger neutrino clustering, in turn
 leading to further increased matter power. Though non-linear clustering in
 the neutrino component itself is clearly visible in the neutrino power
 spectrum even for small masses, the accompanying increase in matter power
@@ -1999,7 +2045,7 @@ recommend that you only run CO<em>N</em>CEPT with non-linear neutrinos for
 <span class="math notranslate nohighlight">\(\sum m_\nu \lesssim 0.6\, \text{eV}\)</span> (3 degenerate neutrinos)
 or <span class="math notranslate nohighlight">\(m_\nu \lesssim 0.2\, \text{eV}\)</span> (per neutrino).</p>
 </div>
-<h3>Transitioning from linear to non-linear neutrinos</h3><p>As you’ve now experienced first hand, non-linear neutrino simulations can take
+<h3>Transitioning from linear to non-linear neutrinos</h3><p>As you’ve now experienced first-hand, non-linear neutrino simulations can take
 a long time to run. As written above, a major reason for this is the small
 global time step size required by the non-linear neutrino fluid, leading to
 many more time steps than usual. This is especially true at early times and
