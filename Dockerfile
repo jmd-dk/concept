@@ -53,24 +53,7 @@ RUN : \
 
 # Build CO𝘕CEPT as concept user
 USER concept
-COPY \
-    .dockerignore* \
-    .env* \
-    .gitignore* \
-    CHANGELOG.md* \
-    Dockerfile* \
-    LICENSE* \
-    Makefile* \
-    README.md* \
-    concept* \
-    install \
-    /source/
-COPY .github*        /source/.github/
-COPY doc*            /source/doc/
-COPY param/example_* /source/param/
-COPY src*            /source/src/
-COPY test*           /source/test/
-COPY util*           /source/util/
+COPY . /source/
 ENV TERM="linux"
 RUN : \
     # Update APT cache

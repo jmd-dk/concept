@@ -8,7 +8,8 @@
 /install_*
 /job
 /output
-/param
+/param/*
+!/param/example*
 /test/*/artifact
 /util/update_new
 
