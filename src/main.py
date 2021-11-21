@@ -2435,6 +2435,11 @@ fac_softening = 0.025*Δt_rung_factor
 # If this module is run properly (detected by jobid being set),
 # launch the CO𝘕CEPT run.
 if jobid != -1:
+    if allreduce(int(cython.compiled), op=MPI.SUM) not in {0, nprocs}:
+        masterwarn(
+            'Some processes are running in compiled mode '
+            'while others are running in pure Python mode'
+        )
     if 'special' in special_params:
         # Instead of running a simulation, run some utility
         # as defined by the special_params dict.
