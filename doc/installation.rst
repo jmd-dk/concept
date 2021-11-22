@@ -262,7 +262,8 @@ CO\ *N*\ CEPT is installed, ``git clone`` the online CO\ *N*\ CEPT repository
 into a temporary directory and simply drop the ``.git`` subdirectory into the
 root of your CO\ *N*\ CEPT installation.
 
-The above can be achieved from the ``concept`` directory using
+The above can be achieved from within the CO\ *N*\ CEPT installation directory
+using
 
 .. code-block:: bash
 
