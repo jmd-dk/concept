@@ -451,7 +451,7 @@ status_enable="enable"
 status_on="on"
 status_off="off"
 status_visible="${status_on}"
-status_finish="finish_successfully"
+status_finish_successfully="finish_successfully"
 status_installpid="installpid="
 status_setvar="setvar:"
 
@@ -9257,6 +9257,9 @@ erroneous_test_notice "SciPy"
 erroneous_test_notice "zlib"
 erroneous_test_notice "CONCEPT" \
                       "${esc_italic}This should usually be taken seriously!${esc_no_italic}"
+if [ "${do_tests}" == "True" ] && [ "${any_test_error_notices}" != "True" ]; then
+    printf "\nEvery test of every program ran successfully.\n"
+fi
 if [ "${any_test_error_notices}" == "True" ] \
     && ([ "${slim}" != "True" ] || [ "${keep_install_logs}" == "True" ]) \
 ; then
@@ -9336,7 +9339,7 @@ display_loop() {
                 status_visible="${status_on}"
                 status="${status_backup}"
                 printf "\n${esc_bold}${esc_reverted}${status}${esc_normal}\n"
-            elif    [ "${status}" == "${status_finish}"      ]  \
+            elif    [ "${status}" == "${status_finish_successfully}" ] \
                 || [[ "${status}" == "${status_installpid}"* ]] \
             ; then
                 # Display loop complete or print of
