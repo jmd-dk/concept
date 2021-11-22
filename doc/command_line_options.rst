@@ -464,7 +464,7 @@ for different queues consisting of nodes with different
 hardware architectures.
 
 When working on a cluster, the building of the code will take place as part of
-the remote job, i.e. on the compute nodes and not the front-end. Using a
+the remote job, i.e. on the compute node and not the front-end. Using a
 designated build directory for a given queue / set of nodes, it is then safe
 to apply architecture-dependent,
 :ref:`native optimizations <native_optimizations>`.
@@ -485,10 +485,18 @@ making use of the Slurm variable ``SLURM_JOB_ID``, holding the job ID.
 
    .. code-block:: bash
 
-      ./concept -b "/scratch/$SLURM_JOB_ID"
+      ./concept -b "/scratch/$SLURM_JOB_ID"  # wrong!
 
    it would not work, as ``$SLURM_JOB_ID`` would be expanded right there on
    the command-line, where it does not hold a value.
+
+.. caution::
+   When the code is built as part of the job, the build process will be
+   carried out on the 'master node' only. For multi-node jobs it is thus
+   important to choose a build directory that can be accessed from all nodes.
+   This may not be the case for the temporary scratch directory, as this may
+   be local to each node, so that the same path ``/scratch/$SLURM_JOB_ID``
+   really corresponds to a separate directory on each node.
 
 
 
