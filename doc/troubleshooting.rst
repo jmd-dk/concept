@@ -221,6 +221,22 @@ in the ``.env`` file of your CO\ *N*\ CEPT installation.
 
 
 
+Clock skew and/or modification times in the future
+--------------------------------------------------
+If you receive warnings about clock skew and/or file modification times in the
+future, it is likely a problem either with the system clock or the time stamps
+of the CO\ *N*\ CEPT source files. Regardless, the problem --- as far as it
+pertains to CO\ *N*\ CEPT --- is likely to go away if you update the time
+stamps. To do so, run
+
+.. code-block:: bash
+
+   touch * src/*
+
+from within the CO\ *N*\ CEPT installation directory.
+
+
+
 Mixed compiled and pure Python mode
 -----------------------------------
 While technically possible, one never wants to run CO\ *N*\ CEPT in such a way

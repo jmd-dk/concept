@@ -92,17 +92,16 @@ Supported platforms
 
       .. code-block:: bash
 
-         docker run --rm -it -v "${PWD}":/concept/output jmddk/concept
+         docker run --rm -it -v "${PWD}:/concept/output" jmddk/concept
 
       Any files dumped in the CO\ *N*\ CEPT ``output`` directory will then
       persist in your current directory after the Docker container is stopped.
 
       .. note::
-         If you run Docker Desktop/Toolbox on Windows or macOS, some
-         configuration is needed for the mounting (``-v``) to actually point
-         to your native Windows/macOS directory.
+         If running Windows, the above command is valid within PowerShell,
+         not CMD
 
-      .. caution::
+      .. note::
          While running CO\ *N*\ CEPT via Docker is great for experimental use,
          :ref:`proper installation <standard_installation>` on a Linux host is
          preferable for running large simulations, ensuring maximum
