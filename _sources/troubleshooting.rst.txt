@@ -221,6 +221,38 @@ in the ``.env`` file of your CO\ *N*\ CEPT installation.
 
 
 
+Clock skew and/or modification times in the future
+--------------------------------------------------
+If you receive warnings about clock skew and/or file modification times in the
+future, it is likely a problem either with the system clock or the time stamps
+of the CO\ *N*\ CEPT source files. Regardless, the problem --- as far as it
+pertains to CO\ *N*\ CEPT --- is likely to go away if you update the time
+stamps. To do so, run
+
+.. code-block:: bash
+
+   touch * src/*
+
+from within the CO\ *N*\ CEPT installation directory.
+
+
+
+Mixed compiled and pure Python mode
+-----------------------------------
+While technically possible, one never wants to run CO\ *N*\ CEPT in such a way
+that some processes run in compiled mode (the default) while others run in
+:ref:`pure Python mode<pure_python>`. Such a mixed runtime state will be
+detected and a warning will be emitted.
+
+This can happen if only some processes have access to a CO\ *N*\ CEPT
+:ref:`build <build>`, while others have not and thus fall back to running
+directly off of the Python source. This in turn may happen when running
+multi-node CO\ *N*\ CEPT jobs on a cluster. If this is the case, make sure to
+specify a :ref:`build <build>` directory which is accessible from all nodes,
+e.g. a directory within the CO\ *N*\ CEPT installation directory.
+
+
+
 The simulation hangs when calling CLASS
 ---------------------------------------
 If the simulation hangs right at the beginning of the simulation, at the

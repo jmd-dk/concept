@@ -259,6 +259,8 @@
 <li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#terminal-colour-output-looks-weird">Terminal colour output looks weird</a></li>
 <li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#problems-related-to-python-libraries-and-packages">Problems related to Python libraries and packages</a></li>
 <li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#error-messages-containing-read-1">Error messages containing ‘Read -1’</a></li>
+<li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#clock-skew-and-or-modification-times-in-the-future">Clock skew and/or modification times in the future</a></li>
+<li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#mixed-compiled-and-pure-python-mode">Mixed compiled and pure Python mode</a></li>
 <li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#the-simulation-hangs-when-calling-class">The simulation hangs when calling CLASS</a></li>
 <li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#crashes-or-other-bad-behaviour">Crashes or other bad behaviour</a></li>
 <li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#problems-when-running-remotely">Problems when running remotely</a><ul>
@@ -684,7 +686,7 @@ directory. If not specified, the <code class="docutils literal notranslate"><spa
 for different queues consisting of nodes with different
 hardware architectures.</p>
 <p>When working on a cluster, the building of the code will take place as part of
-the remote job, i.e. on the compute nodes and not the front-end. Using a
+the remote job, i.e. on the compute node and not the front-end. Using a
 designated build directory for a given queue / set of nodes, it is then safe
 to apply architecture-dependent,
 <a class="reference internal" href="#native-optimizations"><span class="std std-ref">native optimizations</span></a>.</p>
@@ -699,11 +701,20 @@ you could then run CO<em>N</em>CEPT as</p>
 <div class="admonition caution">
 <p class="admonition-title">Caution</p>
 <p>Note the use of single-quotes above. Were we to do</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept -b <span class="s2">&quot;/scratch/</span><span class="nv">$SLURM_JOB_ID</span><span class="s2">&quot;</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept -b <span class="s2">&quot;/scratch/</span><span class="nv">$SLURM_JOB_ID</span><span class="s2">&quot;</span>  <span class="c1"># wrong!</span>
 </pre></div>
 </div>
 <p>it would not work, as <code class="docutils literal notranslate"><span class="pre">$SLURM_JOB_ID</span></code> would be expanded right there on
 the command-line, where it does not hold a value.</p>
+</div>
+<div class="admonition caution">
+<p class="admonition-title">Caution</p>
+<p>When the code is built as part of the job, the build process will be
+carried out on the ‘master node’ only. For multi-node jobs it is thus
+important to choose a build directory that can be accessed from all nodes.
+This may not be the case for the temporary scratch directory, as this may
+be local to each node, so that the same path <code class="docutils literal notranslate"><span class="pre">/scratch/$SLURM_JOB_ID</span></code>
+really corresponds to a separate directory on each node.</p>
 </div>
 </div>
 <div class="section" id="rebuild-rebuild">

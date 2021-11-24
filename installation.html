@@ -261,6 +261,8 @@
 <li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#terminal-colour-output-looks-weird">Terminal colour output looks weird</a></li>
 <li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#problems-related-to-python-libraries-and-packages">Problems related to Python libraries and packages</a></li>
 <li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#error-messages-containing-read-1">Error messages containing ‘Read -1’</a></li>
+<li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#clock-skew-and-or-modification-times-in-the-future">Clock skew and/or modification times in the future</a></li>
+<li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#mixed-compiled-and-pure-python-mode">Mixed compiled and pure Python mode</a></li>
 <li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#the-simulation-hangs-when-calling-class">The simulation hangs when calling CLASS</a></li>
 <li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#crashes-or-other-bad-behaviour">Crashes or other bad behaviour</a></li>
 <li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#problems-when-running-remotely">Problems when running remotely</a><ul>
@@ -387,19 +389,18 @@ from the installation process entirely (assuming you have
 <a class="reference external" href="https://www.docker.com/">Docker</a> already installed).</p>
 <p>To start a Docker container based on the latest CO<em>N</em>CEPT Docker
 image, do e.g.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>docker run --rm -it -v <span class="s2">&quot;</span><span class="si">${</span><span class="nv">PWD</span><span class="si">}</span><span class="s2">&quot;</span>:/concept/output jmddk/concept
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>docker run --rm -it -v <span class="s2">&quot;</span><span class="si">${</span><span class="nv">PWD</span><span class="si">}</span><span class="s2">:/concept/output&quot;</span> jmddk/concept
 </pre></div>
 </div>
 <p>Any files dumped in the CO<em>N</em>CEPT <code class="docutils literal notranslate"><span class="pre">output</span></code> directory will then
 persist in your current directory after the Docker container is stopped.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>If you run Docker Desktop/Toolbox on Windows or macOS, some
-configuration is needed for the mounting (<code class="docutils literal notranslate"><span class="pre">-v</span></code>) to actually point
-to your native Windows/macOS directory.</p>
+<p>If running Windows, the above command is valid within PowerShell,
+not CMD</p>
 </div>
-<div class="admonition caution">
-<p class="admonition-title">Caution</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
 <p>While running CO<em>N</em>CEPT via Docker is great for experimental use,
 <a class="reference internal" href="#standard-installation"><span class="std std-ref">proper installation</span></a> on a Linux host is
 preferable for running large simulations, ensuring maximum
@@ -536,7 +537,8 @@ following the
 CO<em>N</em>CEPT is installed, <code class="docutils literal notranslate"><span class="pre">git</span> <span class="pre">clone</span></code> the online CO<em>N</em>CEPT repository
 into a temporary directory and simply drop the <code class="docutils literal notranslate"><span class="pre">.git</span></code> subdirectory into the
 root of your CO<em>N</em>CEPT installation.</p>
-<p>The above can be achieved from the <code class="docutils literal notranslate"><span class="pre">concept</span></code> directory using</p>
+<p>The above can be achieved from within the CO<em>N</em>CEPT installation directory
+using</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git clone https://github.com/jmd-dk/concept.git git
 mv git/.git .
 rm -rf git

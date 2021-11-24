@@ -111,7 +111,7 @@ physical models and schemes to be used.
                       For more information on these
                       mesh-based methods, see the ``potential_options``
                       :ref:`parameter <potential_options>`. For a more casual
-                      walk-trough of how to specify forces and methods within
+                      walk-through of how to specify forces and methods within
                       CO\ *N*\ CEPT, see the
                       :doc:`tutorial </tutorial/gravity>`.
 
@@ -406,8 +406,8 @@ physical models and schemes to be used.
                       The default value sets :math:`\epsilon` to be
                       :math:`3\,\%` of the mean inter-particle distance,
                       within each particle component separately. Here ``'N'``
-                      is dynamically substituted for the number of of
-                      particles :math:`N` within the given component.
+                      is dynamically substituted for the number of particles
+                      :math:`N` within the given component.
 
                       .. note::
                          The specified softening lengths are always comoving

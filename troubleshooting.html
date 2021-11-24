@@ -260,6 +260,8 @@
 <li class="toctree-l2"><a class="reference internal" href="#terminal-colour-output-looks-weird">Terminal colour output looks weird</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#problems-related-to-python-libraries-and-packages">Problems related to Python libraries and packages</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#error-messages-containing-read-1">Error messages containing ‘Read -1’</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#clock-skew-and-or-modification-times-in-the-future">Clock skew and/or modification times in the future</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#mixed-compiled-and-pure-python-mode">Mixed compiled and pure Python mode</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#the-simulation-hangs-when-calling-class">The simulation hangs when calling CLASS</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#crashes-or-other-bad-behaviour">Crashes or other bad behaviour</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#problems-when-running-remotely">Problems when running remotely</a><ul>
@@ -321,11 +323,13 @@ author at
 <li><p><a class="reference internal" href="#terminal-colour-output-looks-weird" id="id7">Terminal colour output looks weird</a></p></li>
 <li><p><a class="reference internal" href="#problems-related-to-python-libraries-and-packages" id="id8">Problems related to Python libraries and packages</a></p></li>
 <li><p><a class="reference internal" href="#error-messages-containing-read-1" id="id9">Error messages containing ‘Read -1’</a></p></li>
-<li><p><a class="reference internal" href="#the-simulation-hangs-when-calling-class" id="id10">The simulation hangs when calling CLASS</a></p></li>
-<li><p><a class="reference internal" href="#crashes-or-other-bad-behaviour" id="id11">Crashes or other bad behaviour</a></p></li>
-<li><p><a class="reference internal" href="#problems-when-running-remotely" id="id12">Problems when running remotely</a></p></li>
-<li><p><a class="reference internal" href="#bad-performance-when-using-multiple-processes-nodes" id="id13">Bad performance when using multiple processes/nodes</a></p></li>
-<li><p><a class="reference internal" href="#problems-when-using-multiple-nodes" id="id14">Problems when using multiple nodes</a></p></li>
+<li><p><a class="reference internal" href="#clock-skew-and-or-modification-times-in-the-future" id="id10">Clock skew and/or modification times in the future</a></p></li>
+<li><p><a class="reference internal" href="#mixed-compiled-and-pure-python-mode" id="id11">Mixed compiled and pure Python mode</a></p></li>
+<li><p><a class="reference internal" href="#the-simulation-hangs-when-calling-class" id="id12">The simulation hangs when calling CLASS</a></p></li>
+<li><p><a class="reference internal" href="#crashes-or-other-bad-behaviour" id="id13">Crashes or other bad behaviour</a></p></li>
+<li><p><a class="reference internal" href="#problems-when-running-remotely" id="id14">Problems when running remotely</a></p></li>
+<li><p><a class="reference internal" href="#bad-performance-when-using-multiple-processes-nodes" id="id15">Bad performance when using multiple processes/nodes</a></p></li>
+<li><p><a class="reference internal" href="#problems-when-using-multiple-nodes" id="id16">Problems when using multiple nodes</a></p></li>
 </ul>
 </div>
 <div class="section" id="installation-failed">
@@ -496,8 +500,33 @@ otherwise produces correct results, you can silence these messages by placing</p
 </div>
 <p>in the <code class="docutils literal notranslate"><span class="pre">.env</span></code> file of your CO<em>N</em>CEPT installation.</p>
 </div>
+<div class="section" id="clock-skew-and-or-modification-times-in-the-future">
+<h2><a class="toc-backref" href="#id10">Clock skew and/or modification times in the future</a><a class="headerlink" href="#clock-skew-and-or-modification-times-in-the-future" title="Permalink to this headline"></a></h2>
+<p>If you receive warnings about clock skew and/or file modification times in the
+future, it is likely a problem either with the system clock or the time stamps
+of the CO<em>N</em>CEPT source files. Regardless, the problem — as far as it
+pertains to CO<em>N</em>CEPT — is likely to go away if you update the time
+stamps. To do so, run</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>touch * src/*
+</pre></div>
+</div>
+<p>from within the CO<em>N</em>CEPT installation directory.</p>
+</div>
+<div class="section" id="mixed-compiled-and-pure-python-mode">
+<h2><a class="toc-backref" href="#id11">Mixed compiled and pure Python mode</a><a class="headerlink" href="#mixed-compiled-and-pure-python-mode" title="Permalink to this headline"></a></h2>
+<p>While technically possible, one never wants to run CO<em>N</em>CEPT in such a way
+that some processes run in compiled mode (the default) while others run in
+<a class="reference internal" href="command_line_options.html#pure-python"><span class="std std-ref">pure Python mode</span></a>. Such a mixed runtime state will be
+detected and a warning will be emitted.</p>
+<p>This can happen if only some processes have access to a CO<em>N</em>CEPT
+<a class="reference internal" href="command_line_options.html#build"><span class="std std-ref">build</span></a>, while others have not and thus fall back to running
+directly off of the Python source. This in turn may happen when running
+multi-node CO<em>N</em>CEPT jobs on a cluster. If this is the case, make sure to
+specify a <a class="reference internal" href="command_line_options.html#build"><span class="std std-ref">build</span></a> directory which is accessible from all nodes,
+e.g. a directory within the CO<em>N</em>CEPT installation directory.</p>
+</div>
 <div class="section" id="the-simulation-hangs-when-calling-class">
-<h2><a class="toc-backref" href="#id10">The simulation hangs when calling CLASS</a><a class="headerlink" href="#the-simulation-hangs-when-calling-class" title="Permalink to this headline"></a></h2>
+<h2><a class="toc-backref" href="#id12">The simulation hangs when calling CLASS</a><a class="headerlink" href="#the-simulation-hangs-when-calling-class" title="Permalink to this headline"></a></h2>
 <p>If the simulation hangs right at the beginning of the simulation, at the</p>
 <blockquote>
 <div><p>Calling CLASS in order to set the cosmic clock …</p>
@@ -509,7 +538,7 @@ CO<em>N</em>CEPT in pure Python mode using the <code class="docutils literal not
 <a class="reference internal" href="command_line_options.html#pure-python"><span class="std std-ref">command-line option</span></a>.</p>
 </div>
 <div class="section" id="crashes-or-other-bad-behaviour">
-<h2><a class="toc-backref" href="#id11">Crashes or other bad behaviour</a><a class="headerlink" href="#crashes-or-other-bad-behaviour" title="Permalink to this headline"></a></h2>
+<h2><a class="toc-backref" href="#id13">Crashes or other bad behaviour</a><a class="headerlink" href="#crashes-or-other-bad-behaviour" title="Permalink to this headline"></a></h2>
 <p>This entry is concerned with problems encountered when using CO<em>N</em>CEPT
 <em>locally</em>. If your problem occurs only for remote jobs, please see the
 ‘<a class="reference internal" href="#id3">Problems when running remotely</a>’ entry instead.</p>
@@ -532,7 +561,7 @@ may have found a bug in a code path not covered by the test suite. Please
 report this.</p>
 </div>
 <div class="section" id="problems-when-running-remotely">
-<span id="id3"></span><h2><a class="toc-backref" href="#id12">Problems when running remotely</a><a class="headerlink" href="#problems-when-running-remotely" title="Permalink to this headline"></a></h2>
+<span id="id3"></span><h2><a class="toc-backref" href="#id14">Problems when running remotely</a><a class="headerlink" href="#problems-when-running-remotely" title="Permalink to this headline"></a></h2>
 <p>This entry is concerned with problems encountered specifically with remote
 CO<em>N</em>CEPT jobs. If you have not tried out CO<em>N</em>CEPT locally, please do
 this first. If you encounter problems here as well, please see the
@@ -749,7 +778,7 @@ set automatically in files like <code class="docutils literal notranslate"><span
 </div>
 </div>
 <div class="section" id="bad-performance-when-using-multiple-processes-nodes">
-<h2><a class="toc-backref" href="#id13">Bad performance when using multiple processes/nodes</a><a class="headerlink" href="#bad-performance-when-using-multiple-processes-nodes" title="Permalink to this headline"></a></h2>
+<h2><a class="toc-backref" href="#id15">Bad performance when using multiple processes/nodes</a><a class="headerlink" href="#bad-performance-when-using-multiple-processes-nodes" title="Permalink to this headline"></a></h2>
 <p>If you are running CO<em>N</em>CEPT on a cluster and experience a significant
 drop in performance as you increase the number of processes from e.g. 1 to 2
 or 2 to 4, or when using 2 nodes instead of 1 with the same total number of
@@ -761,7 +790,7 @@ If you are observing bad network behaviour even so, you should try changing
 the MPI executor, as described <a class="reference internal" href="#chosing-an-mpi-executor"><span class="std std-ref">here</span></a>.</p>
 </div>
 <div class="section" id="problems-when-using-multiple-nodes">
-<span id="id4"></span><h2><a class="toc-backref" href="#id14">Problems when using multiple nodes</a><a class="headerlink" href="#problems-when-using-multiple-nodes" title="Permalink to this headline"></a></h2>
+<span id="id4"></span><h2><a class="toc-backref" href="#id16">Problems when using multiple nodes</a><a class="headerlink" href="#problems-when-using-multiple-nodes" title="Permalink to this headline"></a></h2>
 <p>If you observe a wrong process binding (i.e. it appears as though several
 copies of CO<em>N</em>CEPT are running on top of each other, rather than all of
 the MPI processes working together as a collective) when running CO<em>N</em>CEPT
