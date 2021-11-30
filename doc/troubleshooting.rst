@@ -479,7 +479,7 @@ described :ref:`here <optimal_network_performance_on_clusters>`.
          #SBATCH --output=/dev/null
          #SBATCH --error=/dev/null
 
-         concept_version=master
+         concept_version=v1.0.0
          install_dir="${HOME}/concept"
 
          install_url="https://raw.githubusercontent.com/jmd-dk/concept/${concept_version}/install"
@@ -508,7 +508,7 @@ described :ref:`here <optimal_network_performance_on_clusters>`.
          #PBS -o /dev/null
          #PBS -e /dev/null
 
-         concept_version=master
+         concept_version=v1.0.0
          install_dir="${HOME}/concept"
 
          install_url="https://raw.githubusercontent.com/jmd-dk/concept/${concept_version}/install"

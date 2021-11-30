@@ -63,7 +63,7 @@ parser.add_argument(
     'version',
     help=(
         'version to update to. You may specify a release version '
-        '(e.g. \'0.3.0\'), the master version (\'master\'), '
+        '(e.g. \'1.0.0\'), the master version (\'master\'), '
         'a GitHub commit hash '
         '(e.g. \'cf3c210e12527691433f960e7d27249a545fb320\') '
         'or the currently installed version (\'current\').'

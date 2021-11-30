@@ -162,7 +162,7 @@ some numerical resolutions and length scales.
                          time dilation. See the
                          :ref:`decaying cold dark matter part of the tutorial<decaying_cold_dark_matter>`
                          as well as the paper on
-                         ":doc:`Fully relativistic treatment of decaying cold dark matter in 𝘕-body simulations </publications>`
+                         ':ref:`Fully relativistic treatment of decaying cold dark matter in 𝘕-body simulations <fully_relativistic_treatment_of_decaying_cold_dark_matter_in_nbody_simulations>`'
                          for details on the ``'lapse'`` interaction/potential.
                          For specifications of forces and methods, see the
                          ``select_forces`` :ref:`parameter <select_forces>`.
@@ -339,7 +339,7 @@ some numerical resolutions and length scales.
                         These may be specified using either their name (e.g.
                         ``'CIC'``) or integer order (e.g. ``2``). See the
                         paper on
-                        ":doc:`The cosmological simulation code CO𝘕CEPT 1.0</publications>`"
+                        ':ref:`The cosmological simulation code CO𝘕CEPT 1.0<the_cosmological_simulation_code_concept_10>`'
                         for details on these.
 
                       * ``'deconvolve'``: This is a ``dict`` of the form
@@ -393,10 +393,10 @@ some numerical resolutions and length scales.
                         real-space differentiation, symmetric finite
                         differencing of orders ``2``, ``4``, ``6`` and ``8``
                         are implemented (see the paper on
-                        ":doc:`The cosmological simulation code CO𝘕CEPT 1.0</publications>`" for details).
-                        If instead you wish to make use of Fourier-space
-                        differentiation, set the order to either ``'Fourier'``
-                        or ``0``.
+                        ':ref:`The cosmological simulation code CO𝘕CEPT 1.0<the_cosmological_simulation_code_concept_10>`'
+                        for details). If instead you wish to make use of
+                        Fourier-space differentiation, set the order to either
+                        ``'Fourier'`` or ``0``.
 
 -- --------------- -- -
 \  **Example 0**   \  Use default potential options, but set the global
@@ -591,7 +591,7 @@ some numerical resolutions and length scales.
                       :math:`x_{\mathrm{r}}` as well as tiles, subtiles and
                       automatic refinement thereof --- we refer to the paper
                       on
-                      ":doc:`The cosmological simulation code CO𝘕CEPT 1.0</publications>`".
+                      ':ref:`The cosmological simulation code CO𝘕CEPT 1.0<the_cosmological_simulation_code_concept_10>`'.
 
                       Each of the sub-parameters are described below.
 

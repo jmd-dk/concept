@@ -28,11 +28,11 @@ Useful links:
 
 * [Hosted documentation][documentation_hosted]
 * [Source code for documentation][documentation_source]
-* [Code repository (master branch)][master_branch]
+* [Code repository][code_repo]
 
 [documentation_hosted]: https://jmd-dk.github.io/concept/
 [documentation_source]: https://github.com/jmd-dk/concept/tree/master/doc/
-[master_branch]: https://github.com/jmd-dk/concept/
+[code_repo]: https://github.com/jmd-dk/concept/
 
 endef
 export README_body

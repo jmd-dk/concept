@@ -25,7 +25,7 @@ features as well as additional information on or off.
 
 -- --------------- -- -
 \  **Elaboration** \  As described in the paper on
-                      ":doc:`The cosmological simulation code CO𝘕CEPT 1.0</publications>`",
+                      ':ref:`The cosmological simulation code CO𝘕CEPT 1.0<the_cosmological_simulation_code_concept_10>`',
                       each CPU core / MPI rank are responsible for a
                       designated region of the box, called its *domain*. Over
                       time, inhomogeneities naturally lead to some domains

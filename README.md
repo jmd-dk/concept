@@ -1,11 +1,11 @@
 ## CO*N*CEPT <img align="right" src="https://github.com/jmd-dk/concept/workflows/build/badge.svg"/>
 
- &nbsp; <a href="https://github.com/jmd-dk/concept/tree/master/">:rocket:</a> &nbsp; Latest release: Use <a href="https://github.com/jmd-dk/concept/tree/master/">master</a> for now \
- &nbsp; <a href="https://jmd-dk.github.io/concept/">:book:</a> &nbsp; <a href="https://jmd-dk.github.io/concept/">Documentation</a> <img height="22" width="0" src="/concept/docs/static/render2D.png"/>
+ &nbsp; <a href="https://github.com/jmd-dk/concept/tree/v1.0.0/">:rocket:</a> &nbsp; <a href="https://github.com/jmd-dk/concept/tree/v1.0.0/">Latest release: 1.0.0</a> \
+ &nbsp; <a href="https://jmd-dk.github.io/concept/">:book:</a> &nbsp; <a href="https://jmd-dk.github.io/concept/">Documentation</a>
 
 
 
-### Abstract
+### Introduction
 
 <img align="right" height="250" src="/doc/static/render2D.png"/>
 
@@ -14,15 +14,15 @@ free and open-source simulation code for cosmological structure formation. The
 code should run on any Linux system, from massively parallel computer clusters
 to laptops. The code is written almost exclusively in Python, but achieves
 C-like performance through code transformation using a custom
-transpiler/optimizer and [Cython].
+transpiler/optimizer and [Cython]. While highly competitive regarding both
+performance and accuracy, CO*N*CEPT further strives for ease of use.
 
 CO*N*CEPT is capable of simulating matter particles evolving under
 self-gravity in an expanding background. It has multiple gravitational solvers
 to choose from, and has adaptive time integration built in. In addition to
 particles, the code is further able to evolve fluids at various levels of
 non-linearity, providing the means for the inclusion of more exotic species
-such as massive neutrinos. Completely linear perturbations in density fields
-and the metric itself allows for simulations consistent with general
+such as massive neutrinos, as well as for simulations consistent with general
 relativistic perturbation theory. Various non-standard species &mdash; such as
 decaying cold dark matter &mdash; are fully supported.
 
@@ -35,12 +35,19 @@ general relativistic corrections.
 
 
 
+### Code paper
+The primary paper on CO*N*CEPT is
+‘[The cosmological simulation code CO*N*CEPT 1.0](https://arxiv.org/pdf/1904.11773)’. \
+Cite this paper if you make use of CO*N*CEPT in a publication.
+
+
+
 ### Getting Started
 To get started with CO*N*CEPT, walking through the [tutorial] is highly
 recommended. That said, installation can be as simple as
 
 ```bash
-bash <(wget -O- https://raw.githubusercontent.com/jmd-dk/concept/master/install)
+bash <(wget -O- https://raw.githubusercontent.com/jmd-dk/concept/v1.0.0/install)
 ```
 
 which installs CO*N*CEPT along with all of its dependencies into a single

@@ -1,8 +1,24 @@
+.. |bgn-h6| raw:: html
+
+     <h6>
+
+.. |end-h6| raw:: html
+
+     </h6>
+
+
+
 Publications
 ============
 This is a list of scientific papers produced using CO\ *N*\ CEPT.
 If you make use of CO\ *N*\ CEPT for a publication, please cite the paper
-'The cosmological simulation code CO\ *N*\ CEPT 1.0'.
+':ref:`The cosmological simulation code CO𝘕CEPT 1.0 <the_cosmological_simulation_code_concept_10>`'.
+
+
+
+.. _the_cosmological_simulation_code_concept_10:
+
+|bgn-h6| |end-h6|
 
 * **The cosmological simulation code CO**\ :bolditalic:`N`\ **CEPT 1.0**
 
@@ -13,6 +29,12 @@ If you make use of CO\ *N*\ CEPT for a publication, please cite the paper
      (available as of release 1.0.0).
    - arXiv: *coming soon!*
 
+
+
+.. _fully_relativistic_treatment_of_decaying_cold_dark_matter_in_nbody_simulations:
+
+|bgn-h6| |end-h6|
+
 * **Fully relativistic treatment of decaying cold dark matter in**
   :bolditalic:`N`\ **-body simulations**
 
@@ -21,6 +43,12 @@ If you make use of CO\ *N*\ CEPT for a publication, please cite the paper
    - arXiv: `1904.11773 <https://arxiv.org/abs/1904.11773>`_ :math:`\quad`
      DOI: `10.1088/1475-7516/2019/06/032 <https://iopscience.iop.org/article/10.1088/1475-7516/2019/06/032>`_
 
+
+
+.. _dark_energy_perturbations_in_nbody_simulations:
+
+|bgn-h6| |end-h6|
+
 * **Dark energy perturbations in** :bolditalic:`N`\ **-body simulations**
 
    - Introduced dark energy perturbation into CO\ *N*\ CEPT
@@ -28,12 +56,24 @@ If you make use of CO\ *N*\ CEPT for a publication, please cite the paper
    - arXiv: `1904.05210 <https://arxiv.org/abs/1904.05210>`_ :math:`\quad`
      DOI: `10.1088/1475-7516/2019/08/013 <https://iopscience.iop.org/article/10.1088/1475-7516/2019/08/013>`_
 
+
+
+.. _fully_relativistic_treatment_of_light_neutrinos_in_nbody_simulations:
+
+|bgn-h6| |end-h6|
+
 * **Fully relativistic treatment of light neutrinos in** :bolditalic:`N`\ **-body simulations**
 
    - Introduced linear massive neutrino, photon and metric perturbations into
      CO\ *N*\ CEPT (available as of release 0.2.0).
    - arXiv: `1811.00904 <https://arxiv.org/abs/1811.00904>`_ :math:`\quad`
      DOI: `10.1088/1475-7516/2019/03/022 <https://iopscience.iop.org/article/10.1088/1475-7516/2019/03/022>`_
+
+
+
+.. _nuconcept_cosmological_neutrino_simulations_from_the_nonlinear_boltzmann_hierarchy:
+
+|bgn-h6| |end-h6|
 
 * :math:`\boldsymbol{\nu}`\ **CO**\ :bolditalic:`N`\ **CEPT: Cosmological neutrino simulations from the non-linear Boltzmann hierarchy**
 

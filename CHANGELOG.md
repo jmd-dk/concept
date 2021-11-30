@@ -2,7 +2,7 @@
 
 
 
-### 🚀 1.0.0 — *Still under development*
+### 🚀 [1.0.0](https://github.com/jmd-dk/concept/releases/tag/v1.0.0) — 2021-11-26
 
 #### ✨ Features added
 - [Documentation](https://jmd-dk.github.io/concept/).
@@ -70,7 +70,7 @@
 - Improved robustness of the `install` script.
 - 'Slim builds' now available.
 
-[Commits since 0.3.0](https://github.com/jmd-dk/concept/compare/v0.3.0...master)
+[Commits since 0.3.0](https://github.com/jmd-dk/concept/compare/v0.3.0...v1.0.0)
 
 ---
 <br/><br/>
