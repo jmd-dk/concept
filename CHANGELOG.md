@@ -2,7 +2,7 @@
 
 
 
-### 🚀 [1.0.0](https://github.com/jmd-dk/concept/releases/tag/v1.0.0) — 2021-11-26
+### 🚀 [1.0.0](https://github.com/jmd-dk/concept/releases/tag/v1.0.0) — 2021-12-03
 
 #### ✨ Features added
 - [Documentation](https://jmd-dk.github.io/concept/).

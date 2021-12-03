@@ -27,7 +27,7 @@ If you make use of CO\ *N*\ CEPT for a publication, please cite the paper
    - Introduced short-range dynamics via proper P³M gravity and adaptive
      time-stepping, as well as a vast number of other improvements
      (available as of release 1.0.0).
-   - arXiv: *coming soon!*
+   - arXiv: `2112.01508 <https://arxiv.org/abs/2112.01508>`_
 
 
 

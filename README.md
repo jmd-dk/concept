@@ -37,7 +37,7 @@ general relativistic corrections.
 
 ### Code paper
 The primary paper on CO*N*CEPT is
-‘[The cosmological simulation code CO*N*CEPT 1.0](https://arxiv.org/pdf/1904.11773)’. \
+‘[The cosmological simulation code CO*N*CEPT 1.0](https://arxiv.org/pdf/2112.01508)’. \
 Cite this paper if you make use of CO*N*CEPT in a publication.
 
 
