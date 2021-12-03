@@ -2595,6 +2595,27 @@ fallback() {
 # name (progname) as the argument and it will set the variables
 # progname_downloaded, progname_installed and progname_test_success
 # to either "True" or "False".
+set_concept_files() {
+    files=(             \
+        ".env"          \
+        ".dockerignore" \
+        ".github"       \
+        ".gitignore"    \
+        ".path"         \
+        "Dockerfile"    \
+        "Makefile"      \
+        "concept"       \
+        "doc"           \
+        "install"       \
+        "param"         \
+        "src"           \
+        "test"          \
+        "util"          \
+    )
+    if [ "${slim}" != "True" ]; then
+         files=("${files[@]}" "CHANGELOG.md" "LICENSE" "README.md")
+    fi
+}
 check_progress() {
     # Arguments: Program name
     progname_display="${1/CONCEPT/${esc_concept}}"
@@ -2735,19 +2756,22 @@ ${progname_installed_varname}=\"${progname_installed_value}\""
             fi
         done
     elif [ "${progname}" == "concept" ]; then
-        # In the case of CO𝘕CEPT, ${progdir} is set to
-        # the GADGET directory.
         if [ -d "${concept_dir}" ]; then
+            set_concept_files
             cleanup_msg_printed="False"
             for f in "${concept_dir}/"* "${concept_dir}/".[^.]*; do
                 if [ ! -f "${f}" ] && [ ! -d "${f}" ]; then
                     continue
                 fi
                 f_base="$(basename "${f}")"
-                if     [ "${f_base}" == "dep"  ] \
-                    || [ "${f_base}" == ".git" ] \
-                    || [ "${f_base}" == ".tmp" ] \
-                ; then
+                skip="True"
+                for concept_file in "${files[@]}"; do
+                    if [ "${f_base}" == "${concept_file}" ]; then
+                        skip="False"
+                        break
+                    fi
+                done
+                if [ "${skip}" == "True" ]; then
                     continue
                 fi
                 if [ "${cleanup_msg_printed}" == "False" ]; then
@@ -2785,27 +2809,6 @@ ${progname_installed_varname}=\"${progname_installed_value}\""
 }
 
 # CO𝘕CEPT
-set_concept_files() {
-    files=(             \
-        ".env"          \
-        ".dockerignore" \
-        ".github"       \
-        ".gitignore"    \
-        ".path"         \
-        "Dockerfile"    \
-        "Makefile"      \
-        "concept"       \
-        "doc"           \
-        "install"       \
-        "param"         \
-        "src"           \
-        "test"          \
-        "util"          \
-    )
-    if [ "${slim}" != "True" ]; then
-         files=("${files[@]}" "CHANGELOG.md" "LICENSE" "README.md")
-    fi
-}
 if [ "${concept_version_specified}" == "True" ]; then
     # If concept_version has been supplied as a path to an existing
     # directory containing the CO𝘕CEPT code, the installation will use
