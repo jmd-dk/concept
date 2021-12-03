@@ -53,7 +53,7 @@ physical models and schemes to be used.
                         * ``'pm'`` (PM, particle-mesh)
 
                       For details on these methods, consult the paper on
-                      ":doc:`The cosmological simulation code CO𝘕CEPT 1.0</publications>`".
+                      ':ref:`The cosmological simulation code CO𝘕CEPT 1.0<the_cosmological_simulation_code_concept_10>`'.
                       As ``select_forces`` is empty by default, no forces (not
                       even gravity) are enabled. If however a global potential
                       grid size is specified within the ``potential_options``
@@ -317,7 +317,7 @@ physical models and schemes to be used.
                       *softened* at short distances in order to avoid
                       numerical problems with insufficient time resolution for
                       two-body encounters. See the paper on
-                      ":doc:`The cosmological simulation code CO𝘕CEPT 1.0</publications>`"
+                      ':ref:`The cosmological simulation code CO𝘕CEPT 1.0<the_cosmological_simulation_code_concept_10>`'
                       for details. This parameter sets the type of softening
                       to use for all such forces and components. All softening
                       kernels may be described as a transformation on

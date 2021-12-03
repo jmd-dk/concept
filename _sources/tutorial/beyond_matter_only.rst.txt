@@ -47,7 +47,7 @@ CO\ *N*\ CEPT uses the `CLASS <http://class-code.net/>`_ code to solve the
 equations of linear perturbation theory. For details on how the linear
 perturbations are applied to the *N*-body particles during the simulation, we
 refer to the paper on
-":doc:`Fully relativistic treatment of light neutrinos in 𝘕-body simulations </publications>`".
+':ref:`Fully relativistic treatment of light neutrinos in 𝘕-body simulations <fully_relativistic_treatment_of_light_neutrinos_in_nbody_simulations>`'.
 
 We begin our exploration by performing a standard matter-only simulation, as
 specified by the below parameter file:
@@ -407,7 +407,7 @@ relativistic correction, we shall refer to it as the *metric* contribution.
 That is, we invent a new numerical species, the metric, containing the
 collective non-Newtonian gravitational effects due to all physical species. As
 demonstrated in the paper on
-":doc:`Fully relativistic treatment of light neutrinos in 𝘕-body simulations </publications>`",
+':ref:`Fully relativistic treatment of light neutrinos in 𝘕-body simulations <fully_relativistic_treatment_of_light_neutrinos_in_nbody_simulations>`',
 this metric species might be numerically realised as a (fictitious) linear
 energy density field, the *Newtonian* gravity from which implements exactly
 the missing general relativistic corrections.
@@ -517,7 +517,7 @@ Our aim shall be to compute the effect on the matter power spectrum caused by
 neglecting the fact that neutrinos really do have mass, albeit small. If you
 wish to study the underlying theory as well as the implementation in
 CO\ *N*\ CEPT, we refer to the paper on
-":doc:`Fully relativistic treatment of light neutrinos in 𝘕-body simulations </publications>`".
+':ref:`Fully relativistic treatment of light neutrinos in 𝘕-body simulations <fully_relativistic_treatment_of_light_neutrinos_in_nbody_simulations>`'.
 
 
 
@@ -818,7 +818,7 @@ evolution, having :math:`w \neq -1` also causes perturbations within the dark
 energy, leading to an additional gravitational tug. If you're interested in
 the physics of dark energy perturbations as well as their implementation in
 CO\ *N*\ CEPT, we refer to the paper on
-":doc:`Dark energy perturbations in 𝘕-body simulations </publications>`".
+':ref:`Dark energy perturbations in 𝘕-body simulations <dark_energy_perturbations_in_nbody_simulations>`'.
 
 
 
@@ -1185,7 +1185,7 @@ stable cdm.
 If you're interested in the details of the physics of decaying cold dark
 matter as well as its implementation in CO\ *N*\ CEPT, we refer to the paper
 on
-":doc:`Fully relativistic treatment of decaying cold dark matter in 𝘕-body simulations </publications>`".
+':ref:`Fully relativistic treatment of decaying cold dark matter in 𝘕-body simulations <fully_relativistic_treatment_of_decaying_cold_dark_matter_in_nbody_simulations>`'.
 
 
 
@@ -1571,7 +1571,7 @@ decay rate. This force can be described as arising from a potential, which in
 CO\ *N*\ CEPT is implemented as an energy density field from a fictitious
 species --- much like the metric species --- called the *lapse* species. For
 details on the physics of this lapse potential, see the paper on
-":doc:`Fully relativistic treatment of decaying cold dark matter in 𝘕-body simulations </publications>`".
+':ref:`Fully relativistic treatment of decaying cold dark matter in 𝘕-body simulations <fully_relativistic_treatment_of_decaying_cold_dark_matter_in_nbody_simulations>`'.
 
 Just like the metric species needs to be assigned to a linear fluid component
 in order to exist during the simulation, so does the lapse species. Simply
@@ -1619,7 +1619,7 @@ into a single particle component. Doing so in fact introduces new general
 relativistic correction terms into the equations of motion for the particles,
 which are not incorporated into CO\ *N*\ CEPT. For the physics of these
 additional correction terms, we once again refer to the paper on
-":doc:`Fully relativistic treatment of decaying cold dark matter in 𝘕-body simulations </publications>`".
+':ref:`Fully relativistic treatment of decaying cold dark matter in 𝘕-body simulations <fully_relativistic_treatment_of_decaying_cold_dark_matter_in_nbody_simulations>`'.
 
 To tackle this problem --- or at least confirm that it is indeed caused by
 combining decaying and stable matter --- we may run a simulation which makes
@@ -2001,7 +2001,7 @@ shear still treated linearly. See the :ref:`radiation <radiation>` subsection
 for further explanation about the Boltzmann order. For details on how the
 non-linear fluid evolution is implemented in CO\ *N*\ CEPT, we refer to the
 paper
-":doc:`νCO𝘕CEPT: Cosmological neutrino simulations from the non-linear Boltzmann hierarchy </publications>`".
+':ref:`νCO𝘕CEPT: Cosmological neutrino simulations from the non-linear Boltzmann hierarchy <nuconcept_cosmological_neutrino_simulations_from_the_nonlinear_boltzmann_hierarchy>`'.
 
 Run a simulation with non-linear massive neutrinos with the same mass as used
 for the linear massive neutrino run:

@@ -29,7 +29,7 @@ random numbers used for the primordial noise.
 \  **Elaboration** \  The global time step size :math:`\Delta t` within
                       CO\ *N*\ CEPT depends on various *limiters* as described
                       in the paper on
-                      ":doc:`The cosmological simulation code CO𝘕CEPT 1.0</publications>`".
+                      ':ref:`The cosmological simulation code CO𝘕CEPT 1.0<the_cosmological_simulation_code_concept_10>`'.
                       This parameter acts as a scaling factor on all
                       *background limiters*.
 -- --------------- -- -
@@ -65,7 +65,7 @@ random numbers used for the primordial noise.
 \  **Elaboration** \  The global time step size :math:`\Delta t` within
                       CO\ *N*\ CEPT depends on various *limiters* as described
                       in the paper on
-                      ":doc:`The cosmological simulation code CO𝘕CEPT 1.0</publications>`".
+                      ':ref:`The cosmological simulation code CO𝘕CEPT 1.0<the_cosmological_simulation_code_concept_10>`'.
                       This parameter acts as a scaling factor on all
                       *non-linear limiters*.
 -- --------------- -- -
@@ -107,7 +107,7 @@ random numbers used for the primordial noise.
 
 -- --------------- -- -
 \  **Elaboration** \  As described in the paper on
-                      ":doc:`The cosmological simulation code CO𝘕CEPT 1.0</publications>`",
+                      ':ref:`The cosmological simulation code CO𝘕CEPT 1.0<the_cosmological_simulation_code_concept_10>`',
                       the global time step size :math:`\Delta t` is
                       periodically allowed to increase. This parameter sets
                       an upper limit for the allowed relative change of
@@ -142,7 +142,7 @@ random numbers used for the primordial noise.
 
 -- --------------- -- -
 \  **Elaboration** \  As described in the paper on
-                      ":doc:`The cosmological simulation code CO𝘕CEPT 1.0</publications>`",
+                      ':ref:`The cosmological simulation code CO𝘕CEPT 1.0<the_cosmological_simulation_code_concept_10>`',
                       adaptive particle time-stepping is achieved through
                       *rungs*; power-of-two subdivisions of the global time
                       step size, :math:`\Delta t/2^{\ell}`. The rung
@@ -189,7 +189,7 @@ random numbers used for the primordial noise.
 
 -- --------------- -- -
 \  **Elaboration** \  As described in the paper on
-                      ":doc:`The cosmological simulation code CO𝘕CEPT 1.0</publications>`",
+                      ':ref:`The cosmological simulation code CO𝘕CEPT 1.0<the_cosmological_simulation_code_concept_10>`',
                       one of the time step limiters include the condition
                       that --- at early times --- the global time step size
                       :math:`\Delta t` must not be so large as to correspond
@@ -222,7 +222,7 @@ random numbers used for the primordial noise.
                          As the instantaneous Hubble time :math:`H^{-1}` is
                          part of the same limiter as the early-time
                          :math:`\Delta a` (again, see the paper on
-                         ":doc:`The cosmological simulation code CO𝘕CEPT 1.0</publications>`"),
+                         ':ref:`The cosmological simulation code CO𝘕CEPT 1.0<the_cosmological_simulation_code_concept_10>`'),
                          this also removes any explicit limitation of the
                          global time step size due to :math:`H^{-1}`.
 
@@ -248,7 +248,7 @@ random numbers used for the primordial noise.
 
 -- --------------- -- -
 \  **Elaboration** \  As described in the paper on
-                      ":doc:`The cosmological simulation code CO𝘕CEPT 1.0</publications>`",
+                      ':ref:`The cosmological simulation code CO𝘕CEPT 1.0<the_cosmological_simulation_code_concept_10>`',
                       one of the time step limiters include the condition
                       that --- at late times --- the global time step size
                       :math:`\Delta t` must not be so large as to correspond
@@ -292,7 +292,7 @@ random numbers used for the primordial noise.
 
 -- --------------- -- -
 \  **Elaboration** \  As described in the paper on
-                      ":doc:`The cosmological simulation code CO𝘕CEPT 1.0</publications>`",
+                      ':ref:`The cosmological simulation code CO𝘕CEPT 1.0<the_cosmological_simulation_code_concept_10>`',
                       adaptive particle time-stepping is achieved by placing
                       the particles on *rungs* :math:`\ell \in \mathbb{N}_0`
                       according to their acceleration. This parameter
@@ -312,7 +312,7 @@ random numbers used for the primordial noise.
 
                       .. note::
                          As demonstrated in
-                         ":doc:`The cosmological simulation code CO𝘕CEPT 1.0</publications>`",
+                         ':ref:`The cosmological simulation code CO𝘕CEPT 1.0<the_cosmological_simulation_code_concept_10>`',
                          the time step limiters (see the
                          ``Δt_base_background_factor``
                          :ref:`parameter <Deltat_base_background_factor>`, the

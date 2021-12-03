@@ -767,12 +767,12 @@ between simulations, e.g.</p>
 <li><p><code class="docutils literal notranslate"><span class="pre">shortrange_params</span></code>: By default, the decomposition of tiles into subtiles
 is dynamically updated throughout the simulation, based on CPU timing
 measurements (see the paper on
-“<a class="reference internal" href="../publications.html"><span class="doc">The cosmological simulation code CO𝘕CEPT 1.0</span></a>” for
-details). This naturally introduces indeterminism, as timing measurements
-are affected by whatever else is going on within the system, as well as the
-real-world physical circumstances regarding the hardware. The subtile
-decomposition is controlled by the <code class="docutils literal notranslate"><span class="pre">'subtiling'</span></code> sub-parameter of the
-<code class="docutils literal notranslate"><span class="pre">shortrange_params</span></code> <a class="reference internal" href="numerics.html#shortrange-params"><span class="std std-ref">parameter</span></a>.</p>
+‘<a class="reference internal" href="../publications.html#the-cosmological-simulation-code-concept-10"><span class="std std-ref">The cosmological simulation code CO𝘕CEPT 1.0</span></a>’
+for details). This naturally introduces indeterminism, as timing
+measurements are affected by whatever else is going on within the system, as
+well as the real-world physical circumstances regarding the hardware. The
+subtile decomposition is controlled by the <code class="docutils literal notranslate"><span class="pre">'subtiling'</span></code> sub-parameter of
+the <code class="docutils literal notranslate"><span class="pre">shortrange_params</span></code> <a class="reference internal" href="numerics.html#shortrange-params"><span class="std std-ref">parameter</span></a>.</p>
 <p>For deterministic behaviour, you should set some static subtile
 decomposition, e.g.</p>
 <div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">shortrange_params</span> <span class="o">=</span> <span class="p">{</span>

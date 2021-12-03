@@ -349,7 +349,7 @@ otherwise missing gravity as an external force.</p>
 equations of linear perturbation theory. For details on how the linear
 perturbations are applied to the <em>N</em>-body particles during the simulation, we
 refer to the paper on
-“<a class="reference internal" href="../publications.html"><span class="doc">Fully relativistic treatment of light neutrinos in 𝘕-body simulations</span></a>”.</p>
+‘<a class="reference internal" href="../publications.html#fully-relativistic-treatment-of-light-neutrinos-in-nbody-simulations"><span class="std std-ref">Fully relativistic treatment of light neutrinos in 𝘕-body simulations</span></a>’.</p>
 <p>We begin our exploration by performing a standard matter-only simulation, as
 specified by the below parameter file:</p>
 <div class="literal-block-wrapper docutils container" id="param-radiation">
@@ -649,7 +649,7 @@ relativistic correction, we shall refer to it as the <em>metric</em> contributio
 That is, we invent a new numerical species, the metric, containing the
 collective non-Newtonian gravitational effects due to all physical species. As
 demonstrated in the paper on
-“<a class="reference internal" href="../publications.html"><span class="doc">Fully relativistic treatment of light neutrinos in 𝘕-body simulations</span></a>”,
+‘<a class="reference internal" href="../publications.html#fully-relativistic-treatment-of-light-neutrinos-in-nbody-simulations"><span class="std std-ref">Fully relativistic treatment of light neutrinos in 𝘕-body simulations</span></a>’,
 this metric species might be numerically realised as a (fictitious) linear
 energy density field, the <em>Newtonian</em> gravity from which implements exactly
 the missing general relativistic corrections.</p>
@@ -738,7 +738,7 @@ subsection.</p>
 neglecting the fact that neutrinos really do have mass, albeit small. If you
 wish to study the underlying theory as well as the implementation in
 CO<em>N</em>CEPT, we refer to the paper on
-“<a class="reference internal" href="../publications.html"><span class="doc">Fully relativistic treatment of light neutrinos in 𝘕-body simulations</span></a>”.</p>
+‘<a class="reference internal" href="../publications.html#fully-relativistic-treatment-of-light-neutrinos-in-nbody-simulations"><span class="std std-ref">Fully relativistic treatment of light neutrinos in 𝘕-body simulations</span></a>’.</p>
 <h3>Adding massive neutrinos to the background cosmology</h3><p>To compute the effect on the matter power spectrum caused by neglecting the
 fact that neutrinos do have some mass, we shall make use of the below
 parameter file:</p>
@@ -983,7 +983,7 @@ evolution, having <span class="math notranslate nohighlight">\(w \neq -1\)</span
 energy, leading to an additional gravitational tug. If you’re interested in
 the physics of dark energy perturbations as well as their implementation in
 CO<em>N</em>CEPT, we refer to the paper on
-“<a class="reference internal" href="../publications.html"><span class="doc">Dark energy perturbations in 𝘕-body simulations</span></a>”.</p>
+‘<a class="reference internal" href="../publications.html#dark-energy-perturbations-in-nbody-simulations"><span class="std std-ref">Dark energy perturbations in 𝘕-body simulations</span></a>’.</p>
 <h3>Cosmological constant <span class="math notranslate nohighlight">\(\Lambda\)</span></h3><p>So far, this tutorial has mentioned nothing about dark energy, but really it
 has been there all along, as a cosmological constant <span class="math notranslate nohighlight">\(\Lambda\)</span> affecting
 the background evolution.</p>
@@ -1286,7 +1286,7 @@ stable cdm.</p>
 <p>If you’re interested in the details of the physics of decaying cold dark
 matter as well as its implementation in CO<em>N</em>CEPT, we refer to the paper
 on
-“<a class="reference internal" href="../publications.html"><span class="doc">Fully relativistic treatment of decaying cold dark matter in 𝘕-body simulations</span></a>”.</p>
+‘<a class="reference internal" href="../publications.html#fully-relativistic-treatment-of-decaying-cold-dark-matter-in-nbody-simulations"><span class="std std-ref">Fully relativistic treatment of decaying cold dark matter in 𝘕-body simulations</span></a>’.</p>
 <h3>Particle-only simulations</h3><p>We denote the rate of decay for the new decaying cold dark matter species by
 <span class="math notranslate nohighlight">\(\Gamma_{\text{dcdm}}\)</span>. We further wish to specify the amount of dcdm
 today, <span class="math notranslate nohighlight">\(\Omega_{\text{dcdm}}\)</span>, but as this depends highly on the decay
@@ -1582,7 +1582,7 @@ decay rate. This force can be described as arising from a potential, which in
 CO<em>N</em>CEPT is implemented as an energy density field from a fictitious
 species — much like the metric species — called the <em>lapse</em> species. For
 details on the physics of this lapse potential, see the paper on
-“<a class="reference internal" href="../publications.html"><span class="doc">Fully relativistic treatment of decaying cold dark matter in 𝘕-body simulations</span></a>”.</p>
+‘<a class="reference internal" href="../publications.html#fully-relativistic-treatment-of-decaying-cold-dark-matter-in-nbody-simulations"><span class="std std-ref">Fully relativistic treatment of decaying cold dark matter in 𝘕-body simulations</span></a>’.</p>
 <p>Just like the metric species needs to be assigned to a linear fluid component
 in order to exist during the simulation, so does the lapse species. Simply
 appending <code class="docutils literal notranslate"><span class="pre">'+</span> <span class="pre">lapse'</span></code> to our <code class="docutils literal notranslate"><span class="pre">_lin</span></code> string of linear species is no good
@@ -1626,7 +1626,7 @@ into a single particle component. Doing so in fact introduces new general
 relativistic correction terms into the equations of motion for the particles,
 which are not incorporated into CO<em>N</em>CEPT. For the physics of these
 additional correction terms, we once again refer to the paper on
-“<a class="reference internal" href="../publications.html"><span class="doc">Fully relativistic treatment of decaying cold dark matter in 𝘕-body simulations</span></a>”.</p>
+‘<a class="reference internal" href="../publications.html#fully-relativistic-treatment-of-decaying-cold-dark-matter-in-nbody-simulations"><span class="std std-ref">Fully relativistic treatment of decaying cold dark matter in 𝘕-body simulations</span></a>’.</p>
 <p>To tackle this problem — or at least confirm that it is indeed caused by
 combining decaying and stable matter — we may run a simulation which makes
 use of two separate particle components; one for stable matter
@@ -1943,7 +1943,7 @@ shear still treated linearly. See the <a class="reference internal" href="#radia
 for further explanation about the Boltzmann order. For details on how the
 non-linear fluid evolution is implemented in CO<em>N</em>CEPT, we refer to the
 paper
-“<a class="reference internal" href="../publications.html"><span class="doc">νCO𝘕CEPT: Cosmological neutrino simulations from the non-linear Boltzmann hierarchy</span></a>”.</p>
+‘<a class="reference internal" href="../publications.html#nuconcept-cosmological-neutrino-simulations-from-the-nonlinear-boltzmann-hierarchy"><span class="std std-ref">νCO𝘕CEPT: Cosmological neutrino simulations from the non-linear Boltzmann hierarchy</span></a>’.</p>
 <p>Run a simulation with non-linear massive neutrinos with the same mass as used
 for the linear massive neutrino run:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept <span class="se">\</span>

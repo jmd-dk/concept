@@ -564,12 +564,12 @@ a performance penalty.
 * ``shortrange_params``: By default, the decomposition of tiles into subtiles
   is dynamically updated throughout the simulation, based on CPU timing
   measurements (see the paper on
-  ":doc:`The cosmological simulation code CO𝘕CEPT 1.0</publications>`" for
-  details). This naturally introduces indeterminism, as timing measurements
-  are affected by whatever else is going on within the system, as well as the
-  real-world physical circumstances regarding the hardware. The subtile
-  decomposition is controlled by the ``'subtiling'`` sub-parameter of the
-  ``shortrange_params`` :ref:`parameter <shortrange_params>`.
+  ':ref:`The cosmological simulation code CO𝘕CEPT 1.0<the_cosmological_simulation_code_concept_10>`'
+  for details). This naturally introduces indeterminism, as timing
+  measurements are affected by whatever else is going on within the system, as
+  well as the real-world physical circumstances regarding the hardware. The
+  subtile decomposition is controlled by the ``'subtiling'`` sub-parameter of
+  the ``shortrange_params`` :ref:`parameter <shortrange_params>`.
 
   For deterministic behaviour, you should set some static subtile
   decomposition, e.g.
