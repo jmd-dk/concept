@@ -709,20 +709,51 @@ get_command() {
 
 # Creating top-level directory (concept_dir)
 current_step="setup of top-level directory"
-if [ "${concept_dir_specified}" == "False" ]; then
-    printf "\nWhere should the ${esc_concept} code be installed?"
-    read -p "$(echo $'\n> ')" -e concept_dir
-    if [ -z "${concept_dir}" ]; then
-        # The user hit enter without writing a path.
-        # Install in current directory.
-        concept_dir="."
+set_concept_files() {
+    files=(             \
+        ".env"          \
+        ".dockerignore" \
+        ".github"       \
+        ".gitignore"    \
+        ".path"         \
+        "Dockerfile"    \
+        "Makefile"      \
+        "concept"       \
+        "doc"           \
+        "install"       \
+        "param"         \
+        "src"           \
+        "test"          \
+        "util"          \
+    )
+    if [ "${slim}" != "True" ]; then
+         files=("${files[@]}" "CHANGELOG.md" "LICENSE" "README.md")
     fi
+}
+if [ "${concept_dir_specified}" == "False" ]; then
+    printf "\nYou must now specify an installation directory for ${esc_concept}"
+    if [ -n "${HOME}" ] && [ -d "${HOME}" ] && [ ! -d "${HOME}/concept" ]; then
+        concept_dir_suggestion="${HOME}/concept"
+        printf ", e.g.\n${concept_dir_suggestion}"
+    else
+        printf "."
+    fi
+    concept_dir=""
+    while [ -z "${concept_dir}" ]; do
+        printf "\nWhere should ${esc_concept} be installed?\n"
+        read -p "> " concept_dir
+        if [ -n "${concept_dir}" ]; then
+            break
+        fi
+    done
 fi
 concept_dir="$(convert_to_abs_path "${concept_dir}")"
 if [ "${concept_dir_specified}" == "False" ]; then
     concept_dir_reasonable="False"
     if [ "${concept_dir}" == "${HOME}" ]; then
         printf "\nYou have specified your home directory \"${HOME}\" for the installation path.\n"
+    elif [ "${concept_dir}" == "${HOME}/Desktop" ]; then
+        printf "\nYou have specified your desktop \"${HOME}/Desktop\" for the installation path.\n"
     elif [ "${concept_dir}" == "/home" ]; then
         printf "\nYou have specified the \"/home\" directory for the installation path.\n"
     elif [ "${concept_dir}" == "/" ]; then
@@ -730,13 +761,32 @@ if [ "${concept_dir_specified}" == "False" ]; then
     elif [ "${concept_dir}" == "/root" ]; then
         printf "\nYou have specified the \"/root\" directory for the installation path.\n"
     else
-        concept_dir_reasonable="True"
+        if [ -d "${concept_dir}" ]; then
+            if [ -z "$(ls -A "${concept_dir}")" ]; then
+                concept_dir_reasonable="True"
+            else
+                set_concept_files
+                for f in "${files[@]}"; do
+                    f="${concept_dir}/${f}"
+                    if [ -f "${f}" ] || [ -d "${f}" ]; then
+                        concept_dir_reasonable="True"
+                        break
+                    fi
+                done
+            fi
+        else
+            concept_dir_reasonable="True"
+        fi
+        if [ "${concept_dir_reasonable}" == "False" ]; then
+            printf "\nYou have specified the non-empty \"${concept_dir}\" directory \
+for the installation path.\n"
+        fi
     fi
     if [ "${concept_dir_reasonable}" == "False" ]; then
         concept_dir_suggestion="$(convert_to_abs_path "${concept_dir}/concept")"
         printf "You should probably change the installation path to a subdirectory within \
 this directory — e.g. \"${concept_dir_suggestion}\" — so that ${esc_concept} is fully contained \
-within a dedicated directory.\n"
+within a dedicated directory (to abort the installation, press Ctrl+C).\n"
         while :; do
             read -p "Change installation path to \"${concept_dir_suggestion}\"? [Y/n] " yn
             case "${yn}" in
@@ -2595,27 +2645,6 @@ fallback() {
 # name (progname) as the argument and it will set the variables
 # progname_downloaded, progname_installed and progname_test_success
 # to either "True" or "False".
-set_concept_files() {
-    files=(             \
-        ".env"          \
-        ".dockerignore" \
-        ".github"       \
-        ".gitignore"    \
-        ".path"         \
-        "Dockerfile"    \
-        "Makefile"      \
-        "concept"       \
-        "doc"           \
-        "install"       \
-        "param"         \
-        "src"           \
-        "test"          \
-        "util"          \
-    )
-    if [ "${slim}" != "True" ]; then
-         files=("${files[@]}" "CHANGELOG.md" "LICENSE" "README.md")
-    fi
-}
 check_progress() {
     # Arguments: Program name
     progname_display="${1/CONCEPT/${esc_concept}}"
@@ -2759,26 +2788,15 @@ ${progname_installed_varname}=\"${progname_installed_value}\""
         if [ -d "${concept_dir}" ]; then
             set_concept_files
             cleanup_msg_printed="False"
-            for f in "${concept_dir}/"* "${concept_dir}/".[^.]*; do
-                if [ ! -f "${f}" ] && [ ! -d "${f}" ]; then
-                    continue
-                fi
-                f_base="$(basename "${f}")"
-                skip="True"
-                for concept_file in "${files[@]}"; do
-                    if [ "${f_base}" == "${concept_file}" ]; then
-                        skip="False"
-                        break
+            for f in "${files[@]}"; do
+                f="${concept_dir}/${f}"
+                if [ -f "${f}" ] || [ -d "${f}" ]; then
+                    if [ "${cleanup_msg_printed}" == "False" ]; then
+                        printf "Cleaning up ${progname_display} directory ...\n"
+                        cleanup_msg_printed="True"
                     fi
-                done
-                if [ "${skip}" == "True" ]; then
-                    continue
+                    rm -rf "${f}" || :
                 fi
-                if [ "${cleanup_msg_printed}" == "False" ]; then
-                    printf "Cleaning up ${progname_display} directory ...\n"
-                    cleanup_msg_printed="True"
-                fi
-                rm -rf "${f}" || :
             done
         fi
     else
