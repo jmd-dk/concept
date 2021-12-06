@@ -3937,6 +3937,8 @@ def call_class(extra_params=None, sleep_time=0.1, mode='single node', class_call
             if value in values_improper:
                 params_specialized[param] = value_proper
                 break
+    # Get a copy of the original k_output_values
+    k_output_values_global_str = params_specialized.get('k_output_values', '')
     # Fairly distribute the k modes among the nodes,
     # taking the number of processes in each node into account.
     if 'k_output_values' in params_specialized:
@@ -4010,6 +4012,10 @@ def call_class(extra_params=None, sleep_time=0.1, mode='single node', class_call
             [k_output_values.index(k_output_value) for k_output_value in k_output_values_node],
             dtype=C2np['Py_ssize_t'],
         )
+        # If no k modes were delegated to this node,
+        # add a fake, cheap one.
+        if len(k_output_values_node_indices) == 0:
+            params_specialized['k_output_values'] = '1e-6'
     else:
         if 'k_output_values' in params_specialized:
             k_output_values_node_indices = arange(len(k_output_values), dtype=C2np['Py_ssize_t'])
@@ -4050,12 +4056,15 @@ def call_class(extra_params=None, sleep_time=0.1, mode='single node', class_call
     # local node), as well as the progress message to write during
     # perturbation computation.
     message = ''
-    k_output_values_str = params_specialized.get('k_output_values')
-    if k_output_values_str:
+    if k_output_values_global_str:
         significant_figures = 4
-        if master and 'e' in k_output_values_str:
-            significant_figures = len(k_output_values_str[:k_output_values_str.index('e')]) - 1
+        if master and 'e' in k_output_values_global_str:
+            significant_figures = len(
+                k_output_values_global_str[:k_output_values_global_str.index('e')]
+            ) - 1
         significant_figures = bcast(significant_figures)
+        if significant_figures < 1:
+            significant_figures = 1
         if master:
             modes_max = np.max([
                 len(k_output_values_other_node)

@@ -690,10 +690,22 @@ class CosmoResults:
                                 k_processes_indices[recv(source=rank_recv)] = rank_recv
                         else:
                             send(asarray(self.k_node_indices), dest=master_rank)
+                        # Grab perturbation keys
+                        keys = sorted(list(self._perturbations[0].keys()))
+                        # If no k modes at all were delegated a given
+                        # node, a fake k mode will be present. Having at
+                        # least one k mode on all nodes simplifies the
+                        # above logic, but now it is time to get rid of
+                        # this additional k mode.
+                        if len(self.k_node_indices) == 0:
+                            for perturbation in self._perturbations:
+                                for key in keys:
+                                    perturbation[key].resize(0, refcheck=False)
+                                    perturbation.pop(key)
+                            self._perturbations = []
                         # Gather all perturbations into the
                         # master process. Communicate these as list
                         # of dicts mapping str's to arrays.
-                        keys = sorted(list(self._perturbations[0].keys()))
                         if master:
                             all_perturbations = [{} for k in self.k_magnitudes]
                             for k, perturbation in zip(self.k_node_indices, self._perturbations):
@@ -721,7 +733,7 @@ class CosmoResults:
                                     # communicated, delete it from the
                                     # slave (node master) process.
                                     perturbation[key].resize(0, refcheck=False)
-                                    del perturbation[key]
+                                    perturbation.pop(key)
                 # The master process now holds all perturbations
                 # while the other node masters do not store any.
                 # Throw a warning if perturbations specified in
@@ -763,7 +775,7 @@ class CosmoResults:
                             continue
                         for perturbation in self._perturbations:
                             perturbation[key].resize(0, refcheck=False)
-                            del perturbation[key]
+                            perturbation.pop(key)
             # As we only need perturbations defined within the
             # simulation timespan, a >= a_begin, we now cut off the
             # lower tail of all perturbations.
@@ -868,7 +880,7 @@ class CosmoResults:
                                 # Once the data has been communicated,
                                 # delete it from the master process.
                                 perturbation[key].resize(0, refcheck=False)
-                                del perturbation[key]
+                                perturbation.pop(key)
                     self.k_indices = indices_procs[rank]
                     self._perturbations = [self._perturbations[index]
                         for index in self.k_indices]
