@@ -62,6 +62,10 @@ monkeypatch_pygments(
     },
 )
 
+# Exclude Python and Bash prompts when copying code blocks
+copybutton_prompt_text = r'>>> |\$ '
+copybutton_prompt_is_regexp = True
+
 # HTML
 html_baseurl           = 'https://jmd-dk.github.io/concept/'
 html_context           = {'display_github': True}
