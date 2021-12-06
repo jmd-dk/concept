@@ -4215,6 +4215,9 @@ def init_tiling(component, tiling_name, initial_rung_size=-1):
     #   We thus need at least 3 tiles along each dimension per tiling.
     #   This restriction is really for the entire, global tiling,
     #   not for the individual domain tilings.
+    #   - The logic used for the subtile pairings comes with a similar
+    #     restriction, applying the above restriction at the
+    #     domain tiling level.
     # - The shortest path between pairs of particles in different tiles
     #   may either be the "direct" path or a path through the periodic
     #   boundary of the box. With 3 tiles (or lower) along each
@@ -4230,6 +4233,14 @@ def init_tiling(component, tiling_name, initial_rung_size=-1):
             f'The global {force} tiling needs to have at least 4 tiles across the box in '
             f'every direction. Consider lowering shortrange_params["{force}"]["tilesize"].'
         )
+    if np.min(shape) < 3:
+        msg = (
+            f'The {force} domain tiling needs a subdivision of at least 3 in every direction. '
+            f'Consider lowering shortrange_params["{force}"]["tilesize"].'
+        )
+        if 1 != nprocs != int(round(cbrt(nprocs)))**3:
+            msg += ' It may also help to choose a lower and/or cubic number of processes.'
+        abort(msg)
     # If not already specified, the rungs within each tile start out
     # with half of the mean required memory per rung.
     if initial_rung_size == -1:
