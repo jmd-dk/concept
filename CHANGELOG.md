@@ -2,6 +2,30 @@
 
 
 
+### 🚀 [1.0.1](https://github.com/jmd-dk/concept/releases/tag/v1.0.1) — 2021-12-07
+
+#### 🐛 Bugs fixed
+- Now safe to install CO*N*CEPT into non-empty directory.
+- The code now refuses to run if the domain tile decomposition
+  is less than `(3, 3, 3)`, as this otherwise leads to incorrect
+  pairing when using non-trivial subtiling.
+- Running a CLASS perturbation computation across more compute nodes
+  than Fourier modes is now possible.
+
+#### 📖 Documentation
+- Copying code blocks containing prompts now leaves out the prompts.
+
+#### 👌 Other changes
+- The `install` script is now more user-friendly and less error prone
+  when it comes to choosing an installation directory.
+
+[Commits since 1.0.0](https://github.com/jmd-dk/concept/compare/v1.0.0...v1.0.1)
+
+---
+<br/><br/>
+
+
+
 ### 🚀 [1.0.0](https://github.com/jmd-dk/concept/releases/tag/v1.0.0) — 2021-12-03
 
 #### ✨ Features added

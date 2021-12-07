@@ -1,6 +1,6 @@
 ## CO*N*CEPT <img align="right" src="https://github.com/jmd-dk/concept/workflows/build/badge.svg"/>
 
- &nbsp; <a href="https://github.com/jmd-dk/concept/tree/v1.0.0/">:rocket:</a> &nbsp; <a href="https://github.com/jmd-dk/concept/tree/v1.0.0/">Latest release: 1.0.0</a> \
+ &nbsp; <a href="https://github.com/jmd-dk/concept/tree/v1.0.1/">:rocket:</a> &nbsp; <a href="https://github.com/jmd-dk/concept/tree/v1.0.1/">Latest release: 1.0.1</a> \
  &nbsp; <a href="https://jmd-dk.github.io/concept/">:book:</a> &nbsp; <a href="https://jmd-dk.github.io/concept/">Documentation</a>
 
 
@@ -47,7 +47,7 @@ To get started with CO*N*CEPT, walking through the [tutorial] is highly
 recommended. That said, installation can be as simple as
 
 ```bash
-bash <(wget -O- https://raw.githubusercontent.com/jmd-dk/concept/v1.0.0/install)
+bash <(wget -O- https://raw.githubusercontent.com/jmd-dk/concept/v1.0.1/install)
 ```
 
 which installs CO*N*CEPT along with all of its dependencies into a single

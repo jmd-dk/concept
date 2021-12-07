@@ -127,11 +127,11 @@ However, the simplest way to run the script is to just execute
 
 .. code-block:: bash
 
-   concept_version=v1.0.0
+   concept_version=v1.0.1
    bash <(wget -O- https://raw.githubusercontent.com/jmd-dk/concept/${concept_version}/install)
 
 in a terminal, which will fetch and run the ``install`` script directly from
-the CO\ *N*\ CEPT GitHub repository, specifically version 1.0.0. Check out the
+the CO\ *N*\ CEPT GitHub repository, specifically version 1.0.1. Check out the
 CO\ *N*\ CEPT
 `releases <https://github.com/jmd-dk/concept/releases>`_ for other available
 release versions, or use ``concept_version=master`` for the absolute newest

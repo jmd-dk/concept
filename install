@@ -299,7 +299,7 @@ concept_version_specified="False"
 if [ -n "${concept_version}" ]; then
     concept_version_specified="True"
 fi
-set_version "concept"           "1.0.0"
+set_version "concept"           "1.0.1"
 set_version "blas"              "0.3.18"  "0.3.18"
 set_version "class"             "2.7.2"
 set_version "fftw"              "3.3.10"  "3.3.10"
