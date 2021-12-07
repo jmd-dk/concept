@@ -20,7 +20,7 @@ dependencies, open a terminal and invoke
 
 .. code-block:: bash
 
-   bash <(wget -O- --no-check-certificate https://raw.githubusercontent.com/jmd-dk/concept/v1.0.0/install)
+   bash <(wget -O- --no-check-certificate https://raw.githubusercontent.com/jmd-dk/concept/v1.0.1/install)
 
 You will be prompted for an installation directory.
 
