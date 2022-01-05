@@ -1,8 +1,9 @@
-# GitHub workflow for testing the entire build,
-# including installation, the test suite, the update utility,
-# the example parameter files and building of the documentation.
+# GitHub workflow for testing the build,
+# including installation, the test suite and the documentation.
 # - This workflow runs on a schedule, and only if
 #   the GitHub secret SCHEDULE_BUILD is set to True.
+# - We do not include further testing as this workflow
+#   runs on GitHub which has a job time limit of 6 hours.
 name: build
 
 on:
@@ -56,39 +57,6 @@ jobs:
                     --name "${GITHUB_REPOSITORY//\//_}__${GITHUB_WORKFLOW}__${GITHUB_JOB}__$(date +%s)" \
                     --rm ${docker_image} \
                     concept -t all
-          - name: 🤖 Test update utility
-            run: |
-                sleep 1
-                docker run \
-                    -e make_jobs="-j 1" \
-                    --name "${GITHUB_REPOSITORY//\//_}__${GITHUB_WORKFLOW}__${GITHUB_JOB}__$(date +%s)" \
-                    --rm \
-                    ${docker_image} \
-                    bash -c ': \
-                        && concept -u update current -y \
-                        && concept -u update current -y --class \
-                        && concept -t concept_vs_class_pm \
-                    '
-          - name: 🤖 Test example parameter files
-            run: |
-                sleep 1
-                docker run \
-                    --name "${GITHUB_REPOSITORY//\//_}__${GITHUB_WORKFLOW}__${GITHUB_JOB}__$(date +%s)" \
-                    --rm \
-                    ${docker_image} \
-                    bash -c ': \
-                        && source ~/.bashrc \
-                        && (cd "${concept_dir}" && make clean-job) \
-                        && ( \
-                               for param in "${param_dir}/example_"*; do \
-                                   concept -n 4 -p "${param}" --local || exit 1; \
-                                   if ls "${job_dir}/"*/log_err >/dev/null 2>&1; then \
-                                       echo "Parameter file ${param} generated error messages" >&2; \
-                                       exit 1; \
-                                   fi; \
-                               done; \
-                           ) \
-                    '
           - name: 📖 Build documentation
             run: |
                 sleep 1
