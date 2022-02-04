@@ -96,7 +96,6 @@ directory consist of the following and will be installed in order:
   - MPICH/OpenMPI
   - HDF5
   - FFTW
-  - FreeType (needed by Matplotlib)
   - ncurses  (needed by _curses (needed by Blessings))
   - OpenSSL  (needed by pip)
   - libffi   (needed by _ctypes (needed by pip))
@@ -222,7 +221,6 @@ if [ "${install_explicit_only}" == "True" ]; then
         "class"             \
         "fftw"              \
         "fftw_for_gadget"   \
-        "freetype"          \
         "gadget"            \
         "gsl"               \
         "hdf5"              \
@@ -254,7 +252,6 @@ fi
 set_dir "concept"         "__concept_dir__"
 set_dir "class"           "__concept_dir__/dep/class"
 set_dir "fftw"            "__concept_dir__/dep/fftw"
-set_dir "freetype"        "__concept_dir__/dep/freetype"
 set_dir "gadget"          "__concept_dir__/dep/gadget"
 set_dir "fftw_for_gadget" "${gadget_dir}/fftw"
 set_dir "gsl"             "__concept_dir__/dep/gsl"
@@ -299,42 +296,41 @@ concept_version_specified="False"
 if [ -n "${concept_version}" ]; then
     concept_version_specified="True"
 fi
-set_version "concept"           "1.0.1"
-set_version "blas"              "0.3.18"  "0.3.18"
+set_version "concept"           "master"
+set_version "blas"              "0.3.19"  "0.3.19"
 set_version "class"             "2.7.2"
 set_version "fftw"              "3.3.10"  "3.3.10"
 set_version "fftw_for_gadget"   "2.1.5"   "2.1.5"   # Do not change
-set_version "freetype"          "2.11.1"  "2.11.1"
 set_version "gadget"            "2.0.7"             # Do not change
 set_version "gsl"               "2.7"     "2.7"
 set_version "hdf5"              "1.12.1"
 set_version "libffi"            "3.4.2"   "3.3"
 if [ "${mpi}" == "mpich" ]; then
-    set_version "mpi"           "3.4.2"   "3.4.2"
+    set_version "mpi"           "3.4.3"   "3.4.3"
 elif [ "${mpi}" == "openmpi" ]; then
     set_version "mpi"           "4.1.2"
 fi
 set_version "ncurses"           "6.3"     "6.3"
-set_version "openssl"           "3.0.0"   "1.1.1k"
+set_version "openssl"           "3.0.1"   "3.0.0"
 set_version "perl"              "5.34.0"
-set_version "python"            "3.9.9"
+set_version "python"            "3.9.10"
 set_version "zlib"              "1.2.11"  "1.2.11"
 # Python packages
 set_version "blessings"         "1.7"
-set_version "cython"            "0.29.24"
+set_version "cython"            "0.29.26"
 set_version "cythongsl"         "0.2.2"
 set_version "h5py"              "3.6.0"
-set_version "matplotlib"        "3.5.0"
+set_version "matplotlib"        "3.5.1"
 set_version "mpi4py"            "3.1.3"
 set_version "numpy"             "1.21.4"
 set_version "pip"               "21.3.1"
 set_version "scipy"             "1.7.3"
-set_version "setuptools"        "59.5.0"
-set_version "sphinx"            "4.3.1"
+set_version "setuptools"        "59.8.0"
+set_version "sphinx"            "4.4.0"
 set_version "sphinx_copybutton" "0.4.0"
 set_version "sphinx_rtd_theme"  "1.0.0"
 set_version "sphinx_tabs"       "3.2.0"
-set_version "wheel"             "0.37.0"
+set_version "wheel"             "0.37.1"
 # Note that the versions may be changed further down due to known
 # compatibility issues between specific versions of the above programs
 # and specific versions of system dependencies.
@@ -461,7 +457,6 @@ class_test_success="True"
 concept_test_success="True"
 fftw_test_success="True"
 fftw_for_gadget_test_success="True"
-freetype_test_success="True"
 gadget_test_success="True"
 gsl_test_success="True"
 hdf5_test_success="True"
@@ -1677,16 +1672,6 @@ for ${1/CONCEPT/$esc_concept} does not exist!"
             fi
         fi
     fi
-    if [ "${progname}" == 'freetype' ] && [ "${freetype_preinstalled}" == "True" ]; then
-        if [ ! -f "${progname_dir}/lib/libfreetype.so" ]; then
-            if [ -f "${progname_dir}/../lib/libfreetype.so" ]; then
-                freetype_dir="$(dirname ${progname_dir})"
-            elif [ "${check_preinstalled}" != "False" ]; then
-                error "Could not locate FreeType at \"${freetype_dir}\""
-                exit 1
-            fi
-        fi
-    fi
     if [ "${progname}" == 'gadget' ] && [ "${gadget_preinstalled}" == "True" ]; then
         if [ ! -d "${progname_dir}/Gadget2" ]; then
             if [ -d "${progname_dir}/../Gadget2" ]; then
@@ -1978,7 +1963,6 @@ nor anywhere in the PATH"
 }
 fix_path "CLASS"
 fix_path "CONCEPT"
-fix_path "FreeType"
 fix_path "zlib"
 fix_path "ncurses"
 fix_path "BLAS"
@@ -2019,7 +2003,6 @@ class_test_log="${class_dir}/test_log"
 concept_test_log="${concept_dir}/test_log"
 fftw_test_log="${fftw_dir}/test_log"
 fftw_for_gadget_test_log="${fftw_for_gadget_dir}/test_log"
-freetype_test_log="${freetype_dir}/test_log"
 gadget_test_log="${gadget_dir}/test_log"
 gsl_test_log="${gsl_dir}/test_log"
 hdf5_test_log="${hdf5_dir}/test_log"
@@ -2348,13 +2331,6 @@ if [ -z "${zlib_install}" ]; then
         zlib_install="True"
     fi
 fi
-# FreeType (needed by Matplotlib)
-if [ -z "${freetype_install}" ]; then
-    freetype_install="False"
-    if [ "${freetype_preinstalled}" == "False" ] && [ "${matplotlib_install}" == "True" ]; then
-        freetype_install="True"
-    fi
-fi
 # ncurses (needed by Python, if Python is needed by CO𝘕CEPT)
 if [ -z "${ncurses_install}" ]; then
     ncurses_install="False"
@@ -2411,7 +2387,6 @@ if     [ "${concept_install}"           == "True" ] \
     || [ "${mpi_install}"               == "True" ] \
     || [ "${gsl_install}"               == "True" ] \
     || [ "${zlib_install}"              == "True" ] \
-    || [ "${freetype_install}"          == "True" ] \
     || [ "${ncurses_install}"           == "True" ] \
     || [ "${openssl_install}"           == "True" ] \
     || [ "${libffi_install}"            == "True" ] \
@@ -2979,33 +2954,6 @@ fftw-${fftw_for_gadget_version}.tar.gz"
     fi
 fi
 
-# FreeType
-if [ "${freetype_install}" == "True" ]; then
-    if [ -z "${freetype_url}" ]; then
-        freetype_url="https://download.savannah.gnu.org/releases/freetype/\
-freetype-${freetype_version}.tar.gz"
-    fi
-    # Check if already installed and/or downloaded
-    check_progress "FreeType"
-    # If not yet downloaded, validate the URL
-    if [ "${freetype_downloaded}" != "True" ]; then
-        validate_url "FreeType" "False"
-        if [ "${validate_url_status}" != "success" ]; then
-            echo "Primary FreeType link broken: ${freetype_url}"
-            fallback "freetype"
-            freetype_url="https://sourceforge.net/projects/freetype/files/freetype2/\
-${freetype_version}/freetype-${freetype_version}.tar.gz"
-            echo "Using secondary FreeType link: ${freetype_url}"
-            # Check if already installed and/or downloaded
-            check_progress "FreeType"
-            # If not yet downloaded, validate the URL
-            if [ "${freetype_downloaded}" != "True" ]; then
-                validate_url "FreeType"
-            fi
-        fi
-    fi
-fi
-
 # GADGET
 if [ "${gadget_install}" == "True" ]; then
     if [ -z "${gadget_url}" ]; then
@@ -3181,7 +3129,11 @@ openssl-${openssl_version}.tar.gz"
         if [ "${validate_url_status}" != "success" ]; then
             echo "Primary OpenSSL link broken: ${openssl_url}"
             fallback "openssl"
-            openssl_url="https://www.openssl.org/source/old/${openssl_version/[a-z]*/}/\
+            openssl_version_short="${openssl_version/[a-z]*/}"
+            if [[ "${openssl_version_short}" == "3"* ]]; then
+                openssl_version_short="${openssl_version_short%.*}"
+            fi
+            openssl_url="https://www.openssl.org/source/old/${openssl_version_short}/\
 openssl-${openssl_version}.tar.gz"
             echo "Using secondary OpenSSL link: ${openssl_url}"
             # Check if already installed and/or downloaded
@@ -3417,7 +3369,6 @@ print_table() {
 # CLASS          ...      "/..."
 # FFTW           ...      "/..."
 # FFTW           ...      "/..."
-# FreeType       ...      "/..."
 # GADGET         ...      "/..."
 # GSL            ...      "/..."
 # HDF5           ...      "/..."
@@ -3448,7 +3399,6 @@ class_patch="True"
 concept_patch="False"
 fftw_patch="False"
 fftw_for_gadget_patch="False"
-freetype_patch="False"
 gadget_patch="True"
 gsl_patch="False"
 hdf5_patch="False"
@@ -3538,13 +3488,6 @@ if [ "${install_any_software}" == "True" ]; then
             "FFTW$(insert_footnote_installed 'fftw_for_gadget')"                   \
             "${fftw_for_gadget_version}$(insert_footnote_patch 'fftw_for_gadget')" \
             "\"${fftw_for_gadget_dir}\"")
-    fi
-    # FreeType
-    if [ "${freetype_install}" == "True" ]; then
-        table=("${table[@]}"                                         \
-            "FreeType$(insert_footnote_installed 'freetype')"        \
-            "${freetype_version}$(insert_footnote_patch 'freetype')" \
-            "\"${freetype_dir}\"")
     fi
     # GADGET
     if [ "${gadget_install}" == "True" ]; then
@@ -4705,14 +4648,18 @@ use_unset_compilers() {
 #################################
 # Function for downloading compressed archives
 download() {
-    # Arguments: Program name, [print heading], [URL]
+    # Arguments: Program name, [print heading], [URL], [exit_on_error]
     progname_formatted="$1"
     progname="${progname_formatted// /_}"
     progname="$(echo "${progname}" | tr '[:upper:]' '[:lower:]')"
     print_heading="$2"
-    url="$3"
     if [ -z "${print_heading}" ]; then
         print_heading="True"
+    fi
+    url="$3"
+    exit_on_error="True"
+    if [ -n "$4" ]; then
+        exit_on_error="$4"
     fi
     # Do not download if already fully downloaded
     eval "prog_downloaded=\"\${${progname}_downloaded}\""
@@ -4783,8 +4730,12 @@ download() {
     }
     _download
     if [ "${wget_status}" == "error" ]; then
-        error "Error downloading \"${url}\""
-        exit 1
+        if [ "${exit_on_error}" == "True" ]; then
+            error "Error downloading \"${url}\""
+            exit 1
+        else
+            return 1
+        fi
     fi
     # Write out success notice
     echo "The following has been fully downloaded:
@@ -4816,9 +4767,6 @@ fi
 if [ "${fftw_for_gadget_install}" == "True" ] \
     && [ "${fftw_for_gadget_downloaded}" == "False" ]; then
     download "FFTW for GADGET"
-fi
-if [ "${freetype_install}" == "True" ] && [ "${freetype_downloaded}" == "False" ]; then
-    download "FreeType"
 fi
 if [ "${gadget_install}" == "True" ] && [ "${gadget_downloaded}" == "False" ]; then
     download "GADGET"
@@ -5224,7 +5172,7 @@ install() {
     else
         eval "program_dir=\"\${${progname}_dir}\""
     fi
-    mkdir -p "${program_dir}" || :
+    mkdir -p "${program_dir}"  2>/dev/null || :
     for copy_dir in "." "doc" "docs"; do
         if [ "${copy_dir}" != "." ]; then
             if [ -d "${copy_dir}" ]; then
@@ -5253,7 +5201,7 @@ install() {
     rm -rf "${tmp_dir}/${progname}" || :
     eval "program_dir=\"\${${progname}_dir}\""
     if [ -n "${program_dir}" ]; then
-        mkdir -p "${program_dir}" || :
+        mkdir -p "${program_dir}" 2>/dev/null || :
         install_notice "${progname_formatted}" "${program_dir}"
     fi
     if [ "${no_init_install}" == "True" ]; then
@@ -5296,6 +5244,8 @@ install_loop() {
                 printf "\nAttempting to install ${progname_formatted} \
 with ${attempting_to_install_text}\n\n"
             fi
+            # Needed for correct message on failure
+            progname_formatted_fancy="${progname_formatted}"
         else
             init_install "${progname_formatted}" "${attempting_to_install_text}"
         fi
@@ -5929,22 +5879,6 @@ install "FFTW"                                       \
     shared "" "-shared"                          ";" \
     with_pic "" "--with-pic"                     ";" \
     PIC "-fPIC" ""                               ";" \
-
-# FreeType
-freetype_install_func() {
-    ./configure --prefix="${freetype_dir}" \
-                --with-zlib=no             \
-                --with-bzip2=no            \
-                --with-png=no              \
-                --with-harfbuzz=no 2>&1 || return 1
-    make ${make_jobs} 2>&1 || return 1
-    # FreeType does not come with a test suite
-    make ${make_jobs} install 2>&1 || return 1
-    if [ "${slim}" == "True" ]; then
-        rm -rf "${freetype_dir}/share" || :
-    fi
-}
-install "FreeType" compiler "${compiler_possibilities[@]}"
 
 # ncurses
 ncurses_install_func() {
@@ -7202,8 +7136,7 @@ extra_argv=['-q', '--color=yes', '-k not test_face'])" 2>&1 | tee "test_log"; \
 
 fi
 
-# Matplotlib (as Matplotlib has a hard time finding FreeType,
-# some hacks are needed).
+# Matplotlib
 if [ "${matplotlib_install}" == "True" ] && [ "${matplotlib_installed}" == "False" ] \
     && [ "$(check_pypackage_installed matplotlib)" == "False" ]; then
     # Matplotlib depends on other Python packages not directly used by
@@ -7231,10 +7164,11 @@ if [ "${matplotlib_install}" == "True" ] && [ "${matplotlib_installed}" == "Fals
     dependencies=( \
         "pillow"   \
     )
-    if [ -n "${zlib_dir}" ] && [ -d "${zlib_dir}" ]; then
+    if [ -d "${zlib_dir}" ]; then
         export CPPFLAGS="-I${zlib_dir}/include ${CPPFLAGS}"
-        export LD_LIBRARY_PATH="${zlib_dir}/lib:${LD_LIBRARY_PATH}"
         export LDFLAGS="-L${zlib_dir}/lib -Wl,-rpath=${zlib_dir}/lib ${LDFLAGS}"
+        export LD_LIBRARY_PATH="${zlib_dir}/lib:${LD_LIBRARY_PATH}"
+        export PKG_CONFIG_PATH="${zlib_dir}/lib/pkgconfig:${PKG_CONFIG_PATH}"
     fi
     pip_install_pypackage_dependencies "Matplotlib" "False"
     reset_environment
@@ -7268,10 +7202,11 @@ if [ "${matplotlib_install}" == "True" ] && [ "${matplotlib_installed}" == "Fals
         cd "${concept_dir}"
         cp -r "${pillow_build_dir}" "${pillow_build_dir}_cp"
         pillow_install_func() {
-            if [ -n "${zlib_dir}" ] && [ -d "${zlib_dir}" ]; then
+            if [ -d "${zlib_dir}" ]; then
                 export CPPFLAGS="-I${zlib_dir}/include ${CPPFLAGS}"
-                export LD_LIBRARY_PATH="${zlib_dir}/lib:${LD_LIBRARY_PATH}"
                 export LDFLAGS="-L${zlib_dir}/lib -Wl,-rpath=${zlib_dir}/lib ${LDFLAGS}"
+                export LD_LIBRARY_PATH="${zlib_dir}/lib:${LD_LIBRARY_PATH}"
+                export PKG_CONFIG_PATH="${zlib_dir}/lib/pkgconfig:${PKG_CONFIG_PATH}"
             fi
             export TMPDIR="${tmp_pip_dir}_tmp"
             export TEMP="${TMPDIR}"
@@ -7313,146 +7248,181 @@ print(inspect.getfile(bdist_egg))
             zip_1980_fix "False" "True" ";" \
 
     fi
+    # Download Matplotlib
+    tmp_pip_dir="${tmp_dir}/pip"
+    rm -rf "${tmp_pip_dir}" "${tmp_pip_dir}_tmp" || :
+    mkdir -p "${tmp_pip_dir}_tmp"
+    export TMPDIR="${tmp_pip_dir}_tmp"
+    export TEMP="${TMPDIR}"
+    export TMP="${TMPDIR}"
+    if [ -n "${zlib_dir}" ] && [ -d "${zlib_dir}/lib" ]; then
+        export LD_LIBRARY_PATH="${zlib_dir}/lib:${LD_LIBRARY_PATH}"
+    fi
+    if [ -n "${blas_dir}" ] && [ -d "${blas_dir}/lib" ]; then
+        export LD_LIBRARY_PATH="${blas_dir}/lib:${LD_LIBRARY_PATH}"
+    fi
+    pip_download "Matplotlib" "${matplotlib_version}"
+    cd "${tmp_pip_dir}"
+    extract "matplotlib"* "True"
+    for f in *; do
+        f_lower="$(echo "${f}" | tr '[:upper:]' '[:lower:]')"
+        if [ -d "${f}" ] && [[ "${f_lower}" == "matplotlib"* ]]; then
+            matplotlib_build_dir="${tmp_pip_dir}/${f}"
+            break
+        fi
+    done
+    cp -r "${matplotlib_build_dir}" "${matplotlib_build_dir}_cp"
     # Install Matplotlib
     current_step="installation of Matplotlib ${matplotlib_version}"
     heading "Installing Matplotlib ${matplotlib_version}"
     set_status "Installing Matplotlib ${matplotlib_version}"
-    install_success="False"
-    for compiler in "${compiler_possibilities_specified_mpi_last[@]}"; do
-        for pyuser in "" "--user"; do
-            reset_environment
-            "use_${compiler}_compilers" || continue
-            printf "
-Attempting to install Matplotlib with compiler=${compiler}, pyuser=${pyuser}\n\n"
-            # Download Matplotlib
-            cd "${concept_dir}"
-            tmp_pip_dir="${tmp_dir}/pip"
-            rm -rf "${tmp_pip_dir}" "${tmp_pip_dir}_tmp" || :
-            mkdir -p "${tmp_pip_dir}_tmp"
-            export TMPDIR="${tmp_pip_dir}_tmp"
-            export TEMP="${TMPDIR}"
-            export TMP="${TMPDIR}"
-            if [ -n "${libpng_dir}" ] && [ -d "${libpng_dir}/lib" ]; then
-                # For compatibility with Matplotlib < 3.3
-                export LD_LIBRARY_PATH="${libpng_dir}/lib:${LD_LIBRARY_PATH}"
-            fi
-            if [ -n "${zlib_dir}" ] && [ -d "${zlib_dir}/lib" ]; then
-                export LD_LIBRARY_PATH="${zlib_dir}/lib:${LD_LIBRARY_PATH}"
-            fi
-            if [ -n "${blas_dir}" ] && [ -d "${blas_dir}/lib" ]; then
-                export LD_LIBRARY_PATH="${blas_dir}/lib:${LD_LIBRARY_PATH}"
-            fi
-            pip_download "Matplotlib" "${matplotlib_version}"
-            # Install Matplotlib
-            cd "${tmp_pip_dir}"
-            extract "matplotlib"* "True"
-            for f in *; do
-                f_lower="$(echo "${f}" | tr '[:upper:]' '[:lower:]')"
-                if [ -d "${f}" ] && [[ "${f_lower}" == "matplotlib"* ]]; then
-                    cd "${f}"
-                    break
-                fi
-            done
-            unset MPLSETUPCFG
-            for cfg in mplsetup setup; do
-                cfg="${cfg}.cfg"
-                if [ -f "${cfg}.template" ]; then
-                    cp "${cfg}.template" "${cfg}"
-                    export MPLSETUPCFG="$(pwd)/${cfg}"
-                    break
-                fi
-            done
-            if [ -z "${MPLSETUPCFG}" ]; then
-                error "Could not locate *.cfg.template file"
-                exit 1
-            fi
-            freetype_include2="$(echo "${freetype_dir}/include/freetype"* | awk '{print $NF}')"
-            basedirlist="${freetype_dir},${freetype_dir}/include,\
-${freetype_include2},${freetype_dir}/lib"
-            CPPFLAGS_libpng=""
-            LDFLAGS_libpng=""
-            PATH_libpng=""
-            PKG_CONFIG_PATH_libpng=""
-            if [ -n "${libpng_dir}" ] && [ -d "${libpng_dir}" ]; then
-                # For compatibility with Matplotlib < 3.3
-                basedirlist="${basedirlist},${libpng_dir},${libpng_dir}/include,${libpng_dir}/lib"
-                CPPFLAGS_libpng="-I${libpng_dir}/include"
-                for d in "${libpng_dir}/include/"*; do
-                    if [ -d "${d}" ]; then
-                        basedirlist="${basedirlist},${d}"
-                        CPPFLAGS_libpng="${CPPFLAGS_libpng} -I${d}"
-                    fi
-                done
-                if [ -d "${libpng_dir}/lib" ]; then
-                    LDFLAGS_libpng="-L${libpng_dir}/lib -Wl,-rpath=${libpng_dir}/lib"
-                fi
-                PATH_libpng="${libpng_dir}/bin:"
-                PKG_CONFIG_PATH_libpng="${libpng_dir}/lib/pkgconfig:"
-            fi
-            basedirlist="${basedirlist},${zlib_dir},${zlib_dir}/include,${zlib_dir}/lib"
-            sed -i "/basedirlist/c\basedirlist = ${basedirlist}" "${cfg}"
-            cp -r "${freetype_include2}/"* "${freetype_dir}/include/"
-            export CPPFLAGS="-I${freetype_dir}/include \
-                             -I${freetype_include2}    \
-                             ${CPPFLAGS_libpng}        \
-                             -I${zlib_dir}/include ${CPPFLAGS}"
-            export LDFLAGS="-L${freetype_dir}/lib          \
-                            -Wl,-rpath=${freetype_dir}/lib \
-                            ${LDFLAGS_libpng}              \
-                            -L${zlib_dir}/lib              \
-                            -Wl,-rpath=${zlib_dir}/lib ${LDFLAGS}"
-            export PATH="${freetype_dir}/bin:${PATH_libpng}${PATH}"
-            export PKG_CONFIG_PATH="${PKG_CONFIG_PATH_libpng}\
-${zlib_dir}/lib/pkgconfig:${PKG_CONFIG_PATH}"
-            matplotlib_build_dir="$(pwd)"
-            cd "${concept_dir}"
-            # As usual, various extra pip arguments may be needed
-            for extra_pip_arg in                                      \
-                "--no-cache-dir                                     " \
-                "--no-cache-dir --no-build-isolation                " \
-                "               --no-build-isolation                " \
-                "--no-cache-dir                      --no-use-pep517" \
-                "--no-cache-dir --no-build-isolation --no-use-pep517" \
-                "               --no-build-isolation --no-use-pep517" \
-                "                                    --no-use-pep517" \
-                "                                                   " \
-            ; do
-                extra_pip_arg="$(echo ${extra_pip_arg} | awk '{$1=$1};1')"
-                # Install Matplotlib
-                "${python}" -m pip uninstall "matplotlib" -y >/dev/null 2>&1 || :
-                printf "
-Attempting to install Matplotlib using pip with extra_pip_arg=${extra_pip_arg}\n\n"
-                "${python}" -m pip install        \
-                    ${pyuser}                     \
-                    -v                            \
-                    ${extra_pip_arg}              \
-                    --no-index                    \
-                    --find-links="${tmp_dir}/pip" \
-                    "${matplotlib_build_dir}" 2>&1 & pip_install_pid=$!
-                soothe ${pip_install_pid}
-                pypackage_installed=$(check_pypackage_installed matplotlib)
-                if [ "${pypackage_installed}" == "True" ]; then
-                    break
-                fi
-            done
-            if [ "${pypackage_installed}" == "True" ]; then
-                install_success="True"
+    matplotlib_install_func() {
+        cd "${concept_dir}"
+        rm -rf "${matplotlib_build_dir}" || :
+        "${python}" -m pip uninstall "matplotlib" -y >/dev/null 2>&1 || :
+        cp -r "${matplotlib_build_dir}_cp" "${matplotlib_build_dir}"
+        cd "${matplotlib_build_dir}"
+        unset MPLSETUPCFG
+        for cfg in mplsetup setup; do
+            cfg="${cfg}.cfg"
+            if [ -f "${cfg}.template" ]; then
+                cp "${cfg}.template" "${cfg}"
+                export MPLSETUPCFG="$(pwd)/${cfg}"
                 break
             fi
         done
-        if [ "${pypackage_installed}" == "True" ]; then
-            install_success="True"
-            break
+        if [ -d "${zlib_dir}" ]; then
+            export CPPFLAGS="-I${zlib_dir}/include ${CPPFLAGS}"
+            export LDFLAGS="-L${zlib_dir}/lib -Wl,-rpath=${zlib_dir}/lib ${LDFLAGS}"
+            export LD_LIBRARY_PATH="${zlib_dir}/lib:${LD_LIBRARY_PATH}"
+            export PKG_CONFIG_PATH="${zlib_dir}/lib/pkgconfig:${PKG_CONFIG_PATH}"
         fi
-    done
-    reset_environment
-    cd "${concept_dir}"
-    # Exit if installation failed
-    if [ "${install_success}" == "False" ]; then
-        error "Could not install Matplotlib"
-        exit 1
-    fi
-    rm -rf "${tmp_pip_dir}" "${tmp_pip_dir}_tmp" || :
+        if [ "${use_predownloaded_clibs}" == "True" ]; then
+            download_matplotlib_clibs
+            mkdir -p "${matplotlib_build_dir}/build"
+            set_matplotlib_clibs
+            for matplotlib_clib in ${matplotlib_clibs}; do
+                matplotlib_clib_lowercase="$( \
+                    echo "${matplotlib_clib}" | tr '[:upper:]' '[:lower:]')"
+                if [ ! -d "${tmp_dir}/${matplotlib_clib_lowercase}" ]; then
+                    continue
+                fi
+                cd "${tmp_dir}/${matplotlib_clib_lowercase}"
+                for f in *; do
+                    if [ -d "${f}" ]; then
+                        rm -rf "${f}" || :
+                    fi
+                done
+                for f in *; do
+                    if [ -f "${f}" ]; then
+                        break
+                    fi
+                done
+                if [ ! -f "${f}" ]; then
+                    continue
+                fi
+                extract "${f}" "True"
+                for f in *; do
+                    rm -rf "${matplotlib_build_dir}/build/${f}" || :
+                    cp -r "${f}" "${matplotlib_build_dir}/build/"
+                done
+            done
+        fi
+        cd "${concept_dir}"
+        extra_pip_arg="$(echo ${extra_pip_arg} | awk '{$1=$1};1')"
+        "${python}" -m pip uninstall "matplotlib" -y >/dev/null 2>&1 || :
+        "${python}" -m pip install        \
+            ${pyuser}                     \
+            -v                            \
+            ${extra_pip_arg}              \
+            --no-index                    \
+            --find-links="${tmp_dir}/pip" \
+            "${matplotlib_build_dir}" 2>&1 & pip_install_pid=$!
+        soothe ${pip_install_pid}
+        if [ "$(check_pypackage_installed matplotlib)" == "False" ]; then
+            return 1
+        fi
+        # Clean up
+        cd "${concept_dir}"
+        rm -rf "${tmp_pip_dir}" "${tmp_pip_dir}_tmp" "${tmp_dir}/matplotlib" || :
+        set_matplotlib_clibs
+        for matplotlib_clib in ${matplotlib_clibs}; do
+            matplotlib_clib_lowercase="$(echo "${matplotlib_clib}" | tr '[:upper:]' '[:lower:]')"
+            rm -rf "${tmp_dir}/${matplotlib_clib_lowercase}" || :
+        done
+        reset_environment
+    }
+    set_matplotlib_clibs() {
+        # Written like the class names in setupext.py
+        matplotlib_clibs="FreeType Qhull"
+    }
+    download_matplotlib_clibs() {
+        # Matplotlib depends on FreeType and QHull:
+        #   https://matplotlib.org/stable/devel/dependencies.html
+        # These are supposed to be automatically downloaded, but this
+        # may fail. Here we download them using the robust
+        # download() function.
+        set_matplotlib_clibs
+        cd "${matplotlib_build_dir}"
+        content="$("${python}" -B -c "
+import setupext
+def get_and_extract_tarball(urls, *args, **kwargs):
+    print('\n'.join(urls))
+    raise Exception
+setupext.get_and_extract_tarball = get_and_extract_tarball
+for clib in '${matplotlib_clibs}'.split():
+    print('# ' + clib)
+    try:
+        getattr(setupext, clib)().do_custom_build({})
+    except Exception:
+        pass
+")"
+        while read -r line; do
+            if [[ "${line}" == "# "* ]]; then
+                matplotlib_clib="$(echo "${line}" | awk '{print $NF}')"
+                eval "matplotlib_${matplotlib_clib}_urls=()"
+            else
+                urls="matplotlib_${matplotlib_clib}_urls"
+                eval "${urls}=(\"\${${urls}[@]}\" \"${line}\")"
+            fi
+        done <<< "${content}"
+        for matplotlib_clib in ${matplotlib_clibs}; do
+            matplotlib_clib_lowercase="$( \
+                echo "${matplotlib_clib}" | tr '[:upper:]' '[:lower:]')"
+            if [ -d "${tmp_dir}/${matplotlib_clib_lowercase}" ] \
+                && [ -n "$(ls "${tmp_dir}/${matplotlib_clib_lowercase}")" ]; then
+                # Already downloaded
+                continue
+            fi
+            urls="matplotlib_${matplotlib_clib}_urls"
+            eval "n=\"\${#${urls}[@]}\"" || continue
+            i=0
+            while [ ${i} -lt ${n} ]; do
+                eval "${matplotlib_clib}_url=\"\${${urls}[${i}]}\""
+                ((i += 1))
+                eval "url=\"\${${matplotlib_clib}_url}\""
+                echo "Attempting to download ${matplotlib_clib} from ${url}"
+                download "${matplotlib_clib_lowercase}" "False" "${url}" "False" \
+                    || continue
+                break
+            done
+        done
+    }
+    install "Matplotlib" "no_init_install"                             \
+        compiler "${compiler_possibilities_specified_mpi_last[@]}" ";" \
+        pyuser "" "--user"                                         ";" \
+        use_predownloaded_clibs "True" "False"                     ";" \
+        extra_pip_arg                                                  \
+            "--no-cache-dir                                     "      \
+            "--no-cache-dir --no-build-isolation                "      \
+            "               --no-build-isolation                "      \
+            "--no-cache-dir                      --no-use-pep517"      \
+            "--no-cache-dir --no-build-isolation --no-use-pep517"      \
+            "               --no-build-isolation --no-use-pep517"      \
+            "                                    --no-use-pep517"      \
+            "                                                   "      \
+                                                                   ";" \
+
 fi
 
 # MPI4Py
@@ -9117,10 +9087,6 @@ site-packages/scipy/misc/face.dat" || :
     if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
         slimdown_python "CLASS" "${class_dir}"
     fi
-    # Slim down FreeType
-    if [ "${freetype_install}" == "True" ] && [ "${freetype_installed}" == "False" ]; then
-        rm -f "${freetype_dir}/lib/"libfreetype*.so* || :
-    fi
     # Remove all static libraries (archive files) in the dependency directory
     if get_command "find" >/dev/null; then
         rm -f $(find "${dep_dir}" -name "*.a") || :
@@ -9187,7 +9153,6 @@ if [ "${install_anything}" == "True" ] && [ "${say_copyright}" != "False" ]; the
     copyright_notice "class"             "CLASS"
     copyright_notice "fftw"              "FFTW 3"
     copyright_notice "fftw_for_gadget"   "FFTW 2"
-    copyright_notice "freetype"          "FreeType"
     copyright_notice "gadget"            "GADGET"
     copyright_notice "gsl"               "GSL"
     copyright_notice "hdf5"              "HDF5"
@@ -9264,7 +9229,6 @@ erroneous_test_notice() {
 erroneous_test_notice "CLASS"
 erroneous_test_notice "FFTW"
 erroneous_test_notice "FFTW for GADGET"
-erroneous_test_notice "FreeType"
 erroneous_test_notice "GADGET"
 erroneous_test_notice "GSL"
 erroneous_test_notice "HDF5"
