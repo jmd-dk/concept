@@ -597,7 +597,6 @@ Linux headers.</p></li>
 installed by the <code class="docutils literal notranslate"><span class="pre">install</span></code> script is given below:</p>
 <ul class="simple">
 <li><p><strong>zlib</strong></p></li>
-<li><p><strong>FreeType</strong></p></li>
 <li><p><strong>Perl</strong></p></li>
 <li><p><strong>BLAS</strong> and <strong>LAPACK</strong></p></li>
 <li><p><strong>MPI</strong></p></li>
@@ -619,7 +618,7 @@ needed to install the Python packages below:</p>
 <li><p><strong>CythonGSL</strong> (depends on Cython, GSL)</p></li>
 <li><p><strong>NumPy</strong> (depends on BLAS, LAPACK)</p></li>
 <li><p><strong>SciPy</strong> (depends on BLAS, LAPACK)</p></li>
-<li><p><strong>Matplotlib</strong> (depends on FreeType)</p></li>
+<li><p><strong>Matplotlib</strong></p></li>
 <li><p><strong>MPI4Py</strong> (depends on MPI, Cython)</p></li>
 <li><p><strong>H5Py</strong> (depends on HDF5 and MPI)</p></li>
 <li><p><strong>Sphinx</strong></p></li>
@@ -797,9 +796,9 @@ bash install
 <p>To make the <code class="docutils literal notranslate"><span class="pre">install</span></code> script make use of a pre-installed library rather than
 installing it itself, you must set the corresponding <code class="docutils literal notranslate"><span class="pre">*_dir</span></code> variable. The
 complete list of such variables is: <code class="docutils literal notranslate"><span class="pre">blas_dir</span></code>, <code class="docutils literal notranslate"><span class="pre">class_dir</span></code>,
-<code class="docutils literal notranslate"><span class="pre">concept_dir</span></code>, <code class="docutils literal notranslate"><span class="pre">fftw_dir</span></code>, <code class="docutils literal notranslate"><span class="pre">fftw_for_gadget_dir</span></code>, <code class="docutils literal notranslate"><span class="pre">freetype_dir</span></code>,
-<code class="docutils literal notranslate"><span class="pre">gadget_dir</span></code>, <code class="docutils literal notranslate"><span class="pre">gsl_dir</span></code>, <code class="docutils literal notranslate"><span class="pre">hdf5_dir</span></code>, <code class="docutils literal notranslate"><span class="pre">libffi_dir</span></code>, <code class="docutils literal notranslate"><span class="pre">mpi_dir</span></code>,
-<code class="docutils literal notranslate"><span class="pre">ncurses_dir</span></code>, <code class="docutils literal notranslate"><span class="pre">openssl_dir</span></code>, <code class="docutils literal notranslate"><span class="pre">perl_dir</span></code>, <code class="docutils literal notranslate"><span class="pre">python_dir</span></code>, <code class="docutils literal notranslate"><span class="pre">zlib_dir</span></code>.</p>
+<code class="docutils literal notranslate"><span class="pre">concept_dir</span></code>, <code class="docutils literal notranslate"><span class="pre">fftw_dir</span></code>, <code class="docutils literal notranslate"><span class="pre">fftw_for_gadget_dir</span></code>, <code class="docutils literal notranslate"><span class="pre">gadget_dir</span></code>,
+<code class="docutils literal notranslate"><span class="pre">gsl_dir</span></code>, <code class="docutils literal notranslate"><span class="pre">hdf5_dir</span></code>, <code class="docutils literal notranslate"><span class="pre">libffi_dir</span></code>, <code class="docutils literal notranslate"><span class="pre">mpi_dir</span></code>, <code class="docutils literal notranslate"><span class="pre">ncurses_dir</span></code>,
+<code class="docutils literal notranslate"><span class="pre">openssl_dir</span></code>, <code class="docutils literal notranslate"><span class="pre">perl_dir</span></code>, <code class="docutils literal notranslate"><span class="pre">python_dir</span></code>, <code class="docutils literal notranslate"><span class="pre">zlib_dir</span></code>.</p>
 <p>Note that if using a pre-installed Python distribution —
 <code class="docutils literal notranslate"><span class="pre">python_dir=/path/to/python</span></code> — OpenSSL, libffi and ncurses are assumed to
 be already installed and built into the Python distribution, as these cannot
@@ -816,14 +815,14 @@ of software versions’). You may direct the <code class="docutils literal notra
 versions through the <code class="docutils literal notranslate"><span class="pre">*_version</span></code> variables. As with the <code class="docutils literal notranslate"><span class="pre">*_dir</span></code>
 <a class="reference internal" href="#making-use-of-preinstalled-libraries"><span class="std std-ref">variables</span></a>, these include
 <code class="docutils literal notranslate"><span class="pre">blas_version</span></code>, <code class="docutils literal notranslate"><span class="pre">class_version</span></code>, <code class="docutils literal notranslate"><span class="pre">concept_version</span></code>, <code class="docutils literal notranslate"><span class="pre">fftw_version</span></code>,
-<code class="docutils literal notranslate"><span class="pre">fftw_for_gadget_version</span></code>, <code class="docutils literal notranslate"><span class="pre">freetype_version</span></code>, <code class="docutils literal notranslate"><span class="pre">gadget_version</span></code>,
-<code class="docutils literal notranslate"><span class="pre">gsl_version</span></code>, <code class="docutils literal notranslate"><span class="pre">hdf5_version</span></code>, <code class="docutils literal notranslate"><span class="pre">libffi_version</span></code>, <code class="docutils literal notranslate"><span class="pre">mpi_version</span></code>,
-<code class="docutils literal notranslate"><span class="pre">ncurses_version</span></code>, <code class="docutils literal notranslate"><span class="pre">openssl_version</span></code>, <code class="docutils literal notranslate"><span class="pre">perl_version</span></code>,
-<code class="docutils literal notranslate"><span class="pre">python_version</span></code>, <code class="docutils literal notranslate"><span class="pre">zlib_version</span></code>. Furthermore, each Python package also
-has a version, specified by <code class="docutils literal notranslate"><span class="pre">blessings_version</span></code>, <code class="docutils literal notranslate"><span class="pre">cython_version</span></code>,
-<code class="docutils literal notranslate"><span class="pre">cythongsl_version</span></code>, <code class="docutils literal notranslate"><span class="pre">h5py_version</span></code>, <code class="docutils literal notranslate"><span class="pre">matplotlib_version</span></code>,
-<code class="docutils literal notranslate"><span class="pre">mpi4py_version</span></code>, <code class="docutils literal notranslate"><span class="pre">numpy_version</span></code>, <code class="docutils literal notranslate"><span class="pre">pip_version</span></code>, <code class="docutils literal notranslate"><span class="pre">scipy_version</span></code>,
-<code class="docutils literal notranslate"><span class="pre">setuptools_version</span></code>, <code class="docutils literal notranslate"><span class="pre">sphinx_version</span></code>, <code class="docutils literal notranslate"><span class="pre">sphinx_copybutton_version</span></code>,
+<code class="docutils literal notranslate"><span class="pre">fftw_for_gadget_version</span></code>, <code class="docutils literal notranslate"><span class="pre">gadget_version</span></code>, <code class="docutils literal notranslate"><span class="pre">gsl_version</span></code>,
+<code class="docutils literal notranslate"><span class="pre">hdf5_version</span></code>, <code class="docutils literal notranslate"><span class="pre">libffi_version</span></code>, <code class="docutils literal notranslate"><span class="pre">mpi_version</span></code>, <code class="docutils literal notranslate"><span class="pre">ncurses_version</span></code>,
+<code class="docutils literal notranslate"><span class="pre">openssl_version</span></code>, <code class="docutils literal notranslate"><span class="pre">perl_version</span></code>, <code class="docutils literal notranslate"><span class="pre">python_version</span></code>, <code class="docutils literal notranslate"><span class="pre">zlib_version</span></code>.
+Furthermore, each Python package also has a version, specified by
+<code class="docutils literal notranslate"><span class="pre">blessings_version</span></code>, <code class="docutils literal notranslate"><span class="pre">cython_version</span></code>, <code class="docutils literal notranslate"><span class="pre">cythongsl_version</span></code>,
+<code class="docutils literal notranslate"><span class="pre">h5py_version</span></code>, <code class="docutils literal notranslate"><span class="pre">matplotlib_version</span></code>, <code class="docutils literal notranslate"><span class="pre">mpi4py_version</span></code>,
+<code class="docutils literal notranslate"><span class="pre">numpy_version</span></code>, <code class="docutils literal notranslate"><span class="pre">pip_version</span></code>, <code class="docutils literal notranslate"><span class="pre">scipy_version</span></code>, <code class="docutils literal notranslate"><span class="pre">setuptools_version</span></code>,
+<code class="docutils literal notranslate"><span class="pre">sphinx_version</span></code>, <code class="docutils literal notranslate"><span class="pre">sphinx_copybutton_version</span></code>,
 <code class="docutils literal notranslate"><span class="pre">sphinx_rtd_theme_version</span></code>, <code class="docutils literal notranslate"><span class="pre">sphinx_tabs_version</span></code>, <code class="docutils literal notranslate"><span class="pre">wheel_version</span></code>.</p>
 </div>
 <div class="section" id="specifying-dependency-urls">
@@ -838,9 +837,9 @@ non-standard version of a given dependency, you can provide the corresponding
 <code class="docutils literal notranslate"><span class="pre">*_url</span></code> variable yourself. This should point to some downloadable archive
 (<code class="docutils literal notranslate"><span class="pre">.tar.gz</span></code>, <code class="docutils literal notranslate"><span class="pre">.zip</span></code>, etc.). The complete list of <code class="docutils literal notranslate"><span class="pre">*_url</span></code> variables is:
 <code class="docutils literal notranslate"><span class="pre">blas_url</span></code>, <code class="docutils literal notranslate"><span class="pre">class_url</span></code>, <code class="docutils literal notranslate"><span class="pre">concept_url</span></code>, <code class="docutils literal notranslate"><span class="pre">fftw_url</span></code>,
-<code class="docutils literal notranslate"><span class="pre">fftw_for_gadget_url</span></code>, <code class="docutils literal notranslate"><span class="pre">freetype_url</span></code>, <code class="docutils literal notranslate"><span class="pre">gadget_url</span></code>, <code class="docutils literal notranslate"><span class="pre">gsl_url</span></code>,
-<code class="docutils literal notranslate"><span class="pre">hdf5_url</span></code>, <code class="docutils literal notranslate"><span class="pre">libffi_url</span></code>, <code class="docutils literal notranslate"><span class="pre">mpi_url</span></code>, <code class="docutils literal notranslate"><span class="pre">ncurses_url</span></code>, <code class="docutils literal notranslate"><span class="pre">openssl_url</span></code>,
-<code class="docutils literal notranslate"><span class="pre">perl_url</span></code>, <code class="docutils literal notranslate"><span class="pre">python_url</span></code>, <code class="docutils literal notranslate"><span class="pre">zlib_url</span></code>.</p>
+<code class="docutils literal notranslate"><span class="pre">fftw_for_gadget_url</span></code>, <code class="docutils literal notranslate"><span class="pre">gadget_url</span></code>, <code class="docutils literal notranslate"><span class="pre">gsl_url</span></code>, <code class="docutils literal notranslate"><span class="pre">hdf5_url</span></code>,
+<code class="docutils literal notranslate"><span class="pre">libffi_url</span></code>, <code class="docutils literal notranslate"><span class="pre">mpi_url</span></code>, <code class="docutils literal notranslate"><span class="pre">ncurses_url</span></code>, <code class="docutils literal notranslate"><span class="pre">openssl_url</span></code>, <code class="docutils literal notranslate"><span class="pre">perl_url</span></code>,
+<code class="docutils literal notranslate"><span class="pre">python_url</span></code>, <code class="docutils literal notranslate"><span class="pre">zlib_url</span></code>.</p>
 </div>
 <div class="section" id="choosing-compiler-precedence">
 <h4>Choosing compiler precedence<a class="headerlink" href="#choosing-compiler-precedence" title="Permalink to this headline"></a></h4>

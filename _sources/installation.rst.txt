@@ -333,7 +333,6 @@ The complete list of all library dependencies (and their dependency relations)
 installed by the ``install`` script is given below:
 
 * **zlib**
-* **FreeType**
 * **Perl**
 * **BLAS** and **LAPACK**
 * **MPI**
@@ -355,7 +354,7 @@ installed by the ``install`` script is given below:
     - **CythonGSL** (depends on Cython, GSL)
     - **NumPy** (depends on BLAS, LAPACK)
     - **SciPy** (depends on BLAS, LAPACK)
-    - **Matplotlib** (depends on FreeType)
+    - **Matplotlib**
     - **MPI4Py** (depends on MPI, Cython)
     - **H5Py** (depends on HDF5 and MPI)
     - **Sphinx**
@@ -588,9 +587,9 @@ Making use of pre-installed libraries
 To make the ``install`` script make use of a pre-installed library rather than
 installing it itself, you must set the corresponding ``*_dir`` variable. The
 complete list of such variables is: ``blas_dir``, ``class_dir``,
-``concept_dir``, ``fftw_dir``, ``fftw_for_gadget_dir``, ``freetype_dir``,
-``gadget_dir``, ``gsl_dir``, ``hdf5_dir``, ``libffi_dir``, ``mpi_dir``,
-``ncurses_dir``, ``openssl_dir``, ``perl_dir``, ``python_dir``, ``zlib_dir``.
+``concept_dir``, ``fftw_dir``, ``fftw_for_gadget_dir``, ``gadget_dir``,
+``gsl_dir``, ``hdf5_dir``, ``libffi_dir``, ``mpi_dir``, ``ncurses_dir``,
+``openssl_dir``, ``perl_dir``, ``python_dir``, ``zlib_dir``.
 
 Note that if using a pre-installed Python distribution ---
 ``python_dir=/path/to/python`` --- OpenSSL, libffi and ncurses are assumed to
@@ -613,14 +612,14 @@ of software versions'). You may direct the ``install`` script to use other
 versions through the ``*_version`` variables. As with the ``*_dir``
 :ref:`variables <making_use_of_preinstalled_libraries>`, these include
 ``blas_version``, ``class_version``, ``concept_version``, ``fftw_version``,
-``fftw_for_gadget_version``, ``freetype_version``, ``gadget_version``,
-``gsl_version``, ``hdf5_version``, ``libffi_version``, ``mpi_version``,
-``ncurses_version``, ``openssl_version``, ``perl_version``,
-``python_version``, ``zlib_version``. Furthermore, each Python package also
-has a version, specified by ``blessings_version``, ``cython_version``,
-``cythongsl_version``, ``h5py_version``, ``matplotlib_version``,
-``mpi4py_version``, ``numpy_version``, ``pip_version``, ``scipy_version``,
-``setuptools_version``, ``sphinx_version``, ``sphinx_copybutton_version``,
+``fftw_for_gadget_version``, ``gadget_version``, ``gsl_version``,
+``hdf5_version``, ``libffi_version``, ``mpi_version``, ``ncurses_version``,
+``openssl_version``, ``perl_version``, ``python_version``, ``zlib_version``.
+Furthermore, each Python package also has a version, specified by
+``blessings_version``, ``cython_version``, ``cythongsl_version``,
+``h5py_version``, ``matplotlib_version``, ``mpi4py_version``,
+``numpy_version``, ``pip_version``, ``scipy_version``, ``setuptools_version``,
+``sphinx_version``, ``sphinx_copybutton_version``,
 ``sphinx_rtd_theme_version``, ``sphinx_tabs_version``, ``wheel_version``.
 
 
@@ -637,9 +636,9 @@ non-standard version of a given dependency, you can provide the corresponding
 ``*_url`` variable yourself. This should point to some downloadable archive
 (``.tar.gz``, ``.zip``, etc.). The complete list of ``*_url`` variables is:
 ``blas_url``, ``class_url``, ``concept_url``, ``fftw_url``,
-``fftw_for_gadget_url``, ``freetype_url``, ``gadget_url``, ``gsl_url``,
-``hdf5_url``, ``libffi_url``, ``mpi_url``, ``ncurses_url``, ``openssl_url``,
-``perl_url``, ``python_url``, ``zlib_url``.
+``fftw_for_gadget_url``, ``gadget_url``, ``gsl_url``, ``hdf5_url``,
+``libffi_url``, ``mpi_url``, ``ncurses_url``, ``openssl_url``, ``perl_url``,
+``python_url``, ``zlib_url``.
 
 
 
