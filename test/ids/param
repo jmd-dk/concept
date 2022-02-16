@@ -1,0 +1,56 @@
+# Input/output
+initial_conditions = [
+    {
+        'species': _s,
+        'N'      : _size**3,
+    }
+    for _s in _species
+]
+output_dirs = {
+    'snapshot': f'{param.dir}/output',
+}
+output_times = {
+    'snapshot': 1,
+}
+snapshot_select = {
+    'save': {
+        'all': True,
+    },
+    'load': {
+        'all': True,
+    },
+}
+gadget_snapshot_params = {
+    'dataformat': {
+        'POS': 64,
+        'VEL': 64,
+        'ID': 'automatic',
+    },
+}
+select_particle_id = {
+    'particles': True,
+}
+
+# Numerics
+boxsize = 16*Mpc/h
+potential_options = 2*_size
+shortrange_params = {
+    'gravity': {
+        'scale': '1.25*boxsize/gridsize',
+        'range': '2.0*scale',
+    },
+}
+
+# Cosmology
+H0 = 67*km/(s*Mpc)
+Ωb = 0.049
+Ωcdm = 0.27
+a_begin = 0.5
+
+# Debugging
+particle_reordering = True
+
+# Helper variables
+_size = 12
+_species = ['matter']
+

@@ -56,7 +56,7 @@ for powerspec_global in ${powerspec_global_list[@]}; do
         -c "powerspec_options['global gridsize'] = ${powerspec_global}" \
         --local
     mv "${this_dir}/output/powerspec"*.png "${subtest_dir}/powerspec_${powerspec_global}.png"
-   mv "${this_dir}/output/powerspec"*     "${subtest_dir}/powerspec_${powerspec_global}"
+    mv "${this_dir}/output/powerspec"*     "${subtest_dir}/powerspec_${powerspec_global}"
 done
 mv "${this_dir}/output/"* "${subtest_dir}/snapshot.hdf5"
 

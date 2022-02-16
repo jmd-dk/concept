@@ -235,6 +235,16 @@ jobs:
             env:
                 docker_username: ${{ secrets.DOCKER_USERNAME }}
             uses: ./.github/actions/test
+    test_ids:
+        needs: test_basic
+        runs-on: [self-hosted, linux, light]
+        steps:
+          - name: 🛎️ Checkout
+            uses: actions/checkout@v2
+          - name: 🤖 Run test
+            env:
+                docker_username: ${{ secrets.DOCKER_USERNAME }}
+            uses: ./.github/actions/test
     test_multigrid:
         needs: test_basic
         runs-on: [self-hosted, linux, heavy]

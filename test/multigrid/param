@@ -12,7 +12,7 @@ render2D_select = {
     'all': {'data': True, 'image': True, 'terminal image': True},
 }
 
-# Numerical parameters
+# Numerics
 boxsize = 128*Mpc
 potential_options = {
     'interpolation': {
@@ -51,7 +51,7 @@ select_approximations = {
     },
 }
 
-# Simulation options
+# Simulation
 primordial_amplitude_fixed = True
 
 # Graphics

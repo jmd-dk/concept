@@ -1518,6 +1518,8 @@ order = (
     'concept_vs_gadget_p3m',
     # Test multi-component simulations (particles only)
     'multicomponent',
+    # Test particle IDs
+    'ids',
     # Test upstream/downstream grid scalings and multi-grid simulations
     'multigrid',
     # Tests of the fluid implementation

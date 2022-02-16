@@ -13,7 +13,7 @@ powerspec_select = {
     'all': {'data': True, 'linear': True, 'plot': True},
 }
 
-# Numerical parameters
+# Numerics
 boxsize = 2048*Mpc
 potential_options = {
     'gridsize': {
@@ -40,7 +40,7 @@ powerspec_options = {
 }
 k_modes_per_decade = 30
 
-# Simulation options
+# Simulation
 primordial_amplitude_fixed = True
 
 # Cosmology

@@ -14,7 +14,7 @@ output_times       = {
 }
 render2D_select = {'all': {'terminal image': True}}
 
-# Numerical parameters
+# Numerics
 boxsize = 64*Mpc
 potential_options = {
     'gridsize': {
@@ -40,5 +40,6 @@ render2D_options = {
     'enhance' : False,
 }
 
-# Debugging options
+# Debugging
 enable_Hubble = False
+

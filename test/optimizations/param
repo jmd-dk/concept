@@ -31,7 +31,7 @@ render2D_select = {
     ('matter', 'neutrino'): {'data': True},
 }
 
-# Numerical parameters
+# Numerics
 boxsize = 5000*Mpc
 potential_options = {
     'gridsize': {
@@ -64,5 +64,6 @@ select_forces = {
     'fluid':     {'gravity': 'pm'},
 }
 
-# Simulation options
+# Simulation
 class_reuse = False
+

@@ -2,7 +2,7 @@
 output_times     = {'a': {'powerspec': a_begin}}
 powerspec_select = {'all': {'data': True}}
 
-# Numerical parameters
+# Numerics
 _size = 128
 boxsize            = 8*Gpc
 powerspec_options  = {'gridsize': _size}
@@ -21,8 +21,9 @@ primordial_spectrum = {
     'pivot': 1e-5/kpc,
 }
 
-# Simulation options
+# Simulation
 class_reuse = False
 
-# System of units
+# Units
 unit_length = 'kpc'  # Use a base unit different from Mpc which is used by CLASS
+

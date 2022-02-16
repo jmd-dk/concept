@@ -5,7 +5,7 @@ output_bases       = {'snapshot': 'snapshot'}
 output_times       = {'snapshot': (0.1, 0.5, 1)}
 snapshot_type      = 'concept'
 
-# Numerical parameters
+# Numerics
 boxsize        = 8*Mpc
 ewald_gridsize = 8
 
@@ -18,3 +18,4 @@ a_begin = 0.02
 # Physics
 select_forces           = {'matter': {'gravity': 'pp'}}
 select_softening_length = {'matter': '0.03*boxsize/cbrt(N)'}
+

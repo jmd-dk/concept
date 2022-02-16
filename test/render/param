@@ -7,7 +7,7 @@ output_times       = {'render2D': logspace(log(a_begin), log(1), 30, base=e)}
 render2D_select    = {'matter': {'terminal image': True}}
 snapshot_type      = 'concept'
 
-# Numerical parameters
+# Numerics
 boxsize = 80*Mpc
 
 # Cosmology
@@ -19,7 +19,7 @@ a_begin = 0.02
 # Physics
 select_forces = {'matter': {'gravity': 'pm'}}
 
-# Simulation options
+# Simulation
 random_generator = 'PCG64DXSM'
 random_seed      = 2  # 2 (with PCG64DXSM) results in nice looking 2D renders
 
@@ -31,3 +31,4 @@ render2D_options = {
     'colormap'           : 'inferno',
     'enhance'            : True,
 }
+

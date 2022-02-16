@@ -2088,7 +2088,7 @@ def constant_expressions(lines, no_optimization, first_call=True):
         if dummy_declaration_value not in line:
             new_lines.append(line)
     # Call recursively until all nested constant expressions has been
-    # taken care off.
+    # taken care of.
     if not all_lvls or all_lvls == {0}:
         return new_lines
     return constant_expressions(new_lines, no_optimization, first_call=False)

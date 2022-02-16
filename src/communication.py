@@ -66,6 +66,8 @@ def partition(size):
     data_mv='double[::1]',
     data_mvs=list,
     dim='int',
+    ids='Py_ssize_t*',
+    ids_mv='Py_ssize_t[::1]',
     indexᵖ='Py_ssize_t',
     indexᵖ_end_i='Py_ssize_t',
     indexᵖ_hole_bgn='Py_ssize_t',
@@ -137,6 +139,7 @@ def exchange(component, progress_msg=False):
       - pos
       - mom
       - Δmom
+      - ids          (if IDs   are used by the component)
       - rung_indices (if rungs are used by the component)
     We do not communicate rung jumps, as it is expected that no such
     jumps are flagged when calling this function.
@@ -195,6 +198,7 @@ def exchange(component, progress_msg=False):
         pos                 = component.pos
         mom                 = component.mom
         Δmom                = component.Δmom
+        ids                 = component.ids
         rung_indices        = component.rung_indices
         rung_indices_jumped = component.rung_indices_jumped
         # Sweep over the particles from the left and right
@@ -245,6 +249,9 @@ def exchange(component, progress_msg=False):
                         indexʳ_left  = indexˣ_left  + dim
                         indexʳ_right = indexˣ_right + dim
                         Δmom[indexʳ_left], Δmom[indexʳ_right] = Δmom[indexʳ_right], Δmom[indexʳ_left]
+                    with unswitch(2):
+                        if component.use_ids:
+                            ids[indexᵖ_left], ids[indexᵖ_right] = ids[indexᵖ_right], ids[indexᵖ_left]
                     with unswitch(2):
                         if component.use_rungs:
                             rung_index_left  = rung_indices[indexᵖ_left]
@@ -353,6 +360,9 @@ def exchange(component, progress_msg=False):
                     indexʳ_j = indexˣ_j + dim
                     Δmom[indexʳ_i], Δmom[indexʳ_j] = Δmom[indexʳ_j], Δmom[indexʳ_i]
                 with unswitch(1):
+                    if component.use_ids:
+                        ids[indexᵖ_i], ids[indexᵖ_j] = ids[indexᵖ_j], ids[indexᵖ_i]
+                with unswitch(1):
                     if component.use_rungs:
                         rung_index_i = rung_indices[indexᵖ_i]
                         rung_index_j = rung_indices[indexᵖ_j]
@@ -390,9 +400,11 @@ def exchange(component, progress_msg=False):
         pos     = component. pos
         mom     = component. mom
         Δmom    = component.Δmom
+        ids     = component. ids
         pos_mv  = component. pos_mv
         mom_mv  = component. mom_mv
         Δmom_mv = component.Δmom_mv
+        ids_mv  = component. ids_mv
         # Extract rung information
         rungs_N             = component.rungs_N
         rung_indices        = component.rung_indices
@@ -421,27 +433,34 @@ def exchange(component, progress_msg=False):
                     recvbuf=data_mv[indexʳ_recv_bgn_ℓ:],
                     source=rank_recv,
                 )
+            # If using IDs we also exchange these
+            if component.use_ids:
+                Sendrecv(
+                    ids_mv[indexᵖ_send_bgn_ℓ:indexᵖ_send_end_ℓ],
+                    dest=rank_send,
+                    recvbuf=ids_mv[indexᵖ_recv_bgn_ℓ:],
+                    source=rank_recv,
+                )
             # If using rungs we also exchange the rung indices
-            with unswitch(1):
-                if component.use_rungs:
-                    Sendrecv(
-                        rung_indices_mv[indexᵖ_send_bgn_ℓ:indexᵖ_send_end_ℓ],
-                        dest=rank_send,
-                        recvbuf=rung_indices_mv[indexᵖ_recv_bgn_ℓ:],
-                        source=rank_recv,
-                    )
-                    # Decrement rung population due to sent particles
-                    for indexᵖ in range(indexᵖ_send_bgn_ℓ, indexᵖ_send_end_ℓ):
-                        rung_index = rung_indices[indexᵖ]
-                        rungs_N[rung_index] -= 1
-                    # Increment rung population due to received
-                    # particles and set their jumped rung indices.
-                    for indexᵖ in range(indexᵖ_recv_bgn_ℓ, indexᵖ_recv_end_ℓ):
-                        rung_index = rung_indices[indexᵖ]
-                        rungs_N[rung_index] += 1
-                        # Set the jumped rung index equal to
-                        # the rung index, signalling no upcoming jump.
-                        rung_indices_jumped[indexᵖ] = rung_index
+            if component.use_rungs:
+                Sendrecv(
+                    rung_indices_mv[indexᵖ_send_bgn_ℓ:indexᵖ_send_end_ℓ],
+                    dest=rank_send,
+                    recvbuf=rung_indices_mv[indexᵖ_recv_bgn_ℓ:],
+                    source=rank_recv,
+                )
+                # Decrement rung population due to sent particles
+                for indexᵖ in range(indexᵖ_send_bgn_ℓ, indexᵖ_send_end_ℓ):
+                    rung_index = rung_indices[indexᵖ]
+                    rungs_N[rung_index] -= 1
+                # Increment rung population due to received
+                # particles and set their jumped rung indices.
+                for indexᵖ in range(indexᵖ_recv_bgn_ℓ, indexᵖ_recv_end_ℓ):
+                    rung_index = rung_indices[indexᵖ]
+                    rungs_N[rung_index] += 1
+                    # Set the jumped rung index equal to
+                    # the rung index, signalling no upcoming jump.
+                    rung_indices_jumped[indexᵖ] = rung_index
             # Update the start index for received data
             indexᵖ_recv_bgn_ℓ += n_particles_recv_ℓ
         # Move particles into the holes left by the sent particles
@@ -453,6 +472,9 @@ def exchange(component, progress_msg=False):
         for indexᵖ_hole in range(indexᵖ_hole_bgn, indexᵖ_hole_end):
             indexˣ_hole += 3
             indexˣ -= 3
+            with unswitch(1):
+                if component.use_ids or component.use_rungs:
+                    indexᵖ -= 1
             for dim in range(3):
                 pos [indexˣ_hole + dim] = pos [indexˣ + dim]
             for dim in range(3):
@@ -460,8 +482,10 @@ def exchange(component, progress_msg=False):
             for dim in range(3):
                 Δmom[indexˣ_hole + dim] = Δmom[indexˣ + dim]
             with unswitch(1):
+                if component.use_ids:
+                    ids[indexᵖ_hole] = ids[indexᵖ]
+            with unswitch(1):
                 if component.use_rungs:
-                    indexᵖ -= 1
                     rung_index = rung_indices[indexᵖ]
                     rung_indices       [indexᵖ_hole] = rung_index
                     rung_indices_jumped[indexᵖ_hole] = rung_index  # no jump
@@ -741,8 +765,8 @@ def which_domain(x, y, z):
     # To get the rank we could index into domain_layout[...],
     # but as an optimization we compute it ourselves.
     return (
-        + x_index*ℤ[domain_subdivisions[2]*domain_subdivisions[1]]
-        + y_index*ℤ[domain_subdivisions[2]]
+        + x_index*domain_subdivisions_21
+        + y_index*domain_subdivisions_2
         + z_index
     )
 
@@ -1746,9 +1770,6 @@ cython.declare(
     domain_end_x='double',
     domain_end_y='double',
     domain_end_z='double',
-    domain_size_x_inv='double',
-    domain_size_y_inv='double',
-    domain_size_z_inv='double',
 )
 # Number of subdivisions (domains) of the box
 # in each of the three dimensions.
@@ -1772,6 +1793,16 @@ domain_start_z = domain_layout_local_indices[2]*domain_size_z
 domain_end_x = domain_start_x + domain_size_x
 domain_end_y = domain_start_y + domain_size_y
 domain_end_z = domain_start_z + domain_size_z
+# Derived constants, used within the which_domain() function
+cython.declare(
+    domain_subdivisions_2='int',
+    domain_subdivisions_21='int',
+    domain_size_x_inv='double',
+    domain_size_y_inv='double',
+    domain_size_z_inv='double',
+)
+domain_subdivisions_2  = domain_subdivisions[2]
+domain_subdivisions_21 = domain_subdivisions[2]*domain_subdivisions[1]
 # Reciprocals of the domain sizes. To avoid future round-off errors,
 # these are constructed such that their product with boxsize is as close
 # to domain_subdivisions[:] as possible without being equal.

@@ -21,7 +21,7 @@ render2D_select = {
     _key: {'data': False, 'image': True, 'terminal image': False},
 }
 
-# Numerical parameters
+# Numerics
 boxsize = 100*Mpc
 if _subtest == 'tile':
     _scale = 1.25
@@ -59,7 +59,7 @@ select_softening_length = {
     'particles': 0.01*boxsize,
 }
 
-# Simulation options
+# Simulation
 N_rungs = 10
 
 # Graphics
@@ -85,7 +85,7 @@ render2D_options = {
     },
 }
 
-# Debugging options
+# Debugging
 print_load_imbalance = False
 enable_Hubble = False
 

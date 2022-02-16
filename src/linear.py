@@ -3020,7 +3020,10 @@ k_safety_factor = 2*10**float(-k_str_n_decimals)
     fluidvar_name=str,
     gridsize='Py_ssize_t',
     i='Py_ssize_t',
+    id_counter='Py_ssize_t',
+    ids='Py_ssize_t*',
     index='Py_ssize_t',
+    indexᵖ='Py_ssize_t',
     indexʳ='Py_ssize_t',
     indexˣ='Py_ssize_t',
     indexˣʸᶻ='Py_ssize_t',
@@ -3045,6 +3048,7 @@ k_safety_factor = 2*10**float(-k_str_n_decimals)
     option_key=str,
     option_val=object,  # str or bool
     options_linear=dict,
+    particle_id='Py_ssize_t',
     particle_components=list,
     particle_index='int',
     particle_shift='double',
@@ -3420,6 +3424,7 @@ def realize(
     # Note that this shifting trick leads to anisotropies for 3 particle
     # components and above.
     particle_shift = 0
+    id_counter = 0
     if component.representation == 'particles':
         particle_components = [
             other_component for other_component in component.components_all
@@ -3436,6 +3441,12 @@ def realize(
                 'You are realising more than 2 particle components. '
                 'Note that this will lead to anisotropies in the initial conditions.'
             )
+        # Set the particle ID counter, used to keep track of the
+        # assigned IDs across multiple components.
+        id_counter = np.sum(
+            [other_component.N for other_component in particle_components[:particle_index]],
+            dtype=C2np['Py_ssize_t'],
+        )
     # The realised field will be interpolated onto the shifted particle
     # positions, using the interpolation order specified in the options.
     interpolation_order = options['interpolation']
@@ -3640,6 +3651,7 @@ def realize(
         poszˣ = component.poszˣ
         mom   = component.mom
         Δmom  = component.Δmom
+        ids   = component.ids
         if particle_var_name == 'mom':
             if dim == 0:
                 # This is the realisation of the x momenta, which should
@@ -3668,6 +3680,23 @@ def realize(
                             posyˣ[indexˣ] = y_gridpoint
                             poszˣ[indexˣ] = z_gridpoint
                             indexˣ += 3
+                # Set particle IDs in accordance with the grid point
+                # from which each particle spring.
+                indexᵖ = 0
+                if component.use_ids:
+                    for         i in range(ℤ[uⁱ.shape[0] - ℤ[2*nghosts]]):
+                        for     j in range(ℤ[uⁱ.shape[1] - ℤ[2*nghosts]]):
+                            for k in range(ℤ[uⁱ.shape[2] - ℤ[2*nghosts]]):
+                                particle_id = (
+                                    + ℤ[
+                                        + domain_start_i*gridsize**2
+                                        + domain_start_j*gridsize
+                                        + domain_start_k
+                                    ]
+                                    + ℤ[ℤ[id_counter + i*ℤ[gridsize**2]] + ℤ[j*gridsize]] + k
+                                )
+                                ids[indexᵖ] = particle_id
+                                indexᵖ += 1
             # Assign dim'th momenta.
             # First we nullify it.
             for indexˣʸᶻ in range(dim, 3*component.N_local, 3):

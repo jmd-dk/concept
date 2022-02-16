@@ -29,7 +29,7 @@ render2D_select = {
     'neutrino': {'image': True, 'terminal image': True},
 }
 
-# Numerical parameters
+# Numerics
 boxsize = 512*Mpc
 potential_options = {
     'gridsize': {
@@ -104,7 +104,7 @@ select_forces = {
     'fluid'    : {'gravity': 'pm'},
 }
 
-# Simulation options
+# Simulation
 primordial_amplitude_fixed = True
 fluid_scheme_select = {'all': 'maccormack'}
 class_reuse = True

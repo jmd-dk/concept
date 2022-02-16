@@ -104,6 +104,8 @@ class ConceptSnapshot:
         component='Component',
         end_local='Py_ssize_t',
         fluidscalar='FluidScalar',
+        id_max='Py_ssize_t',
+        ids_mv_unsigned=object,  # np.ndarray
         indices=object,  # int or tuple
         index='Py_ssize_t',
         multi_index=object,  # tuple or str
@@ -158,9 +160,29 @@ class ConceptSnapshot:
                     end_local = start_local + component.N_local
                     # Save particle data
                     pos_h5 = component_h5.create_dataset('pos', (N, 3), dtype=C2np['double'])
-                    mom_h5 = component_h5.create_dataset('mom', (N, 3), dtype=C2np['double'])
                     pos_h5[start_local:end_local, :] = component.pos_mv3[:N_local, :]
+                    mom_h5 = component_h5.create_dataset('mom', (N, 3), dtype=C2np['double'])
                     mom_h5[start_local:end_local, :] = component.mom_mv3[:N_local, :]
+                    if component.use_ids:
+                        # Store IDs as unsigned integers using as few
+                        # bits as possible. We explicitly reinterpret
+                        # the IDs as unsigned (still 64-bit) prior to
+                        # writing to th efile. The convertion from
+                        # unsigned 64-bit to unsigned {32, 16, 8}-bit
+                        # appears to be handled by H5Py in a chunkified
+                        # manner, so this operation is safe.
+                        id_max = allreduce(max(component.ids_mv), op=MPI.MAX)
+                        if id_max >= 2**32:
+                            dtype = np.uint64
+                        elif id_max >= 2**16:
+                            dtype = np.uint32
+                        elif id_max >= 2**8:
+                            dtype = np.uint16
+                        else:
+                            dtype = np.uint8
+                        ids_h5 = component_h5.create_dataset('ids', (N, ), dtype=dtype)
+                        ids_mv_unsigned = asarray(component.ids_mv).view(np.uint64)
+                        ids_h5[start_local:end_local] = ids_mv_unsigned[:N_local]
                 elif component.representation == 'fluid':
                     # Write out progress message
                     masterprint(
@@ -264,6 +286,8 @@ class ConceptSnapshot:
         fluidscalar='FluidScalar',
         grid='double*',
         gridsize='Py_ssize_t',
+        id_counter='Py_ssize_t',
+        ids='Py_ssize_t*',
         index='Py_ssize_t',
         index_i='Py_ssize_t',
         index_i_file='Py_ssize_t',
@@ -310,6 +334,12 @@ class ConceptSnapshot:
             self.params['boxsize'] = hdf5_file.attrs['boxsize']*snapshot_unit_length
             self.params['Ωb']      = hdf5_file.attrs[unicode('Ωb')]
             self.params['Ωcdm']    = hdf5_file.attrs[unicode('Ωcdm')]
+            # If a component should use IDs but none are stored in the
+            # snapshot, IDs will be assigned based on the storage order.
+            # In an effort to make the IDs unique even across
+            # components, this counter will keep track of the largest ID
+            # assigned to the previous component.
+            id_counter = 0
             # Load component data
             for name, component_h5 in hdf5_file['components'].items():
                 # Determine representation from the snapshot
@@ -337,7 +367,7 @@ class ConceptSnapshot:
                 if not should_load(name, species, representation):
                     masterprint(f'Skipping {name}')
                     continue
-                #  Load the component
+                # Load the component
                 if representation == 'particles':
                     # Construct a Component instance and append it
                     # to this snapshot's list of components.
@@ -358,6 +388,9 @@ class ConceptSnapshot:
                     # Extract HDF5 datasets
                     pos_h5 = component_h5['pos']
                     mom_h5 = component_h5['mom']
+                    ids_h5 = None
+                    if component.use_ids and 'ids' in component_h5:
+                        ids_h5 = component_h5['ids']
                     # Compute a fair distribution of
                     # particle data to the processes.
                     start_local, N_local = partition(N)
@@ -365,24 +398,35 @@ class ConceptSnapshot:
                     # have the correct size.
                     component.N_local = N_local
                     component.resize(N_local)
-                    # Read particle data directly into
-                    # the particle data arrays.
+                    # Read particle data into the particle data arrays
+                    dsets_arrs = [
+                        (pos_h5, asarray(component.pos_mv3)),
+                        (mom_h5, asarray(component.mom_mv3)),
+                    ]
+                    if ids_h5 is not None:
+                        # The particle IDs are stored as unsigned
+                        # {64, 32, 16, 8}-bit ints in the snapshot,
+                        # while they are stored as signed 64-bit ints in
+                        # the code. Reinterpret the code array as
+                        # unsigned 64-bit. The convertion from
+                        # {32, 16, 8}-bit to 64-bit will be done on the
+                        # fly by HDF5.
+                        dsets_arrs.append((ids_h5, asarray(component.ids_mv).view(np.uint64)))
                     if N_local > 0:
-                        for dset, arr in [
-                            (pos_h5, asarray(component.pos_mv3)),
-                            (mom_h5, asarray(component.mom_mv3)),
-                        ]:
+                        for dset, arr in dsets_arrs:
                             # Load in using chunks
                             chunk_size = np.min((N_local, ℤ[self.chunk_size_max//8//3]))
                             for indexᵖ in range(0, N_local, chunk_size):
                                 if indexᵖ + chunk_size > N_local:
                                     chunk_size = N_local - indexᵖ
                                 indexᵖ_file = start_local + indexᵖ
-                                dset.read_direct(
-                                    arr,
-                                    source_sel=np.s_[indexᵖ_file:(indexᵖ_file + chunk_size), :],
-                                    dest_sel=np.s_[indexᵖ:(indexᵖ + chunk_size), :],
-                                )
+                                source_sel = slice(indexᵖ_file, indexᵖ_file + chunk_size)
+                                dest_sel   = slice(indexᵖ,      indexᵖ      + chunk_size)
+                                if arr.ndim == 2:
+                                    # Positions, momenta
+                                    source_sel = (source_sel, slice(None))
+                                    dest_sel   = (dest_sel,   slice(None))
+                                dset.read_direct(arr, source_sel=source_sel, dest_sel=dest_sel)
                         # If the snapshot and the current run uses
                         # different systems of units, multiply the
                         # positions and momenta by the snapshot units.
@@ -395,6 +439,18 @@ class ConceptSnapshot:
                         if unit != 1:
                             for indexʳ in range(3*N_local):
                                 mom[indexʳ] *= unit
+                        # If this component should make use of particle
+                        # IDs but none are stored in the snapshot,
+                        # assign IDs according to the order in which
+                        # they are stored in the file.
+                        if component.use_ids and ids_h5 is None:
+                            masterprint('Assigning particle IDs ...')
+                            ids = component.ids
+                            for indexᵖ in range(N_local):
+                                ids[indexᵖ] = ℤ[id_counter + start_local] + indexᵖ
+                            masterprint('done')
+                    # Update particle ID counter
+                    id_counter += N
                     # Done reading in particle component
                     masterprint('done')
                 elif representation == 'fluid':
@@ -447,17 +503,28 @@ class ConceptSnapshot:
                                 ℤ[self.chunk_size_max//8//gridsize**2],
                             ))
                             if chunk_size == 0:
-                                masterwarn('The input seems surprisingly large and may not be read in correctly')
+                                masterwarn(
+                                    'The input seems surprisingly large '
+                                    'and may not be read in correctly'
+                                )
                                 chunk_size = 1
                             arr = asarray(slab)
                             for index_i in range(0, ℤ[slab.shape[0]], chunk_size):
                                 if index_i + chunk_size > ℤ[slab.shape[0]]:
                                     chunk_size = ℤ[slab.shape[0]] - index_i
                                 index_i_file = slab_start + index_i
+                                source_sel = (
+                                    slice(index_i_file, index_i_file + chunk_size),
+                                    slice(None),
+                                    slice(gridsize),
+                                )
+                                dest_sel = (
+                                    slice(index_i, index_i + chunk_size),
+                                    slice(None),
+                                    slice(gridsize),
+                                )
                                 fluidscalar_h5.read_direct(
-                                    arr,
-                                    source_sel=np.s_[index_i_file:(index_i_file + chunk_size), :, :],
-                                    dest_sel=np.s_[index_i:(index_i + chunk_size), :, :gridsize],
+                                    arr, source_sel=source_sel, dest_sel=dest_sel,
                                 )
                             # Communicate the slabs directly to the
                             # domain decomposed fluid grids.
@@ -827,9 +894,10 @@ class GadgetSnapshot:
         i='Py_ssize_t',
         id_counter='Py_ssize_t',
         id_counters='Py_ssize_t[::1]',
+        id_max='Py_ssize_t',
+        ids_chunk='Py_ssize_t[::1]',
+        ids_mv='Py_ssize_t[::1]',
         indexᵖ='Py_ssize_t',
-        indexᵖ_bgn='Py_ssize_t',
-        indexᵖ_end='Py_ssize_t',
         indexʳ='Py_ssize_t',
         j='Py_ssize_t',
         msg=str,
@@ -906,10 +974,17 @@ class GadgetSnapshot:
         if doubleprec_needed:
             chunk_doubleprec = empty(chunk_size_max_needed, dtype=C2np['double'])
             chunk_doubleprec_ptr = cython.address(chunk_doubleprec[:])
-        # Counters keeping track of the unique particles ID's of each
-        # particle type. The particle ID's are generated consecutively,
-        # with all particles of a given type receiving ID's following
-        # each other with no gaps.
+        # We store particle IDs for all components within the snapshot,
+        # regardless of whether the components actually use particle IDs
+        # or not. In case they do not, some IDs will simply be made up.
+        # This is done in such a manner that all particles (even across
+        # components / particle type) receive a unique ID, though
+        # clashes may happen if some other component in fact do make use
+        # of particle IDs, as such overlaps are not detected.
+        # The counters below are for keeping track of the unique
+        # particles IDs of each particle type. The particle IDs are
+        # generated consecutively, with all particles of a given type
+        # receiving IDs following each other with no gaps.
         id_counters = zeros(len(self.components), dtype=C2np['Py_ssize_t'])
         id_counter = 0
         for j in range(1, len(self.components)):
@@ -932,10 +1007,11 @@ class GadgetSnapshot:
             )
             # Write out the data blocks
             for block_name, block in blocks.items():
-                data_components = block.get('data')
+                data_components = block.get('data').copy()
                 unit_components = block.get('unit')
                 block_type = block['type']
                 block_fmt = block_type[len(block_type) - 1]
+                dtype = C2np[self.fmts[block_fmt]]
                 # Begin block
                 if master:
                     block_size = np.sum(num_particles_file_tot)*struct.calcsize(block_type)
@@ -995,29 +1071,76 @@ class GadgetSnapshot:
                             # away from the memory view.
                             data_components[j] = data[size_write:]
                 elif block_name == 'ID':
-                    # We generate the particles ID's on the fly.
-                    # As these do not correspond to actual data,
-                    # they can be handled by a single process.
-                    if master:
-                        for j, num_particle_file_tot in enumerate(num_particles_file_tot):
-                            if num_particle_file_tot == 0:
-                                continue
-                            # Get and update ID counters
-                            id_counter = id_counters[j]
-                            id_counters[j] += num_particle_file_tot
-                            # Generate and write the ID's
-                            chunk_size = np.min((num_particle_file_tot, ℤ[self.chunk_size_max//8]))
-                            indexᵖ_bgn = id_counter
-                            indexᵖ_end = id_counter + num_particle_file_tot
-                            with open_file(filename_i, mode='ab') as f:
-                                for indexᵖ in range(indexᵖ_bgn, indexᵖ_end, chunk_size):
-                                    if indexᵖ + chunk_size > indexᵖ_end:
-                                        chunk_size = indexᵖ_end - indexᵖ
-                                    arange(
-                                        indexᵖ,
-                                        indexᵖ + chunk_size,
-                                        dtype=𝕆[C2np[self.fmts[block_fmt]]],
-                                    ).tofile(f)
+                    # Iterate over each component
+                    for j, (num_write, component, ids_mv) in enumerate(
+                        zip(num_write_file, self.components, data_components)
+                    ):
+                        if component.use_ids:
+                            # Warn about storing particle IDs using an
+                            # integer type too small.
+                            if i == 0:
+                                id_max = allreduce(max(ids_mv[:component.N_local]), op=MPI.MAX)
+                                if id_max >= 2**(8*dtype().itemsize):
+                                    masterwarn(
+                                        f'Component "{component.name}" contains particle IDs '
+                                        f'larger than what can be stored using '
+                                        f'{8*dtype().itemsize}-bit unsigned integers'
+                                    )
+                            chunk_size = np.min((num_write, ℤ[self.chunk_size_max//8]))
+                            # Write the block in serial,
+                            # one process at a time.
+                            for rank_writer in range(nprocs):
+                                Barrier()
+                                if rank != rank_writer:
+                                    continue
+                                if num_write == 0:
+                                    continue
+                                # Write out data in chunks
+                                with open_file(filename_i, mode='ab') as f:
+                                    for indexᵖ in range(0, num_write, chunk_size):
+                                        if indexᵖ + chunk_size > num_write:
+                                            chunk_size = num_write - indexᵖ
+                                        ids_chunk = ids_mv[indexᵖ:(indexᵖ + chunk_size)]
+                                        asarray(ids_chunk, dtype=dtype).tofile(f)
+                                # Crop the now written data
+                                # away from the memory view.
+                                data_components[j] = ids_mv[num_write:]
+                        else:
+                            # This component does not have particle IDs,
+                            # yet these are needed for the snapshot.
+                            # We generate some particles IDs on the fly.
+                            # As these do not correspond to actual data,
+                            # they can be handled by a single process.
+                            if master:
+                                if i == 0:
+                                    masterprint('Assigning particle IDs')
+                                num_particle_file_tot = num_particles_file_tot[j]
+                                if num_particle_file_tot == 0:
+                                    continue
+                                # Get and update ID counters
+                                id_counter = id_counters[j]
+                                id_counters[j] += num_particle_file_tot
+                                # Warn about storing particle IDs using
+                                # an integer type too small.
+                                if i == 0:
+                                    id_max = id_counter + component.N - 1
+                                    if id_max >= 2**(8*dtype().itemsize):
+                                        masterwarn(
+                                            f'Component "{component.name}" will be assigned '
+                                            f'particle IDs larger than what can be stored using '
+                                            f'{8*dtype().itemsize}-bit unsigned integers'
+                                        )
+                                # Generate and write the IDs
+                                chunk_size = np.min(
+                                    (num_particle_file_tot, ℤ[self.chunk_size_max//8])
+                                )
+                                indexᵖ_bgn = id_counter
+                                indexᵖ_end = id_counter + num_particle_file_tot
+                                with open_file(filename_i, mode='ab') as f:
+                                    for indexᵖ in range(indexᵖ_bgn, indexᵖ_end, chunk_size):
+                                        if indexᵖ + chunk_size > indexᵖ_end:
+                                            chunk_size = indexᵖ_end - indexᵖ
+                                        arange(indexᵖ, indexᵖ + chunk_size, dtype=dtype).tofile(f)
                 else:
                     abort(f'Does not know how to write {self.name} block "{block_name}"')
                 # End block
@@ -1167,6 +1290,10 @@ class GadgetSnapshot:
                 ],
             },
             'ID': {
+                'data': [
+                    (None if component is None else component.ids_mv)
+                    for component in self.components
+                ],
                 # Scalar. Data type will be added below.
                 'type': '1',
             },
@@ -1180,8 +1307,8 @@ class GadgetSnapshot:
                         f'Got gadget_snapshot_params["dataformat"][{block_name}] = "{num_bits}", '
                         f'but this can not be determined automatically'
                     )
-                # Determine whether to use 32 or 64 bit unsigned
-                # integers for the ID's.
+                # Determine whether to use 32- or 64-bit unsigned
+                # integers for the IDs.
                 num_bits = 32
                 num_particles_tot = np.sum([
                     component.N
@@ -1217,6 +1344,10 @@ class GadgetSnapshot:
             block_names = ['POS', 'VEL', 'ID']
         elif io == 'load':
             block_names = ['POS', 'VEL']
+            # We only need to load the ID block if some of the
+            # components make use of IDs.
+            if any([component.use_ids for component in self.components]):
+                block_names.append('ID')
         else:
             abort(f'get_blocks_info() got io = "{io}" ∉ {{"save", "load"}}')
         blocks = {block_name: blocks[block_name] for block_name in block_names}
@@ -1410,8 +1541,11 @@ class GadgetSnapshot:
         header_backup=dict,
         header_i=dict,
         index_chunk='Py_ssize_t',
+        indexᵖ='Py_ssize_t',
         indexʳ='Py_ssize_t',
         i='Py_ssize_t',
+        ids_arr=object,  # np.ndarray
+        ids_mv='Py_ssize_t[::1]',
         j='Py_ssize_t',
         j_populated=list,
         key=str,
@@ -1631,7 +1765,7 @@ class GadgetSnapshot:
             return
         # If no components are to be read, return now
         if len(self.components) == len(components_skipped_names):
-            msg = ', '.join([name for name in components_skipped_names])
+            msg = ', '.join(components_skipped_names)
             masterprint(f'Skipping {msg}')
             self.components = [
                 component
@@ -1742,7 +1876,7 @@ class GadgetSnapshot:
                     block_name, block_size = bcast()
                 blocks_required.remove(block_name)
                 block = blocks[block_name]
-                data_components = block.get('data')
+                data_components = block.get('data').copy()
                 unit_components = block.get('unit')
                 block_type = block['type']
                 # Figure out the size of the data type
@@ -1831,6 +1965,56 @@ class GadgetSnapshot:
                             data_components[j] = data[size_read:]
                         # Update offset, to be used by the next process
                         offset += size_read*dtype().itemsize
+                        # Inform the next process about the file offset
+                        if rank < nprocs - 1 or (nprocs > 1 and j < len(self.components) - 1):
+                            send(offset, dest=mod(rank + 1, nprocs))
+                elif block_name == 'ID':
+                    # The particle IDs are stored as 32- or 64-bit
+                    # unsigned ints. We read them in as signed ints,
+                    # as they are stored in the code as signed.
+                    if bytes_per_particle_dim == 4:
+                        dtype = np.int32
+                    elif bytes_per_particle_dim == 8:
+                        dtype = np.int64
+                    else:
+                        abort(
+                            f'No data format with a size of {bytes_per_particle_dim} bytes '
+                            f'implemented for block "{block_name}"'
+                        )
+                    for j, (num_read, component, ids_mv) in enumerate(
+                        zip(num_read_file, self.components, data_components)
+                    ):
+                        # Get file offset from previous process
+                        if rank > 0 or (nprocs > 1 and j > 0):
+                            offset = recv(source=mod(rank - 1, nprocs))
+                        # Read in block data
+                        if component is not None and component.use_ids and num_read > 0:
+                            with open_file(filename_i, mode='rb') as f:
+                                # Seek to where the previous
+                                # process left off.
+                                f.seek(offset)
+                                # Read in using chunks
+                                chunk_size = np.min((num_read, ℤ[self.chunk_size_max//8]))
+                                for indexᵖ in range(0, num_read, chunk_size):
+                                    if indexᵖ + chunk_size > num_read:
+                                        chunk_size = num_read - indexᵖ
+                                    # Read in chunk and copy it into the
+                                    # component data array, implicitly
+                                    # converting to 64-bit as necessary.
+                                    chunk_arr = np.fromfile(
+                                        f,
+                                        dtype=dtype,
+                                        count=chunk_size,
+                                    )
+                                    if chunk_arr.shape[0] < chunk_size:
+                                        abort(f'Ran out of bytes in block "{block_name}"')
+                                    ids_arr = asarray(ids_mv[indexᵖ:(indexᵖ + chunk_size)])
+                                    ids_arr[:] = chunk_arr
+                            # Crop the populated part of the data
+                            # away from the memory view.
+                            data_components[j] = ids_mv[num_read:]
+                        # Update offset, to be used by the next process
+                        offset += num_read*dtype().itemsize
                         # Inform the next process about the file offset
                         if rank < nprocs - 1 or (nprocs > 1 and j < len(self.components) - 1):
                             send(offset, dest=mod(rank + 1, nprocs))

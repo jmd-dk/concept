@@ -90,6 +90,9 @@ snapshot_wrap = False  # Wrap particles around the box upon snapshot read-in, al
 life_output_order = (  # Ordering of component activations/terminations relative to output dumps
     'terminate', 'activate', 'dump',
 )
+select_particle_id = {  # Should particle IDs be used?
+    'particles': False,
+}
 class_plot_perturbations = False  # Plot CLASS perturbations?
 class_extra_background = {}       # Extra CLASS background variables to dump
 class_extra_perturbations = {}    # Extra CLASS perturbations to dump

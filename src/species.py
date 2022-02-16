@@ -972,8 +972,12 @@ class Component:
         double* Δmomxˣ
         double* Δmomyˣ
         double* Δmomzˣ
+        # Particle IDs
+        public bint use_ids
+        Py_ssize_t* ids
+        public Py_ssize_t[::1] ids_mv
         # Short-range rungs
-        bint use_rungs
+        public bint use_rungs
         signed char lowest_active_rung
         signed char lowest_populated_rung
         signed char highest_populated_rung
@@ -1514,6 +1518,10 @@ class Component:
         self.Δmomyˣ = cython.address(self.Δmom_mv[1:])
         self.Δmomzˣ = cython.address(self.Δmom_mv[2:])
         self.Δmom_mv[:3*self.N_allocated] = 0
+        # Particle IDs
+        self.use_ids = bool(is_selected(self, select_particle_id))
+        self.ids = malloc(self.N_allocated*sizeof('Py_ssize_t'))
+        self.ids_mv = cast(self.ids, 'Py_ssize_t[:self.N_allocated]')
         # Short-range rungs
         self.use_rungs = bool(
             N_rungs > 1
@@ -2013,6 +2021,10 @@ class Component:
                 self.Δmomyˣ = cython.address(self.Δmom_mv[1:])
                 self.Δmomzˣ = cython.address(self.Δmom_mv[2:])
                 self.Δmom_mv[3*size_old:3*self.N_allocated] = 0
+                # Particle IDs
+                if self.use_ids:
+                    self.ids = realloc(self.ids, self.N_allocated*sizeof('Py_ssize_t'))
+                    self.ids_mv = cast(self.ids, 'Py_ssize_t[:self.N_allocated]')
                 # Reallocate indices of rungs and jumps
                 if self.use_rungs:
                     self.rung_indices = realloc(
@@ -2914,6 +2926,7 @@ class Component:
         dim='int',
         dim_quantity='Py_ssize_t',
         highest_populated_rung='signed char',
+        ids='Py_ssize_t*',
         indexᵖ='Py_ssize_t',
         indexʳ='Py_ssize_t',
         indexˣ='Py_ssize_t',
@@ -2942,6 +2955,8 @@ class Component:
         tiling_location='double[::1]',
         tiling_plural=str,
         tiling_names=object,  # list, collections.Counter, str
+        tmp_ids='Py_ssize_t*',
+        tmp_ids_mv='Py_ssize_t[::1]',
         tmp_rung_indices='signed char*',
         tmp_rung_indices_mv='signed char[::1]',
         tmp_quantity='double*',
@@ -2957,10 +2972,9 @@ class Component:
         # Perform tile sort
         tiling.sort()
         # When a subtiling_name is supplied, this signals an in-memory
-        # sorting of the pos and mom data arrays of the particles,
-        # as well as of the rung indices. The final memory order will
-        # match that of the particle visiting order when iterating over
-        # the tiles and subtiles.
+        # sorting of the data arrays of the particles. The final memory
+        # order will match that of the particle visiting order when
+        # iterating over the tiles and subtiles.
         if not subtiling_name:
             return
         tiling_names = gather(tiling_name)
@@ -2991,35 +3005,35 @@ class Component:
         subtiles_contain_particles = subtiling.contain_particles
         # Iterate over the tiles and subtiles while keeping a counter
         # keeping track of the particle visiting number. We copy the
-        # particle positions and momenta to a temporary buffer using the
-        # visiting order. After the iteration we then copy this sorted
-        # buffer into the original data arrays. We use the Δmom buffer
-        # as the temporary buffer, as this should not store any data
-        # at the time of calling this method. Furthermore, if using
-        # rungs, we also need to sort the rung indices, i.e. copy these
-        # to another buffer during the iteration just mentioned, and
-        # then likewise copy the values from this buffer to the
-        # rung_indices array once done. Here we use the rung_indices_arr
-        # buffer from the communication module, which we enlarge
-        # if needed. As the Δmom buffer can only store the positions or
-        # the momenta at a time, not both, we iterate over the tiles and
-        # subtiles twice. Importantly, the momenta should be sorted
-        # during the first iteration and the positions in the second.
-        # This is because the iteration depends on the positions through
-        # subtiling.sort(). Likewise, the rung indices should be sorted
-        # during the second iteration, not the first, as these are
-        # similarly used by subtiling.sort().
+        # particle data (positions, momenta, IDs, rung indices) to a
+        # temporary buffer using the visiting order. After the iteration
+        # we then copy this sorted buffer into the original data arrays.
+        # For the 64-bit data (positions, momenta, IDs) we use Δmom as
+        # the temporary buffer, as this should not store any data at the
+        # time of calling this method. For the rungs, we use the
+        # rung_indices_arr buffer from the communication module, which
+        # we enlarge if needed. As the Δmom buffer can only store one
+        # quantity at a time (i.e. not all positions and all momenta
+        # and all IDs), we iterate over the tiles and subtiles several
+        # times: 2 times if not using IDs and 3 times if using IDs,
+        # with the first iteration handling the IDs. Importantly, the
+        # positions and rung indices must be sorted during the last
+        # iteration, as the iteration itself depends on these
+        # through subtiling.sort().
         tmp_quantity = self.Δmom
+        tmp_ids_mv = asarray(self.Δmom_mv).view(C2np['Py_ssize_t'])
+        tmp_ids = cython.address(tmp_ids_mv[:])
+        ids = self.ids
         rung_indices        = self.rung_indices
         rung_indices_jumped = self.rung_indices_jumped
         if self.use_rungs and rung_indices_arr.shape[0] < self.N_local:
             rung_indices_arr.resize(self.N_local, refcheck=False)
         tmp_rung_indices_mv = rung_indices_arr
         tmp_rung_indices = cython.address(tmp_rung_indices_mv[:])
-        for quantity in range(2):
-            if quantity == 0:
+        for quantity in range(int(not self.use_ids), 3):
+            if quantity == 1:
                 data_quantity = self.mom
-            else:  # quantity == 1
+            elif quantity == 2:
                 data_quantity = self.pos
             count = 0
             # Loop over all tiles
@@ -3049,20 +3063,34 @@ class Component:
                         for rung_particle_index in range(rung_N):
                             indexᵖ = rung[rung_particle_index]
                             # Copy the data to the temporary buffers
-                            indexˣ = 3*indexᵖ
-                            indexˣ_tmp = 3*count
-                            for dim_quantity in range(3):
-                                tmp_quantity[indexˣ_tmp + dim_quantity] = (
-                                    data_quantity[indexˣ + dim_quantity]
-                                )
                             with unswitch(4):
-                                if self.use_rungs and quantity == 1:
-                                    tmp_rung_indices[count] = rung_indices[indexᵖ]
+                                if quantity == 0:
+                                    # IDs
+                                    tmp_ids[count] = ids[indexᵖ]
+                                else:
+                                    # Momenta and positions
+                                    indexˣ = 3*indexᵖ
+                                    indexˣ_tmp = 3*count
+                                    for dim_quantity in range(3):
+                                        tmp_quantity[indexˣ_tmp + dim_quantity] = (
+                                            data_quantity[indexˣ + dim_quantity]
+                                        )
+                                    # Rungs
+                                    with unswitch(4):
+                                        if quantity == 2 and self.use_rungs:
+                                            tmp_rung_indices[count] = rung_indices[indexᵖ]
                             count += 1
             # Copy the sorted data back into the data arrays
-            for indexʳ in range(3*self.N_local):
-                data_quantity[indexʳ] = tmp_quantity[indexʳ]
-            if self.use_rungs and quantity == 1:
+            if quantity == 0:
+                # IDs
+                for indexᵖ in range(self.N_local):
+                    ids[indexᵖ] = tmp_ids[indexᵖ]
+            else:
+                # Momenta and positions
+                for indexʳ in range(3*self.N_local):
+                    data_quantity[indexʳ] = tmp_quantity[indexʳ]
+            if quantity == 2 and self.use_rungs:
+                # Rungs
                 for indexᵖ in range(self.N_local):
                     rung_index = tmp_rung_indices[indexᵖ]
                     rung_indices       [indexᵖ] = rung_index

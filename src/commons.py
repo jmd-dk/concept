@@ -100,7 +100,7 @@ cython.declare(C2np=dict)
 C2np = {
     # Booleans
     'bint': np.bool_,
-    # Integers
+    # Signed integers
     'signed char'  : np.byte,
     'short'        : np.short,
     'int'          : np.intc,
@@ -116,18 +116,10 @@ C2np = {
     'unsigned long long int': np.ulonglong,
     'size_t'                : np.uintp,
     # Floating-point numbers
-    'float'     : np.single,
-    'double'    : np.double,
-    'long float': np.longfloat,
+    'float'     : np.float32,
+    'double'    : np.float64,
+    'long float': np.float128,
 }
-# In NumPy, binary operations between some unsigned int types (unsigned
-# long int, unsigned long long int, size_t) and signed int types results
-# in a double, rather than a signed int.
-# Get around this bug by never using these particular unsigned ints.
-if not cython.compiled:
-    C2np['unsigned long int'] = C2np['long int']
-    C2np['unsigned long long int'] = C2np['long long int']
-    C2np['size_t'] = C2np['ptrdiff_t']
 
 
 
@@ -2323,6 +2315,7 @@ cython.declare(
     gadget_snapshot_params=dict,
     snapshot_wrap='bint',
     life_output_order=tuple,
+    select_particle_id=dict,
     class_plot_perturbations='bint',
     class_extra_background=set,
     class_extra_perturbations=set,
@@ -2628,6 +2621,15 @@ for act in acts:
 if set(life_output_order) != set(acts):
     abort(f'life_output_order = {life_output_order} not understood')
 user_params['life_output_order'] = life_output_order
+select_particle_id = {}
+if user_params.get('select_particle_id'):
+    if isinstance(user_params['select_particle_id'], dict):
+        select_particle_id = user_params['select_particle_id']
+        replace_ellipsis(select_particle_id)
+    else:
+        select_particle_id = {'all': user_params['select_particle_id']}
+select_particle_id.setdefault('default', False)
+user_params['select_particle_id'] = select_particle_id
 class_plot_perturbations = bool(user_params.get('class_plot_perturbations', False))
 user_params['class_plot_perturbations'] = class_plot_perturbations
 class_extra_background = set(
@@ -3262,8 +3264,7 @@ if user_params.get('select_softening_length'):
         replace_ellipsis(select_softening_length)
     else:
         select_softening_length = {'all': user_params['select_softening_length']}
-select_softening_length.setdefault('particles', '0.03*boxsize/cbrt(N)')
-select_softening_length.setdefault('fluid', 0)
+select_softening_length.setdefault('default', '0.03*boxsize/cbrt(N)')
 user_params['select_softening_length'] = select_softening_length
 # Simulation options
 Δt_base_background_factor = float(user_params.get('Δt_base_background_factor', 1))
