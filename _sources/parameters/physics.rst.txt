@@ -388,7 +388,7 @@ physical models and schemes to be used.
 \  **Default**     \  .. code-block:: python3
 
                          {
-                             'particles': '0.03*boxsize/cbrt(N)',
+                             'default': '0.03*boxsize/cbrt(N)',
                          }
 
 -- --------------- -- -

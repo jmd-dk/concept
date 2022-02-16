@@ -677,7 +677,9 @@ CO\ *N*\ CEPT run.
 -- --------------- -- -
 \  **Default**     \  .. code-block:: python3
 
-                         {'all': True}
+                         {
+                             'all': True,
+                         }
 
 -- --------------- -- -
 \  **Elaboration** \  This is a
@@ -820,16 +822,17 @@ CO\ *N*\ CEPT run.
                         for more information.
                       * ``'dataformat'``: This is a ``dict`` specifying the
                         data type sizes to use when writing out particle
-                        positions, velocities and ID's. The corresponding keys
-                        are ``'POS'``, ``'VEL'`` and ``'ID'``, which may all
-                        have a value of either ``32`` or ``64``, specifying
-                        the size in bits (corresponding to single- or double-
-                        precision for ``'POS'`` and ``'VEL'``, and 4- or
-                        8-byte unsigned integers (typically corresponding to
-                        ``unsigned int`` and ``unsigned long long`` in C) for
-                        ``'ID'``). In addition, the value of ``'ID'`` may also
-                        be set to ``'automatic'``, in which case 32 bits will
-                        be used if this is enough to uniquely label each
+                        positions, velocities and
+                        :ref:`IDs <select_particle_id>`. The corresponding
+                        keys are ``'POS'``, ``'VEL'`` and ``'ID'``, which may
+                        all have a value of either ``32`` or ``64``,
+                        specifying the size in bits (corresponding to single-
+                        or double-precision for ``'POS'`` and ``'VEL'``, and
+                        4- or 8-byte unsigned integers (typically corresponding
+                        to ``unsigned int`` and ``unsigned long long`` in C)
+                        for ``'ID'``). In addition, the value of ``'ID'`` may
+                        also be set to ``'automatic'``, in which case 32 bits
+                        will be used if this is enough to uniquely label each
                         particle (:math:`N \leq 2^{32}`). If not, 64 bits will
                         be used.
                       * ``'Nall high word'``: The ``Nall`` field of the header
@@ -950,6 +953,115 @@ CO\ *N*\ CEPT run.
                              'units': {
                                  'length': 'Mpc/h',
                              },
+                         }
+
+== =============== == =
+
+
+
+------------------------------------------------------------------------------
+
+
+
+``snapshot_wrap``
+.................
+== =============== == =
+\  **Description** \  Specifies whether or not to wrap out-of-bounds particles
+                      around the periodic box when reading snapshots
+-- --------------- -- -
+\  **Default**     \  .. code-block:: python3
+
+                         False
+
+-- --------------- -- -
+\  **Elaboration** \  All particles should have positions
+                      :math:`0 \leq x, y, z < L_{\mathrm{box}}`, with
+                      :math:`L_{\mathrm{box}}` corresponding to the
+                      ``boxsize`` :ref:`parameter <boxsize>`.
+                      During simulation, particles drifting out of the cubic
+                      box is immediately wrapped around.
+
+                      When reading particles from a snapshot, some particles
+                      may be erroneously located outside of the box. If a
+                      particle is positioned exactly on the upper boundary
+                      :math:`L_{\mathrm{box}}`, this is silently wrapped back
+                      to :math:`0`. Positions beyond this as well as as
+                      negative positions are counted as out-of-bounds.
+
+                      If this parameter is set to ``False`` (the default), any
+                      out-of-bounds particles found within a snapshot will
+                      cause CO\ *N*\ CEPT to terminate with an error message.
+                      Setting this parameter to ``True``, all out-of-bounds
+                      particles read from snapshots will be silently wrapped
+                      around, placing them within the box.
+-- --------------- -- -
+\  **Example 0**   \  Allow and correct for out-of-bounds particles read from
+                      snapshots:
+
+                      .. code-block:: python3
+
+                         snapshot_wrap = True
+
+== =============== == =
+
+
+
+------------------------------------------------------------------------------
+
+
+
+.. _select_particle_id:
+
+``select_particle_id``
+......................
+== =============== == =
+\  **Description** \  Specifies components that should keep track of particle
+                      IDs
+-- --------------- -- -
+\  **Default**     \  .. code-block:: python3
+
+                         {
+                             'default': False,
+                         }
+
+-- --------------- -- -
+\  **Elaboration** \  This is a
+                      :ref:`component selection <components_and_selections>`
+                      specifying which particle components should make use of
+                      particle IDs, i.e. unique inter labels, one for each
+                      particle.
+
+                      When a component using particle IDs are saved to a
+                      snapshot, the IDs are saved as well.
+
+                      .. note::
+
+                         When writing GADGET snapshots, IDs will be written
+                         even for components that do not make use of paticle
+                         IDs. In this case, some IDs are simply made up when
+                         the snapshot is written. Thus, the IDs in GADGET
+                         snapshots should not be relied upon in such cases.
+
+
+                      When saving a GADGET snapshot, the data type used for
+                      the IDs is determined by the ``gadget_snapshot_params``
+                      :ref:`parameter <gadget_snapshot_params>`.
+
+                      When saving a CO\ *N*\ CEPT snapshot, the data type used
+                      for the IDs is automatically determined to be an
+                      unsigned 8-, 16-, 32- or 64-bit integer.
+
+                      When a component that should use particle IDs are loaded
+                      from a CO\ *N*\ CEPT snapshot that does not contain such
+                      IDs, new IDs are assigned.
+
+-- --------------- -- -
+\  **Example 0**   \  Use particle IDs for all particle components:
+
+                      .. code-block:: python3
+
+                         select_particle_id = {
+                             'particles': True,
                          }
 
 == =============== == =
