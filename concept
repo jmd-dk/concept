@@ -1738,7 +1738,7 @@ for job_directive in '${job_directive}'.split(';'):
     lines.append(job_directive)
 lines.append('')
 lines.append('# Get the ID of the current job')
-lines.append('jobid=\"\${SLURM_JOB_ID%%.*}\"')
+lines.append('jobid=\"\${SLURM_JOB_ID%%%%.*}\"')
 print('\n'.join(lines))
         ")"
         # The Slurm queue (partition) in which the job is running
@@ -1780,7 +1780,7 @@ for job_directive in '${job_directive}'.split(';'):
     lines.append(job_directive)
 lines.append('')
 lines.append('# Get the ID of the current job')
-lines.append('jobid=\"\${PBS_JOBID%%.*}\"')
+lines.append('jobid=\"\${PBS_JOBID%%%%.*}\"')
 print('\n'.join(lines))
         ")"
         # The TORQUE/PBS queue in which the job is running
@@ -2004,7 +2004,7 @@ An almost complete job script has been saved to\n\
         jobid=$(cd "${job_dir}" && qsub "${jobscript}")
     fi
     jobid=$(echo "${jobid}" | awk '{print $NF}')
-    jobid="${jobid%.*}"
+    jobid="${jobid%%.*}"
     # Create job sub-directory and copy over the parameter file
     mkdir -p "${job_dir}/${jobid}"
     copy_param
