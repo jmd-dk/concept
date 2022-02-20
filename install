@@ -558,35 +558,36 @@ if [ "${slim}" == "True" ]; then
 fi
 
 # Backup of initial environment variables
-env_var_names=(     \
-    BLAS            \
-    CC              \
-    CFLAGS          \
-    CPPFLAGS        \
-    CXX             \
-    CXXFLAGS        \
-    F77             \
-    F90             \
-    F9X             \
-    FC              \
-    FCFLAGS         \
-    FFLAGS          \
-    HDF5_DIR        \
-    HDF5_MPI        \
-    LAPACK          \
-    LD_LIBRARY_PATH \
-    LD_PRELOAD      \
-    LDFLAGS         \
-    LIBS            \
-    MPICC           \
-    MPILIBS         \
-    MPLSETUPCFG     \
-    PATH            \
-    PERL            \
-    PKG_CONFIG_PATH \
-    TEMP            \
-    TMP             \
-    TMPDIR          \
+env_var_names=(       \
+    BLAS              \
+    CC                \
+    CFLAGS            \
+    CPPFLAGS          \
+    CXX               \
+    CXXFLAGS          \
+    F77               \
+    F90               \
+    F9X               \
+    FC                \
+    FCFLAGS           \
+    FFLAGS            \
+    HDF5_DIR          \
+    HDF5_MPI          \
+    LAPACK            \
+    LD_LIBRARY_PATH   \
+    LD_PRELOAD        \
+    LDFLAGS           \
+    LIBS              \
+    MPICC             \
+    MPILIBS           \
+    MPLSETUPCFG       \
+    PATH              \
+    PERL              \
+    PKG_CONFIG_PATH   \
+    SCIPY_USE_PYTHRAN \
+    TEMP              \
+    TMP               \
+    TMPDIR            \
 )
 for env_var_name in "${env_var_names[@]}"; do
     # Save initial state (set/unset) of the environment variable
@@ -7029,6 +7030,9 @@ runtime_library_dirs = ${blas_dir}/lib
             export F90="gfortran"
             export F9X="gfortran"
         fi
+        if [ -n "${scipy_pythran}" ]; then
+            export SCIPY_USE_PYTHRAN="${scipy_pythran}"
+        fi
         export CFLAGS="${CFLAGS} ${cstd}"
         export TMPDIR="${tmp_pip_dir}_tmp"
         export TEMP="${TMPDIR}"
@@ -7133,6 +7137,7 @@ extra_argv=['-q', '--color=yes', '-k not test_face'])" 2>&1 | tee "test_log"; \
         fcompiler "gnu95" ""                                       ";" \
         extra_FCFLAGS "" "-fPIC"                                   ";" \
         extra_LDFLAGS "" "-shared"                                 ";" \
+        scipy_pythran "" "0"                                       ";" \
 
 fi
 
