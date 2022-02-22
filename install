@@ -297,7 +297,7 @@ if [ -n "${concept_version}" ]; then
     concept_version_specified="True"
 fi
 set_version "concept"           "master"
-set_version "blas"              "0.3.19"  "0.3.19"
+set_version "blas"              "0.3.20"  "0.3.20"
 set_version "class"             "2.7.2"
 set_version "fftw"              "3.3.10"  "3.3.10"
 set_version "fftw_for_gadget"   "2.1.5"   "2.1.5"   # Do not change
@@ -317,17 +317,17 @@ set_version "python"            "3.9.10"
 set_version "zlib"              "1.2.11"  "1.2.11"
 # Python packages
 set_version "blessings"         "1.7"
-set_version "cython"            "0.29.26"
+set_version "cython"            "0.29.28"
 set_version "cythongsl"         "0.2.2"
 set_version "h5py"              "3.6.0"
 set_version "matplotlib"        "3.5.1"
 set_version "mpi4py"            "3.1.3"
-set_version "numpy"             "1.21.4"
-set_version "pip"               "21.3.1"
-set_version "scipy"             "1.7.3"
-set_version "setuptools"        "59.8.0"
+set_version "numpy"             "1.22.2"
+set_version "pip"               "22.0.3"
+set_version "scipy"             "1.8.0"
+set_version "setuptools"        "60.9.3"
 set_version "sphinx"            "4.4.0"
-set_version "sphinx_copybutton" "0.4.0"
+set_version "sphinx_copybutton" "0.5.0"
 set_version "sphinx_rtd_theme"  "1.0.0"
 set_version "sphinx_tabs"       "3.2.0"
 set_version "wheel"             "0.37.1"
@@ -581,6 +581,7 @@ env_var_names=(       \
     MPICC             \
     MPILIBS           \
     MPLSETUPCFG       \
+    OPT               \
     PATH              \
     PERL              \
     PKG_CONFIG_PATH   \
@@ -6820,7 +6821,8 @@ if [ "${numpy_install}" == "True" ] && [ "${numpy_installed}" == "False" ] \
         fi
     done
     if [ "${numpy_extract_success}" == "False" ]; then
-        numpy_url="https://github.com/numpy/numpy/archive/v${numpy_version}.tar.gz"
+        numpy_url="https://github.com/numpy/numpy/releases/download/\
+v${numpy_version}/numpy-${numpy_version}.tar.gz"
         download "NumPy"
         current_step="installation of NumPy ${numpy_version}"
         heading "Installing NumPy ${numpy_version}"
@@ -6866,7 +6868,12 @@ runtime_library_dirs = ${blas_dir}/lib
             export F90="gfortran"
             export F9X="gfortran"
         fi
-        export CFLAGS="${CFLAGS} ${cstd}"
+        if [ -n "${cstd}" ]; then
+            export OPT="${OPT} ${cstd}"
+        fi
+        if [ -n "${cxxstd}" ]; then
+            export OPT="${OPT} ${cxxstd}"
+        fi
         export TMPDIR="${tmp_pip_dir}_tmp"
         export TEMP="${TMPDIR}"
         export TMP="${TMPDIR}"
@@ -6951,6 +6958,7 @@ extra_argv=['-q', '--color=yes'])" 2>&1 | tee "test_log"; \
         numpy_gfortran "True" "False"                              ";" \
         compiler "${compiler_possibilities_specified_mpi_last[@]}" ";" \
         cstd "-std=c99" ""                                         ";" \
+        cxxstd "-std=c++11" ""                                     ";" \
         fcompiler "gnu95" ""                                       ";" \
         extra_FCFLAGS "" "-fPIC"                                   ";" \
         extra_LDFLAGS "" "-shared"                                 ";" \
