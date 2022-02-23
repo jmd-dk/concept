@@ -760,7 +760,7 @@ class CosmoResults:
                 self.load_everything('perturbations')
                 self.cosmo.struct_cleanup()
                 # Now remove the extra CLASS perturbations not used by
-                # this simulation. If we are running the CLASS utility
+                # this simulation. If we are running the class utility
                 # and not a simulation, keep the
                 # extra perturbations around.
                 if master and special_params.get('special') != 'class':
@@ -2881,26 +2881,28 @@ def compute_transfer(
 @cython.header(
     # Arguments
     gridsize='Py_ssize_t',
+    use_cache='bint',
     # Locals
-    cached=object,  # tuple
     k_magnitudes_str=str,
     k_gridsize='Py_ssize_t',
     k_magnitudes='double[::1]',
     k_max='double',
     k_min='double',
+    k_safety_factor='double',
     logk='double',
     logk_magnitudes=object,  # list, np.ndarray
     logk_modes_per_decade_interp=object,  # scipy.interpolate.interp1d
     logk_max='double',
     logk_min='double',
     nyquist='Py_ssize_t',
-    returns=object,  # tuple
+    returns=tuple,
 )
-def get_k_magnitudes(gridsize):
+def get_k_magnitudes(gridsize, use_cache=True):
     # Cache lookup
-    cached = k_magnitudes_cache.get(gridsize)
-    if cached is not None:
-        return cached
+    if use_cache:
+        cached = k_magnitudes_cache.get(gridsize)
+        if cached is not None:
+            return cached
     # As we ignore the Nyquist points, (nyquist - 1) needs to be
     # positive, requiring gridsize >= 4.
     if gridsize < 4:
@@ -2909,6 +2911,7 @@ def get_k_magnitudes(gridsize):
     k_min = ℝ[2*π/boxsize]
     nyquist = gridsize//2
     k_max = k_min*sqrt(3*(nyquist - 1)**2)
+    k_safety_factor = 2*10**float(-get_k_str_n_decimals())
     k_min *= ℝ[1 - k_safety_factor]
     k_max *= ℝ[1 + k_safety_factor]
     logk_min = log10(k_min)
@@ -2960,14 +2963,12 @@ def get_k_magnitudes(gridsize):
     # Convert back to the current CO𝘕CEPT unit system
     k_magnitudes = asarray(k_magnitudes)*units.Mpc**(-1)
     # Cache and return both the float and str representation
-    k_magnitudes_cache[gridsize] = (k_magnitudes, k_magnitudes_str)
-    return k_magnitudes_cache[gridsize]
-# Cache and helper objects used by the get_k_magnitudes() function
-cython.declare(
-    k_magnitudes_cache=dict,
-    k_str_n_decimals='int',
-    k_safety_factor='double',
-)
+    results = (k_magnitudes, k_magnitudes_str)
+    if use_cache:
+        k_magnitudes_cache[gridsize] = results
+    return results
+# Cache and helper functions used by the get_k_magnitudes() function
+cython.declare(k_magnitudes_cache=dict)
 k_magnitudes_cache = {}
 def get_logk_modes_per_decade_interp():
     import scipy.interpolate
@@ -2983,11 +2984,12 @@ def get_logk_modes_per_decade_interp():
     ): float(f(logk))
     return logk_modes_per_decade_interp
 def k_float2str(k_float):
+    k_str_n_decimals = get_k_str_n_decimals()
     k_str = 𝕊['{{:.{}e}}'.format(k_str_n_decimals)].format(k_float)
     k_str = k_str.replace('+0', '+').replace('-0', '-').replace('e+0', '')
     return k_str
-k_str_n_decimals = int(ceil(log10(1 + np.max(tuple(k_modes_per_decade.values())))))
-k_safety_factor = 2*10**float(-k_str_n_decimals)
+def get_k_str_n_decimals():
+    return int(ceil(log10(1 + np.max(tuple(k_modes_per_decade.values())))))
 
 # Function which realises a given variable on a component
 # from a supplied transfer function.

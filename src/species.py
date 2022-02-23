@@ -3269,7 +3269,7 @@ class Component:
         # This really should not be a problem, but the current fluid
         # implementation computes J/(ϱ + c⁻²𝒫) while solving the
         # continuity equation. If what is being run is not a simulation
-        # but the CLASS utility, this is not a problem as the system
+        # but the class utility, this is not a problem as the system
         # is not to be evolved.
         if value <= -1 and special_params.get('special') != 'class':
             if (
@@ -3289,7 +3289,7 @@ class Component:
         # For components with a non-linear evolution of J,
         # we cannot handle w < 0, as the sound speed c*sqrt(w) becomes
         # negative. If what is being run is not a simulation
-        # but the CLASS utility, this is not a problem as the system
+        # but the class utility, this is not a problem as the system
         # is not to be evolved.
         if value < 0 and special_params.get('special') != 'class':
             if self.boltzmann_order > 0 and (a > universals.a_begin or t > universals.t_begin):

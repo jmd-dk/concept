@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+
+# This script tests the CO𝘕CEPT class utility.
+
+# Absolute path and name of the directory of this file
+this_dir="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
+this_test="$(basename "$(dirname "${this_dir}")")"
+
+# Set up error trapping
+ctrl_c() {
+    trap : 0
+    exit 2
+}
+abort() {
+    exit_code=$?
+    colorprint "An error occurred during ${this_test} test!" "red"
+    exit ${exit_code}
+}
+trap 'ctrl_c' SIGINT
+trap 'abort' EXIT
+set -e
+
+
+
+# Do a full neutrino computation, combining matter perturbations
+# but keeping perturbations of other species separate.
+n=5
+gauge_option="--gauge N-body"
+times_option="--times 32"
+modes_option="--kmin 1e-4/Mpc --kmax 1e-1/Mpc --modes 4"
+"${concept}"                                            \
+    -u class                                            \
+        'b+cdm:1, g, ncdm[0], ncdm[1], ncdm[2], metric' \
+        ${gauge_option}                                 \
+        ${times_option}                                 \
+        ${modes_option}                                 \
+    -p "${this_dir}/param"                              \
+    -n ${n}                                             \
+    --local
+mv "${this_dir}/output" "${this_dir}/output_full"
+
+# Do the same neutrino computation, this time storing only the
+# collective perturbations from the "linear" species. Also store
+# a few extra quantities and plot the perturbations.
+"${concept}"                                       \
+    -u class                                       \
+        'g + ncdm[0] + ncdm[1] + ncdm[2] + metric' \
+        ${gauge_option}                            \
+        ${times_option}                            \
+        ${modes_option}                            \
+    -p "${this_dir}/param"                         \
+    -c "class_extra_background = {'D', 'τ'}"       \
+    -c "class_extra_perturbations = 'θ_tot'"       \
+    -c "class_plot_perturbations = True"           \
+    -n ${n}                                        \
+    --local
+mv "${this_dir}/output" "${this_dir}/output_extra"
+
+# Analyse the outputs
+"${concept}"                    \
+    -n 1                        \
+    -p "${this_dir}/param"      \
+    -m "${this_dir}/analyze.py" \
+    --pure-python               \
+    --local
+
+# Test ran successfully. Deactivate traps.
+trap : 0
+

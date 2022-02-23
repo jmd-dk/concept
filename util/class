@@ -98,9 +98,24 @@ parser.add_argument(
     help='gauge of perturbations. Should be one of N-body (default), synchronous or Newtonian.',
 )
 parser.add_argument(
-    '--ntimes',
-    default='inf',
+    '--times',
+    default='1024',
     help='maximum number of scale factor values for the tabulated perturbations',
+)
+parser.add_argument(
+    '--kmin',
+    default=-1,
+    help='minimum k mode',
+)
+parser.add_argument(
+    '--kmax',
+    default=-1,
+    help='maximum k mode',
+)
+parser.add_argument(
+    '--modes',
+    default=-1,
+    help='number of k modes',
 )
 # Enables Python to write directly to screen (stderr)
 # in case of help request.
@@ -122,7 +137,10 @@ sys.stdout = stdout
 print('argparse_finished=True')
 print(f'perturbations=\"{args.perturbations}\"')
 print(f'gauge={args.gauge}')
-print(f'ntimes={args.ntimes}')
+print(f'times={args.times}')
+print(f'kmin={args.kmin}')
+print(f'kmax={args.kmax}')
+print(f'modes={args.modes}')
 " "$@" || echo "argparse_exit_code=$?")
 # Evaluate the handled arguments into this scope
 eval "${args}"
@@ -165,6 +183,14 @@ fi
 param_filename="${tmp_dir}/param/${start_time_human_nosep}/$(basename "${this_file}")/0"
 mkdir -p "$(dirname "${param_filename}")"
 echo "
+# Default utility parameter values that are always present.
+# The boxsize and global power spectrum grid size
+# implicitly sets the minimum and maximum k.
+_kmin = 1e-3/Mpc
+_kmax = 1e+0/Mpc
+boxsize = 2*π/_kmin
+_gridsize = int(2/sqrt(3)*_kmax/_kmin + 1)
+powerspec_options = {'global gridsize': _gridsize + _gridsize%2}
 # Specifications of fake components corresponding to the
 # perturbations argument of the CLASS utility.
 _initial_conditions = [
@@ -198,8 +224,11 @@ _approximations = {
 # The special_params dict, specifying details of the utility run
 special_params = {
     'special': '$(basename "${this_file}")',
-    'ntimes':'${ntimes}',
-    'gauge' : '${gauge}',
+    'gauge'  : '${gauge}',
+    'times'  : ${times},
+    'kmin'   : ${kmin},
+    'kmax'   : ${kmax},
+    'modes'  : ${modes},
 }
 # Parameter values which should always be used when running this utility
 ...
@@ -214,6 +243,18 @@ $(cat "${param}")
 ##########################
 # End of user parameters #
 ##########################
+# Apply minimum and maximum k, if given
+if ${kmin} != -1:
+    _kmin = ${kmin}
+if ${kmax} != -1:
+    _kmax = ${kmax}
+if _kmin > _kmax:
+    _kmin, _kmax = _kmax, _kmin
+if ${kmin} != -1:
+    boxsize = 2*π/_kmin
+if ${kmax} != -1:
+    _gridsize = int(2/sqrt(3)*_kmax/_kmin + 1)
+    powerspec_options = {'global gridsize': _gridsize + _gridsize%2}
 # Use the fake initial conditions corresponding to the
 # perturbations argument of the CLASS utility.
 initial_conditions = _initial_conditions

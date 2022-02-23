@@ -345,6 +345,16 @@ jobs:
             env:
                 docker_username: ${{ secrets.DOCKER_USERNAME }}
             uses: ./.github/actions/test
+    test_classutil:
+        needs: test_basic
+        runs-on: [self-hosted, linux, light]
+        steps:
+          - name: 🛎️ Checkout
+            uses: actions/checkout@v2
+          - name: 🤖 Run test
+            env:
+                docker_username: ${{ secrets.DOCKER_USERNAME }}
+            uses: ./.github/actions/test
     test_render:
         needs: test_basic
         runs-on: [self-hosted, linux, light]

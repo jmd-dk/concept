@@ -3761,20 +3761,6 @@ if Ωdcdm > 1e-9 and class_params.get('Gamma_dcdm', 0) > 0:
 radiation_class_species = radiation_class_species.strip('+')
 neutrino_class_species = neutrino_class_species.strip('+')
 massive_neutrino_class_species = massive_neutrino_class_species.strip('+')
-# Handle optional values in special_params
-if 'ntimes' in special_params:
-    ntimes = str(special_params['ntimes'])
-    if ntimes in {'inf', 'np.inf', 'numpy.inf'}:
-        ntimes = ထ
-    else:
-        try:
-            ntimes = float(ntimes)
-        except:
-            try:
-                ntimes = float(eval(ntimes))
-            except:
-                abort(f'Could not interpret ntimes = {ntimes}')
-    special_params['ntimes'] = ntimes
 
 
 
@@ -5005,9 +4991,9 @@ if not enable_Hubble and enable_class_background:
     masterwarn('Hubble expansion is deactivated, but enable_class_background is True')
 # Allow for easier names in class_extra_background
 for val, keys in {
-    'gr.fac. D' : {'D', 'D1'},
-    'gr.fac. f' : {'f', 'f1'},
-    'conf. time': {unicode('τ'), asciify('τ'), 'tau'},
+    'gr.fac. D'       : {'D', 'D1'},
+    'gr.fac. f'       : {'f', 'f1'},
+    'conf. time [Mpc]': {unicode('τ'), asciify('τ'), 'tau'},
 }.items():
     if keys & class_extra_background:
         class_extra_background.difference_update(keys)

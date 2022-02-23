@@ -1536,6 +1536,7 @@ order = (
     # Test whether the optimizations introduces bugs
     'optimizations',
     # Tests of other functionality
+    'classutil',
     'render',
 )
 # Find all tests (directories in ${test_dir}).

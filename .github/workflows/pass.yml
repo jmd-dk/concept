@@ -184,6 +184,11 @@ jobs:
         steps:
           - name: Pass
             run: exit 0
+    test_classutil:
+        runs-on: [self-hosted, linux]
+        steps:
+          - name: Pass
+            run: exit 0
     test_render:
         runs-on: [self-hosted, linux]
         steps:

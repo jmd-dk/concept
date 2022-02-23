@@ -38,6 +38,7 @@ cimport(
     '    class_extra_perturbations_class, '
     '    compute_cosmo,                   '
     '    compute_transfer,                '
+    '    get_k_magnitudes,                '
     '    transferfunctions_registered,    '
 )
 cimport('from mesh import convert_particles_to_fluid')
@@ -80,37 +81,38 @@ def allow_similarly_named_components():
 # Function which convert all snapshots in the
 # special_params['snapshot_filenames'] parameter to the snapshot type
 # given in the snapshot_type parameter.
-@cython.pheader(# Locals
-                N_vacuum='Py_ssize_t',
-                a='double',
-                component='Component',
-                dim='int',
-                ext=str,
-                index='int',
-                snapshot=object,
-                snapshot_filename=str,
-                converted_snapshot_filename=str,
-                params=dict,
-                attribute_str=str,
-                attributes=object,  # collections.defaultdict
-                attribute=str,
-                key=str,
-                value=object,  # double, str or NoneType
-                mass='double',
-                name=str,
-                names=list,
-                names_lower=list,
-                original_mass='double',
-                original_representation=str,
-                rel_tol='double',
-                unit_str=str,
-                σmom_fluid='double[::1]',
-                σmom_particles='double[::1]',
-                Σmass_fluid='double',
-                Σmass_particles='double',
-                Σmom_fluid='double[::1]',
-                Σmom_particles='double[::1]',
-                )
+@cython.pheader(
+    # Locals
+    N_vacuum='Py_ssize_t',
+    a='double',
+    component='Component',
+    dim='int',
+    ext=str,
+    index='int',
+    snapshot=object,
+    snapshot_filename=str,
+    converted_snapshot_filename=str,
+    params=dict,
+    attribute_str=str,
+    attributes=object,  # collections.defaultdict
+    attribute=str,
+    key=str,
+    value=object,  # double, str or NoneType
+    mass='double',
+    name=str,
+    names=list,
+    names_lower=list,
+    original_mass='double',
+    original_representation=str,
+    rel_tol='double',
+    unit_str=str,
+    σmom_fluid='double[::1]',
+    σmom_particles='double[::1]',
+    Σmass_fluid='double',
+    Σmass_particles='double',
+    Σmom_fluid='double[::1]',
+    Σmom_particles='double[::1]',
+)
 def convert():
     """This function will convert the snapshot given in the
     special_params['snapshot_filename'] parameter to the type
@@ -481,15 +483,16 @@ def powerspec():
 
 # Function which produces a 3D render of the file
 # specified by the special_params['snapshot_filename'] parameter.
-@cython.pheader(# Locals
-                basename=str,
-                index='int',
-                ext=str,
-                output_dir=str,
-                output_filename=str,
-                snapshot=object,
-                snapshot_filename=str,
-                )
+@cython.pheader(
+    # Locals
+    basename=str,
+    index='int',
+    ext=str,
+    output_dir=str,
+    output_filename=str,
+    snapshot=object,
+    snapshot_filename=str,
+)
 def render3D():
     init_time()
     # Extract the snapshot filename
@@ -807,22 +810,29 @@ def info():
     components=list,
     compute_perturbations='bint',
     convenience_attributes=dict,
+    fac='double',
+    fac_max='double',
+    fac_min='double',
     filename=str,
     gauge=str,
     gauge_str=str,
     gridsize='Py_ssize_t',
+    gridsize_i='Py_ssize_t',
     i='Py_ssize_t',
     index='Py_ssize_t',
-    k_gridsize='Py_ssize_t',
     k_magnitudes='double[::1]',
-    ntimes='Py_ssize_t',
+    k_magnitudes_str=str,
+    k_max='double',
+    k_modes_per_decade_ori=dict,
+    key=str,
+    modes='Py_ssize_t',
     perturbations=object,  # PerturbationDict
-    powerspec_gridsize='Py_ssize_t',
     rank_other='int',
     size='Py_ssize_t',
+    times='Py_ssize_t',
     transfer='double[:, ::1]',
-    transferfunction_info=object,  # TransferFunctionInfo
     transfer_of_k='double[::1]',
+    transferfunction_info=object,  # TransferFunctionInfo
     var_name=str,
     variable_specifications=list,
     ρ_bars=dict,
@@ -838,32 +848,75 @@ def class_():
     # Should we compute and store perturbations (or only background)?
     compute_perturbations = bool(components or class_extra_perturbations)
     if compute_perturbations:
-        # Get power spectrum gridsize
-        powerspec_gridsize = -1
-        for component in components:
-            gridsize_tmp = is_selected(component, powerspec_options['global gridsize'])
-            if gridsize_tmp is None or isinstance(gridsize_tmp, str) or gridsize_tmp <= 2:
-                continue
-            gridsize = int(gridsize_tmp)
-            if gridsize and gridsize > powerspec_gridsize:
-                powerspec_gridsize = gridsize
-        if powerspec_gridsize == -1:
-            for gridsize_tmp in powerspec_options['global gridsize'].values():
-                if not (
-                    gridsize_tmp is None or isinstance(gridsize_tmp, str) or gridsize_tmp <= 2
-                ):
-                    powerspec_gridsize = int(gridsize_tmp)
+        # Get the number of times at which to tabulate
+        # the perturbations. A value of -1 means include all values
+        # from CLASS.
+        times_float = float(special_params['times'])
+        if times_float == ထ:
+            times = -1
+        else:
+            times = int(round(times_float))
+        # Get the grid size corresponding to the maximum k.
+        # Note that the minimum k is implicitly set by the boxsize.
+        gridsize = -1
+        if compute_perturbations:
+            for gridsize_i in powerspec_options.get('global gridsize', {'default': -1}).values():
+                gridsize_i = int(round(float(gridsize_i)))
+                if gridsize_i > gridsize:
+                    gridsize = gridsize_i
+            if gridsize <= 2:
+                abort(
+                    'You should specify the of maximum k mode to compute, either explicitly '
+                    'via the --kmax command-line option to the class utility, or implicitly '
+                    'by specifying the powerspec_options["global gridsize"] parameter, e.g.\n'
+                    'powerspec_options = {"global gridsize": 512}'
+                )
+        # If a maximum k is explicitly given, make sure that this is in
+        # fact included in the k range.
+        k_max = float(special_params['kmax'])
+        while k_max != -1:
+            k_magnitudes, k_magnitudes_str = get_k_magnitudes(gridsize, use_cache=False)
+            if k_magnitudes[k_magnitudes.shape[0] - 1] >= k_max:
+                break
+            gridsize += 2
+        # Adjust the global user parameter k_modes_per_decade so that
+        # the exact requested number of k modes is obtained.
+        # A value of -1 means that no specific number of modes has been
+        # requested, in which case we use the number obtained from
+        # k_modes_per_decade as is.
+        modes = int(round(special_params['modes']))
+        if modes != -1:
+            k_modes_per_decade_ori = k_modes_per_decade.copy()
+            k_magnitudes, k_magnitudes_str = get_k_magnitudes(gridsize, use_cache=False)
+            fac = 1
+            while k_magnitudes.shape[0] < modes:
+                fac *= 1.1
+                for k_magnitude, val in k_modes_per_decade_ori.items():
+                    k_modes_per_decade[k_magnitude] = fac*val
+                k_magnitudes, k_magnitudes_str = get_k_magnitudes(gridsize, use_cache=False)
+            fac_max = fac
+            while k_magnitudes.shape[0] > modes:
+                fac *= 0.9
+                for k_magnitude, val in k_modes_per_decade_ori.items():
+                    k_modes_per_decade[k_magnitude] = fac*val
+                k_magnitudes, k_magnitudes_str = get_k_magnitudes(gridsize, use_cache=False)
+            fac_min = fac
+            while True:
+                fac = sqrt(fac_min*fac_max)
+                for k_magnitude, val in k_modes_per_decade_ori.items():
+                    k_modes_per_decade[k_magnitude] = fac*val
+                k_magnitudes, k_magnitudes_str = get_k_magnitudes(gridsize, use_cache=False)
+                if k_magnitudes.shape[0] < modes:
+                    fac_min = fac
+                elif k_magnitudes.shape[0] > modes:
+                    fac_max = fac
+                else:
                     break
-        if powerspec_gridsize <= 2:
-            abort(
-                'You should (further) specify a power spectrum grid size, e.g.\n'
-                'powerspec_options = {"global gridsize": 64}'
-            )
     # Do CLASS computation
     if compute_perturbations:
         gauge = special_params['gauge'].replace('-', '').lower()
         cosmoresults = compute_cosmo(
-            powerspec_gridsize,
+            gridsize,
             'synchronous' if gauge == 'nbody' else gauge,
             class_call_reason='in order to get perturbations',
         )
@@ -891,9 +944,9 @@ def class_():
             # variables stored below will be stored in these units.
             units_h5 = hdf5_file.require_group('units')
             for unit_name, unit_val in {
-                'unit time': unit_time,
+                'unit time'  : unit_time,
                 'unit length': unit_length,
-                'unit mass': unit_mass,
+                'unit mass'  : unit_mass,
             }.items():
                 try:
                     units_h5.attrs[unit_name] = bytes(unit_val, encoding='ascii')
@@ -941,10 +994,10 @@ def class_():
                     key = 'H'
                 elif key == 'gr.fac. D':
                     # Unitless
-                    key = 'D1'
+                    key = 'D'
                 elif key == 'gr.fac. f':
                     # Unitless
-                    key = 'f1'
+                    key = 'f'
                 elif key == '(.)w_fld':
                     # Unitless
                     key = 'w_fld'
@@ -1067,14 +1120,13 @@ def class_():
         all_a_values, _ = remove_doppelgängers(all_a_values, all_a_values, rel_tol=0.5)
         all_a_values = asarray(all_a_values).copy()
         # If too many a values are given, evenly select the amount
-        # given by the "ntimes" utility argument.
-        if all_a_values.shape[0] > special_params['ntimes']:
-            ntimes = int(round(special_params['ntimes']))
-            step = float(all_a_values.shape[0])/(ntimes - 1)
-            all_a_values_selected = empty(ntimes, dtype=C2np['double'])
-            for i in range(ntimes - 1):
+        # given by the "times" utility argument.
+        if all_a_values.shape[0] > times and times != -1:
+            step = float(all_a_values.shape[0])/(times - 1)
+            all_a_values_selected = empty(times, dtype=C2np['double'])
+            for i in range(times - 1):
                 all_a_values_selected[i] = all_a_values[cast(int(i*step), 'Py_ssize_t')]
-            all_a_values_selected[ntimes - 1] = all_a_values[all_a_values.shape[0] - 1]
+            all_a_values_selected[times - 1] = all_a_values[all_a_values.shape[0] - 1]
             all_a_values = all_a_values_selected
         # Broadcast the a values to the slave processes
         bcast(all_a_values.shape[0])
@@ -1139,7 +1191,7 @@ def class_():
                     transfer_of_k = getattr(cosmoresults, var_name)(a)
                 else:
                     transfer_of_k, _ = compute_transfer(
-                        component, variable, powerspec_gridsize, specific_multi_index, a,
+                        component, variable, gridsize, specific_multi_index, a,
                         -1, # The a_next argument
                         gauge, get='array',
                     )
