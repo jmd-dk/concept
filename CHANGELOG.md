@@ -1,5 +1,20 @@
 ## CO*N*CEPT changelog
 
+<br/>
+
+
+
+### 🚀 1.1.0 — *Still under development*
+
+#### ✨ Features added
+- Particle IDs.
+- The `--kmin`, `--kmax` and `--modes` options to the `class` utility.
+
+[Commits since 1.0.1](https://github.com/jmd-dk/concept/compare/v1.0.1...master)
+
+---
+<br/><br/>
+
 
 
 ### 🚀 [1.0.1](https://github.com/jmd-dk/concept/releases/tag/v1.0.1) — 2021-12-07
