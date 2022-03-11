@@ -109,7 +109,7 @@ endif
 # used for unique naming of temporary files.
 pid=$(shell echo $${PPID})
 # The python configuration script
-python_config = $(shell readlink -f $$(which $(python)))-config
+python_config = $(shell readlink -f $(python))-config
 # Options passed when cythonising .pyx files
 python_version_major = $(shell $(python) -B -c "import sys; print(sys.version_info.major)")
 cythonflags = -$(python_version_major) -D -a

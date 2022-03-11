@@ -1807,8 +1807,8 @@ for ${1/CONCEPT/$esc_concept} does not exist!"
             mpi_bindir="$(dirname "${mpi_bindir}")"
         else
             # Check for mpiexec in PATH
-            mpiexec="$(which mpiexec 2>/dev/null || :)"
-            if [ -n "${mpiexec}" ]; then
+            mpiexec="$(get_command "mpiexec")" || :
+            if [ -n "${mpiexec}" ] && [ -f "${mpiexec}" ]; then
                 mpi_bindir="$(dirname "${mpiexec}")"
                 printf "\nMPI binary directory set to \"${mpi_bindir}\" (from PATH)\n\n"
             else
