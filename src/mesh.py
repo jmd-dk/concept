@@ -234,13 +234,14 @@ vector = malloc(3*sizeof('double'))
 
 # Function for doing lookup in a grid with scalar values and
 # interpolating to specified coordinates.
-@cython.header(
+@cython.pheader(
     # Argument
     grid='double[:, :, ::1]',
     component='Component',
     variable=str,
     dim='int',
     order='int',
+    shift='double',
     factor='double',
     # Locals
     cellsize='double',
@@ -264,7 +265,7 @@ vector = malloc(3*sizeof('double'))
     z='double',
     returns='void',
 )
-def interpolate_domaingrid_to_particles(grid, component, variable, dim, order, factor=1):
+def interpolate_domaingrid_to_particles(grid, component, variable, dim, order, shift=0, factor=1):
     """This function updates the dim'th dimension of variable ('pos',
     'mom' or 'Δmom') of the component, through interpolation in the grid
     of a given order. If the grid values should be multiplied by a
@@ -291,9 +292,9 @@ def interpolate_domaingrid_to_particles(grid, component, variable, dim, order, f
     ptr_dim = cython.address(mv_dim[:])
     # Offsets needed for the interpolation
     cellsize = domain_size_x/(grid.shape[0] - ℤ[2*nghosts])  # We have cubic grid cells
-    offset_x = domain_start_x - ℝ[(1 + machine_ϵ)*(nghosts - 0.5*cell_centered)*cellsize]
-    offset_y = domain_start_y - ℝ[(1 + machine_ϵ)*(nghosts - 0.5*cell_centered)*cellsize]
-    offset_z = domain_start_z - ℝ[(1 + machine_ϵ)*(nghosts - 0.5*cell_centered)*cellsize]
+    offset_x = domain_start_x - ℝ[(1 + machine_ϵ)*(nghosts - 0.5*cell_centered + shift)*cellsize]
+    offset_y = domain_start_y - ℝ[(1 + machine_ϵ)*(nghosts - 0.5*cell_centered + shift)*cellsize]
+    offset_z = domain_start_z - ℝ[(1 + machine_ϵ)*(nghosts - 0.5*cell_centered + shift)*cellsize]
     # Interpolate onto each particle
     posxˣ = component.posxˣ
     posyˣ = component.posyˣ
@@ -347,6 +348,7 @@ def interpolate_domaingrid_to_particles(grid, component, variable, dim, order, f
     ᔑdt=dict,
     deconvolve='bint',
     interlace='bint',
+    shift_base='double',
     output_space=str,
     do_ghost_communication='bint',
     # Locals
@@ -367,7 +369,7 @@ def interpolate_domaingrid_to_particles(grid, component, variable, dim, order, f
 )
 def interpolate_upstream(
     components, gridsizes_upstream, gridsize_global, quantity, order,
-    ᔑdt=None, deconvolve=True, interlace=False,
+    ᔑdt=None, deconvolve=True, interlace=False, shift_base=0,
     output_space='real', do_ghost_communication=True,
 ):
     """Given a list of components, a list of corresponding upstream grid
@@ -385,6 +387,8 @@ def interpolate_upstream(
     specified by deconvolve and interlace.
     The deconvolution order will be the same as the interpolation order
     (the order argument).
+    To shift the particles without performing interlacing,
+    supply shift_base = ±0.5.
 
     The returned grid may either be a real space domain grid or a
     Fourier space slab, depending on the value of output_space
@@ -477,7 +481,7 @@ def interpolate_upstream(
             # and with shift = ±0.5 (+ chosen for cell-centred,
             # - for cell-vertex).
             for shift_index in range(1 + interlace):
-                shift = ℝ[cell_centered - 0.5]*shift_index
+                shift = shift_base + ℝ[cell_centered - 0.5]*shift_index
                 # Interpolate particle components onto upstream grid
                 grid_upstream = get_buffer(
                     gridshape_upstream_local, 'grid_updownstream',

@@ -1909,7 +1909,7 @@ def get_softened_r3inv(r2, ϵ):
     deconvolve_downstream='bint',
     deconvolve_upstream='bint',
     interpolation_order='int',
-    interlace='bint',
+    interlace_flag='int',
     ᔑdt=dict,
     ᔑdt_key=object,  # str or tuple
     # Locals
@@ -1925,12 +1925,16 @@ def get_softened_r3inv(r2, ϵ):
     downstream_description_gridsize=str,
     downstream_description_representation=str,
     factor='double',
+    fluid_receivers=list,
+    fluid_suppliers=list,
     fourier_diff='bint',
     grid_downstream='double[:, :, ::1]',
     gridsize_downstream='Py_ssize_t',
     group=dict,
     groups=dict,
     index='Py_ssize_t',
+    interlace_shift='double',
+    interlace_factor='double',
     k2='Py_ssize_t',
     ki='Py_ssize_t',
     kj='Py_ssize_t',
@@ -1939,6 +1943,8 @@ def get_softened_r3inv(r2, ϵ):
     nullification=str,
     only_particle_receivers='bint',
     only_particle_suppliers='bint',
+    particle_receivers=list,
+    particle_suppliers=list,
     receiver='Component',
     receivers_differentiations=list,
     receivers_gridsizes_downstream=list,
@@ -1959,7 +1965,7 @@ def get_softened_r3inv(r2, ϵ):
 )
 def particle_mesh(
     receivers, suppliers, gridsize_global, quantity, force, method, potential, interpolation_order,
-    deconvolve_upstream, deconvolve_downstream, interlace,
+    deconvolve_upstream, deconvolve_downstream, interlace_flag,
     ᔑdt, ᔑdt_key,
 ):
     """
@@ -1969,7 +1975,7 @@ def particle_mesh(
     - Interpolate the specified quantity of all supplier components
       onto upstream (component specific) grids.
     - Transform to upstream Fourier slabs.
-    - Perform deconvolution and interlacing of upstream Fourier slabs of
+    - Perform deconvolution of upstream Fourier slabs of
       particle suppliers, if specified.
     - Add upstream Fourier slabs together, producing global Fourier
       slabs.
@@ -1993,11 +1999,85 @@ def particle_mesh(
       the receivers, applying the force.
       The force application uses the prescription
         Δmom = -component.mass*∂ⁱφ*ᔑdt[ᔑdt_key].
+    To enable interlacing, call this function with interlace_flag = 1.
+    In this case, all of the above will be carried out twice for
+    particle components (with momentum updates multiplied by ½),
+    using grids shifted by half a grid cell in all directions.
+    Though interlacing is not meaningful for fluid components, there may
+    be both particle and fluid components contained in the receivers
+    and suppliers lists.
     """
+    if not receivers or not suppliers:
+        return
     if potential not in {'gravity', 'gravity long-range'}:
         abort(
             f'particle_mesh() got potential "{potential}" ∉ {{"gravity", "gravity long-range"}}'
         )
+    # Handle the interlace_flag argument
+    if interlace_flag == 1:
+        particle_suppliers = [
+            supplier
+            for supplier in suppliers
+            if supplier.representation == 'particles'
+        ]
+        particle_receivers = [
+            receiver
+            for receiver in receivers
+            if receiver.representation == 'particles'
+        ]
+        if particle_suppliers and particle_receivers:
+            # The interaction between the particle suppliers and
+            # particle receivers should be carried out in an interlaced
+            # manner, i.e. done twice using a relatively shifted
+            # potential grid. This shifting is disallowed if we also
+            # have fluid components, and so we carry out the
+            # non-interlaced fluid interactions first.
+            fluid_suppliers = [
+                supplier
+                for supplier in suppliers
+                if supplier.representation == 'fluid'
+            ]
+            fluid_receivers = [
+                receiver
+                for receiver in receivers
+                if receiver.representation == 'fluid'
+            ]
+            for receivers_noninterlaced, suppliers_noninterlaced in [
+                (fluid_receivers, fluid_suppliers + particle_suppliers),
+                (particle_receivers, fluid_suppliers),
+            ]:
+                particle_mesh(
+                    receivers_noninterlaced, suppliers_noninterlaced, gridsize_global, quantity,
+                    force, method, potential,
+                    interpolation_order, deconvolve_upstream, deconvolve_downstream,
+                    interlace_flag,
+                    ᔑdt, ᔑdt_key,
+                )
+            # Now discard the fluid components
+            suppliers = particle_suppliers
+            receivers = particle_receivers
+            # We now carry out the interlaced interaction between the
+            # remaining (particle) receivers and suppliers. We do this
+            # by running this function twice; first using a recursive
+            # call for the shifted (half) force (interlace_flag == 2)
+            # and then letting the primary call run to completion for
+            # the non-shifted (half) force (interlace_flag == 1).
+            interlace_flag = 2
+            particle_mesh(
+                receivers, suppliers, gridsize_global, quantity,
+                force, method, potential,
+                interpolation_order, deconvolve_upstream, deconvolve_downstream,
+                interlace_flag,
+                ᔑdt, ᔑdt_key,
+            )
+            interlace_flag = 1
+        else:
+            # We do not have both particle suppliers and receivers,
+            # so interlacing cannot be carried out.
+            interlace_flag = 0
+    interlace_shift = ℝ[cell_centered - 0.5]*(interlace_flag == 2)
+    interlace_factor = 1 - 0.5*(interlace_flag > 0)
+    # Progress message
     suppliers_gridsizes_upstream = [
         supplier.potential_gridsizes[force][method].upstream
         for supplier in suppliers
@@ -2050,12 +2130,28 @@ def particle_mesh(
             deconvolve_downstream = False
             deconv_order_global += 1
     deconv_order_global *= interpolation_order
+    # If interlacing is to be carried out, check that this is possible
+    if interlace_flag:
+        if not only_particle_suppliers or not only_particle_receivers:
+            abort('Cannot perform particle-mesh interlacing with fluid components')
+        if (
+               not all_supplier_upstream_gridsizes_equal_global
+            or not all_receiver_downstream_gridsizes_equal_global
+        ):
+            abort(
+                f'Cannot perform particle-mesh interlacing with unequal '
+                f'upstream/global/downstream grid sizes: '
+                f'{set(suppliers_gridsizes_upstream)}'
+                f'/{gridsize_global}'
+                f'/{set(receivers_gridsizes_downstream)}'
+            )
     # Interpolate suppliers onto global Fourier slabs by first
     # interpolating them onto individual upstream grids, transforming to
     # Fourier space and then adding them together.
     slab_global = interpolate_upstream(
         suppliers, suppliers_gridsizes_upstream, gridsize_global, quantity, interpolation_order,
-        ᔑdt, deconvolve_upstream, interlace, output_space='Fourier',
+        ᔑdt, deconvolve_upstream,
+        shift_base=interlace_shift, output_space='Fourier',
     )
     slab_global_ptr = cython.address(slab_global[:, :, :])
     # Convert slab_global values to potential
@@ -2181,19 +2277,9 @@ def particle_mesh(
                 # slab_downstream. We want to use this directly if
                 # possible, but if we need to mutate it and we are not
                 # at the last subgroup, we need to take a copy.
-                mutate_slab_downstream_ok = False
-                if fourier_diff:
-                    if at_last_representation and at_last_differentiation_order:
-                        # Really only True for the last dim
-                        mutate_slab_downstream_ok = True
-                else:
-                    if at_last_representation and at_last_differentiation_order:
-                        mutate_slab_downstream_ok = True
-                    elif deconv_order_downstream == 0:
-                        # Mutation really not OK, but as the slab will
-                        # not be differentiated nor deconvolved, there
-                        # is no reason to take a copy.
-                        mutate_slab_downstream_ok = True
+                mutate_slab_downstream_ok = (  # only OK for dim == 2 in case of fourier_diff
+                    at_last_representation and at_last_differentiation_order
+                )
                 # Obtain the force grid either in Fourier or real space
                 if fourier_diff:
                     # Fourier space differentiation.
@@ -2231,7 +2317,7 @@ def particle_mesh(
                         # Apply force
                         apply_particle_mesh_force(
                             grid_downstream, dim, group[representation], interpolation_order,
-                            ᔑdt, ᔑdt_key,
+                            ᔑdt, ᔑdt_key, interlace_shift, interlace_factor,
                         )
                         masterprint('done')
                 else:
@@ -2282,7 +2368,7 @@ def particle_mesh(
                         # Apply force
                         apply_particle_mesh_force(
                             ᐁᵢgrid_downstream, dim, group[representation], interpolation_order,
-                            ᔑdt, ᔑdt_key,
+                            ᔑdt, ᔑdt_key, interlace_shift, interlace_factor,
                         )
                         masterprint('done')
 
@@ -2296,6 +2382,8 @@ def particle_mesh(
     interpolation_order='int',
     ᔑdt=dict,
     ᔑdt_key=object,  # str or tuple
+    shift='double',
+    factor='double',
     # Locals
     Jᵢ='FluidScalar',
     Jᵢ_ptr='double*',
@@ -2307,7 +2395,10 @@ def particle_mesh(
     𝒫_ptr='double*',
     returns='void',
 )
-def apply_particle_mesh_force(grid, dim, receivers, interpolation_order, ᔑdt, ᔑdt_key):
+def apply_particle_mesh_force(
+    grid, dim, receivers, interpolation_order, ᔑdt, ᔑdt_key,
+    shift=0, factor=1,
+):
     if not receivers:
         return
     if not (0 <= dim < 3):
@@ -2331,7 +2422,7 @@ def apply_particle_mesh_force(grid, dim, receivers, interpolation_order, ᔑdt, 
             # is generalised and supplied by the caller.
             interpolate_domaingrid_to_particles(
                 grid, receiver, 'mom', dim, interpolation_order,
-                receiver.mass*ℝ[-ᔑdt[ᔑdt_key]],
+                shift, receiver.mass*ℝ[-factor*ᔑdt[ᔑdt_key]],
             )
         else:  # receiver.representation == 'fluid'
             # The source term has the form
@@ -2344,7 +2435,7 @@ def apply_particle_mesh_force(grid, dim, receivers, interpolation_order, ᔑdt, 
             ϱ_ptr = receiver.ϱ.grid
             𝒫_ptr = receiver.𝒫.grid
             for index in range(receiver.size):
-                Jᵢ_ptr[index] += ℝ[-ᔑdt[ᔑdt_key]]*(
+                Jᵢ_ptr[index] += ℝ[-factor*ᔑdt[ᔑdt_key]]*(
                     ϱ_ptr[index] + ℝ[light_speed**(-2)]*𝒫_ptr[index]
                 )*grid_ptr[index]
         masterprint('done')
