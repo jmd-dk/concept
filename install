@@ -322,14 +322,14 @@ set_version "cythongsl"         "0.2.2"
 set_version "h5py"              "3.6.0"
 set_version "matplotlib"        "3.5.1"
 set_version "mpi4py"            "3.1.3"
-set_version "numpy"             "1.22.2"
-set_version "pip"               "22.0.3"
+set_version "numpy"             "1.22.3"
+set_version "pip"               "22.0.4"
 set_version "scipy"             "1.8.0"
-set_version "setuptools"        "60.9.3"
-set_version "sphinx"            "4.4.0"
+set_version "setuptools"        "61.2.0"
+set_version "sphinx"            "4.5.0"
 set_version "sphinx_copybutton" "0.5.0"
 set_version "sphinx_rtd_theme"  "1.0.0"
-set_version "sphinx_tabs"       "3.2.0"
+set_version "sphinx_tabs"       "3.3.1"
 set_version "wheel"             "0.37.1"
 # Note that the versions may be changed further down due to known
 # compatibility issues between specific versions of the above programs
@@ -6227,10 +6227,13 @@ pip_download() {
     # up hanging. If no third argument is given, or if the third
     # argument is 0, no time limit is set.
     local command_end=""
+    local current_dir
+    local pypackage_version="99.9"  # arbitrary
     if [ -n "${2}" ] && [ "${2}" != "upgrade" ]; then
         if [[ "${2}" == [0-9]* ]]; then
             # Second argument is a specific version
             command_end="==${2}"
+            pypackage_version="${2}"
         else
             # Second argument is a version string that pip understands
             command_end="${2}"
@@ -6250,38 +6253,92 @@ pip_download() {
         pip_download_time=${3}
     fi
     # Download the Python package
-    pip_args="download --no-cache-dir --no-binary=:all: --dest=${tmp_pip_dir} \
-${pip_name}${command_end}"
-    for n in {1..10}; do
-        pip_status="error"
-        for extra_pip_arg in                                 \
-            "--no-build-isolation --no-deps --no-use-pep517" \
-            "--no-build-isolation           --no-use-pep517" \
-            "                     --no-deps --no-use-pep517" \
-            "                               --no-use-pep517" \
-            "                                              " \
-            "--no-build-isolation --no-deps                " \
-            "--no-build-isolation                          " \
-            "                     --no-deps                " \
-        ; do
-            extra_pip_arg="$(echo ${extra_pip_arg} | awk '{$1=$1};1')"
-            all_pip_args="${pip_args} ${extra_pip_arg}"
-            printf "
-Attempting to download ${1} using pip ${all_pip_args}\n\n"
-            # Download Python package
-            "${python}" -m pip ${all_pip_args} & pip_download_pid=$!
-            # The above command may succeed in retrieving the
-            # package, but then hang indefinitely.
-            # Kill the process after ${pip_download_time} seconds.
-            soothe ${pip_download_pid} ${pip_download_time}
-            # If the archive exists in the tmp/pip dir,
-            # the download completed successfully.
-            if ls "${tmp_dir}/pip"                                \
-                | sed 's/-//g; s/_//g'                            \
-                | grep -i "${pip_name_nodashes}" > /dev/null 2>&1 \
-            ; then
-                pip_status="success"
+    for n in {1..3}; do
+        for dig_through_trash in "False" "True"; do
+            pip_args="download --no-cache-dir --no-binary=:all:"
+            if [ "${dig_through_trash}" == "True" ]; then
+                pip_args="${pip_args} --no-clean"
             fi
+            pip_args="${pip_args} --dest=${tmp_pip_dir} ${pip_name}${command_end}"
+            pip_status="error"
+            for extra_pip_arg in                                 \
+                "--no-build-isolation --no-deps --no-use-pep517" \
+                "--no-build-isolation           --no-use-pep517" \
+                "                     --no-deps --no-use-pep517" \
+                "                               --no-use-pep517" \
+                "                                              " \
+                "--no-build-isolation --no-deps                " \
+                "--no-build-isolation                          " \
+                "                     --no-deps                " \
+            ; do
+                extra_pip_arg="$(echo ${extra_pip_arg} | awk '{$1=$1};1')"
+                all_pip_args="${pip_args} ${extra_pip_arg}"
+                printf "
+Attempting to download ${1} using pip ${all_pip_args}\n\n"
+                # Download Python package
+                "${python}" -m pip ${all_pip_args} & pip_download_pid=$!
+                # The above command may succeed in retrieving the
+                # package, but then hang indefinitely.
+                # Kill the process after ${pip_download_time} seconds.
+                soothe ${pip_download_pid} ${pip_download_time}
+                # Check whether the archive exists
+                if ls "${tmp_pip_dir}"                                \
+                    | sed 's/-//g; s/_//g'                            \
+                    | grep -i "${pip_name_nodashes}" > /dev/null 2>&1 \
+                ; then
+                    # The archive exists in the ${tmp_pip_dir} directory
+                    pip_status="success"
+                elif [ "${dig_through_trash}" == "True" ] && [ -d "${TMPDIR}" ]; then
+                    for pip_tmp_download_dir in "${TMPDIR}/"*; do
+                        if [ -d "${pip_tmp_download_dir}" ]; then
+                            count=0
+                            for pip_tmp_download_subdir in "${pip_tmp_download_dir}"/*; do
+                                if [ -d "${pip_tmp_download_subdir}" ]; then
+                                    ((count += 1))
+                                    pip_tmp_download_subdir_candidate="${pip_tmp_download_subdir}"
+                                fi
+                            done
+                            if [ ${count} -eq 1 ]; then
+                                pypackage_download_dir="${pip_tmp_download_subdir_candidate}"
+                                subdir_nodashes="$(                      \
+                                    basename "${pypackage_download_dir}" \
+                                    | tr '[:upper:]' '[:lower:]'         \
+                                )"
+                                subdir_nodashes="${subdir_nodashes//-/}"
+                                subdir_nodashes="${subdir_nodashes//_/}"
+                                if [[ "${subdir_nodashes}" == "${pip_name_nodashes}"* ]]; then
+                                    # The unpacked archive exists in
+                                    # ${TMPDIR}/*. Pack it into a tar.gz
+                                    # file placed in "${tmp_pip_dir}".
+                                    pypackage_dir="${pip_tmp_download_dir}/${pip_name_nodashes}-${pypackage_version}"
+                                    if [ "${pypackage_download_dir}" != "${pypackage_dir}" ]; then
+                                        mv "${pypackage_download_dir}" "${pypackage_dir}"
+                                    fi
+                                    current_dir="$(pwd)"
+                                    cd "${pip_tmp_download_dir}"
+                                    pypackage_archive="${pip_name_nodashes}-${pypackage_version}.tar.gz"
+                                    rm -rf "${tmp_pip_dir}/${pypackage_archive}" || :
+                                    tar -cvf - "${pip_name_nodashes}-${pypackage_version}" \
+                                        | gzip > "${tmp_pip_dir}/${pypackage_archive}"
+                                    cd "${current_dir}"
+                                    pip_status="success"
+                                    break
+                                fi
+                            fi
+                        fi
+                    done
+                fi
+                # Clean up trash
+                if     [ "${dig_through_trash}" == "True"    ] \
+                    && [ -d "${TMPDIR}"                      ] \
+                    && [ "${TMPDIR}" == "${tmp_pip_dir}_tmp" ] \
+                ; then
+                    rm -rf "${TMPDIR}" || :
+                fi
+                if [ "${pip_status}" == "success" ]; then
+                    break
+                fi
+            done
             if [ "${pip_status}" == "success" ]; then
                 break
             fi
