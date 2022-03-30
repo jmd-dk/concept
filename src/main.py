@@ -2453,12 +2453,21 @@ if jobid != -1:
         timeloop()
         # Simulation done
         universals.any_warnings = allreduce(universals.any_warnings, op=MPI.LOR)
-        if universals.any_warnings:
-            masterprint(f'{esc_concept} run {jobid} finished')
-        else:
+        success = (not universals.any_warnings)
+        if success:
+            sys.stderr.flush()
+            Barrier()
+            success = bcast(
+                not os.path.isfile(f'{path.job_dir}/{jobid}/log_err')
+                or os.path.getsize(f'{path.job_dir}/{jobid}/log_err') == 0
+                if master else None
+            )
+        if success:
             masterprint(
                 f'{esc_concept} run {jobid} finished successfully',
                 fun=terminal.bold_green,
             )
+        else:
+            masterprint(f'{esc_concept} run {jobid} finished')
     # Shutdown CO𝘕CEPT properly
     abort(exit_code=0)
