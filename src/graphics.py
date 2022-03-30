@@ -1389,12 +1389,9 @@ def render3D(components, filename, cleanup=True, tmp_dirname='.renders3D'):
             ax = fig.add_subplot(projection='3d', facecolor=render3D_bgcolor)
             # The colour and α (of a homogeneous column through the
             # entire box) of this component.
-            if component.name.lower() in render3D_colors:
-                # This component is given a specific colour by the user
-                color, α_homogeneous = render3D_colors[component.name.lower()]
-            elif 'all' in render3D_colors:
-                # All components are given the same colour by the user
-                color, α_homogeneous = render3D_colors['all']
+            color_α_homogeneous = is_selected(component, render3D_colors)
+            if color_α_homogeneous is not None:
+                color, α_homogeneous = color_α_homogeneous
             else:
                 # No colour specified for this particular component.
                 # Assign the next colour from the default cyclic colours.
