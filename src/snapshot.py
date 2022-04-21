@@ -1007,7 +1007,7 @@ class GadgetSnapshot:
             )
             # Write out the data blocks
             for block_name, block in blocks.items():
-                data_components = block.get('data').copy()
+                data_components = block.get('data')
                 unit_components = block.get('unit')
                 block_type = block['type']
                 block_fmt = block_type[len(block_type) - 1]
@@ -1544,6 +1544,7 @@ class GadgetSnapshot:
         indexᵖ='Py_ssize_t',
         indexʳ='Py_ssize_t',
         i='Py_ssize_t',
+        id_counters='Py_ssize_t[::1]',
         ids_arr=object,  # np.ndarray
         ids_mv='Py_ssize_t[::1]',
         j='Py_ssize_t',
@@ -1562,9 +1563,11 @@ class GadgetSnapshot:
         num_particles_file='Py_ssize_t',
         num_particles_files=list,
         num_particles_proc='Py_ssize_t',
+        num_particles_tot=list,
         num_particle_files=list,
         num_read='Py_ssize_t',
         num_read_file=list,
+        num_read_file_locals=list,
         num_read_files=list,
         offset='Py_ssize_t',
         offset_header='Py_ssize_t',
@@ -1573,6 +1576,7 @@ class GadgetSnapshot:
         representation=str,
         size_read='Py_ssize_t',
         species=object,  # str or None
+        start_local='Py_ssize_t',
         unit='double',
         unit_components=list,
     )
@@ -1805,6 +1809,16 @@ class GadgetSnapshot:
             msg_list.append(f'(skipping {msg})')
             msg = ' '.join(msg_list)
         masterprint(f'Reading in {msg} ...')
+        # Construct ID counters for each components.
+        # Only used in case the snapshot does not include IDs.
+        num_particles_tot = [
+            (0 if component is None else component.N)
+            for component in self.components
+        ]
+        id_counters = np.concatenate((
+            [0],
+            np.cumsum(num_particles_tot, dtype=C2np['Py_ssize_t']),
+        ))[:len(num_particles_tot)]
         # Enlarge components in order to accommodate particles
         for component, N_local in zip(self.components, num_local):
             if component is None:
@@ -1861,7 +1875,11 @@ class GadgetSnapshot:
                             break
                     bcast(end_of_file)
                     if end_of_file:
-                        if blocks_required:
+                        if blocks_required == {'ID'}:
+                            # IDs are required but not found within the
+                            # file. We shall generate these ourselves.
+                            break
+                        elif blocks_required:
                             plural = ('s' if len(blocks_required) > 1 else '')
                             abort(
                                 f'Could not find required block{plural}',
@@ -1876,7 +1894,7 @@ class GadgetSnapshot:
                     block_name, block_size = bcast()
                 blocks_required.remove(block_name)
                 block = blocks[block_name]
-                data_components = block.get('data').copy()
+                data_components = block.get('data')
                 unit_components = block.get('unit')
                 block_type = block['type']
                 # Figure out the size of the data type
@@ -1960,8 +1978,10 @@ class GadgetSnapshot:
                                                 if data_value >= boxsize:
                                                     data_value -= boxsize
                                         chunk_ptr[index_chunk] = data_value
-                            # Crop the populated part of the data
-                            # away from the memory view.
+                            # Crop the populated part of the data away
+                            # from the memory view. Note that this
+                            # changes the content of the block object
+                            # returned by get_blocks_info().
                             data_components[j] = data[size_read:]
                         # Update offset, to be used by the next process
                         offset += size_read*dtype().itemsize
@@ -2010,8 +2030,10 @@ class GadgetSnapshot:
                                         abort(f'Ran out of bytes in block "{block_name}"')
                                     ids_arr = asarray(ids_mv[indexᵖ:(indexᵖ + chunk_size)])
                                     ids_arr[:] = chunk_arr
-                            # Crop the populated part of the data
-                            # away from the memory view.
+                            # Crop the populated part of the data away
+                            # from the memory view. Note that this
+                            # changes the content of the block object
+                            # returned by get_blocks_info().
                             data_components[j] = ids_mv[num_read:]
                         # Update offset, to be used by the next process
                         offset += num_read*dtype().itemsize
@@ -2023,6 +2045,47 @@ class GadgetSnapshot:
                 # Let all the processes catch up,
                 # ensuring that the file is closed.
                 Barrier()
+            # If any of the components should make use of particle IDs
+            # but none are stored in the snapshot file, assign IDs
+            # according to the order in which the particles
+            # are stored within the file.
+            if blocks_required == {'ID'}:
+                masterprint('Assigning particle IDs ...')
+                block = blocks['ID']
+                data_components = block.get('data')
+                # Get number of particles of each type
+                # which should have been read by each process.
+                num_read_file_locals = allgather(num_read_file)
+                # Loop as when reading in, but do so in parallel
+                for j, (num_read, component, ids_mv) in enumerate(
+                    zip(num_read_file, self.components, data_components)
+                ):
+                    if component is None or not component.use_ids:
+                        continue
+                    # Get local starting index
+                    start_local = np.sum(
+                        [
+                            num_read_file_local[j]
+                            for num_read_file_local in num_read_file_locals[:rank]
+                        ],
+                        dtype=C2np['Py_ssize_t'],
+                    )
+                    # Assign consecutive IDs to num_read particles
+                    for indexᵖ in range(num_read):
+                        ids_mv[indexᵖ] = ℤ[id_counters[j] + start_local] + indexᵖ
+                    # Crop the populated part of the data away from the
+                    # memory view. Note that this changes the content of
+                    # the block object returned by get_blocks_info().
+                    data_components[j] = ids_mv[num_read:]
+                    # Update ID counter, accounting for all processes
+                    id_counters[j] += np.sum(
+                        [
+                            num_read_file_local[j]
+                            for num_read_file_local in num_read_file_locals
+                        ],
+                        dtype=C2np['Py_ssize_t'],
+                    )
+                masterprint('done')
             # Done loading this snapshot file
             if len(filenames) > 1:
                 masterprint('done')
