@@ -222,7 +222,7 @@ all:
 	    fi;                                                                \
 	    cp "$${f_src}" "$${f_build}";                                      \
 	    if [ "$${f_base}" == "Makefile" ]; then                            \
-	        Makefile="$$(readlink -f "$${concept_dir}")/Makefile";         \
+	        Makefile="$$(readlink -f "$(concept_dir)")/Makefile";          \
 	        sed -i "s/\.\.\/Makefile/$${Makefile//\//\\/}/" "$${f_build}"; \
 	    fi;                                                                \
 	done
