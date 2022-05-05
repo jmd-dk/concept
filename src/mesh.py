@@ -2223,7 +2223,7 @@ def get_slab_domain_decomposition_chunk_size(slab, grid_noghosts):
     chunks and their size along long x direction for such communication.
     """
     # Maximum number of elements (grid values) to communicate at a time
-    n_send_max_allowed = 2**20
+    n_send_max_allowed = 2**23  # 64 MB
     # Compute number of chunks and their thickness
     thickness = slab.shape[0]
     area = grid_noghosts.shape[1]*grid_noghosts.shape[2]
