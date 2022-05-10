@@ -1,7 +1,8 @@
 <!DOCTYPE html>
 <html class="writer-html5" lang="en" >
 <head>
-  <meta charset="utf-8" />
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>5. Other kinds of output &mdash; CONCEPT Documentation</title>
       <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
@@ -310,7 +311,7 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
              
-  <div class="section" id="other-kinds-of-output">
+  <section id="other-kinds-of-output">
 <h1><span class="section-number">5. </span>Other kinds of output<a class="headerlink" href="#other-kinds-of-output" title="Permalink to this headline"></a></h1>
 <p>So far, the result of any simulation has been power spectra, though several
 other types of output are available, as exemplified by the below parameter
@@ -359,7 +360,7 @@ outputs spaced logarithmically equidistant between
 <p>Among the new parameters introduced are <code class="docutils literal notranslate"><span class="pre">powerspec_select</span></code>, in which we have
 specified that we only want the data files — also including the linear theory
 spectrum — as output, not plots of this data.</p>
-<div class="section" id="d-renders">
+<section id="d-renders">
 <h2><span class="section-number">5.1. </span>3D renders<a class="headerlink" href="#d-renders" title="Permalink to this headline"></a></h2>
 <p>Looking in the output directory, among other things you’ll find image files
 with names starting with <code class="docutils literal notranslate"><span class="pre">render3D</span></code>. These are — unsurprisingly — the 3D
@@ -375,8 +376,8 @@ available
 <a class="reference external" href="https://matplotlib.org/stable/gallery/color/named_colors.html">here</a>.
 Alternatively, you may pass a 3-tuple of RGB values (e.g.
 <code class="docutils literal notranslate"><span class="pre">render3D_bgcolor</span> <span class="pre">=</span> <span class="pre">(1,</span> <span class="pre">0,</span> <span class="pre">0)</span></code> makes the background red).</p>
-</div>
-<div class="section" id="id1">
+</section>
+<section id="id1">
 <h2><span class="section-number">5.2. </span>2D renders<a class="headerlink" href="#id1" title="Permalink to this headline"></a></h2>
 <p>The 2D renders show the particle configuration projected along one of the axes
 of the box. These can often be prettier than their 3D counterparts, as a
@@ -433,8 +434,8 @@ available utilities, do .e.g</p>
 </div>
 <p>For focused documentation on the individual utilities,
 consult <a class="reference internal" href="../utilities/utilities.html"><span class="doc">Utilities</span></a>.</p>
-</div>
-<div class="section" id="snapshots">
+</section>
+<section id="snapshots">
 <h2><span class="section-number">5.3. </span>Snapshots<a class="headerlink" href="#snapshots" title="Permalink to this headline"></a></h2>
 <p>Snapshots are raw dumps of the simulated system, in this case the positions
 and momenta of all <span class="math notranslate nohighlight">\(N = 64^3\)</span> particles. By default, CO<em>N</em>CEPT uses
@@ -530,8 +531,8 @@ simply do</p>
 the <code class="docutils literal notranslate"><span class="pre">output/tutorial</span></code> directory will now be printed to the screen. Should
 you want information about just a specific snapshot, simply provide its
 entire path.</p>
-</div>
-</div>
+</section>
+</section>
 
 
            </div>

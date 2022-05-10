@@ -1,7 +1,8 @@
 <!DOCTYPE html>
 <html class="writer-html5" lang="en" >
 <head>
-  <meta charset="utf-8" />
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Command-line options &mdash; CONCEPT Documentation</title>
       <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
@@ -308,7 +309,7 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
              
-  <div class="section" id="command-line-options">
+  <section id="command-line-options">
 <h1>Command-line options<a class="headerlink" href="#command-line-options" title="Permalink to this headline"></a></h1>
 <p>This page elaborates on the many options to the <code class="docutils literal notranslate"><span class="pre">concept</span></code> script, used to
 launch CO<em>N</em>CEPT.</p>
@@ -369,11 +370,11 @@ option in detail.</p>
 </li>
 </ul>
 </div>
-<div class="section" id="basics">
+<section id="basics">
 <span id="id1"></span><h2><a class="toc-backref" href="#id6">Basics</a><a class="headerlink" href="#basics" title="Permalink to this headline"></a></h2>
 <p>The following basic command-line options are all you need to know in order to
 run CO<em>N</em>CEPT simulations locally.</p>
-<div class="section" id="help-h-help">
+<section id="help-h-help">
 <h3><a class="toc-backref" href="#id7">Help: <code class="docutils literal notranslate"><span class="pre">-h</span></code>, <code class="docutils literal notranslate"><span class="pre">--help</span></code></a><a class="headerlink" href="#help-h-help" title="Permalink to this headline"></a></h3>
 <p>Displays a short description of each command-line option and exits:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept -h
@@ -381,8 +382,8 @@ run CO<em>N</em>CEPT simulations locally.</p>
 </div>
 <p>This is helpful if you have forgotten the name of some particular option. For
 learning about the usage of a given option, this page is much preferable.</p>
-</div>
-<div class="section" id="parameter-file-p-params">
+</section>
+<section id="parameter-file-p-params">
 <span id="parameter-file"></span><h3><a class="toc-backref" href="#id8">Parameter file: <code class="docutils literal notranslate"><span class="pre">-p</span></code>, <code class="docutils literal notranslate"><span class="pre">--params</span></code></a><a class="headerlink" href="#parameter-file-p-params" title="Permalink to this headline"></a></h3>
 <p>Specifies the parameter file to use:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept -p &lt;/path/to/parameter-file&gt;
@@ -407,8 +408,8 @@ absent from the supplied parameter file will take on default values. Leaving
 out the <code class="docutils literal notranslate"><span class="pre">-p</span></code> parameter file specification when invoking <code class="docutils literal notranslate"><span class="pre">concept</span></code>, <em>all</em>
 parameters take on their default values, which does not result in an actual
 simulation as no output is specified by default.</p>
-</div>
-<div class="section" id="command-line-parameters-c-command-line-params">
+</section>
+<section id="command-line-parameters-c-command-line-params">
 <span id="command-line-parameters"></span><h3><a class="toc-backref" href="#id9">Command-line parameters: <code class="docutils literal notranslate"><span class="pre">-c</span></code>, <code class="docutils literal notranslate"><span class="pre">--command-line-params</span></code></a><a class="headerlink" href="#command-line-parameters-c-command-line-params" title="Permalink to this headline"></a></h3>
 <p>Directly specifies parameters to use, without referring to a parameter file.
 E.g.</p>
@@ -453,8 +454,8 @@ on its value, there is then no danger in overwriting its value using
 or not, and so it is generally cleaner to just not have any parameters be
 defined both in the parameter file and on the command-line.</p>
 </div>
-</div>
-<div class="section" id="number-of-processes-n-nprocs">
+</section>
+<section id="number-of-processes-n-nprocs">
 <span id="number-of-processes"></span><h3><a class="toc-backref" href="#id10">Number of processes: <code class="docutils literal notranslate"><span class="pre">-n</span></code>, <code class="docutils literal notranslate"><span class="pre">--nprocs</span></code></a><a class="headerlink" href="#number-of-processes-n-nprocs" title="Permalink to this headline"></a></h3>
 <p>Specifies the number of MPI processes to use, with each MPI process being
 mapped to its own CPU core (assuming enough of these are available). To run
@@ -470,7 +471,7 @@ specifies that 8 processes should be used:</p>
 ./concept -n <span class="s2">&quot;3 + 5&quot;</span>
 </pre></div>
 </div>
-<div class="section" id="specifying-multiple-nodes">
+<section id="specifying-multiple-nodes">
 <span id="id2"></span><h4>Specifying multiple nodes<a class="headerlink" href="#specifying-multiple-nodes" title="Permalink to this headline"></a></h4>
 <p>When running on a cluster with multiple compute nodes, you may also specify
 the number of nodes to be used. The following examples all specify 8 MPI
@@ -487,9 +488,9 @@ running Slurm, the specified total number of CPU cores may be distributed in
 any which way between the available nodes. If the cluster is running
 TORQUE/PBS, you must always explicitly specify the number of nodes as well as
 the number of CPU cores/node.</p>
-</div>
-</div>
-<div class="section" id="utility-u-utility">
+</section>
+</section>
+<section id="utility-u-utility">
 <h3><a class="toc-backref" href="#id11">Utility: <code class="docutils literal notranslate"><span class="pre">-u</span></code>, <code class="docutils literal notranslate"><span class="pre">--utility</span></code></a><a class="headerlink" href="#utility-u-utility" title="Permalink to this headline"></a></h3>
 <p>Signals that one of the CO<em>N</em>CEPT utilities is to be run instead of a
 simulation. To run e.g. the <code class="docutils literal notranslate"><span class="pre">powerspec</span></code> utility, do</p>
@@ -522,9 +523,9 @@ or <code class="docutils literal notranslate"><span class="pre">-p</span></code>
 involves large computational resources are subject to the same
 <a class="reference internal" href="#remote-job-submission"><span class="std std-ref">remote submission behaviour</span></a> as standard
 simulations.</p>
-</div>
-</div>
-<div class="section" id="remote-job-submission">
+</section>
+</section>
+<section id="remote-job-submission">
 <span id="id3"></span><h2><a class="toc-backref" href="#id12">Remote job submission</a><a class="headerlink" href="#remote-job-submission" title="Permalink to this headline"></a></h2>
 <p>When running CO<em>N</em>CEPT on a cluster with a job scheduler (Slurm and
 TORQUE/PBS supported), each invocation of <code class="docutils literal notranslate"><span class="pre">concept</span></code> submits the work to be
@@ -535,7 +536,7 @@ additional resource specification when submitting remote jobs. Note that
 additional possibilities arise for the <code class="docutils literal notranslate"><span class="pre">-n</span></code> option when running on a cluster
 with multiple compute nodes, as documented
 <a class="reference internal" href="#specifying-multiple-nodes"><span class="std std-ref">above</span></a>.</p>
-<div class="section" id="queue-q-queue">
+<section id="queue-q-queue">
 <span id="queue"></span><h3><a class="toc-backref" href="#id13">Queue: <code class="docutils literal notranslate"><span class="pre">-q</span></code>, <code class="docutils literal notranslate"><span class="pre">--queue</span></code></a><a class="headerlink" href="#queue-q-queue" title="Permalink to this headline"></a></h3>
 <p>Specifies the name of the queue (called ‘partition’ in Slurm) to which the
 remote job is to be submitted:</p>
@@ -548,8 +549,8 @@ remote job is to be submitted:</p>
 </div>
 <p>No remote job will be submitted if you do not supply this option. A job script
 will however be produced, which you may edit and submit manually.</p>
-</div>
-<div class="section" id="wall-time-w-walltime">
+</section>
+<section id="wall-time-w-walltime">
 <span id="walltime"></span><h3><a class="toc-backref" href="#id14">Wall time: <code class="docutils literal notranslate"><span class="pre">-w</span></code>, <code class="docutils literal notranslate"><span class="pre">--walltime</span></code></a><a class="headerlink" href="#wall-time-w-walltime" title="Permalink to this headline"></a></h3>
 <p>Specifies the maximum wall time (total computation time) within which the
 remote job has to have completed. If the job runs for the entire specified
@@ -564,8 +565,8 @@ maximum wall time, it will be killed by the job scheduler.</p>
 </pre></div>
 </div>
 <p>If not specified, the system typically sets some default wall time.</p>
-</div>
-<div class="section" id="memory-memory">
+</section>
+<section id="memory-memory">
 <span id="memory"></span><h3><a class="toc-backref" href="#id15">Memory: <code class="docutils literal notranslate"><span class="pre">--memory</span></code></a><a class="headerlink" href="#memory-memory" title="Permalink to this headline"></a></h3>
 <p>Specifies the amount of memory allocated for the remote job. If you assign
 insufficient memory to a job, it will be killed (usually with a somewhat
@@ -583,8 +584,8 @@ specified amount.</p>
 shared amongst all MPI processes / CPU cores, even when running on multiple
 compute nodes.</p>
 <p>If not specified, the system typically sets some default memory limit.</p>
-</div>
-<div class="section" id="job-name-job-name">
+</section>
+<section id="job-name-job-name">
 <h3><a class="toc-backref" href="#id16">Job name: <code class="docutils literal notranslate"><span class="pre">--job-name</span></code></a><a class="headerlink" href="#job-name-job-name" title="Permalink to this headline"></a></h3>
 <p>Specify a name for the job, used by the job scheduler:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept --job-name <span class="s2">&quot;my job&quot;</span>
@@ -594,8 +595,8 @@ compute nodes.</p>
 Slurm and via <code class="docutils literal notranslate"><span class="pre">qstat</span></code> in TORQUE/PBS). If not specified, the default name
 ‘<code class="docutils literal notranslate"><span class="pre">concept</span></code>’ will be used. Having several jobs with the same name is not a
 problem, as this name is not a replacement for the job ID.</p>
-</div>
-<div class="section" id="job-directive-j-job-directive">
+</section>
+<section id="job-directive-j-job-directive">
 <h3><a class="toc-backref" href="#id17">Job directive: <code class="docutils literal notranslate"><span class="pre">-j</span></code>, <code class="docutils literal notranslate"><span class="pre">--job-directive</span></code></a><a class="headerlink" href="#job-directive-j-job-directive" title="Permalink to this headline"></a></h3>
 <p>The specifications of system resources — the designated
 <a class="reference internal" href="#queue"><span class="std std-ref">queue(s)</span></a>, the
@@ -624,14 +625,14 @@ make use of still available resources.</p>
 does not mean anything to TORQUE/PBS, though).</p>
 <div class="admonition caution">
 <p class="admonition-title">Caution</p>
-<p>Since the value <code class="docutils literal notranslate"><span class="pre">--exclusive</span></code> starts with ‘<code class="docutils literal notranslate"><span class="pre">-</span></code>‘, using
+<p>Since the value <code class="docutils literal notranslate"><span class="pre">--exclusive</span></code> starts with ‘<code class="docutils literal notranslate"><span class="pre">-</span></code>’, using
 <code class="docutils literal notranslate"><span class="pre">-j</span> <span class="pre">--exclusive</span></code> or <code class="docutils literal notranslate"><span class="pre">-j</span> <span class="pre">&quot;--exclusive&quot;</span></code> is not legal as the
 parser registers <code class="docutils literal notranslate"><span class="pre">--exclusive</span></code> as a whole new (and non-existent)
 option to the <code class="docutils literal notranslate"><span class="pre">concept</span></code> script.</p>
 </div>
 <p>The <code class="docutils literal notranslate"><span class="pre">-j</span></code> option may be specified multiple times.</p>
-</div>
-<div class="section" id="no-watching-no-watching">
+</section>
+<section id="no-watching-no-watching">
 <span id="no-watching"></span><h3><a class="toc-backref" href="#id18">No watching: <code class="docutils literal notranslate"><span class="pre">--no-watching</span></code></a><a class="headerlink" href="#no-watching-no-watching" title="Permalink to this headline"></a></h3>
 <p>After submitting a remote job, rather than put you back at the system prompt,
 CO<em>N</em>CEPT will run the <a class="reference internal" href="utilities/watch.html"><span class="doc">watch utility</span></a> in order
@@ -643,9 +644,9 @@ option:</p>
 </pre></div>
 </div>
 <p>in which case the watch utility will not be run at all.</p>
-</div>
-</div>
-<div class="section" id="other-modes-of-building-running">
+</section>
+</section>
+<section id="other-modes-of-building-running">
 <span id="id4"></span><h2><a class="toc-backref" href="#id19">Other modes of building/running</a><a class="headerlink" href="#other-modes-of-building-running" title="Permalink to this headline"></a></h2>
 <p>The following options change the way that CO<em>N</em>CEPT is built or run.</p>
 <p>While the Python source code for CO<em>N</em>CEPT lives in the <code class="docutils literal notranslate"><span class="pre">scr</span></code> directory,
@@ -655,7 +656,7 @@ is detected, the code is recompiled, updating the contents of <code class="docut
 the compiled code ready, the requested CO<em>N</em>CEPT run is performed.
 In addition, when working on a remote server/cluster (through SSH),
 rather than starting the run directly, it is submitted as a remote job.</p>
-<div class="section" id="local-local">
+<section id="local-local">
 <span id="local"></span><h3><a class="toc-backref" href="#id20">Local: <code class="docutils literal notranslate"><span class="pre">--local</span></code></a><a class="headerlink" href="#local-local" title="Permalink to this headline"></a></h3>
 <p>Supply this option to disregard the fact that you are running on a remote
 server/cluster. That is, do not submit the CO<em>N</em>CEPT run as a remote job
@@ -663,8 +664,8 @@ using the job scheduler, but run it directly as if you were running locally.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept --local
 </pre></div>
 </div>
-</div>
-<div class="section" id="pure-python-pure-python">
+</section>
+<section id="pure-python-pure-python">
 <span id="pure-python"></span><h3><a class="toc-backref" href="#id21">Pure Python: <code class="docutils literal notranslate"><span class="pre">--pure-python</span></code></a><a class="headerlink" href="#pure-python-pure-python" title="Permalink to this headline"></a></h3>
 <p>When this option is supplied, CO<em>N</em>CEPT is run directly off of the Python
 source files in <code class="docutils literal notranslate"><span class="pre">src</span></code>, disregarding the presence of
@@ -674,8 +675,8 @@ any <a class="reference internal" href="#build"><span class="std std-ref">build<
 </div>
 <p>While handy for development, running actual simulations in pure Python mode
 is impractical due to an enormous performance hit.</p>
-</div>
-<div class="section" id="build-b-build">
+</section>
+<section id="build-b-build">
 <span id="build"></span><h3><a class="toc-backref" href="#id22">Build: <code class="docutils literal notranslate"><span class="pre">-b</span></code>, <code class="docutils literal notranslate"><span class="pre">--build</span></code></a><a class="headerlink" href="#build-b-build" title="Permalink to this headline"></a></h3>
 <p>Specifies a build directory to use:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept -b my_build
@@ -718,8 +719,8 @@ This may not be the case for the temporary scratch directory, as this may
 be local to each node, so that the same path <code class="docutils literal notranslate"><span class="pre">/scratch/$SLURM_JOB_ID</span></code>
 really corresponds to a separate directory on each node.</p>
 </div>
-</div>
-<div class="section" id="rebuild-rebuild">
+</section>
+<section id="rebuild-rebuild">
 <span id="rebuild"></span><h3><a class="toc-backref" href="#id23">Rebuild: <code class="docutils literal notranslate"><span class="pre">--rebuild</span></code></a><a class="headerlink" href="#rebuild-rebuild" title="Permalink to this headline"></a></h3>
 <p>Even if the compiled code in the <a class="reference internal" href="#build"><span class="std std-ref">build</span></a> directory is up-to-date
 with the source in <code class="docutils literal notranslate"><span class="pre">src</span></code>, a rebuild can be triggered by using</p>
@@ -731,8 +732,8 @@ with the source in <code class="docutils literal notranslate"><span class="pre">
 </pre></div>
 </div>
 <p>Specifying just <code class="docutils literal notranslate"><span class="pre">--rebuild</span></code> is equivalent to <code class="docutils literal notranslate"><span class="pre">--rebuild</span> <span class="pre">True</span></code>.</p>
-</div>
-<div class="section" id="native-optimizations-native-optimizations">
+</section>
+<section id="native-optimizations-native-optimizations">
 <span id="native-optimizations"></span><h3><a class="toc-backref" href="#id24">Native optimizations: <code class="docutils literal notranslate"><span class="pre">--native-optimizations</span></code></a><a class="headerlink" href="#native-optimizations-native-optimizations" title="Permalink to this headline"></a></h3>
 <p>The default optimizations performed during compilation are all portable, so
 that the compiled code may be run on different hardware (within reason).</p>
@@ -756,8 +757,8 @@ optimizations, you can make use of the <a class="reference internal" href="#rebu
 </pre></div>
 </div>
 </div>
-</div>
-<div class="section" id="no-link-time-optimizations-no-lto">
+</section>
+<section id="no-link-time-optimizations-no-lto">
 <span id="no-link-time-optimizations"></span><h3><a class="toc-backref" href="#id25">No link time optimizations: <code class="docutils literal notranslate"><span class="pre">--no-lto</span></code></a><a class="headerlink" href="#no-link-time-optimizations-no-lto" title="Permalink to this headline"></a></h3>
 <p>Link time optimizations (LTO) are on by default when compiling CO<em>N</em>CEPT,
 if supported by the compiler. Though preferable, the associated increase in
@@ -776,8 +777,8 @@ the <a class="reference internal" href="#rebuild"><span class="std std-ref">rebu
 </pre></div>
 </div>
 </div>
-</div>
-<div class="section" id="no-optimizations-no-optimizations">
+</section>
+<section id="no-optimizations-no-optimizations">
 <span id="no-optimizations"></span><h3><a class="toc-backref" href="#id26">No optimizations: <code class="docutils literal notranslate"><span class="pre">--no-optimizations</span></code></a><a class="headerlink" href="#no-optimizations-no-optimizations" title="Permalink to this headline"></a></h3>
 <p>During compilation of CO<em>N</em>CEPT, a lot of optimizations are performed.
 These include source code transformations performed by <code class="docutils literal notranslate"><span class="pre">pyxpp.py</span></code> as well
@@ -798,8 +799,8 @@ optimizations, you can make use of the <a class="reference internal" href="#rebu
 </pre></div>
 </div>
 </div>
-</div>
-<div class="section" id="unsafe-building-unsafe-building">
+</section>
+<section id="unsafe-building-unsafe-building">
 <h3><a class="toc-backref" href="#id27">Unsafe building: <code class="docutils literal notranslate"><span class="pre">--unsafe-building</span></code></a><a class="headerlink" href="#unsafe-building-unsafe-building" title="Permalink to this headline"></a></h3>
 <p>By default the compilation process is carried out in a safe manner, meaning
 that changes within a file triggers recompilation of all other files which
@@ -819,16 +820,16 @@ option or remove the <code class="docutils literal notranslate"><span class="pre
 </pre></div>
 </div>
 </div>
-</div>
-</div>
-<div class="section" id="specials">
+</section>
+</section>
+<section id="specials">
 <span id="id5"></span><h2><a class="toc-backref" href="#id28">Specials</a><a class="headerlink" href="#specials" title="Permalink to this headline"></a></h2>
 <p>The following options are mostly useful for development. As demonstrated by
 the below examples though, “development” does not have to be restricted to the
 CO<em>N</em>CEPT code itself. That is, these special options come in handy should
 you wish to hook into the code, or simply check that the code is in a working
 state.</p>
-<div class="section" id="test-t-tests">
+<section id="test-t-tests">
 <span id="test"></span><h3><a class="toc-backref" href="#id29">Test: <code class="docutils literal notranslate"><span class="pre">-t</span></code>, <code class="docutils literal notranslate"><span class="pre">--tests</span></code></a><a class="headerlink" href="#test-t-tests" title="Permalink to this headline"></a></h3>
 <p>CO<em>N</em>CEPT comes with an integration test suite, located in the
 <code class="docutils literal notranslate"><span class="pre">test</span></code> directory. Each subdirectory within this directory implements a given
@@ -872,8 +873,8 @@ script within each subdirectory of the <code class="docutils literal notranslate
 produced by tests will count as errors, leading to test failure. This
 behaviour is not present if starting from a non-empty <code class="docutils literal notranslate"><span class="pre">job</span></code> directory.</p>
 </div>
-</div>
-<div class="section" id="main-entry-point-m-main">
+</section>
+<section id="main-entry-point-m-main">
 <span id="main-entry-point"></span><h3><a class="toc-backref" href="#id30">Main entry point: <code class="docutils literal notranslate"><span class="pre">-m</span></code>, <code class="docutils literal notranslate"><span class="pre">--main</span></code></a><a class="headerlink" href="#main-entry-point-m-main" title="Permalink to this headline"></a></h3>
 <p>The responsibilities of the <code class="docutils literal notranslate"><span class="pre">concept</span></code> script are to set up the environment,
 build the actual CO<em>N</em>CEPT code (if not running in
@@ -930,8 +931,8 @@ we can do</p>
 <span class="p">|</span> tail -n <span class="m">1</span>
 </pre></div>
 </div>
-</div>
-<div class="section" id="interactive-i-interactive">
+</section>
+<section id="interactive-i-interactive">
 <span id="interactive"></span><h3><a class="toc-backref" href="#id31">Interactive: <code class="docutils literal notranslate"><span class="pre">-i</span></code>, <code class="docutils literal notranslate"><span class="pre">--interactive</span></code></a><a class="headerlink" href="#interactive-i-interactive" title="Permalink to this headline"></a></h3>
 <p>Normally when running <code class="docutils literal notranslate"><span class="pre">concept</span></code>, you are sent back to the system prompt once
 the run has completed. You can use this option to instead end up in a live
@@ -987,16 +988,16 @@ something like</p>
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># 💭 Success!</span>
 </pre></div>
 </div>
-</div>
-<div class="section" id="version-v-version">
+</section>
+<section id="version-v-version">
 <h3><a class="toc-backref" href="#id32">Version: <code class="docutils literal notranslate"><span class="pre">-v</span></code>, <code class="docutils literal notranslate"><span class="pre">--version</span></code></a><a class="headerlink" href="#version-v-version" title="Permalink to this headline"></a></h3>
 <p>Prints out the version of CO<em>N</em>CEPT that is installed:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept -v
 </pre></div>
 </div>
-</div>
-</div>
-</div>
+</section>
+</section>
+</section>
 
 
            </div>
