@@ -1883,7 +1883,7 @@ def autosave(components, time_step, Δt_begin, Δt, output_filenames):
     Barrier()
     # Save CO𝘕CEPT snapshot. Include all components regardless
     # of the snapshot_select['save'] user parameter.
-    save(components, autosave_filename_new, snapshot_type='concept', save_all_components=True)
+    save(components, autosave_filename_new, snapshot_type='concept', save_all=True)
     # Cleanup, always keeping a set of autosave files intact
     if master:
         # Rename old versions of the autosave files

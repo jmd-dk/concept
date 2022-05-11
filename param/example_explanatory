@@ -52,10 +52,28 @@ output_times = {
 autosave_interval = 12*hr  # How often to dump autosave snapshot
 snapshot_select = {  # Select which components to save to and load from snapshots
     'save': {
-        'all': True,
+        'all': {
+            # Particle variables
+            'pos': True,
+            'mom': True,
+            # Fluid variables
+            'ϱ': True,
+            'J': True,
+            '𝒫': True,
+            'ς': True,
+        },
     },
     'load': {
-        'all': True,
+        'all': {
+            # Particle variables
+            'pos': True,
+            'mom': True,
+            # Fluid variables
+            'ϱ': True,
+            'J': True,
+            '𝒫': True,
+            'ς': True,
+        },
     },
 }
 powerspec_select = {  # Toggle power spectra computation for individual and sets of components

@@ -1755,6 +1755,23 @@ def get_gridshape_local(gridsize):
 cython.declare(gridshape_local_cache=dict)
 gridshape_local_cache = {}
 
+# Function for getting the shape of a slab
+@cython.header(
+    # Arguments
+    gridsize='Py_ssize_t',
+    # Locals
+    shape=tuple,
+    returns=tuple,
+)
+def get_slabshape_local(gridsize):
+    shape = (
+        (gridsize//nprocs),  # distributed dimension
+        gridsize,
+        # Explicit int cast necessary for some reason
+        int(2*(gridsize//2 + 1)),  # padded dimension
+    )
+    return shape
+
 # Function that compute a lot of information needed by the
 # slab_decompose and domain_decompose functions.
 @cython.header(
@@ -2041,6 +2058,7 @@ def domain_decompose(slab, grid_or_buffer_name=0, do_ghost_communication=True):
     grid='double[:, :, ::1]',
     slab_or_buffer_name=object,  # double[:, :, ::1], int or str
     prepare_fft='bint',
+    trim='bint',
     # Locals
     N_domain2slabs_communications='Py_ssize_t',
     buffer_name=object,  # int or str
@@ -2063,6 +2081,7 @@ def domain_decompose(slab, grid_or_buffer_name=0, do_ghost_communication=True):
     should_send='bint',
     should_recv='bint',
     slab='double[:, :, ::1]',
+    slab_maybe_trimmed='double[:, :, ::1]',
     slab_sendrecv_j_end='int[::1]',
     slab_sendrecv_j_start='int[::1]',
     slab_sendrecv_k_end='int[::1]',
@@ -2072,7 +2091,7 @@ def domain_decompose(slab, grid_or_buffer_name=0, do_ghost_communication=True):
     ℓ='Py_ssize_t',
     returns='double[:, :, ::1]',
 )
-def slab_decompose(grid, slab_or_buffer_name='slab_global', prepare_fft=False):
+def slab_decompose(grid, slab_or_buffer_name='slab_global', prepare_fft=False, trim=False):
     """This function communicates a global domain decomposed grid into
     a global slab decomposed grid. If an existing slab grid should be
     used it can be passed as the second argument.
@@ -2101,11 +2120,7 @@ def slab_decompose(grid, slab_or_buffer_name='slab_global', prepare_fft=False):
             f'A domain decomposed grid of size {gridsize} was passed to the slab_decompose() '
             f'function. This grid size is not evenly divisible by {nprocs} processes.'
         )
-    shape = (
-        gridsize//nprocs,  # Distributed dimension
-        gridsize,
-        2*(gridsize//2 + 1), # Padded dimension
-    )
+    shape = get_slabshape_local(gridsize)
     # If no slab grid is passed, fetch a buffer of the right shape
     if isinstance(slab_or_buffer_name, (int, str)):
         buffer_name = slab_or_buffer_name
@@ -2142,8 +2157,15 @@ def slab_decompose(grid, slab_or_buffer_name='slab_global', prepare_fft=False):
         slab_sendrecv_k_start,
         slab_sendrecv_k_end,
     ) = prepare_decomposition(grid, slab)
+    # Trim the slab if requested.
+    # All further operations work on both full and trimmed slabs.
+    slab_maybe_trimmed = slab
+    if trim:
+        slab_maybe_trimmed = trim_slab(slab)
     # Communicate the domain grid to the slabs in chunks
-    n_chunks, thickness_chunk = get_slab_domain_decomposition_chunk_size(slab, grid_noghosts)
+    n_chunks, thickness_chunk = get_slab_domain_decomposition_chunk_size(
+        slab_maybe_trimmed, grid_noghosts,
+    )
     for ℓ in range(N_domain2slabs_communications):
         should_send = (ℓ < ℤ[slabs2domain_sendrecv_ranks.shape[0]])
         should_recv = (ℓ < ℤ[domain2slabs_recvsend_ranks.shape[0]])
@@ -2182,10 +2204,10 @@ def slab_decompose(grid, slab_or_buffer_name='slab_global', prepare_fft=False):
             if should_recv:
                 chunk_recv_bgn = i_chunk*thickness_chunk
                 chunk_recv_end = chunk_recv_bgn + thickness_chunk
-                if chunk_recv_end > ℤ[slab.shape[0]]:
-                    chunk_recv_end = ℤ[slab.shape[0]]
+                if chunk_recv_end > ℤ[slab_maybe_trimmed.shape[0]]:
+                    chunk_recv_end = ℤ[slab_maybe_trimmed.shape[0]]
                 smart_mpi(
-                    slab[
+                    slab_maybe_trimmed[
                         chunk_recv_bgn:chunk_recv_end,
                         ℤ[slab_sendrecv_j_start[ℓ]]:ℤ[slab_sendrecv_j_end[ℓ]],
                         ℤ[slab_sendrecv_k_start[ℓ]]:ℤ[slab_sendrecv_k_end[ℓ]],
@@ -2199,7 +2221,7 @@ def slab_decompose(grid, slab_or_buffer_name='slab_global', prepare_fft=False):
             # overwritten by the next (non-blocking) send.
             if should_send:
                 request.wait()
-    return slab
+    return slab_maybe_trimmed
 
 # Helper function for slab and domain decomposition
 @cython.header(
@@ -2770,6 +2792,30 @@ def nullify_modes(slab, nullifications):
         else:
             abort(f'nullify_modes(): nullification "{nullification}" not understood')
 
+# Function for trimming away the padded elements of slabs
+@cython.header(
+    # Arguments
+    slab='double[:, :, ::1]',
+    # Locals
+    arr=object,  # np.ndarray
+    gridsize='Py_ssize_t',
+    slab_trimmed='double[:, :, ::1]',
+    returns='double[:, :, ::1]',
+)
+def trim_slab(slab):
+    """Note that trimmed slabs may not be used with FFTW"""
+    arr = asarray(slab)
+    shape = arr.shape
+    gridsize = slab.shape[1]
+    if shape != get_slabshape_local(gridsize):
+        abort(f'trim_slab() got slab of erroneous shape {shape}')
+    slab_trimmed = (
+        arr.reshape(ℤ[slab.shape[0]*slab.shape[1]]*slab.shape[2])
+        [:ℤ[slab.shape[0]*slab.shape[1]]*ℤ[slab.shape[2] - 2]]
+        .reshape((slab.shape[0], slab.shape[1], ℤ[slab.shape[2] - 2]))
+    )
+    return slab_trimmed
+
 # Function that returns a slab decomposed grid,
 # allocated by FFTW.
 @cython.pheader(
@@ -2777,6 +2823,7 @@ def nullify_modes(slab, nullifications):
     gridsize='Py_ssize_t',
     buffer_name=object,  # int or str
     nullify=object,  # bint, str or list of str's
+    trim='bint',
     # Locals
     acquire='bint',
     as_expected='bint',
@@ -2795,12 +2842,14 @@ def nullify_modes(slab, nullifications):
     wisdom_filename=str,
     returns='double[:, :, ::1]',
 )
-def get_fftw_slab(gridsize, buffer_name='slab_global', nullify=False):
+def get_fftw_slab(gridsize, buffer_name='slab_global', nullify=False, trim=False):
     global fftw_plans_size, fftw_plans_forward, fftw_plans_backward
     # If this slab has already been constructed, fetch it
     slab = slabs.get((gridsize, buffer_name))
     if slab is not None:
         nullify_modes(slab, nullify)
+        if trim:
+            return trim_slab(slab)
         return slab
     # Checks on the passed gridsize
     if gridsize%nprocs != 0:
@@ -2813,12 +2862,7 @@ def get_fftw_slab(gridsize, buffer_name='slab_global', nullify=False):
             f'An odd grid size ({gridsize}) was passed to the get_fftw_slab() function. '
             f'Some operations may not function correctly.'
     )
-    shape = (
-        (gridsize//nprocs), # Distributed dimension
-        gridsize,
-        # Explicit int cast necessary for some reason
-        int(2*(gridsize//2 + 1)), # Padded dimension
-    )
+    shape = get_slabshape_local(gridsize)
     # In pure Python mode we use NumPy, which really means that there
     # is no needed preparations. In compiled mode we use FFTW,
     # which means that the grid and its plans must be prepared.
@@ -2895,6 +2939,8 @@ def get_fftw_slab(gridsize, buffer_name='slab_global', nullify=False):
     # Store and return this slab
     slabs[gridsize, buffer_name] = slab
     nullify_modes(slab, nullify)
+    if trim:
+        return trim_slab(slab)
     return slab
 # Cache storing slabs. The keys have the format (gridsize, buffer_name).
 cython.declare(slabs=dict)

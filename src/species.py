@@ -935,6 +935,7 @@ class Component:
         public dict potential_gridsizes
         public dict potential_differentiations
         public str class_species
+        public dict snapshot_vars
         public tuple life
         # Particle attributes
         public Py_ssize_t N
@@ -1287,10 +1288,11 @@ class Component:
                 (val.lower().replace(' ', '').replace('-', '').replace('_', '') if
                 isinstance(val, str) else val)
             for key, val in realization_options_all.items()}
-        varnames = {
+        varnames_all = {
             'particles': ('pos', 'mom'),
             'fluid': ('ϱ', 'J', '𝒫', 'ς'),
-        }[self.representation]
+        }
+        varnames = varnames_all[self.representation]
         wrong_varname_sets = {
             'pos': {'x', 'position', 'positions', 'Position', 'Positions'},
             'mom': {'momentum', 'momenta', 'Momentum', 'Momenta'},
@@ -1607,6 +1609,56 @@ class Component:
                         f'using the {method} method, but only the pm method is allowed '
                         f'for fluid components.'
                     )
+        # Set snapshot variables
+        snapshot_vars = {}
+        for key in ('save', 'load'):
+            snapshot_vars[key] = {}
+            snapshot_vars_selected = is_selected(self, snapshot_select[key])
+            for varname in varnames:
+                if unicode(varname) in snapshot_vars_selected:
+                    snapshot_vars[key][varname] = snapshot_vars_selected[unicode(varname)]
+                elif asciify(varname) in snapshot_vars_selected:
+                    snapshot_vars[key][varname] = snapshot_vars_selected[asciify(varname)]
+                else:
+                    wrong_varnames = wrong_varname_sets[varname]
+                    for wrong_varname in wrong_varnames:
+                        if unicode(wrong_varname) in snapshot_vars_selected:
+                            snapshot_vars[key][varname] = (
+                                snapshot_vars_selected[unicode(wrong_varname)]
+                            )
+                            break
+                        elif asciify(wrong_varname) in snapshot_vars_selected:
+                            snapshot_vars[key][varname] = (
+                                snapshot_vars_selected[asciify(wrong_varname)]
+                            )
+                            break
+            for varname in varnames:
+                snapshot_vars[key].setdefault(varname, False)
+            for varname, val in snapshot_vars[key].copy().items():
+                snapshot_vars[key][varname] = bool(val)
+            # Add special 'any' flag, signalling wehther any data at all
+            # from this component should be saved/loaded.
+            if self.representation == 'particles':
+                snapshot_vars[key]['any'] = any([
+                    snapshot_vars[key][varname]
+                    for varname in ('pos', 'mom')
+                ])
+            elif self.representation == 'fluid':
+                snapshot_vars[key]['any'] = any([
+                    snapshot_vars[key][varname]
+                    for varname in {
+                        -1: [],  # completely linear component
+                         0: ['ϱ'],
+                         1: ['ϱ', 'J'],
+                         2: ['ϱ', 'J', '𝒫', 'ς'],
+                    }[self.boltzmann_order]
+                ])
+            # Add missing variable names from the other representation,
+            # needed when converting components
+            # between the two representations.
+            for varname in itertools.chain(*varnames_all.values()):
+                snapshot_vars[key].setdefault(varname, True)
+        self.snapshot_vars = snapshot_vars
         # Set the equation of state parameter w
         if w is None:
             w = is_selected(self, select_eos_w)
@@ -1975,6 +2027,7 @@ class Component:
     @cython.pheader(
         # Arguments
         size_or_shape_noghosts=object,  # Py_ssize_t or tuple
+        only_loadable='bint',
         # Locals
         fluidscalar='FluidScalar',
         i='Py_ssize_t',
@@ -1984,7 +2037,7 @@ class Component:
         size_old='Py_ssize_t',
         s_old='Py_ssize_t',
     )
-    def resize(self, size_or_shape_noghosts):
+    def resize(self, size_or_shape_noghosts, only_loadable=False):
         if self.representation == 'particles':
             size = np.prod(any2list(size_or_shape_noghosts))
             size_old = self.N_allocated
@@ -1993,34 +2046,36 @@ class Component:
                 if self.N_allocated == 0:
                     self.N_allocated = 1
                 # Reallocate particle data
-                self.pos = realloc(self.pos, 3*self.N_allocated*sizeof('double'))
-                self.pos_mv = cast(self.pos, 'double[:3*self.N_allocated]')
-                self.pos_mv3 = cast(self.pos, 'double[:self.N_allocated, :3]')
-                self.posx = self.pos_mv3[:, 0]
-                self.posy = self.pos_mv3[:, 1]
-                self.posz = self.pos_mv3[:, 2]
-                self.posxˣ = cython.address(self.pos_mv[0:])
-                self.posyˣ = cython.address(self.pos_mv[1:])
-                self.poszˣ = cython.address(self.pos_mv[2:])
-                self.mom = realloc(self.mom, 3*self.N_allocated*sizeof('double'))
-                self.mom_mv = cast(self.mom, 'double[:3*self.N_allocated]')
-                self.mom_mv3 = cast(self.mom, 'double[:self.N_allocated, :3]')
-                self.momx = self.mom_mv3[:, 0]
-                self.momy = self.mom_mv3[:, 1]
-                self.momz = self.mom_mv3[:, 2]
-                self.momxˣ = cython.address(self.mom_mv[0:])
-                self.momyˣ = cython.address(self.mom_mv[1:])
-                self.momzˣ = cython.address(self.mom_mv[2:])
-                self.Δmom = realloc(self.Δmom, 3*self.N_allocated*sizeof('double'))
-                self.Δmom_mv = cast(self.Δmom, 'double[:3*self.N_allocated]')
-                self.Δmom_mv3 = cast(self.Δmom, 'double[:self.N_allocated, :3]')
-                self.Δmomx = self.Δmom_mv3[:, 0]
-                self.Δmomy = self.Δmom_mv3[:, 1]
-                self.Δmomz = self.Δmom_mv3[:, 2]
-                self.Δmomxˣ = cython.address(self.Δmom_mv[0:])
-                self.Δmomyˣ = cython.address(self.Δmom_mv[1:])
-                self.Δmomzˣ = cython.address(self.Δmom_mv[2:])
-                self.Δmom_mv[3*size_old:3*self.N_allocated] = 0
+                if not only_loadable or self.snapshot_vars['load']['pos']:
+                    self.pos = realloc(self.pos, 3*self.N_allocated*sizeof('double'))
+                    self.pos_mv = cast(self.pos, 'double[:3*self.N_allocated]')
+                    self.pos_mv3 = cast(self.pos, 'double[:self.N_allocated, :3]')
+                    self.posx = self.pos_mv3[:, 0]
+                    self.posy = self.pos_mv3[:, 1]
+                    self.posz = self.pos_mv3[:, 2]
+                    self.posxˣ = cython.address(self.pos_mv[0:])
+                    self.posyˣ = cython.address(self.pos_mv[1:])
+                    self.poszˣ = cython.address(self.pos_mv[2:])
+                if not only_loadable or self.snapshot_vars['load']['mom']:
+                    self.mom = realloc(self.mom, 3*self.N_allocated*sizeof('double'))
+                    self.mom_mv = cast(self.mom, 'double[:3*self.N_allocated]')
+                    self.mom_mv3 = cast(self.mom, 'double[:self.N_allocated, :3]')
+                    self.momx = self.mom_mv3[:, 0]
+                    self.momy = self.mom_mv3[:, 1]
+                    self.momz = self.mom_mv3[:, 2]
+                    self.momxˣ = cython.address(self.mom_mv[0:])
+                    self.momyˣ = cython.address(self.mom_mv[1:])
+                    self.momzˣ = cython.address(self.mom_mv[2:])
+                    self.Δmom = realloc(self.Δmom, 3*self.N_allocated*sizeof('double'))
+                    self.Δmom_mv = cast(self.Δmom, 'double[:3*self.N_allocated]')
+                    self.Δmom_mv3 = cast(self.Δmom, 'double[:self.N_allocated, :3]')
+                    self.Δmomx = self.Δmom_mv3[:, 0]
+                    self.Δmomy = self.Δmom_mv3[:, 1]
+                    self.Δmomz = self.Δmom_mv3[:, 2]
+                    self.Δmomxˣ = cython.address(self.Δmom_mv[0:])
+                    self.Δmomyˣ = cython.address(self.Δmom_mv[1:])
+                    self.Δmomzˣ = cython.address(self.Δmom_mv[2:])
+                    self.Δmom_mv[3*size_old:3*self.N_allocated] = 0
                 # Particle IDs
                 if self.use_ids:
                     self.ids = realloc(self.ids, self.N_allocated*sizeof('Py_ssize_t'))
@@ -2066,6 +2121,11 @@ class Component:
             self.size_noghosts  = np.prod(self.shape_noghosts)
             # Reallocate fluid data
             for fluidscalar in self.iterate_fluidscalars():
+                if only_loadable:
+                    if fluidscalar.varnum == 0 and not self.snapshot_vars['load']['ϱ']:
+                        continue
+                    if fluidscalar.varnum == 1 and not self.snapshot_vars['load']['J']:
+                        continue
                 fluidscalar.resize(shape_noghosts)
 
     # Method for 3D realisation of linear transfer functions.
@@ -2199,7 +2259,15 @@ class Component:
             variables = [1, 0]
         # Realise each of the variables in turn
         options_passed = options.copy()
+        variables_and_specific_multi_indices = []
         for variable in variables:
+            if variable == 2 and specific_multi_index is None:
+                variables_and_specific_multi_indices.append((variable, 'trace'))
+                for specific_multi_index in self.ς.multi_indices:
+                    variables_and_specific_multi_indices.append((variable, specific_multi_index))
+            else:
+                variables_and_specific_multi_indices.append((variable, specific_multi_index))
+        for variable, specific_multi_index in variables_and_specific_multi_indices:
             options = options_passed.copy()
             # The special "realisation" of 𝒫 when using
             # the P=wρ approximation.

@@ -123,6 +123,14 @@ if [ "${param}" == "${param_default}" ]; then
 ##############################
 # Utility default parameters #
 ##############################
+snapshot_select = {
+    'load': {
+        'all': {
+            'pos': True,
+            'ϱ'  : True,
+        },
+    },
+}
 " > "${param}"
 fi
 

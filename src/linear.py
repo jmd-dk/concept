@@ -2861,9 +2861,10 @@ def compute_transfer(
         # Get the σ transfer function
         transfer = cosmoresults.σ(a, a_next, component=component, weight=weight)
     else:
-        abort(f'I do not know how to get transfer function of multi_index {specific_multi_index} '
-              f'of variable number {var_index}'
-              )
+        abort(
+            f'I do not know how to get transfer function of multi_index {specific_multi_index} '
+            f'of variable number {var_index}'
+        )
     # Construct a spline object over the tabulated transfer function
     if get == 'spline':
         transfer_spline = Spline(k_magnitudes, transfer,

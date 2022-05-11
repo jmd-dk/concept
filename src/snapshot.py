@@ -96,6 +96,7 @@ class ConceptSnapshot:
     @cython.pheader(
         # Argument
         filename=str,
+        save_all='bint',
         # Locals
         N='Py_ssize_t',
         N_lin='double',
@@ -112,13 +113,13 @@ class ConceptSnapshot:
         name=object,  # str or int
         plural=str,
         shape=tuple,
-        slab='double[:, :, ::1]',
         slab_end='Py_ssize_t',
         slab_start='Py_ssize_t',
+        slab_trimmed='double[:, :, ::1]',
         start_local='Py_ssize_t',
         returns=str,
     )
-    def save(self, filename):
+    def save(self, filename, save_all=False):
         # Attach missing extension to filename
         if not filename.endswith('.hdf5'):
             filename += '.hdf5'
@@ -159,10 +160,12 @@ class ConceptSnapshot:
                     start_local = int(np.sum(smart_mpi(N_local, mpifun='allgather')[:rank]))
                     end_local = start_local + component.N_local
                     # Save particle data
-                    pos_h5 = component_h5.create_dataset('pos', (N, 3), dtype=C2np['double'])
-                    pos_h5[start_local:end_local, :] = component.pos_mv3[:N_local, :]
-                    mom_h5 = component_h5.create_dataset('mom', (N, 3), dtype=C2np['double'])
-                    mom_h5[start_local:end_local, :] = component.mom_mv3[:N_local, :]
+                    if save_all or component.snapshot_vars['save']['pos']:
+                        pos_h5 = component_h5.create_dataset('pos', (N, 3), dtype=C2np['double'])
+                        pos_h5[start_local:end_local, :] = component.pos_mv3[:N_local, :]
+                    if save_all or component.snapshot_vars['save']['mom']:
+                        mom_h5 = component_h5.create_dataset('mom', (N, 3), dtype=C2np['double'])
+                        mom_h5[start_local:end_local, :] = component.mom_mv3[:N_local, :]
                     if component.use_ids:
                         # Store IDs as unsigned integers using as few
                         # bits as possible. We explicitly reinterpret
@@ -202,8 +205,28 @@ class ConceptSnapshot:
                     for index, fluidvar in enumerate(
                         component.fluidvars[:component.boltzmann_order + 1]
                     ):
-                        fluidvar_h5 = component_h5.create_group('fluidvar_{}'.format(index))
-                        for multi_index in fluidvar.multi_indices:
+                        if not save_all:
+                            if index == 0 and not component.snapshot_vars['save']['ϱ']:
+                                continue
+                            if index == 1 and not component.snapshot_vars['save']['J']:
+                                continue
+                            if index == 2 and not (
+                                   component.snapshot_vars['save']['𝒫']
+                                or component.snapshot_vars['save']['ς']
+                            ):
+                                continue
+                        fluidvar_h5 = component_h5.create_group(f'fluidvar_{index}')
+                        multi_index_trace = ()
+                        if 'trace' in fluidvar and fluidvar['trace'] is not None:
+                            multi_index_trace = ('trace', )
+                        for multi_index in fluidvar.multi_indices + multi_index_trace:
+                            if not save_all and index == 2:
+                                if multi_index == 'trace':
+                                    if not component.snapshot_vars['save']['𝒫']:
+                                        continue
+                                else:
+                                    if not component.snapshot_vars['save']['ς']:
+                                        continue
                             fluidscalar = fluidvar[multi_index]
                             fluidscalar_h5 = fluidvar_h5.create_dataset(
                                 f'fluidscalar_{multi_index}',
@@ -218,14 +241,14 @@ class ConceptSnapshot:
                             # slab decomposed. Here we communicate the
                             # fluid scalar to slabs before saving to
                             # disk, improving performance enormously.
-                            slab = slab_decompose(fluidscalar.grid_mv)
-                            slab_start = slab.shape[0]*rank
-                            slab_end = slab_start + slab.shape[0]
+                            slab_trimmed = slab_decompose(fluidscalar.grid_mv, trim=True)
+                            slab_start = ℤ[slab_trimmed.shape[0]]*rank
+                            slab_end = slab_start + ℤ[slab_trimmed.shape[0]]
                             fluidscalar_h5[
                                 slab_start:slab_end,
                                 :,
                                 :,
-                            ] = slab[:, :, :component.gridsize]
+                            ] = slab_trimmed[:, :, :]
                     # Create additional names (hard links) for the fluid
                     # groups and data sets. The names from
                     # component.fluid_names will be used, except for
@@ -239,7 +262,7 @@ class ConceptSnapshot:
                             # "name" is a fluid variable name (e.g. J,
                             # though not ϱ as this is a fluid scalar).
                             try:
-                                fluidvar_h5 = component_h5['fluidvar_{}'.format(indices)]
+                                fluidvar_h5 = component_h5[f'fluidvar_{indices}']
                                 component_h5[name] = fluidvar_h5
                             except:
                                 pass
@@ -247,8 +270,8 @@ class ConceptSnapshot:
                             # "name" is a fluid scalar name (e.g. ϱ, Jx)
                             index, multi_index = indices
                             try:
-                                fluidvar_h5 = component_h5['fluidvar_{}'.format(index)]
-                                fluidscalar_h5 = fluidvar_h5['fluidscalar_{}'.format(multi_index)]
+                                fluidvar_h5 = component_h5[f'fluidvar_{index}']
+                                fluidscalar_h5 = fluidvar_h5[f'fluidscalar_{multi_index}']
                                 component_h5[name] = fluidscalar_h5
                             except:
                                 pass
@@ -302,8 +325,8 @@ class ConceptSnapshot:
         pos='double*',
         representation=str,
         size='Py_ssize_t',
-        slab='double[:, :, ::1]',
         slab_start='Py_ssize_t',
+        slab_trimmed='double[:, :, ::1]',
         snapshot_unit_length='double',
         snapshot_unit_mass='double',
         snapshot_unit_time='double',
@@ -386,8 +409,16 @@ class ConceptSnapshot:
                     plural = ('s' if N > 1 else '')
                     masterprint(f'Reading in {name} ({N_str} {species}) particle{plural} ...')
                     # Extract HDF5 datasets
-                    pos_h5 = component_h5['pos']
-                    mom_h5 = component_h5['mom']
+                    pos_h5 = None
+                    if component.snapshot_vars['load']['pos']:
+                        if 'pos' not in component_h5:
+                            abort(f'No positions ("pos") found for component {component.name}')
+                        pos_h5 = component_h5['pos']
+                    mom_h5 = None
+                    if component.snapshot_vars['load']['mom']:
+                        if 'mom' not in component_h5:
+                            abort(f'No momenta ("mom") found for component {component.name}')
+                        mom_h5 = component_h5['mom']
                     ids_h5 = None
                     if component.use_ids and 'ids' in component_h5:
                         ids_h5 = component_h5['ids']
@@ -397,12 +428,13 @@ class ConceptSnapshot:
                     # Make sure that the particle data arrays
                     # have the correct size.
                     component.N_local = N_local
-                    component.resize(N_local)
+                    component.resize(N_local, only_loadable=True)
                     # Read particle data into the particle data arrays
-                    dsets_arrs = [
-                        (pos_h5, asarray(component.pos_mv3)),
-                        (mom_h5, asarray(component.mom_mv3)),
-                    ]
+                    dsets_arrs = []
+                    if pos_h5 is not None:
+                        dsets_arrs.append((pos_h5, asarray(component.pos_mv3)))
+                    if mom_h5 is not None:
+                        dsets_arrs.append((mom_h5, asarray(component.mom_mv3)))
                     if ids_h5 is not None:
                         # The particle IDs are stored as unsigned
                         # {64, 32, 16, 8}-bit ints in the snapshot,
@@ -483,23 +515,44 @@ class ConceptSnapshot:
                         )
                     # Make sure that the fluid grids
                     # have the correct size.
-                    component.resize((domain_size_i, domain_size_j, domain_size_k))
+                    component.resize(
+                        (domain_size_i, domain_size_j, domain_size_k),
+                        only_loadable=True,
+                    )
                     # Fluid scalars are already instantiated.
                     # Now populate them.
                     for index, fluidvar in enumerate(
                         component.fluidvars[:component.boltzmann_order + 1]
                     ):
+                        if index == 0:
+                            if component.snapshot_vars['load']['ϱ']:
+                                if f'fluidvar_{index}' not in component_h5:
+                                    abort(
+                                        f'No energy density ("ϱ") found '
+                                        f'for component {component.name}'
+                                    )
+                            else:
+                                continue
+                        elif index == 1:
+                            if component.snapshot_vars['load']['J']:
+                                if f'fluidvar_{index}' not in component_h5:
+                                    abort(
+                                        f'No energy density ("J") found '
+                                        f'for component {component.name}'
+                                    )
+                            else:
+                                continue
                         fluidvar_h5 = component_h5[f'fluidvar_{index}']
                         for multi_index in fluidvar.multi_indices:
                             fluidscalar_h5 = fluidvar_h5[f'fluidscalar_{multi_index}']
-                            slab = get_fftw_slab(gridsize)
-                            slab_start = slab.shape[0]*rank
+                            slab_trimmed = get_fftw_slab(gridsize, trim=True)
+                            slab_start = ℤ[slab_trimmed.shape[0]]*rank
                             # Load in using chunks. Large chunks are
                             # fine as no temporary buffer is used. The
                             # maximum possible chunk size is limited
                             # by MPI, though.
                             chunk_size = np.min((
-                                ℤ[slab.shape[0]],
+                                ℤ[slab_trimmed.shape[0]],
                                 ℤ[self.chunk_size_max//8//gridsize**2],
                             ))
                             if chunk_size == 0:
@@ -508,27 +561,30 @@ class ConceptSnapshot:
                                     'and may not be read in correctly'
                                 )
                                 chunk_size = 1
-                            arr = asarray(slab)
-                            for index_i in range(0, ℤ[slab.shape[0]], chunk_size):
-                                if index_i + chunk_size > ℤ[slab.shape[0]]:
-                                    chunk_size = ℤ[slab.shape[0]] - index_i
+                            arr = asarray(slab_trimmed)
+                            for index_i in range(0, ℤ[slab_trimmed.shape[0]], chunk_size):
+                                if index_i + chunk_size > ℤ[slab_trimmed.shape[0]]:
+                                    chunk_size = ℤ[slab_trimmed.shape[0]] - index_i
                                 index_i_file = slab_start + index_i
                                 source_sel = (
                                     slice(index_i_file, index_i_file + chunk_size),
                                     slice(None),
-                                    slice(gridsize),
+                                    slice(None),
                                 )
                                 dest_sel = (
                                     slice(index_i, index_i + chunk_size),
                                     slice(None),
-                                    slice(gridsize),
+                                    slice(None),
                                 )
                                 fluidscalar_h5.read_direct(
                                     arr, source_sel=source_sel, dest_sel=dest_sel,
                                 )
                             # Communicate the slabs directly to the
                             # domain decomposed fluid grids.
-                            domain_decompose(slab, component.fluidvars[index][multi_index].grid_mv)
+                            domain_decompose(
+                                slab_trimmed,
+                                component.fluidvars[index][multi_index].grid_mv,
+                            )
                     # If the snapshot and the current run uses different
                     # systems of units, multiply the fluid data
                     # by the snapshot units.
@@ -864,6 +920,7 @@ class GadgetSnapshot:
     @cython.pheader(
         # Arguments
         filename=str,
+        save_all='bint',
         # Locals
         N='Py_ssize_t',
         N_lin='double',
@@ -911,13 +968,15 @@ class GadgetSnapshot:
         num_write='Py_ssize_t',
         plural=str,
         rank_writer='int',
+        save_pos=object,  # bool or None
+        save_vel=object,  # bool or None
         singleprec_needed='bint',
         size_write='Py_ssize_t',
         unit='double',
         unit_components=list,
         returns=str,
     )
-    def save(self, filename):
+    def save(self, filename, save_all=False):
         # Set the GADGET SnapFormat based on user parameters
         self.snapformat = gadget_snapshot_params['snapformat']
         # Divvy up the particles between the files and processes
@@ -990,6 +1049,35 @@ class GadgetSnapshot:
         for j in range(1, len(self.components)):
             id_counter += self.components[j - 1].N
             id_counters[j] = id_counter
+        # Determine whether to save positions and/or velocities
+        if save_all:
+            save_pos = True
+            save_vel = True
+        else:
+            save_pos = save_vel = None
+            for component in self.components:
+                if component is None:
+                    continue
+                if not save_pos and component.snapshot_vars['save']['pos']:
+                    if save_pos is False:
+                        masterwarn(
+                            f'It is specified that particle positions of some component(s) '
+                            f'should not be stored in snapshots, while particle positions '
+                            f'of other component(s) should. For {self.name} snapshots all '
+                            f'components must be treated the same. All components will be '
+                            f'saved with particle positions.'
+                        )
+                    save_pos = True
+                if component.snapshot_vars['save']['mom']:
+                    if save_vel is False:
+                        masterwarn(
+                            f'It is specified that particle momenta/velocities of some '
+                            f'component(s) should not be stored in snapshots, while particle '
+                            f'velocities of other component(s) should. For {self.name} snapshots '
+                            f'all components must be treated the same. All components will be '
+                            f'saved with particle velocities.'
+                        )
+                    save_vel = True
         # Write out each file in turn
         for i, num_write_file in enumerate(num_write_files):
             if num_files == 1:
@@ -1007,6 +1095,10 @@ class GadgetSnapshot:
             )
             # Write out the data blocks
             for block_name, block in blocks.items():
+                if block_name == 'POS' and not save_pos:
+                    continue
+                if block_name == 'VEL' and not save_vel:
+                    continue
                 data_components = block.get('data')
                 unit_components = block.get('unit')
                 block_type = block['type']
@@ -1550,6 +1642,8 @@ class GadgetSnapshot:
         j='Py_ssize_t',
         j_populated=list,
         key=str,
+        load_pos='bint',
+        load_vel='bint',
         mass='double',
         msg=str,
         msg_list=list,
@@ -1809,6 +1903,15 @@ class GadgetSnapshot:
             msg_list.append(f'(skipping {msg})')
             msg = ' '.join(msg_list)
         masterprint(f'Reading in {msg} ...')
+        # Determine whether to load any positions and/or velocities
+        load_pos = load_vel = False
+        for component in self.components:
+            if component is None:
+                continue
+            if component.snapshot_vars['load']['pos']:
+                load_pos = True
+            if component.snapshot_vars['load']['mom']:
+                load_vel = True
         # Construct ID counters for each components.
         # Only used in case the snapshot does not include IDs.
         num_particles_tot = [
@@ -1825,9 +1928,13 @@ class GadgetSnapshot:
                 continue
             component.N_local = N_local
             if component.N_allocated < N_local:
-                component.resize(N_local)
+                component.resize(N_local, only_loadable=True)
         # Get information about the blocks to be read in
         blocks = self.get_blocks_info('load')
+        if not load_pos:
+            blocks.pop('POS', None)
+        if not load_vel:
+            blocks.pop('VEL', None)
         # Read in each file in turn
         for i, filename_i in enumerate(filenames):
             if num_files > 1:
@@ -2402,7 +2509,7 @@ class GadgetSnapshot:
     filename=str,
     params=dict,
     snapshot_type=str,
-    save_all_components='bint',
+    save_all='bint',
     # Locals
     component='Component',
     components=list,
@@ -2412,7 +2519,7 @@ class GadgetSnapshot:
 )
 def save(
     one_or_more_components, filename,
-    params=None, snapshot_type=snapshot_type, save_all_components=False,
+    params=None, snapshot_type=snapshot_type, save_all=False,
 ):
     """The type of snapshot to be saved may be given as the
     snapshot_type argument. If not given, it defaults to the value
@@ -2420,9 +2527,9 @@ def save(
     Should you wish to replace the global parameters with
     something else, you may pass new parameters as the params argument.
     The components to include in the snapshot files are determined by
-    the snapshot_select user parameter. If you wish to overrule this
-    and force every component to be included,
-    set save_all_components to True.
+    the snapshot_vars component attribute. If you wish to overrule this
+    and force every component to be included fully,
+    set save_all to True.
     """
     if not filename:
         abort('An empty filename was passed to snapshot.save()')
@@ -2435,13 +2542,13 @@ def save(
         components = list(one_or_more_components)
     if not components:
         abort('snapshot.save() called with no components')
-    if save_all_components:
+    if save_all:
         components_selected = components
     else:
         components_selected = [
             component
             for component in components
-            if is_selected(component, snapshot_select['save'])
+            if component.snapshot_vars['save']['any']
         ]
         if not components_selected:
             msg = f't = {universals.t} {unit_time}'
@@ -2463,7 +2570,7 @@ def save(
     # Save the snapshot to disk.
     # The (maybe altered) filename is returned,
     # which should also be the return value of this function.
-    return snapshot.save(filename)
+    return snapshot.save(filename, save_all)
 
 # Function that loads a snapshot file.
 # The type of snapshot can be any of the implemented.

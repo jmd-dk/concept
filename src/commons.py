@@ -2427,15 +2427,24 @@ if 'snapshot_select' in user_params:
             'save': {'all': user_params['snapshot_select']},
             'load': {'all': user_params['snapshot_select']},
         }
-snapshot_select.setdefault('save', {'all': True})
-snapshot_select.setdefault('load', {'all': True})
+    for key, val in snapshot_select.items():
+        for key2, val2 in val.copy().items():
+            if isinstance(val2, dict):
+                replace_ellipsis(val2)
+            else:
+                val[key2] = {'pos': val2, 'mom': val2, 'ϱ': val2, 'J': val2, '𝒫': val2, 'ς': val2}
 for key in ('save', 'load'):
+    snapshot_select.setdefault(key, {})
+    snapshot_select[key].setdefault(
+        'default',
+        {
+            'pos': True, 'mom': True, 'ϱ': True, 'J': True, '𝒫': True, 'ς': True,
+        },
+    )
     if isinstance(snapshot_select[key], dict):
         replace_ellipsis(snapshot_select[key])
     else:
         snapshot_select[key] = {'all': bool(snapshot_select[key])}
-    for key2, val2 in snapshot_select[key].items():
-        snapshot_select[key][key2] = bool(val2)
 user_params['snapshot_select'] = snapshot_select
 if 'powerspec_select' in user_params:
     if isinstance(user_params['powerspec_select'], dict):
@@ -2475,13 +2484,14 @@ for key, val in render2D_select.copy().items():
     else:
         render2D_select[key] = {'data': bool(val), 'image': bool(val), 'terminal image': bool(val)}
 user_params['render2D_select'] = render2D_select
-render3D_select = {'all': True}
+render3D_select = {}
 if user_params.get('render3D_select'):
     if isinstance(user_params['render3D_select'], dict):
         render3D_select = user_params['render3D_select']
         replace_ellipsis(render3D_select)
     else:
         render3D_select = {'all': user_params['render3D_select']}
+render3D_select.setdefault('default', True)
 user_params['render3D_select'] = render3D_select
 snapshot_type = (str(user_params.get('snapshot_type', 'concept'))
     .replace(unicode('𝘕'), 'N').replace(asciify('𝘕'), 'N')

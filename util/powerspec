@@ -128,6 +128,14 @@ powerspec_select = {
     'all'             : {'data': True, 'linear': False, 'plot': True},
     'all combinations': {'data': True, 'linear': False, 'plot': True},
 }
+snapshot_select = {
+    'load': {
+        'all': {
+            'pos': True,
+            'ϱ'  : True,
+        },
+    },
+}
 " > "${param}"
 fi
 
