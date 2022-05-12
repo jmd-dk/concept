@@ -396,17 +396,27 @@ CO\ *N*\ CEPT run.
 ``snapshot_select``
 ...................
 == =============== == =
-\  **Description** \  Specifies which components to include when reading and
-                      writing snapshots
+\  **Description** \  Specifies what data of which components to include when
+                      reading and writing snapshots
 -- --------------- -- -
 \  **Default**     \  .. code-block:: python3
 
                          {
                              'save': {
-                                 'all': True,
+                                 'default': {
+                                     'pos': True,
+                                     'mom': True,
+                                     'ϱ'  : True,
+                                     'J'  : True,
+                                 },
                              },
                              'load': {
-                                 'all': True,
+                                 'default': {
+                                     'pos': True,
+                                     'mom': True,
+                                     'ϱ'  : True,
+                                     'J'  : True,
+                                 },
                              },
                          }
 
@@ -414,11 +424,39 @@ CO\ *N*\ CEPT run.
 \  **Elaboration** \  The sub\ ``dict``\ s ``snapshot_select['save']`` and
                       ``snapshot_select['load']`` are
                       :ref:`component selections <components_and_selections>`
-                      determining which components to include when writing
-                      and reading snapshots, respectively.
+                      determining what data of which components to include
+                      when writing and reading snapshots, respectively.
+                      Here ``'pos'`` and ``'mom'`` are particle positions and
+                      momenta, respectively, while ``'ϱ'`` and ``'J'`` are
+                      fluid energy and momentum densities, respectively.
 -- --------------- -- -
 \  **Example 0**   \  Only include the component with a name/species of
-                      ``'matter'``, for both reading and writing:
+                      ``'matter'``, for both reading and writing.
+                      Include all data, which is generally desirable:
+
+                      .. code-block:: python3
+
+                         snapshot_select = {
+                             'save': {
+                                 'matter': {
+                                     'pos': True,
+                                     'mom': True,
+                                     'ϱ'  : True,
+                                     'J'  : True,
+                                 },
+                             },
+                             'load': {
+                                 'matter': {
+                                     'pos': True,
+                                     'mom': True,
+                                     'ϱ'  : True,
+                                     'J'  : True,
+                                 },
+                             },
+                         }
+
+                      When all data is to be included,
+                      the above can be simplified to
 
                       .. code-block:: python3
 
@@ -462,6 +500,58 @@ CO\ *N*\ CEPT run.
                                  'fluid': False,
                              },
                          }
+
+                      Components not captured by any specification defaults
+                      to ``True``, so the above may be shortened to
+
+                      .. code-block:: python3
+
+                         snapshot_select = {
+                             'save': {
+                                 'fluid': False,
+                             },
+                         }
+
+-- --------------- -- -
+\  **Example 2**   \  Only read in positions when loading particles,
+                      i.e. ignore momenta:
+
+                      .. code-block:: python3
+
+                         snapshot_select = {
+                             'load': {
+                                 'particles': {
+                                     'pos': True,
+                                     'mom': False,
+                                 },
+                             },
+                         }
+
+                      Data variables left out defaults to ``False``,
+                      so the above may be shortened to
+
+                      .. code-block:: python3
+
+                         snapshot_select = {
+                             'load': {
+                                 'particles': {
+                                     'pos': True,
+                                 },
+                             },
+                         }
+
+                      .. caution::
+                         Leaving out certain data when reading in snapshots
+                         will result in components not being fully
+                         initialized, e.g. in this example all particles
+                         loaded from disk will now have any momenta assigned
+                         (not even :math:`0`). Running a simulation with such
+                         a partially initialized component will result in a
+                         crash.
+
+                      The usefulness of this example is found when using e.g.
+                      the :doc:`/utilities/powerspec` utility, where reading
+                      in the momentum information only wastes time and memory.
 
 == =============== == =
 
@@ -678,7 +768,7 @@ CO\ *N*\ CEPT run.
 \  **Default**     \  .. code-block:: python3
 
                          {
-                             'all': True,
+                             'default': True,
                          }
 
 -- --------------- -- -

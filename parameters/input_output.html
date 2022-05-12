@@ -820,18 +820,28 @@ autosaves on disk.</p>
 <tr class="row-odd"><td><p></p></td>
 <td><p><strong>Description</strong></p></td>
 <td><p></p></td>
-<td><p>Specifies which components to include when reading and
-writing snapshots</p></td>
+<td><p>Specifies what data of which components to include when
+reading and writing snapshots</p></td>
 </tr>
 <tr class="row-even"><td><p></p></td>
 <td><p><strong>Default</strong></p></td>
 <td><p></p></td>
 <td><div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
     <span class="s1">&#39;save&#39;</span><span class="p">:</span> <span class="p">{</span>
-        <span class="s1">&#39;all&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s1">&#39;pos&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+            <span class="s1">&#39;mom&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+            <span class="s1">&#39;ϱ&#39;</span>  <span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+            <span class="s1">&#39;J&#39;</span>  <span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="p">},</span>
     <span class="p">},</span>
     <span class="s1">&#39;load&#39;</span><span class="p">:</span> <span class="p">{</span>
-        <span class="s1">&#39;all&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s1">&#39;pos&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+            <span class="s1">&#39;mom&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+            <span class="s1">&#39;ϱ&#39;</span>  <span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+            <span class="s1">&#39;J&#39;</span>  <span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="p">},</span>
     <span class="p">},</span>
 <span class="p">}</span>
 </pre></div>
@@ -844,14 +854,40 @@ writing snapshots</p></td>
 <td><p>The sub<code class="docutils literal notranslate"><span class="pre">dict</span></code>s <code class="docutils literal notranslate"><span class="pre">snapshot_select['save']</span></code> and
 <code class="docutils literal notranslate"><span class="pre">snapshot_select['load']</span></code> are
 <a class="reference internal" href="parameters.html#components-and-selections"><span class="std std-ref">component selections</span></a>
-determining which components to include when writing
-and reading snapshots, respectively.</p></td>
+determining what data of which components to include
+when writing and reading snapshots, respectively.
+Here <code class="docutils literal notranslate"><span class="pre">'pos'</span></code> and <code class="docutils literal notranslate"><span class="pre">'mom'</span></code> are particle positions and
+momenta, respectively, while <code class="docutils literal notranslate"><span class="pre">'ϱ'</span></code> and <code class="docutils literal notranslate"><span class="pre">'J'</span></code> are
+fluid energy and momentum densities, respectively.</p></td>
 </tr>
 <tr class="row-even"><td><p></p></td>
 <td><p><strong>Example 0</strong></p></td>
 <td><p></p></td>
 <td><p>Only include the component with a name/species of
-<code class="docutils literal notranslate"><span class="pre">'matter'</span></code>, for both reading and writing:</p>
+<code class="docutils literal notranslate"><span class="pre">'matter'</span></code>, for both reading and writing.
+Include all data, which is generally desirable:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">snapshot_select</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;save&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;matter&#39;</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s1">&#39;pos&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+            <span class="s1">&#39;mom&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+            <span class="s1">&#39;ϱ&#39;</span>  <span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+            <span class="s1">&#39;J&#39;</span>  <span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="p">},</span>
+    <span class="p">},</span>
+    <span class="s1">&#39;load&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;matter&#39;</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s1">&#39;pos&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+            <span class="s1">&#39;mom&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+            <span class="s1">&#39;ϱ&#39;</span>  <span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+            <span class="s1">&#39;J&#39;</span>  <span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="p">},</span>
+    <span class="p">},</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>When all data is to be included,
+the above can be simplified to</p>
 <div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">snapshot_select</span> <span class="o">=</span> <span class="p">{</span>
     <span class="s1">&#39;save&#39;</span><span class="p">:</span> <span class="p">{</span>
         <span class="s1">&#39;matter&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
@@ -892,6 +928,56 @@ writing snapshots:</p>
 <span class="p">}</span>
 </pre></div>
 </div>
+<p>Components not captured by any specification defaults
+to <code class="docutils literal notranslate"><span class="pre">True</span></code>, so the above may be shortened to</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">snapshot_select</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;save&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;fluid&#39;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="p">},</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Example 2</strong></p></td>
+<td><p></p></td>
+<td><p>Only read in positions when loading particles,
+i.e. ignore momenta:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">snapshot_select</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;load&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;particles&#39;</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s1">&#39;pos&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+            <span class="s1">&#39;mom&#39;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="p">},</span>
+    <span class="p">},</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>Data variables left out defaults to <code class="docutils literal notranslate"><span class="pre">False</span></code>,
+so the above may be shortened to</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">snapshot_select</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;load&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;particles&#39;</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s1">&#39;pos&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="p">},</span>
+    <span class="p">},</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<div class="admonition caution">
+<p class="admonition-title">Caution</p>
+<p>Leaving out certain data when reading in snapshots
+will result in components not being fully
+initialized, e.g. in this example all particles
+loaded from disk will now have any momenta assigned
+(not even <span class="math notranslate nohighlight">\(0\)</span>). Running a simulation with such
+a partially initialized component will result in a
+crash.</p>
+</div>
+<p>The usefulness of this example is found when using e.g.
+the <a class="reference internal" href="../utilities/powerspec.html"><span class="doc">powerspec</span></a> utility, where reading
+in the momentum information only wastes time and memory.</p>
 </td>
 </tr>
 </tbody>
@@ -1153,7 +1239,7 @@ render outputs</p></td>
 <td><p><strong>Default</strong></p></td>
 <td><p></p></td>
 <td><div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
-    <span class="s1">&#39;all&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
 <span class="p">}</span>
 </pre></div>
 </div>
