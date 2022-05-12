@@ -584,6 +584,7 @@ class ConceptSnapshot:
                             domain_decompose(
                                 slab_trimmed,
                                 component.fluidvars[index][multi_index].grid_mv,
+                                do_ghost_communication=True,
                             )
                     # If the snapshot and the current run uses different
                     # systems of units, multiply the fluid data
@@ -2633,16 +2634,20 @@ def load(
     if not only_params:
         for component in snapshot.components:
             out_of_bounds_check(component, snapshot.params['boxsize'])
-    # Scatter particles to the correct domain-specific process.
-    # Also communicate ghost points of fluid variables.
+    # Scatter particles within particle components to the correct
+    # domain-specific process. Note that ghost points of fluid variables
+    # within fluid components are already properly communicated.
     if not only_params and do_exchange:
         # Do exchanges for all components
         for component in snapshot.components:
-            exchange(component, progress_msg=True)
-        # Communicate the ghost points of all fluid variables
-        # in fluid components.
-        for component in snapshot.components:
-            component.communicate_fluid_grids('=')
+            if not component.snapshot_vars['load']['pos']:
+                # Only components with loaded positions can be exchanged
+                continue
+            exchange(
+                component,
+                component.snapshot_vars['load']['mom'],
+                progress_msg=True,
+            )
     # If the caller is interested in the components only,
     # return the list of components.
     if only_components:

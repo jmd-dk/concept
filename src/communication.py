@@ -61,6 +61,7 @@ def partition(size):
 @cython.header(
     # Arguments
     component='Component',
+    include_mom='bint',
     progress_msg='bint',
     # Locals
     data_mv='double[::1]',
@@ -131,7 +132,7 @@ def partition(size):
     ℓ='int',
     returns='void',
 )
-def exchange(component, progress_msg=False):
+def exchange(component, include_mom=True, progress_msg=False):
     """This function will do an exchange of particles between processes,
     so that every particle ends up on the process in charge of the
     domain where the particle is located.
@@ -241,14 +242,16 @@ def exchange(component, progress_msg=False):
                         indexʳ_left  = indexˣ_left  + dim
                         indexʳ_right = indexˣ_right + dim
                         pos[indexʳ_left], pos[indexʳ_right] = pos[indexʳ_right], pos[indexʳ_left]
-                    for dim in range(3):
-                        indexʳ_left  = indexˣ_left  + dim
-                        indexʳ_right = indexˣ_right + dim
-                        mom[indexʳ_left], mom[indexʳ_right] = mom[indexʳ_right], mom[indexʳ_left]
-                    for dim in range(3):
-                        indexʳ_left  = indexˣ_left  + dim
-                        indexʳ_right = indexˣ_right + dim
-                        Δmom[indexʳ_left], Δmom[indexʳ_right] = Δmom[indexʳ_right], Δmom[indexʳ_left]
+                    with unswitch(2):
+                        if include_mom:
+                            for dim in range(3):
+                                indexʳ_left  = indexˣ_left  + dim
+                                indexʳ_right = indexˣ_right + dim
+                                mom[indexʳ_left], mom[indexʳ_right] = mom[indexʳ_right], mom[indexʳ_left]
+                            for dim in range(3):
+                                indexʳ_left  = indexˣ_left  + dim
+                                indexʳ_right = indexˣ_right + dim
+                                Δmom[indexʳ_left], Δmom[indexʳ_right] = Δmom[indexʳ_right], Δmom[indexʳ_left]
                     with unswitch(2):
                         if component.use_ids:
                             ids[indexᵖ_left], ids[indexᵖ_right] = ids[indexᵖ_right], ids[indexᵖ_left]
@@ -351,14 +354,16 @@ def exchange(component, progress_msg=False):
                     indexʳ_i = indexˣ_i + dim
                     indexʳ_j = indexˣ_j + dim
                     pos[indexʳ_i], pos[indexʳ_j] = pos[indexʳ_j], pos[indexʳ_i]
-                for dim in range(3):
-                    indexʳ_i = indexˣ_i + dim
-                    indexʳ_j = indexˣ_j + dim
-                    mom[indexʳ_i], mom[indexʳ_j] = mom[indexʳ_j], mom[indexʳ_i]
-                for dim in range(3):
-                    indexʳ_i = indexˣ_i + dim
-                    indexʳ_j = indexˣ_j + dim
-                    Δmom[indexʳ_i], Δmom[indexʳ_j] = Δmom[indexʳ_j], Δmom[indexʳ_i]
+                with unswitch(1):
+                    if include_mom:
+                        for dim in range(3):
+                            indexʳ_i = indexˣ_i + dim
+                            indexʳ_j = indexˣ_j + dim
+                            mom[indexʳ_i], mom[indexʳ_j] = mom[indexʳ_j], mom[indexʳ_i]
+                        for dim in range(3):
+                            indexʳ_i = indexˣ_i + dim
+                            indexʳ_j = indexˣ_j + dim
+                            Δmom[indexʳ_i], Δmom[indexʳ_j] = Δmom[indexʳ_j], Δmom[indexʳ_i]
                 with unswitch(1):
                     if component.use_ids:
                         ids[indexᵖ_i], ids[indexᵖ_j] = ids[indexᵖ_j], ids[indexᵖ_i]
@@ -411,7 +416,9 @@ def exchange(component, progress_msg=False):
         rung_indices_mv     = component.rung_indices_mv
         rung_indices_jumped = component.rung_indices_jumped
         # Particle data to be exchanged
-        data_mvs = [pos_mv, mom_mv, Δmom_mv]
+        data_mvs = [pos_mv]
+        if include_mom:
+            data_mvs += [mom_mv, Δmom_mv]
         # Exchange particles between processes
         indexᵖ_recv_bgn_ℓ = component.N_local  # start index for received data
         for ℓ in range(1, nprocs):
@@ -477,10 +484,12 @@ def exchange(component, progress_msg=False):
                     indexᵖ -= 1
             for dim in range(3):
                 pos [indexˣ_hole + dim] = pos [indexˣ + dim]
-            for dim in range(3):
-                mom [indexˣ_hole + dim] = mom [indexˣ + dim]
-            for dim in range(3):
-                Δmom[indexˣ_hole + dim] = Δmom[indexˣ + dim]
+            with unswitch(1):
+                if include_mom:
+                    for dim in range(3):
+                        mom [indexˣ_hole + dim] = mom [indexˣ + dim]
+                    for dim in range(3):
+                        Δmom[indexˣ_hole + dim] = Δmom[indexˣ + dim]
             with unswitch(1):
                 if component.use_ids:
                     ids[indexᵖ_hole] = ids[indexᵖ]
