@@ -2188,86 +2188,99 @@ class TransferFunction:
     # Helper functions for the process method
     @cython.header(
         # Arguments
-        x='double[::1]',
-        y='double[::1]',
+        x=object,  # double[::1] or np.ndarray,
+        y=object,  # double[::1] or np.ndarray,
         k='Py_ssize_t',
         k_local='Py_ssize_t',
         i='Py_ssize_t',
         # Locals
+        exponent='double',
+        factor='double',
         fitted_trends=list,
         returns='double[::1]',
     )
     def detrend(self, x, y, k, k_local, i):
         import scipy.optimize
-        # Maximum (absolute) allowed exponent in the trend.
-        # If an exponent greater than this is found,
-        # the program will terminate.
-        exponent_max = 15
-        # The data to be splined is in the form
-        # {a, perturbation_values - trend},
-        # with trend = factor*a**exponent. Here we find this
-        # trend through curve fitting of perturbation_values.
-        fitted_trends = []
-        with warnings.catch_warnings():
-            warnings.simplefilter('ignore', category=RuntimeWarning)
-            for initial_guess in (
-                (-1, 0),
-                (+1, 0),
-            ):
-                for bounds in (
-                    ([-ထ, -exponent_max], [+ထ,  0           ]),
-                    ([-ထ,  0           ], [+ထ, +exponent_max]),
-                ):
-                    try:
-                        fitted_trends.append(
-                            scipy.optimize.curve_fit(
-                                self.power_law,
-                                asarray(x),
-                                asarray(y),
-                                initial_guess,
-                                bounds=bounds,
-                                ftol=1e-12,
-                                xtol=1e-12,
-                                gtol=1e-12,
-                                maxfev=1_000,
-                            )
-                        )
-                    except:
-                        pass
-        # The best fit is determined from the variance of
-        # the exponent. Some times, bad fits gets assigned a
-        # variance of exactly zero. Bump such occurrences to
-        # infinity before locating the best fit.
-        for fitted_trend in fitted_trends:
-            if fitted_trend[1][1,1] == 0:
-                fitted_trend[1][1,1] = ထ
-        if fitted_trends:
-            self.factors[k_local, i], self.exponents[k_local, i] = fitted_trends[
-                np.argmin([fitted_trend[1][1,1] for fitted_trend in fitted_trends])
-            ][0]
+        x = asarray(x)
+        y = asarray(y)
+        # We seek to fit (x, y) to the trend line factor*a**exponent.
+        # If all y data has the same sign, we can do this without using
+        # non-linear curve fitting.
+        if (y < 0).all():
+            exponent, factor = np.polyfit(np.log(x), np.log(-y), 1)
+            factor = -exp(factor)
+        elif (y > 0).all():
+            exponent, factor = np.polyfit(np.log(x), np.log(y), 1)
+            factor = exp(factor)
         else:
-            warn(
-                f'Failed to detrend {self.var_name} perturbations '
-                + ('' if self.component is None else f'for {self.component.name} ')
-                + f'at k = {self.k_magnitudes[k]} {unit_length}⁻¹. '
-                f'The simulation will carry on without this detrending.'
-            )
-            self.factors[k_local, i], self.exponents[k_local, i] = 0, 1
-        if abs(self.factors[k_local, i]) == ထ:
+            # Non-linear curve fitting necessary
+            exponent_max = 15
+            fitted_trends = []
+            with warnings.catch_warnings():
+                warnings.simplefilter('ignore', category=RuntimeWarning)
+                for initial_guess in (
+                    (-1, 0),
+                    (+1, 0),
+                ):
+                    for bounds in (
+                        ([-ထ, -exponent_max], [+ထ,  0           ]),
+                        ([-ထ,  0           ], [+ထ, +exponent_max]),
+                    ):
+                        try:
+                            fitted_trends.append(
+                                scipy.optimize.curve_fit(
+                                    self.power_law,
+                                    x,
+                                    y,
+                                    initial_guess,
+                                    check_finite=False,
+                                    bounds=bounds,
+                                    ftol=1e-12,
+                                    xtol=1e-12,
+                                    gtol=1e-12,
+                                    maxfev=1_000,
+                                )
+                            )
+                        except Exception:
+                            pass
+            # The best fit is determined from the variance of
+            # the exponent. Some times, bad fits gets assigned a
+            # variance of exactly zero. Bump such occurrences to
+            # infinity before locating the best fit.
+            for fitted_trend in fitted_trends:
+                if fitted_trend[1][1, 1] == 0:
+                    fitted_trend[1][1, 1] = ထ
+            if fitted_trends:
+                factor, exponent = fitted_trends[np.argmin([
+                    fitted_trend[1][1, 1]
+                    for fitted_trend in fitted_trends
+                ])][0]
+            else:
+                warn(
+                    f'Failed to detrend {self.var_name} perturbations '
+                    + ('' if self.component is None else f'for {self.component.name} ')
+                    + f'at k = {self.k_magnitudes[k]} {unit_length}⁻¹. '
+                    f'The simulation will carry on without this detrending.'
+                )
+                factor, exponent = 0, 1
+        # Check for unsuccessful detrending
+        if abs(factor) == ထ:
             abort(
                 f'Error processing {self.var_name} perturbations '
                 + ('' if self.component is None else f'for {self.component.name} ')
                 + f'at k = {self.k_magnitudes[k]} {unit_length}⁻¹: '
-                f'Detrending resulted in factor = {self.factors[k_local, i]}.'
+                f'Detrending resulted in factor = {factor}.'
             )
         # When the exponent is found to be 0, there is no reason
         # to keep a non-zero factor as the detrending is then
         # just a constant offset.
-        if isclose(self.exponents[k_local, i], 0, rel_tol=1e-9, abs_tol=1e-6):
-            self.factors[k_local, i], self.exponents[k_local, i] = 0, 1
+        if isclose(exponent, 0, rel_tol=1e-9, abs_tol=1e-6):
+            factor, exponent = 0, 1
         # Construct the trend and the detrended perturbations
-        trend = self.factors[k_local, i]*asarray(x)**self.exponents[k_local, i]
-        interval_perturbations_detrended = asarray(y) - trend
+        self.factors  [k_local, i] = factor
+        self.exponents[k_local, i] = exponent
+        trend = factor*x**exponent
+        interval_perturbations_detrended = y - trend
         return interval_perturbations_detrended
     @staticmethod
     def power_law(x, factor, exponent):
