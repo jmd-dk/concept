@@ -762,13 +762,25 @@ if [ "${concept_dir_specified}" == "False" ]; then
             if [ -z "$(ls -A "${concept_dir}")" ]; then
                 concept_dir_reasonable="True"
             else
-                set_concept_files
-                for f in "${files[@]}"; do
-                    f="${concept_dir}/${f}"
-                    if [ -f "${f}" ] || [ -d "${f}" ]; then
-                        concept_dir_reasonable="True"
+                for n in 0 1; do
+                    if [ "${concept_dir_reasonable}" == "True" ]; then
                         break
                     fi
+                    if [ ${n} -eq 0 ]; then
+                        set_concept_files
+                    else
+                        files=(                \
+                            "dep"              \
+                            ".tmp/install_log" \
+                        )
+                    fi
+                    for f in "${files[@]}"; do
+                        f="${concept_dir}/${f}"
+                        if [ -f "${f}" ] || [ -d "${f}" ]; then
+                            concept_dir_reasonable="True"
+                            break
+                        fi
+                    done
                 done
             fi
         else
@@ -1741,13 +1753,16 @@ for ${1/CONCEPT/$esc_concept} does not exist!"
         n_mpi_libdirs=$(echo "${mpi_libdirs}" | wc -l)
         if [ ${n_mpi_libdirs} -eq 1 ]; then
             mpi_libdir="${mpi_libdirs:2}"
+            mpi_libdirs_parsed=("${mpi_libdir}")
         else
             # Several lib directories exist. Merge them via symlinking.
             mpi_libdir_merged="${mpi_symlinkdir}/merged_lib_specified"
             mkdir -p "${mpi_libdir_merged}"
+            mpi_libdirs_parsed=()
             while read mpi_libdir; do
                 mpi_libdir="${mpi_libdir:2}"
                 if [ -d "${mpi_libdir}" ]; then
+                    mpi_libdirs_parsed=("${mpi_libdirs_parsed[@]}" "${mpi_libdir}")
                     for f in "${mpi_libdir}/"*; do
                         f_base="$(basename "${f}")"
                         mpi_symlink_name="${mpi_libdir_merged}/${f_base}"
@@ -1768,14 +1783,17 @@ for ${1/CONCEPT/$esc_concept} does not exist!"
         n_mpi_includedirs=$(echo "${mpi_includedirs}" | wc -l)
         if [ ${n_mpi_includedirs} -eq 1 ]; then
             mpi_includedir="${mpi_includedirs:2}"
+            mpi_includedirs_parsed=("${mpi_includedir}")
         else
             # Several include directories exist.
             # Merge them via symlinking.
             mpi_includedir_merged="${mpi_symlinkdir}/merged_include_specified"
             mkdir -p "${mpi_includedir_merged}"
+            mpi_includedirs_parsed=()
             while read mpi_includedir; do
                 mpi_includedir="${mpi_includedir:2}"
                 if [ -d "${mpi_includedir}" ]; then
+                    mpi_includedirs_parsed=("${mpi_includedirs_parsed[@]}" "${mpi_includedir}")
                     for f in "${mpi_includedir}/"*; do
                         f_base="$(basename "${f}")"
                         mpi_symlink_name="${mpi_includedir_merged}/${f_base}"
@@ -1821,11 +1839,39 @@ nor anywhere in the PATH"
             fi
         fi
         # Set mpi_dir
-        mpi_dir_cancidates=(                     \
-            "$(readlink -f "${mpi_bindir}"    )" \
-            "$(readlink -f "${mpi_libdir}"    )" \
-            "$(readlink -f "${mpi_includedir}")" \
-        )
+        mpi_dir_cancidates=("$(readlink -f "${mpi_bindir}")")
+        N=${#mpi_includedirs_parsed[@]}
+        for ((i = 0; i < ${N}; i += 1)); do
+            mpi_includedir_parsed="${mpi_includedirs_parsed[$i]}"
+            mpi_includedir_parsed="$(readlink -f "${mpi_includedir_parsed}")"
+            M=${#mpi_dir_cancidates[@]}
+            new_candidate="True"
+            for ((j = 0; j < ${M}; j += 1)); do
+                if [ "${mpi_dir_cancidates[$j]}" == "${mpi_includedir_parsed}" ]; then
+                    new_candidate="False"
+                    break
+                fi
+            done
+            if [ "${new_candidate}" == "True" ]; then
+                mpi_dir_cancidates=("${mpi_dir_cancidates[@]}" "${mpi_includedir_parsed}")
+            fi
+        done
+        N=${#mpi_libdirs_parsed[@]}
+        for ((i = 0; i < ${N}; i += 1)); do
+            mpi_libdir_parsed="${mpi_libdirs_parsed[$i]}"
+            mpi_libdir_parsed="$(readlink -f "${mpi_libdir_parsed}")"
+            M=${#mpi_dir_cancidates[@]}
+            new_candidate="True"
+            for ((j = 0; j < ${M}; j += 1)); do
+                if [ "${mpi_dir_cancidates[$j]}" == "${mpi_libdir_parsed}" ]; then
+                    new_candidate="False"
+                    break
+                fi
+            done
+            if [ "${new_candidate}" == "True" ]; then
+                mpi_dir_cancidates=("${mpi_dir_cancidates[@]}" "${mpi_libdir_parsed}")
+            fi
+        done
         N=${#mpi_dir_cancidates[@]}
         length="${#mpi_dir_cancidates[0]}"
         different="False"
@@ -1859,6 +1905,9 @@ nor anywhere in the PATH"
             mpi_dir="$(dirname "${mpi_dir}")"
         fi
         mpi_dir="${mpi_dir%/}"
+        if [ -z "${mpi_dir}" ]; then
+            mpi_dir="/"
+        fi
         # If MPI_ROOT is set and it agrees with the mpi_*dir variables,
         # use this path name explicitly (it may differ
         # due to symbolic links).
@@ -3988,6 +4037,11 @@ use_specified_mpi_compilers() {
                 fi
             fi
         done
+        if [ -n "${LD_PRELOAD+x}" ]; then
+            LD_PRELOAD_ori="${LD_PRELOAD}"
+        else
+            LD_PRELOAD_ori="unset"
+        fi
         if [ "${any_mpi_symlinks}" == "True" ]; then
             export LDFLAGS="${LDFLAGS} -L${mpi_symlinkdir}"
             export LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:${mpi_symlinkdir}"
@@ -4023,7 +4077,11 @@ use_specified_mpi_compilers() {
                 fi
             fi
             if [ -f "${mpi_symlinkdir}/ld_preload.so" ]; then
-                export LD_PRELOAD="${LD_PRELOAD} ${mpi_symlinkdir}/ld_preload.so"
+                if [ -n "${LD_PRELOAD}" ]; then
+                    export LD_PRELOAD="${LD_PRELOAD} ${mpi_symlinkdir}/ld_preload.so"
+                else
+                    export LD_PRELOAD="${mpi_symlinkdir}/ld_preload.so"
+                fi
             fi
         else
             rm -rf "${mpi_symlinkdir}"
@@ -4090,17 +4148,39 @@ int main(int argc, char *argv[]) {
 ' > "test.c"
         mpicc ${CFLAGS} -c -o "test.o" "test.c" >/dev/null 2>&1 || :
         mpicc "test.o" -o "test" ${LDFLAGS} ${MPI_LIBS} >/dev/null 2>&1 || :
-        # When running locally on a cluster, it may be necessary to
-        # supply an additional argument to mpiexec. This additional
-        # argument is captured by mpiexec_extra_args_local.
         mpi_environment_test_success="False"
-        for mpiexec_extra_args_local in "" "-pami_noib"; do
-            mpi_environment_result="$(                                                        \
-                "${mpi_bindir}/mpiexec" ${mpiexec_extra_args_local} -n 4 "./test" 2>/dev/null \
-                | grep 'MPI test result =' | awk '{print $NF}' || : \
-            )"
-            if [ "${mpi_environment_result}" == "42" ]; then
-                mpi_environment_test_success="True"
+        # Setting LD_PRELOAD as done above can cause breakage on
+        # some systems. If a problem is detected below, we try without
+        # setting LD_PRELOAD.
+        for keep_preload in "True" "False"; do
+            if [ "${keep_preload}" == "False" ]; then
+                if [ ! -f "${mpi_symlinkdir}/ld_preload.so" ]; then
+                    continue
+                fi
+                if [ "${LD_PRELOAD_ori}" == "unset" ]; then
+                    unset LD_PRELOAD
+                else
+                    export LD_PRELOAD="${LD_PRELOAD_ori}"
+                fi
+                # Also remove the preloaded file
+                rm -f "${mpi_symlinkdir}/ld_preload.so" || :
+            fi
+            # When running locally on a cluster, it may be necessary to
+            # supply an additional argument to mpiexec. This additional
+            # argument is captured by mpiexec_extra_args_local.
+            for mpiexec_extra_args_local in "" "-pami_noib"; do
+                mpi_environment_result="$(                                                        \
+                    "${mpi_bindir}/mpiexec" ${mpiexec_extra_args_local} -n 4 "./test" 2>/dev/null \
+                    | grep 'MPI test result ='                                        2>/dev/null \
+                    | awk '{print $NF}'                                               2>/dev/null \
+                    || :                                                                          \
+                )"
+                if [ "${mpi_environment_result}" == "42" ]; then
+                    mpi_environment_test_success="True"
+                    break
+                fi
+            done
+            if [ "${mpi_environment_test_success}" == "True" ]; then
                 break
             fi
         done

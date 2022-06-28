@@ -172,7 +172,11 @@ if [ -d "${mpi_symlinkdir}" ]; then
     # If the special symlink named "ld_preload.so" is present
     # in mpi_symlinkdir, we should include this symlink in LD_PRELOAD.
     if [ -f "${mpi_symlinkdir}/ld_preload.so" ]; then
-        export LD_PRELOAD="${LD_PRELOAD} ${mpi_symlinkdir}/ld_preload.so"
+        if [ -n "${LD_PRELOAD}" ]; then
+            export LD_PRELOAD="${LD_PRELOAD} ${mpi_symlinkdir}/ld_preload.so"
+        else
+            export LD_PRELOAD="${mpi_symlinkdir}/ld_preload.so"
+        fi
     fi
 fi
 
