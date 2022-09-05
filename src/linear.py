@@ -1165,6 +1165,7 @@ class CosmoResults:
             self._splines = {}
         spline = self._splines.get(y)
         if spline is None:
+            logx = logy = None
             # By far the most background variables are power laws in a.
             # A few exceptions are the constant pressure of the cdm, b
             # and lambda CLASS species, as well as the density, pressure
@@ -1178,25 +1179,23 @@ class CosmoResults:
                 'conf. time [Mpc]',
                 'gr.fac. D',
                 'gr.fac. f',
+                '(.)rho_crit',
+                '(.)rho_tot',
+                '(.)p_tot',
             }:
                 logx, logy = True, True
             elif y in {
-                '(.)p_tot',
+                # currently empty
             }:
-                logx = True
-                logy = (not np.any(asarray(self.background[y]) <= 0))
+                logx, logy = True, False
             elif match:
                 quantity = match.group(1)
                 class_species = match.group(2)
                 species_info = species_registered.get(
                     species_canonical.get(class_species, class_species)
                 )
-                if species_info is None:
-                    # ρ, p or w from some non-registered species.
-                    # Assume power law.
-                    logx, logy = True, True
-                else:
-                    # ρ, p or w from registered species. Look up.
+                if species_info is not None:
+                    # Look up registered species
                     if quantity == 'w':
                         logx_ρ, logy_ρ = species_info.logs['rho']
                         logx_p, logy_p = species_info.logs['p']
@@ -1204,22 +1203,25 @@ class CosmoResults:
                         logy = (logy_ρ or logy_p)
                     else:
                         logx, logy = species_info.logs[quantity]
-                    # If not specified, assume power law
-                    if logx is None:
-                        logx = True
-                    if logy is None:
-                        logy = True
-            if logx is None or logy is None:
+            # If not specified, assume power law
+            unspecified = (logx is None or logy is None)
+            if logx is None:
                 logx = True
+            if logy is None:
+                logy = True
+            if logy is True:
                 logy = (not np.any(asarray(self.background[y]) <= 0))
+            if unspecified:
                 masterwarn(
                     f'A spline over the unknown CLASS background variable "{y}"(a) '
                     f'has been made with logx = {logx}, logy = {logy}. '
                     f'You should add the correct linear/log behaviour of this variable '
                     f'to the splines() method of the CosmoResults class.'
                 )
-            spline = Spline(self.background['a'], self.background[y], f'{y}(a)',
-                logx=logx, logy=logy)
+            spline = Spline(
+                self.background['a'], self.background[y], f'{y}(a)',
+                logx=logx, logy=logy,
+            )
             self._splines[y] = spline
         return spline
     # Method for looking up the background density of a given
