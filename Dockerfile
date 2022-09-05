@@ -49,6 +49,8 @@ RUN : \
     && apt-get autoclean -y \
     && rm -rf /var/lib/{apt/lists,cache,log}/* \
     && rm -rf $(ls /var/lib/dpkg/info/* | grep -v "\.list") \
+    # Allow for APT auto-completion
+    && rm -f /etc/apt/apt.conf.d/docker-clean \
     && :
 
 # Build CO𝘕CEPT as concept user
