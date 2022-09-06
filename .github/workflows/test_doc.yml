@@ -6,6 +6,7 @@ on:
         branches:
           - master
         paths:
+          - '.github/workflows/test_doc.yml'
           - 'Makefile'
           - 'doc/**'
 
@@ -14,7 +15,7 @@ jobs:
         runs-on: [self-hosted, linux]
         steps:
           - name: 🛎️ Checkout
-            uses: actions/checkout@v2
+            uses: actions/checkout@v3
           - name: 🐋 Clean dangling Docker containers
             uses: ./.github/actions/docker-clean
           - name: 📝 Set Docker username

@@ -17,7 +17,7 @@ runs:
         run: docker pull ${docker_username}/concept:latest
         shell: bash
       - name: 📥 Download build
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3
         with:
             name: build
             path: build

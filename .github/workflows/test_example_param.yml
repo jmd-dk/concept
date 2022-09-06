@@ -6,6 +6,7 @@ on:
         branches:
           - master
         paths:
+          - '.github/workflows/test_example_param.yml'
           - 'Makefile'
           - 'concept'
           - 'param/example_**'
@@ -16,7 +17,7 @@ jobs:
         runs-on: [self-hosted, linux, heavy]
         steps:
           - name: 🛎️ Checkout
-            uses: actions/checkout@v2
+            uses: actions/checkout@v3
           - name: 🐋 Clean dangling Docker containers
             uses: ./.github/actions/docker-clean
           - name: 📝 Set Docker username

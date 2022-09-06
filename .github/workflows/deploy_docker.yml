@@ -32,7 +32,7 @@ jobs:
         if: needs.check_deploy.outputs.deploy
         steps:
           - name: 🛎️ Checkout
-            uses: actions/checkout@v2
+            uses: actions/checkout@v3
           - name: 🐋 Clean dangling Docker containers
             uses: ./.github/actions/docker-clean
           - name: 📝 Set temporary Docker container name

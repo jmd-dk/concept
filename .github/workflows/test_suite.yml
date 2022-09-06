@@ -6,6 +6,7 @@ on:
         branches:
           - master
         paths:
+          - '.github/workflows/test_suite.yml'
           - 'Makefile'
           - 'concept'
           - 'src/**'
@@ -18,7 +19,7 @@ jobs:
         runs-on: [self-hosted, linux, light]
         steps:
           - name: 🛎️ Checkout
-            uses: actions/checkout@v2
+            uses: actions/checkout@v3
           - name: 🐋 Clean dangling Docker containers
             uses: ./.github/actions/docker-clean
           - name: 📝 Set Docker username
@@ -50,7 +51,7 @@ jobs:
                         && sudo su -c "chmod -R a+rwX /github/build" \
                     '
           - name: 📤 Upload build
-            uses: actions/upload-artifact@v2
+            uses: actions/upload-artifact@v3
             with:
                 name: build
                 path: build
@@ -60,7 +61,7 @@ jobs:
         runs-on: [self-hosted, linux, light]
         steps:
           - name: 🛎️ Checkout
-            uses: actions/checkout@v2
+            uses: actions/checkout@v3
           - name: 🤖 Run test
             env:
                 docker_username: ${{ secrets.DOCKER_USERNAME }}
@@ -70,7 +71,7 @@ jobs:
         runs-on: [self-hosted, linux, light]
         steps:
           - name: 🛎️ Checkout
-            uses: actions/checkout@v2
+            uses: actions/checkout@v3
           - name: 🤖 Run test
             env:
                 docker_username: ${{ secrets.DOCKER_USERNAME }}
@@ -80,7 +81,7 @@ jobs:
         runs-on: [self-hosted, linux, light]
         steps:
           - name: 🛎️ Checkout
-            uses: actions/checkout@v2
+            uses: actions/checkout@v3
           - name: 🤖 Run test
             env:
                 docker_username: ${{ secrets.DOCKER_USERNAME }}
@@ -90,7 +91,7 @@ jobs:
         runs-on: [self-hosted, linux, light]
         steps:
           - name: 🛎️ Checkout
-            uses: actions/checkout@v2
+            uses: actions/checkout@v3
           - name: 🤖 Run test
             env:
                 docker_username: ${{ secrets.DOCKER_USERNAME }}
@@ -100,7 +101,7 @@ jobs:
         runs-on: [self-hosted, linux, light]
         steps:
           - name: 🛎️ Checkout
-            uses: actions/checkout@v2
+            uses: actions/checkout@v3
           - name: 🤖 Run test
             env:
                 docker_username: ${{ secrets.DOCKER_USERNAME }}
@@ -110,7 +111,7 @@ jobs:
         runs-on: [self-hosted, linux, light]
         steps:
           - name: 🛎️ Checkout
-            uses: actions/checkout@v2
+            uses: actions/checkout@v3
           - name: 🤖 Run test
             env:
                 docker_username: ${{ secrets.DOCKER_USERNAME }}
@@ -120,7 +121,7 @@ jobs:
         runs-on: [self-hosted, linux, light]
         steps:
           - name: 🛎️ Checkout
-            uses: actions/checkout@v2
+            uses: actions/checkout@v3
           - name: 🤖 Run test
             env:
                 docker_username: ${{ secrets.DOCKER_USERNAME }}
@@ -130,7 +131,7 @@ jobs:
         runs-on: [self-hosted, linux, light]
         steps:
           - name: 🛎️ Checkout
-            uses: actions/checkout@v2
+            uses: actions/checkout@v3
           - name: 🤖 Run test
             env:
                 docker_username: ${{ secrets.DOCKER_USERNAME }}
@@ -140,7 +141,7 @@ jobs:
         runs-on: [self-hosted, linux, light]
         steps:
           - name: 🛎️ Checkout
-            uses: actions/checkout@v2
+            uses: actions/checkout@v3
           - name: 🤖 Run test
             env:
                 docker_username: ${{ secrets.DOCKER_USERNAME }}
@@ -150,7 +151,7 @@ jobs:
         runs-on: [self-hosted, linux, light]
         steps:
           - name: 🛎️ Checkout
-            uses: actions/checkout@v2
+            uses: actions/checkout@v3
           - name: 🤖 Run test
             env:
                 docker_username: ${{ secrets.DOCKER_USERNAME }}
@@ -160,7 +161,7 @@ jobs:
         runs-on: [self-hosted, linux, light]
         steps:
           - name: 🛎️ Checkout
-            uses: actions/checkout@v2
+            uses: actions/checkout@v3
           - name: 🤖 Run test
             env:
                 docker_username: ${{ secrets.DOCKER_USERNAME }}
@@ -170,7 +171,7 @@ jobs:
         runs-on: [self-hosted, linux, light]
         steps:
           - name: 🛎️ Checkout
-            uses: actions/checkout@v2
+            uses: actions/checkout@v3
           - name: 🤖 Run test
             env:
                 docker_username: ${{ secrets.DOCKER_USERNAME }}
@@ -180,7 +181,7 @@ jobs:
         runs-on: [self-hosted, linux, light]
         steps:
           - name: 🛎️ Checkout
-            uses: actions/checkout@v2
+            uses: actions/checkout@v3
           - name: 🤖 Run test
             env:
                 docker_username: ${{ secrets.DOCKER_USERNAME }}
@@ -190,7 +191,7 @@ jobs:
         runs-on: [self-hosted, linux, light]
         steps:
           - name: 🛎️ Checkout
-            uses: actions/checkout@v2
+            uses: actions/checkout@v3
           - name: 🤖 Run test
             env:
                 docker_username: ${{ secrets.DOCKER_USERNAME }}
@@ -200,7 +201,7 @@ jobs:
         runs-on: [self-hosted, linux, light]
         steps:
           - name: 🛎️ Checkout
-            uses: actions/checkout@v2
+            uses: actions/checkout@v3
           - name: 🤖 Run test
             env:
                 docker_username: ${{ secrets.DOCKER_USERNAME }}
@@ -210,7 +211,7 @@ jobs:
         runs-on: [self-hosted, linux, light]
         steps:
           - name: 🛎️ Checkout
-            uses: actions/checkout@v2
+            uses: actions/checkout@v3
           - name: 🤖 Run test
             env:
                 docker_username: ${{ secrets.DOCKER_USERNAME }}
@@ -220,7 +221,7 @@ jobs:
         runs-on: [self-hosted, linux, light]
         steps:
           - name: 🛎️ Checkout
-            uses: actions/checkout@v2
+            uses: actions/checkout@v3
           - name: 🤖 Run test
             env:
                 docker_username: ${{ secrets.DOCKER_USERNAME }}
@@ -230,7 +231,7 @@ jobs:
         runs-on: [self-hosted, linux, heavy]
         steps:
           - name: 🛎️ Checkout
-            uses: actions/checkout@v2
+            uses: actions/checkout@v3
           - name: 🤖 Run test
             env:
                 docker_username: ${{ secrets.DOCKER_USERNAME }}
@@ -240,7 +241,7 @@ jobs:
         runs-on: [self-hosted, linux, light]
         steps:
           - name: 🛎️ Checkout
-            uses: actions/checkout@v2
+            uses: actions/checkout@v3
           - name: 🤖 Run test
             env:
                 docker_username: ${{ secrets.DOCKER_USERNAME }}
@@ -250,7 +251,7 @@ jobs:
         runs-on: [self-hosted, linux, heavy]
         steps:
           - name: 🛎️ Checkout
-            uses: actions/checkout@v2
+            uses: actions/checkout@v3
           - name: 🤖 Run test
             env:
                 docker_username: ${{ secrets.DOCKER_USERNAME }}
@@ -260,7 +261,7 @@ jobs:
         runs-on: [self-hosted, linux, light]
         steps:
           - name: 🛎️ Checkout
-            uses: actions/checkout@v2
+            uses: actions/checkout@v3
           - name: 🤖 Run test
             env:
                 docker_username: ${{ secrets.DOCKER_USERNAME }}
@@ -270,7 +271,7 @@ jobs:
         runs-on: [self-hosted, linux, light]
         steps:
           - name: 🛎️ Checkout
-            uses: actions/checkout@v2
+            uses: actions/checkout@v3
           - name: 🤖 Run test
             env:
                 docker_username: ${{ secrets.DOCKER_USERNAME }}
@@ -280,7 +281,7 @@ jobs:
         runs-on: [self-hosted, linux, light]
         steps:
           - name: 🛎️ Checkout
-            uses: actions/checkout@v2
+            uses: actions/checkout@v3
           - name: 🤖 Run test
             env:
                 docker_username: ${{ secrets.DOCKER_USERNAME }}
@@ -290,7 +291,7 @@ jobs:
         runs-on: [self-hosted, linux, light]
         steps:
           - name: 🛎️ Checkout
-            uses: actions/checkout@v2
+            uses: actions/checkout@v3
           - name: 🤖 Run test
             env:
                 docker_username: ${{ secrets.DOCKER_USERNAME }}
@@ -300,7 +301,7 @@ jobs:
         runs-on: [self-hosted, linux, light]
         steps:
           - name: 🛎️ Checkout
-            uses: actions/checkout@v2
+            uses: actions/checkout@v3
           - name: 🤖 Run test
             env:
                 docker_username: ${{ secrets.DOCKER_USERNAME }}
@@ -310,7 +311,7 @@ jobs:
         runs-on: [self-hosted, linux, light]
         steps:
           - name: 🛎️ Checkout
-            uses: actions/checkout@v2
+            uses: actions/checkout@v3
           - name: 🤖 Run test
             env:
                 docker_username: ${{ secrets.DOCKER_USERNAME }}
@@ -320,7 +321,7 @@ jobs:
         runs-on: [self-hosted, linux, light]
         steps:
           - name: 🛎️ Checkout
-            uses: actions/checkout@v2
+            uses: actions/checkout@v3
           - name: 🤖 Run test
             env:
                 docker_username: ${{ secrets.DOCKER_USERNAME }}
@@ -330,7 +331,7 @@ jobs:
         runs-on: [self-hosted, linux, heavy]
         steps:
           - name: 🛎️ Checkout
-            uses: actions/checkout@v2
+            uses: actions/checkout@v3
           - name: 🤖 Run test
             env:
                 docker_username: ${{ secrets.DOCKER_USERNAME }}
@@ -340,7 +341,7 @@ jobs:
         runs-on: [self-hosted, linux, light]
         steps:
           - name: 🛎️ Checkout
-            uses: actions/checkout@v2
+            uses: actions/checkout@v3
           - name: 🤖 Run test
             env:
                 docker_username: ${{ secrets.DOCKER_USERNAME }}
@@ -350,7 +351,7 @@ jobs:
         runs-on: [self-hosted, linux, light]
         steps:
           - name: 🛎️ Checkout
-            uses: actions/checkout@v2
+            uses: actions/checkout@v3
           - name: 🤖 Run test
             env:
                 docker_username: ${{ secrets.DOCKER_USERNAME }}
@@ -360,7 +361,7 @@ jobs:
         runs-on: [self-hosted, linux, light]
         steps:
           - name: 🛎️ Checkout
-            uses: actions/checkout@v2
+            uses: actions/checkout@v3
           - name: 🤖 Run test
             env:
                 docker_username: ${{ secrets.DOCKER_USERNAME }}
