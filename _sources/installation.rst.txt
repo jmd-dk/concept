@@ -98,14 +98,44 @@ Supported platforms
       persist in your current directory after the Docker container is stopped.
 
       .. note::
-         If running Windows, the above command is valid within PowerShell,
-         not CMD
+         If running Windows, the above command is valid within
+         `PowerShell <https://docs.microsoft.com/powershell/>`_, not
+         `CMD <https://docs.microsoft.com/windows-server/administration/windows-commands/windows-commands>`_
 
       .. note::
          While running CO\ *N*\ CEPT via Docker is great for experimental use,
          :ref:`proper installation <standard_installation>` on a Linux host is
          preferable for running large simulations, ensuring maximum
          performance.
+
+      .. tip::
+         All available
+         `Docker images <https://hub.docker.com/r/jmddk/concept/>`_ are based
+         on `Debian <https://hub.docker.com/_/debian>`_. If you want access to
+         additional software (e.g. Git or a text editor) within a Docker
+         container, first run
+
+         .. code-block:: bash
+
+            sudo apt update
+            sudo apt install -y ca-certificates 2>/dev/null || sudo apt install -y ca-certificates
+            sudo apt install -y apt-utils
+            sudo apt install -y gfortran
+
+         after which you may search for software packages to install using
+
+         .. code-block:: bash
+
+            apt search <keyword>
+
+         and install a package using
+
+         .. code-block:: bash
+
+            sudo apt install <package>
+
+         Note that the default user (``concept``) has root access via ``sudo``
+         with no password required.
 
 
 
@@ -152,7 +182,7 @@ release versions, or use ``concept_version=master`` for the absolute newest
    obtain
    :ref:`optimal network performance <optimal_network_performance_on_clusters>`.
    If you are installing via the cluster's front-end over SSH, you may want to
-   make use of a tool such as `tmux <https://tmux.github.io/>`_ or
+   make use of a tool such as `tmux <https://github.com/tmux/tmux/wiki>`_ or
    `Screen <https://www.gnu.org/software/screen/>`_, so that you may close the
    connection without stopping the installation process.
 
@@ -277,18 +307,34 @@ If you now do a
 
 it should detect changes to the ``.path`` and ``.env``
 :ref:`files <the_path_and_env_files>` only. These changes represent
-customizations carried out during installation. You may commit these
-changes:
+customizations carried out during installation.
 
-.. code-block:: bash
+.. tip::
+   If you do not want Git to show the local changes to the ``.path`` and
+   ``.env`` files, you can tell Git to ignore these. The recommended way of
+   doing so is as follows:
 
-   git commit -a -m "customized .path and .env for $(whoami)"
+   .. code-block:: bash
 
-.. note::
-   If you ``git checkout`` to another branch/tag/commit, your ``.path`` and
-   ``.env`` files will be switched out for the ones in the online repository.
-   For CO\ *N*\ CEPT to run, you should then replace these with your own
-   versions (available on the ``master`` branch).
+      (source concept \
+          && git stash push "${path}" "${env}" -m path-env \
+          && git stash apply stash^{/path-env} \
+          && git update-index --skip-worktree "${path}" "${env}" \
+          && git status \
+      )
+
+   Should you need to undo this, run
+
+   .. code-block:: bash
+
+      (source concept && git update-index --no-skip-worktree "${path}" "${env}")
+
+   If you need to explicitly (re)insert the ``.path`` and ``.env`` files
+   (e.g. because you changed to a different branch), you can use
+
+   .. code-block:: bash
+
+      git stash apply stash^{/path-env}
 
 
 
