@@ -78,11 +78,12 @@ specifications. In doing so, we've made use of several helpful tricks:
   Writing ``path.output_dir`` then maps to whatever value is specified for
   ``output_dir`` in the ``.path`` file, which will be
   ``'/path/to/concept/output'``. When used as is, the ``param`` variable
-  maps to the file name of the parameter in which it is used, in this case
-  ``'tutorial'``. In total, the power spectrum output directory then gets set
-  to ``'/path/to/concept/output/tutorial'``. We could have gotten away with
-  just writing ``'output/tutorial'`` out statically. Such relative paths in
-  parameter files should be given with respect to the installation directory.
+  maps to the file name of the parameter file in which it is used, in this
+  case ``'tutorial'``. In total, the power spectrum output directory then gets
+  set to ``'/path/to/concept/output/tutorial'``. We could have gotten away
+  with just writing ``'output/tutorial'`` out statically. Such relative paths
+  in parameter files should be given with respect to the
+  installation directory.
 
 * We've specified multiple times at which to dump power spectra in
   ``output_times``. Note that we use the parameter ``a_begin`` (creating a

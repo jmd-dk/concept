@@ -384,11 +384,12 @@ If you want to take a look at this <code class="docutils literal notranslate"><s
 <p>Writing <code class="docutils literal notranslate"><span class="pre">path.output_dir</span></code> then maps to whatever value is specified for
 <code class="docutils literal notranslate"><span class="pre">output_dir</span></code> in the <code class="docutils literal notranslate"><span class="pre">.path</span></code> file, which will be
 <code class="docutils literal notranslate"><span class="pre">'/path/to/concept/output'</span></code>. When used as is, the <code class="docutils literal notranslate"><span class="pre">param</span></code> variable
-maps to the file name of the parameter in which it is used, in this case
-<code class="docutils literal notranslate"><span class="pre">'tutorial'</span></code>. In total, the power spectrum output directory then gets set
-to <code class="docutils literal notranslate"><span class="pre">'/path/to/concept/output/tutorial'</span></code>. We could have gotten away with
-just writing <code class="docutils literal notranslate"><span class="pre">'output/tutorial'</span></code> out statically. Such relative paths in
-parameter files should be given with respect to the installation directory.</p>
+maps to the file name of the parameter file in which it is used, in this
+case <code class="docutils literal notranslate"><span class="pre">'tutorial'</span></code>. In total, the power spectrum output directory then gets
+set to <code class="docutils literal notranslate"><span class="pre">'/path/to/concept/output/tutorial'</span></code>. We could have gotten away
+with just writing <code class="docutils literal notranslate"><span class="pre">'output/tutorial'</span></code> out statically. Such relative paths
+in parameter files should be given with respect to the
+installation directory.</p>
 </li>
 <li><p>We’ve specified multiple times at which to dump power spectra in
 <code class="docutils literal notranslate"><span class="pre">output_times</span></code>. Note that we use the parameter <code class="docutils literal notranslate"><span class="pre">a_begin</span></code> (creating a
