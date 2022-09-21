@@ -80,15 +80,17 @@ parser.add_argument(
     nargs='?',
     help=(
         'comma-separated string of CLASS species to produce perturbations/transfer '
-        'functions for, e.g. \"b,cdm\" for baryons and cold dark matter. '
-        'By default, only the δ transfer functions will be produced, corresponding '
-        'to a Boltzmann order of 0. To also get transfer functions for variables '
+        'functions for, e.g. \"b, cdm\" for baryons and cold dark matter. '
+        'By default, only the δ (energy density) perturbations are produced, corresponding '
+        'to a Boltzmann order of 0. To also get perturbations for variables '
         'further down the Boltzmann hierarchy, you may specify the Boltzmann order '
-        'using a colon. For example, \"b:1,cdm:1\" will produce both δ and θ transfer '
-        'functions for both baryons and cold dark matter. '
+        'using a colon. For example, \"b, cdm:1\" will produce δ perturbations for '
+        'baryons as well as δ and θ (velocity) perturbations for cold dark matter.'
+        'The highest implemented Boltzmann order is 2, which besides δ and θ also '
+        'yields δP (pressure) and σ (shear) perturbations. '
         'Finally, CLASS species can be combined using a plus symbol, so that e.g. '
-        '\"b+cdm:1,g:0\" will result in \"total matter\" δ and θ transfer functions, '
-        'along with δ transfer functions for photons.'
+        '\"b+cdm:1, g:0\" will result in \"total matter\" δ and θ perturbations, '
+        'along with δ perturbations for photons.'
     ),
 )
 parser.add_argument(

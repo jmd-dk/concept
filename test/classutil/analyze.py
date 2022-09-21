@@ -50,6 +50,19 @@ with open_hdf5(glob(f'{this_dir}/output_full/*.hdf5')[0], mode='r') as f:
             abort(f'Expected the \'{key}\' array to be of shape ({a_size}, {k_size})')
     # Construct δρ of the linear species
     δρ_full = construct_δρ(f, linear_species)
+    # Get σ of ncdm[2] at the highest k mode
+    σ_full = f['perturbations/sigma_ncdm[2]'][:, -1]
+
+# Check the untrusted σ ncdm[2] perturbation
+with open_hdf5(glob(f'{this_dir}/output_untrustedsigma/*.hdf5')[0], mode='r') as f:
+    σ_untrusted = f['perturbations/sigma_ncdm[2]'][:, -1]
+σ_tol = 0.1
+σ_err = sqrt(mean((σ_full/σ_untrusted - 1)[3:-3]**2))
+if (not (σ_err > 0)) or σ_err > σ_tol:
+    abort(
+        f'The extrapolation of sigma_ncdm[2] appears bad: '
+        f'{list(σ_full)} (computed) vs. {list(σ_untrusted)} (extrapolated).'
+    )
 
 # Check the "extra" CLASS HDF5
 with open_hdf5(glob(f'{this_dir}/output_extra/*.hdf5')[0], mode='r') as f:

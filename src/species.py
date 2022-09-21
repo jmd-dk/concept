@@ -1073,7 +1073,7 @@ class Component:
             self.representation = 'fluid'
             if self.gridsize%2 != 0:
                 masterwarn(
-                    f'{self.name.capitalize()} has an odd grid size ({self.gridsize}). '
+                    f'{self.name} has an odd grid size ({self.gridsize}). '
                     f'Some operations may not function correctly.'
                 )
         else:
@@ -1268,7 +1268,7 @@ class Component:
         self.boltzmann_closure = boltzmann_closure.lower()
         if self.representation == 'fluid' and self.boltzmann_closure not in ('truncate', 'class'):
             abort(
-                f'{self.name.capitalize()} was initialised '
+                f'{self.name} was initialised '
                 f'with an unknown Boltzmann closure of "{self.boltzmann_closure}"'
             )
         # Set realisation options
@@ -1427,7 +1427,7 @@ class Component:
         for approximation, value in approximations.copy().items():
             if unicode(approximation) not in approximations_implemented:
                 abort(
-                    f'{self.name.capitalize()} was initialised '
+                    f'{self.name} was initialised '
                     f'with the unknown approximation "{approximation}"'
                 )
             approximations[asciify(approximation)] = value
@@ -1570,7 +1570,7 @@ class Component:
                 )
             if self.boltzmann_order == 2 and self.boltzmann_closure == 'class':
                 abort(
-                    f'{self.name.capitalize()} wants to close its Boltzmann hierarchy using '
+                    f'{self.name} wants to close its Boltzmann hierarchy using '
                     f'the linear variable after ς from CLASS, which is not implemented. '
                     f'You need to lower its Boltzmann order to '
                     f'1 or use boltzmann_closure = "truncate".'
@@ -1605,7 +1605,7 @@ class Component:
             for force, method in self.forces.items():
                 if method not in {'pm', ''}:
                     abort(
-                        f'{self.name.capitalize()} wants to receive the {force} force '
+                        f'{self.name} wants to receive the {force} force '
                         f'using the {method} method, but only the pm method is allowed '
                         f'for fluid components.'
                     )
@@ -1973,7 +1973,7 @@ class Component:
             if isinstance(var, int):
                 if not (0 <= var < len(self.fluidvars)):
                     abort(
-                        f'{self.name.capitalize()} does not have a fluid variable with index {var}'
+                        f'{self.name} does not have a fluid variable with index {var}'
                     )
                 # The fluid scalar is given as
                 # self.fluidvars[index][multi_index].
@@ -1981,7 +1981,7 @@ class Component:
             if isinstance(var, str):
                 if var not in self.fluid_names:
                     abort(
-                        f'{self.name.capitalize()} does not contain a fluid variable '
+                        f'{self.name} does not contain a fluid variable '
                         f'with the name "{var}"'
                     )
                 # Lookup the fluid indices corresponding to var.

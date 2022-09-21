@@ -28,16 +28,30 @@ n=5
 gauge_option="--gauge N-body"
 times_option="--times 32"
 modes_option="--kmin 1e-4/Mpc --kmax 1e-1/Mpc --modes 4"
-"${concept}"                                            \
-    -u class                                            \
-        'b+cdm:1, g, ncdm[0], ncdm[1], ncdm[2], metric' \
-        ${gauge_option}                                 \
-        ${times_option}                                 \
-        ${modes_option}                                 \
-    -p "${this_dir}/param"                              \
-    -n ${n}                                             \
+"${concept}"                                              \
+    -u class                                              \
+        'b+cdm:1, g, ncdm[0], ncdm[1], ncdm[2]:2, metric' \
+        ${gauge_option}                                   \
+        ${times_option}                                   \
+        ${modes_option}                                   \
+    -p "${this_dir}/param"                                \
+    -n ${n}                                               \
     --local
 mv "${this_dir}/output" "${this_dir}/output_full"
+
+# Do another computation just of ncdm[2], this time with the
+# last k mode for σ beyond the trusted region.
+"${concept}"                                  \
+    -u class                                  \
+        'ncdm[2]:2'                           \
+        ${gauge_option}                       \
+        ${times_option}                       \
+        ${modes_option}                       \
+    -p "${this_dir}/param"                    \
+    -c "class_k_max = {r'shear.*': 1e-1/Mpc}" \
+    -n ${n}                                   \
+    --local
+mv "${this_dir}/output" "${this_dir}/output_untrustedsigma"
 
 # Do the same neutrino computation, this time storing only the
 # collective perturbations from the "linear" species. Also store

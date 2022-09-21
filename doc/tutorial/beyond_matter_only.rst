@@ -315,10 +315,10 @@ and a linear part :math:`\ell > \ell_{\text{nl}}`, where
 :math:`\ell_{\text{nl}}` is precisely the Boltzmann order. A few examples
 shall illuminate this concept:
 
-- **Bolzmann order 0**: The evolution equation for the lowest moment (i.e. the
-  continuity equation for the energy density) is solved non-linearly during
-  the simulation, while higher moments like momentum density (on which the
-  energy density depends) are solved in pure linear theory.
+- **Boltzmann order 0**: The evolution equation for the lowest moment (i.e.
+  the continuity equation for the energy density) is solved non-linearly
+  during the simulation, while higher moments like momentum density (on which
+  the energy density depends) are solved in pure linear theory.
 - **Boltzmann order 1**: The evolution equations for the two lowest moments
   (i.e. the continuity equation for the energy density and the Euler equation
   for the momentum density) are solved non-linearly during the simulation,

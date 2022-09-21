@@ -234,7 +234,7 @@ def random_rayleigh(scale=1, size=1):
 class CosmoResults:
     # Names of scalar attributes
     attribute_names = ('h', )
-    # Class used instead of regular dict to store the CLASS
+    # Class used instead of a regular dict to store the CLASS
     # perturbations. The only difference is that the class below will
     # instantiate implicit perturbations missing from the CLASS output,
     # such as the squared photon sound speed perturbation "cs2_g" which
@@ -312,6 +312,17 @@ class CosmoResults:
         # This dict need to be an instance variable, as it may be
         # mutated by the methods.
         gauge = (params if params else {}).get('gauge', 'synchronous').lower()
+        # Background data that is only sometimes needed
+        background_other = set()
+        for d in select_realization_options.values():
+            for d2 in d.values():
+                for key, val in d2.items():
+                    if not isinstance(key, str):
+                        continue
+                    key = key.lower().replace(' ', '').replace('-', '')
+                    if key == 'velocitiesfromdisplacements' and val:
+                        background_other.add(r'^gr.fac. f$')
+        # The needed background and perturbation keys
         self.needed_keys = {
             # Background data as function of time
             'background': {
@@ -327,7 +338,7 @@ class CosmoResults:
                 # Equation of state
                 r'^\(\.\)w_',
                 # Other
-                r'^gr.fac. f$',
+                *background_other,
             },
             # Perturbations at different k as function of time.
             # Species specific perturbations will be added later.
@@ -1587,7 +1598,7 @@ class TransferFunction:
         self.component = component
         self.var_name = var_name
         if self.var_name not in transferfunctions_registered:
-            abort(f'Transfer function "{self.var_name}" not implemented')
+            abort(f'Perturbation "{self.var_name}" not implemented')
         # The species (CLASS convention) of which to compute
         # transfer functions. If component is None, set the CLASS
         # species to 'tot', as this "species" do not correspond
@@ -1693,12 +1704,12 @@ class TransferFunction:
         # Display progress message
         if self.component is None:
             if transferfunction_info.total:
-                masterprint(f'Processing {self.var_name} transfer functions ...')
+                masterprint(f'Processing {self.var_name} perturbations ...')
             else:
-                masterprint(f'Processing total {self.var_name} transfer functions ...')
+                masterprint(f'Processing total {self.var_name} perturbations ...')
         else:
             masterprint(
-                f'Processing {self.var_name} transfer functions '
+                f'Processing {self.var_name} perturbations '
                 f'for {self.component.name} ...'
             )
         missing_perturbations_warning = ''.join([
@@ -1725,7 +1736,7 @@ class TransferFunction:
                 if k_max_candidate < self.k_max:
                     if perturbation_key == key:
                         self.k_max = k_max_candidate
-                    elif re.search(perturbation_key, key):
+                    elif re.search(key, perturbation_key):
                         self.k_max = k_max_candidate
         # Number of additional points on each side of the interval
         # to include when doing the detrending and splining.
@@ -1784,8 +1795,8 @@ class TransferFunction:
                     }
                 else:
                     abort(
-                        f'Transfer function weighting "{transferfunction_info.weighting}" '
-                        f'not implemented.'
+                        f'Perturbation weighting "{transferfunction_info.weighting}" '
+                        f'not implemented'
                     )
                     weights_species = {}  # To satisfy the compiler
             # Construct the perturbation_values array from the CLASS
@@ -2029,7 +2040,7 @@ class TransferFunction:
         # Now construct splines for untrusted perturbations,
         # if any exist on any process.
         if any_contain_untrusted_perturbations:
-            masterprint('Processing untrusted transfer functions ...')
+            masterprint('Processing untrusted perturbations ...')
             # Untrusted perturbations exist. Communicate the data of the
             # largest trusted perturbations to all processes which
             # contain untrusted perturbations.
@@ -2120,7 +2131,7 @@ class TransferFunction:
         # this is done by the master process, which must then receive
         # the detrended perturbations from the other processes.
         if class_plot_perturbations:
-            masterprint(f'Plotting detrended transfer functions ...')
+            masterprint(f'Plotting detrended perturbations ...')
             if master:
                 for rank_other in range(nprocs):
                     if rank_other == rank:
@@ -4215,7 +4226,8 @@ def register_perturbation(
 ):
     if not name.isidentifier():
         abort(
-            f'Transfer function name "{name}" is illegal as it is not a valid Python identifier'
+            f'Transfer function name "{name}" is illegal '
+            f'as it is not a valid Python identifier'
         )
     if name_latex is None:
         name_latex = rf'\mathrm{{{name_class}}}'.replace('_', ' ')
@@ -4437,7 +4449,7 @@ for class_extra_perturbation in class_extra_perturbations:
                 f'Failed to generate {esc_concept} name '
                 f'for CLASS perturbation "{class_extra_perturbation}"'
             )
-        transferfunction_info = register(perturbation_name, class_extra_perturbation)
+        transferfunction_info = register_perturbation(perturbation_name, class_extra_perturbation)
         class_extra_perturbations_class.add(transferfunction_info.name_class)
 
 # Read in definitions from CLASS source files at import time

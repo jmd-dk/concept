@@ -762,6 +762,78 @@ random numbers used for the primordial noise.
 
 
 
+.. _class_k_max:
+
+``class_k_max``
+...............
+== =============== == =
+\  **Description** \  Specifies maximum trusted :math:`k` modes for CLASS
+                      perturbations, with higher modes being constructed
+                      through extrapolation.
+-- --------------- -- -
+\  **Default**     \  .. code-block:: python3
+
+                         {}
+
+-- --------------- -- -
+\  **Elaboration** \  CO\ *N*\ CEPT uses `CLASS <http://class-code.net/>`_ for
+                      computing linear perturbations, for use with e.g.
+                      initial condition generation. CLASS perturbations at
+                      high :math:`k` can be prone to non-physical defects, due
+                      to the larger degree of precision required here for
+                      convergence. This parameter allows for specification of
+                      a maximum :math:`k` at which to make use of CLASS
+                      perturbations, beyond which required perturbation data
+                      is obtained from that at lower :math:`k` using
+                      interpolation.
+
+                      The ``class_k_max`` parameter should be specified as a
+                      mapping from CLASS perturbation names (exact match or
+                      regular expression) to maximum :math:`k` values. In
+                      addition to CLASS perturbation names, the key ``'all'``
+                      may be used to apply the same maximum :math:`k` to all
+                      perturbations.
+
+-- --------------- -- -
+\  **Example 0**   \  Do not trust any CLASS perturbations above
+                      :math:`k = 10\, \text{Mpc}^{-1}`:
+
+                      .. code-block:: python3
+
+                         class_k_max = {'all': 10/Mpc}
+
+-- --------------- -- -
+\  **Example 1**   \  Do not trust the velocity divergence :math:`\theta`
+                      perturbations for baryons beyond
+                      :math:`k = 10\, h\, \text{Mpc}^{-1}`, nor the
+                      :math:`\partial_{\tau}h` perturbations beyond
+                      :math:`k = 5\, h\, \text{Mpc}^{-1}`:
+
+                      .. code-block:: python3
+
+                         class_k_max = {
+                             'theta_b': 10*h/Mpc,
+                             'h_prime':  5*h/Mpc,
+                         }
+
+-- --------------- -- -
+\  **Example 2**   \  Do not trust any perturbations in any ``ncdm`` species
+                      above :math:`k = 8\, \text{Mpc}^{-1}`:
+
+                      .. code-block:: python3
+
+                         class_k_max = {r'.*ncdm.*': 8/Mpc}
+
+== =============== == =
+
+
+
+------------------------------------------------------------------------------
+
+
+
+.. _class_reuse:
+
 ``class_reuse``
 ...............
 == =============== == =
@@ -773,22 +845,22 @@ random numbers used for the primordial noise.
                          True
 
 -- --------------- -- -
-\  **Elaboration** \   CO\ *N*\ CEPT delegates the computation of background
-                       quantities (unless the ``enable_class_background``
-                       :ref:`parameter <enable_class_background>` is set to
-                       ``False``) as well as linear perturbations to the
-                       `CLASS <http://class-code.net/>`_ code. Though
-                       typically inexpensive, running precision simulations
-                       with e.g.
-                       :ref:`non-linear massive neutrinos <nonlinear_massive_neutrinos>`
-                       tend to increase the CLASS computation time
-                       substantially. All CLASS results are always cached to
-                       disk (specifically to the ``.reusable/class``
-                       directory). If a CLASS computation is about to be run
-                       for which the results are already cached, these will be
-                       reused if this parameter is ``True``.
+\  **Elaboration** \  CO\ *N*\ CEPT delegates the computation of background
+                      quantities (unless the ``enable_class_background``
+                      :ref:`parameter <enable_class_background>` is set to
+                      ``False``) as well as linear perturbations to the
+                      `CLASS <http://class-code.net/>`_ code. Though
+                      typically inexpensive, running precision simulations
+                      with e.g.
+                      :ref:`non-linear massive neutrinos <nonlinear_massive_neutrinos>`
+                      tend to increase the CLASS computation time
+                      substantially. All CLASS results are always cached to
+                      disk (specifically to the ``.reusable/class``
+                      directory). If a CLASS computation is about to be run
+                      for which the results are already cached, these will be
+                      reused if this parameter is ``True``.
 -- --------------- -- -
-\  **Example 0**   \  Do not make use any pre-existing CLASS results:
+\  **Example 0**   \  Do not make use of any pre-existing CLASS results:
 
                       .. code-block:: python3
 
@@ -796,7 +868,9 @@ random numbers used for the primordial noise.
 
                       .. note::
                          Even when not making use of cached CLASS results,
-                         new CLASS runs will still be cached to disk
+                         new CLASS runs will still be cached to disk. Existing
+                         cache content will not be overwritten by results from
+                         a new CLASS computation.
 
 == =============== == =
 

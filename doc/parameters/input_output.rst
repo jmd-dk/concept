@@ -186,6 +186,28 @@ CO\ *N*\ CEPT run.
                              'render3D' : ...,
                          }
 
+-- --------------- -- -
+\  **Example 2**   \  Dump all output (even autosaves) to the directory
+                      containing the parameter file currently in use:
+
+                      .. code-block:: python3
+
+                         output_dirs = {
+                             'snapshot' : param.dir,
+                             'powerspec': ...,
+                             'render2D' : ...,
+                             'render3D' : ...,
+                             'autosave' : ...,
+                         }
+
+                      When all the different outputs should go to the same
+                      directory (like above), we may instead specify this as
+                      simply
+
+                      .. code-block:: python3
+
+                         output_dirs = param.dir
+
 == =============== == =
 
 
@@ -1153,6 +1175,215 @@ CO\ *N*\ CEPT run.
                          select_particle_id = {
                              'particles': True,
                          }
+
+== =============== == =
+
+
+
+------------------------------------------------------------------------------
+
+
+
+.. _class_plot_perturbations:
+
+``class_plot_perturbations``
+............................
+== =============== == =
+\  **Description** \  Specifies whether to plot CLASS perturbations used
+                      within the CO\ *N*\ CEPT run
+-- --------------- -- -
+\  **Default**     \  .. code-block:: python3
+
+                         False
+
+-- --------------- -- -
+\  **Elaboration** \  When enabled, all `CLASS <http://class-code.net/>`_
+                      perturbations used within the CO\ *N*\ CEPT run will be
+                      plotted and saved to image files. This is primarily
+                      intended for visual checks of convergence of CLASS
+                      computations.
+
+                      Two new directories will be created --- both within the
+                      specified power spectrum
+                      :ref:`output directory <output_dirs>`
+                      ``output_dirs['powerspec']`` --- containing
+                      subdirectories for the various perturbations. The two
+                      directories are:
+
+                      * ``class_perturbations``: The plots within this
+                        directory show the evolution of each of the computed
+                        :math:`k` modes through time :math:`a`, for each type
+                        of perturbation. The time axis is cut into regions,
+                        within each of which the perturbations are
+                        'detrended', meaning that a trend-line in the form of
+                        a power law in :math:`a` has been fitted and
+                        subsequently subtracted. This detrending is done prior
+                        to any spline interpolation, greatly increasing the
+                        accuracy of interpolation.
+
+                        Perturbations used only indirectly (e.g. if they enter
+                        in a used gauge transformation) are plotted here
+                        as well.
+
+                      * ``class_perturbations_processed``: The plots within
+                        this directory are of the final, processed
+                        perturbations, as they are used by CO\ *N*\ CEPT
+                        for e.g. initial condition generation. These are
+                        plotted as functions of :math:`k`, for various
+                        :math:`a`.
+
+                      .. note::
+                         This feature is primarily meant to be used with the
+                         :doc:`class utility </utilities/class>`.
+
+-- --------------- -- -
+\  **Example 0**   \  Plot all CLASS perturbations used within the
+                      CO\ *N*\ CEPT run:
+
+                      .. code-block:: python3
+
+                         class_plot_perturbations = True
+
+== =============== == =
+
+
+
+------------------------------------------------------------------------------
+
+
+
+.. _class_extra_background:
+
+``class_extra_background``
+..........................
+== =============== == =
+\  **Description** \  Specifies additional CLASS background quantities to
+                      include as part of the CLASS data
+-- --------------- -- -
+\  **Default**     \  .. code-block:: python3
+
+                         set()
+
+-- --------------- -- -
+\  **Elaboration** \  Only a subset of the available
+                      `CLASS <http://class-code.net/>`_ background quantities
+                      are used by CO\ *N*\ CEPT, and so only these are
+                      retrieved from CLASS computations. This also means that
+                      only these specific background quantities end up in the
+                      CLASS data stored on disk, be it the automatic CLASS
+                      disk cache or the data files generated by the
+                      :doc:`class utility </utilities/class>`.
+
+                      To include extra CLASS background quantities --- not
+                      used by CO\ *N*\ CEPT --- within these files, specify
+                      them within the ``class_extra_background`` parameter.
+                      You can refer to the extra quantities by their name as
+                      defined by CLASS. In addition, the following easier
+                      names are provided by CO\ *N*\ CEPT:
+
+                      * ``τ`` or ``tau``: The conformal time :math:`\tau` (in
+                        CLASS called ``conf. time [Mpc]``).
+                      * ``D``: The linear growth factor :math:`D` (in CLASS
+                        called ``gr.fac. D``).
+                      * ``f``: The linear growth rate
+                        :math:`f \equiv \mathrm{d}\ln D / \mathrm{d}\ln a`
+                        (in CLASS called ``gr.fac. f``).
+
+-- --------------- -- -
+\  **Example 0**   \  Include the conformal time :math:`\tau` among the
+                      CLASS background quantities when dumping these to disk,
+                      e.g. when running the CO\ *N*\ CEPT
+                      :doc:`class utility </utilities/class>`:
+
+                      .. code-block:: python3
+
+                         class_extra_background = 'τ'
+
+                      We can also refer to :math:`\tau` using its CLASS name:
+
+                      .. code-block:: python3
+
+                         class_extra_background = 'conf. time [Mpc]'
+
+-- --------------- -- -
+\  **Example 1**   \  Include the linear growth factor :math:`D` and rate
+                      :math:`f` among the background quantities when dumping
+                      these to disk, e.g. when running the CO\ *N*\ CEPT
+                      :doc:`class utility </utilities/class>`:
+
+                      .. code-block:: python3
+
+                         class_extra_background = {'D', 'f'}
+
+== =============== == =
+
+
+
+------------------------------------------------------------------------------
+
+
+
+.. _class_extra_perturbations:
+
+``class_extra_perturbations``
+.............................
+== =============== == =
+\  **Description** \  Specifies additional CLASS perturbations to include as
+                      part of the CLASS data
+-- --------------- -- -
+\  **Default**     \  .. code-block:: python3
+
+                         set()
+
+-- --------------- -- -
+\  **Elaboration** \  Only a subset of the available
+                      `CLASS <http://class-code.net/>`_ perturbations are used
+                      by CO\ *N*\ CEPT, and so only these are retrieved from
+                      CLASS computations. This also means that only these
+                      specific perturbations end up in the CLASS data stored
+                      on disk, be it the automatic CLASS disk cache or the
+                      data files generated by the
+                      :doc:`class utility </utilities/class>`.
+
+                      To include extra CLASS perturbations --- not used by
+                      CO\ *N*\ CEPT --- within these files, specify them
+                      within the ``class_extra_perturbation`` parameter. You
+                      can refer to the extra quantities by their name as
+                      defined by CLASS. In addition, the following fancy
+                      names are provided by CO\ *N*\ CEPT:
+
+                      * ``θ_tot``: The total velocity divergence
+                        :math:`\theta_{\text{tot}}` from all species (in CLASS
+                        called ``theta_tot``).
+                      * ``ϕ``: The spatial metric perturbation :math:`\phi` in
+                        conformal Newtonian gauge (in CLASS called ``phi``).
+                      * ``ψ``: The temporal metric perturbation :math:`\psi`
+                        in conformal Newtonian gauge (in CLASS called ``psi``).
+                      * ``hʹ``: The conformal time derivative of the trace of
+                        the spatial metric perturbation in synchronous gauge,
+                        :math:`\partial_{\tau} h` (in CLASS called
+                        ``h_prime``).
+                      * ``H_Tʹ``: The conformal time derivative of the
+                        trace-free component of the spatial metric in *N*-body
+                        gauge, :math:`\partial_{\tau} H_{\text{T}}` (in CLASS
+                        called ``H_T_prime``).
+
+-- --------------- -- -
+\  **Example 0**   \  Include the two conformal Newtonian metric potentials
+                      :math:`\phi` and :math:`\psi` among the CLASS
+                      perturbations when dumping these to disk,
+                      e.g. when running the CO\ *N*\ CEPT
+                      :doc:`class utility </utilities/class>`:
+
+                      .. code-block:: python3
+
+                         class_extra_perturbations = {'ϕ', 'ψ'}
+
+                      We can also refer to these using their CLASS names:
+
+                      .. code-block:: python3
+
+                         class_extra_background = {'phi', 'psi'}
 
 == =============== == =
 

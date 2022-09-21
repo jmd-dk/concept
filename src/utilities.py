@@ -804,6 +804,7 @@ def info():
     a_values='double[::1]',
     all_a_values='double[::1]',
     arr='double[::1]',
+    boltzmann_order='Py_ssize_t',
     class_species=str,
     component='Component',
     component_variables=dict,
@@ -838,6 +839,17 @@ def info():
     ρ_bars=dict,
 )
 def class_():
+    # Error out if any species has a Boltzmann order
+    # outside the implemented range.
+    for d in initial_conditions:
+        if not isinstance(d, dict):
+            continue
+        boltzmann_order = int(d.get('boltzmann_order', 0)) + 1
+        class_species = d.get('species', d.get('name', ''))
+        if boltzmann_order < 0:
+            abort(f'Species {class_species} has Boltzmann order {boltzmann_order} < 0')
+        if boltzmann_order > 2:
+            abort(f'Species {class_species} has Boltzmann order {boltzmann_order} > 2')
     # Suppress warning about the total energy density of the components
     # being too high, as the components are not used to perform a
     # simulation anyway.
@@ -924,6 +936,37 @@ def class_():
     else:
         cosmoresults = compute_cosmo(class_call_reason='in order to get background')
     cosmoresults.load_everything()
+    # If perturbations should be plotted, we want to include all
+    # perturbations used as an intermediate step as well (e.g. for gauge
+    # transformation) in the detrended plots. We ensure this by simply
+    # retrieving all used perturbations as TransferFunction instances,
+    # which triggers calls to graphics.plot_detrended_perturbations().
+    if (
+            compute_perturbations
+        and class_plot_perturbations
+    ):
+        # If the number of processes exceeds the number of k modes,
+        # not all processes know about the perturbations in use, and so
+        # we need to broadcast this information.
+        bcast_root = allreduce(
+            rank + nprocs*(len(getattr(cosmoresults, '_perturbations', [])) == 0),
+            op=MPI.MIN,
+        )
+        if bcast_root < nprocs:
+            names_class = bcast(
+                (
+                    list(cosmoresults._perturbations[0].keys())
+                    if rank == bcast_root else None
+                ),
+                bcast_root,
+            )
+            for name_class in names_class:
+                for transferfunction_info in transferfunctions_registered.values():
+                    if transferfunction_info.name_class == name_class:
+                        getattr(
+                            cosmoresults,
+                            transferfunction_info.name.removesuffix('_tot'),
+                        )(get='object')
     # Store all CLASS parameters, the unit system in use,
     # the processed background and a few convenience attributes
     # in a new hdf5 file.
@@ -1179,11 +1222,11 @@ def class_():
         for variable, specific_multi_index, var_name in variable_specifications:
             transferfunction_info = transferfunctions_registered[var_name]
             if transferfunction_info.total:
-                masterprint(f'Working on {var_name} transfer functions ...')
+                masterprint(f'Working on {var_name} perturbations ...')
             else:
                 masterprint(
                     f'Working on {var_name} {class_species} '
-                    f'{gauge_str} gauge transfer functions ...'
+                    f'{gauge_str} gauge perturbations ...'
                 )
             for i in range(all_a_values.shape[0]):
                 a = all_a_values[i]
@@ -1199,11 +1242,11 @@ def class_():
                     transfer[i, :] = transfer_of_k
             if not master:
                 continue
-            # Save transfer function to disk
+            # Save perturbations to disk
             if transferfunction_info.total:
-                masterprint(f'Saving processed {var_name} transfer functions ...')
+                masterprint(f'Saving processed {var_name} perturbations ...')
             else:
-                masterprint(f'Saving processed {var_name} {class_species} transfer functions ...')
+                masterprint(f'Saving processed {var_name} {class_species} perturbations ...')
             with open_hdf5(filename, mode='a') as hdf5_file:
                 perturbations_h5 = hdf5_file.require_group('perturbations')
                 dset_name = transferfunction_info.name_ascii.format(class_species)
@@ -1214,7 +1257,7 @@ def class_():
                 )
                 dset[...] = transfer
             masterprint('done')
-            # Plot transfer functions
+            # Plot perturbations
             if class_plot_perturbations:
                 graphics.plot_processed_perturbations(
                     all_a_values,
