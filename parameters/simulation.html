@@ -171,6 +171,9 @@
 <li class="toctree-l3"><a class="reference internal" href="input_output.html#gadget-snapshot-params"><code class="docutils literal notranslate"><span class="pre">gadget_snapshot_params</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="input_output.html#snapshot-wrap"><code class="docutils literal notranslate"><span class="pre">snapshot_wrap</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="input_output.html#select-particle-id"><code class="docutils literal notranslate"><span class="pre">select_particle_id</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="input_output.html#class-plot-perturbations"><code class="docutils literal notranslate"><span class="pre">class_plot_perturbations</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="input_output.html#class-extra-background"><code class="docutils literal notranslate"><span class="pre">class_extra_background</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="input_output.html#class-extra-perturbations"><code class="docutils literal notranslate"><span class="pre">class_extra_perturbations</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="numerics.html">Numerics</a><ul>
@@ -214,6 +217,7 @@
 <li class="toctree-l3"><a class="reference internal" href="#primordial-amplitude-fixed"><code class="docutils literal notranslate"><span class="pre">primordial_amplitude_fixed</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#primordial-phase-shift"><code class="docutils literal notranslate"><span class="pre">primordial_phase_shift</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#cell-centered"><code class="docutils literal notranslate"><span class="pre">cell_centered</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#class-k-max"><code class="docutils literal notranslate"><span class="pre">class_k_max</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#class-reuse"><code class="docutils literal notranslate"><span class="pre">class_reuse</span></code></a></li>
 </ul>
 </li>
@@ -242,15 +246,36 @@
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../utilities/utilities.html">Utilities</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/class.html">class</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/convert.html">convert</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/gadget.html">gadget</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/info.html">info</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/play.html">play</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/powerspec.html">powerspec</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/render3D.html">render3D</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/update.html">update</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/watch.html">watch</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/class.html">class utility</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../utilities/class.html#basic-usage">Basic usage</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../utilities/class.html#command-line-options">Command-line options</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../utilities/class.html#help-h-help">Help: <code class="docutils literal notranslate"><span class="pre">-h</span></code>, <code class="docutils literal notranslate"><span class="pre">--help</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../utilities/class.html#minimum-fourier-mode-kmin">Minimum Fourier mode: <code class="docutils literal notranslate"><span class="pre">--kmin</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../utilities/class.html#maximum-fourier-mode-kmax">Maximum Fourier mode: <code class="docutils literal notranslate"><span class="pre">--kmax</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../utilities/class.html#number-of-fourier-modes-modes">Number of Fourier modes: <code class="docutils literal notranslate"><span class="pre">--modes</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../utilities/class.html#number-of-times-times">Number of times: <code class="docutils literal notranslate"><span class="pre">--times</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../utilities/class.html#gauge-gauge">Gauge: <code class="docutils literal notranslate"><span class="pre">--gauge</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../utilities/class.html#file-contents">File contents</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../utilities/class.html#data-layout">Data layout</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../utilities/class.html#extra-output">Extra output</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../utilities/class.html#units">Units</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../utilities/class.html#complete-example-massive-neutrinos">Complete example (massive neutrinos)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../utilities/class.html#running-through-docker">Running through Docker</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../utilities/class.html#tips-and-tricks">Tips and tricks</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/convert.html">convert utility</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/gadget.html">gadget utility</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/info.html">info utility</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/play.html">play utility</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/powerspec.html">powerspec utility</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/render3D.html">render3D utility</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/update.html">update utility</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/watch.html">watch utility</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../troubleshooting.html">Troubleshooting</a><ul>
@@ -318,26 +343,27 @@ accuracy of the time integration, as well as parameters having to do with the
 random numbers used for the primordial noise.</p>
 <div class="contents local topic" id="contents">
 <ul class="simple">
-<li><p><a class="reference internal" href="#t-base-background-factor" id="id9"><code class="docutils literal notranslate"><span class="pre">Δt_base_background_factor</span></code></a></p></li>
-<li><p><a class="reference internal" href="#t-base-nonlinear-factor" id="id10"><code class="docutils literal notranslate"><span class="pre">Δt_base_nonlinear_factor</span></code></a></p></li>
-<li><p><a class="reference internal" href="#t-increase-max-factor" id="id11"><code class="docutils literal notranslate"><span class="pre">Δt_increase_max_factor</span></code></a></p></li>
-<li><p><a class="reference internal" href="#t-rung-factor" id="id12"><code class="docutils literal notranslate"><span class="pre">Δt_rung_factor</span></code></a></p></li>
-<li><p><a class="reference internal" href="#a-max-early" id="id13"><code class="docutils literal notranslate"><span class="pre">Δa_max_early</span></code></a></p></li>
-<li><p><a class="reference internal" href="#a-max-late" id="id14"><code class="docutils literal notranslate"><span class="pre">Δa_max_late</span></code></a></p></li>
-<li><p><a class="reference internal" href="#n-rungs" id="id15"><code class="docutils literal notranslate"><span class="pre">N_rungs</span></code></a></p></li>
-<li><p><a class="reference internal" href="#fftw-wisdom-rigor" id="id16"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_rigor</span></code></a></p></li>
-<li><p><a class="reference internal" href="#fftw-wisdom-reuse" id="id17"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_reuse</span></code></a></p></li>
-<li><p><a class="reference internal" href="#fftw-wisdom-share" id="id18"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_share</span></code></a></p></li>
-<li><p><a class="reference internal" href="#random-seed" id="id19"><code class="docutils literal notranslate"><span class="pre">random_seed</span></code></a></p></li>
-<li><p><a class="reference internal" href="#primordial-amplitude-fixed" id="id20"><code class="docutils literal notranslate"><span class="pre">primordial_amplitude_fixed</span></code></a></p></li>
-<li><p><a class="reference internal" href="#primordial-phase-shift" id="id21"><code class="docutils literal notranslate"><span class="pre">primordial_phase_shift</span></code></a></p></li>
-<li><p><a class="reference internal" href="#cell-centered" id="id22"><code class="docutils literal notranslate"><span class="pre">cell_centered</span></code></a></p></li>
-<li><p><a class="reference internal" href="#class-reuse" id="id23"><code class="docutils literal notranslate"><span class="pre">class_reuse</span></code></a></p></li>
+<li><p><a class="reference internal" href="#t-base-background-factor" id="id12"><code class="docutils literal notranslate"><span class="pre">Δt_base_background_factor</span></code></a></p></li>
+<li><p><a class="reference internal" href="#t-base-nonlinear-factor" id="id13"><code class="docutils literal notranslate"><span class="pre">Δt_base_nonlinear_factor</span></code></a></p></li>
+<li><p><a class="reference internal" href="#t-increase-max-factor" id="id14"><code class="docutils literal notranslate"><span class="pre">Δt_increase_max_factor</span></code></a></p></li>
+<li><p><a class="reference internal" href="#t-rung-factor" id="id15"><code class="docutils literal notranslate"><span class="pre">Δt_rung_factor</span></code></a></p></li>
+<li><p><a class="reference internal" href="#a-max-early" id="id16"><code class="docutils literal notranslate"><span class="pre">Δa_max_early</span></code></a></p></li>
+<li><p><a class="reference internal" href="#a-max-late" id="id17"><code class="docutils literal notranslate"><span class="pre">Δa_max_late</span></code></a></p></li>
+<li><p><a class="reference internal" href="#n-rungs" id="id18"><code class="docutils literal notranslate"><span class="pre">N_rungs</span></code></a></p></li>
+<li><p><a class="reference internal" href="#fftw-wisdom-rigor" id="id19"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_rigor</span></code></a></p></li>
+<li><p><a class="reference internal" href="#fftw-wisdom-reuse" id="id20"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_reuse</span></code></a></p></li>
+<li><p><a class="reference internal" href="#fftw-wisdom-share" id="id21"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_share</span></code></a></p></li>
+<li><p><a class="reference internal" href="#random-seed" id="id22"><code class="docutils literal notranslate"><span class="pre">random_seed</span></code></a></p></li>
+<li><p><a class="reference internal" href="#primordial-amplitude-fixed" id="id23"><code class="docutils literal notranslate"><span class="pre">primordial_amplitude_fixed</span></code></a></p></li>
+<li><p><a class="reference internal" href="#primordial-phase-shift" id="id24"><code class="docutils literal notranslate"><span class="pre">primordial_phase_shift</span></code></a></p></li>
+<li><p><a class="reference internal" href="#cell-centered" id="id25"><code class="docutils literal notranslate"><span class="pre">cell_centered</span></code></a></p></li>
+<li><p><a class="reference internal" href="#class-k-max" id="id26"><code class="docutils literal notranslate"><span class="pre">class_k_max</span></code></a></p></li>
+<li><p><a class="reference internal" href="#class-reuse" id="id27"><code class="docutils literal notranslate"><span class="pre">class_reuse</span></code></a></p></li>
 </ul>
 </div>
 <hr class="docutils" />
 <section id="t-base-background-factor">
-<span id="deltat-base-background-factor"></span><h2><a class="toc-backref" href="#id9"><code class="docutils literal notranslate"><span class="pre">Δt_base_background_factor</span></code></a><a class="headerlink" href="#t-base-background-factor" title="Permalink to this headline"></a></h2>
+<span id="deltat-base-background-factor"></span><h2><a class="toc-backref" href="#id12"><code class="docutils literal notranslate"><span class="pre">Δt_base_background_factor</span></code></a><a class="headerlink" href="#t-base-background-factor" title="Permalink to this headline"></a></h2>
 <table>
 <colgroup>
 <col style="width: 4%" />
@@ -386,7 +412,7 @@ size:</p>
 <hr class="docutils" />
 </section>
 <section id="t-base-nonlinear-factor">
-<span id="deltat-base-nonlinear-factor"></span><h2><a class="toc-backref" href="#id10"><code class="docutils literal notranslate"><span class="pre">Δt_base_nonlinear_factor</span></code></a><a class="headerlink" href="#t-base-nonlinear-factor" title="Permalink to this headline"></a></h2>
+<span id="deltat-base-nonlinear-factor"></span><h2><a class="toc-backref" href="#id13"><code class="docutils literal notranslate"><span class="pre">Δt_base_nonlinear_factor</span></code></a><a class="headerlink" href="#t-base-nonlinear-factor" title="Permalink to this headline"></a></h2>
 <table>
 <colgroup>
 <col style="width: 4%" />
@@ -446,7 +472,7 @@ limiters:</p>
 </section>
 <hr class="docutils" />
 <section id="t-increase-max-factor">
-<h2><a class="toc-backref" href="#id11"><code class="docutils literal notranslate"><span class="pre">Δt_increase_max_factor</span></code></a><a class="headerlink" href="#t-increase-max-factor" title="Permalink to this headline"></a></h2>
+<h2><a class="toc-backref" href="#id14"><code class="docutils literal notranslate"><span class="pre">Δt_increase_max_factor</span></code></a><a class="headerlink" href="#t-increase-max-factor" title="Permalink to this headline"></a></h2>
 <table>
 <colgroup>
 <col style="width: 4%" />
@@ -494,7 +520,7 @@ an upper limit for the allowed relative change of
 <hr class="docutils" />
 </section>
 <section id="t-rung-factor">
-<span id="deltat-rung-factor"></span><h2><a class="toc-backref" href="#id12"><code class="docutils literal notranslate"><span class="pre">Δt_rung_factor</span></code></a><a class="headerlink" href="#t-rung-factor" title="Permalink to this headline"></a></h2>
+<span id="deltat-rung-factor"></span><h2><a class="toc-backref" href="#id15"><code class="docutils literal notranslate"><span class="pre">Δt_rung_factor</span></code></a><a class="headerlink" href="#t-rung-factor" title="Permalink to this headline"></a></h2>
 <table>
 <colgroup>
 <col style="width: 4%" />
@@ -551,7 +577,7 @@ rung, resulting in particle time-stepping which is
 <hr class="docutils" />
 </section>
 <section id="a-max-early">
-<span id="deltaa-max-early"></span><h2><a class="toc-backref" href="#id13"><code class="docutils literal notranslate"><span class="pre">Δa_max_early</span></code></a><a class="headerlink" href="#a-max-early" title="Permalink to this headline"></a></h2>
+<span id="deltaa-max-early"></span><h2><a class="toc-backref" href="#id16"><code class="docutils literal notranslate"><span class="pre">Δa_max_early</span></code></a><a class="headerlink" href="#a-max-early" title="Permalink to this headline"></a></h2>
 <table>
 <colgroup>
 <col style="width: 4%" />
@@ -627,7 +653,7 @@ global time step size due to <span class="math notranslate nohighlight">\(H^{-1}
 <hr class="docutils" />
 </section>
 <section id="a-max-late">
-<span id="deltaa-max-late"></span><h2><a class="toc-backref" href="#id14"><code class="docutils literal notranslate"><span class="pre">Δa_max_late</span></code></a><a class="headerlink" href="#a-max-late" title="Permalink to this headline"></a></h2>
+<span id="deltaa-max-late"></span><h2><a class="toc-backref" href="#id17"><code class="docutils literal notranslate"><span class="pre">Δa_max_late</span></code></a><a class="headerlink" href="#a-max-late" title="Permalink to this headline"></a></h2>
 <table>
 <colgroup>
 <col style="width: 4%" />
@@ -689,7 +715,7 @@ to <span class="math notranslate nohighlight">\(\infty\)</span>:</p>
 </section>
 <hr class="docutils" />
 <section id="n-rungs">
-<h2><a class="toc-backref" href="#id15"><code class="docutils literal notranslate"><span class="pre">N_rungs</span></code></a><a class="headerlink" href="#n-rungs" title="Permalink to this headline"></a></h2>
+<h2><a class="toc-backref" href="#id18"><code class="docutils literal notranslate"><span class="pre">N_rungs</span></code></a><a class="headerlink" href="#n-rungs" title="Permalink to this headline"></a></h2>
 <table>
 <colgroup>
 <col style="width: 4%" />
@@ -759,7 +785,7 @@ significantly.</p>
 <hr class="docutils" />
 </section>
 <section id="fftw-wisdom-rigor">
-<span id="id1"></span><h2><a class="toc-backref" href="#id16"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_rigor</span></code></a><a class="headerlink" href="#fftw-wisdom-rigor" title="Permalink to this headline"></a></h2>
+<span id="id1"></span><h2><a class="toc-backref" href="#id19"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_rigor</span></code></a><a class="headerlink" href="#fftw-wisdom-rigor" title="Permalink to this headline"></a></h2>
 <table>
 <colgroup>
 <col style="width: 4%" />
@@ -832,7 +858,7 @@ slow planning:</p>
 <hr class="docutils" />
 </section>
 <section id="fftw-wisdom-reuse">
-<span id="id2"></span><h2><a class="toc-backref" href="#id17"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_reuse</span></code></a><a class="headerlink" href="#fftw-wisdom-reuse" title="Permalink to this headline"></a></h2>
+<span id="id2"></span><h2><a class="toc-backref" href="#id20"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_reuse</span></code></a><a class="headerlink" href="#fftw-wisdom-reuse" title="Permalink to this headline"></a></h2>
 <table>
 <colgroup>
 <col style="width: 4%" />
@@ -898,7 +924,7 @@ disk.</p>
 <hr class="docutils" />
 </section>
 <section id="fftw-wisdom-share">
-<span id="id3"></span><h2><a class="toc-backref" href="#id18"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_share</span></code></a><a class="headerlink" href="#fftw-wisdom-share" title="Permalink to this headline"></a></h2>
+<span id="id3"></span><h2><a class="toc-backref" href="#id21"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_share</span></code></a><a class="headerlink" href="#fftw-wisdom-share" title="Permalink to this headline"></a></h2>
 <table>
 <colgroup>
 <col style="width: 4%" />
@@ -970,7 +996,7 @@ place.</p>
 <hr class="docutils" />
 </section>
 <section id="random-seed">
-<span id="id4"></span><h2><a class="toc-backref" href="#id19"><code class="docutils literal notranslate"><span class="pre">random_seed</span></code></a><a class="headerlink" href="#random-seed" title="Permalink to this headline"></a></h2>
+<span id="id4"></span><h2><a class="toc-backref" href="#id22"><code class="docutils literal notranslate"><span class="pre">random_seed</span></code></a><a class="headerlink" href="#random-seed" title="Permalink to this headline"></a></h2>
 <table>
 <colgroup>
 <col style="width: 4%" />
@@ -1068,7 +1094,7 @@ random realisation of the primordial noise:</p>
 <hr class="docutils" />
 </section>
 <section id="primordial-amplitude-fixed">
-<span id="id5"></span><h2><a class="toc-backref" href="#id20"><code class="docutils literal notranslate"><span class="pre">primordial_amplitude_fixed</span></code></a><a class="headerlink" href="#primordial-amplitude-fixed" title="Permalink to this headline"></a></h2>
+<span id="id5"></span><h2><a class="toc-backref" href="#id23"><code class="docutils literal notranslate"><span class="pre">primordial_amplitude_fixed</span></code></a><a class="headerlink" href="#primordial-amplitude-fixed" title="Permalink to this headline"></a></h2>
 <table>
 <colgroup>
 <col style="width: 4%" />
@@ -1135,7 +1161,7 @@ power spectra:</p>
 <hr class="docutils" />
 </section>
 <section id="primordial-phase-shift">
-<span id="id6"></span><h2><a class="toc-backref" href="#id21"><code class="docutils literal notranslate"><span class="pre">primordial_phase_shift</span></code></a><a class="headerlink" href="#primordial-phase-shift" title="Permalink to this headline"></a></h2>
+<span id="id6"></span><h2><a class="toc-backref" href="#id24"><code class="docutils literal notranslate"><span class="pre">primordial_phase_shift</span></code></a><a class="headerlink" href="#primordial-phase-shift" title="Permalink to this headline"></a></h2>
 <table>
 <colgroup>
 <col style="width: 4%" />
@@ -1198,7 +1224,7 @@ simulations’.</p>
 <hr class="docutils" />
 </section>
 <section id="cell-centered">
-<span id="id8"></span><h2><a class="toc-backref" href="#id22"><code class="docutils literal notranslate"><span class="pre">cell_centered</span></code></a><a class="headerlink" href="#cell-centered" title="Permalink to this headline"></a></h2>
+<span id="id8"></span><h2><a class="toc-backref" href="#id25"><code class="docutils literal notranslate"><span class="pre">cell_centered</span></code></a><a class="headerlink" href="#cell-centered" title="Permalink to this headline"></a></h2>
 <table>
 <colgroup>
 <col style="width: 4%" />
@@ -1279,10 +1305,96 @@ strategy for cell-vertex, as used by e.g. GADGET:</p>
 </tr>
 </tbody>
 </table>
-</section>
 <hr class="docutils" />
+</section>
+<section id="class-k-max">
+<span id="id9"></span><h2><a class="toc-backref" href="#id26"><code class="docutils literal notranslate"><span class="pre">class_k_max</span></code></a><a class="headerlink" href="#class-k-max" title="Permalink to this headline"></a></h2>
+<table>
+<colgroup>
+<col style="width: 4%" />
+<col style="width: 10%" />
+<col style="width: 4%" />
+<col style="width: 82%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Description</strong></p></td>
+<td><p></p></td>
+<td><p>Specifies maximum trusted <span class="math notranslate nohighlight">\(k\)</span> modes for CLASS
+perturbations, with higher modes being constructed
+through extrapolation.</p></td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Default</strong></p></td>
+<td><p></p></td>
+<td><div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="p">{}</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Elaboration</strong></p></td>
+<td><p></p></td>
+<td><p>CO<em>N</em>CEPT uses <a class="reference external" href="http://class-code.net/">CLASS</a> for
+computing linear perturbations, for use with e.g.
+initial condition generation. CLASS perturbations at
+high <span class="math notranslate nohighlight">\(k\)</span> can be prone to non-physical defects, due
+to the larger degree of precision required here for
+convergence. This parameter allows for specification of
+a maximum <span class="math notranslate nohighlight">\(k\)</span> at which to make use of CLASS
+perturbations, beyond which required perturbation data
+is obtained from that at lower <span class="math notranslate nohighlight">\(k\)</span> using
+interpolation.</p>
+<p>The <code class="docutils literal notranslate"><span class="pre">class_k_max</span></code> parameter should be specified as a
+mapping from CLASS perturbation names (exact match or
+regular expression) to maximum <span class="math notranslate nohighlight">\(k\)</span> values. In
+addition to CLASS perturbation names, the key <code class="docutils literal notranslate"><span class="pre">'all'</span></code>
+may be used to apply the same maximum <span class="math notranslate nohighlight">\(k\)</span> to all
+perturbations.</p>
+</td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Example 0</strong></p></td>
+<td><p></p></td>
+<td><p>Do not trust any CLASS perturbations above
+<span class="math notranslate nohighlight">\(k = 10\, \text{Mpc}^{-1}\)</span>:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">class_k_max</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;all&#39;</span><span class="p">:</span> <span class="mi">10</span><span class="o">/</span><span class="n">Mpc</span><span class="p">}</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Example 1</strong></p></td>
+<td><p></p></td>
+<td><p>Do not trust the velocity divergence <span class="math notranslate nohighlight">\(\theta\)</span>
+perturbations for baryons beyond
+<span class="math notranslate nohighlight">\(k = 10\, h\, \text{Mpc}^{-1}\)</span>, nor the
+<span class="math notranslate nohighlight">\(\partial_{\tau}h\)</span> perturbations beyond
+<span class="math notranslate nohighlight">\(k = 5\, h\, \text{Mpc}^{-1}\)</span>:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">class_k_max</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;theta_b&#39;</span><span class="p">:</span> <span class="mi">10</span><span class="o">*</span><span class="n">h</span><span class="o">/</span><span class="n">Mpc</span><span class="p">,</span>
+    <span class="s1">&#39;h_prime&#39;</span><span class="p">:</span>  <span class="mi">5</span><span class="o">*</span><span class="n">h</span><span class="o">/</span><span class="n">Mpc</span><span class="p">,</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Example 2</strong></p></td>
+<td><p></p></td>
+<td><p>Do not trust any perturbations in any <code class="docutils literal notranslate"><span class="pre">ncdm</span></code> species
+above <span class="math notranslate nohighlight">\(k = 8\, \text{Mpc}^{-1}\)</span>:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">class_k_max</span> <span class="o">=</span> <span class="p">{</span><span class="sa">r</span><span class="s1">&#39;.*ncdm.*&#39;</span><span class="p">:</span> <span class="mi">8</span><span class="o">/</span><span class="n">Mpc</span><span class="p">}</span>
+</pre></div>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+<hr class="docutils" />
+</section>
 <section id="class-reuse">
-<h2><a class="toc-backref" href="#id23"><code class="docutils literal notranslate"><span class="pre">class_reuse</span></code></a><a class="headerlink" href="#class-reuse" title="Permalink to this headline"></a></h2>
+<span id="id10"></span><h2><a class="toc-backref" href="#id27"><code class="docutils literal notranslate"><span class="pre">class_reuse</span></code></a><a class="headerlink" href="#class-reuse" title="Permalink to this headline"></a></h2>
 <table>
 <colgroup>
 <col style="width: 4%" />
@@ -1326,14 +1438,16 @@ reused if this parameter is <code class="docutils literal notranslate"><span cla
 <tr class="row-even"><td><p></p></td>
 <td><p><strong>Example 0</strong></p></td>
 <td><p></p></td>
-<td><p>Do not make use any pre-existing CLASS results:</p>
+<td><p>Do not make use of any pre-existing CLASS results:</p>
 <div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">class_reuse</span> <span class="o">=</span> <span class="kc">False</span>
 </pre></div>
 </div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>Even when not making use of cached CLASS results,
-new CLASS runs will still be cached to disk</p>
+new CLASS runs will still be cached to disk. Existing
+cache content will not be overwritten by results from
+a new CLASS computation.</p>
 </div>
 </td>
 </tr>

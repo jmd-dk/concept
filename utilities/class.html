@@ -4,7 +4,7 @@
   <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>class &mdash; CONCEPT Documentation</title>
+  <title>class utility &mdash; CONCEPT Documentation</title>
       <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
       <link rel="stylesheet" href="../_static/copybutton.css" type="text/css" />
@@ -26,7 +26,7 @@
     <script src="../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="convert" href="convert.html" />
+    <link rel="next" title="convert utility" href="convert.html" />
     <link rel="prev" title="Utilities" href="utilities.html" /> 
 </head>
 
@@ -171,6 +171,9 @@
 <li class="toctree-l3"><a class="reference internal" href="../parameters/input_output.html#gadget-snapshot-params"><code class="docutils literal notranslate"><span class="pre">gadget_snapshot_params</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/input_output.html#snapshot-wrap"><code class="docutils literal notranslate"><span class="pre">snapshot_wrap</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/input_output.html#select-particle-id"><code class="docutils literal notranslate"><span class="pre">select_particle_id</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/input_output.html#class-plot-perturbations"><code class="docutils literal notranslate"><span class="pre">class_plot_perturbations</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/input_output.html#class-extra-background"><code class="docutils literal notranslate"><span class="pre">class_extra_background</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/input_output.html#class-extra-perturbations"><code class="docutils literal notranslate"><span class="pre">class_extra_perturbations</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="../parameters/numerics.html">Numerics</a><ul>
@@ -214,6 +217,7 @@
 <li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#primordial-amplitude-fixed"><code class="docutils literal notranslate"><span class="pre">primordial_amplitude_fixed</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#primordial-phase-shift"><code class="docutils literal notranslate"><span class="pre">primordial_phase_shift</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#cell-centered"><code class="docutils literal notranslate"><span class="pre">cell_centered</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#class-k-max"><code class="docutils literal notranslate"><span class="pre">class_k_max</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#class-reuse"><code class="docutils literal notranslate"><span class="pre">class_reuse</span></code></a></li>
 </ul>
 </li>
@@ -242,15 +246,36 @@
 </ul>
 </li>
 <li class="toctree-l1 current"><a class="reference internal" href="utilities.html">Utilities</a><ul class="current">
-<li class="toctree-l2 current"><a class="current reference internal" href="#">class</a></li>
-<li class="toctree-l2"><a class="reference internal" href="convert.html">convert</a></li>
-<li class="toctree-l2"><a class="reference internal" href="gadget.html">gadget</a></li>
-<li class="toctree-l2"><a class="reference internal" href="info.html">info</a></li>
-<li class="toctree-l2"><a class="reference internal" href="play.html">play</a></li>
-<li class="toctree-l2"><a class="reference internal" href="powerspec.html">powerspec</a></li>
-<li class="toctree-l2"><a class="reference internal" href="render3D.html">render3D</a></li>
-<li class="toctree-l2"><a class="reference internal" href="update.html">update</a></li>
-<li class="toctree-l2"><a class="reference internal" href="watch.html">watch</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">class utility</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#basic-usage">Basic usage</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#command-line-options">Command-line options</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#help-h-help">Help: <code class="docutils literal notranslate"><span class="pre">-h</span></code>, <code class="docutils literal notranslate"><span class="pre">--help</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#minimum-fourier-mode-kmin">Minimum Fourier mode: <code class="docutils literal notranslate"><span class="pre">--kmin</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#maximum-fourier-mode-kmax">Maximum Fourier mode: <code class="docutils literal notranslate"><span class="pre">--kmax</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#number-of-fourier-modes-modes">Number of Fourier modes: <code class="docutils literal notranslate"><span class="pre">--modes</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#number-of-times-times">Number of times: <code class="docutils literal notranslate"><span class="pre">--times</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#gauge-gauge">Gauge: <code class="docutils literal notranslate"><span class="pre">--gauge</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#file-contents">File contents</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#data-layout">Data layout</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#extra-output">Extra output</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#units">Units</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#complete-example-massive-neutrinos">Complete example (massive neutrinos)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#running-through-docker">Running through Docker</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#tips-and-tricks">Tips and tricks</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="convert.html">convert utility</a></li>
+<li class="toctree-l2"><a class="reference internal" href="gadget.html">gadget utility</a></li>
+<li class="toctree-l2"><a class="reference internal" href="info.html">info utility</a></li>
+<li class="toctree-l2"><a class="reference internal" href="play.html">play utility</a></li>
+<li class="toctree-l2"><a class="reference internal" href="powerspec.html">powerspec utility</a></li>
+<li class="toctree-l2"><a class="reference internal" href="render3D.html">render3D utility</a></li>
+<li class="toctree-l2"><a class="reference internal" href="update.html">update utility</a></li>
+<li class="toctree-l2"><a class="reference internal" href="watch.html">watch utility</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../troubleshooting.html">Troubleshooting</a><ul>
@@ -298,7 +323,7 @@
   <ul class="wy-breadcrumbs">
       <li><a href="../index.html" class="icon icon-home"></a> &raquo;</li>
           <li><a href="utilities.html">Utilities</a> &raquo;</li>
-      <li>class</li>
+      <li>class utility</li>
       <li class="wy-breadcrumbs-aside">
               <a href="https://github.com/jmd-dk/concept/" class="fa fa-github"> Code Repository</a>
       </li>
@@ -311,20 +336,940 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
              
-  <section id="class">
-<h1>class<a class="headerlink" href="#class" title="Permalink to this headline"></a></h1>
-<p>Through the ‘class’ utility, CO<em>N</em>CEPT can be used to generate linear
-perturbations, tabulated on a common <span class="math notranslate nohighlight">\((a, k)\)</span> grid and written to an
-HDF5 file. CLASS is used to solve the linear cosmology, while CO<em>N</em>CEPT
-itself transforms the raw CLASS results to <em>N</em>-body gauge (unless some other
-gauge is specified) before writing them to the file. The CLASS background is
-included in the HDF5 as well. This HDF5 file is then intended to contain all
-information required for cosmological simulation codes to generate general
-relativistic initial conditions and corrections.</p>
-<p>For a brief description of how to use the class utility, run</p>
+  <section id="class-utility">
+<h1>class utility<a class="headerlink" href="#class-utility" title="Permalink to this headline"></a></h1>
+<p>The CO<em>N</em>CEPT ‘class’ utility enables easy access to linear perturbations
+(and background quantities) outside of CO<em>N</em>CEPT, e.g. for use with other
+simulation codes. In a nutshell, a cosmology is specified to CO<em>N</em>CEPT
+using the standard <a class="reference internal" href="../parameters/cosmology.html"><span class="doc">parameter specification</span></a>,
+with which CO<em>N</em>CEPT calls <a class="reference external" href="http://class-code.net/">CLASS</a> in order to
+obtain the required perturbation data. All perturbations are then processed;
+interpolating them onto a common <span class="math notranslate nohighlight">\((a, k)\)</span> grid, and typically also
+transforming them to <em>N</em>-body gauge. The resulting data is saved to an HDF5
+file, ready to be used for e.g. initial condition generation or gravitational
+corrections on matter particles from linear species such as neutrinos. The
+<a class="reference external" href="https://bitbucket.org/dpotter/pkdgrav3/">pkdgrav3</a> code is able to fully
+utilise such HDF5 files generated by the CO<em>N</em>CEPT class utility, enabling
+simulations fully consistent with general relativistic perturbation theory.</p>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>If you are unfamiliar with the basic framework of the <em>N</em>-body gauge for
+cosmological simulations, you might want to check out the paper on
+‘<a class="reference internal" href="../publications.html#fully-relativistic-treatment-of-light-neutrinos-in-nbody-simulations"><span class="std std-ref">Fully relativistic treatment of light neutrinos in 𝘕-body simulations</span></a>’.
+It is also advisable to have gone through the CO<em>N</em>CEPT
+<a class="reference internal" href="../tutorial/tutorial.html"><span class="doc">tutorial</span></a> at least up to (and including) the
+first subsection of <a class="reference internal" href="../tutorial/beyond_matter_only.html#radiation"><span class="std std-ref">beyond matter-only simulations</span></a>.</p>
+</div>
+<p>Entries on this page:</p>
+<div class="contents local topic" id="contents">
+<ul class="simple">
+<li><p><a class="reference internal" href="#basic-usage" id="id5">Basic usage</a></p></li>
+<li><p><a class="reference internal" href="#command-line-options" id="id6">Command-line options</a></p></li>
+<li><p><a class="reference internal" href="#file-contents" id="id7">File contents</a></p></li>
+<li><p><a class="reference internal" href="#complete-example-massive-neutrinos" id="id8">Complete example (massive neutrinos)</a></p></li>
+<li><p><a class="reference internal" href="#running-through-docker" id="id9">Running through Docker</a></p></li>
+<li><p><a class="reference internal" href="#tips-and-tricks" id="id10">Tips and tricks</a></p></li>
+</ul>
+</div>
+<section id="basic-usage">
+<h2><a class="toc-backref" href="#id5">Basic usage</a><a class="headerlink" href="#basic-usage" title="Permalink to this headline"></a></h2>
+<p>A basic invocation of the CO<em>N</em>CEPT class utility looks like</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept <span class="se">\</span>
+    -u class <span class="se">\</span>
+        --kmin &lt;kmin&gt; --kmax &lt;kmax&gt; <span class="se">\</span>
+        &lt;perturbations&gt;
+</pre></div>
+</div>
+<p>where <code class="docutils literal notranslate"><span class="pre">&lt;kmin&gt;</span></code> and <code class="docutils literal notranslate"><span class="pre">&lt;kmax&gt;</span></code> specify the <span class="math notranslate nohighlight">\(k\)</span> range while
+<code class="docutils literal notranslate"><span class="pre">&lt;perturbations&gt;</span></code> is a string of comma-separated perturbation
+specifications. As an example, the below processes <span class="math notranslate nohighlight">\(\delta\)</span> and
+<span class="math notranslate nohighlight">\(\theta\)</span> perturbations for ‘total matter’ (combined baryons and cold
+dark matter), as well as <span class="math notranslate nohighlight">\(\delta\)</span> perturbations for photons and massless
+neutrinos, in the interval
+<span class="math notranslate nohighlight">\(10^{-3}\,\text{Mpc}^{-1} \leq k \leq 1 \text{Mpc}^{-1}\)</span>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept <span class="se">\</span>
+    -u class <span class="se">\</span>
+        --kmin 1e-3/Mpc --kmax <span class="m">1</span>/Mpc <span class="se">\</span>
+        <span class="s2">&quot;b+cdm:1, g:0, ur:0&quot;</span>
+</pre></div>
+</div>
+<p>Each specification within <code class="docutils literal notranslate"><span class="pre">&lt;perturbations&gt;</span></code> consists of a CLASS species and
+a “Boltzmann order” separated by a colon. Commonly used CLASS species include</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">b</span></code>: Baryons.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">cdm</span></code>: Cold dark matter.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">g</span></code>: Photons.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">ur</span></code>: Massless neutrinos.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">ncdm[0]</span></code>, <code class="docutils literal notranslate"><span class="pre">ncdm[1]</span></code>, <code class="docutils literal notranslate"><span class="pre">ncdm[2]</span></code>, … : Massive neutrinos.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">metric</span></code>: Fictitious species providing relativistic corrections (not a
+standard CLASS species, provided by CO<em>N</em>CEPT).</p></li>
+</ul>
+<p>As in the above example, two (or more) species may be joined using <code class="docutils literal notranslate"><span class="pre">+</span></code>,
+leading to combined, weighted perturbations.</p>
+<p>The available Boltzmann orders are</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">0</span></code>: Process <span class="math notranslate nohighlight">\(\delta\)</span> (energy density contrast) perturbations.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">1</span></code>: Process <span class="math notranslate nohighlight">\(\delta\)</span> and <span class="math notranslate nohighlight">\(\theta\)</span> (velocity divergence)
+perturbations.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">2</span></code>: Process <span class="math notranslate nohighlight">\(\delta\)</span>, <span class="math notranslate nohighlight">\(\theta\)</span>, <span class="math notranslate nohighlight">\(\delta P\)</span> (pressure)
+and <span class="math notranslate nohighlight">\(\sigma\)</span> (shear stress) perturbations.</p></li>
+</ul>
+<p>The Boltzmann order defaults to <code class="docutils literal notranslate"><span class="pre">0</span></code> if left out.</p>
+<p>Running the CO<em>N</em>CEPT class utility as above will produce a file named
+<code class="docutils literal notranslate"><span class="pre">class_processed.hdf5</span></code> within the <code class="docutils literal notranslate"><span class="pre">output</span></code> directory, containing the
+specified perturbations as well as various background quantities. The contents
+of these HDF5 files can be explored using tools such as
+<a class="reference external" href="https://vitables.org/">ViTables</a>, but is also described
+<a class="reference internal" href="#file-contents"><span class="std std-ref">below</span></a>.</p>
+<p>For selection of the number of times (scale factor <span class="math notranslate nohighlight">\(a\)</span> values) as well
+as the time interval of interest, see the <code class="docutils literal notranslate"><span class="pre">--times</span></code> <a class="reference internal" href="#number-of-times"><span class="std std-ref">command-line option</span></a>.</p>
+<p>For selection of the number of <span class="math notranslate nohighlight">\(k\)</span> modes and their distribution, see the
+<code class="docutils literal notranslate"><span class="pre">--modes</span></code> <a class="reference internal" href="#number-of-fourier-modes"><span class="std std-ref">command-line option</span></a>.</p>
+</section>
+<section id="command-line-options">
+<h2><a class="toc-backref" href="#id6">Command-line options</a><a class="headerlink" href="#command-line-options" title="Permalink to this headline"></a></h2>
+<p>Below the possible command-line options to the CO<em>N</em>CEPT class utility are
+described, i.e. additional options to the <code class="docutils literal notranslate"><span class="pre">concept</span></code> script allowed once
+<code class="docutils literal notranslate"><span class="pre">-u</span> <span class="pre">class</span></code> is supplied. See <a class="reference internal" href="../command_line_options.html"><span class="doc">this page</span></a> for the
+command-line options to the <code class="docutils literal notranslate"><span class="pre">concept</span></code> script in general, and specifically
+<a class="reference internal" href="../command_line_options.html#utility"><span class="std std-ref">this section</span></a> for how standard command-line options are used
+together with utility specific ones.</p>
+<section id="help-h-help">
+<h3>Help: <code class="docutils literal notranslate"><span class="pre">-h</span></code>, <code class="docutils literal notranslate"><span class="pre">--help</span></code><a class="headerlink" href="#help-h-help" title="Permalink to this headline"></a></h3>
+<p>Displays a short description of each command-line option to the class utility
+and exits:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept -u class -h
 </pre></div>
 </div>
+</section>
+<section id="minimum-fourier-mode-kmin">
+<span id="minimum-fourier-mode"></span><h3>Minimum Fourier mode: <code class="docutils literal notranslate"><span class="pre">--kmin</span></code><a class="headerlink" href="#minimum-fourier-mode-kmin" title="Permalink to this headline"></a></h3>
+<p>Sets the minimum needed Fourier <span class="math notranslate nohighlight">\(k\)</span> mode for the perturbations. For e.g.
+<span class="math notranslate nohighlight">\(k \geq 5\times 10^{-4}\, \text{Mpc}^{-1}\)</span>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept -u class --kmin 5e-4/Mpc
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>A small tolerance is automatically applied so that the actual lowest
+<span class="math notranslate nohighlight">\(k\)</span> mode will be slightly below what is specified.</p>
+</div>
+</section>
+<section id="maximum-fourier-mode-kmax">
+<span id="maximum-fourier-mode"></span><h3>Maximum Fourier mode: <code class="docutils literal notranslate"><span class="pre">--kmax</span></code><a class="headerlink" href="#maximum-fourier-mode-kmax" title="Permalink to this headline"></a></h3>
+<p>Sets the maximum needed Fourier <span class="math notranslate nohighlight">\(k\)</span> mode for the perturbations. For e.g.
+<span class="math notranslate nohighlight">\(k \leq 2\, \text{Mpc}^{-1}\)</span>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept -u class --kmax <span class="m">2</span>/Mpc
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>A small tolerance is automatically applied so that the actual largest
+<span class="math notranslate nohighlight">\(k\)</span> mode will be slightly above what is specified.</p>
+</div>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>Try not to specify a maximum <span class="math notranslate nohighlight">\(k\)</span> much larger than what you need, as
+the CLASS computation time for each mode grows rapidly with <span class="math notranslate nohighlight">\(k\)</span>.</p>
+</div>
+</section>
+<section id="number-of-fourier-modes-modes">
+<span id="number-of-fourier-modes"></span><h3>Number of Fourier modes: <code class="docutils literal notranslate"><span class="pre">--modes</span></code><a class="headerlink" href="#number-of-fourier-modes-modes" title="Permalink to this headline"></a></h3>
+<p>Sets the total number of Fourier <span class="math notranslate nohighlight">\(k\)</span> modes for the perturbations. E.g.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept -u class --modes <span class="m">128</span>
+</pre></div>
+</div>
+<p>The placement of the <span class="math notranslate nohighlight">\(k\)</span> modes at which to tabulate the perturbations
+are generally chosen based on the <a class="reference internal" href="#minimum-fourier-mode"><span class="std std-ref">minimum</span></a> and
+<a class="reference internal" href="#maximum-fourier-mode"><span class="std std-ref">maximum</span></a> mode together with the
+<code class="docutils literal notranslate"><span class="pre">k_modes_per_decade</span></code> <a class="reference internal" href="../parameters/numerics.html#k-modes-per-decade"><span class="std std-ref">parameter</span></a>. When the
+<code class="docutils literal notranslate"><span class="pre">--modes</span></code> option is <em>not</em> specified, <code class="docutils literal notranslate"><span class="pre">k_modes_per_decade</span></code> is used as is,
+leading to some number of total modes. When the <code class="docutils literal notranslate"><span class="pre">--modes</span></code> option <em>is</em>
+specified, the numbers of modes per decade within <code class="docutils literal notranslate"><span class="pre">k_modes_per_decade</span></code> are
+all uniformly scaled in order to yield the requested number of modes.</p>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>If you simply want some definite number (say <span class="math notranslate nohighlight">\(128\)</span>) of logarithmically
+equidistant modes, you can do e.g.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept -u class --modes <span class="m">128</span> -c <span class="s2">&quot;k_modes_per_decade = 1&quot;</span>
+</pre></div>
+</div>
+</div>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>If the processed perturbations are intended for use with pkdgrav3, note
+that a maximum number of <span class="math notranslate nohighlight">\(256\)</span> modes is allowed.</p>
+</div>
+</section>
+<section id="number-of-times-times">
+<span id="number-of-times"></span><h3>Number of times: <code class="docutils literal notranslate"><span class="pre">--times</span></code><a class="headerlink" href="#number-of-times-times" title="Permalink to this headline"></a></h3>
+<p>Sets the total number of times (scale factor <span class="math notranslate nohighlight">\(a\)</span> values) at which to
+tabulate the perturbations. E.g.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept -u class --times <span class="m">512</span>
+</pre></div>
+</div>
+<p>When not specified, this defaults to <code class="docutils literal notranslate"><span class="pre">1024</span></code> times. The placement of the
+tabulation times follows that which is used by CLASS, providing denser
+sampling around epochs of greater change.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>If the raw perturbations from the CLASS computation are tabulated at fewer
+points in time than requested, no additional times will be added. It is
+thus possible that the processed perturbations are tabulated at fewer times
+than requested through <code class="docutils literal notranslate"><span class="pre">--times</span></code> (though this should not happen for
+reasonable values).</p>
+</div>
+<p>The <span class="math notranslate nohighlight">\(a\)</span> values will be within the interval
+<span class="math notranslate nohighlight">\(a_{\text{begin}} \leq a \leq 1\)</span>, with the <code class="docutils literal notranslate"><span class="pre">a_begin</span></code>
+<a class="reference internal" href="../parameters/cosmology.html#a-begin"><span class="std std-ref">parameter</span></a> specifying the lower boundary.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>A small tolerance is automatically applied so that the actual smallest
+<span class="math notranslate nohighlight">\(a\)</span> value will be slightly below what is specified
+through <code class="docutils literal notranslate"><span class="pre">a_begin</span></code>.</p>
+</div>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>If the processed perturbations are intended for use with pkdgrav3, note
+that a maximum number of <span class="math notranslate nohighlight">\(1024\)</span> times is allowed.</p>
+</div>
+</section>
+<section id="gauge-gauge">
+<span id="gauge"></span><h3>Gauge: <code class="docutils literal notranslate"><span class="pre">--gauge</span></code><a class="headerlink" href="#gauge-gauge" title="Permalink to this headline"></a></h3>
+<p>Sets the gauge of the processed perturbations. E.g.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept -u class --gauge N-body
+</pre></div>
+</div>
+<p>The available gauges are</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">N-body</span></code>: The <em>N</em>-body gauge (default).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">synchronous</span></code>: The synchronous gauge.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Newtonian</span></code>: The conformal Newtonian (also know as the longitudinal)
+gauge.</p></li>
+</ul>
+<p>When the <em>N</em>-body gauge is selected, CLASS is really run in synchronous gauge,
+with the perturbations transformed to <em>N</em>-body gauge by CO<em>N</em>CEPT.</p>
+</section>
+</section>
+<section id="file-contents">
+<span id="id1"></span><h2><a class="toc-backref" href="#id7">File contents</a><a class="headerlink" href="#file-contents" title="Permalink to this headline"></a></h2>
+<p>The result of a CO<em>N</em>CEPT class utility computation is a file called
+<code class="docutils literal notranslate"><span class="pre">class_processed.hdf5</span></code>, containing the requested perturbations as well as
+background quantities. As mentioned earlier, the contents of HDF5 files are
+conveniently explored using a graphical tool like
+<a class="reference external" href="https://vitables.org/">ViTables</a>. Details of the contents of
+<code class="docutils literal notranslate"><span class="pre">class_processed.hdf5</span></code> are described below.</p>
+<section id="data-layout">
+<span id="id3"></span><h3>Data layout<a class="headerlink" href="#data-layout" title="Permalink to this headline"></a></h3>
+<p>The data layout within <code class="docutils literal notranslate"><span class="pre">class_processed.hdf5</span></code> is as follows:</p>
+<ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">background</span></code>: Group containing various background quantities, tabulated
+at a common 1D time grid. E.g.</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">a</span></code>: Data set of scale factor <span class="math notranslate nohighlight">\(a\)</span> values at which all background
+quantities are tabulated.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">z</span></code>: Data set of redshift <span class="math notranslate nohighlight">\(z\)</span> values at which all background
+quantities are tabulated.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">t</span></code>: Data set of cosmic time <span class="math notranslate nohighlight">\(t\)</span> values at which all background
+quantities are tabulated.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">H</span></code>: The Hubble parameter <span class="math notranslate nohighlight">\(H\)</span>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">rho_&lt;species&gt;</span></code> with <code class="docutils literal notranslate"><span class="pre">&lt;species&gt;</span></code> some CLASS species: The background
+energy density <span class="math notranslate nohighlight">\(\bar{\rho}\)</span> of the given species. The critical
+‘<code class="docutils literal notranslate"><span class="pre">crit</span></code>’ and total ‘<code class="docutils literal notranslate"><span class="pre">tot</span></code>’ energy densities are present as well.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">p_&lt;species&gt;</span></code> with <code class="docutils literal notranslate"><span class="pre">&lt;species&gt;</span></code> some CLASS species: The background
+pressure <span class="math notranslate nohighlight">\(\bar{P}\)</span> of the given species.</p></li>
+</ul>
+<p>In addition to the above datasets, this group also stores some attributes,
+namely the reduced Hubble constant <code class="docutils literal notranslate"><span class="pre">h</span></code> (given by
+<span class="math notranslate nohighlight">\(h \equiv H_0/(100\, \text{km}\, \text{s}^{-1}\, \text{Mpc}^{-1})\)</span> as
+well as density parameters <code class="docutils literal notranslate"><span class="pre">Omega_&lt;species&gt;</span></code> for the various species.</p>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">perturbations</span></code>: Group containing the specified perturbations,
+tabulated at a common 2D <span class="math notranslate nohighlight">\((a, k)\)</span> grid:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">a</span></code>: Data set of scale factor <span class="math notranslate nohighlight">\(a\)</span> values at which all
+perturbations are tabulated.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">k</span></code>: Data set of Fourier modes <span class="math notranslate nohighlight">\(k\)</span> at which all perturbations are
+tabulated.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">delta_&lt;species&gt;</span></code>: The <span class="math notranslate nohighlight">\(\delta\)</span> perturbations of the given
+species.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">theta_&lt;species&gt;</span></code>: The <span class="math notranslate nohighlight">\(\theta\)</span> perturbations of the given
+species.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">deltaP_&lt;species&gt;</span></code>: The <span class="math notranslate nohighlight">\(\delta P\)</span> perturbations of the given
+species.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">sigma_&lt;species&gt;</span></code>: The <span class="math notranslate nohighlight">\(\sigma\)</span> perturbations of the given
+species.</p></li>
+</ul>
+<p>In addition to the above datasets, this group also stores a <code class="docutils literal notranslate"><span class="pre">gauge</span></code>
+attribute, specifying the gauge of the perturbations.</p>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">class_params</span></code>: Group containing no data sets, but with all CLASS
+parameters used for the CLASS computation stored as attributes. That is,
+the attributes within this group contain all information needed to do a
+CLASS run identical to the one carried out by the CO<em>N</em>CEPT class
+utility.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>One of these CLASS parameters is <code class="docutils literal notranslate"><span class="pre">gauge</span></code>. When running the
+CO<em>N</em>CEPT class utility in <em>N</em>-body <a class="reference internal" href="#gauge"><span class="std std-ref">gauge</span></a> (the
+default), CLASS is really run in synchronous gauge (with the results
+transformed to <em>N</em>-body gauge by CO<em>N</em>CEPT), and so the <code class="docutils literal notranslate"><span class="pre">gauge</span></code>
+attribute inside the <code class="docutils literal notranslate"><span class="pre">class_params</span></code> group will be set to
+<code class="docutils literal notranslate"><span class="pre">'synchronous'</span></code>. For the actual gauge in which the perturbations are
+expressed, see the <code class="docutils literal notranslate"><span class="pre">gauge</span></code> attribute on the <code class="docutils literal notranslate"><span class="pre">perturbations</span></code> group.</p>
+</div>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">units</span></code>: Group containing no data sets, but with attributes storing the
+units used for the data throughout the file:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">unit</span> <span class="pre">length</span></code>: The length unit used. By default this is <code class="docutils literal notranslate"><span class="pre">Mpc</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">unit</span> <span class="pre">time</span></code>: The time unit used. By default this is <code class="docutils literal notranslate"><span class="pre">Gyr</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">unit</span> <span class="pre">mass</span></code>: The time unit used. By default this is <code class="docutils literal notranslate"><span class="pre">10**10*m_sun</span></code>
+(<span class="math notranslate nohighlight">\(10^{10}\, m_{\odot}\)</span>).</p></li>
+</ul>
+</li>
+</ul>
+</section>
+<section id="extra-output">
+<h3>Extra output<a class="headerlink" href="#extra-output" title="Permalink to this headline"></a></h3>
+<p>The <a class="reference internal" href="#data-layout"><span class="std std-ref">above</span></a> lists of background and perturbation quantities
+are what end up in the processed HDF5 file by default, though the raw CLASS
+computation contains other quantities as well. You may request these other
+quantities by listing them in the <code class="docutils literal notranslate"><span class="pre">class_extra_background</span></code>
+<a class="reference internal" href="../parameters/input_output.html#class-extra-background"><span class="std std-ref">parameter</span></a> and the
+<code class="docutils literal notranslate"><span class="pre">class_extra_perturbations</span></code> <a class="reference internal" href="../parameters/input_output.html#class-extra-perturbations"><span class="std std-ref">parameter</span></a>.</p>
+<p>As an example, the below requests the linear growth factor <span class="math notranslate nohighlight">\(D\)</span> as an
+extra background quantity, as well as the conformal Newtonian metric
+potentials <span class="math notranslate nohighlight">\(\phi\)</span> and <span class="math notranslate nohighlight">\(\psi\)</span> as extra perturbations:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept <span class="se">\</span>
+    -u class <span class="se">\</span>
+        --kmin &lt;kmin&gt; --kmax &lt;kmax&gt; <span class="se">\</span>
+        &lt;perturbations&gt; <span class="se">\</span><span class="hll">    -c <span class="s2">&quot;class_extra_background = &#39;D&#39;&quot;</span> <span class="se">\</span></span><span class="hll">    -c <span class="s2">&quot;class_extra_perturbations = {&#39;ϕ&#39;, &#39;ψ&#39;}&quot;</span></span></pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>While the various perturbations in general depend on the
+<a class="reference internal" href="#gauge"><span class="std std-ref">chosen gauge</span></a>, this is not so for the gauge specific
+metric perturbations <code class="docutils literal notranslate"><span class="pre">ϕ</span></code>, <code class="docutils literal notranslate"><span class="pre">ψ</span></code>, <code class="docutils literal notranslate"><span class="pre">hʹ</span></code> and <code class="docutils literal notranslate"><span class="pre">H_Tʹ</span></code>, which are
+always given in their definite gauges. Also, <code class="docutils literal notranslate"><span class="pre">hʹ</span></code> is not available when
+running in conformal Newtonian gauge.</p>
+</div>
+<div class="admonition caution">
+<p class="admonition-title">Caution</p>
+<p>The units of the various quantities within <code class="docutils literal notranslate"><span class="pre">class_processed.hdf5</span></code> are
+described below. If adding an extra CLASS quantity via
+<code class="docutils literal notranslate"><span class="pre">class_extra_background</span></code> or <code class="docutils literal notranslate"><span class="pre">class_extra_perturbations</span></code> that is unknown
+to CO<em>N</em>CEPT, unit convertion will not be carried out, and the quantity
+will be provided exactly as CO<em>N</em>CEPT got it from CLASS. If this
+happens, a warning will be emitted.</p>
+</div>
+</section>
+<section id="units">
+<h3>Units<a class="headerlink" href="#units" title="Permalink to this headline"></a></h3>
+<p>As written <a class="reference internal" href="#data-layout"><span class="std std-ref">above</span></a>, the <code class="docutils literal notranslate"><span class="pre">units</span></code> group contains the base
+units used for all data within the file, with the default base units being
+<span class="math notranslate nohighlight">\(\text{Mpc}\)</span>, <span class="math notranslate nohighlight">\(\text{Gpc}\)</span> and <span class="math notranslate nohighlight">\(10^{10}\, m_{\odot}\)</span>. Given
+these default base units, the table below lists the full units in which the
+various data sets are expressed:</p>
+<table class="docutils align-center">
+<colgroup>
+<col style="width: 47%" />
+<col style="width: 53%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p class="centered">
+<strong>Quantity</strong></p></th>
+<th class="head"><p class="centered">
+<strong>Unit (default)</strong></p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Scale factor <code class="docutils literal notranslate"><span class="pre">a</span></code> and redshift <code class="docutils literal notranslate"><span class="pre">z</span></code></p></td>
+<td><p class="centered">
+<strong><span class="math notranslate nohighlight">\([1]\)</span></strong></p></td>
+</tr>
+<tr class="row-odd"><td><p>Cosmic time <code class="docutils literal notranslate"><span class="pre">t</span></code> and conformal time <code class="docutils literal notranslate"><span class="pre">tau</span></code></p></td>
+<td><p class="centered">
+<strong><span class="math notranslate nohighlight">\([\text{Gyr}]\)</span></strong></p></td>
+</tr>
+<tr class="row-even"><td><p>Fourier mode <code class="docutils literal notranslate"><span class="pre">k</span></code></p></td>
+<td><p class="centered">
+<strong><span class="math notranslate nohighlight">\([\text{Mpc}^{-1}]\)</span></strong></p></td>
+</tr>
+<tr class="row-odd"><td><p>Hubble parameter <code class="docutils literal notranslate"><span class="pre">H</span></code></p></td>
+<td><p class="centered">
+<strong><span class="math notranslate nohighlight">\([\text{Gyr}^{-1}]\)</span></strong></p></td>
+</tr>
+<tr class="row-even"><td><p>Linear growth factor <code class="docutils literal notranslate"><span class="pre">D</span></code> and rate <code class="docutils literal notranslate"><span class="pre">f</span></code></p></td>
+<td><p class="centered">
+<strong><span class="math notranslate nohighlight">\([1]\)</span></strong></p></td>
+</tr>
+<tr class="row-odd"><td><p>Background energy density <code class="docutils literal notranslate"><span class="pre">rho</span></code></p></td>
+<td><p class="centered">
+<strong><span class="math notranslate nohighlight">\([10^{10}\, m_{\odot}\, \text{Mpc}^{-3}]\)</span></strong></p></td>
+</tr>
+<tr class="row-even"><td><p>Energy density contrast <code class="docutils literal notranslate"><span class="pre">delta</span></code></p></td>
+<td><p class="centered">
+<strong><span class="math notranslate nohighlight">\([1]\)</span></strong></p></td>
+</tr>
+<tr class="row-odd"><td><p>Velocity divergence <code class="docutils literal notranslate"><span class="pre">theta</span></code></p></td>
+<td><p class="centered">
+<strong><span class="math notranslate nohighlight">\([\text{Gyr}^{-1}]\)</span></strong></p></td>
+</tr>
+<tr class="row-even"><td><p>Pressure background <code class="docutils literal notranslate"><span class="pre">p</span></code> and perturbation <code class="docutils literal notranslate"><span class="pre">deltaP</span></code></p></td>
+<td><p class="centered">
+<strong><span class="math notranslate nohighlight">\([10^{10}\, m_{\odot}\, \text{Mpc}^{-1}\,\text{Gyr}^{-2}]\)</span></strong></p></td>
+</tr>
+<tr class="row-odd"><td><p>Shear stress <code class="docutils literal notranslate"><span class="pre">sigma</span></code></p></td>
+<td><p class="centered">
+<strong><span class="math notranslate nohighlight">\([\text{Mpc}^2\,\text{Gyr}^{-2}]\)</span></strong></p></td>
+</tr>
+<tr class="row-even"><td><p>Metric perturbations <code class="docutils literal notranslate"><span class="pre">phi</span></code> and <code class="docutils literal notranslate"><span class="pre">psi</span></code></p></td>
+<td><p class="centered">
+<strong><span class="math notranslate nohighlight">\([\text{Mpc}^2\,\text{Gyr}^{-2}]\)</span></strong></p></td>
+</tr>
+<tr class="row-odd"><td><p>Time derivatives of metric perturbations <code class="docutils literal notranslate"><span class="pre">h_prime</span></code> and <code class="docutils literal notranslate"><span class="pre">H_T_prime</span></code></p></td>
+<td><p class="centered">
+<strong><span class="math notranslate nohighlight">\([\text{Gyr}^{-1}]\)</span></strong></p></td>
+</tr>
+</tbody>
+</table>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>If you need the Hubble parameter <code class="docutils literal notranslate"><span class="pre">H</span></code> in its canonial units of
+<span class="math notranslate nohighlight">\(\text{km}\, \text{s}^{-1}\, \text{Mpc}^{-1}\)</span>, you can convert it by
+multiplying the values as follows:</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}\require{upgreek}
+H \rightarrow 1\times H &amp;\equiv \frac{1495978707}{487000\uppi}\, \frac{\text{km}\, \text{s}^{-1}\, \text{Mpc}^{-1}}{\text{Gyr}^{-1}} H \\
+&amp;= 977.7922216807892\, \frac{\text{km}\, \text{s}^{-1}\, \text{Mpc}^{-1}}{\text{Gyr}^{-1}} H\end{split}\]</div>
+</div>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>The background energy densities <code class="docutils literal notranslate"><span class="pre">rho</span></code> are really expressed in units of
+<em>mass</em> densities. If you need these in energy density units, multiply by
+the speed of light squared:</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}\require{upgreek}
+\rho \rightarrow \rho c^2\,, \quad c &amp;\equiv \frac{1999985302\uppi}{20492859}\, \text{Mpc}\, \text{Gyr}^{-1} \\
+&amp;= 306.60139378555056\, \text{Mpc}\, \text{Gyr}^{-1}\end{split}\]</div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The base unit system in which to express the data within
+<code class="docutils literal notranslate"><span class="pre">class_processed.hdf5</span></code> may be changed through the <code class="docutils literal notranslate"><span class="pre">unit_length</span></code>,
+<code class="docutils literal notranslate"><span class="pre">unit_time</span></code> and <code class="docutils literal notranslate"><span class="pre">unit_mass</span></code> <a class="reference internal" href="../parameters/units.html"><span class="doc">parameters</span></a>.</p>
+</div>
+</section>
+</section>
+<section id="complete-example-massive-neutrinos">
+<h2><a class="toc-backref" href="#id8">Complete example (massive neutrinos)</a><a class="headerlink" href="#complete-example-massive-neutrinos" title="Permalink to this headline"></a></h2>
+<p>Here follows a complete code example for a CO<em>N</em>CEPT class utility
+computation of a cosmology involving massive neutrinos.</p>
+<p>The cosmology for which we want to compute the linear perturbations is
+specified by the following table:</p>
+<table class="docutils align-center">
+<colgroup>
+<col style="width: 44%" />
+<col style="width: 56%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p class="centered">
+<strong>Parameter</strong></p></th>
+<th class="head"><p class="centered">
+<strong>Value</strong></p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p class="centered">
+<strong><span class="math notranslate nohighlight">\(H_0\)</span></strong></p></td>
+<td><p class="centered">
+<strong><span class="math notranslate nohighlight">\(67\, \text{km}\, \text{s}^{-1}\, \text{Mpc}^{-1}\)</span></strong></p></td>
+</tr>
+<tr class="row-odd"><td><p class="centered">
+<strong><span class="math notranslate nohighlight">\(\Omega_{\text{b}}\)</span></strong></p></td>
+<td><p class="centered">
+<strong><span class="math notranslate nohighlight">\(0.049\)</span></strong></p></td>
+</tr>
+<tr class="row-even"><td><p class="centered">
+<strong><span class="math notranslate nohighlight">\(\Omega_{\text{cdm}} + \Omega_{\nu}\)</span></strong></p></td>
+<td><p class="centered">
+<strong><span class="math notranslate nohighlight">\(0.27\)</span></strong></p></td>
+</tr>
+<tr class="row-odd"><td><p class="centered">
+<strong><span class="math notranslate nohighlight">\(T_{\gamma}\)</span></strong></p></td>
+<td><p class="centered">
+<strong><span class="math notranslate nohighlight">\(2.7255\, \text{K}\)</span></strong></p></td>
+</tr>
+<tr class="row-even"><td><p class="centered">
+<strong><span class="math notranslate nohighlight">\(N_{\text{eff}}\)</span></strong></p></td>
+<td><p class="centered">
+<strong><span class="math notranslate nohighlight">\(3.046\)</span></strong></p></td>
+</tr>
+<tr class="row-odd"><td><p class="centered">
+<strong><span class="math notranslate nohighlight">\(m_{\nu_{1}}\)</span></strong></p></td>
+<td><p class="centered">
+<strong><span class="math notranslate nohighlight">\(0\, \text{eV}\)</span></strong></p></td>
+</tr>
+<tr class="row-even"><td><p class="centered">
+<strong><span class="math notranslate nohighlight">\(m_{\nu_{2}}\)</span></strong></p></td>
+<td><p class="centered">
+<strong><span class="math notranslate nohighlight">\(8.7\times 10^{-3}\, \text{eV}\)</span></strong></p></td>
+</tr>
+<tr class="row-odd"><td><p class="centered">
+<strong><span class="math notranslate nohighlight">\(m_{\nu_{3}}\)</span></strong></p></td>
+<td><p class="centered">
+<strong><span class="math notranslate nohighlight">\(5.0\times 10^{-2}\, \text{eV}\)</span></strong></p></td>
+</tr>
+</tbody>
+</table>
+<p>The total neutrino density parameter
+<span class="math notranslate nohighlight">\(\Omega_{\nu} = \Omega_{\nu_1} + \Omega_{\nu_2} + \Omega_{\nu_3}\)</span> is
+implicitly set through the effective number of neutrino species
+<span class="math notranslate nohighlight">\(N_{\text{eff}}\)</span> together with the neutrino masses <span class="math notranslate nohighlight">\(m_1\)</span>,
+<span class="math notranslate nohighlight">\(m_2\)</span>, <span class="math notranslate nohighlight">\(m_3\)</span>. The neutrino temperature <span class="math notranslate nohighlight">\(T_{\nu}\)</span> (equal for
+all three species) is related to the photon temperature <span class="math notranslate nohighlight">\(T_{\gamma}\)</span> by</p>
+<div class="math notranslate nohighlight">
+\[T_{\nu} = \biggl(\frac{4}{11}\biggr)^{1/3} \biggl(\frac{N_{\text{eff}}}{3}\biggr)^{1/4} T_{\gamma} \,.\]</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>We do not need to specify any parameters having to do with the
+primordial spectrum (e.g. <span class="math notranslate nohighlight">\(A_{\text{s}}\)</span> and <span class="math notranslate nohighlight">\(n_{\text{s}}\)</span>) as
+these do not enter the linear CLASS computation.</p>
+</div>
+<p>The below parameter file implements the above neutrino cosmology, though
+written in a way that allows one to easily change the number of neutrino
+species:</p>
+<div class="literal-block-wrapper docutils container" id="class-param">
+<div class="code-block-caption"><span class="caption-text">class-param</span><a class="headerlink" href="#class-param" title="Permalink to this code"></a></div>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="c1"># Input/output</span>
+<span class="n">output_dirs</span> <span class="o">=</span> <span class="n">param</span><span class="o">.</span><span class="n">dir</span>
+
+<span class="c1"># Cosmology</span>
+<span class="n">H0</span> <span class="o">=</span> <span class="mi">67</span><span class="o">*</span><span class="n">km</span><span class="o">/</span><span class="p">(</span><span class="n">s</span><span class="o">*</span><span class="n">Mpc</span><span class="p">)</span>
+<span class="n">Ωb</span> <span class="o">=</span> <span class="mf">0.049</span>
+<span class="n">Ωcdm</span> <span class="o">=</span> <span class="mf">0.27</span> <span class="o">-</span> <span class="n">Ων</span>
+<span class="n">a_begin</span> <span class="o">=</span> <span class="mi">1</span><span class="o">/</span><span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="mi">99</span><span class="p">)</span>
+<span class="n">_mν</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mf">8.7e-3</span><span class="p">,</span> <span class="mf">5.0e-2</span><span class="p">]</span>  <span class="c1"># neutrino masses in eV</span>
+<span class="n">_N_eff</span> <span class="o">=</span> <span class="mf">3.046</span>
+<span class="n">class_params</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="c1"># Photon temperature</span>
+    <span class="s1">&#39;T_cmb&#39;</span><span class="p">:</span> <span class="mf">2.7255</span><span class="p">,</span>
+    <span class="c1"># Neutrino hierarchy</span>
+    <span class="s1">&#39;N_ur&#39;</span>    <span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+    <span class="s1">&#39;N_ncdm&#39;</span>  <span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">_mν</span><span class="p">)),</span>
+    <span class="s1">&#39;deg_ncdm&#39;</span><span class="p">:</span> <span class="p">[</span><span class="n">_mν</span><span class="o">.</span><span class="n">count</span><span class="p">(</span><span class="n">mν</span><span class="p">)</span> <span class="k">for</span> <span class="n">mν</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">_mν</span><span class="p">))],</span>
+    <span class="s1">&#39;m_ncdm&#39;</span>  <span class="p">:</span> <span class="p">[</span><span class="n">mν</span> <span class="k">if</span> <span class="n">mν</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="k">else</span> <span class="mf">1e-100</span> <span class="k">for</span> <span class="n">mν</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">_mν</span><span class="p">))],</span>
+    <span class="s1">&#39;T_ncdm&#39;</span>  <span class="p">:</span> <span class="p">[(</span><span class="mi">4</span><span class="o">/</span><span class="mi">11</span><span class="p">)</span><span class="o">**</span><span class="p">(</span><span class="mi">1</span><span class="o">/</span><span class="mi">3</span><span class="p">)</span><span class="o">*</span><span class="p">(</span><span class="n">_N_eff</span><span class="o">/</span><span class="nb">len</span><span class="p">(</span><span class="n">_mν</span><span class="p">))</span><span class="o">**</span><span class="p">(</span><span class="mi">1</span><span class="o">/</span><span class="mi">4</span><span class="p">)]</span><span class="o">*</span><span class="nb">len</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">_mν</span><span class="p">)),</span>
+    <span class="c1"># Photon precision parameters</span>
+    <span class="s1">&#39;l_max_g&#39;</span>                          <span class="p">:</span> <span class="mi">1000</span><span class="p">,</span>
+    <span class="s1">&#39;l_max_pol_g&#39;</span>                      <span class="p">:</span> <span class="mi">1000</span><span class="p">,</span>
+    <span class="s1">&#39;radiation_streaming_approximation&#39;</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span>
+    <span class="c1"># Massive neutrino precision parameters</span>
+    <span class="s1">&#39;l_max_ncdm&#39;</span>              <span class="p">:</span> <span class="mi">200</span><span class="p">,</span>
+    <span class="s1">&#39;Number of momentum bins&#39;</span> <span class="p">:</span> <span class="p">[</span><span class="mi">50</span><span class="p">]</span><span class="o">*</span><span class="nb">len</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">_mν</span><span class="p">)),</span>
+    <span class="s1">&#39;Quadrature strategy&#39;</span>     <span class="p">:</span> <span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">*</span><span class="nb">len</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">_mν</span><span class="p">)),</span>
+    <span class="s1">&#39;ncdm_fluid_approximation&#39;</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span>
+    <span class="c1"># General precision parameters</span>
+    <span class="s1">&#39;evolver&#39;</span>                     <span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+    <span class="s1">&#39;recfast_Nz0&#39;</span>                 <span class="p">:</span> <span class="mf">1e+5</span><span class="p">,</span>
+    <span class="s1">&#39;tol_thermo_integration&#39;</span>      <span class="p">:</span> <span class="mf">1e-6</span><span class="p">,</span>
+    <span class="s1">&#39;perturb_integration_stepsize&#39;</span><span class="p">:</span> <span class="mf">0.25</span><span class="p">,</span>
+    <span class="s1">&#39;perturb_sampling_stepsize&#39;</span>   <span class="p">:</span> <span class="mf">0.01</span><span class="p">,</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</div>
+<p>The key points of this parameter file are:</p>
+<ul class="simple">
+<li><p>Setting <code class="docutils literal notranslate"><span class="pre">output_dirs</span></code> to <code class="docutils literal notranslate"><span class="pre">param.dir</span></code> ensures that the resulting HDF5
+file with the perturbations will be placed in the same directory as the
+parameter file.</p></li>
+<li><p>The amount of cold dark matter <span class="math notranslate nohighlight">\(\Omega_{\text{cdm}}\)</span> is set through
+<code class="docutils literal notranslate"><span class="pre">Ωcdm</span> <span class="pre">=</span> <span class="pre">0.27</span> <span class="pre">-</span> <span class="pre">Ων</span></code>, though <code class="docutils literal notranslate"><span class="pre">Ων</span></code> (<span class="math notranslate nohighlight">\(\Omega_{\nu}\)</span>) is not
+explicitly set. As stated previously, <span class="math notranslate nohighlight">\(\Omega_{\nu}\)</span> is implicitly
+defined through the other neutrino parameters, from which CO<em>N</em>CEPT
+automatically sets <code class="docutils literal notranslate"><span class="pre">Ων</span></code>.</p></li>
+<li><p>By specifying <code class="docutils literal notranslate"><span class="pre">a_begin</span> <span class="pre">=</span> <span class="pre">1/(1</span> <span class="pre">+</span> <span class="pre">99)</span></code> we declare that we are not interested
+in perturbations prior to <span class="math notranslate nohighlight">\(z = 99\)</span>.</p></li>
+<li><p>The neutrino masses <code class="docutils literal notranslate"><span class="pre">_mν</span></code> and effective number of neutrino species
+<code class="docutils literal notranslate"><span class="pre">_N_eff</span></code> are both stored in variables starting with an underscore ‘<code class="docutils literal notranslate"><span class="pre">_</span></code>’.
+This is the canonical naming convention within CO<em>N</em>CEPT parameter files
+for helper variables that are not supposed to be CO<em>N</em>CEPT
+<a class="reference internal" href="../parameters/parameters.html"><span class="doc">parameters</span></a>.</p></li>
+<li><p>The <code class="docutils literal notranslate"><span class="pre">class_params</span></code> <a class="reference internal" href="../parameters/cosmology.html#class-params"><span class="std std-ref">parameter</span></a> holds parameters fed to
+CLASS.</p>
+<ul>
+<li><p>Note that <code class="docutils literal notranslate"><span class="pre">'H0'</span></code>, <code class="docutils literal notranslate"><span class="pre">'Omega_b'</span></code> and <code class="docutils literal notranslate"><span class="pre">'Omega_cdm'</span></code> is
+automatically added from <code class="docutils literal notranslate"><span class="pre">H0</span></code>, <code class="docutils literal notranslate"><span class="pre">Ωb</span></code> and <code class="docutils literal notranslate"><span class="pre">Ωcdm</span></code>.</p></li>
+<li><p>The parameters are set up to take advantage of the case where <code class="docutils literal notranslate"><span class="pre">_mν</span></code>
+holds several identical neutrino masses (as in e.g.
+<code class="docutils literal notranslate"><span class="pre">_mν</span> <span class="pre">=</span> <span class="pre">[0,</span> <span class="pre">3e-2,</span> <span class="pre">3e-2]</span></code>). In this case, only neutrinos with unique
+masses (<code class="docutils literal notranslate"><span class="pre">set(_mν)</span></code>) will be computed (saving computation time), with
+their degeneracy recorded in the <code class="docutils literal notranslate"><span class="pre">'deg_ncdm'</span></code> CLASS parameter.</p></li>
+<li><p>We use the <code class="docutils literal notranslate"><span class="pre">ncdm</span></code> species for all neutrinos, including the massless one.
+We need to explicitly set the number of massless neutrinos, <code class="docutils literal notranslate"><span class="pre">N_ur</span></code>, to
+zero, as this is non-zero by default. To avoid possible issues within the
+CLASS computation from having a mass identically equal to zero using
+<code class="docutils literal notranslate"><span class="pre">ncdm</span></code>, we replace massless entries in <code class="docutils literal notranslate"><span class="pre">'m_ncdm'</span></code> with
+<span class="math notranslate nohighlight">\(10^{-100}\)</span>.</p></li>
+<li><p>In standard CLASS, parameters with multiple values (e.g. <code class="docutils literal notranslate"><span class="pre">'m_ncdm'</span></code>)
+needs to be specified as a comma-separated string. In CO<em>N</em>CEPT
+parameter files, using lists ‘<code class="docutils literal notranslate"><span class="pre">[...]</span></code>’ is possible as well.</p></li>
+<li><p>The many precision parameters improve the correctness of various
+perturbation results significantly over the default, but also makes the
+CLASS computation much more expensive.</p></li>
+</ul>
+</li>
+</ul>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>If you would like to better understand a given CLASS parameter, you can
+look for it in the
+<a class="reference external" href="https://github.com/lesgourg/class_public/blob/v2.7.2/explanatory.ini">explanatory.ini</a>
+example CLASS parameter file, which documents many of the possible CLASS
+parameters.</p>
+</div>
+<p>With the <a class="reference internal" href="#class-param"><span class="std std-ref">above parameter file</span></a> saved to a file called e.g.
+<code class="docutils literal notranslate"><span class="pre">class-param</span></code>, we can run the CO<em>N</em>CEPT class utility on it using
+something like</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept <span class="se">\</span>
+    -u class <span class="se">\</span>
+        --kmin 1e-3*0.67/Mpc --kmax <span class="m">1</span>*0.67/Mpc --modes <span class="m">128</span> <span class="se">\</span>
+        --times <span class="m">512</span> <span class="se">\</span>
+        <span class="s2">&quot;b+cdm:1, g, ncdm[0], ncdm[1], ncdm[2]:2, metric&quot;</span> <span class="se">\</span>
+    -p /path/to/class-param <span class="se">\</span>
+    -n <span class="m">4</span>
+</pre></div>
+</div>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>If working on a cluster, you can
+<a class="reference internal" href="../command_line_options.html#remote-job-submission"><span class="std std-ref">automatically submit the computation as a job</span></a>,
+just as when running full simulations.</p>
+</div>
+<p>The above command requests <span class="math notranslate nohighlight">\(128\)</span> modes between
+<span class="math notranslate nohighlight">\(k = 10^{-3}\, h\, \text{Mpc}^{-1}\)</span> and
+<span class="math notranslate nohighlight">\(k = 1\, h\, \text{Mpc}^{-1}\)</span>, with
+<span class="math notranslate nohighlight">\(h = H_0/(100\, \text{km}\, \text{s}^{-1}\, \text{Mpc}^{-1}) = 0.67\)</span>,
+all tabulated at the same <span class="math notranslate nohighlight">\(512\)</span> times. Both <span class="math notranslate nohighlight">\(\delta\)</span> and
+<span class="math notranslate nohighlight">\(\theta\)</span> perturbations of total matter are requested, allowing for
+generation of <em>N</em>-body initial conditions. Furthermore, <span class="math notranslate nohighlight">\(\delta\)</span>
+perturbations in all linear species — photons, the three neutrino species
+and the metric correction species — are requested, which might be used to
+supply linear gravitational kicks to matter particles within an <em>N</em>-body
+simulation. Lastly, <span class="math notranslate nohighlight">\(\theta\)</span>, <span class="math notranslate nohighlight">\(\delta P\)</span> and <span class="math notranslate nohighlight">\(\sigma\)</span>
+perturbations for the heaviest neutrino species are also requested. The
+perturbations will all be in <em>N</em>-body <a class="reference internal" href="#gauge"><span class="std std-ref">gauge</span></a>. Using 4 processes
+as in the above example command, the entire computation will take around 6
+minutes on modern hardware.</p>
+<p>With the <code class="docutils literal notranslate"><span class="pre">class_processed.hdf5</span></code> file generated from the above command and
+<a class="reference internal" href="#class-param"><span class="std std-ref">parameter file</span></a>, the below Python script demonstrates how
+one can extract and use (some of) the data within this file:</p>
+<div class="literal-block-wrapper docutils container" id="plot-class">
+<div class="code-block-caption"><span class="caption-text">plot.py</span><a class="headerlink" href="#plot-class" title="Permalink to this code"></a></div>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">re</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
+<span class="kn">import</span> <span class="nn">scipy.interpolate</span>
+<span class="kn">import</span> <span class="nn">h5py</span>
+
+<span class="c1"># Read in data from the HDF5 file</span>
+<span class="k">with</span> <span class="n">h5py</span><span class="o">.</span><span class="n">File</span><span class="p">(</span><span class="s1">&#39;class_processed.hdf5&#39;</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+    <span class="c1"># Read in all background energy densities</span>
+    <span class="n">background</span> <span class="o">=</span> <span class="n">f</span><span class="p">[</span><span class="s1">&#39;background&#39;</span><span class="p">]</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Available background quantities:&#39;</span><span class="p">,</span> <span class="nb">list</span><span class="p">(</span><span class="n">background</span><span class="o">.</span><span class="n">keys</span><span class="p">()))</span>
+    <span class="n">a_bg</span> <span class="o">=</span> <span class="n">background</span><span class="p">[</span><span class="s1">&#39;a&#39;</span><span class="p">][:]</span>
+    <span class="n">ρ_bg</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">val</span> <span class="ow">in</span> <span class="n">background</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="n">match</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;^rho_(.+)$&#39;</span><span class="p">,</span> <span class="n">key</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">match</span><span class="p">:</span>
+            <span class="n">ρ_bg</span><span class="p">[</span><span class="n">match</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">1</span><span class="p">)]</span> <span class="o">=</span> <span class="n">val</span><span class="p">[:]</span>
+    <span class="n">h</span> <span class="o">=</span> <span class="n">background</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;h&#39;</span><span class="p">]</span>
+    <span class="c1"># Read in all δ perturbations</span>
+    <span class="n">perturbations</span> <span class="o">=</span> <span class="n">f</span><span class="p">[</span><span class="s1">&#39;perturbations&#39;</span><span class="p">]</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Available perturbations:&#39;</span><span class="p">,</span> <span class="nb">list</span><span class="p">(</span><span class="n">perturbations</span><span class="o">.</span><span class="n">keys</span><span class="p">()))</span>
+    <span class="n">a_pt</span> <span class="o">=</span> <span class="n">perturbations</span><span class="p">[</span><span class="s1">&#39;a&#39;</span><span class="p">][:]</span>
+    <span class="n">k_pt</span> <span class="o">=</span> <span class="n">perturbations</span><span class="p">[</span><span class="s1">&#39;k&#39;</span><span class="p">][:]</span>
+    <span class="n">δ_pt</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">val</span> <span class="ow">in</span> <span class="n">perturbations</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="n">match</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;^delta_(.+)$&#39;</span><span class="p">,</span> <span class="n">key</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">match</span><span class="p">:</span>
+            <span class="n">δ_pt</span><span class="p">[</span><span class="n">match</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">1</span><span class="p">)]</span> <span class="o">=</span> <span class="n">val</span><span class="p">[</span><span class="o">...</span><span class="p">]</span>
+    <span class="n">gauge</span> <span class="o">=</span> <span class="n">perturbations</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;gauge&#39;</span><span class="p">]</span>
+    <span class="c1"># Get unit system</span>
+    <span class="n">units</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">f</span><span class="p">[</span><span class="s1">&#39;units&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Units:&#39;</span><span class="p">,</span> <span class="n">units</span><span class="p">)</span>
+
+<span class="c1"># Construct matter power spectrum spline</span>
+<span class="n">A_s</span> <span class="o">=</span> <span class="mf">2.1e-9</span>
+<span class="n">n_s</span> <span class="o">=</span> <span class="mf">0.96</span>
+<span class="n">α_s</span> <span class="o">=</span> <span class="mi">0</span>
+<span class="n">k_pivot</span> <span class="o">=</span> <span class="mf">0.05</span>  <span class="c1"># [Mpc⁻¹]</span>
+<span class="n">ζ</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">k</span><span class="p">:</span> <span class="p">(</span>
+    <span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="n">A_s</span><span class="p">)</span>
+    <span class="o">*</span><span class="n">k</span><span class="o">**</span><span class="p">(</span><span class="o">-</span><span class="mi">3</span><span class="o">/</span><span class="mi">2</span><span class="p">)</span><span class="o">*</span><span class="p">(</span><span class="n">k</span><span class="o">/</span><span class="n">k_pivot</span><span class="p">)</span><span class="o">**</span><span class="p">((</span><span class="n">n_s</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span><span class="o">/</span><span class="mi">2</span><span class="p">)</span>
+    <span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">α_s</span><span class="o">/</span><span class="mi">4</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">k</span><span class="o">/</span><span class="n">k_pivot</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
+<span class="p">)</span>
+<span class="n">spline</span> <span class="o">=</span> <span class="n">scipy</span><span class="o">.</span><span class="n">interpolate</span><span class="o">.</span><span class="n">interp2d</span><span class="p">(</span>
+    <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">k_pt</span><span class="p">),</span>
+    <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">a_pt</span><span class="p">),</span>
+    <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">((</span><span class="n">ζ</span><span class="p">(</span><span class="n">k_pt</span><span class="p">)</span><span class="o">*</span><span class="n">δ_pt</span><span class="p">[</span><span class="s1">&#39;b+cdm&#39;</span><span class="p">])</span><span class="o">**</span><span class="mi">2</span><span class="p">),</span>
+    <span class="n">kind</span><span class="o">=</span><span class="s1">&#39;cubic&#39;</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="n">P_m</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">z</span><span class="p">,</span> <span class="n">logk</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">k_pt</span><span class="p">),</span> <span class="n">spline</span><span class="o">=</span><span class="n">spline</span><span class="p">:</span> <span class="p">(</span>
+    <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">spline</span><span class="p">(</span><span class="n">logk</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="mi">1</span><span class="o">/</span><span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="n">z</span><span class="p">))))</span>
+<span class="p">)</span>
+
+<span class="c1"># Construct δρ splines for all species</span>
+<span class="n">δρ</span> <span class="o">=</span> <span class="p">{}</span>
+<span class="k">for</span> <span class="n">species</span><span class="p">,</span> <span class="n">δ_species</span> <span class="ow">in</span> <span class="n">δ_pt</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+    <span class="n">ρ_species</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">scipy</span><span class="o">.</span><span class="n">interpolate</span><span class="o">.</span><span class="n">interp1d</span><span class="p">(</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">a_bg</span><span class="p">),</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">ρ_bg</span><span class="p">[</span><span class="n">species</span><span class="p">]),</span>
+        <span class="n">kind</span><span class="o">=</span><span class="s1">&#39;cubic&#39;</span><span class="p">,</span>
+    <span class="p">)(</span><span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">a_pt</span><span class="p">)))</span>
+    <span class="n">spline</span> <span class="o">=</span> <span class="n">scipy</span><span class="o">.</span><span class="n">interpolate</span><span class="o">.</span><span class="n">interp2d</span><span class="p">(</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">k_pt</span><span class="p">),</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">a_pt</span><span class="p">),</span>
+        <span class="n">δ_species</span><span class="o">*</span><span class="n">ρ_species</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span>
+        <span class="n">kind</span><span class="o">=</span><span class="s1">&#39;linear&#39;</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">δρ</span><span class="p">[</span><span class="n">species</span><span class="p">]</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">z</span><span class="p">,</span> <span class="n">logk</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">k_pt</span><span class="p">),</span> <span class="n">spline</span><span class="o">=</span><span class="n">spline</span><span class="p">:</span> <span class="p">(</span>
+        <span class="n">spline</span><span class="p">(</span><span class="n">logk</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="mi">1</span><span class="o">/</span><span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="n">z</span><span class="p">)))</span>
+    <span class="p">)</span>
+
+<span class="c1"># Plot energy density history</span>
+<span class="n">fig</span><span class="p">,</span> <span class="n">axes</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">9</span><span class="p">,</span> <span class="mf">6.75</span><span class="p">))</span>
+<span class="n">ax</span> <span class="o">=</span> <span class="n">axes</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
+<span class="n">a_min</span> <span class="o">=</span> <span class="mf">1e-3</span>
+<span class="n">mask</span> <span class="o">=</span> <span class="p">(</span><span class="n">a_bg</span> <span class="o">&gt;=</span> <span class="n">a_min</span><span class="p">)</span>
+<span class="k">for</span> <span class="n">species</span><span class="p">,</span> <span class="n">ρ</span> <span class="ow">in</span> <span class="n">ρ_bg</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+    <span class="n">match</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;^(b|cdm|g|ncdm\[\d+\]|lambda)$&#39;</span><span class="p">,</span> <span class="n">species</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">match</span><span class="p">:</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">loglog</span><span class="p">(</span><span class="n">a_bg</span><span class="p">[</span><span class="n">mask</span><span class="p">],</span> <span class="n">ρ</span><span class="p">[</span><span class="n">mask</span><span class="p">]</span><span class="o">/</span><span class="n">ρ_bg</span><span class="p">[</span><span class="s1">&#39;crit&#39;</span><span class="p">][</span><span class="n">mask</span><span class="p">],</span> <span class="n">label</span><span class="o">=</span><span class="n">species</span><span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">set_xlim</span><span class="p">(</span><span class="n">a_min</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">set_ylim</span><span class="p">(</span><span class="n">bottom</span><span class="o">=</span><span class="mf">1e-5</span><span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">legend</span><span class="p">(</span><span class="n">fontsize</span><span class="o">=</span><span class="mi">8</span><span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;$a$&#39;</span><span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;$\bar{{\rho}}_{\alpha}/\rho_{\mathrm</span><span class="si">{crit}</span><span class="s1">}$&#39;</span><span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Energy density history&#39;</span><span class="p">)</span>
+
+<span class="c1"># Plot matter power spectrum</span>
+<span class="n">ax</span> <span class="o">=</span> <span class="n">axes</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span>
+<span class="n">z_values</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">10</span><span class="p">]</span>
+<span class="k">for</span> <span class="n">z</span> <span class="ow">in</span> <span class="n">z_values</span><span class="p">:</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">loglog</span><span class="p">(</span><span class="n">k_pt</span><span class="o">/</span><span class="n">h</span><span class="p">,</span> <span class="n">P_m</span><span class="p">(</span><span class="n">z</span><span class="p">),</span> <span class="n">label</span><span class="o">=</span><span class="sa">rf</span><span class="s1">&#39;$z = </span><span class="si">{</span><span class="n">z</span><span class="si">}</span><span class="s1">$&#39;</span><span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">set_xlim</span><span class="p">(</span><span class="n">k_pt</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">/</span><span class="n">h</span><span class="p">,</span> <span class="n">k_pt</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">/</span><span class="n">h</span><span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">legend</span><span class="p">(</span><span class="n">fontsize</span><span class="o">=</span><span class="mi">8</span><span class="p">)</span>
+<span class="n">unit_length</span> <span class="o">=</span> <span class="n">units</span><span class="p">[</span><span class="s1">&#39;unit length&#39;</span><span class="p">]</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="sa">rf</span><span class="s1">&#39;$k\, \left[h\, \mathrm</span><span class="se">{{</span><span class="si">{</span><span class="n">unit_length</span><span class="si">}</span><span class="se">}}</span><span class="s1">^</span><span class="se">{{</span><span class="s1">-1</span><span class="se">}}</span><span class="s1">\right]$&#39;</span><span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span>
+    <span class="sa">rf</span><span class="s1">&#39;$P_</span><span class="se">{{</span><span class="s1">\mathrm</span><span class="se">{{</span><span class="s1">b</span><span class="se">}}</span><span class="s1">+\mathrm</span><span class="se">{{</span><span class="s1">cdm</span><span class="se">}}}}</span><span class="s1">\, &#39;</span>
+    <span class="sa">rf</span><span class="s1">&#39;\left[(h^</span><span class="se">{{</span><span class="s1">-1</span><span class="se">}}</span><span class="s1">\, \mathrm</span><span class="se">{{</span><span class="si">{</span><span class="n">unit_length</span><span class="si">}</span><span class="se">}}</span><span class="s1">)^3\right]$&#39;</span>
+<span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">yaxis</span><span class="o">.</span><span class="n">tick_right</span><span class="p">()</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">yaxis</span><span class="o">.</span><span class="n">set_label_position</span><span class="p">(</span><span class="s1">&#39;right&#39;</span><span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Matter power spectrum (</span><span class="si">{</span><span class="n">gauge</span><span class="si">}</span><span class="s1"> gauge)&#39;</span><span class="p">)</span>
+
+<span class="c1"># Plot δρ perturbations of all species</span>
+<span class="n">z_values</span> <span class="o">=</span> <span class="p">[</span><span class="mi">50</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span>
+<span class="n">unit_mass</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">units</span><span class="p">[</span><span class="s1">&#39;unit mass&#39;</span><span class="p">]</span>
+    <span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;**(10)&#39;</span><span class="p">,</span> <span class="sa">r</span><span class="s1">&#39;^</span><span class="si">{10}</span><span class="s1">&#39;</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;*m_sun&#39;</span><span class="p">,</span> <span class="sa">r</span><span class="s1">&#39;\, m_{\odot}&#39;</span><span class="p">)</span>
+<span class="p">)</span>
+<span class="k">for</span> <span class="n">ax</span><span class="p">,</span> <span class="n">z</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">axes</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="p">:],</span> <span class="n">z_values</span><span class="p">):</span>
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="p">(</span><span class="n">species</span><span class="p">,</span> <span class="n">δρ_species</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">δρ</span><span class="o">.</span><span class="n">items</span><span class="p">()):</span>
+        <span class="k">for</span> <span class="n">sign</span><span class="p">,</span> <span class="n">linestyle</span><span class="p">,</span> <span class="n">label</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">([</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="o">+</span><span class="mi">1</span><span class="p">],</span> <span class="p">[</span><span class="s1">&#39;-&#39;</span><span class="p">,</span> <span class="s1">&#39;:&#39;</span><span class="p">],</span> <span class="p">[</span><span class="n">species</span><span class="p">,</span> <span class="kc">None</span><span class="p">]):</span>
+            <span class="n">ax</span><span class="o">.</span><span class="n">loglog</span><span class="p">(</span><span class="n">k_pt</span><span class="o">/</span><span class="n">h</span><span class="p">,</span> <span class="n">sign</span><span class="o">*</span><span class="n">δρ_species</span><span class="p">(</span><span class="n">z</span><span class="p">),</span> <span class="sa">f</span><span class="s1">&#39;C</span><span class="si">{</span><span class="n">i</span><span class="si">}{</span><span class="n">linestyle</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span>
+                <span class="n">zorder</span><span class="o">=</span><span class="p">(</span><span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">inf</span> <span class="k">if</span> <span class="n">species</span> <span class="o">==</span> <span class="s1">&#39;metric&#39;</span> <span class="k">else</span> <span class="kc">None</span><span class="p">),</span> <span class="n">label</span><span class="o">=</span><span class="n">label</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_xlim</span><span class="p">(</span><span class="n">k_pt</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">/</span><span class="n">h</span><span class="p">,</span> <span class="n">k_pt</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">/</span><span class="n">h</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_ylim</span><span class="p">(</span><span class="n">bottom</span><span class="o">=</span><span class="nb">min</span><span class="p">(</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">min</span><span class="p">(</span><span class="o">-</span><span class="n">δρ</span><span class="p">[</span><span class="s1">&#39;g&#39;</span>      <span class="p">](</span><span class="n">z</span><span class="p">)),</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">min</span><span class="p">(</span><span class="o">-</span><span class="n">δρ</span><span class="p">[</span><span class="s1">&#39;ncdm[0]&#39;</span><span class="p">](</span><span class="n">z</span><span class="p">)),</span>
+    <span class="p">))</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="sa">rf</span><span class="s1">&#39;$k\, \left[h\, \mathrm</span><span class="se">{{</span><span class="si">{</span><span class="n">unit_length</span><span class="si">}</span><span class="se">}}</span><span class="s1">^</span><span class="se">{{</span><span class="s1">-1</span><span class="se">}}</span><span class="s1">\right]$&#39;</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span>
+        <span class="sa">rf</span><span class="s1">&#39;$-\delta\rho_</span><span class="se">{{</span><span class="s1">\alpha</span><span class="se">}}</span><span class="s1">\, &#39;</span>
+        <span class="sa">rf</span><span class="s1">&#39;\left[</span><span class="si">{</span><span class="n">unit_mass</span><span class="si">}</span><span class="s1">\, \mathrm</span><span class="se">{{</span><span class="si">{</span><span class="n">unit_length</span><span class="si">}</span><span class="se">}}</span><span class="s1">^</span><span class="se">{{</span><span class="s1">-3</span><span class="se">}}</span><span class="s1">\right]$&#39;</span>
+    <span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="sa">rf</span><span class="s1">&#39;$\delta\rho$ perturbations (</span><span class="si">{</span><span class="n">gauge</span><span class="si">}</span><span class="s1"> gauge)&#39;</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">text</span><span class="p">(</span><span class="mf">0.8</span><span class="p">,</span> <span class="mf">0.73</span><span class="p">,</span> <span class="sa">rf</span><span class="s1">&#39;$z = </span><span class="si">{</span><span class="n">z</span><span class="si">}</span><span class="s1">$&#39;</span><span class="p">,</span> <span class="n">transform</span><span class="o">=</span><span class="n">ax</span><span class="o">.</span><span class="n">transAxes</span><span class="p">)</span>
+<span class="n">axes</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">legend</span><span class="p">(</span><span class="n">fontsize</span><span class="o">=</span><span class="mi">8</span><span class="p">)</span>
+<span class="n">axes</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">yaxis</span><span class="o">.</span><span class="n">tick_right</span><span class="p">()</span>
+<span class="n">axes</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">yaxis</span><span class="o">.</span><span class="n">set_label_position</span><span class="p">(</span><span class="s1">&#39;right&#39;</span><span class="p">)</span>
+
+<span class="c1"># Save figure</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">tight_layout</span><span class="p">()</span>
+<span class="n">fig</span><span class="o">.</span><span class="n">savefig</span><span class="p">(</span><span class="s1">&#39;plot.png&#39;</span><span class="p">,</span> <span class="n">dpi</span><span class="o">=</span><span class="mi">150</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<p>To run the <a class="reference internal" href="#plot-class"><span class="std std-ref">above script</span></a>, save it to a file — e.g.
+<code class="docutils literal notranslate"><span class="pre">plot.py</span></code> — within the same directory as <code class="docutils literal notranslate"><span class="pre">class_processed.hdf5</span></code>, then
+execute it with</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python3 plot.py
+</pre></div>
+</div>
+<p>where <code class="docutils literal notranslate"><span class="pre">python3</span></code> is your Python executable.</p>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>The <a class="reference internal" href="#plot-class"><span class="std std-ref">plotting script</span></a> requires the Python packages
+<a class="reference external" href="https://www.numpy.org/">NumPy</a>, <a class="reference external" href="https://www.scipy.org/">SciPy</a>,
+<a class="reference external" href="https://matplotlib.org/">Matplotlib</a> and
+<a class="reference external" href="https://www.h5py.org/">H5Py</a>, all of which are installed with the
+Python distribution that comes with CO<em>N</em>CEPT. If you have
+CO<em>N</em>CEPT installed (i.e. are not
+<a class="reference internal" href="#running-through-docker"><span class="std std-ref">running through Docker</span></a>), you may then use</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">source</span> /path/to/concept-installation/concept
+<span class="nv">$python</span> plot.py
+</pre></div>
+</div>
+</div>
+<p>The result of running <a class="reference internal" href="#plot-class"><span class="std std-ref">the script</span></a> is an image file
+<code class="docutils literal notranslate"><span class="pre">plot.png</span></code> with <span class="math notranslate nohighlight">\(2\times 2\)</span> panels, showing</p>
+<ul>
+<li><p>Top left: The evolution history of the background densities
+<span class="math notranslate nohighlight">\(\bar{\rho}_{\alpha}(a)\)</span> for the different species <span class="math notranslate nohighlight">\(\alpha\)</span>,
+relative to the critical density <span class="math notranslate nohighlight">\(\rho_{\text{crit}}(a)\)</span>.</p></li>
+<li><p>Top right: The matter power spectrum <span class="math notranslate nohighlight">\(P_{\text{b}+\text{cdm}}(k)\)</span> at
+different redshifts <span class="math notranslate nohighlight">\(z\)</span>. This is constructed as</p>
+<div class="math notranslate nohighlight">
+\[P_{\text{b}+\text{cdm}}(z, k) = \zeta^2(k) \delta^2_{\text{b}+\text{cdm}}(z, k)\,,\]</div>
+<p>with <span class="math notranslate nohighlight">\(\delta_{\text{b}+\text{cdm}}(z, k)\)</span> obtained from
+<code class="docutils literal notranslate"><span class="pre">class_processed.hdf5</span></code> and <span class="math notranslate nohighlight">\(\zeta(k)\)</span> being the primordial curvature
+perturbation, parametrised by the primordial parameters
+<span class="math notranslate nohighlight">\(A_{\text{s}}\)</span>, <span class="math notranslate nohighlight">\(n_{\text{s}}\)</span>, <span class="math notranslate nohighlight">\(\alpha_{\text{s}}\)</span> and
+<span class="math notranslate nohighlight">\(k_{\text{pivot}}\)</span> as describe <a class="reference internal" href="../parameters/cosmology.html#primordial-spectrum"><span class="std std-ref">here</span></a>.
+<a class="reference internal" href="#plot-class"><span class="std std-ref">The script</span></a> assigns some values to these parameters.
+Importantly, these values are independent of the CLASS computation of the
+<span class="math notranslate nohighlight">\(\delta\)</span> perturbations.</p>
+</li>
+<li><p>Lower panels: The <span class="math notranslate nohighlight">\(\delta\rho_{\alpha}(k)\)</span> perturbations for the
+different species <span class="math notranslate nohighlight">\(\alpha\)</span> at two redshifts (early and late). The
+fictitious <span class="math notranslate nohighlight">\(\delta\rho_{\text{metric}}\)</span> perturbation — supplying
+general relativistic corrections — generally oscillates wildly, having
+both positive and negative values. Dotted lines depict negative values that
+have been flipped.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>In CLASS, the sign convention is such that e.g.
+<span class="math notranslate nohighlight">\(\delta_{\text{cdm}}\)</span> is in fact purely negative. What is plotted
+is thus <span class="math notranslate nohighlight">\(-\delta_{\alpha}\)</span>.</p>
+</div>
+</li>
+</ul>
+</section>
+<section id="running-through-docker">
+<span id="id4"></span><h2><a class="toc-backref" href="#id9">Running through Docker</a><a class="headerlink" href="#running-through-docker" title="Permalink to this headline"></a></h2>
+<p>As described under <a class="reference internal" href="../installation.html#supported-platforms"><span class="std std-ref">Supported platforms</span></a>, it is
+possible to run CO<em>N</em>CEPT through Docker. While not preferable for running
+large simulations, running CO<em>N</em>CEPT this way for casual use of the class
+utility is very much encouraged.</p>
+<p>Given a parameter file named <code class="docutils literal notranslate"><span class="pre">class-param</span></code> (e.g.
+<a class="reference internal" href="#class-param"><span class="std std-ref">the one above</span></a>), you may run the CO<em>N</em>CEPT class
+utility through Docker by executing something like</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>docker run <span class="se">\</span>
+    --rm <span class="se">\</span>
+    -v <span class="s2">&quot;</span><span class="si">${</span><span class="nv">PWD</span><span class="si">}</span><span class="s2">:/mnt&quot;</span> <span class="se">\</span>
+    jmddk/concept <span class="se">\</span>
+        concept <span class="se">\</span>
+            -u class <span class="se">\</span>
+                --kmin 1e-3/Mpc --kmax <span class="m">0</span>.1/Mpc --modes <span class="m">128</span> <span class="se">\</span>
+                --times <span class="m">512</span> <span class="se">\</span>
+                <span class="s2">&quot;b+cdm:1, g&quot;</span> <span class="se">\</span>
+            -p /mnt/class-param <span class="se">\</span>
+            -n <span class="m">4</span>
+</pre></div>
+</div>
+<p>from within the directory of <code class="docutils literal notranslate"><span class="pre">class-param</span></code>. Given that
+<code class="docutils literal notranslate"><span class="pre">output_dirs</span> <span class="pre">=</span> <span class="pre">param.dir</span></code> is specified within <code class="docutils literal notranslate"><span class="pre">class-param</span></code>, the resulting
+HDF5 file will be placed in your current directory.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>If running Windows, the above command is valid within
+<a class="reference external" href="https://docs.microsoft.com/powershell/">PowerShell</a>, not
+<a class="reference external" href="https://docs.microsoft.com/windows-server/administration/windows-commands/windows-commands">CMD</a></p>
+</div>
+<p>You can even get rid of the parameter file — running the CO<em>N</em>CEPT class
+utility using a stand-alone one-liner — by supplying the necessary
+parameters via the <code class="docutils literal notranslate"><span class="pre">-c</span></code>
+<a class="reference internal" href="../command_line_options.html#command-line-parameters"><span class="std std-ref">command-line option</span></a>.</p>
+</section>
+<section id="tips-and-tricks">
+<h2><a class="toc-backref" href="#id10">Tips and tricks</a><a class="headerlink" href="#tips-and-tricks" title="Permalink to this headline"></a></h2>
+<p>Below we list a few tips and tricks that are not discussed above.</p>
+<p><h3> Plotting perturbations on the fly </h3></p>
+<p>It can be difficult to judge whether the various CLASS precision parameters
+are cranked up high enough to ensure reasonable convergence of the different
+perturbations. To help with this assessment, it can be useful to see the
+perturbations plotted, with jagged lines indicating lack of convergence.</p>
+<p>By setting the <code class="docutils literal notranslate"><span class="pre">class_plot_perturbations</span></code>
+<a class="reference internal" href="../parameters/input_output.html#class-plot-perturbations"><span class="std std-ref">parameter</span></a> to <code class="docutils literal notranslate"><span class="pre">True</span></code>, CO<em>N</em>CEPT will
+plot all perturbations entering into the computation of the data in the final
+<code class="docutils literal notranslate"><span class="pre">class_processed.hdf5</span></code> file. E.g.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept <span class="se">\</span>
+    -u class <span class="se">\</span>
+        --kmin &lt;kmin&gt; --kmax &lt;kmax&gt; <span class="se">\</span>
+        &lt;perturbations&gt; <span class="se">\</span><span class="hll">    -c <span class="s2">&quot;class_plot_perturbations = True&quot;</span></span></pre></div>
+</div>
+<p>This will create a <code class="docutils literal notranslate"><span class="pre">class_perturbations</span></code> and a
+<code class="docutils literal notranslate"><span class="pre">class_perturbations_processed</span></code> directory, containing plots of the various
+perturbations. For details on their content, see the
+<code class="docutils literal notranslate"><span class="pre">class_plot_perturbations</span></code> <a class="reference internal" href="../parameters/input_output.html#class-plot-perturbations"><span class="std std-ref">parameter</span></a>.</p>
+<p>The plots within <code class="docutils literal notranslate"><span class="pre">class_plot_perturbations</span></code> show detrended perturbations,
+allowing for a detailed view. In these plots, wildly oscillating behaviour is
+often seen, which may or may not be physical. Non-smooth, jagged behaviour is
+typically a sign of a lack of convergence, though note that this may not be an
+issue, since often, most of the information is contained just within the
+trend-line. To check whether a convergence problem clearly manifest in the
+full (non-detrended) perturbations, check the plots inside the
+<code class="docutils literal notranslate"><span class="pre">class_perturbations_processed</span></code> directory.</p>
+<p><h3> Replacing bad CLASS perturbations </h3></p>
+<p>Obtaining converged CLASS perturbations for all <span class="math notranslate nohighlight">\(k\)</span> of interest may
+require extremely high precision <a class="reference internal" href="../parameters/cosmology.html#class-params"><span class="std std-ref">CLASS settings</span></a>, which
+in turn increases the time and memory requirements for the CLASS computation.
+Often, converged perturbations in all species are only needed at large scales,
+as the small scales are completely dominated by matter. Allowing some
+non-convergence in the other species at high <span class="math notranslate nohighlight">\(k\)</span> is thus often
+acceptable, with the benefit that lower CLASS precision settings can be used.</p>
+<p>However, pathological behaviour in any perturbation may cause trouble (such
+can be detected using the <code class="docutils literal notranslate"><span class="pre">class_plot_perturbations</span></code>
+<a class="reference internal" href="../parameters/input_output.html#class-plot-perturbations"><span class="std std-ref">parameter</span></a> as described above). If a
+perturbation is thought to be ill-behaved beyond some <span class="math notranslate nohighlight">\(k\)</span>, CO<em>N</em>CEPT
+can be told to replace perturbation values at larger <span class="math notranslate nohighlight">\(k\)</span> with new values
+obtained via extrapolation from the perturbation values at lower <span class="math notranslate nohighlight">\(k\)</span>,
+using the <code class="docutils literal notranslate"><span class="pre">class_k_max</span></code> <a class="reference internal" href="../parameters/simulation.html#class-k-max"><span class="std std-ref">parameter</span></a>. To e.g. only use the
+actual CLASS data for <span class="math notranslate nohighlight">\(\partial_{\tau} H_{\text{T}}\)</span> (the conformal time
+derivative of the trace-free component of the spatial <em>N</em>-body gauge metric)
+up until <span class="math notranslate nohighlight">\(k = 10\, h\, \text{Mpc}^{-1}\)</span>, with data beyond this <span class="math notranslate nohighlight">\(k\)</span>
+constructed through extrapolation of lower <span class="math notranslate nohighlight">\(k\)</span> data:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept <span class="se">\</span>
+    -u class <span class="se">\</span>
+        --kmin &lt;kmin&gt; --kmax &lt;kmax&gt; <span class="se">\</span>
+        &lt;perturbations&gt; <span class="se">\</span><span class="hll">    -c <span class="s2">&quot;class_k_max = {&#39;H_T_prime&#39;: 10*h/Mpc}&quot;</span></span></pre></div>
+</div>
+<p><h3> Ignoring or cleaning the CLASS cache </h3></p>
+<p>CO<em>N</em>CEPT automatically cashes CLASS computations to disk. When running
+the CO<em>N</em>CEPT class utility several times over with the same input, the
+first CLASS computation will then be reused, saving computation time.</p>
+<p>This behaviour is not always what you want, e.g. if changes to the CLASS
+source code has been introduced after a disk caching. To request a rerun of
+CLASS regardless of whether a matching cache is found on disk, set the
+<code class="docutils literal notranslate"><span class="pre">class_reuse</span></code> <a class="reference internal" href="../parameters/simulation.html#class-reuse"><span class="std std-ref">parameter</span></a> to <code class="docutils literal notranslate"><span class="pre">False</span></code>, e.g.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept <span class="se">\</span>
+    -u class <span class="se">\</span>
+        --kmin &lt;kmin&gt; --kmax &lt;kmax&gt; <span class="se">\</span>
+        &lt;perturbations&gt; <span class="se">\</span><span class="hll">    -c <span class="s2">&quot;class_reuse = False&quot;</span></span></pre></div>
+</div>
+<p>Even with <code class="docutils literal notranslate"><span class="pre">class_reuse</span> <span class="pre">=</span> <span class="pre">False</span></code>, new CLASS computations will be cached to
+disk. If the disk cache already exists, this will <em>not</em> be overwritten.</p>
+<p>To clear the reusable CLASS cache completely, you may run</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="o">(</span><span class="nb">source</span> concept <span class="o">&amp;&amp;</span> make clean-class-reusable<span class="o">)</span>
+</pre></div>
+</div>
+</section>
 </section>
 
 

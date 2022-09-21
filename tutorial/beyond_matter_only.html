@@ -171,6 +171,9 @@
 <li class="toctree-l3"><a class="reference internal" href="../parameters/input_output.html#gadget-snapshot-params"><code class="docutils literal notranslate"><span class="pre">gadget_snapshot_params</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/input_output.html#snapshot-wrap"><code class="docutils literal notranslate"><span class="pre">snapshot_wrap</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/input_output.html#select-particle-id"><code class="docutils literal notranslate"><span class="pre">select_particle_id</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/input_output.html#class-plot-perturbations"><code class="docutils literal notranslate"><span class="pre">class_plot_perturbations</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/input_output.html#class-extra-background"><code class="docutils literal notranslate"><span class="pre">class_extra_background</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/input_output.html#class-extra-perturbations"><code class="docutils literal notranslate"><span class="pre">class_extra_perturbations</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="../parameters/numerics.html">Numerics</a><ul>
@@ -214,6 +217,7 @@
 <li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#primordial-amplitude-fixed"><code class="docutils literal notranslate"><span class="pre">primordial_amplitude_fixed</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#primordial-phase-shift"><code class="docutils literal notranslate"><span class="pre">primordial_phase_shift</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#cell-centered"><code class="docutils literal notranslate"><span class="pre">cell_centered</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#class-k-max"><code class="docutils literal notranslate"><span class="pre">class_k_max</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#class-reuse"><code class="docutils literal notranslate"><span class="pre">class_reuse</span></code></a></li>
 </ul>
 </li>
@@ -242,15 +246,36 @@
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../utilities/utilities.html">Utilities</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/class.html">class</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/convert.html">convert</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/gadget.html">gadget</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/info.html">info</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/play.html">play</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/powerspec.html">powerspec</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/render3D.html">render3D</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/update.html">update</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../utilities/watch.html">watch</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/class.html">class utility</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../utilities/class.html#basic-usage">Basic usage</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../utilities/class.html#command-line-options">Command-line options</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../utilities/class.html#help-h-help">Help: <code class="docutils literal notranslate"><span class="pre">-h</span></code>, <code class="docutils literal notranslate"><span class="pre">--help</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../utilities/class.html#minimum-fourier-mode-kmin">Minimum Fourier mode: <code class="docutils literal notranslate"><span class="pre">--kmin</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../utilities/class.html#maximum-fourier-mode-kmax">Maximum Fourier mode: <code class="docutils literal notranslate"><span class="pre">--kmax</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../utilities/class.html#number-of-fourier-modes-modes">Number of Fourier modes: <code class="docutils literal notranslate"><span class="pre">--modes</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../utilities/class.html#number-of-times-times">Number of times: <code class="docutils literal notranslate"><span class="pre">--times</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../utilities/class.html#gauge-gauge">Gauge: <code class="docutils literal notranslate"><span class="pre">--gauge</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../utilities/class.html#file-contents">File contents</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../utilities/class.html#data-layout">Data layout</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../utilities/class.html#extra-output">Extra output</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../utilities/class.html#units">Units</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../utilities/class.html#complete-example-massive-neutrinos">Complete example (massive neutrinos)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../utilities/class.html#running-through-docker">Running through Docker</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../utilities/class.html#tips-and-tricks">Tips and tricks</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/convert.html">convert utility</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/gadget.html">gadget utility</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/info.html">info utility</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/play.html">play utility</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/powerspec.html">powerspec utility</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/render3D.html">render3D utility</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/update.html">update utility</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/watch.html">watch utility</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../troubleshooting.html">Troubleshooting</a><ul>
@@ -565,10 +590,10 @@ and a linear part <span class="math notranslate nohighlight">\(\ell &gt; \ell_{\
 <span class="math notranslate nohighlight">\(\ell_{\text{nl}}\)</span> is precisely the Boltzmann order. A few examples
 shall illuminate this concept:</p>
 <ul class="simple">
-<li><p><strong>Bolzmann order 0</strong>: The evolution equation for the lowest moment (i.e. the
-continuity equation for the energy density) is solved non-linearly during
-the simulation, while higher moments like momentum density (on which the
-energy density depends) are solved in pure linear theory.</p></li>
+<li><p><strong>Boltzmann order 0</strong>: The evolution equation for the lowest moment (i.e.
+the continuity equation for the energy density) is solved non-linearly
+during the simulation, while higher moments like momentum density (on which
+the energy density depends) are solved in pure linear theory.</p></li>
 <li><p><strong>Boltzmann order 1</strong>: The evolution equations for the two lowest moments
 (i.e. the continuity equation for the energy density and the Euler equation
 for the momentum density) are solved non-linearly during the simulation,

@@ -187,6 +187,8 @@ the number of CPU cores/node.
 
 
 
+.. _utility:
+
 Utility: ``-u``, ``--utility``
 ..............................
 Signals that one of the CO\ *N*\ CEPT utilities is to be run instead of a

@@ -952,6 +952,8 @@ some numerical resolutions and length scales.
 
 
 
+.. _k_modes_per_decade:
+
 ``k_modes_per_decade``
 ......................
 == =============== == =

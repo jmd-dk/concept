@@ -1,7 +1,7 @@
-watch
------
-The 'watch' utility
-
+watch utility
+-------------
+The CO\ *N*\ CEPT 'watch' utility allows you to follow the real-time terminal
+output of CO\ *N*\ CEPT jobs running remotely.
 
 For a brief description of how to use the watch utility, run
 

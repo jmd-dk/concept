@@ -25,7 +25,7 @@
     <script src="../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="class" href="class.html" />
+    <link rel="next" title="class utility" href="class.html" />
     <link rel="prev" title="Debugging" href="../parameters/debugging.html" /> 
 </head>
 
@@ -170,6 +170,9 @@
 <li class="toctree-l3"><a class="reference internal" href="../parameters/input_output.html#gadget-snapshot-params"><code class="docutils literal notranslate"><span class="pre">gadget_snapshot_params</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/input_output.html#snapshot-wrap"><code class="docutils literal notranslate"><span class="pre">snapshot_wrap</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/input_output.html#select-particle-id"><code class="docutils literal notranslate"><span class="pre">select_particle_id</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/input_output.html#class-plot-perturbations"><code class="docutils literal notranslate"><span class="pre">class_plot_perturbations</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/input_output.html#class-extra-background"><code class="docutils literal notranslate"><span class="pre">class_extra_background</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/input_output.html#class-extra-perturbations"><code class="docutils literal notranslate"><span class="pre">class_extra_perturbations</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="../parameters/numerics.html">Numerics</a><ul>
@@ -213,6 +216,7 @@
 <li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#primordial-amplitude-fixed"><code class="docutils literal notranslate"><span class="pre">primordial_amplitude_fixed</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#primordial-phase-shift"><code class="docutils literal notranslate"><span class="pre">primordial_phase_shift</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#cell-centered"><code class="docutils literal notranslate"><span class="pre">cell_centered</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#class-k-max"><code class="docutils literal notranslate"><span class="pre">class_k_max</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#class-reuse"><code class="docutils literal notranslate"><span class="pre">class_reuse</span></code></a></li>
 </ul>
 </li>
@@ -241,15 +245,36 @@
 </ul>
 </li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Utilities</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="class.html">class</a></li>
-<li class="toctree-l2"><a class="reference internal" href="convert.html">convert</a></li>
-<li class="toctree-l2"><a class="reference internal" href="gadget.html">gadget</a></li>
-<li class="toctree-l2"><a class="reference internal" href="info.html">info</a></li>
-<li class="toctree-l2"><a class="reference internal" href="play.html">play</a></li>
-<li class="toctree-l2"><a class="reference internal" href="powerspec.html">powerspec</a></li>
-<li class="toctree-l2"><a class="reference internal" href="render3D.html">render3D</a></li>
-<li class="toctree-l2"><a class="reference internal" href="update.html">update</a></li>
-<li class="toctree-l2"><a class="reference internal" href="watch.html">watch</a></li>
+<li class="toctree-l2"><a class="reference internal" href="class.html">class utility</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="class.html#basic-usage">Basic usage</a></li>
+<li class="toctree-l3"><a class="reference internal" href="class.html#command-line-options">Command-line options</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="class.html#help-h-help">Help: <code class="docutils literal notranslate"><span class="pre">-h</span></code>, <code class="docutils literal notranslate"><span class="pre">--help</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="class.html#minimum-fourier-mode-kmin">Minimum Fourier mode: <code class="docutils literal notranslate"><span class="pre">--kmin</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="class.html#maximum-fourier-mode-kmax">Maximum Fourier mode: <code class="docutils literal notranslate"><span class="pre">--kmax</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="class.html#number-of-fourier-modes-modes">Number of Fourier modes: <code class="docutils literal notranslate"><span class="pre">--modes</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="class.html#number-of-times-times">Number of times: <code class="docutils literal notranslate"><span class="pre">--times</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="class.html#gauge-gauge">Gauge: <code class="docutils literal notranslate"><span class="pre">--gauge</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="class.html#file-contents">File contents</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="class.html#data-layout">Data layout</a></li>
+<li class="toctree-l4"><a class="reference internal" href="class.html#extra-output">Extra output</a></li>
+<li class="toctree-l4"><a class="reference internal" href="class.html#units">Units</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="class.html#complete-example-massive-neutrinos">Complete example (massive neutrinos)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="class.html#running-through-docker">Running through Docker</a></li>
+<li class="toctree-l3"><a class="reference internal" href="class.html#tips-and-tricks">Tips and tricks</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="convert.html">convert utility</a></li>
+<li class="toctree-l2"><a class="reference internal" href="gadget.html">gadget utility</a></li>
+<li class="toctree-l2"><a class="reference internal" href="info.html">info utility</a></li>
+<li class="toctree-l2"><a class="reference internal" href="play.html">play utility</a></li>
+<li class="toctree-l2"><a class="reference internal" href="powerspec.html">powerspec utility</a></li>
+<li class="toctree-l2"><a class="reference internal" href="render3D.html">render3D utility</a></li>
+<li class="toctree-l2"><a class="reference internal" href="update.html">update utility</a></li>
+<li class="toctree-l2"><a class="reference internal" href="watch.html">watch utility</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../troubleshooting.html">Troubleshooting</a><ul>
@@ -317,20 +342,20 @@ utilized automatically during a simulation, it is sometimes useful to be able
 to utilize them on their own, e.g. producing a power spectrum from a snapshot
 file. To this end, CO<em>N</em>CEPT provides various <em>utilities</em>, with the
 ability to hook into the main code and utilize a given feature, without
-running any simulation. In addition, some utilities exist on their own merit,
+performing a simulation. In addition, some utilities exist on their own merit,
 and introduce features that is not used during simulation.</p>
 <p>The available utilities are as follows:</p>
 <div class="toctree-wrapper compound">
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="class.html">class</a></li>
-<li class="toctree-l1"><a class="reference internal" href="convert.html">convert</a></li>
-<li class="toctree-l1"><a class="reference internal" href="gadget.html">gadget</a></li>
-<li class="toctree-l1"><a class="reference internal" href="info.html">info</a></li>
-<li class="toctree-l1"><a class="reference internal" href="play.html">play</a></li>
-<li class="toctree-l1"><a class="reference internal" href="powerspec.html">powerspec</a></li>
-<li class="toctree-l1"><a class="reference internal" href="render3D.html">render3D</a></li>
-<li class="toctree-l1"><a class="reference internal" href="update.html">update</a></li>
-<li class="toctree-l1"><a class="reference internal" href="watch.html">watch</a></li>
+<li class="toctree-l1"><a class="reference internal" href="class.html">class utility</a></li>
+<li class="toctree-l1"><a class="reference internal" href="convert.html">convert utility</a></li>
+<li class="toctree-l1"><a class="reference internal" href="gadget.html">gadget utility</a></li>
+<li class="toctree-l1"><a class="reference internal" href="info.html">info utility</a></li>
+<li class="toctree-l1"><a class="reference internal" href="play.html">play utility</a></li>
+<li class="toctree-l1"><a class="reference internal" href="powerspec.html">powerspec utility</a></li>
+<li class="toctree-l1"><a class="reference internal" href="render3D.html">render3D utility</a></li>
+<li class="toctree-l1"><a class="reference internal" href="update.html">update utility</a></li>
+<li class="toctree-l1"><a class="reference internal" href="watch.html">watch utility</a></li>
 </ul>
 </div>
 </section>
