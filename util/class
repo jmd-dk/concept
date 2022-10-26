@@ -233,7 +233,7 @@ special_params = {
     'modes'  : ${modes},
 }
 # Parameter values which should always be used when running this utility
-...
+class_extra_background = {'D', 'f', 'D2', 'f2', 'τ'}
 # Set the path to the parameter file to be the path to the actual
 # parameter file specified by the user, not this auto-generated
 # parameter file.

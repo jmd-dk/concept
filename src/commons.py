@@ -5003,6 +5003,8 @@ if not enable_Hubble and enable_class_background:
 for val, keys in {
     'gr.fac. D'       : {'D', 'D1'},
     'gr.fac. f'       : {'f', 'f1'},
+    'gr.fac. D2'      : {'D2'},
+    'gr.fac. f2'      : {'f2'},
     'conf. time [Mpc]': {unicode('τ'), asciify('τ'), 'tau'},
 }.items():
     if keys & class_extra_background:

@@ -878,7 +878,7 @@ def class_():
                     gridsize = gridsize_i
             if gridsize <= 2:
                 abort(
-                    'You should specify the of maximum k mode to compute, either explicitly '
+                    'You should specify the maximum k mode to compute, either explicitly '
                     'via the --kmax command-line option to the class utility, or implicitly '
                     'by specifying the powerspec_options["global gridsize"] parameter, e.g.\n'
                     'powerspec_options = {"global gridsize": 512}'
@@ -897,6 +897,16 @@ def class_():
         # requested, in which case we use the number obtained from
         # k_modes_per_decade as is.
         modes = int(round(special_params['modes']))
+        if modes == 0:
+            abort(
+                'You have specified 0 modes. If you do not want any perturbation output, '
+                'omit the perturbation argument to the class utility'
+            )
+        if modes < -1:
+            abort(f'Invalid number of modes: {modes}')
+        if modes == 1:
+            modes = 2
+            masterwarn('The number of modes has been increased from 1 to 2')
         if modes != -1:
             k_modes_per_decade_ori = k_modes_per_decade.copy()
             k_magnitudes, k_magnitudes_str = get_k_magnitudes(gridsize, use_cache=False)
@@ -918,6 +928,8 @@ def class_():
                 for k_magnitude, val in k_modes_per_decade_ori.items():
                     k_modes_per_decade[k_magnitude] = fac*val
                 k_magnitudes, k_magnitudes_str = get_k_magnitudes(gridsize, use_cache=False)
+                if isclose(fac_min, fac_max):
+                    break
                 if k_magnitudes.shape[0] < modes:
                     fac_min = fac
                 elif k_magnitudes.shape[0] > modes:
@@ -1041,6 +1053,12 @@ def class_():
                 elif key == 'gr.fac. f':
                     # Unitless
                     key = 'f'
+                elif key == 'gr.fac. D2':
+                    # Unitless
+                    key = 'D2'
+                elif key == 'gr.fac. f2':
+                    # Unitless
+                    key = 'f2'
                 elif key == '(.)w_fld':
                     # Unitless
                     key = 'w_fld'

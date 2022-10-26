@@ -7955,9 +7955,9 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
     mv ./* "${class_dir}/"
     cd "${class_dir}"
     # Below we will do a lot of patching on the CLASS source code.
-    # To aid us, we define the following function.
+    # To aid us, we define the following functions.
     patch_class() {
-        filename="$1"
+        local filename="$1"
         local linenr="$2"
         action="$3"
         belonging="$4"
@@ -8053,15 +8053,16 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
             sed -i "${linenr}i${new_lines_str}" "${filename}"
         fi
     }
-    # Change the values of some preprocessing directives
-    # in header files, allowing larger inputs and outputs.
-    # Careful though, as values too large will not fit on the stack.
     redefine_class() {
-        filename="$1"
+        local filename="$1"
         name="$2"
         value="$3"
         sed -i "s/^\(\s*#define\s\+${name}\s\+\)\(\S*\)\(.*\)$/\1${value}\3/" "${filename}"
     }
+    echo "Patching CLASS"
+    # Change the values of some preprocessing directives
+    # in header files, allowing larger inputs and outputs.
+    # Careful though, as values too large will not fit on the stack.
     redefine_class "${class_dir}/include/common.h"        _MAXTITLESTRINGLENGTH_   100000  # 10⁵
     redefine_class "${class_dir}/include/parser.h"        _LINE_LENGTH_MAX_         10000  # 10⁴
     redefine_class "${class_dir}/include/parser.h"        _ARGUMENT_LENGTH_MAX_     10000  # 10⁴
@@ -8138,8 +8139,8 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
         )
         patch_class "${class_dir}/source/perturbations.c" ${linenr} \
             "insert" "below" "${new_lines[@]}"
-        pattern="class_store_double *\\\\( *dataptr *, \
-*delta_p_over_delta_rho_ncdm *\\\\[ *n_ncdm *\\\\] *,"
+        pattern='class_store_double *\\( *dataptr *, \
+*delta_p_over_delta_rho_ncdm *\\[ *n_ncdm *\\] *,'
         linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
             "${class_dir}/source/perturbations.c" | head -n 1)
         ((linenr += 1))
@@ -8430,8 +8431,8 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
                 "${class_dir}/source/perturbations.c" | head -n 1)
             ((linenr -= 1))
         elif [ "${1}" == "perturb_print_variables" ]; then
-            pattern="class_store_double *\\\\( *dataptr *, *theta_scf *, *pba *-> *has_scf *, \
-*storeidx *\\\\)*;"
+            pattern='class_store_double *\\( *dataptr *, *theta_scf *, *pba *-> *has_scf *, \
+*storeidx *\\)*;'
             linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
                 "${class_dir}/source/perturbations.c" | head -n 1)
             n_lines_total=$(wc -l "${class_dir}/source/perturbations.c" | awk '{print $1}')
@@ -8486,18 +8487,135 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
         "}"                                                                                 \
     )
     patch_class "${class_dir}/source/perturbations.c" ${linenr} "insert" "below" "${new_lines[@]}"
-    # Include dcdm in the growth factor D(a)
-    pattern='rho_M * \\+='
-    linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
-        "${class_dir}/source/background.c" | head -n 1)
-    ((linenr += 1))
-    new_lines=(                                        \
-        "/* Include dcdm in growth factor */"          \
-        "if (pba->has_dcdm == _TRUE_)"                 \
-        "  rho_M += pvecback[pba->index_bg_rho_dcdm];" \
+    # Use proper intitial conditions for the growth factor D(a) and rate
+    # f(a), implement second-order versions D2(a) and f2(a), and take
+    # ncdm and dcdm into account.
+    filename="${class_dir}/python/cclassy.pxd"
+    pattern='int +index_bg_f'
+    new_lines=(                                 \
+        "# Second-order growth factor and rate" \
+        "int index_bg_D2"                       \
+        "int index_bg_f2"                       \
     )
-    patch_class "${class_dir}/source/background.c" ${linenr} \
-        "insert" "below" "${new_lines[@]}"
+    linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" "${filename}" | head -n 1)
+    patch_class "${filename}" $((linenr + 1)) "insert" "below" "${new_lines[@]}"
+    filename="${class_dir}/include/background.h"
+    pattern='int +index_bg_f *;'
+    new_lines=(                                                                     \
+        "int index_bg_D2;  /**< second-order growth factor D2(a) */"                \
+        "int index_bg_f2;  /**< second-order growth rate f2(a) = [dlnD2]/[dlna] */" \
+    )
+    linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" "${filename}" | head -n 1)
+    patch_class "${filename}" $((linenr + 1)) "insert" "below" "${new_lines[@]}"
+    pattern='int +index_bi_D_prime *;'
+    new_lines=(                                                                                \
+        "int index_bi_D2;        /**< {C} second-order growth factor D(a) */"                  \
+        "int index_bi_D2_prime;  /**< {C} D2 satisfies \\\\f$ D2''(\\\\tau) = -aHD'(\\\\tau) + \
+3/2 a^2 \\\\rho_M (D2(\\\\tau) - D^2(tau)) \\\\f$ */"                                          \
+    )
+    linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" "${filename}" | head -n 1)
+    patch_class "${filename}" $((linenr + 1)) "insert" "below" "${new_lines[@]}"
+    filename="${class_dir}/source/background.c"
+    pattern='class_define_index *\\( *pba *-> *index_bg_f *,'
+    new_lines=(                                                      \
+        "/* Second-order growth factor and rate */"                  \
+        "class_define_index(pba->index_bg_D2, _TRUE_, index_bg, 1);" \
+        "class_define_index(pba->index_bg_f2, _TRUE_, index_bg, 1);" \
+    )
+    linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" "${filename}" | head -n 1)
+    patch_class "${filename}" $((linenr + 1)) "insert" "below" "${new_lines[@]}"
+    pattern='class_define_index *\\( *pba *-> *index_bi_D_prime *,'
+    new_lines=(                                                            \
+        "/* -> Second order equation for second-order growth factor */"    \
+        "class_define_index(pba->index_bi_D2, _TRUE_, index_bi, 1);"       \
+        "class_define_index(pba->index_bi_D2_prime, _TRUE_, index_bi, 1);" \
+    )
+    linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" "${filename}" | head -n 1)
+    patch_class "${filename}" $((linenr + 1)) "insert" "below" "${new_lines[@]}"
+    pattern='memcopy_result *= *memcpy *\\( *pba *-> *background_table'
+    new_lines=(                                                                                             \
+        "/* Normalise D2 by the squared factor used for D and construct f2 = D2_prime/(aHD) */"             \
+        "pvecback[pba->index_bg_D2] = pData[i*pba->bi_size + pba->index_bi_D2]/"                            \
+        "  pow(pData[(pba->bt_size - 1)*pba->bi_size + pba->index_bi_D], 2.);"                              \
+        "pvecback[pba->index_bg_f2] = pData[i*pba->bi_size + pba->index_bi_D2_prime]/"                      \
+        "  (pData[i*pba->bi_size + pba->index_bi_D2]*pvecback[pba->index_bg_a]*pvecback[pba->index_bg_H]);" \
+    )
+    linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" "${filename}" | head -n 1)
+    patch_class "${filename}" $((linenr - 1)) "insert" "above" "${new_lines[@]}"
+    pattern='pvecback_integration *\\[ *pba *-> *index_bi_D_prime *\\] *='
+    new_lines=(                                                                                                  \
+        "/* Use proper intitial conditions for the growth factors */"                                            \
+        "double Omega0_M = pba->Omega0_b;"                                                                       \
+        "if (pba->has_cdm == _TRUE_)"                                                                            \
+        "  Omega0_M += pba->Omega0_cdm;"                                                                         \
+        "if (pba->has_dcdm == _TRUE_)"                                                                           \
+        "  Omega0_M += pba->Omega_ini_dcdm;  /* take dcdm into account */"                                       \
+        "double Omega_rad_eff = pow(a/pba->a_today, 4)/pow(pba->H0, 2)*rho_rad;  \
+/* take all relativistic species into account */"                                                                \
+        "double eps = 3./2.*Omega0_M/Omega_rad_eff*a;"                                                           \
+        "double C = 1e-3;  /* arbitrary */"                                                                      \
+        "pvecback_integration[pba->index_bi_D] = C*(1. + eps + 1./4.*eps*eps);"                                  \
+        "pvecback_integration[pba->index_bi_D_prime] = C*a*pvecback[pba->index_bg_H]*(eps + 1./2.*eps*eps);"     \
+        "pvecback_integration[pba->index_bi_D2] = -C*C*(eps + 3./4.*eps*eps);"                                   \
+        "pvecback_integration[pba->index_bi_D2_prime] = -C*C*a*pvecback[pba->index_bg_H]*(eps + 3./2.*eps*eps);" \
+    )
+    linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" "${filename}" | head -n 1)
+    patch_class "${filename}" $((linenr + 1)) "insert" "below" "${new_lines[@]}"
+    pattern='class_store_columntitle *\\( *titles *, *\"gr\\.fac\\. f\"'
+    new_lines=(                                                    \
+        "class_store_columntitle(titles, \"gr.fac. D2\", _TRUE_);" \
+        "class_store_columntitle(titles, \"gr.fac. f2\", _TRUE_);" \
+    )
+    linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" "${filename}" | head -n 1)
+    patch_class "${filename}" $((linenr + 1)) "insert" "below" "${new_lines[@]}"
+
+
+    pattern='class_store_double *\\( *dataptr *, *pvecback *\\[ *pba *-> *index_bg_f *\\]'
+    new_lines=(                                                                      \
+        "class_store_double(dataptr, pvecback[pba->index_bg_D2], _TRUE_, storeidx);" \
+        "class_store_double(dataptr, pvecback[pba->index_bg_f2], _TRUE_, storeidx);" \
+    )
+    linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" "${filename}" | head -n 1)
+    patch_class "${filename}" $((linenr + 1)) "insert" "below" "${new_lines[@]}"
+    pattern='rho_M *\\+='
+    new_lines=(                                                                   \
+        "/* Include dcdm in growth factors */"                                    \
+        "if (pba->has_dcdm == _TRUE_)"                                            \
+        "  rho_M += pvecback[pba->index_bg_rho_dcdm];"                            \
+        "/* Include non-relativistic contribution from ncdm in growth factors */" \
+        "double rho_ncdm, p_ncdm;"                                                \
+        "int n_ncdm;"                                                             \
+        "if (pba->has_ncdm == _TRUE_) {"                                          \
+        "  for (n_ncdm = 0; n_ncdm < pba->N_ncdm; n_ncdm++) {"                    \
+        "    class_call(background_ncdm_momenta("                                 \
+        "      pba->q_ncdm_bg[n_ncdm],"                                           \
+        "      pba->w_ncdm_bg[n_ncdm],"                                           \
+        "      pba->q_size_ncdm_bg[n_ncdm],"                                      \
+        "      pba->M_ncdm[n_ncdm],"                                              \
+        "      pba->factor_ncdm[n_ncdm],"                                         \
+        "      1./a - 1.,"                                                        \
+        "      NULL,"                                                             \
+        "      &rho_ncdm,"                                                        \
+        "      &p_ncdm,"                                                          \
+        "      NULL,"                                                             \
+        "      NULL),"                                                            \
+        "      pba->error_message,"                                               \
+        "      pba->error_message);"                                              \
+        "    rho_M += rho_ncdm - 3.*p_ncdm;"                                      \
+        "  }"                                                                     \
+        "}"                                                                       \
+    )
+    linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" "${filename}" | head -n 1)
+    patch_class "${filename}" $((linenr + 1)) "insert" "below" "${new_lines[@]}"
+    pattern='dy *\\[ *pba *-> *index_bi_D_prime *\\] *='
+    new_lines=(                                                                  \
+        "/* Second-order growth factor */"                                       \
+        "dy[pba->index_bi_D2] = y[pba->index_bi_D2_prime];"                      \
+        "dy[pba->index_bi_D2_prime] = -a*H*y[pba->index_bi_D2_prime]"            \
+        "  + 1.5*a*a*rho_M*(y[pba->index_bi_D2] - pow(y[pba->index_bi_D], 2.));" \
+    )
+    linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" "${filename}" | head -n 1)
+    patch_class "${filename}" $((linenr + 1)) "insert" "below" "${new_lines[@]}"
     # Include theta_tot in perturbation output
     linenr=$(new_class_perturbation_linenr "perturb_prepare_output")
     new_lines=(                                                               \

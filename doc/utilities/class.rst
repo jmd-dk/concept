@@ -351,9 +351,9 @@ quantities by listing them in the ``class_extra_background``
 :ref:`parameter <class_extra_background>` and the
 ``class_extra_perturbations`` :ref:`parameter <class_extra_perturbations>`.
 
-As an example, the below requests the linear growth factor :math:`D` as an
-extra background quantity, as well as the conformal Newtonian metric
-potentials :math:`\phi` and :math:`\psi` as extra perturbations:
+As an example, the below requests the comoving distance as an extra background
+quantity, as well as the conformal Newtonian metric potentials :math:`\phi`
+and :math:`\psi` as extra perturbations:
 
 .. code-block:: bash
    :emphasize-lines: 5-6
@@ -362,7 +362,7 @@ potentials :math:`\phi` and :math:`\psi` as extra perturbations:
        -u class \
            --kmin <kmin> --kmax <kmax> \
            <perturbations> \
-       -c "class_extra_background = 'D'" \
+       -c "class_extra_background = 'comov. dist.'" \
        -c "class_extra_perturbations = {'ϕ', 'ψ'}"
 
 .. note::
@@ -400,7 +400,7 @@ various data sets are expressed:
    Cosmic time ``t`` and conformal time ``tau``                            .. centered:: :math:`[\text{Gyr}]`
    Fourier mode ``k``                                                      .. centered:: :math:`[\text{Mpc}^{-1}]`
    Hubble parameter ``H``                                                  .. centered:: :math:`[\text{Gyr}^{-1}]`
-   Linear growth factor ``D`` and rate ``f``                               .. centered:: :math:`[1]`
+   Growth factors ``D``, ``D2`` and rates ``f``, ``f2``                    .. centered:: :math:`[1]`
    Background energy density ``rho``                                       .. centered:: :math:`[10^{10}\, m_{\odot}\, \text{Mpc}^{-3}]`
    Energy density contrast ``delta``                                       .. centered:: :math:`[1]`
    Velocity divergence ``theta``                                           .. centered:: :math:`[\text{Gyr}^{-1}]`

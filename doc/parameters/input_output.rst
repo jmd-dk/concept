@@ -1288,6 +1288,21 @@ CO\ *N*\ CEPT run.
                       * ``f``: The linear growth rate
                         :math:`f \equiv \mathrm{d}\ln D / \mathrm{d}\ln a`
                         (in CLASS called ``gr.fac. f``).
+                      * ``D2``: The second-order growth factor :math:`D^{(2)}`
+                        (in CLASS called ``gr.fac. D2``).
+                      * ``f2``: The second-order growth rate
+                        :math:`f^{(2)} \equiv \mathrm{d}\ln D^{(2)} / \mathrm{d}\ln a`
+                        (in CLASS called ``gr.fac. f2``).
+
+                      .. note::
+                         When running the
+                         :doc:`class utility </utilities/class>`, the
+                         ``class_extra_background`` parameter is by default
+                         set to
+
+                         .. code-block:: python3
+
+                            {'D', 'f', 'D2', 'f2', 'τ'}
 
 -- --------------- -- -
 \  **Example 0**   \  Include the conformal time :math:`\tau` among the
