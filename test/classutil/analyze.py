@@ -35,6 +35,12 @@ with open_hdf5(glob(f'{this_dir}/output_full/*.hdf5')[0], mode='r') as f:
     h_expected = H0/(100*units.km/(units.s*units.Mpc))
     if not isclose(h, h_expected):
         abort(f'Expected h = {h_expected} but got {h}')
+    # Get length unit for later use
+    unit_length_full = f['units'].attrs['unit length']
+    # Check for default extra background quantities
+    for key in ['tau', 'D']:
+        if key not in f['background']:
+            abort(f'Expected \'{key}\' to be included in the background')
     # Check the size of the perturbations
     a_bg = f['background/a'][:]
     a_pt = f['perturbations/a'][:]
@@ -67,18 +73,25 @@ if (not (σ_err > 0)) or σ_err > σ_tol:
 # Check the "extra" CLASS HDF5
 with open_hdf5(glob(f'{this_dir}/output_extra/*.hdf5')[0], mode='r') as f:
     # Check for extra background quantities
-    for key in ['D', 'tau']:
+    for key in ['comov. dist.', ]:
         if key not in f['background']:
             abort(f'Expected \'{key}\' to be included in the background')
     # Check for extra perturbations
-    for key in ['theta_tot']:
+    for key in ['theta_tot', ]:
         if key not in f['perturbations']:
             abort(f'Expected \'{key}\' to be included among the perturbations')
-    # Check for plots of θ_tot
-    if not len(glob(
+    # Check for processed plots of θ_tot
+    if not glob(
         f'{this_dir}/output_extra/class_perturbations_processed/theta_tot/*.png'
-    )) == k_size:
-        abort(f'Expected {k_size} figures of theta_tot')
+    ):
+        abort('Expected figures of processed theta_tot')
+    # Check for plots of ψ and ϕ (these are produced since they are
+    # used for the requested metric).
+    for perturbation in ['psi', 'phi']:
+        if not len(glob(
+            f'{this_dir}/output_extra/class_perturbations/{perturbation}/*.png'
+        )) == k_size:
+            abort(f'Expected {k_size} figures of {perturbation}')
     # Compare a's and k's with that of the other HDF5
     if not np.all(f['background/a'][:] == a_bg):
         abort('The two HDF5 files have different background tabulations')
@@ -94,6 +107,23 @@ with open_hdf5(glob(f'{this_dir}/output_extra/*.hdf5')[0], mode='r') as f:
             f'Disagreement between δρ of {linear_species_combined} '
             f'between the two HDF5 files'
         )
+
+# Check the "reuse" CLASS HDF5
+with open_hdf5(glob(f'{this_dir}/output_reuse/*.hdf5')[0], mode='r') as f:
+    # Compare times with other HDF5
+    if not np.all(f['perturbations/a'][:] == a_pt):
+        abort('Times not properly reused')
+    # Compare modes with other HDF5
+    k_size_reuse = f['perturbations/k'].size
+    if k_size_reuse !=  k_size - 2:
+        abort(f'Expected {k_size - 2} modes but found {k_size_reuse}')
+    unit_length_reuse = f['units'].attrs['unit length']
+    if not np.all(np.isclose(
+        f['perturbations/k'][:]*1/eval_unit(unit_length_reuse),
+        k[1:-1]*1/eval_unit(unit_length_full),
+        atol=0,
+    )):
+        abort('Modes not properly reused')
 
 # Done analysing
 masterprint('done')

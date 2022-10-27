@@ -1302,7 +1302,7 @@ CO\ *N*\ CEPT run.
 
                          .. code-block:: python3
 
-                            {'D', 'f', 'D2', 'f2', 'τ'}
+                            {'tau', 'D', 'f', 'D2', 'f2'}
 
 -- --------------- -- -
 \  **Example 0**   \  Include the conformal time :math:`\tau` among the

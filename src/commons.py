@@ -1456,6 +1456,7 @@ unicode_superscripts = dict(zip('0123456789-+e.', [unicode(c) for c in (
     before=str,
     c=str,
     i='Py_ssize_t',
+    kword=str,
     mapping=dict,
     operators=str,
     pat=str,
@@ -1474,15 +1475,40 @@ def unformat_unit(unit_str):
     unit_str = re.sub(r'\s+', ' ', unit_str).strip()
     # Replace spaces with an asterisk
     # if no operator is to be find on either side.
+    parse_ok = True
+    try:
+        ast.parse(unit_str)
+    except SyntaxError:
+        parse_ok = False
     operators = '+-*/^&|@%<>='
     unit_list = list(unit_str)
-    for i, c in enumerate(unit_list):
-        if c != ' ' or (i == 0 or i == len(unit_list) - 1):
+    for i, c in enumerate(unit_str):
+        if c != ' ' or i == 0 or i == len(unit_list) - 1:
             continue
         before = unit_list[i - 1]
         after  = unit_list[i + 1]
-        if before not in operators and after not in operators:
+        if before in operators or after in operators:
+            continue
+        # Also check for keywords
+        for kword in keyword.kwlist:
+            if i - len(kword) >= 0:
+                before = ''.join(unit_list[i-len(kword):i])
+                if before == kword:
+                    break
+            if i + len(kword) + 1 <= len(unit_list):
+                after = ''.join(unit_list[i+1:i+len(kword)+1])
+                if after == kword:
+                    break
+        else:
+            # Do replacement
             unit_list[i] = '*'
+            try:
+                ast.parse(''.join(unit_list))
+                parse_ok = True
+            except SyntaxError:
+                if parse_ok:
+                    # Undo replacement
+                    unit_list[i] = c
     unit_str = ''.join(unit_list)
     # Various replacements
     mapping = {
@@ -1512,14 +1538,15 @@ def unformat_unit(unit_str):
 # to the corresponding numerical value.
 @cython.pheader(
     # Arguments
-    unit_str=str,
+    unit_str_in=object,  # str or bytes
     namespace=dict,
     fail_on_error='bint',
     # Locals
     unit=object,  # double or NoneType
+    unit_str=str,
     returns=object,  # double or NoneType
 )
-def eval_unit(unit_str, namespace=None, fail_on_error=True):
+def eval_unit(unit_str_in, namespace=None, fail_on_error=True):
     """This function is roughly equivalent to
     eval(unit_str, units_dict). Here however more stylized versions
     of unit_str are legal, e.g. 'm☉ Mpc Gyr⁻¹'.
@@ -1530,6 +1557,10 @@ def eval_unit(unit_str, namespace=None, fail_on_error=True):
     to False. A failure will now not raise an exception,
     but merely return None.
     """
+    if isinstance(unit_str_in, bytes):
+        unit_str = unit_str_in.decode()
+    else:
+        unit_str = unit_str_in
     # Remove any formatting on the unit string
     unit_str = unformat_unit(unit_str)
     # Evaluate the transformed unit string

@@ -819,18 +819,19 @@ def info():
     gauge_str=str,
     gridsize='Py_ssize_t',
     gridsize_i='Py_ssize_t',
+    gridsize_or_k_magnitudes=object,  # Py_ssize_t or np.ndarray
     i='Py_ssize_t',
     index='Py_ssize_t',
     k_magnitudes='double[::1]',
-    k_magnitudes_str=str,
     k_max='double',
+    k_min='double',
     k_modes_per_decade_ori=dict,
     key=str,
-    modes='Py_ssize_t',
+    modes=object,  # int or np.ndarray
     perturbations=object,  # PerturbationDict
     rank_other='int',
     size='Py_ssize_t',
-    times='Py_ssize_t',
+    times=object,  # int or np.ndarray
     transfer='double[:, ::1]',
     transfer_of_k='double[::1]',
     transferfunction_info=object,  # TransferFunctionInfo
@@ -860,14 +861,6 @@ def class_():
     # Should we compute and store perturbations (or only background)?
     compute_perturbations = bool(components or class_extra_perturbations)
     if compute_perturbations:
-        # Get the number of times at which to tabulate
-        # the perturbations. A value of -1 means include all values
-        # from CLASS.
-        times_float = float(special_params['times'])
-        if times_float == ထ:
-            times = -1
-        else:
-            times = int(round(times_float))
         # Get the grid size corresponding to the maximum k.
         # Note that the minimum k is implicitly set by the boxsize.
         gridsize = -1
@@ -885,62 +878,83 @@ def class_():
                 )
         # If a maximum k is explicitly given, make sure that this is in
         # fact included in the k range.
+        k_min = float(special_params['kmin'])
         k_max = float(special_params['kmax'])
         while k_max != -1:
-            k_magnitudes, k_magnitudes_str = get_k_magnitudes(gridsize, use_cache=False)
+            k_magnitudes, _ = get_k_magnitudes(gridsize, use_cache=False)
             if k_magnitudes[k_magnitudes.shape[0] - 1] >= k_max:
                 break
             gridsize += 2
-        # Adjust the global user parameter k_modes_per_decade so that
-        # the exact requested number of k modes is obtained.
+        # Get either the number of modes at which to tabulate
+        # the perturbations, or the exact k values of these modes.
         # A value of -1 means that no specific number of modes has been
-        # requested, in which case we use the number obtained from
-        # k_modes_per_decade as is.
-        modes = int(round(special_params['modes']))
-        if modes == 0:
-            abort(
-                'You have specified 0 modes. If you do not want any perturbation output, '
-                'omit the perturbation argument to the class utility'
-            )
-        if modes < -1:
-            abort(f'Invalid number of modes: {modes}')
-        if modes == 1:
-            modes = 2
-            masterwarn('The number of modes has been increased from 1 to 2')
-        if modes != -1:
-            k_modes_per_decade_ori = k_modes_per_decade.copy()
-            k_magnitudes, k_magnitudes_str = get_k_magnitudes(gridsize, use_cache=False)
-            fac = 1
-            while k_magnitudes.shape[0] < modes:
-                fac *= 1.1
-                for k_magnitude, val in k_modes_per_decade_ori.items():
-                    k_modes_per_decade[k_magnitude] = fac*val
-                k_magnitudes, k_magnitudes_str = get_k_magnitudes(gridsize, use_cache=False)
-            fac_max = fac
-            while k_magnitudes.shape[0] > modes:
-                fac *= 0.9
-                for k_magnitude, val in k_modes_per_decade_ori.items():
-                    k_modes_per_decade[k_magnitude] = fac*val
-                k_magnitudes, k_magnitudes_str = get_k_magnitudes(gridsize, use_cache=False)
-            fac_min = fac
-            while True:
-                fac = sqrt(fac_min*fac_max)
-                for k_magnitude, val in k_modes_per_decade_ori.items():
-                    k_modes_per_decade[k_magnitude] = fac*val
-                k_magnitudes, k_magnitudes_str = get_k_magnitudes(gridsize, use_cache=False)
-                if isclose(fac_min, fac_max):
-                    break
-                if k_magnitudes.shape[0] < modes:
-                    fac_min = fac
-                elif k_magnitudes.shape[0] > modes:
-                    fac_max = fac
+        # requested, in which case we should use the number obtained
+        # from k_modes_per_decade as is.
+        modes = bcast(
+            handle_class_arg(special_params['modes'], 'modes', k_min, k_max)
+            if master else None
+        )
+        # Get the k values at which to tabulate the perturbations
+        gridsize_or_k_magnitudes = modes
+        if isinstance(modes, int):
+            gridsize_or_k_magnitudes = gridsize
+            if modes == 0:
+                abort(
+                    'You have specified 0 modes. If you do not want any perturbation output, '
+                    'omit the perturbation argument to the class utility'
+                )
+            elif modes < -1:
+                abort(f'Invalid number of modes: {modes}')
+            elif modes == 1:
+                # Set a specific mode
+                if 0 < k_min < ထ and 0 < k_max < ထ:
+                    gridsize_or_k_magnitudes = asarray(
+                        [sqrt(k_min*k_max)],
+                        dtype=C2np['double'],
+                    )
                 else:
-                    break
+                    k_magnitudes, _ = get_k_magnitudes(gridsize)
+                    gridsize_or_k_magnitudes = asarray(
+                        [np.prod(k_magnitudes)**(1/k_magnitudes.size)],
+                        dtype=C2np['double'],
+                    )
+            elif modes != -1:
+                # Adjust the global user parameter k_modes_per_decade
+                # so that the exact requested number of k modes
+                # is obtained.
+                k_modes_per_decade_ori = k_modes_per_decade.copy()
+                k_magnitudes, _ = get_k_magnitudes(gridsize, use_cache=False)
+                fac = 1
+                while k_magnitudes.shape[0] < modes:
+                    fac *= 1.1
+                    for k_magnitude, val in k_modes_per_decade_ori.items():
+                        k_modes_per_decade[k_magnitude] = fac*val
+                    k_magnitudes, _ = get_k_magnitudes(gridsize, use_cache=False)
+                fac_max = fac
+                while k_magnitudes.shape[0] > modes:
+                    fac *= 0.9
+                    for k_magnitude, val in k_modes_per_decade_ori.items():
+                        k_modes_per_decade[k_magnitude] = fac*val
+                    k_magnitudes, _ = get_k_magnitudes(gridsize, use_cache=False)
+                fac_min = fac
+                while True:
+                    fac = sqrt(fac_min*fac_max)
+                    for k_magnitude, val in k_modes_per_decade_ori.items():
+                        k_modes_per_decade[k_magnitude] = fac*val
+                    k_magnitudes, _ = get_k_magnitudes(gridsize, use_cache=False)
+                    if isclose(fac_min, fac_max):
+                        break
+                    if k_magnitudes.shape[0] < modes:
+                        fac_min = fac
+                    elif k_magnitudes.shape[0] > modes:
+                        fac_max = fac
+                    else:
+                        break
     # Do CLASS computation
     if compute_perturbations:
         gauge = special_params['gauge'].replace('-', '').lower()
         cosmoresults = compute_cosmo(
-            gridsize,
+            gridsize_or_k_magnitudes,
             'synchronous' if gauge == 'nbody' else gauge,
             class_call_reason='in order to get perturbations',
         )
@@ -1180,15 +1194,46 @@ def class_():
                 break
         all_a_values, _ = remove_doppelgängers(all_a_values, all_a_values, rel_tol=0.5)
         all_a_values = asarray(all_a_values).copy()
-        # If too many a values are given, evenly select the amount
-        # given by the "times" utility argument.
-        if all_a_values.shape[0] > times and times != -1:
-            step = float(all_a_values.shape[0])/(times - 1)
-            all_a_values_selected = empty(times, dtype=C2np['double'])
-            for i in range(times - 1):
-                all_a_values_selected[i] = all_a_values[cast(int(i*step), 'Py_ssize_t')]
-            all_a_values_selected[times - 1] = all_a_values[all_a_values.shape[0] - 1]
-            all_a_values = all_a_values_selected
+        # Get either the number of times at which to tabulate
+        # the perturbations, or the exact scale factor values at which
+        # to do so. A value of -1 means include all values from CLASS.
+        times = handle_class_arg(special_params['times'], 'times')
+        # Get the scale factor values at which
+        # to tabulate the perturbations.
+        if isinstance(times, int):
+            # If too many a values are given, evenly select the
+            # requested amount from the available times.
+            if all_a_values.shape[0] > times and times != -1:
+                step = float(all_a_values.shape[0])/(times - 1)
+                all_a_values_selected = empty(times, dtype=C2np['double'])
+                for i in range(times - 1):
+                    all_a_values_selected[i] = all_a_values[cast(int(i*step), 'Py_ssize_t')]
+                all_a_values_selected[times - 1] = all_a_values[all_a_values.shape[0] - 1]
+                all_a_values = all_a_values_selected
+        else:
+            # Use explicit values given
+            if times[0] < all_a_values[0]:
+                if isclose(cast(times[0], 'double'), cast(all_a_values[0], 'double')):
+                    times[0] = all_a_values[0]
+                else:
+                    abort(
+                        f'Cannot tabulate perturbations at a = {times[0]} as the '
+                        f'earliest scale factor value tabulated from the CLASS computation '
+                        f'is {all_a_values[0]}. Try lowering the a_begin parameter.'
+                    )
+            if times[times.shape[0] - 1] > all_a_values[all_a_values.shape[0] - 1]:
+                if isclose(
+                    cast(times[times.shape[0] - 1], 'double'),
+                    cast(all_a_values[all_a_values.shape[0] - 1], 'double'),
+                ):
+                    times[times.shape[0] - 1] = all_a_values[all_a_values.shape[0] - 1]
+                else:
+                    abort(
+                        f'Cannot tabulate perturbations at a = {times[times.shape[0] - 1]} as the '
+                        f'last scale factor value tabulated by CLASS '
+                        f'is {all_a_values[all_a_values.shape[0] - 1]}'
+                    )
+            all_a_values = times
         # Broadcast the a values to the slave processes
         bcast(all_a_values.shape[0])
         Bcast(all_a_values)
@@ -1252,8 +1297,8 @@ def class_():
                     transfer_of_k = getattr(cosmoresults, var_name)(a)
                 else:
                     transfer_of_k, _ = compute_transfer(
-                        component, variable, gridsize, specific_multi_index, a,
-                        -1, # The a_next argument
+                        component, variable, gridsize_or_k_magnitudes, specific_multi_index, a,
+                        -1,  # the a_next argument
                         gauge, get='array',
                     )
                 if master:
@@ -1288,3 +1333,40 @@ def class_():
             masterprint('done')
     # Done writing processed CLASS output
     masterprint(f'All processed CLASS output has been saved to "{filename}"')
+
+# Helper function for the class_() function
+def handle_class_arg(arg, kind, vmin=0, vmax=ထ):
+    if not isinstance(arg, str):
+        abort(f'handle_class_arg() called with type {type(arg)}')
+    if vmin == -1:
+        vmin = 0
+    if vmax == -1:
+        vmax = ထ
+    kind = {'times': 'a', 'modes': 'k'}.get(kind, kind)
+    if os.path.isfile(arg):
+        if arg.endswith('.hdf5'):
+            with open_hdf5(arg, mode='r') as hdf5_file:
+                values = hdf5_file[f'perturbations/{kind}'][:]
+                # Apply units of inverse length in the case of k modes
+                if kind == 'k':
+                    unit_length_hdf5 = hdf5_file['units'].attrs['unit length']
+                    unit = 1/eval_unit(unit_length_hdf5)
+                    values *= unit
+        else:
+            values = np.loadtxt(arg)
+            if values.ndim > 1:
+                abort(f'Got several arrays of data from file {arg}')
+    else:
+        values = eval_unit(arg, units_dict)
+    if isinstance(values, (int, float, np.integer, np.floating)):
+        if values == ထ:
+            values = -1
+        else:
+            values = int(round(values))
+    else:
+        values = asarray(values, dtype=C2np['double'])
+        if values.shape == ():
+            values = asarray([values[()]])
+        values = asarray(sorted(set(values)), dtype=C2np['double'])
+        values = values[(vmin <= values) & (values <= vmax)]
+    return values

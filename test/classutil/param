@@ -1,12 +1,6 @@
 # Input/output
 output_dirs = f'{param.dir}/output'
 
-# Numerics
-boxsize = 1*kpc/h      # overwritten by --kmin
-powerspec_options = {  # overwritten by --kmax
-    'global gridsize': 1_000_000,
-}
-
 # Cosmology
 H0 = 67*km/(s*Mpc)
 Ωb = 0.049

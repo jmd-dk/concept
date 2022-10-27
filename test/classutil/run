@@ -56,19 +56,35 @@ mv "${this_dir}/output" "${this_dir}/output_untrustedsigma"
 # Do the same neutrino computation, this time storing only the
 # collective perturbations from the "linear" species. Also store
 # a few extra quantities and plot the perturbations.
-"${concept}"                                       \
-    -u class                                       \
-        'g + ncdm[0] + ncdm[1] + ncdm[2] + metric' \
-        ${gauge_option}                            \
-        ${times_option}                            \
-        ${modes_option}                            \
-    -p "${this_dir}/param"                         \
-    -c "class_extra_background = {'D', 'τ'}"       \
-    -c "class_extra_perturbations = 'θ_tot'"       \
-    -c "class_plot_perturbations = True"           \
-    -n ${n}                                        \
+"${concept}"                                            \
+    -u class                                            \
+        'g + ncdm[0] + ncdm[1] + ncdm[2] + metric'      \
+        ${gauge_option}                                 \
+        ${times_option}                                 \
+        ${modes_option}                                 \
+    -p "${this_dir}/param"                              \
+    -c "class_extra_background = {'comov. dist.', }"    \
+    -c "suppress_output = {'err': r'comov[.] dist[.]'}" \
+    -c "class_extra_perturbations = 'θ_tot'"            \
+    -c "class_plot_perturbations = True"                \
+    -n ${n}                                             \
     --local
 mv "${this_dir}/output" "${this_dir}/output_extra"
+
+# Do a simple perturbation computation, reusing the times and modes of a
+# previous computation, but with one less k mode at each end.
+"${concept}"                                                  \
+    -u class                                                  \
+        'b'                                                   \
+        --times "${this_dir}/output_full/"*.hdf5              \
+        --modes "${this_dir}/output_full/"*.hdf5              \
+        --kmin "1.1e-4/(1e+3*kpc)" --kmax "0.9e-1/(1e-3*Gpc)" \
+-p "${this_dir}/param"                                        \
+-c "a_begin = 1/(1 + 199)"                                    \
+-c "unit_length = 'Gpc'"                                      \
+-n ${n}                                                       \
+--local
+mv "${this_dir}/output" "${this_dir}/output_reuse"
 
 # Analyse the outputs
 "${concept}"                    \

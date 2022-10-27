@@ -102,7 +102,11 @@ parser.add_argument(
 parser.add_argument(
     '--times',
     default='1024',
-    help='maximum number of scale factor values for the tabulated perturbations',
+    help=(
+        'maximum number of scale factor values for the tabulated perturbations, '
+        'explicit scale factor values, '
+        'or path to file containing such values'
+    ),
 )
 parser.add_argument(
     '--kmin',
@@ -117,7 +121,11 @@ parser.add_argument(
 parser.add_argument(
     '--modes',
     default=-1,
-    help='number of k modes',
+    help=(
+        'number of k modes, '
+        'explicit k values for the modes, '
+        'or path to file containing such values'
+    ),
 )
 # Enables Python to write directly to screen (stderr)
 # in case of help request.
@@ -137,12 +145,8 @@ sys.stdout = stdout
 # Print out the arguments.
 # These will be captured in the Bash 'args' variable.
 print('argparse_finished=True')
-print(f'perturbations=\"{args.perturbations}\"')
-print(f'gauge={args.gauge}')
-print(f'times={args.times}')
-print(f'kmin={args.kmin}')
-print(f'kmax={args.kmax}')
-print(f'modes={args.modes}')
+for arg, val in vars(args).items():
+    print(f'{arg}=\"{val}\"')
 " "$@" || echo "argparse_exit_code=$?")
 # Evaluate the handled arguments into this scope
 eval "${args}"
@@ -227,13 +231,13 @@ _approximations = {
 special_params = {
     'special': '$(basename "${this_file}")',
     'gauge'  : '${gauge}',
-    'times'  : ${times},
-    'kmin'   : ${kmin},
-    'kmax'   : ${kmax},
-    'modes'  : ${modes},
+    'times'  : '${times}',
+    'kmin'   :  ${kmin},
+    'kmax'   :  ${kmax},
+    'modes'  : '${modes}',
 }
 # Parameter values which should always be used when running this utility
-class_extra_background = {'D', 'f', 'D2', 'f2', 'τ'}
+class_extra_background = {'tau', 'D', 'f', 'D2', 'f2'}
 # Set the path to the parameter file to be the path to the actual
 # parameter file specified by the user, not this auto-generated
 # parameter file.

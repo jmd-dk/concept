@@ -688,7 +688,15 @@ class CosmoResults:
                          }
                          for perturbation in self._perturbations
                     ]
-                    if len(self.k_magnitudes) > len(self.k_node_indices):
+                    if master:
+                        gather_into_master = len(self.k_magnitudes) > len(self.k_node_indices)
+                        for rank_send in node_master_ranks:
+                            if rank_send == rank:
+                                continue
+                            send(gather_into_master, dest=rank_send)
+                    else:
+                        gather_into_master = recv(source=master_rank)
+                    if gather_into_master:
                         # The master process needs to know which
                         # process store which k modes.
                         if master:
@@ -2622,34 +2630,39 @@ def find_critical_times():
 # from before the initial simulation time and until the present.
 @cython.pheader(
     # Arguments
-    gridsize='Py_ssize_t',
+    gridsize_or_k_magnitudes=object,  # Py_ssize_t or np.ndarray
     gauge=str,
     filename=str,
     class_call_reason=str,
     # Locals
+    cache_key=tuple,
     cosmoresults=object, # CosmoResults
     extra_params=dict,
+    gridsize='Py_ssize_t',
     k_magnitudes='double[::1]',
     k_magnitudes_str=str,
     params_specialized=dict,
     returns=object,  # CosmoResults
 )
-def compute_cosmo(gridsize=-1, gauge='synchronous', filename='', class_call_reason=''):
+def compute_cosmo(
+    gridsize_or_k_magnitudes=-1, gauge='synchronous', filename='', class_call_reason='',
+):
     """All calls to CLASS should be done through this function.
     If no arguments are supplied, CLASS will be run with the parameters
     stored in class_params. The return type is CosmoResults, which
     stores the result of the CLASS computation.
-    If gridsize is given, a more in-depth computation will be carried
-    out by CLASS, where perturbations are also computed.
+    If either a grid size or some k magnitudes are given as the first
+    argument, a more in-depth computation will be carried out by CLASS,
+    where perturbations are also computed.
     All results from calls to this function are cached (using the
     global variable cosmoresults_cache), so you can safely call this
     function multiple times with the same arguments without it having
     to do the same CLASS computation over and over again.
-    The gridsize argument specify the |k| distribution on which the
-    perturbations should be tabulated, as defined by get_k_magnitudes().
-    The gauge of the transfer functions can be specified by
-    the gauge argument, which can be any valid CLASS gauge. Note that
-    N-body gauge is not implemented in CLASS.
+    If a grid size is passed, this specifies the |k| distribution on
+    which the perturbations should be tabulated, as defined
+    by get_k_magnitudes(). The gauge of the transfer functions can be
+    specified by the gauge argument, which can be any valid CLASS gauge.
+    Note that N-body gauge is not implemented in CLASS.
     If a filename is given, CLASS results are loaded from this file.
     """
     # If a gauge is given explicitly as a CLASS parameter in the
@@ -2669,21 +2682,39 @@ def compute_cosmo(gridsize=-1, gauge='synchronous', filename='', class_call_reas
         )
     # If this exact CLASS computation has already been carried out,
     # return the stored results.
-    cosmoresults = cosmoresults_cache.get((gridsize, gauge))
+    cache_key = (str(gridsize_or_k_magnitudes), gauge)
+    cosmoresults = cosmoresults_cache.get(cache_key)
     if cosmoresults is not None:
         return cosmoresults
+    # Extract grid size or explicit k magnitudes from combined argument
+    if isinstance(gridsize_or_k_magnitudes, (int, float, np.integer, np.floating)):
+        gridsize = int(round(gridsize_or_k_magnitudes))
+        k_magnitudes = None
+    else:
+        gridsize = -1
+        k_magnitudes = gridsize_or_k_magnitudes
     # Determine whether to run CLASS "quickly" or "fully",
     # where only the latter computes the perturbations.
-    if gridsize == -1:
+    if gridsize == -1 and k_magnitudes is None:
         # A quick CLASS computation should be carried out,
         # using only the minimal set of parameters.
         extra_params = {}
-        k_magnitudes = None
     else:
         # A full CLASS computation should be carried out.
-        # Array of |k| values at which to tabulate the perturbations,
+        # Get array of k values at which to tabulate the perturbations,
         # in both float and str representation.
-        k_magnitudes, k_magnitudes_str = get_k_magnitudes(gridsize)
+        if k_magnitudes is None:
+            k_magnitudes, k_magnitudes_str = get_k_magnitudes(gridsize)
+        else:
+            # Explicit k values has been requested. Allow for a few more
+            # digits than what prepare_class_k() would prescribe by
+            # default if we then retain these k values exactly.
+            for n_extra in range(3):
+                k_magnitudes_prepared, k_magnitudes_str = prepare_class_k(k_magnitudes, n_extra)
+                if np.all(asarray(k_magnitudes_prepared) == asarray(k_magnitudes)):
+                    break
+            else:
+                k_magnitudes_prepared, k_magnitudes_str = prepare_class_k(k_magnitudes)
         # Specify the extra parameters with which CLASS should be run
         extra_params = {
             'k_output_values': k_magnitudes_str,
@@ -2712,7 +2743,7 @@ def compute_cosmo(gridsize=-1, gauge='synchronous', filename='', class_call_reas
         class_call_reason=class_call_reason,
     )
     # Add the CosmoResults object to the cache
-    cosmoresults_cache[gridsize, gauge] = cosmoresults
+    cosmoresults_cache[cache_key] = cosmoresults
     return cosmoresults
 # Dict with keys of the form (gridsize, gauge), storing the results
 # of calls to the above function as CosmoResults instances.
@@ -2724,7 +2755,7 @@ cosmoresults_cache = {}
     # Arguments
     component='Component',
     variable=object,  # str or int
-    gridsize='Py_ssize_t',
+    gridsize_or_k_magnitudes=object,  # Py_ssize_t or np.ndarray
     specific_multi_index=object,  # tuple, int-like or str
     a='double',
     a_next='double',
@@ -2754,7 +2785,7 @@ cosmoresults_cache = {}
     returns=tuple,  # (Spline, CosmoResults)
 )
 def compute_transfer(
-    component, variable, gridsize,
+    component, variable, gridsize_or_k_magnitudes,
     specific_multi_index=None, a=-1, a_next=-1, gauge='N-body', get='spline', weight=None,
 ):
     """This function calls compute_cosmo which produces a CosmoResults
@@ -2785,7 +2816,7 @@ def compute_transfer(
     # implemented in CLASS, the synchronous gauge is used in its place.
     # We do the transformation from synchronous to N-body gauge later.
     cosmoresults = compute_cosmo(
-        gridsize,
+        gridsize_or_k_magnitudes,
         'synchronous' if gauge == 'nbody' else gauge,
         class_call_reason=f'in order to get perturbations of {component.name}',
     )
@@ -2965,35 +2996,15 @@ def get_k_magnitudes(gridsize, use_cache=True):
     logk_magnitudes -= logk_min
     logk_magnitudes *= (logk_max - logk_min)/logk_magnitudes[k_gridsize - 1]
     logk_magnitudes += logk_min
-    # Construct the |k| array
+    # Construct the k array
     k_magnitudes = 10**logk_magnitudes
-    # Convert to CLASS units, i.e. Mpc⁻¹, which shall be the unit
-    # used for the str representation of k_magnitudes.
-    k_magnitudes = asarray(k_magnitudes)/units.Mpc**(-1)
-    # Limit the number of decimals on each |k|,
-    # also producing the str representation.
-    with disable_numpy_summarization():
-        k_magnitudes_str = np.array2string(
-            k_magnitudes,
-            max_line_width=ထ,
-            formatter={'float': k_float2str},
-            separator=',',
-        ).strip('[]')
-    k_magnitudes = np.fromstring(k_magnitudes_str, sep=',')
-    if len(set(k_magnitudes)) != k_gridsize:
-        abort(
-            'The requested k sampling is too dense, leading to modes that are exactly equal '
-            'after limiting the number of decimal places. Though this ought not to ever happen, '
-            'it should help to lower the k_modes_per_decade parameter. '
-            'Alternatively, you can try lowering the linear.k_safety_factor variable.'
-        )
-    # Convert back to the current CO𝘕CEPT unit system
-    k_magnitudes = asarray(k_magnitudes)*units.Mpc**(-1)
+    # Make the exact k values suitable for CLASS
+    # and produce a str representation.
+    k_magnitudes, k_magnitudes_str = prepare_class_k(k_magnitudes)
     # Cache and return both the float and str representation
-    results = (k_magnitudes, k_magnitudes_str)
     if use_cache:
-        k_magnitudes_cache[gridsize] = results
-    return results
+        k_magnitudes_cache[gridsize] = (k_magnitudes, k_magnitudes_str)
+    return k_magnitudes, k_magnitudes_str
 # Cache and helper functions used by the get_k_magnitudes() function
 cython.declare(k_magnitudes_cache=dict)
 k_magnitudes_cache = {}
@@ -3010,13 +3021,46 @@ def get_logk_modes_per_decade_interp():
         ),
     ): float(f(logk))
     return logk_modes_per_decade_interp
-def k_float2str(k_float):
-    k_str_n_decimals = get_k_str_n_decimals()
-    k_str = 𝕊['{{:.{}e}}'.format(k_str_n_decimals)].format(k_float)
-    k_str = k_str.replace('+0', '+').replace('-0', '-').replace('e+0', '')
+def prepare_class_k(k_magnitudes, n_extra=0):
+    # Convert to CLASS units, i.e. Mpc⁻¹, which shall be the unit
+    # used for the str representation of k_magnitudes.
+    k_magnitudes = asarray(k_magnitudes)/units.Mpc**(-1)
+    # Limit the number of decimals on each k, also producing the
+    # str representation. Increase the number of decimals until each
+    # mode has a unique str representation.
+    n = get_k_str_n_decimals() + n_extra
+    while True:
+        with disable_numpy_summarization():
+            k_magnitudes_str = np.array2string(
+                k_magnitudes,
+                max_line_width=ထ,
+                formatter={'float': functools.partial(k_float2str, n=n)},
+                separator=',',
+            ).strip('[]')
+        k_magnitudes = np.fromstring(k_magnitudes_str, sep=',')
+        if len(set(k_magnitudes)) == len(k_magnitudes):
+            break
+        if n > 18:
+            abort(
+                'The requested k sampling is too dense, '
+                'leading to modes that are exactly equal'
+            )
+        n += 1
+    # Convert back to the current CO𝘕CEPT unit system
+    k_magnitudes = asarray(k_magnitudes)*units.Mpc**(-1)
+    return k_magnitudes, k_magnitudes_str
+def k_float2str(k_float, n=-1):
+    if n == -1:
+        n = get_k_str_n_decimals()
+    k_str = (
+        f'{{:.{n}e}}'.format(k_float)
+        .replace('+0', '+')
+        .replace('-0', '-')
+        .replace('e+0', '')
+    )
     return k_str
 def get_k_str_n_decimals():
-    return int(ceil(log10(1 + np.max(tuple(k_modes_per_decade.values())))))
+    return np.max([1, int(ceil(log10(1 + np.max(tuple(k_modes_per_decade.values())))))])
 
 # Function which realises a given variable on a component
 # from a supplied transfer function.
@@ -4015,6 +4059,7 @@ def generate_primordial_noise(slab):
     gauge_cached=str,
     gridsize='Py_ssize_t',
     gridsize_max='Py_ssize_t',
+    gridsize_or_k_magnitudes=object,  # Py_ssize_t or np.ndarray
     i='Py_ssize_t',
     k_magnitude='double',
     k_max='double',
@@ -4050,9 +4095,12 @@ def get_linear_powerspec(component_or_components, k_magnitudes, a=-1, gauge='N-b
     # even if this has too small a grid size, in which case the largest
     # k modes will be filled with NaN values.
     gridsize_max = -1
-    for (gridsize, gauge_cached), cosmoresults in cosmoresults_cache.items():
+    for (gridsize_or_k_magnitudes, gauge_cached), cosmoresults in cosmoresults_cache.items():
+        if not isinstance(gridsize_or_k_magnitudes, int):
+            continue
         if gauge_cached != 𝕊['synchronous' if gauge == 'nbody' else gauge]:
             continue
+        gridsize = gridsize_or_k_magnitudes
         if gridsize > gridsize_max:
             gridsize_max = gridsize
     gridsize = gridsize_max
