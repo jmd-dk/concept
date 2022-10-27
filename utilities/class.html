@@ -252,8 +252,8 @@
 <li class="toctree-l4"><a class="reference internal" href="#help-h-help">Help: <code class="docutils literal notranslate"><span class="pre">-h</span></code>, <code class="docutils literal notranslate"><span class="pre">--help</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#minimum-fourier-mode-kmin">Minimum Fourier mode: <code class="docutils literal notranslate"><span class="pre">--kmin</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#maximum-fourier-mode-kmax">Maximum Fourier mode: <code class="docutils literal notranslate"><span class="pre">--kmax</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#number-of-fourier-modes-modes">Number of Fourier modes: <code class="docutils literal notranslate"><span class="pre">--modes</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#number-of-times-times">Number of times: <code class="docutils literal notranslate"><span class="pre">--times</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#fourier-modes-modes">Fourier modes: <code class="docutils literal notranslate"><span class="pre">--modes</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#times-times">Times: <code class="docutils literal notranslate"><span class="pre">--times</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#gauge-gauge">Gauge: <code class="docutils literal notranslate"><span class="pre">--gauge</span></code></a></li>
 </ul>
 </li>
@@ -363,16 +363,16 @@ first subsection of <a class="reference internal" href="../tutorial/beyond_matte
 <p>Entries on this page:</p>
 <div class="contents local topic" id="contents">
 <ul class="simple">
-<li><p><a class="reference internal" href="#basic-usage" id="id5">Basic usage</a></p></li>
-<li><p><a class="reference internal" href="#command-line-options" id="id6">Command-line options</a></p></li>
-<li><p><a class="reference internal" href="#file-contents" id="id7">File contents</a></p></li>
-<li><p><a class="reference internal" href="#complete-example-massive-neutrinos" id="id8">Complete example (massive neutrinos)</a></p></li>
-<li><p><a class="reference internal" href="#running-through-docker" id="id9">Running through Docker</a></p></li>
-<li><p><a class="reference internal" href="#tips-and-tricks" id="id10">Tips and tricks</a></p></li>
+<li><p><a class="reference internal" href="#basic-usage" id="id6">Basic usage</a></p></li>
+<li><p><a class="reference internal" href="#command-line-options" id="id7">Command-line options</a></p></li>
+<li><p><a class="reference internal" href="#file-contents" id="id8">File contents</a></p></li>
+<li><p><a class="reference internal" href="#complete-example-massive-neutrinos" id="id9">Complete example (massive neutrinos)</a></p></li>
+<li><p><a class="reference internal" href="#running-through-docker" id="id10">Running through Docker</a></p></li>
+<li><p><a class="reference internal" href="#tips-and-tricks" id="id11">Tips and tricks</a></p></li>
 </ul>
 </div>
 <section id="basic-usage">
-<h2><a class="toc-backref" href="#id5">Basic usage</a><a class="headerlink" href="#basic-usage" title="Permalink to this headline"></a></h2>
+<span id="id1"></span><h2><a class="toc-backref" href="#id6">Basic usage</a><a class="headerlink" href="#basic-usage" title="Permalink to this headline"></a></h2>
 <p>A basic invocation of the CO<em>N</em>CEPT class utility looks like</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept <span class="se">\</span>
     -u class <span class="se">\</span>
@@ -421,16 +421,18 @@ specified perturbations as well as various background quantities. The contents
 of these HDF5 files can be explored using tools such as
 <a class="reference external" href="https://vitables.org/">ViTables</a>, but is also described
 <a class="reference internal" href="#file-contents"><span class="std std-ref">below</span></a>.</p>
-<p>For selection of the number of times (scale factor <span class="math notranslate nohighlight">\(a\)</span> values) as well
-as the time interval of interest, see the <code class="docutils literal notranslate"><span class="pre">--times</span></code> <a class="reference internal" href="#number-of-times"><span class="std std-ref">command-line option</span></a>.</p>
-<p>For selection of the number of <span class="math notranslate nohighlight">\(k\)</span> modes and their distribution, see the
-<code class="docutils literal notranslate"><span class="pre">--modes</span></code> <a class="reference internal" href="#number-of-fourier-modes"><span class="std std-ref">command-line option</span></a>.</p>
+<p>For selection of the times (scale factor <span class="math notranslate nohighlight">\(a\)</span> values), see the
+<code class="docutils literal notranslate"><span class="pre">--times</span></code> <a class="reference internal" href="#times"><span class="std std-ref">command-line option</span></a>.</p>
+<p>For selection of the <span class="math notranslate nohighlight">\(k\)</span> modes, see the
+<code class="docutils literal notranslate"><span class="pre">--modes</span></code> <a class="reference internal" href="#fourier-modes"><span class="std std-ref">command-line option</span></a>.</p>
 </section>
 <section id="command-line-options">
-<h2><a class="toc-backref" href="#id6">Command-line options</a><a class="headerlink" href="#command-line-options" title="Permalink to this headline"></a></h2>
+<h2><a class="toc-backref" href="#id7">Command-line options</a><a class="headerlink" href="#command-line-options" title="Permalink to this headline"></a></h2>
 <p>Below the possible command-line options to the CO<em>N</em>CEPT class utility are
 described, i.e. additional options to the <code class="docutils literal notranslate"><span class="pre">concept</span></code> script allowed once
-<code class="docutils literal notranslate"><span class="pre">-u</span> <span class="pre">class</span></code> is supplied. See <a class="reference internal" href="../command_line_options.html"><span class="doc">this page</span></a> for the
+<code class="docutils literal notranslate"><span class="pre">-u</span> <span class="pre">class</span></code> is supplied. For the <code class="docutils literal notranslate"><span class="pre">&lt;perturbations&gt;</span></code> option, see
+<a class="reference internal" href="#basic-usage"><span class="std std-ref">basic usage</span></a> above.
+See <a class="reference internal" href="../command_line_options.html"><span class="doc">this page</span></a> for the
 command-line options to the <code class="docutils literal notranslate"><span class="pre">concept</span></code> script in general, and specifically
 <a class="reference internal" href="../command_line_options.html#utility"><span class="std std-ref">this section</span></a> for how standard command-line options are used
 together with utility specific ones.</p>
@@ -473,14 +475,15 @@ and exits:</p>
 the CLASS computation time for each mode grows rapidly with <span class="math notranslate nohighlight">\(k\)</span>.</p>
 </div>
 </section>
-<section id="number-of-fourier-modes-modes">
-<span id="number-of-fourier-modes"></span><h3>Number of Fourier modes: <code class="docutils literal notranslate"><span class="pre">--modes</span></code><a class="headerlink" href="#number-of-fourier-modes-modes" title="Permalink to this headline"></a></h3>
-<p>Sets the total number of Fourier <span class="math notranslate nohighlight">\(k\)</span> modes for the perturbations. E.g.</p>
+<section id="fourier-modes-modes">
+<span id="fourier-modes"></span><h3>Fourier modes: <code class="docutils literal notranslate"><span class="pre">--modes</span></code><a class="headerlink" href="#fourier-modes-modes" title="Permalink to this headline"></a></h3>
+<p>When specified as an integer, this sets the total number of Fourier <span class="math notranslate nohighlight">\(k\)</span>
+modes for the perturbations. E.g.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept -u class --modes <span class="m">128</span>
 </pre></div>
 </div>
 <p>The placement of the <span class="math notranslate nohighlight">\(k\)</span> modes at which to tabulate the perturbations
-are generally chosen based on the <a class="reference internal" href="#minimum-fourier-mode"><span class="std std-ref">minimum</span></a> and
+are chosen based on the <a class="reference internal" href="#minimum-fourier-mode"><span class="std std-ref">minimum</span></a> and
 <a class="reference internal" href="#maximum-fourier-mode"><span class="std std-ref">maximum</span></a> mode together with the
 <code class="docutils literal notranslate"><span class="pre">k_modes_per_decade</span></code> <a class="reference internal" href="../parameters/numerics.html#k-modes-per-decade"><span class="std std-ref">parameter</span></a>. When the
 <code class="docutils literal notranslate"><span class="pre">--modes</span></code> option is <em>not</em> specified, <code class="docutils literal notranslate"><span class="pre">k_modes_per_decade</span></code> is used as is,
@@ -500,11 +503,29 @@ equidistant modes, you can do e.g.</p>
 <p>If the processed perturbations are intended for use with pkdgrav3, note
 that a maximum number of <span class="math notranslate nohighlight">\(256\)</span> modes is allowed.</p>
 </div>
+<p>Other allowed specifications for <code class="docutils literal notranslate"><span class="pre">--modes</span></code> are:</p>
+<ul>
+<li><p>Explicit <span class="math notranslate nohighlight">\(k\)</span> values at which to perform the tabulation, specified as
+any valid Python expression, e.g.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept -u class --modes <span class="s2">&quot;array([1e-2, 1e-1, 1])/Mpc&quot;</span>
+</pre></div>
+</div>
+</li>
+<li><p>Path to text file containing values of <span class="math notranslate nohighlight">\(k\)</span>. It is assumed that the
+data within this file is expressed in the same units as
+<a class="reference internal" href="../parameters/units.html"><span class="doc">used</span></a> by the current CO<em>N</em>CEPT run.</p></li>
+<li><p>Path to HDF5 file produced using the CO<em>N</em>CEPT class utility.
+The <span class="math notranslate nohighlight">\(k\)</span> values to use will be taken from the tabulated perturbations
+within this file.</p></li>
+</ul>
+<p>In all cases, the <a class="reference internal" href="#minimum-fourier-mode"><span class="std std-ref">minimum</span></a> and
+<a class="reference internal" href="#maximum-fourier-mode"><span class="std std-ref">maximum</span></a> modes are respected, with <span class="math notranslate nohighlight">\(k\)</span>
+values outside this range being dropped.</p>
 </section>
-<section id="number-of-times-times">
-<span id="number-of-times"></span><h3>Number of times: <code class="docutils literal notranslate"><span class="pre">--times</span></code><a class="headerlink" href="#number-of-times-times" title="Permalink to this headline"></a></h3>
-<p>Sets the total number of times (scale factor <span class="math notranslate nohighlight">\(a\)</span> values) at which to
-tabulate the perturbations. E.g.</p>
+<section id="times-times">
+<span id="times"></span><h3>Times: <code class="docutils literal notranslate"><span class="pre">--times</span></code><a class="headerlink" href="#times-times" title="Permalink to this headline"></a></h3>
+<p>When specified as an integer, this sets the total number of times
+(scale factor <span class="math notranslate nohighlight">\(a\)</span> values) at which to tabulate the perturbations. E.g.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept -u class --times <span class="m">512</span>
 </pre></div>
 </div>
@@ -533,6 +554,19 @@ through <code class="docutils literal notranslate"><span class="pre">a_begin</sp
 <p>If the processed perturbations are intended for use with pkdgrav3, note
 that a maximum number of <span class="math notranslate nohighlight">\(1024\)</span> times is allowed.</p>
 </div>
+<p>Other allowed specifications for <code class="docutils literal notranslate"><span class="pre">--times</span></code> are:</p>
+<ul>
+<li><p>Explicit <span class="math notranslate nohighlight">\(a\)</span> values at which to perform the tabulation, specified as
+any valid Python expression, e.g.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept -u class --times <span class="s2">&quot;[1/(1 + z) for z in linspace(0, 99, 512)]&quot;</span>
+</pre></div>
+</div>
+</li>
+<li><p>Path to text file containing values of <span class="math notranslate nohighlight">\(a\)</span>.</p></li>
+<li><p>Path to HDF5 file produced using the CO<em>N</em>CEPT class utility.
+The <span class="math notranslate nohighlight">\(a\)</span> values to use will be taken from the tabulated perturbations
+within this file.</p></li>
+</ul>
 </section>
 <section id="gauge-gauge">
 <span id="gauge"></span><h3>Gauge: <code class="docutils literal notranslate"><span class="pre">--gauge</span></code><a class="headerlink" href="#gauge-gauge" title="Permalink to this headline"></a></h3>
@@ -540,7 +574,7 @@ that a maximum number of <span class="math notranslate nohighlight">\(1024\)</sp
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept -u class --gauge N-body
 </pre></div>
 </div>
-<p>The available gauges are</p>
+<p>The available gauges are:</p>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">N-body</span></code>: The <em>N</em>-body gauge (default).</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">synchronous</span></code>: The synchronous gauge.</p></li>
@@ -552,7 +586,7 @@ with the perturbations transformed to <em>N</em>-body gauge by CO<em>N</em>CEPT.
 </section>
 </section>
 <section id="file-contents">
-<span id="id1"></span><h2><a class="toc-backref" href="#id7">File contents</a><a class="headerlink" href="#file-contents" title="Permalink to this headline"></a></h2>
+<span id="id2"></span><h2><a class="toc-backref" href="#id8">File contents</a><a class="headerlink" href="#file-contents" title="Permalink to this headline"></a></h2>
 <p>The result of a CO<em>N</em>CEPT class utility computation is a file called
 <code class="docutils literal notranslate"><span class="pre">class_processed.hdf5</span></code>, containing the requested perturbations as well as
 background quantities. As mentioned earlier, the contents of HDF5 files are
@@ -560,11 +594,11 @@ conveniently explored using a graphical tool like
 <a class="reference external" href="https://vitables.org/">ViTables</a>. Details of the contents of
 <code class="docutils literal notranslate"><span class="pre">class_processed.hdf5</span></code> are described below.</p>
 <section id="data-layout">
-<span id="id3"></span><h3>Data layout<a class="headerlink" href="#data-layout" title="Permalink to this headline"></a></h3>
+<span id="id4"></span><h3>Data layout<a class="headerlink" href="#data-layout" title="Permalink to this headline"></a></h3>
 <p>The data layout within <code class="docutils literal notranslate"><span class="pre">class_processed.hdf5</span></code> is as follows:</p>
 <ul>
 <li><p><code class="docutils literal notranslate"><span class="pre">background</span></code>: Group containing various background quantities, tabulated
-at a common 1D time grid. E.g.</p>
+at a common 1D time grid:</p>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">a</span></code>: Data set of scale factor <span class="math notranslate nohighlight">\(a\)</span> values at which all background
 quantities are tabulated.</p></li>
@@ -578,6 +612,22 @@ energy density <span class="math notranslate nohighlight">\(\bar{\rho}\)</span> 
 ‘<code class="docutils literal notranslate"><span class="pre">crit</span></code>’ and total ‘<code class="docutils literal notranslate"><span class="pre">tot</span></code>’ energy densities are present as well.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">p_&lt;species&gt;</span></code> with <code class="docutils literal notranslate"><span class="pre">&lt;species&gt;</span></code> some CLASS species: The background
 pressure <span class="math notranslate nohighlight">\(\bar{P}\)</span> of the given species.</p></li>
+</ul>
+<p>When running the CO<em>N</em>CEPT class utility, the <code class="docutils literal notranslate"><span class="pre">class_extra_background</span></code>
+<a class="reference internal" href="../parameters/input_output.html#class-extra-background"><span class="std std-ref">parameter</span></a> is by default populated with the
+following values:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">class_extra_background</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;tau&#39;</span><span class="p">,</span> <span class="s1">&#39;D&#39;</span><span class="p">,</span> <span class="s1">&#39;f&#39;</span><span class="p">,</span> <span class="s1">&#39;D2&#39;</span><span class="p">,</span> <span class="s1">&#39;f2&#39;</span><span class="p">}</span>
+</pre></div>
+</div>
+<p>which then further adds the following background quantities:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">tau</span></code>: The conformal time <span class="math notranslate nohighlight">\(\tau\)</span>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">D</span></code>: First-order (linear) growth factor <span class="math notranslate nohighlight">\(D = D^{(1)}\)</span>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">f</span></code>: First-order (linear) growth rate
+<span class="math notranslate nohighlight">\(f = f^{(1)} \equiv \mathrm{d}\ln D / \mathrm{d}\ln a\)</span>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">D2</span></code>: Second-order growth factor <span class="math notranslate nohighlight">\(D^{(2)}\)</span>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">f2</span></code>: Second-order growth rate
+<span class="math notranslate nohighlight">\(f^{(2)} \equiv \mathrm{d}\ln D^{(2)} / \mathrm{d}\ln a\)</span>.</p></li>
 </ul>
 <p>In addition to the above datasets, this group also stores some attributes,
 namely the reduced Hubble constant <code class="docutils literal notranslate"><span class="pre">h</span></code> (given by
@@ -638,13 +688,13 @@ computation contains other quantities as well. You may request these other
 quantities by listing them in the <code class="docutils literal notranslate"><span class="pre">class_extra_background</span></code>
 <a class="reference internal" href="../parameters/input_output.html#class-extra-background"><span class="std std-ref">parameter</span></a> and the
 <code class="docutils literal notranslate"><span class="pre">class_extra_perturbations</span></code> <a class="reference internal" href="../parameters/input_output.html#class-extra-perturbations"><span class="std std-ref">parameter</span></a>.</p>
-<p>As an example, the below requests the linear growth factor <span class="math notranslate nohighlight">\(D\)</span> as an
-extra background quantity, as well as the conformal Newtonian metric
-potentials <span class="math notranslate nohighlight">\(\phi\)</span> and <span class="math notranslate nohighlight">\(\psi\)</span> as extra perturbations:</p>
+<p>As an example, the below requests the comoving distance as an extra background
+quantity, as well as the conformal Newtonian metric potentials <span class="math notranslate nohighlight">\(\phi\)</span>
+and <span class="math notranslate nohighlight">\(\psi\)</span> as extra perturbations:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept <span class="se">\</span>
     -u class <span class="se">\</span>
         --kmin &lt;kmin&gt; --kmax &lt;kmax&gt; <span class="se">\</span>
-        &lt;perturbations&gt; <span class="se">\</span><span class="hll">    -c <span class="s2">&quot;class_extra_background = &#39;D&#39;&quot;</span> <span class="se">\</span></span><span class="hll">    -c <span class="s2">&quot;class_extra_perturbations = {&#39;ϕ&#39;, &#39;ψ&#39;}&quot;</span></span></pre></div>
+        &lt;perturbations&gt; <span class="se">\</span><span class="hll">    -c <span class="s2">&quot;class_extra_background = &#39;comov. dist.&#39;&quot;</span> <span class="se">\</span></span><span class="hll">    -c <span class="s2">&quot;class_extra_perturbations = {&#39;ϕ&#39;, &#39;ψ&#39;}&quot;</span></span></pre></div>
 </div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
@@ -700,7 +750,7 @@ various data sets are expressed:</p>
 <td><p class="centered">
 <strong><span class="math notranslate nohighlight">\([\text{Gyr}^{-1}]\)</span></strong></p></td>
 </tr>
-<tr class="row-even"><td><p>Linear growth factor <code class="docutils literal notranslate"><span class="pre">D</span></code> and rate <code class="docutils literal notranslate"><span class="pre">f</span></code></p></td>
+<tr class="row-even"><td><p>Growth factors <code class="docutils literal notranslate"><span class="pre">D</span></code>, <code class="docutils literal notranslate"><span class="pre">D2</span></code> and rates <code class="docutils literal notranslate"><span class="pre">f</span></code>, <code class="docutils literal notranslate"><span class="pre">f2</span></code></p></td>
 <td><p class="centered">
 <strong><span class="math notranslate nohighlight">\([1]\)</span></strong></p></td>
 </tr>
@@ -763,7 +813,7 @@ the speed of light squared:</p>
 </section>
 </section>
 <section id="complete-example-massive-neutrinos">
-<h2><a class="toc-backref" href="#id8">Complete example (massive neutrinos)</a><a class="headerlink" href="#complete-example-massive-neutrinos" title="Permalink to this headline"></a></h2>
+<h2><a class="toc-backref" href="#id9">Complete example (massive neutrinos)</a><a class="headerlink" href="#complete-example-massive-neutrinos" title="Permalink to this headline"></a></h2>
 <p>Here follows a complete code example for a CO<em>N</em>CEPT class utility
 computation of a cosmology involving massive neutrinos.</p>
 <p>The cosmology for which we want to compute the linear perturbations is
@@ -1162,7 +1212,7 @@ is thus <span class="math notranslate nohighlight">\(-\delta_{\alpha}\)</span>.<
 </ul>
 </section>
 <section id="running-through-docker">
-<span id="id4"></span><h2><a class="toc-backref" href="#id9">Running through Docker</a><a class="headerlink" href="#running-through-docker" title="Permalink to this headline"></a></h2>
+<span id="id5"></span><h2><a class="toc-backref" href="#id10">Running through Docker</a><a class="headerlink" href="#running-through-docker" title="Permalink to this headline"></a></h2>
 <p>As described under <a class="reference internal" href="../installation.html#supported-platforms"><span class="std std-ref">Supported platforms</span></a>, it is
 possible to run CO<em>N</em>CEPT through Docker. While not preferable for running
 large simulations, running CO<em>N</em>CEPT this way for casual use of the class
@@ -1198,7 +1248,7 @@ parameters via the <code class="docutils literal notranslate"><span class="pre">
 <a class="reference internal" href="../command_line_options.html#command-line-parameters"><span class="std std-ref">command-line option</span></a>.</p>
 </section>
 <section id="tips-and-tricks">
-<h2><a class="toc-backref" href="#id10">Tips and tricks</a><a class="headerlink" href="#tips-and-tricks" title="Permalink to this headline"></a></h2>
+<h2><a class="toc-backref" href="#id11">Tips and tricks</a><a class="headerlink" href="#tips-and-tricks" title="Permalink to this headline"></a></h2>
 <p>Below we list a few tips and tricks that are not discussed above.</p>
 <p><h3> Plotting perturbations on the fly </h3></p>
 <p>It can be difficult to judge whether the various CLASS precision parameters

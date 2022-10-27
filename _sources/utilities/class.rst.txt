@@ -41,6 +41,8 @@ Entries on this page:
 
 
 
+.. _basic_usage:
+
 Basic usage
 ...........
 A basic invocation of the CO\ *N*\ CEPT class utility looks like
@@ -98,11 +100,11 @@ of these HDF5 files can be explored using tools such as
 `ViTables <https://vitables.org/>`_, but is also described
 :ref:`below <file_contents>`.
 
-For selection of the number of times (scale factor :math:`a` values) as well
-as the time interval of interest, see the ``--times`` :ref:`command-line option<number_of_times>`.
+For selection of the times (scale factor :math:`a` values), see the
+``--times`` :ref:`command-line option<times>`.
 
-For selection of the number of :math:`k` modes and their distribution, see the
-``--modes`` :ref:`command-line option<number_of_fourier_modes>`.
+For selection of the :math:`k` modes, see the
+``--modes`` :ref:`command-line option<fourier_modes>`.
 
 
 
@@ -110,7 +112,9 @@ Command-line options
 ....................
 Below the possible command-line options to the CO\ *N*\ CEPT class utility are
 described, i.e. additional options to the ``concept`` script allowed once
-``-u class`` is supplied. See :doc:`this page </command_line_options>` for the
+``-u class`` is supplied. For the ``<perturbations>`` option, see
+:ref:`basic usage <basic_usage>` above.
+See :doc:`this page </command_line_options>` for the
 command-line options to the ``concept`` script in general, and specifically
 :ref:`this section <utility>` for how standard command-line options are used
 together with utility specific ones.
@@ -166,18 +170,19 @@ Sets the maximum needed Fourier :math:`k` mode for the perturbations. For e.g.
 
 
 
-.. _number_of_fourier_modes:
+.. _fourier_modes:
 
-Number of Fourier modes: ``--modes``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-Sets the total number of Fourier :math:`k` modes for the perturbations. E.g.
+Fourier modes: ``--modes``
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+When specified as an integer, this sets the total number of Fourier :math:`k`
+modes for the perturbations. E.g.
 
 .. code-block:: bash
 
    ./concept -u class --modes 128
 
 The placement of the :math:`k` modes at which to tabulate the perturbations
-are generally chosen based on the :ref:`minimum <minimum_fourier_mode>` and
+are chosen based on the :ref:`minimum <minimum_fourier_mode>` and
 :ref:`maximum <maximum_fourier_mode>` mode together with the
 ``k_modes_per_decade`` :ref:`parameter <k_modes_per_decade>`. When the
 ``--modes`` option is *not* specified, ``k_modes_per_decade`` is used as is,
@@ -197,14 +202,34 @@ all uniformly scaled in order to yield the requested number of modes.
    If the processed perturbations are intended for use with pkdgrav3, note
    that a maximum number of :math:`256` modes is allowed.
 
+Other allowed specifications for ``--modes`` are:
+
+* Explicit :math:`k` values at which to perform the tabulation, specified as
+  any valid Python expression, e.g.
+
+  .. code-block:: bash
+
+     ./concept -u class --modes "array([1e-2, 1e-1, 1])/Mpc"
+
+* Path to text file containing values of :math:`k`. It is assumed that the
+  data within this file is expressed in the same units as
+  :doc:`used </parameters/units>` by the current CO\ *N*\ CEPT run.
+* Path to HDF5 file produced using the CO\ *N*\ CEPT class utility.
+  The :math:`k` values to use will be taken from the tabulated perturbations
+  within this file.
+
+In all cases, the :ref:`minimum <minimum_fourier_mode>` and
+:ref:`maximum <maximum_fourier_mode>` modes are respected, with :math:`k`
+values outside this range being dropped.
 
 
-.. _number_of_times:
 
-Number of times: ``--times``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-Sets the total number of times (scale factor :math:`a` values) at which to
-tabulate the perturbations. E.g.
+.. _times:
+
+Times: ``--times``
+~~~~~~~~~~~~~~~~~~
+When specified as an integer, this sets the total number of times
+(scale factor :math:`a` values) at which to tabulate the perturbations. E.g.
 
 .. code-block:: bash
 
@@ -234,6 +259,20 @@ The :math:`a` values will be within the interval
    If the processed perturbations are intended for use with pkdgrav3, note
    that a maximum number of :math:`1024` times is allowed.
 
+Other allowed specifications for ``--times`` are:
+
+* Explicit :math:`a` values at which to perform the tabulation, specified as
+  any valid Python expression, e.g.
+
+  .. code-block:: bash
+
+     ./concept -u class --times "[1/(1 + z) for z in linspace(0, 99, 512)]"
+
+* Path to text file containing values of :math:`a`.
+* Path to HDF5 file produced using the CO\ *N*\ CEPT class utility.
+  The :math:`a` values to use will be taken from the tabulated perturbations
+  within this file.
+
 
 
 .. _gauge:
@@ -246,7 +285,7 @@ Sets the gauge of the processed perturbations. E.g.
 
    ./concept -u class --gauge N-body
 
-The available gauges are
+The available gauges are:
 
 * ``N-body``: The *N*-body gauge (default).
 * ``synchronous``: The synchronous gauge.
@@ -278,7 +317,7 @@ Data layout
 The data layout within ``class_processed.hdf5`` is as follows:
 
 * ``background``: Group containing various background quantities, tabulated
-  at a common 1D time grid. E.g.
+  at a common 1D time grid:
 
   * ``a``: Data set of scale factor :math:`a` values at which all background
     quantities are tabulated.
@@ -292,6 +331,24 @@ The data layout within ``class_processed.hdf5`` is as follows:
     '``crit``' and total '``tot``' energy densities are present as well.
   * ``p_<species>`` with ``<species>`` some CLASS species: The background
     pressure :math:`\bar{P}` of the given species.
+
+  When running the CO\ *N*\ CEPT class utility, the ``class_extra_background``
+  :ref:`parameter <class_extra_background>` is by default populated with the
+  following values:
+
+  .. code-block:: python3
+
+     class_extra_background = {'tau', 'D', 'f', 'D2', 'f2'}
+
+  which then further adds the following background quantities:
+
+  * ``tau``: The conformal time :math:`\tau`.
+  * ``D``: First-order (linear) growth factor :math:`D = D^{(1)}`.
+  * ``f``: First-order (linear) growth rate
+    :math:`f = f^{(1)} \equiv \mathrm{d}\ln D / \mathrm{d}\ln a`.
+  * ``D2``: Second-order growth factor :math:`D^{(2)}`.
+  * ``f2``: Second-order growth rate
+    :math:`f^{(2)} \equiv \mathrm{d}\ln D^{(2)} / \mathrm{d}\ln a`.
 
   In addition to the above datasets, this group also stores some attributes,
   namely the reduced Hubble constant ``h`` (given by
@@ -351,9 +408,9 @@ quantities by listing them in the ``class_extra_background``
 :ref:`parameter <class_extra_background>` and the
 ``class_extra_perturbations`` :ref:`parameter <class_extra_perturbations>`.
 
-As an example, the below requests the linear growth factor :math:`D` as an
-extra background quantity, as well as the conformal Newtonian metric
-potentials :math:`\phi` and :math:`\psi` as extra perturbations:
+As an example, the below requests the comoving distance as an extra background
+quantity, as well as the conformal Newtonian metric potentials :math:`\phi`
+and :math:`\psi` as extra perturbations:
 
 .. code-block:: bash
    :emphasize-lines: 5-6
@@ -362,7 +419,7 @@ potentials :math:`\phi` and :math:`\psi` as extra perturbations:
        -u class \
            --kmin <kmin> --kmax <kmax> \
            <perturbations> \
-       -c "class_extra_background = 'D'" \
+       -c "class_extra_background = 'comov. dist.'" \
        -c "class_extra_perturbations = {'ϕ', 'ψ'}"
 
 .. note::
@@ -400,7 +457,7 @@ various data sets are expressed:
    Cosmic time ``t`` and conformal time ``tau``                            .. centered:: :math:`[\text{Gyr}]`
    Fourier mode ``k``                                                      .. centered:: :math:`[\text{Mpc}^{-1}]`
    Hubble parameter ``H``                                                  .. centered:: :math:`[\text{Gyr}^{-1}]`
-   Linear growth factor ``D`` and rate ``f``                               .. centered:: :math:`[1]`
+   Growth factors ``D``, ``D2`` and rates ``f``, ``f2``                    .. centered:: :math:`[1]`
    Background energy density ``rho``                                       .. centered:: :math:`[10^{10}\, m_{\odot}\, \text{Mpc}^{-3}]`
    Energy density contrast ``delta``                                       .. centered:: :math:`[1]`
    Velocity divergence ``theta``                                           .. centered:: :math:`[\text{Gyr}^{-1}]`
