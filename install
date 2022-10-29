@@ -8487,9 +8487,9 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
         "}"                                                                                 \
     )
     patch_class "${class_dir}/source/perturbations.c" ${linenr} "insert" "below" "${new_lines[@]}"
-    # Use proper intitial conditions for the growth factor D(a) and rate
+    # Use proper initial conditions for the growth factor D(a) and rate
     # f(a), implement second-order versions D2(a) and f2(a), and take
-    # ncdm and dcdm into account.
+    # dcdm into account.
     filename="${class_dir}/python/cclassy.pxd"
     pattern='int +index_bg_f'
     new_lines=(                                 \
@@ -8536,7 +8536,7 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
     new_lines=(                                                                                             \
         "/* Normalise D2 by the squared factor used for D and construct f2 = D2_prime/(aHD) */"             \
         "pvecback[pba->index_bg_D2] = pData[i*pba->bi_size + pba->index_bi_D2]/"                            \
-        "  pow(pData[(pba->bt_size - 1)*pba->bi_size + pba->index_bi_D], 2.);"                              \
+        "  pow(pData[(pba->bt_size - 1)*pba->bi_size + pba->index_bi_D], 2);"                               \
         "pvecback[pba->index_bg_f2] = pData[i*pba->bi_size + pba->index_bi_D2_prime]/"                      \
         "  (pData[i*pba->bi_size + pba->index_bi_D2]*pvecback[pba->index_bg_a]*pvecback[pba->index_bg_H]);" \
     )
@@ -8550,10 +8550,10 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
         "  Omega0_M += pba->Omega0_cdm;"                                                                         \
         "if (pba->has_dcdm == _TRUE_)"                                                                           \
         "  Omega0_M += pba->Omega_ini_dcdm;  /* take dcdm into account */"                                       \
-        "double Omega_rad_eff = pow(a/pba->a_today, 4)/pow(pba->H0, 2)*rho_rad;  \
+        "double Omega0_R_eff = pow(a/pba->a_today, 4)*pow(pvecback[pba->index_bg_H]/pba->H0, 2);  \
 /* take all relativistic species into account */"                                                                \
-        "double eps = 3./2.*Omega0_M/Omega_rad_eff*a;"                                                           \
-        "double C = 1e-3;  /* arbitrary */"                                                                      \
+        "double eps = 3./2.*Omega0_M/Omega0_R_eff*a;"                                                            \
+        "double C = 1.0;  /* arbitrary */"                                                                       \
         "pvecback_integration[pba->index_bi_D] = C*(1. + eps + 1./4.*eps*eps);"                                  \
         "pvecback_integration[pba->index_bi_D_prime] = C*a*pvecback[pba->index_bg_H]*(eps + 1./2.*eps*eps);"     \
         "pvecback_integration[pba->index_bi_D2] = -C*C*(eps + 3./4.*eps*eps);"                                   \
@@ -8568,8 +8568,6 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
     )
     linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" "${filename}" | head -n 1)
     patch_class "${filename}" $((linenr + 1)) "insert" "below" "${new_lines[@]}"
-
-
     pattern='class_store_double *\\( *dataptr *, *pvecback *\\[ *pba *-> *index_bg_f *\\]'
     new_lines=(                                                                      \
         "class_store_double(dataptr, pvecback[pba->index_bg_D2], _TRUE_, storeidx);" \
@@ -8578,41 +8576,52 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
     linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" "${filename}" | head -n 1)
     patch_class "${filename}" $((linenr + 1)) "insert" "below" "${new_lines[@]}"
     pattern='rho_M *\\+='
-    new_lines=(                                                                   \
-        "/* Include dcdm in growth factors */"                                    \
-        "if (pba->has_dcdm == _TRUE_)"                                            \
-        "  rho_M += pvecback[pba->index_bg_rho_dcdm];"                            \
-        "/* Include non-relativistic contribution from ncdm in growth factors */" \
-        "double rho_ncdm, p_ncdm;"                                                \
-        "int n_ncdm;"                                                             \
-        "if (pba->has_ncdm == _TRUE_) {"                                          \
-        "  for (n_ncdm = 0; n_ncdm < pba->N_ncdm; n_ncdm++) {"                    \
-        "    class_call(background_ncdm_momenta("                                 \
-        "      pba->q_ncdm_bg[n_ncdm],"                                           \
-        "      pba->w_ncdm_bg[n_ncdm],"                                           \
-        "      pba->q_size_ncdm_bg[n_ncdm],"                                      \
-        "      pba->M_ncdm[n_ncdm],"                                              \
-        "      pba->factor_ncdm[n_ncdm],"                                         \
-        "      1./a - 1.,"                                                        \
-        "      NULL,"                                                             \
-        "      &rho_ncdm,"                                                        \
-        "      &p_ncdm,"                                                          \
-        "      NULL,"                                                             \
-        "      NULL),"                                                            \
-        "      pba->error_message,"                                               \
-        "      pba->error_message);"                                              \
-        "    rho_M += rho_ncdm - 3.*p_ncdm;"                                      \
-        "  }"                                                                     \
-        "}"                                                                       \
+    new_lines=(                                                                \
+        "/* Include dcdm in growth factors */"                                 \
+        "if (pba->has_dcdm == _TRUE_)"                                         \
+        "  rho_M += pvecback[pba->index_bg_rho_dcdm];"                         \
+        "/**"                                                                  \
+        " * Code for including the non-relativistic contribution from ncdm in" \
+        " * growth factors. For small (realistic for neutrinos) ncdm masses,"  \
+        " * ncdm will only cluster on large, linear scales. Including ncdm"    \
+        " * when computing the scale-independent growth factors will then add" \
+        " * a correction to all scales, which should really only be applied"   \
+        " * to large scales, greater than the free-streaming scale,"           \
+        " * see (96) in https://arxiv.org/abs/astro-ph/0603494"                \
+        " */"                                                                  \
+        "int ncdm_in_growthfac = 0;  /* turn ncdm correction on/off */"        \
+        "double rho_ncdm, p_ncdm;"                                             \
+        "int n_ncdm;"                                                          \
+        "if (ncdm_in_growthfac) {"                                             \
+        "  if (pba->has_ncdm == _TRUE_) {"                                     \
+        "    for (n_ncdm = 0; n_ncdm < pba->N_ncdm; n_ncdm++) {"               \
+        "      class_call(background_ncdm_momenta("                            \
+        "        pba->q_ncdm_bg[n_ncdm],"                                      \
+        "        pba->w_ncdm_bg[n_ncdm],"                                      \
+        "        pba->q_size_ncdm_bg[n_ncdm],"                                 \
+        "        pba->M_ncdm[n_ncdm],"                                         \
+        "        pba->factor_ncdm[n_ncdm],"                                    \
+        "        1./a - 1.,"                                                   \
+        "        NULL,"                                                        \
+        "        &rho_ncdm,"                                                   \
+        "        &p_ncdm,"                                                     \
+        "        NULL,"                                                        \
+        "        NULL),"                                                       \
+        "        pba->error_message,"                                          \
+        "        pba->error_message);"                                         \
+        "      rho_M += rho_ncdm - 3.*p_ncdm;"                                 \
+        "    }"                                                                \
+        "  }"                                                                  \
+        "}"                                                                    \
     )
     linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" "${filename}" | head -n 1)
     patch_class "${filename}" $((linenr + 1)) "insert" "below" "${new_lines[@]}"
     pattern='dy *\\[ *pba *-> *index_bi_D_prime *\\] *='
-    new_lines=(                                                                  \
-        "/* Second-order growth factor */"                                       \
-        "dy[pba->index_bi_D2] = y[pba->index_bi_D2_prime];"                      \
-        "dy[pba->index_bi_D2_prime] = -a*H*y[pba->index_bi_D2_prime]"            \
-        "  + 1.5*a*a*rho_M*(y[pba->index_bi_D2] - pow(y[pba->index_bi_D], 2.));" \
+    new_lines=(                                                                 \
+        "/* Second-order growth factor */"                                      \
+        "dy[pba->index_bi_D2] = y[pba->index_bi_D2_prime];"                     \
+        "dy[pba->index_bi_D2_prime] = -a*H*y[pba->index_bi_D2_prime]"           \
+        "  + 1.5*a*a*rho_M*(y[pba->index_bi_D2] - pow(y[pba->index_bi_D], 2));" \
     )
     linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" "${filename}" | head -n 1)
     patch_class "${filename}" $((linenr + 1)) "insert" "below" "${new_lines[@]}"
