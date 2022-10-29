@@ -12,7 +12,7 @@ on:
 
 jobs:
     check_schedule:
-        runs-on: ubuntu-20.04
+        runs-on: ubuntu-22.04
         outputs:
             scheduled: ${{ steps.check_schedule.outputs.scheduled }}
         steps:
@@ -28,7 +28,7 @@ jobs:
                     echo "Build not scheduled"
                 fi
     build:
-        runs-on: ubuntu-20.04
+        runs-on: ubuntu-22.04
         needs: check_schedule
         if: needs.check_schedule.outputs.scheduled
         steps:

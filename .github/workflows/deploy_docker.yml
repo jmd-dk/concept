@@ -11,7 +11,7 @@ on:
 
 jobs:
     check_deploy:
-        runs-on: ubuntu-20.04
+        runs-on: ubuntu-22.04
         outputs:
             deploy: ${{ steps.check_deploy.outputs.deploy }}
         steps:
@@ -27,7 +27,7 @@ jobs:
                     echo "Will not be deployed"
                 fi
     deploy_docker:
-        runs-on: ubuntu-20.04
+        runs-on: ubuntu-22.04
         needs: check_deploy
         if: needs.check_deploy.outputs.deploy
         steps:
