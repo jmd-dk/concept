@@ -22,7 +22,7 @@ jobs:
             run: |
                 if [ -n "${docker_password}" ]; then
                     echo "Will be deployed"
-                    echo "::set-output name=deploy::1"
+                    echo "deploy=1" >> "${GITHUB_OUTPUT}"
                 else
                     echo "Will not be deployed"
                 fi

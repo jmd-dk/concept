@@ -23,7 +23,7 @@ jobs:
             run: |
                 if [ "${schedule_build}" == "True" ]; then
                     echo "Build scheduled"
-                    echo "::set-output name=scheduled::1"
+                    echo "scheduled=1" >> "${GITHUB_OUTPUT}"
                 else
                     echo "Build not scheduled"
                 fi
