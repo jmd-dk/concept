@@ -2340,6 +2340,11 @@ for pypackage in \
         fi
     fi
 done
+if [ "${cython_preinstalled}" == "False" ] && \
+    (   [ "${numpy_install}"  == "True" ]     \
+     || [ "${scipy_install}"  == "True" ]); then
+    cython_install="True"
+fi
 # FFTW (needed by CO𝘕CEPT)
 if [ -z "${fftw_install}" ]; then
     fftw_install="False"
@@ -5496,6 +5501,21 @@ set_optimizations() {
     export LDFLAGS="${LDFLAGS}"
 }
 
+# Function for concatenating two lists of options
+get_options() {
+    # Arguments: User-supplied options, additional options
+    local options
+    options="$1"
+    if [ -z "${options}" ]; then
+        options="$2"
+    elif [[ "${options} " == "+= "* ]]; then
+        options="$2 ${options/+=/}"
+    elif [[ " ${options}" == *" +=" ]]; then
+        options="${options/+=/} $2"
+    fi
+    echo "${options}"
+}
+
 
 
 # zlib
@@ -5639,35 +5659,48 @@ install "Perl"                                  \
 
 # MPI
 mpi_install_func() {
-    mpi_configure_options="${mpi_configure_options_supplied}"
-    if [ -z "${mpi_configure_options}"] || [[ "${mpi_configure_options}" == "+="* ]]; then
-        mpi_configure_options="${mpi_configure_options/+=/}"
-        if [ "${mpi}" == "mpich" ]; then
-            mpi_configure_options="--disable-cxx --disable-fortran \
-${mpi_configure_options}"
-        elif [ "${mpi}" == "openmpi" ]; then
-            mpi_configure_options="--enable-mpi-cxx=none --enable-mpi-fortran=none \
-${mpi_configure_options}"
-        fi
-        mpi_configure_options="${mpi_configure_options} ${mpi_configure_options_extra}"
-        mpi_configure_options_trimmed=""
-        mpi_device_set="False"
-        for mpi_configure_option in ${mpi_configure_options}; do
-            include_mpi_configure_option="True"
-            if [[ "${mpi_configure_option}" == "--with-device"* ]]; then
-                include_mpi_configure_option="False"
-                if [ "${mpi_device_set}" == "False" ]; then
-                    include_mpi_configure_option="True"
-                fi
-                mpi_device_set="True"
+    if [ "${mpi}" == "mpich" ]; then
+        mpi_configure_options_default="--disable-cxx --disable-fortran"
+    elif [ "${mpi}" == "openmpi" ]; then
+        mpi_configure_options_default="--enable-mpi-cxx=none --enable-mpi-fortran=none"
+    fi
+    mpi_configure_options="$(get_options \
+        "${mpi_configure_options_supplied}" \
+        "${mpi_configure_options_default}" \
+    )"
+    mpi_configure_options="${mpi_configure_options} ${mpi_configure_options_extra}"
+    mpi_configure_options_trimmed=""
+    mpi_device_set="False"
+    for mpi_configure_option in ${mpi_configure_options}; do
+        include_mpi_configure_option="True"
+        if [[ "${mpi_configure_option}" == "--with-device"* ]]; then
+            include_mpi_configure_option="False"
+            if [ "${mpi_device_set}" == "False" ]; then
+                include_mpi_configure_option="True"
             fi
-            if [ "${include_mpi_configure_option}" == "True" ]; then
+            mpi_device_set="True"
+        fi
+        if [ "${include_mpi_configure_option}" == "True" ]; then
+            if [ -z "${mpi_configure_options_trimmed}" ]; then
+                mpi_configure_options_trimmed="${mpi_configure_option}"
+            else
                 mpi_configure_options_trimmed="${mpi_configure_options_trimmed} \
 ${mpi_configure_option}"
             fi
-        done
-        mpi_configure_options="${mpi_configure_options_trimmed}"
+        fi
+    done
+    mpi_configure_options="${mpi_configure_options_trimmed}"
+    mpi_install_options="${compiler} ${mpi_configure_options}"
+    already_tried=False
+    for mpi_install_options_prev in ${mpi_install_options_prev_list[@]}; do
+        if [ "${mpi_install_options_prev}" == "${mpi_install_options}" ]; then
+            already_tried=True
+        fi
+    done
+    if [ "${already_tried}" == "True" ]; then
+        continue
     fi
+    mpi_install_options_prev_list=("${mpi_install_options_prev_list[@]}" "${mpi_install_options}")
     # The below works for both MPICH and OpenMPI
     if [ -d "${perl_dir}" ]; then
         export PATH="${perl_dir}/bin:${PATH}"
@@ -5695,6 +5728,7 @@ ${mpi_configure_option}"
     fi
 }
 mpi_configure_options_supplied="${mpi_configure_options}"
+mpi_install_options_prev_list=()
 if [ "${mpi}" == "mpich" ]; then
     mpi_configure_options_extras="\
 --with-device=ch4 --with-device=ch3 \
@@ -5856,9 +5890,19 @@ install "HDF5"                                             \
 
 # FFTW
 fftw_install_func() {
-    also_single_precision="False"  # Install both double and single precision?
     if [ -z "${enable_shared}" ] && [ -n "${shared}" ]; then
         return 1
+    fi
+    fftw_configure_options_default="--disable-fortran"
+    fftw_configure_options="$(get_options \
+        "${fftw_configure_options_supplied}" \
+        "${fftw_configure_options_default}" \
+    )"
+    # Install both double and single precision?
+    if [ -n "${fftw_also_single_precision}" ]; then
+        also_single_precision="${fftw_also_single_precision}"
+    else
+        also_single_precision="False"
     fi
     enable_mpi=""
     if [ -n "${mpi_dir}" ] && [ -d "${mpi_dir}" ]; then
@@ -5888,7 +5932,7 @@ fftw_install_func() {
         simd_instructions="${simd_instructions} ${simd}"
     done
     ./configure ${enable_shared} ${enable_mpi} \
-        --disable-fortran ${with_pic} ${simd_instructions} \
+        ${fftw_configure_options} ${with_pic} ${simd_instructions} \
         --prefix="${fftw_dir}" 2>&1 || return 1
     make 2>&1 || return 1  # Parallel builds fail on some systems
     if     [ "${extra_optimizations}" == "True" ] || [ -n "${simd_instructions}" ] \
@@ -5933,7 +5977,7 @@ fftw_install_func() {
             simd_instructions="${simd_instructions} ${simd_instructions_all[${i_simd}]}"
         done
         ./configure ${enable_shared} ${enable_mpi} ${precision_flags} \
-            --disable-fortran ${with_pic} ${simd_instructions} \
+            ${fftw_configure_options} ${with_pic} ${simd_instructions} \
             --prefix="${fftw_dir}" 2>&1 || return 1
         make         2>&1 || return 1  # Parallel builds fail on some systems
         make install 2>&1 || return 1  # Parallel builds fail on some systems
@@ -5942,6 +5986,7 @@ fftw_install_func() {
         rm -rf "${fftw_dir}/share" || :
     fi
 }
+fftw_configure_options_supplied="${fftw_configure_options}"
 compiler_possibilities_fftw=("${compiler_possibilities[@]}")
 if [ -n "${mpi_dir}" ] && [ -d "${mpi_dir}" ]; then
     compiler_possibilities_fftw=("specified_mpi")
@@ -8958,9 +9003,19 @@ fi
 #####################################################
 # FFTW 2.x (GADGET-2 is incompatible with FFTW 3.x)
 fftw_for_gadget_install_func() {
-    also_single_precision="False"  # Install both double and single precision?
     if [ -z "${enable_shared}" ] && [ -n "${shared}" ]; then
         return 1
+    fi
+    fftw_configure_options_default="--disable-fortran"
+    fftw_configure_options="$(get_options \
+        "${fftw_configure_options_supplied}" \
+        "${fftw_configure_options_default}" \
+    )"
+    # Install both double and single precision?
+    if [ -n "${fftw_also_single_precision}" ]; then
+        also_single_precision="${fftw_also_single_precision}"
+    else
+        also_single_precision="False"
     fi
     enable_mpi=""
     if [ -n "${mpi_dir}" ] && [ -d "${mpi_dir}" ]; then
@@ -9018,7 +9073,8 @@ fftw_for_gadget_install_func() {
         cd "${fftw_for_gadget_builddir}"
     fi
     ./configure ${enable_shared} ${enable_mpi} ${precision_flags} \
-        --disable-fortran ${with_pic} --prefix="${fftw_for_gadget_dir}" 2>&1 || return 1
+        ${fftw_configure_options} ${with_pic} \
+        --prefix="${fftw_for_gadget_dir}" 2>&1 || return 1
     make 2>&1 || return 1  # Parallel builds fail on some systems
     if [ "${extra_optimizations}" == "True" ] || [ "${do_tests}" == "True" ]; then
         fftw_for_gadget_test_max_time=3600
@@ -9053,7 +9109,8 @@ fftw_for_gadget_install_func() {
         precision_flags="--enable-float --enable-type-prefix"
         make clean || :
         ./configure ${enable_shared} ${enable_mpi} ${precision_flags} \
-            --disable-fortran ${with_pic} --prefix="${fftw_for_gadget_dir}" 2>&1 || return 1
+            ${fftw_configure_options} ${with_pic} \
+            --prefix="${fftw_for_gadget_dir}" 2>&1 || return 1
         make         2>&1 || return 1  # Parallel builds fail on some systems
         make install 2>&1 || return 1  # Parallel builds fail on some systems
     fi

@@ -8,7 +8,7 @@ ARG concept_version=/source
 ARG install_dir="/concept"
 ARG slim=True
 ARG mpi=mpich
-ARG mpi_configure_options="+= --with-device=ch3:sock"
+ARG mpi_configure_options="--with-device=ch3:sock +="
 ARG cleanup_concept
 ARG make_jobs
 
