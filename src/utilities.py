@@ -611,21 +611,31 @@ def info():
             heading = '\nParameters of "{}"'.format(sensible_path(snapshot_filename))
             masterprint(terminal.bold(heading), wrap=False)
             with open_file(parameter_filename, mode='w') as pfile:
-                masterprint('# Auto-generated parameter file for the snapshot\n# "{}"\n'
-                            .format(snapshot_filename), file=pfile, wrap=False)
+                masterprint(
+                    f'# Auto-generated parameter file for the snapshot\n# "{snapshot_filename}"\n',
+                    file=pfile, wrap=False,
+                )
                 # Loop over stdout and the new parameter file
                 for file in (sys.stdout, pfile):
                     masterprint('# Input/output', file=file, wrap=False)
-                    masterprint("initial_conditions = '{}'".format(sensible_path(snapshot_filename)),
-                                file=file, wrap=False)
+                    masterprint(
+                        "initial_conditions = '{}'".format(sensible_path(snapshot_filename)),
+                        file=file, wrap=False,
+                    )
                     if hasattr(snapshot, 'units'):
                         masterprint('# System of units', file=file, wrap=False)
-                        masterprint("unit_length = '{}'".format(snapshot.units['length']),
-                                    file=file, wrap=False)
-                        masterprint("unit_time = '{}'".format(snapshot.units['time']),
-                                    file=file, wrap=False)
-                        masterprint("unit_mass = '{}'".format(snapshot.units['mass']),
-                                    file=file, wrap=False)
+                        masterprint(
+                            "unit_length = '{}'".format(snapshot.units['length']),
+                            file=file, wrap=False,
+                        )
+                        masterprint(
+                            "unit_time = '{}'".format(snapshot.units['time']),
+                            file=file, wrap=False,
+                        )
+                        masterprint(
+                            "unit_mass = '{}'".format(snapshot.units['mass']),
+                            file=file, wrap=False,
+                        )
                     masterprint('# Numerical parameters', file=file, wrap=False)
                     unit = 100*units.km/(units.s*units.Mpc)
                     h = params['H0']/unit
@@ -730,31 +740,40 @@ def info():
         # Note that the header structure of GADGET-2
         # specifically is assumed.
         if snapshot_type == 'gadget':
-            masterprint('GADGET-2 header:')
+            masterprint('GADGET header:')
+            for key, val in snapshot.header.items():
+                masterprint(f'{key:<16} {val}', indent=4)
+        # Print out TIPSY header for TIPSY snapshots
+        if snapshot_type == 'tipsy':
+            masterprint('TIPSY header:')
             for key, val in snapshot.header.items():
                 masterprint(f'{key:<16} {val}', indent=4)
         # Print out component information
         for component in snapshot.components:
-            masterprint('{}:'.format(component.name))
+            masterprint(f'{component.name}:')
             masterprint('{:<16} {}'.format('species', component.species), indent=4)
             # Representation-specific attributes
             if component.representation == 'particles':
                 # Print the particle number N
-                if isint(ℝ[cbrt(component.N)]):
+                if isint(cbrt(component.N)):
                     # When N is cube number, print also the cube root
-                    masterprint('{:<16} {} = {:.0f}³'.format('N',
-                                                             component.N,
-                                                             ℝ[cbrt(component.N)]),
-                                indent=4)
+                    masterprint(
+                        '{:<16} {} = {:.0f}³'.format(
+                            'N', component.N, cbrt(component.N),
+                        ),
+                        indent=4,
+                    )
                 else:
                     masterprint('{:<16} {}'.format('N', component.N), indent=4)
-                masterprint('{:<16} {} m☉'.format('mass',
-                                                  significant_figures(component.mass/units.m_sun,
-                                                                      6,
-                                                                      fmt='unicode',
-                                                                      incl_zeros=False)
-                                                  ),
-                            indent=4)
+                masterprint(
+                    '{:<16} {} m☉'.format(
+                        'mass',
+                        significant_figures(
+                            component.mass/units.m_sun, 6, fmt='unicode', incl_zeros=False,
+                        ),
+                    ),
+                    indent=4,
+                )
             elif component.representation == 'fluid':
                 masterprint('{:<16} {}'.format('gridsize', component.gridsize), indent=4)
                 masterprint(
@@ -762,9 +781,9 @@ def info():
                     indent=4,
                 )
                 if component.w_type == 'constant':
-                    eos_info = significant_figures(component.w_constant, 6,
-                                                   fmt='unicode', incl_zeros=False,
-                                                   )
+                    eos_info = significant_figures(
+                        component.w_constant, 6, fmt='unicode', incl_zeros=False,
+                    )
                 elif component.w_type == 'tabulated (t)':
                     eos_info = 'tabulated w(t)'
                 elif component.w_type == 'tabulated (a)':
@@ -777,20 +796,26 @@ def info():
             # Component statistics
             if special_params['stats']:
                 Σmom, σmom = measure(component, 'momentum')
-                masterprint('{:<16} [{}, {}, {}] {}'.format('momentum sum',
-                                                            *significant_figures(asarray(Σmom)/units.m_sun,
-                                                                                 6,
-                                                                                 fmt='unicode',
-                                                                                 scientific=True),
-                                                            'm☉ {} {}⁻¹'.format(unit_length, unit_time)),
-                            indent=4)
-                masterprint('{:<16} [{}, {}, {}] {}'.format('momentum spread',
-                                                            *significant_figures(asarray(σmom)/units.m_sun,
-                                                                                 6,
-                                                                                 fmt='unicode',
-                                                                                 scientific=True),
-                                                            'm☉ {} {}⁻¹'.format(unit_length, unit_time)),
-                            indent=4)
+                masterprint(
+                    '{:<16} [{}, {}, {}] {}'.format(
+                        'momentum sum',
+                        *significant_figures(
+                            asarray(Σmom)/units.m_sun, 6, fmt='unicode', scientific=True,
+                        ),
+                        f'm☉ {unit_length} {unit_time}⁻¹',
+                    ),
+                    indent=4,
+                )
+                masterprint(
+                    '{:<16} [{}, {}, {}] {}'.format(
+                        'momentum spread',
+                        *significant_figures(
+                            asarray(σmom)/units.m_sun, 6, fmt='unicode', scientific=True,
+                        ),
+                        f'm☉ {unit_length} {unit_time}⁻¹',
+                    ),
+                    indent=4,
+                )
         # End of information
         masterprint('')
 

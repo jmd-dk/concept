@@ -39,7 +39,8 @@ __version__ = 'master'
 # Miscellaneous
 import ast, collections, contextlib, ctypes, cython, functools, hashlib
 import importlib, inspect, itertools, keyword, logging, operator, os, re
-import shutil, sys, textwrap, traceback, types, unicodedata, warnings
+import shutil, struct, sys, textwrap, traceback, types
+import unicodedata, warnings
 from copy import deepcopy
 # Numerics
 # (note that numpy.array is purposely not imported directly into the
@@ -95,7 +96,7 @@ def pxd(s):
     pass
 # Import the signed integer type ptrdiff_t
 pxd('from libc.stddef cimport ptrdiff_t')
-# C type names to NumPy dtype names
+# C data type names to NumPy dtype names
 cython.declare(C2np=dict)
 C2np = {
     # Booleans
@@ -120,6 +121,31 @@ C2np = {
     'double'    : np.float64,
     'long float': np.float128,
 }
+# Format characters to C data type names
+cython.declare(fmt2C=dict)
+fmt2C = {
+    # Booleans
+    '?': 'bint',
+    # Signed integers
+    's': 'signed char',
+    'h': 'short',
+    'i': 'int',
+    'l': 'long int',
+    'q': 'long long int',
+    # Unsigned integers
+    'B': 'unsigned char',
+    'H': 'unsigned short',
+    'I': 'unsigned int',
+    'L': 'unsigned long int',
+    'Q': 'unsigned long long int',
+    'N': 'size_t',
+    # Floating-point numbers
+    'f': 'float',
+    'd': 'double',
+}
+# Sizes (in bytes) of C data types
+cython.declare(sizesC=dict)
+sizesC = {fmt: struct.calcsize(fmt) for fmt in fmt2C}
 
 
 
@@ -1275,10 +1301,10 @@ def build_struct(**kwargs):
             pass
     if not cython.compiled:
         # In pure Python, emulate a struct by a simple namespace
-        struct = types.SimpleNamespace(**kwargs)
+        structure = types.SimpleNamespace(**kwargs)
     else:
-        struct = ...  # To be added by pyxpp
-    return struct, kwargs
+        structure = ...  # To be added by pyxpp
+    return structure, kwargs
 
 
 
@@ -4811,8 +4837,9 @@ def open_hdf5(filename, raise_exception=False, **kwargs):
 # Sanity checks and corrections/additions to user parameters #
 ##############################################################
 # Abort on unrecognised snapshot_type
-if snapshot_type not in ('concept', 'gadget'):
-    abort(f'Unrecognised snapshot type "{snapshot_type}" ∉ {{"concept", "gadget"}}')
+snapshot_types = ['concept', 'gadget', 'tipsy']
+if snapshot_type not in snapshot_types:
+    abort(f'Unrecognised snapshot type "{snapshot_type}" ∉ {snapshot_types}')
 # Abort on unrecognised output kinds
 for key in output_dirs:
     if key not in (output_kinds + ('autosave',)):

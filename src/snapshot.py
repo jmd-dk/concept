@@ -34,9 +34,6 @@ cimport('from communication import partition,                   '
 cimport('from mesh import domain_decompose, get_fftw_slab, slab_decompose')
 cimport('from species import Component, FluidScalar, update_species_present')
 
-# Pure Python imports
-import struct
-
 
 
 # Class storing a CO𝘕CEPT snapshot. Besides holding methods for
@@ -342,7 +339,7 @@ class ConceptSnapshot:
             masterprint(f'Loading parameters of snapshot "{filename}" ...')
         else:
             masterprint(f'Loading snapshot "{filename}" ...')
-        # Load all components
+        # Load components
         with open_hdf5(filename, mode='r', driver='mpio', comm=comm) as hdf5_file:
             # Load used base units
             self.units['time']   = hdf5_file.attrs['unit time']
@@ -701,20 +698,10 @@ class GadgetSnapshot:
             fmt=f'{num_particle_types}{val.fmt}',
             default=[val.default]*num_particle_types,
         )
-    # Low level types and their sizes
-    fmts = {
-        's': 'signed char',
-        'i': 'int',
-        'I': 'unsigned int',
-        'Q': 'unsigned long long int',
-        'f': 'float',
-        'd': 'double',
-    }
-    sizes = {fmt: struct.calcsize(fmt) for fmt in fmts}
     # Block name format, head block name and size
     block_name_fmt = '4s'
     block_name_header = 'HEAD'
-    sizes['header'] = 2**8
+    headersize = 2**8
     # The maximum number of particles within a single GADGET
     # snapshot file is limited by the largest number representable
     # by an int. As we never deal with negative particle numbers, we use
@@ -723,7 +710,7 @@ class GadgetSnapshot:
     # the calculation below, cutting the maximum number of particles per
     # snapshot roughly in half, compared to what is really needed.
     num_particles_file_max = (
-        ((2**(sizes['i']*8 - 1) - 1) - 2*sizes['I'])
+        ((2**(sizesC['i']*8 - 1) - 1) - 2*sizesC['I'])
         //(
             3*(
                 np.max((
@@ -765,7 +752,7 @@ class GadgetSnapshot:
         # of the 'HEAD' identifier.
         try:
             with open_file(filename, mode='rb') as f:
-                f.seek(cls.sizes['I'])
+                f.seek(sizesC['I'])
                 if cls.block_name_header == struct.unpack(
                     cls.block_name_fmt,
                     f.read(struct.calcsize(cls.block_name_fmt)),
@@ -777,7 +764,7 @@ class GadgetSnapshot:
         # of the header block.
         try:
             with open_file(filename, mode='rb') as f:
-                if cls.sizes['header'] == struct.unpack('I', f.read(cls.sizes['I']))[0]:
+                if cls.headersize == struct.unpack('I', f.read(sizesC['I']))[0]:
                     return 1
         except:
             pass
@@ -863,12 +850,13 @@ class GadgetSnapshot:
         # Size of the current block in bytes, when writing
         self.current_block_size = -1
         # Check on low level type sizes
-        for fmt, size in self.sizes.items():
-            size_expected = {'s': 1, 'i': 4, 'I': 4, 'Q': 8, 'f': 4, 'd': 8}.get(fmt)
-            if size_expected is not None and size != size_expected:
+        sizes_expected = {'s': 1, 'i': 4, 'I': 4, 'Q': 8, 'f': 4, 'd': 8}
+        for fmt, size_expected in sizes_expected.items():
+            size = sizesC[fmt]
+            if size_expected != size:
                 masterwarn(
-                    f'Expected C type \'{fmt}\' to be {size_expected} bytes large, '
-                    f'but it is {size}'
+                    f'Expected C type \'{fmt2C[fmt]}\' to have a size '
+                    f'of {size_expected} bytes, but its size is {size}'
                 )
 
     # Property for the dimensionless Hubble parameter
@@ -1104,7 +1092,7 @@ class GadgetSnapshot:
                 unit_components = block.get('unit')
                 block_type = block['type']
                 block_fmt = block_type[len(block_type) - 1]
-                dtype = C2np[self.fmts[block_fmt]]
+                dtype = C2np[fmt2C[block_fmt]]
                 # Begin block
                 if master:
                     block_size = np.sum(num_particles_file_tot)*struct.calcsize(block_type)
@@ -1423,7 +1411,7 @@ class GadgetSnapshot:
             else:
                 abort(f'Block "{block_name}" not given a data type in get_blocks_info()')
             for fmt in fmts:
-                if self.sizes[fmt] == num_bytes:
+                if sizesC[fmt] == num_bytes:
                     block['type'] += fmt
                     break
             else:
@@ -1494,7 +1482,7 @@ class GadgetSnapshot:
         # Initialize file with HEAD block
         with open_file(filename, mode='wb') as f:
             # Start the HEAD block
-            self.write_block_bgn(f, self.sizes['header'], self.block_name_header)
+            self.write_block_bgn(f, self.headersize, self.block_name_header)
             # Write out header, tallying up its size
             size = 0
             for key, val in self.header_fields.items():
@@ -1525,10 +1513,10 @@ class GadgetSnapshot:
         def writeout(f):
             # The initial block meta data
             if self.snapformat == 2:
-                self.write(f, 'I', block_name_length*self.sizes['s'] + self.sizes['I'])
+                self.write(f, 'I', block_name_length*sizesC['s'] + sizesC['I'])
                 self.write(f, 's', block_name.ljust(block_name_length).encode('ascii'))
-                self.write(f, 'I', self.sizes['I'] + block_size + self.sizes['I'])
-                self.write(f, 'I', self.sizes['I'] + block_name_length*self.sizes['s'])
+                self.write(f, 'I', sizesC['I'] + block_size + sizesC['I'])
+                self.write(f, 'I', sizesC['I'] + block_name_length*sizesC['s'])
             self.write(f, 'I', block_size)
         # Call writeout() in accordance with the supplied f
         if isinstance(f, str):
@@ -2230,7 +2218,7 @@ class GadgetSnapshot:
                     f'Expected block "{self.block_name_header}" at the '
                     f'beginning of the file but found "{block_name}"'
                 )
-            size_expected = self.sizes['header']
+            size_expected = self.headersize
             if size != size_expected:
                 warn(
                     f'Block "{self.block_name_header}" has size {size} '
@@ -2259,7 +2247,7 @@ class GadgetSnapshot:
             if size is None:
                 offset = size = -1
             else:
-                offset += self.sizes['I'] + size + self.sizes['I']
+                offset += sizesC['I'] + size + sizesC['I']
             return offset, size
         offset, size = read_size(f, offset)
         if self.snapformat == 1:
@@ -2278,14 +2266,14 @@ class GadgetSnapshot:
             block_name = self.read(f, self.block_name_fmt).decode('utf8').rstrip()
             size = self.read(f, 'I')
             offset, size_bare = read_size(f, offset)
-            size_bare_2 = size - 2*self.sizes['I']
+            size_bare_2 = size - 2*sizesC['I']
             if size_bare != size_bare_2:
                 # The two sizes do not agree.
                 # Pick one according to the 'settle'
                 # gadget_snapshot_params parameter.
                 msg = (
                     f'Size of block "{block_name}" not consistent: '
-                    f'{size} - {2*self.sizes["I"]} = {size_bare_2} ≠ {size_bare}. '
+                    f'{size} - {2*sizesC["I"]} = {size_bare_2} ≠ {size_bare}. '
                 )
                 if gadget_snapshot_params['settle'] == 0:
                     msg += (
@@ -2498,6 +2486,405 @@ class GadgetSnapshot:
         if num_files == 0:
             num_files = self.divvy(return_num_files=True)
         return num_files
+
+# Class storing a TIPSY snapshot. Besides holding methods for
+# saving/loading, it stores particle data and the TIPSY header.
+@cython.cclass
+class TipsySnapshot:
+    """This class represents snapshots of the "TIPSY" type.
+    As is the case for the CO𝘕CEPT snapshot class, this class contains
+    a list components (the components attribute) and dict of parameters
+    (the params attribute).
+    """
+    # The properly written name of this snapshot type
+    # (only used for printing).
+    name = 'TIPSY'
+    # The filename extension for this type of snapshot
+    extension = ''
+    # Maximum allowed chunk size in bytes
+    chunk_size_max = 2**23  # 8 MB
+    # Names of components contained in snapshots, in order
+    component_names = [
+        f'TIPSY {particle_type}'
+        for particle_type in ['sph', 'dark', 'star']
+    ]
+    num_particle_types = len(component_names)
+    # Ordered fields in the TIPSY header,
+    # mapped to their type and default value.
+    TipsyField = collections.namedtuple(
+        'TipsyHeaderField',
+        ['fmt', 'default'],
+        defaults=['', 0],
+    )
+    header_fields = {
+        'time'   : TipsyField('d'),
+        'nbodies': TipsyField('I'),
+        'ndim'   : TipsyField('I'),
+        'nsph'   : TipsyField('I'),
+        'ndark'  : TipsyField('I'),
+        'nstar'  : TipsyField('I'),
+    }
+    headersize = 0
+    for val in header_fields.values():
+        headersize += struct.calcsize(val.fmt)
+    # Ensure floating-point defaults where appropriate
+    for key, val in header_fields.items():
+        if val.fmt in {'f', 'd'}:
+            header_fields[key] = val._replace(default=float(val.default))
+    # Ordered fields in the TIPSY particle structures,
+    # mapped to their type and default value.
+    particle_fields = {
+        'sph': {
+            'mass'   : TipsyField('f'),
+            'pos'    : TipsyField('{ndim}f'),
+            'vel'    : TipsyField('{ndim}f'),
+            'rho'    : TipsyField('f'),
+            'temp'   : TipsyField('f'),
+            'hsmooth': TipsyField('f'),
+            'metals' : TipsyField('f'),
+            'phi'    : TipsyField('f'),
+        },
+        'dark': {
+            'mass': TipsyField('f'),
+            'pos' : TipsyField('{ndim}f'),
+            'vel' : TipsyField('{ndim}f'),
+            'eps' : TipsyField('f'),
+            'phi' : TipsyField('f'),
+        },
+        'star': {
+            'mass'  : TipsyField('f'),
+            'pos'   : TipsyField('{ndim}f'),
+            'vel'   : TipsyField('{ndim}f'),
+            'metals': TipsyField('f'),
+            'tform' : TipsyField('f'),
+            'eps'   : TipsyField('f'),
+            'phi'   : TipsyField('f'),
+        },
+    }
+    # Ensure floating-point defaults where appropriate
+    for fields in particle_fields.values():
+        for key, val in fields.items():
+            for c in {'f', 'd'}:
+                if val.fmt.endswith(c):
+                    fields[key] = val._replace(default=float(val.default))
+                    break
+
+    # Class method for identifying a file to be a snapshot of this type
+    @classmethod
+    def is_this_type(cls, filename):
+        if not os.path.isfile(filename):
+            return False
+        # Test for TIPSY by checking the 'ndim' field of the header
+        try:
+            header, endianness = cls.read_header(filename)
+            if header.get('ndim') in {1, 2, 3}:
+                return True
+        except Exception:
+           pass
+        return False
+
+    # Initialisation method
+    @cython.header
+    def __init__(self):
+        # The triple quoted string below serves as the type declaration
+        # for the data attributes of the TipsySnapshot type.
+        # It will get picked up by the pyxpp script
+        # and included in the .pxd file.
+        """
+        public dict params
+        public list components
+        public dict header
+        public str endianness
+        """
+        # Dict containing all the parameters of the snapshot
+        self.params = {}
+        # List of Component instances
+        self.components = []
+        # Header
+        self.header = {}
+        # The endianness of the binary data
+        self.endianness = '@'  # '@' → native, '<' → little, '>' → big
+        # Check on low level type sizes
+        sizes_expected = {'I': 4, 'f': 4, 'd': 8}
+        for fmt, size_expected in sizes_expected.items():
+            size = sizesC[fmt]
+            if size_expected != size:
+                masterwarn(
+                    f'Expected C type \'{fmt2C[fmt]}\' to have a size '
+                    f'of {size_expected} bytes, but its size is {size}'
+                )
+
+    # Method for reading in the header of a TIPSY snapshot file
+    @classmethod
+    def read_header(cls, f):
+        def _read_header(f):
+            for endianness in '<>':
+                f.seek(0)
+                header = {
+                    field: struct.unpack(
+                        f'{endianness}{val.fmt}',
+                        f.read(struct.calcsize(val.fmt)),
+                    )[0]
+                    for field, val in cls.header_fields.items()
+                }
+                if header.get('ndim') in {1, 2, 3}:
+                    break
+            else:
+                endianness = '?'
+            return header, endianness
+        if isinstance(f, str):
+            with open_file(f, mode='rb') as f:
+                return _read_header(f)
+        else:
+            return _read_header(f)
+
+    # Method that saves the snapshot to a TIPSY file
+    @cython.pheader(
+        # Argument
+        filename=str,
+        save_all='bint',
+        # Locals
+        returns=str,
+    )
+    def save(self, filename, save_all=False):
+        abort('Saving snapshots in TIPSY format is not implemented')
+        return filename
+
+    # Method for loading in a TIPSY snapshot from disk
+    @cython.pheader(
+        # Argument
+        filename=str,
+        only_params='bint',
+        # Locals
+        N='Py_ssize_t',
+        indexʳ='Py_ssize_t',
+        mom='double*',
+        pos='double*',
+        unit='double',
+    )
+    def load(self, filename, only_params=False):
+        if only_params:
+            masterprint(f'Loading parameters of snapshot "{filename}" ...')
+        else:
+            masterprint(f'Loading snapshot "{filename}" ...')
+        # Read in the header
+        self.header, self.endianness = self.read_header(filename)
+        num_particles = {
+            particle_type: self.header[f'n{particle_type}']
+            for particle_type in self.particle_fields.keys()
+        }
+        if self.header['nbodies'] != np.sum(list(num_particles.values())):
+            masterwarn(
+                f'The total number of particles ({self.header["nbodies"]}) does not match '
+                f'the individual particle counts: {num_particles}'
+            )
+        # Populate params dict.
+        # Only the time is actually stored in the file.
+        self.params['H0'     ] = H0
+        self.params['a'      ] = self.header['time']
+        self.params['boxsize'] = boxsize
+        self.params['Ωm'     ] = Ωm
+        self.params['ΩΛ'     ] = 1 - Ωm
+        if only_params:
+            masterprint('done')
+            return
+        # Get file size
+        with open_file(filename, mode='rb') as f:
+            f.seek(0, os.SEEK_END)
+            filesize = f.tell()
+        # Create particle data types
+        ndim_max = 3
+        paddings = {0, 4}
+        for ndim in (self.header['ndim'], ndim_max):
+            particle_dtypes = {
+                particle_type: np.dtype([
+                    (field, f'{self.endianness}{val.fmt}'.format(ndim=ndim))
+                    for field, val in fields.items()
+                ])
+                for particle_type, fields in self.particle_fields.items()
+            }
+            datasize = np.sum([
+                dtype.itemsize*self.header[f'n{particle_type}']
+                for particle_type, dtype in particle_dtypes.items()
+            ])
+            padding = filesize - (self.headersize + datasize)
+            if padding in paddings:
+                break
+        else:
+            abort('Could not determine data layout of TIPSY file')
+        if ndim != 3:
+            abort(
+                f'The file contains {ndim}-dimensional data, '
+                f'but only 3-dimensional data is allowed'
+            )
+        # Create component informations
+        components_info = []
+        components_skipped_names = []
+        for name, particle_type in zip(self.component_names, self.particle_fields.keys()):
+            N = self.header[f'n{particle_type}']
+            if N == 0:
+                continue
+            # Basic component information
+            representation = 'particles'
+            species = determine_species(name, representation)
+            # Skip this component if it should not be loaded
+            if not should_load(name, species, representation):
+                components_skipped_names.append(name)
+                continue
+            components_info.append({
+                'name': name,
+                'species': species,
+                'N': N,
+                'mass': -1,  # still unknown
+            })
+        # If no components are to be read, return now
+        if not components_info:
+            msg = ', '.join(components_skipped_names)
+            masterprint(f'Skipping {msg}')
+            self.components = [
+                Component(
+                    component_info['name'],
+                    component_info['species'],
+                    N=component_info['N'],
+                    mass=component_info['mass'],
+                )
+                for component_info in components_info
+            ]
+            masterprint('done')
+            return
+        # Progress message
+        msg_list = []
+        for component_info in components_info:
+            N = component_info['N']
+            N_lin = cbrt(N)
+            if N > 1 and isint(N_lin):
+                N_str = str(int(round(N_lin))) + '³'
+            else:
+                N_str = str(N)
+            plural = ('s' if N > 1 else '')
+            msg_list.append(
+                f'{component_info["name"]} ({N_str} {component_info["species"]}) particle{plural}'
+            )
+        msg = ', '.join(msg_list)
+        if components_skipped_names:
+            msg_list = [msg]
+            msg = ', '.join(components_skipped_names)
+            msg_list.append(f'(skipping {msg})')
+            msg = ' '.join(msg_list)
+        masterprint(f'Reading in {msg} ...')
+        # Load components
+        self.components.clear()
+        components_info_iter = iter(components_info)
+        with open_file(filename, mode='rb') as f:
+            f.seek(-datasize, os.SEEK_END)
+            for name, (particle_type, dtype) in zip(self.component_names, particle_dtypes.items()):
+                count = self.header[f'n{particle_type}']
+                if count == 0:
+                    continue
+                species = determine_species(name, representation)
+                if not should_load(name, species, representation):
+                    f.seek(count*dtype.itemsize)
+                    continue
+                # Only the master is used for reading in the data
+                mass = -1
+                if master:
+                    # Read in data
+                    data = np.fromfile(f, dtype=dtype, count=count)
+                    # Get mass
+                    masses = data['mass']
+                    mass = masses[0]
+                    if np.unique(masses).size > 1:
+                        mass = np.mean(masses)
+                        masterwarn(
+                            f'Particles of component {component_info["name"]} have '
+                            f'independent masses. Will use the mean particle mass.'
+                        )
+                    # Due to differences in definitions of physical
+                    # constants between CO𝘕CEPT and PKDGRAV, a slight
+                    # correction factor is needed.
+                    fac_pkdgrav = 1.002295595763959
+                    unit = (
+                        fac_pkdgrav*self.params['Ωm']
+                        *3*self.params['H0']**2/(8*G_Newton)
+                        *self.params['boxsize']**3
+                    )
+                    mass *= unit
+                mass = bcast(mass)
+                # Instantiate component
+                component_info = next(components_info_iter)
+                component_info['mass'] = mass
+                component = Component(
+                    component_info['name'],
+                    component_info['species'],
+                    N=component_info['N'],
+                    mass=component_info['mass'],
+                )
+                self.components.append(component)
+                # Only the master has read in the data
+                if not master:
+                    component.N_local = 0
+                    continue
+                # Populate data attributes
+                N = component_info['N']
+                component.N_local = N
+                component.resize(N, only_loadable=True)
+                if component.snapshot_vars['load']['pos']:
+                    asarray(component.pos_mv)[:] = data['pos'].flatten()
+                    pos = component.pos
+                    unit = boxsize
+                    for indexʳ in range(3*N):
+                        pos[indexʳ] = (0.5 + pos[indexʳ])*unit
+                if component.snapshot_vars['load']['mom']:
+                    asarray(component.mom_mv)[:] = data['vel'].flatten()
+                    mom = component.mom
+                    unit = (
+                        self.params['boxsize']*self.params['H0']
+                        *sqrt(3/(8*π))*self.params['a']**2*mass
+                    )
+                    for indexʳ in range(3*N):
+                        mom[indexʳ] *= unit
+                # Assign particle IDs corresponding to their order
+                # within the snapshot.
+                if component.use_ids:
+                    component.ids_mv[:] = arange(N, dtype=C2np['double'])
+        # Done loading snapshot
+        masterprint('done')
+        masterprint('done')
+
+    # This method populate the snapshot with component data
+    # and additional parameters.
+    def populate(self, components, params=None):
+        if not components:
+            abort(f'Cannot save a {self.name} snapshot with no components')
+        if params is None:
+            params = {}
+        # Populated snapshot with the components
+        self.components = components
+        # Populate snapshot with the passed scale factor
+        # and global parameters. If a params dict is passed,
+        # use values from this instead.
+        self.params['H0'] = params.get('H0', H0)
+        if enable_Hubble:
+            self.params['a'] = params.get('a', universals.a)
+        else:
+            self.params['a'] = universals.a
+        self.params['boxsize'] = params.get('boxsize', boxsize)
+        self.params['Ωm'] = params.get('Ωm', Ωm)
+        ΩΛ = 1 - self.params['Ωm']  # Flat universe with only matter and cosmological constant
+        self.params['ΩΛ'] = params.get('ΩΛ', ΩΛ)
+        # Build the TIPSY header
+        # (assign all particles to the "dark" particle type).
+        self.header.clear()
+        for key, val in self.header_fields.items():
+            self.header[key] = deepcopy(val.default)
+        self.header['time'] = self.params['a']
+        self.header['nbodies'] = self.header['ndark'] = np.sum(
+            [
+                component.N for component in components
+                if component.representation == 'particles'
+            ],
+            dtype=C2np['Py_ssize_t']
+        )
 
 # Function that saves the current state of the simulation
 # (consisting of global parameters as well as the list
@@ -2959,7 +3346,7 @@ def should_load(name, species, representation):
 # Simple mock of the Component type used by
 # the determine_species() and should_load() functions.
 ComponentMock = collections.namedtuple(
-    'CompnentMock',
+    'ComponentMock',
     ['name', 'species', 'representation'],
 )
 
@@ -2968,15 +3355,21 @@ ComponentMock = collections.namedtuple(
 # Construct tuple of possible filename extensions for snapshots
 # by simply grabbing the 'extension' class variable off of all
 # classes defined in this module with the name '...Snapshot'.
-cython.declare(snapshot_classes=tuple,
-               snapshot_extensions=tuple,
-               )
-snapshot_classes = tuple([var for name, var in globals().items()
-                          if (    hasattr(var, '__module__')
-                              and var.__module__ == 'snapshot'
-                              and inspect.isclass(var)
-                              and name.endswith('Snapshot')
-                              )
-                          ])
-snapshot_extensions = tuple(set([snapshot_class.extension for snapshot_class in snapshot_classes
-                                 if snapshot_class.extension]))
+cython.declare(
+    snapshot_classes=tuple,
+    snapshot_extensions=tuple,
+)
+snapshot_classes = tuple([
+    var for name, var in globals().items()
+    if (
+            hasattr(var, '__module__')
+        and var.__module__ == 'snapshot'
+        and inspect.isclass(var)
+        and name.endswith('Snapshot')
+    )
+])
+snapshot_extensions = tuple(set([
+    snapshot_class.extension
+    for snapshot_class in snapshot_classes
+    if snapshot_class.extension
+]))
