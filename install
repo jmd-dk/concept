@@ -7088,16 +7088,14 @@ runtime_library_dirs = ${blas_dir}/lib
         fi
         if [ "${setuppy_mode}" == "wheel" ]; then
             rm -rf concept_wheel || :
-            ("${python}" setup.py bdist_wheel -d concept_wheel \
-                && cd "${concept_dir}"                         \
-                && "${python}" -m pip install                  \
-                    --no-deps --ignore-installed               \
-                    "${numpy_build_dir}/concept_wheel/"*.whl   \
+            ("${python}" setup.py bdist_wheel -d concept_wheel   \
+                && cd "${concept_dir}"                           \
+                && "${python}" -m pip install                    \
+                    ${numpy_pyuser} --no-deps --ignore-installed \
+                    "${numpy_build_dir}/concept_wheel/"*.whl     \
             ) & setuppy_pid=$!
         elif [ "${setuppy_mode}" == "install" ]; then
-            "${python}" setup.py install & setuppy_pid=$!
-        elif [ "${setuppy_mode}" == "--user" ]; then
-            "${python}" setup.py install --user & setuppy_pid=$!
+            "${python}" setup.py install ${numpy_pyuser} & setuppy_pid=$!
         fi
         soothe ${setuppy_pid}
         if [ "$(check_pypackage_installed numpy)" == "False" ]; then
@@ -7136,9 +7134,10 @@ extra_argv=['-q', '--color=yes'])" 2>&1 | tee "test_log"; \
         fi
     }
     install "NumPy" "no_init_install"                                  \
-        setuppy_mode "wheel" "install" "--user"                    ";" \
+        numpy_pyuser "" "--user"                                   ";" \
         numpy_gfortran "True" "False"                              ";" \
         compiler "${compiler_possibilities_specified_mpi_last[@]}" ";" \
+        setuppy_mode "wheel" "install"                             ";" \
         cstd "-std=c99" ""                                         ";" \
         cxxstd "-std=c++11" ""                                     ";" \
         fcompiler "gnu95" ""                                       ";" \
@@ -7260,16 +7259,14 @@ runtime_library_dirs = ${blas_dir}/lib
         fi
         if [ "${setuppy_mode}" == "wheel" ]; then
             rm -rf concept_wheel || :
-            ("${python}" setup.py bdist_wheel -d concept_wheel \
-                && cd "${concept_dir}"                         \
-                && "${python}" -m pip install                  \
-                    --no-deps --ignore-installed               \
-                    "${scipy_build_dir}/concept_wheel/"*.whl   \
+            ("${python}" setup.py bdist_wheel -d concept_wheel   \
+                && cd "${concept_dir}"                           \
+                && "${python}" -m pip install                    \
+                    ${scipy_pyuser} --no-deps --ignore-installed \
+                    "${scipy_build_dir}/concept_wheel/"*.whl     \
             ) & setuppy_pid=$!
         elif [ "${setuppy_mode}" == "install" ]; then
-            "${python}" setup.py install & setuppy_pid=$!
-        elif [ "${setuppy_mode}" == "--user" ]; then
-            "${python}" setup.py install --user & setuppy_pid=$!
+            "${python}" setup.py install ${scipy_pyuser} & setuppy_pid=$!
         fi
         soothe ${setuppy_pid}
         if [ "$(check_pypackage_installed scipy)" == "False" ]; then
@@ -7319,9 +7316,10 @@ extra_argv=['-q', '--color=yes', '-k not test_face'])" 2>&1 | tee "test_log"; \
         fi
     }
     install "SciPy" "no_init_install"                                  \
-        setuppy_mode "wheel" "install" "--user"                    ";" \
+        scipy_pyuser "" "--user"                                   ";" \
         scipy_gfortran "True" "False"                              ";" \
         compiler "${compiler_possibilities_specified_mpi_last[@]}" ";" \
+        setuppy_mode "wheel" "install"                             ";" \
         zip_safe "False" ""                                        ";" \
         cstd "-std=c99" ""                                         ";" \
         fcompiler "gnu95" ""                                       ";" \
