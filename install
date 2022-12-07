@@ -7067,6 +7067,7 @@ runtime_library_dirs = ${blas_dir}/lib
         export FCFLAGS="${extra_FCFLAGS} ${FCFLAGS}"
         export FFLAGS="${extra_FCFLAGS} ${FFLAGS}"
         export LDFLAGS="${extra_LDFLAGS} ${LDFLAGS}"
+        export PATH="${python_dir}/bin:${PATH}"
         cd "${concept_dir}"
         rm -rf "${numpy_build_dir}" || :
         "${python}" -m pip uninstall "numpy" -y >/dev/null 2>&1 || :
@@ -7084,6 +7085,12 @@ runtime_library_dirs = ${blas_dir}/lib
         sleep 1
         setuppy_success="$(cat '.setuppy_success')"
         if [ "${setuppy_success}" != "True" ]; then
+            # Cleanup before retrying
+            cd "${concept_dir}"
+            while [ -d "${numpy_build_dir}" ]; do
+                rm -rf "${numpy_build_dir}" || :
+                sleep 1
+            done
             return 1
         fi
         if [ "${setuppy_mode}" == "wheel" ]; then
@@ -7099,6 +7106,12 @@ runtime_library_dirs = ${blas_dir}/lib
         fi
         soothe ${setuppy_pid}
         if [ "$(check_pypackage_installed numpy)" == "False" ]; then
+            # Cleanup before retrying
+            cd "${concept_dir}"
+            while [ -d "${numpy_build_dir}" ]; do
+                rm -rf "${numpy_build_dir}" || :
+                sleep 1
+            done
             return 1
         fi
         # Clean up
@@ -7234,6 +7247,7 @@ runtime_library_dirs = ${blas_dir}/lib
         export FCFLAGS="${extra_FCFLAGS} ${FCFLAGS}"
         export FFLAGS="${extra_FCFLAGS} ${FFLAGS}"
         export LDFLAGS="${extra_LDFLAGS} ${LDFLAGS}"
+        export PATH="${python_dir}/bin:${PATH}"
         cd "${concept_dir}"
         rm -rf "${scipy_build_dir}" || :
         "${python}" -m pip uninstall "scipy" -y >/dev/null 2>&1 || :
@@ -7255,6 +7269,12 @@ runtime_library_dirs = ${blas_dir}/lib
         sleep 1
         setuppy_success="$(cat '.setuppy_success')"
         if [ "${setuppy_success}" != "True" ]; then
+            # Cleanup before retrying
+            cd "${concept_dir}"
+            while [ -d "${scipy_build_dir}" ]; do
+                rm -rf "${scipy_build_dir}" || :
+                sleep 1
+            done
             return 1
         fi
         if [ "${setuppy_mode}" == "wheel" ]; then
@@ -7270,6 +7290,12 @@ runtime_library_dirs = ${blas_dir}/lib
         fi
         soothe ${setuppy_pid}
         if [ "$(check_pypackage_installed scipy)" == "False" ]; then
+            # Cleanup before retrying
+            cd "${concept_dir}"
+            while [ -d "${scipy_build_dir}" ]; do
+                rm -rf "${scipy_build_dir}" || :
+                sleep 1
+            done
             return 1
         fi
         # Clean up
@@ -7404,6 +7430,7 @@ if [ "${matplotlib_install}" == "True" ] && [ "${matplotlib_installed}" == "Fals
             export TMPDIR="${tmp_pip_dir}_tmp"
             export TEMP="${TMPDIR}"
             export TMP="${TMPDIR}"
+            export PATH="${python_dir}/bin:${PATH}"
             cd "${concept_dir}"
             rm -rf "${pillow_build_dir}" || :
             cp -r "${pillow_build_dir}_cp" "${pillow_build_dir}"
@@ -8915,6 +8942,7 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
         if [ -d "${blas_dir}" ]; then
             export LD_LIBRARY_PATH="${blas_dir}/lib:${LD_LIBRARY_PATH}"
         fi
+        export PATH="${python_dir}/bin:${PATH}"
         cp "Makefile_ori" "Makefile"
         cp "python/setup.py_ori" "python/setup.py"
         make clean || :
