@@ -47,6 +47,7 @@ pyfiles =         \
     fluid         \
     graphics      \
     gravity       \
+    ic            \
     integration   \
     interactions  \
     linear        \
@@ -256,7 +257,7 @@ LDFLAGS += $(call unique, $(call sensible_path,      \
 # Build targets #
 #################
 # The below recipes are responsible for the
-# .py --> ((.pyx --> types) --> .pxd) --> (.c + .html) --> .o --> .so
+# .py -> ((.pyx -> types) -> .pxd) -> (.c + .html) -> .o -> .so
 # build chain.
 
 # Link object files into shared object Python modules
@@ -308,6 +309,7 @@ ifneq ($(unsafe_building),True)
     # makes the .pyx files depend on the .py file
     # of the module implementing the iterator.
     gravity.pyx:      interactions.py  # particle_particle()
+    ic.pyx:           mesh.py          # domain_loop(), fourier_loop(), fourier_curve_loop()
     analysis.pyx:     mesh.py          # fourier_loop()
     interactions.pyx: mesh.py          # fourier_loop()
     linear.pyx:       mesh.py          # fourier_loop()

@@ -539,11 +539,9 @@ indicesᵖ_send_bgn  = cython.address(indicesᵖ_send_bgn_mv[:])
 # of domain grids between processes.
 @cython.header(
     # Arguments
-    grid_or_grids=object,  # double[:, :, ::1] or dict
+    grid='double[:, :, ::1]',
     operation=str,
     # Locals
-    grid='double[:, :, ::1]',
-    grids=dict,
     i='int',
     index_recv_bgn_i='Py_ssize_t',
     index_recv_end_i='Py_ssize_t',
@@ -562,7 +560,7 @@ indicesᵖ_send_bgn  = cython.address(indicesᵖ_send_bgn_mv[:])
     reverse='bint',
     returns='void',
 )
-def communicate_ghosts(grid_or_grids, operation):
+def communicate_ghosts(grid, operation):
     """This function can operate in two different modes depending on the
     operation argument:
     - operation == '+=':
@@ -574,12 +572,6 @@ def communicate_ghosts(grid_or_grids, operation):
         values stored at the corresponding points on neighbour
         processes. Current ghost point values will be ignored.
     """
-    if isinstance(grid_or_grids, dict):
-        grids = grid_or_grids
-        for grid in grids.values():
-            communicate_ghosts(grid, operation)
-        return
-    grid = grid_or_grids
     if grid is None:
         return
     # Set the direction of communication depending on the operation
@@ -667,7 +659,7 @@ def communicate_ghosts(grid_or_grids, operation):
                     operation=operation,
                 )
 
-# Function for cutting out domains as rectangular boxes in the best
+# Function for cutting out domains as cuboidal boxes in the best
 # possible way. The return value is an array of 3 elements; the number
 # of subdivisions of the box for each dimension. When all dimensions
 # cannot be equally divided, the x-dimension is subdivided the most,
@@ -1103,8 +1095,10 @@ def sendrecv_component(
         # Place the tiling over the domain of the process
         # with a rank given by 'source'.
         if 𝔹[tiling_name != 'trivial']:
-            domain_layout_source = asarray(np.unravel_index(source, domain_subdivisions),
-                dtype=C2np['int'])
+            domain_layout_source = asarray(
+                np.unravel_index(source, domain_subdivisions),
+                dtype=C2np['int'],
+            )
             tiling_recv.relocate(asarray(
                 (
                     domain_layout_source[0]*domain_size_x,
@@ -1727,6 +1721,7 @@ def get_buffer(size_or_shape=-1, buffer_name=0, nullify=False):
             buffer[i] = 0
     # Return the buffer in the requested shape
     return np.reshape(buffer_mv[:size], shape)
+
 # Function which resizes one of the global buffers
 @cython.header(
     # Arguments
@@ -1764,69 +1759,78 @@ buffer_mv = cast(buffer, 'double[:1]')
 buffers_mv = {}
 buffers_mv[0] = buffer_mv
 
-# Cut out domains at import time
+# Function computing basic domain information
+# and collecting them into a namespace.
+@lru_cache()
+def get_domain_info():
+    # Number of subdivisions (domains) of the box
+    # in each of the three dimensions.
+    subdivisions = cutout_domains(nprocs)
+    # The global 3D layout of the division of the box
+    layout = arange(nprocs, dtype=C2np['int']).reshape(subdivisions)
+    # The indices in domain_layout of the local domain
+    layout_local_indices = asarray(
+        np.unravel_index(rank, subdivisions),
+        dtype=C2np['int'],
+    )
+    # The size of the domain, which is the same for all of them
+    size_x = boxsize/subdivisions[0]
+    size_y = boxsize/subdivisions[1]
+    size_z = boxsize/subdivisions[2]
+    # The start and end coordinates of the local domain
+    bgn_x = layout_local_indices[0]*size_x
+    bgn_y = layout_local_indices[1]*size_y
+    bgn_z = layout_local_indices[2]*size_z
+    end_x = bgn_x + size_x
+    end_y = bgn_y + size_y
+    end_z = bgn_z + size_z
+    # Reciprocals of the domain sizes. To avoid future round-off errors,
+    # these are constructed such that their product with boxsize is as
+    # close to subdivisions[:] as possible without being equal.
+    size_x_inv = 1./size_x
+    size_y_inv = 1./size_y
+    size_z_inv = 1./size_z
+    while boxsize*size_x_inv < subdivisions[0]:
+        size_x_inv = np.nextafter(size_x_inv, ထ)
+    while boxsize*size_x_inv >= subdivisions[0]:
+        size_x_inv = np.nextafter(size_x_inv, -ထ)
+    while boxsize*size_y_inv < subdivisions[1]:
+        size_y_inv = np.nextafter(size_y_inv, ထ)
+    while boxsize*size_y_inv >= subdivisions[1]:
+        size_y_inv = np.nextafter(size_y_inv, -ထ)
+    while boxsize*size_z_inv < subdivisions[2]:
+        size_z_inv = np.nextafter(size_z_inv, ထ)
+    while boxsize*size_z_inv >= subdivisions[2]:
+        size_z_inv = np.nextafter(size_z_inv, -ထ)
+    # Return everything collected into a common namespace
+    domain_info = types.SimpleNamespace(**locals())
+    return domain_info
+
+
+
+# Get local domain information
+domain_info = get_domain_info()
 cython.declare(
     domain_subdivisions='int[::1]',
+    domain_subdivisions_2='int',
+    domain_subdivisions_21='int',
     domain_layout='int[:, :, ::1]',
     domain_layout_local_indices='int[::1]',
     domain_size_x='double',
     domain_size_y='double',
     domain_size_z='double',
-    domain_volume='double',
-    domain_start_x='double',
-    domain_start_y='double',
-    domain_start_z='double',
-    domain_end_x='double',
-    domain_end_y='double',
-    domain_end_z='double',
-)
-# Number of subdivisions (domains) of the box
-# in each of the three dimensions.
-domain_subdivisions = cutout_domains(nprocs)
-# The global 3D layout of the division of the box
-domain_layout = arange(nprocs, dtype=C2np['int']).reshape(domain_subdivisions)
-# The indices in domain_layout of the local domain
-domain_layout_local_indices = asarray(
-    np.unravel_index(rank, domain_subdivisions),
-    dtype=C2np['int'],
-)
-# The size of the domain, which is the same for all of them
-domain_size_x = boxsize/domain_subdivisions[0]
-domain_size_y = boxsize/domain_subdivisions[1]
-domain_size_z = boxsize/domain_subdivisions[2]
-domain_volume = domain_size_x*domain_size_y*domain_size_z
-# The start and end coordinates of the local domain
-domain_start_x = domain_layout_local_indices[0]*domain_size_x
-domain_start_y = domain_layout_local_indices[1]*domain_size_y
-domain_start_z = domain_layout_local_indices[2]*domain_size_z
-domain_end_x = domain_start_x + domain_size_x
-domain_end_y = domain_start_y + domain_size_y
-domain_end_z = domain_start_z + domain_size_z
-# Derived constants, used within the which_domain() function
-cython.declare(
-    domain_subdivisions_2='int',
-    domain_subdivisions_21='int',
     domain_size_x_inv='double',
     domain_size_y_inv='double',
     domain_size_z_inv='double',
 )
-domain_subdivisions_2  = domain_subdivisions[2]
-domain_subdivisions_21 = domain_subdivisions[2]*domain_subdivisions[1]
-# Reciprocals of the domain sizes. To avoid future round-off errors,
-# these are constructed such that their product with boxsize is as close
-# to domain_subdivisions[:] as possible without being equal.
-domain_size_x_inv = 1./domain_size_x
-domain_size_y_inv = 1./domain_size_y
-domain_size_z_inv = 1./domain_size_z
-while boxsize*domain_size_x_inv < domain_subdivisions[0]:
-    domain_size_x_inv = np.nextafter(domain_size_x_inv, ထ)
-while boxsize*domain_size_x_inv >= domain_subdivisions[0]:
-    domain_size_x_inv = np.nextafter(domain_size_x_inv, -ထ)
-while boxsize*domain_size_y_inv < domain_subdivisions[1]:
-    domain_size_y_inv = np.nextafter(domain_size_y_inv, ထ)
-while boxsize*domain_size_y_inv >= domain_subdivisions[1]:
-    domain_size_y_inv = np.nextafter(domain_size_y_inv, -ထ)
-while boxsize*domain_size_z_inv < domain_subdivisions[2]:
-    domain_size_z_inv = np.nextafter(domain_size_z_inv, ထ)
-while boxsize*domain_size_z_inv >= domain_subdivisions[2]:
-    domain_size_z_inv = np.nextafter(domain_size_z_inv, -ထ)
+domain_subdivisions         = domain_info.subdivisions
+domain_subdivisions_2       = domain_info.subdivisions[2]
+domain_subdivisions_21      = domain_info.subdivisions[1]*domain_info.subdivisions[2]
+domain_layout               = domain_info.layout
+domain_layout_local_indices = domain_info.layout_local_indices
+domain_size_x               = domain_info.size_x
+domain_size_y               = domain_info.size_y
+domain_size_z               = domain_info.size_z
+domain_size_x_inv           = domain_info.size_x_inv
+domain_size_y_inv           = domain_info.size_y_inv
+domain_size_z_inv           = domain_info.size_z_inv

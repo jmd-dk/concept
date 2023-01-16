@@ -116,7 +116,7 @@ class_extra_background = {}       # Extra CLASS background variables to dump
 class_extra_perturbations = {}    # Extra CLASS perturbations to dump
 
 # Numerics
-boxsize = 256*Mpc/h  # Linear size of the simulation box
+boxsize = 4*_size*Mpc/h  # Linear size of the simulation box
 potential_options = {  # Specifications for potential computations
     'gridsize': {  # Linear potential grid size
         'global': {  # Common, global grid size
@@ -128,12 +128,12 @@ potential_options = {  # Specifications for potential computations
         # Component specific upstream and downstream grid sizes
         'matter': {
             'gravity': {
-                'p3m': (2*_size, 2*_size),
+                'p3m': ('2*cbrt(N)', '2*cbrt(N)'),
             },
         },
         'neutrino': {
             'gravity': {
-                'pm': _size,
+                'pm': 'gridsize',
             },
         },
     },
@@ -151,8 +151,8 @@ potential_options = {  # Specifications for potential computations
     },
     'interlace': {  # Use interlaced grids for particles?
         'gravity': {
-            'pm' : False,
-            'p3m': False,
+            'pm' : (False, False),
+            'p3m': (False, False),
         },
     },
     'differentiation': {  # Finite central difference order
@@ -256,42 +256,21 @@ select_boltzmann_order = {  # Boltzmann order for each component
 select_boltzmann_closure = {  # Closure rule for the Boltzmann hierarchy for each component
     'all': 'class',
 }
-select_realization_options = {  # Realization options for each component and variable
-    'all': {
-        # Particle variables
-        'pos': {
-            'interpolation': 'CIC',
-            'back-scaling' : False,
-        },
-        'mom': {
-            'interpolation'                : 'CIC',
-            'back-scaling'                 : False,
-            'velocities from displacements': False,
-        },
-        # Fluid variables
-        'ϱ': {
-            'back-scaling': False,
-        },
-        'J': {
-            # Linear realization options
-            'back-scaling': False,
-            # Non-linear realization options
-            'structure'     : 'primordial',
-            'compound-order': 'linear',
-        },
-        '𝒫': {
-            # Linear realization options
-            'back-scaling': False,
-            # Non-linear realization options
-            'structure': 'non-linear',
-        },
-        'ς': {
-            # Linear realization options
-            'back-scaling': False,
-            # Non-linear realization options
-            'structure'     : 'non-linear',
-            'compound-order': 'non-linear',
-        },
+realization_options = {  # Options for realizations of components
+    'gauge': {  # Gauge to use for realizations
+        'default': 'N-body',
+    },
+    'back-scale': {  # Use back-scaled transfer functions?
+        'default': False,
+    },
+    'LPT': {  # Lagrangian perturbation theory order to use
+        'default': 1,
+    },
+    'structure': {  # Use primordial noise or non-linearly evolved structure for late realizations
+        'default': 'non-linear',
+    },
+    'compound': {  # Use linear or non-linear products of fields for realizations
+        'default': 'non-linear',
     },
 }
 select_lives = {  # Time (scale factor value) of birth and death for each component
@@ -320,7 +299,11 @@ fftw_wisdom_rigor = 'measure'       # Rigour level when acquiring FFTW wisdom
 fftw_wisdom_reuse = True            # Reuse FFTW wisdom from earlier runs?
 fftw_wisdom_share = False           # Share FFTW wisdom across nodes?
 random_generator = 'PCG64DXSM'      # Pseudo-random number generator to use
-random_seed = 0                     # Seed for pseudo-random numbers
+random_seeds = {                    # Seeds for pseudo-random numbers
+    'general'              :     0,
+    'primordial amplitudes': 1_000,
+    'primordial phases'    : 2_000,
+}
 primordial_amplitude_fixed = False  # Replace Gaussian noise with noise of fixed amplitude and uniform random phase?
 primordial_phase_shift = 0          # Phase shift when using fixed amplitude (set to π for paired simulations)
 cell_centered = True                # Use cell centre (as opposed to vertex) locations for grid variables?

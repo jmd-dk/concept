@@ -25,14 +25,26 @@
 from commons import *
 
 # Cython imports
-cimport('from communication import partition,                   '
-        '                          domain_layout_local_indices, '
-        '                          domain_subdivisions,         '
-        '                          exchange,                    '
-        '                          smart_mpi,                   '
-        )
-cimport('from mesh import domain_decompose, get_fftw_slab, slab_decompose')
-cimport('from species import Component, FluidScalar, update_species_present')
+cimport(
+    'from communication import '
+    '    exchange,             '
+    '    partition,            '
+    '    smart_mpi,            '
+)
+cimport(
+    'from mesh import      '
+    '    domain_decompose, '
+    '    get_fftw_slab,    '
+    '    slab_decompose,   '
+)
+cimport(
+    'from species import         '
+    '    Component,              '
+    '    update_species_present, '
+)
+
+# Pure Python imports
+from communication import get_domain_info
 
 
 
@@ -96,7 +108,6 @@ class ConceptSnapshot:
         save_all='bint',
         # Locals
         N='Py_ssize_t',
-        N_lin='double',
         N_local='Py_ssize_t',
         N_str=str,
         component='Component',
@@ -140,11 +151,7 @@ class ConceptSnapshot:
                 component_h5.attrs['species'] = component.species
                 if component.representation == 'particles':
                     N, N_local = component.N, component.N_local
-                    N_lin = cbrt(N)
-                    if N > 1 and isint(N_lin):
-                        N_str = str(int(round(N_lin))) + '³'
-                    else:
-                        N_str = str(N)
+                    N_str = get_cubenum_strrep(N)
                     plural = ('s' if N > 1 else '')
                     masterprint(
                         f'Writing out {component.name} '
@@ -293,7 +300,6 @@ class ConceptSnapshot:
         only_params='bint',
         # Locals
         N='Py_ssize_t',
-        N_lin='double',
         N_local='Py_ssize_t',
         N_str=str,
         arr=object,  # np.ndarray
@@ -398,11 +404,7 @@ class ConceptSnapshot:
                     # Done loading component attributes
                     if only_params:
                         continue
-                    N_lin = cbrt(N)
-                    if N > 1 and isint(N_lin):
-                        N_str = str(int(round(N_lin))) + '³'
-                    else:
-                        N_str = str(N)
+                    N_str = get_cubenum_strrep(N)
                     plural = ('s' if N > 1 else '')
                     masterprint(f'Reading in {name} ({N_str} {species}) particle{plural} ...')
                     # Extract HDF5 datasets
@@ -912,7 +914,6 @@ class GadgetSnapshot:
         save_all='bint',
         # Locals
         N='Py_ssize_t',
-        N_lin='double',
         N_str=str,
         block=dict,
         block_fmt=str,
@@ -993,11 +994,7 @@ class GadgetSnapshot:
         msg_list = []
         for component in self.components:
             N = component.N
-            N_lin = cbrt(N)
-            if N > 1 and isint(N_lin):
-                N_str = str(int(round(N_lin))) + '³'
-            else:
-                N_str = str(N)
+            N_str = get_cubenum_strrep(N)
             plural = ('s' if N > 1 else '')
             msg_list.append(f'{component.name} ({N_str} {component.species}) particle{plural}')
         msg = ', '.join(msg_list)
@@ -1587,7 +1584,6 @@ class GadgetSnapshot:
         only_params='bint',
         # Locals
         N='Py_ssize_t',
-        N_lin='double',
         N_local='Py_ssize_t',
         N_str=str,
         block=dict,
@@ -1878,11 +1874,7 @@ class GadgetSnapshot:
             if component is None:
                 continue
             N = component.N
-            N_lin = cbrt(N)
-            if N > 1 and isint(N_lin):
-                N_str = str(int(round(N_lin))) + '³'
-            else:
-                N_str = str(N)
+            N_str = get_cubenum_strrep(N)
             plural = ('s' if N > 1 else '')
             msg_list.append(f'{component.name} ({N_str} {component.species}) particle{plural}')
         msg = ', '.join(msg_list)
@@ -2685,9 +2677,6 @@ class TipsySnapshot:
         self.params['boxsize'] = boxsize
         self.params['Ωm'     ] = Ωm
         self.params['ΩΛ'     ] = 1 - Ωm
-        if only_params:
-            masterprint('done')
-            return
         # Get file size
         with open_file(filename, mode='rb') as f:
             f.seek(0, os.SEEK_END)
@@ -2738,9 +2727,10 @@ class TipsySnapshot:
                 'mass': -1,  # still unknown
             })
         # If no components are to be read, return now
-        if not components_info:
-            msg = ', '.join(components_skipped_names)
-            masterprint(f'Skipping {msg}')
+        if only_params or not components_info:
+            if not components_info:
+                msg = ', '.join(components_skipped_names)
+                masterprint(f'Skipping {msg}')
             self.components = [
                 Component(
                     component_info['name'],
@@ -2756,11 +2746,7 @@ class TipsySnapshot:
         msg_list = []
         for component_info in components_info:
             N = component_info['N']
-            N_lin = cbrt(N)
-            if N > 1 and isint(N_lin):
-                N_str = str(int(round(N_lin))) + '³'
-            else:
-                N_str = str(N)
+            N_str = get_cubenum_strrep(N)
             plural = ('s' if N > 1 else '')
             msg_list.append(
                 f'{component_info["name"]} ({N_str} {component_info["species"]}) particle{plural}'
@@ -2799,15 +2785,7 @@ class TipsySnapshot:
                             f'Particles of component {component_info["name"]} have '
                             f'independent masses. Will use the mean particle mass.'
                         )
-                    # Due to differences in definitions of physical
-                    # constants between CO𝘕CEPT and PKDGRAV, a slight
-                    # correction factor is needed.
-                    fac_pkdgrav = 1.002295595763959
-                    unit = (
-                        fac_pkdgrav*self.params['Ωm']
-                        *3*self.params['H0']**2/(8*G_Newton)
-                        *self.params['boxsize']**3
-                    )
+                    unit = 3*self.params['H0']**2/(8*π*G_Newton)*self.params['boxsize']**3
                     mass *= unit
                 mass = bcast(mass)
                 # Instantiate component
@@ -3049,8 +3027,14 @@ def load(
     return snapshot
 
 # Function for determining the snapshot type of a file
-@cython.header(filename=str, returns=str)
-def get_snapshot_type(filename):
+@cython.header(
+    # Arguments
+    filename=str,
+    collective='bint',
+    # Locals
+    returns=str,
+)
+def get_snapshot_type(filename, collective=True):
     """Call the 'is_this_type' class method of each snapshot class until
     the file is recognised as a specific snapshot type.
     The returned name of the snapshot type is in the same format as the
@@ -3058,6 +3042,10 @@ def get_snapshot_type(filename):
     removed and all characters are converted to lower-case.
     If the file is not recognised as any snapshot type at all,
     do not throw an error but simply return None.
+    Only the master process will do the work. When collective is True,
+    the result will be broadcasted, and so this function should be
+    called by all processes. If called only by the master,
+    set collective to False, which will leave out the broadcast.
     """
     # Return None if the file is not a valid snapshot
     determined_type = None
@@ -3071,7 +3059,9 @@ def get_snapshot_type(filename):
                 break
         if determined_type is None and not os.path.exists(filename):
             abort(f'The snapshot file "{filename}" does not exist')
-    return bcast(determined_type)
+    if collective:
+        determined_type = bcast(determined_type)
+    return determined_type
 
 # Function which takes in a dict of parameters and compares their
 # values to those of the current run. If any disagreement is found,
@@ -3373,3 +3363,12 @@ snapshot_extensions = tuple(set([
     for snapshot_class in snapshot_classes
     if snapshot_class.extension
 ]))
+
+# Get local domain information
+domain_info = get_domain_info()
+cython.declare(
+    domain_subdivisions='int[::1]',
+    domain_layout_local_indices='int[::1]',
+)
+domain_subdivisions         = domain_info.subdivisions
+domain_layout_local_indices = domain_info.layout_local_indices

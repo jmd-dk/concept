@@ -10,8 +10,9 @@
 
 Publications
 ============
-This is a list of scientific papers produced using CO\ *N*\ CEPT.
-If you make use of CO\ *N*\ CEPT for a publication, please cite the paper
+This is a (non-exhaustive) list of scientific papers associated with the
+CO\ *N*\ CEPT code. If you make use of CO\ *N*\ CEPT for a publication,
+please cite the paper
 ':ref:`The cosmological simulation code CO𝘕CEPT 1.0 <the_cosmological_simulation_code_concept_10>`'.
 
 

@@ -21,6 +21,9 @@ primordial_spectrum = {
     'pivot': 1e-5/kpc,
 }
 
+# Physics
+select_approximations = {'all': {'P = wρ': True}}
+
 # Simulation
 class_reuse = False
 

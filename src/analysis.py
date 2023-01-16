@@ -25,11 +25,20 @@
 from commons import *
 
 # Cython imports
-cimport('from communication import communicate_ghosts, get_buffer')
-cimport('from graphics import get_output_declarations, plot_powerspec')
+cimport(
+    'from communication import '
+    '    communicate_ghosts,   '
+    '    get_buffer,           '
+)
+cimport(
+    'from graphics import         '
+    '    get_output_declarations, '
+    '    plot_powerspec,          '
+)
 cimport('from linear import get_linear_powerspec')
 cimport(
     'from mesh import          '
+    '    Lattice,              '
     '    diff_domaingrid,      '
     '    fourier_loop,         '
     '    interpolate_upstream, '
@@ -390,7 +399,7 @@ def construct_k_bin_centers(k_min, k_max, binsize, gridsize, nyquist):
     gridsizes_upstream=list,
     im='double',
     index='Py_ssize_t',
-    interlace='bint',
+    interlace=str,
     interpolation='int',
     k2='Py_ssize_t',
     k2_max='Py_ssize_t',
@@ -953,7 +962,6 @@ cython.declare(σ2_integrand_arr=object)
     quantity=str,
     communicate='bint',
     # Locals
-    J_noghosts=object, # np.ndarray
     J_over_ϱ_plus_𝒫_2_i='double',
     J_over_ϱ_plus_𝒫_2_max='double',
     J_over_ϱ_2_i='double',
@@ -987,7 +995,7 @@ cython.declare(σ2_integrand_arr=object)
     mom2='double',
     mom2_max='double',
     mom2_i='double',
-    mom_i='double',
+    mom_i=object,  # decimal.Decimal
     momxˣ='double*',
     momyˣ='double*',
     momzˣ='double*',
@@ -1005,8 +1013,8 @@ cython.declare(σ2_integrand_arr=object)
     ΣJ_over_ϱ_plus_𝒫_2='double',
     Σmass='double',
     Σmom='double[::1]',
-    Σmom_dim='double',
-    Σmom2_dim='double',
+    Σmom_dim=object,  # decimal.Decimal
+    Σmom2_dim=object,  # decimal.Decimal
     Σϱ='double',
     Σϱ2='double',
     ϱ='FluidScalar',
@@ -1015,10 +1023,10 @@ cython.declare(σ2_integrand_arr=object)
     ϱ_mv='double[:, :, ::1]',
     ϱ_noghosts=object, # np.ndarray
     ϱ_ptr='double*',
-    σ2mom_dim='double',
+    σ2mom_dim=object,  # decimal.Decimal
     σ2ϱ='double',
     σmom='double[::1]',
-    σmom_dim='double',
+    σmom_dim=object,  # decimal.Decimal
     σϱ='double',
     𝒫_mv='double[:, :, ::1]',
     𝒫_ptr='double*',
@@ -1193,57 +1201,70 @@ def measure(component, quantity, communicate=True):
     elif quantity == 'momentum':
         Σmom = empty(3, dtype=C2np['double'])
         σmom = empty(3, dtype=C2np['double'])
-        if component.representation == 'particles':
-            # Total momentum of all particles, for each dimension
-            for dim in range(3):
-                Σmom_dim = Σmom2_dim = 0
-                # Add up local particle momenta
-                for indexˣʸᶻ in range(dim, 3*component.N_local, 3):
-                    mom_i = mom[indexˣʸᶻ]
-                    Σmom_dim  += mom_i
-                    Σmom2_dim += mom_i**2
-                # Add up local particle momenta sums
-                if communicate:
-                    Σmom_dim  = allreduce(Σmom_dim,  op=MPI.SUM)
-                    Σmom2_dim = allreduce(Σmom2_dim, op=MPI.SUM)
-                # Compute global standard deviation
-                σ2mom_dim = Σmom2_dim/N - (Σmom_dim/N)**2
-                if σ2mom_dim < 0:
-                    # Negative (about -machine_ϵ) σ² can happen due
-                    # to round-off errors.
-                    σ2mom_dim = 0
-                σmom_dim = sqrt(σ2mom_dim)
-                # Pack results
-                Σmom[dim] = Σmom_dim
-                σmom[dim] = σmom_dim
-        elif component.representation == 'fluid':
-            # Total momentum of all fluid elements, for each dimension.
-            # Here the definition of momenta is chosen as
-            # J*Vcell = (a**4*(ρ + c⁻²P))*Vcell
-            #         = (V_phys*(ρ + c⁻²P))*a*u,
-            # which reduces to mass*a*u for pressureless fluids and so
-            # it is in correspondence with the momentum definition
-            # for particles.
-            for dim, fluidscalar in enumerate(component.J):
-                J_noghosts = asarray(fluidscalar.grid_noghosts)
-                # Total dim'th momentum of all fluid elements
-                Σmom_dim = np.sum(J_noghosts)*Vcell
-                # Total dim'th momentum squared of all fluid elements
-                Σmom2_dim = np.sum(J_noghosts**2)*Vcell**2
-                # Add up local fluid element momenta sums
-                if communicate:
-                    Σmom_dim  = allreduce(Σmom_dim,  op=MPI.SUM)
-                    Σmom2_dim = allreduce(Σmom2_dim, op=MPI.SUM)
-                # Compute global standard deviation
-                σ2mom_dim = Σmom2_dim/N_elements - (Σmom_dim/N_elements)**2
-                if σ2mom_dim < 0:
-                    # Negative (about -machine_ϵ) σ² can happen due
-                    # to round-off errors.
-                    σ2mom_dim = 0
-                σmom_dim = sqrt(σ2mom_dim)
-                # Pack results
-                Σmom[dim] = Σmom_dim
-                σmom[dim] = σmom_dim
+        # As the momenta should sum to ~0, floating-point inaccuracies
+        # become highly visible. To counteract this, we carry out the
+        # computation with increased precision.
+        with decimal.localcontext() as ctx:
+            ctx.prec = 2*17
+            if component.representation == 'particles':
+                # Total momentum and momentum spread of all particles,
+                # for each dimension.
+                for dim in range(3):
+                    Σmom_dim = Σmom2_dim = decimal.Decimal(0)
+                    # Add up local particle momenta
+                    for indexˣʸᶻ in range(dim, 3*component.N_local, 3):
+                        mom_i = decimal.Decimal(mom[indexˣʸᶻ])
+                        Σmom_dim  += mom_i
+                        Σmom2_dim += mom_i**2
+                    # Add up local particle momenta sums
+                    if communicate:
+                        Σmom_dim  = allreduce(Σmom_dim,  op=MPI.SUM)
+                        Σmom2_dim = allreduce(Σmom2_dim, op=MPI.SUM)
+                    # Compute global standard deviation
+                    σ2mom_dim = Σmom2_dim/N - (Σmom_dim/N)**2
+                    if σ2mom_dim < 0:
+                        # Negative (about -machine_ϵ) σ² can happen due
+                        # to round-off errors.
+                        σ2mom_dim = 0
+                    else:
+                        σmom_dim = σ2mom_dim.sqrt()
+                    # Pack results
+                    Σmom[dim] = float(Σmom_dim)
+                    σmom[dim] = float(σmom_dim)
+            elif component.representation == 'fluid':
+                # Total momentum of all fluid elements,
+                # for each dimension.
+                # Here the definition of momenta is chosen as
+                #   J*Vcell = (a**4*(ρ + c⁻²P))*Vcell
+                #           = (V_phys*(ρ + c⁻²P))*a*u,
+                # which reduces to mass*a*u for pressureless fluids
+                # and so it is in correspondence with the momentum
+                # definition for particles.
+                for dim, fluidscalar in enumerate(component.J):
+                    Σmom_dim = Σmom2_dim = decimal.Decimal(0)
+                    for el in asarray(fluidscalar.grid_noghosts).flat:
+                        el = decimal.Decimal(el)
+                        Σmom_dim += el
+                        Σmom2_dim += el**2
+                    # Total dim'th momentum of all fluid elements
+                    Σmom_dim *= decimal.Decimal(Vcell)
+                    # Total dim'th momentum squared of all fluid elements
+                    Σmom2_dim *= decimal.Decimal(Vcell)**2
+                    # Add up local fluid element momenta sums
+                    if communicate:
+                        Σmom_dim  = allreduce(Σmom_dim,  op=MPI.SUM)
+                        Σmom2_dim = allreduce(Σmom2_dim, op=MPI.SUM)
+                    # Compute global standard deviation
+                    σ2mom_dim = Σmom2_dim/N_elements - (Σmom_dim/N_elements)**2
+                    if σ2mom_dim < 0:
+                        # Negative (about -machine_ϵ) σ² can happen due
+                        # to round-off errors.
+                        σ2mom_dim = 0
+                    else:
+                        σmom_dim = σ2mom_dim.sqrt()
+                    # Pack results
+                    Σmom[dim] = float(Σmom_dim)
+                    σmom[dim] = float(σmom_dim)
         return Σmom, σmom
     # Fluid quantities
     elif quantity == 'ϱ':

@@ -617,7 +617,11 @@ def cimport_commons(lines, no_optimization):
 
 
 def cimport_function(lines, no_optimization):
-    def construct_cimport(module, function=None):
+    def construct_cimport(module, function=None, record=set()):
+        # Only import each module/function once
+        if (module, function) in record:
+            return []
+        record.add((module, function))
         # Add normal import enclosed in try/except,
         # followed by the cimport.
         module = module.strip()
@@ -683,6 +687,11 @@ def cimport_function(lines, no_optimization):
                         tmp_dict = {}
                         exec(iterator_arg, tmp_dict)
                         depends = tmp_dict['depends']
+                    if isinstance(depends, str):
+                        depends = [depends]
+                    depends = list(depends)
+                    if isinstance(depends[0], (tuple, list)):
+                        depends = depends[0]
                     if isinstance(depends, str):
                         depends = [depends]
                     depends = list(depends)
@@ -1306,7 +1315,7 @@ def constant_expressions(lines, no_optimization, first_call=True):
     # Edit all nested occurrences of constant expressions so that only
     # the inner most expression survived, while the outer ones will
     # be assigned a nesting number, e.g.
-    # ℝ[2 + ℝ[3*4]] -> ℝ0[2 + ℝ1[3*4]].
+    # ℝ[2 + ℝ[3*4]] → ℝ0[2 + ℝ1[3*4]].
     if first_call:
         find_nested = True
         while find_nested:
@@ -1823,16 +1832,19 @@ def constant_expressions(lines, no_optimization, first_call=True):
                              if var and var[0] not in '.0123456789']
                 # Remove non-variables
                 nonvariables = {
-                    'bint', 'int', 'float', 'double', 'Py_ssize_t',
-                    'tuple', 'list', 'set', 'dict',
+                    'bool', 'bint', 'Py_ssize_t', 'int', 'float', 'complex', 'double',
+                    'tuple', 'list', 'dict', 'set', 'frozenset',
                     'sin', 'cos', 'tan',
                     'arcsin', 'arccos', 'arctan', 'arctan2',
                     'sinh', 'cosh', 'tanh', 'arcsinh', 'arccosh', 'arctanh',
                     'exp', 'log', 'log2', 'log10',
-                    'sqrt', 'cbrt',
+                    'sqrt', 'cbrt', 'icbrt',
                     'erf', 'erfc',
                     'floor', 'ceil', 'round',
                     'abs', 'mod',
+                    'min', 'max', 'pairmin', 'pairmax',
+                    'sum', 'prod', 'mean',
+                    'isclose', 'iscubic', 'isint',
                 }
                 variables = list(set(variables) - nonvariables)
                 linenr_where_defined = [-1]*len(variables)
@@ -2923,7 +2935,7 @@ def cython_decorators(lines, no_optimization):
                         header[j] = hline.replace('returns=' + returntype,
                                                   ' '*len('returns=' + returntype))
                         if not header[j].replace(',', '').strip():
-                            del header[j]
+                            header.pop(j)
                         else:
                             # Looks for lonely comma
                             # due to removal of "returns=".
@@ -2973,7 +2985,7 @@ def cython_decorators(lines, no_optimization):
                 if returntype:
                     header += [' '*n_spaces + '@cython.returns(' + returntype + ')\n']
                 # Place the new header among the lines
-                del lines[headstart:(headstart + headlen)]
+                lines[:] = lines[:headstart] + lines[(headstart + headlen):]
                 for hline in reversed(header):
                     lines.insert(headstart, hline)
     return lines

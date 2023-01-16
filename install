@@ -8614,7 +8614,7 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
     patch_class "${filename}" $((linenr - 1)) "insert" "above" "${new_lines[@]}"
     pattern='pvecback_integration *\\[ *pba *-> *index_bi_D_prime *\\] *='
     new_lines=(                                                                                                  \
-        "/* Use proper intitial conditions for the growth factors */"                                            \
+        "/* Use proper initial conditions for the growth factors */"                                             \
         "double Omega0_M = pba->Omega0_b;"                                                                       \
         "if (pba->has_cdm == _TRUE_)"                                                                            \
         "  Omega0_M += pba->Omega0_cdm;"                                                                         \

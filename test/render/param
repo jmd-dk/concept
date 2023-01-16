@@ -8,7 +8,7 @@ render2D_select    = {'matter': {'terminal image': True}}
 snapshot_type      = 'concept'
 
 # Numerics
-boxsize = 80*Mpc
+boxsize = 40*Mpc
 
 # Cosmology
 H0      = 70*km/s/Mpc
@@ -21,7 +21,10 @@ select_forces = {'matter': {'gravity': 'pm'}}
 
 # Simulation
 random_generator = 'PCG64DXSM'
-random_seed      = 2  # 2 (with PCG64DXSM) results in nice looking 2D renders
+random_seeds = {  # the seeds below (with PCG64DXSM) result in nice looking 2D renders
+    'primordial amplitudes': 1_034,
+    'primordial phases'    : 2_034,
+}
 
 # Graphics
 terminal_width = 80

@@ -27,15 +27,13 @@ from commons import *
 # Cython imports
 cimport(
     'from communication import     '
-    '    communicate_ghosts,       '
-    '    domain_subdivisions,      '
-    '    get_buffer,               '
     '    rank_neighbouring_domain, '
     '    sendrecv_component,       '
 )
 cimport('from ewald import get_ewald_grid')
 cimport(
     'from mesh import                         '
+    '    Lattice,                             '
     '    copy_modes,                          '
     '    diff_domaingrid,                     '
     '    domain_decompose,                    '
@@ -46,7 +44,6 @@ cimport(
     '    interpolate_domaingrid_to_particles, '
     '    interpolate_upstream,                '
     '    nullify_modes,                       '
-    '    slab_decompose,                      '
 )
 cimport(
     'from species import                        '
@@ -55,7 +52,10 @@ cimport(
 )
 
 # Pure Python imports
+from communication import get_domain_info
 from mesh import group_components
+
+
 
 # Function pointer types used in this module
 pxd("""
@@ -1330,7 +1330,7 @@ def get_neighbourtile_pair_index(tiles_offset_i, tiles_offset_j, tiles_offset_k)
 # Note that this function returns a generator and so should only be
 # called within a loop.
 @cython.iterator(
-    depends=[
+    depends=(
         # Global variables used by particle_particle()
         'periodic_offset',
         'tile_location_r',
@@ -1348,7 +1348,7 @@ def get_neighbourtile_pair_index(tiles_offset_i, tiles_offset_j, tiles_offset_k)
             'subtile_pairings_cache',
             'subtile_pairings_N_cache',
         'get_neighbourtile_pair_index',
-    ]
+    ),
 )
 def particle_particle(
     receiver, supplier, pairing_level,
@@ -1906,10 +1906,11 @@ def get_softened_r3inv(r2, ϵ):
     force=str,
     method=str,
     potential=str,
+    interpolation_order='int',
     deconvolve_downstream='bint',
     deconvolve_upstream='bint',
-    interpolation_order='int',
-    interlace_flag='int',
+    interlace_upstream=str,
+    interlace_downstream=str,
     ᔑdt=dict,
     ᔑdt_key=object,  # str or tuple
     # Locals
@@ -1917,6 +1918,7 @@ def get_softened_r3inv(r2, ϵ):
     all_supplier_upstream_gridsizes_equal_global='bint',
     at_last_differentiation_order='bint',
     at_last_representation='bint',
+    at_last_sublattice='bint',
     deconv_order_downstream='int',
     deconv_order_global='int',
     differentiation_order='int',
@@ -1933,12 +1935,11 @@ def get_softened_r3inv(r2, ϵ):
     group=dict,
     groups=dict,
     index='Py_ssize_t',
-    interlace_shift='double',
-    interlace_factor='double',
     k2='Py_ssize_t',
     ki='Py_ssize_t',
     kj='Py_ssize_t',
     kk='Py_ssize_t',
+    lattice_downstream='Lattice',
     mutate_slab_downstream_ok='bint',
     nullification=str,
     only_particle_receivers='bint',
@@ -1965,7 +1966,7 @@ def get_softened_r3inv(r2, ϵ):
 )
 def particle_mesh(
     receivers, suppliers, gridsize_global, quantity, force, method, potential, interpolation_order,
-    deconvolve_upstream, deconvolve_downstream, interlace_flag,
+    deconvolve_upstream, deconvolve_downstream, interlace_upstream, interlace_downstream,
     ᔑdt, ᔑdt_key,
 ):
     """
@@ -1999,13 +2000,6 @@ def particle_mesh(
       the receivers, applying the force.
       The force application uses the prescription
         Δmom = -component.mass*∂ⁱφ*ᔑdt[ᔑdt_key].
-    To enable interlacing, call this function with interlace_flag = 1.
-    In this case, all of the above will be carried out twice for
-    particle components (with momentum updates multiplied by ½),
-    using grids shifted by half a grid cell in all directions.
-    Though interlacing is not meaningful for fluid components, there may
-    be both particle and fluid components contained in the receivers
-    and suppliers lists.
     """
     if not receivers or not suppliers:
         return
@@ -2013,70 +2007,6 @@ def particle_mesh(
         abort(
             f'particle_mesh() got potential "{potential}" ∉ {{"gravity", "gravity long-range"}}'
         )
-    # Handle the interlace_flag argument
-    if interlace_flag == 1:
-        particle_suppliers = [
-            supplier
-            for supplier in suppliers
-            if supplier.representation == 'particles'
-        ]
-        particle_receivers = [
-            receiver
-            for receiver in receivers
-            if receiver.representation == 'particles'
-        ]
-        if particle_suppliers and particle_receivers:
-            # The interaction between the particle suppliers and
-            # particle receivers should be carried out in an interlaced
-            # manner, i.e. done twice using a relatively shifted
-            # potential grid. This shifting is disallowed if we also
-            # have fluid components, and so we carry out the
-            # non-interlaced fluid interactions first.
-            fluid_suppliers = [
-                supplier
-                for supplier in suppliers
-                if supplier.representation == 'fluid'
-            ]
-            fluid_receivers = [
-                receiver
-                for receiver in receivers
-                if receiver.representation == 'fluid'
-            ]
-            for receivers_noninterlaced, suppliers_noninterlaced in [
-                (fluid_receivers, fluid_suppliers + particle_suppliers),
-                (particle_receivers, fluid_suppliers),
-            ]:
-                particle_mesh(
-                    receivers_noninterlaced, suppliers_noninterlaced, gridsize_global, quantity,
-                    force, method, potential,
-                    interpolation_order, deconvolve_upstream, deconvolve_downstream,
-                    interlace_flag,
-                    ᔑdt, ᔑdt_key,
-                )
-            # Now discard the fluid components
-            suppliers = particle_suppliers
-            receivers = particle_receivers
-            # We now carry out the interlaced interaction between the
-            # remaining (particle) receivers and suppliers. We do this
-            # by running this function twice; first using a recursive
-            # call for the shifted (half) force (interlace_flag == 2)
-            # and then letting the primary call run to completion for
-            # the non-shifted (half) force (interlace_flag == 1).
-            interlace_flag = 2
-            particle_mesh(
-                receivers, suppliers, gridsize_global, quantity,
-                force, method, potential,
-                interpolation_order, deconvolve_upstream, deconvolve_downstream,
-                interlace_flag,
-                ᔑdt, ᔑdt_key,
-            )
-            interlace_flag = 1
-        else:
-            # We do not have both particle suppliers and receivers,
-            # so interlacing cannot be carried out.
-            interlace_flag = 0
-    interlace_shift = ℝ[cell_centered - 0.5]*(interlace_flag == 2)
-    interlace_factor = 1 - 0.5*(interlace_flag > 0)
     # Progress message
     suppliers_gridsizes_upstream = [
         supplier.potential_gridsizes[force][method].upstream
@@ -2130,33 +2060,19 @@ def particle_mesh(
             deconvolve_downstream = False
             deconv_order_global += 1
     deconv_order_global *= interpolation_order
-    # If interlacing is to be carried out, check that this is possible
-    if interlace_flag:
-        if not only_particle_suppliers or not only_particle_receivers:
-            abort('Cannot perform particle-mesh interlacing with fluid components')
-        if (
-               not all_supplier_upstream_gridsizes_equal_global
-            or not all_receiver_downstream_gridsizes_equal_global
-        ):
-            abort(
-                f'Cannot perform particle-mesh interlacing with unequal '
-                f'upstream/global/downstream grid sizes: '
-                f'{set(suppliers_gridsizes_upstream)}'
-                f'/{gridsize_global}'
-                f'/{set(receivers_gridsizes_downstream)}'
-            )
     # Interpolate suppliers onto global Fourier slabs by first
     # interpolating them onto individual upstream grids, transforming to
     # Fourier space and then adding them together.
     slab_global = interpolate_upstream(
         suppliers, suppliers_gridsizes_upstream, gridsize_global, quantity, interpolation_order,
-        ᔑdt, deconvolve_upstream,
-        shift_base=interlace_shift, output_space='Fourier',
+        ᔑdt, deconvolve_upstream, interlace_upstream,
+        output_space='Fourier',
     )
     slab_global_ptr = cython.address(slab_global[:, :, :])
     # Convert slab_global values to potential
     # and possibly perform upstream and/or downstream deconvolutions.
-    for index, ki, kj, kk, factor, θ in fourier_loop(gridsize_global,
+    for index, ki, kj, kk, factor, θ in fourier_loop(
+        gridsize_global,
         skip_origin=True, deconv_order=deconv_order_global,
     ):
         k2 = ℤ[ℤ[ℤ[kj**2] + ki**2] + kk**2]
@@ -2252,6 +2168,10 @@ def particle_mesh(
             deconv_order_downstream = interpolation_order*(
                 𝔹[representation == 'particles'] and deconvolve_downstream
             )
+            # Downstream lattice, taking the representation into account
+            lattice_downstream = Lattice(
+                interlace_downstream*𝔹[representation == 'particles']
+            )
             # Further group the receivers of the current representation
             # within the current group into subgroups based on their
             # potential differentiation order.
@@ -2272,40 +2192,94 @@ def particle_mesh(
                 # A differentiation order of 0
                 # signals differentiation in Fourier space.
                 fourier_diff = (differentiation_order == 0)
-                # The downstream potential for all receivers within the
-                # group (and thus subgroup) is stored as
-                # slab_downstream. We want to use this directly if
-                # possible, but if we need to mutate it and we are not
-                # at the last subgroup, we need to take a copy.
-                mutate_slab_downstream_ok = (  # only OK for dim == 2 in case of fourier_diff
-                    at_last_representation and at_last_differentiation_order
-                )
-                # Obtain the force grid either in Fourier or real space
-                if fourier_diff:
-                    # Fourier space differentiation.
-                    # For each dimension, differentiate the grid
-                    # to obtain the force and apply this force.
-                    for dim in range(3):
-                        masterprint(f'Obtaining and applying the {"xyz"[dim]}-force ...')
-                        # Get reference to or copy of slab_downstream
-                        if mutate_slab_downstream_ok and dim == 2:
+                # Apply the force for all sub-lattices,
+                # implementing downstream interlacing.
+                for lattice_downstream in lattice_downstream:
+                    at_last_sublattice = (
+                        lattice_downstream.index == len(lattice_downstream) - 1
+                    )
+                    if len(lattice_downstream) > 1:
+                        masterprint(
+                            '{} interlacing pass ...'
+                            .format(
+                                ['First', 'Second', 'Third', 'Fourth'][lattice_downstream.index]
+                            )
+                        )
+                    # The downstream potential for all receivers within
+                    # the group (and thus subgroup) is stored as
+                    # slab_downstream. We want to use this directly if
+                    # possible, but if we need to mutate it and we are
+                    # not at the last subgroup, we need to take a copy.
+                    mutate_slab_downstream_ok = (  # only OK for dim == 2 in case of fourier_diff
+                            at_last_sublattice
+                        and at_last_representation
+                        and at_last_differentiation_order
+                    )
+                    # Obtain the force grid either in Fourier
+                    # or real space
+                    if fourier_diff:
+                        # Fourier space differentiation.
+                        # For each dimension, differentiate the grid
+                        # to obtain the force and apply this force.
+                        for dim in range(3):
+                            masterprint(f'Obtaining and applying the {"xyz"[dim]}-force ...')
+                            # Get reference to
+                            # or copy of slab_downstream
+                            if mutate_slab_downstream_ok and dim == 2:
+                                slab_downstream_subgroup = slab_downstream
+                            else:
+                                slab_downstream_subgroup = get_fftw_slab(
+                                    gridsize_downstream, 'slab_updownstream_subgroup',
+                                )
+                                slab_downstream_subgroup[...] = slab_downstream
+                            # Do the in-place Fourier differentiation
+                            # along with the possible downstream
+                            # deconvolution and/or interlacing.
+                            fourier_operate(
+                                slab_downstream_subgroup,
+                                deconv_order_downstream,
+                                lattice_downstream,
+                                diff_dim=dim,
+                            )
+                            # Transform to real space
+                            # and perform domain decomposition.
+                            masterprint(
+                                f'Transforming to real space force {downstream_description}...'
+                            )
+                            fft(slab_downstream_subgroup, 'backward')
+                            grid_downstream = domain_decompose(
+                                slab_downstream_subgroup,
+                                'grid_updownstream',
+                                do_ghost_communication=True,
+                            )
+                            masterprint('done')
+                            # Apply force
+                            apply_particle_mesh_force(
+                                grid_downstream, dim, group[representation], interpolation_order,
+                                ᔑdt, ᔑdt_key, lattice_downstream,
+                            )
+                            masterprint('done')
+                    else:
+                        # Real space differentiation.
+                        # Get reference to or copy of slab_downstream.
+                        if mutate_slab_downstream_ok:
                             slab_downstream_subgroup = slab_downstream
                         else:
                             slab_downstream_subgroup = get_fftw_slab(
                                 gridsize_downstream, 'slab_updownstream_subgroup',
                             )
                             slab_downstream_subgroup[...] = slab_downstream
-                        # Do the in-place Fourier differentiation along
-                        # with the possible downstream deconvolution.
+                        # Perform possible downstream deconvolution
+                        # and/or interlacing.
                         fourier_operate(
                             slab_downstream_subgroup,
                             deconv_order_downstream,
-                            diff_dim=dim,
+                            lattice_downstream,
                         )
                         # Transform to real space
                         # and perform domain decomposition.
                         masterprint(
-                            f'Transforming to real space force {downstream_description}...'
+                            f'Transforming to real space potential {downstream_description}...'
                         )
                         fft(slab_downstream_subgroup, 'backward')
                         grid_downstream = domain_decompose(
@@ -2314,62 +2288,32 @@ def particle_mesh(
                             do_ghost_communication=True,
                         )
                         masterprint('done')
-                        # Apply force
-                        apply_particle_mesh_force(
-                            grid_downstream, dim, group[representation], interpolation_order,
-                            ᔑdt, ᔑdt_key, interlace_shift, interlace_factor,
-                        )
-                        masterprint('done')
-                else:
-                    # Real space differentiation.
-                    # Get reference to or copy of slab_downstream.
-                    if mutate_slab_downstream_ok:
-                        slab_downstream_subgroup = slab_downstream
-                    else:
-                        slab_downstream_subgroup = get_fftw_slab(
-                            gridsize_downstream, 'slab_updownstream_subgroup',
-                        )
-                        slab_downstream_subgroup[...] = slab_downstream
-                    # Perform possible downstream deconvolution.
-                    fourier_operate(
-                        slab_downstream_subgroup,
-                        deconv_order=deconv_order_downstream,
-                    )
-                    # Transform to real space
-                    # and perform domain decomposition.
-                    masterprint(
-                        f'Transforming to real space potential {downstream_description}...'
-                    )
-                    fft(slab_downstream_subgroup, 'backward')
-                    grid_downstream = domain_decompose(
-                        slab_downstream_subgroup,
-                        'grid_updownstream',
-                        do_ghost_communication=True,
-                    )
-                    masterprint('done')
-                    # For each dimension, differentiate the grid
-                    # to obtain the force and apply this force.
-                    for dim in range(3):
-                        masterprint(f'Obtaining and applying the {"xyz"[dim]}-force ...')
-                        # Differentiate the downstream potential in real
-                        # space using finite difference. We need to
-                        # properly populate the ghost points in the
-                        # differentiated grid, as ghost points are
-                        # needed for particle interpolation. For fluids,
-                        # having proper ghost points in the
-                        # differentiated grid means that the momentum
-                        # grid will automatically get ghost points
-                        # populated correctly as well.
-                        ᐁᵢgrid_downstream = diff_domaingrid(
-                            grid_downstream, dim, differentiation_order,
-                            Δx, 'force_downstream',
-                            do_ghost_communication=True,
-                        )
-                        # Apply force
-                        apply_particle_mesh_force(
-                            ᐁᵢgrid_downstream, dim, group[representation], interpolation_order,
-                            ᔑdt, ᔑdt_key, interlace_shift, interlace_factor,
-                        )
+                        # For each dimension, differentiate the grid
+                        # to obtain the force and apply this force.
+                        for dim in range(3):
+                            masterprint(f'Obtaining and applying the {"xyz"[dim]}-force ...')
+                            # Differentiate the downstream potential in
+                            # real space using finite difference. We
+                            # need to properly populate the ghost points
+                            # in the differentiated grid, as ghost
+                            # points are needed for particle
+                            # interpolation. For fluids, having proper
+                            # ghost points in the differentiated grid
+                            # means that the momentum grid will
+                            # automatically get ghost points populated
+                            # correctly as well.
+                            ᐁᵢgrid_downstream = diff_domaingrid(
+                                grid_downstream, dim, differentiation_order,
+                                Δx, 'force_downstream',
+                                do_ghost_communication=True,
+                            )
+                            # Apply force
+                            apply_particle_mesh_force(
+                                ᐁᵢgrid_downstream, dim, group[representation], interpolation_order,
+                                ᔑdt, ᔑdt_key, lattice_downstream,
+                            )
+                            masterprint('done')
+                    if len(lattice_downstream) > 1:
                         masterprint('done')
 
 # Function for applying a scalar grid of the force along the dim'th
@@ -2382,8 +2326,7 @@ def particle_mesh(
     interpolation_order='int',
     ᔑdt=dict,
     ᔑdt_key=object,  # str or tuple
-    shift='double',
-    factor='double',
+    lattice='Lattice',
     # Locals
     Jᵢ='FluidScalar',
     Jᵢ_ptr='double*',
@@ -2397,7 +2340,7 @@ def particle_mesh(
 )
 def apply_particle_mesh_force(
     grid, dim, receivers, interpolation_order, ᔑdt, ᔑdt_key,
-    shift=0, factor=1,
+    lattice=None,
 ):
     if not receivers:
         return
@@ -2422,7 +2365,7 @@ def apply_particle_mesh_force(
             # is generalised and supplied by the caller.
             interpolate_domaingrid_to_particles(
                 grid, receiver, 'mom', dim, interpolation_order,
-                shift, receiver.mass*ℝ[-factor*ᔑdt[ᔑdt_key]],
+                lattice, receiver.mass*ℝ[-ᔑdt[ᔑdt_key]],
             )
         else:  # receiver.representation == 'fluid'
             # The source term has the form
@@ -2435,11 +2378,10 @@ def apply_particle_mesh_force(
             ϱ_ptr = receiver.ϱ.grid
             𝒫_ptr = receiver.𝒫.grid
             for index in range(receiver.size):
-                Jᵢ_ptr[index] += ℝ[-factor*ᔑdt[ᔑdt_key]]*(
+                Jᵢ_ptr[index] += ℝ[-ᔑdt[ᔑdt_key]]*(
                     ϱ_ptr[index] + ℝ[light_speed**(-2)]*𝒫_ptr[index]
                 )*grid_ptr[index]
         masterprint('done')
-
 
 # Function implementing progress messages used for the short-range
 # kicks intertwined with drift operations.
@@ -2812,10 +2754,10 @@ pairwise_quantities = {}
     receivers=list,
     suppliers=list,
     # Locals
-    deconvolve=object,  # PotentialDeconvolutions
+    deconvolve=object,  # PotentialUpstreamDownstreamPair
     gridsize='Py_ssize_t',
     gridsizes=set,
-    interlace='bint',
+    interlace=object,  # PotentialUpstreamDownstreamPair
     interpolation_order='int',
     key=tuple,
     potential_specs=object,  # PotentialInfo
@@ -2932,7 +2874,7 @@ def gravity(method, receivers, suppliers, ᔑdt, interaction_type, printout):
             receivers, suppliers, potential_specs.gridsize, quantity, force, method, potential,
             potential_specs.interpolation_order,
             potential_specs.deconvolve.upstream, potential_specs.deconvolve.downstream,
-            potential_specs.interlace,
+            potential_specs.interlace .upstream, potential_specs.interlace .downstream,
             ᔑdt, ᔑdt_key,
         )
         if printout:
@@ -2957,7 +2899,7 @@ def gravity(method, receivers, suppliers, ᔑdt, interaction_type, printout):
                 receivers, suppliers, potential_specs.gridsize, quantity, force, method, potential,
                 potential_specs.interpolation_order,
                 potential_specs.deconvolve.upstream, potential_specs.deconvolve.downstream,
-                potential_specs.interlace,
+                potential_specs.interlace .upstream, potential_specs.interlace .downstream,
                 ᔑdt, ᔑdt_key,
             )
         # The short-range PP part
@@ -3068,10 +3010,17 @@ def lapse(method, receivers, suppliers, ᔑdt, interaction_type, printout):
             receivers, suppliers, potential_specs.gridsize, quantity, force, method, potential,
             potential_specs.interpolation_order,
             potential_specs.deconvolve.upstream, potential_specs.deconvolve.downstream,
-            potential_specs.interlace,
+            potential_specs.interlace .upstream, potential_specs.interlace .downstream,
             ᔑdt, ᔑdt_key,
         )
         if printout:
             masterprint('done')
     elif master:
         abort(f'lapse() was called with the "{method}" method')
+
+
+
+# Get local domain information
+domain_info = get_domain_info()
+cython.declare(domain_subdivisions='int[::1]')
+domain_subdivisions = domain_info.subdivisions

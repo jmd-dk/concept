@@ -48,7 +48,6 @@ initial_conditions = {
     'gridsize'         : _size,
     'boltzmann_order'  : 0,
     'boltzmann_closure': 'truncate',
-    'approximations'   : {'P=wρ': True},
 }
 output_dirs  = {'powerspec': f'{param.dir}/output_fluid'}
 output_bases = {'powerspec': 'powerspec_nprocs=${n}'}

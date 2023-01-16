@@ -548,18 +548,21 @@ deterministic simulations, always yielding bitwise identical outputs
 (snapshots included) when run several times over. Note that this does come at
 a performance penalty.
 
-* ``random_seed``: Some randomness is inherent to most simulations. Currently,
-  CO\ *N*\ CEPT only makes use of explicit (pseudo-)randomness for generating
-  initial conditions, specifically the primordial noise. For the sake of
-  reproducibility, this random noise is generated using a particular random
-  seed, specified by the ``random_seed`` :ref:`parameter <random_seed>`.
+* ``random_seeds``: CO\ *N*\ CEPT makes use of explicit (pseudo-)randomness
+  for generating initial conditions, specifically the primordial noise. For
+  the sake of reproducibility, this random noise is generated using particular
+  random seeds, specified by the
+  ``random_seeds`` :ref:`parameter <random_seeds>`.
 
-  For deterministic behaviour, you should then keep this seed value fixed
-  between simulations, e.g.
+  For deterministic behaviour, you should then keep the values of these seeds
+  fixed between simulations, e.g.
 
   .. code-block:: python3
 
-     random_seed = 0  # keep fixed between runs
+     random_seeds = {
+         'primordial amplitudes': 1_000,  # keep fixed between runs
+         'primordial phases'    : 2_000,  # keep fixed between runs
+     }
 
 * ``shortrange_params``: By default, the decomposition of tiles into subtiles
   is dynamically updated throughout the simulation, based on CPU timing

@@ -45,6 +45,7 @@ from copy import deepcopy
 # Numerics
 # (note that numpy.array is purposely not imported directly into the
 # global namespace, as this does not play well with Cython).
+import decimal
 import numpy as np
 from numpy import arange, asarray, empty, linspace, logspace, ones, zeros
 # MPI
@@ -1493,7 +1494,7 @@ unicode_superscripts = dict(zip('0123456789-+e.', [unicode(c) for c in (
 )
 def unformat_unit(unit_str):
     """Example of effect:
-    '10¹⁰ m☉' -> '10**(10)*m_sun'
+    '10¹⁰ m☉' → '10**(10)*m_sun'
     """
     # Ensure Unicode
     unit_str = unicode(unit_str)
@@ -2397,7 +2398,7 @@ cython.declare(
     select_eos_w=dict,
     select_boltzmann_order=dict,
     select_boltzmann_closure=dict,
-    select_realization_options=dict,
+    realization_options=dict,
     select_lives=dict,
     select_approximations=dict,
     softening_kernel=str,
@@ -2415,7 +2416,7 @@ cython.declare(
     fftw_wisdom_reuse='bint',
     fftw_wisdom_share='bint',
     random_generator=str,
-    random_seed=object,  # Python int
+    random_seeds=dict,
     primordial_amplitude_fixed='bint',
     primordial_phase_shift='double',
     cell_centered='bint',
@@ -2848,17 +2849,19 @@ for key, val in force_interpolations.copy().items():
         subd[subd_key] = subd_val
     force_interpolations[key] = subd
 potential_options['interpolation'] = force_interpolations
-PotentialDeconvolutions = collections.namedtuple(
-    'PotentialDeconvolutions',
+
+
+PotentialUpstreamDownstreamPair = collections.namedtuple(
+    'PotentialUpstreamDownstreamPair',
     ('upstream', 'downstream'),
 )
 force_deconvolutions = {
     'gravity': {
-        'pm' : PotentialDeconvolutions(True, True),
-        'p3m': PotentialDeconvolutions(True, True),
+        'pm' : PotentialUpstreamDownstreamPair(True, True),
+        'p3m': PotentialUpstreamDownstreamPair(True, True),
     },
     'lapse': {
-        'pm' : PotentialDeconvolutions(True, True),
+        'pm' : PotentialUpstreamDownstreamPair(True, True),
     },
 }
 for key, val in replace_ellipsis(dict(potential_options.get('deconvolve', {}))).items():
@@ -2874,7 +2877,7 @@ for key, val in replace_ellipsis(dict(potential_options.get('deconvolve', {}))).
         if len(val2) == 1:
             val2 *= 2
         if len(val2) == 2:
-            val2 = PotentialDeconvolutions(bool(val2[0]), bool(val2[1]))
+            val2 = PotentialUpstreamDownstreamPair(bool(val2[0]), bool(val2[1]))
         else:
             abort(
                 f'potential_options["deconvolve"]["{key}"]["{key2}"] = {val2} '
@@ -2893,13 +2896,21 @@ for key, val in force_deconvolutions.copy().items():
 potential_options['deconvolve'] = force_deconvolutions
 force_interlacings = {
     'gravity': {
-        'pm' : False,
-        'p3m': False,
+        'pm' : PotentialUpstreamDownstreamPair('sc', 'sc'),
+        'p3m': PotentialUpstreamDownstreamPair('sc', 'sc'),
     },
     'lapse': {
-        'pm' : False,
+        'pm' : PotentialUpstreamDownstreamPair('sc', 'sc'),
     },
 }
+def interlace2latticekind(interlace):
+    if isinstance(interlace, (tuple, list)):
+        return (interlace2latticekind(interlace[0]), interlace2latticekind(interlace[1]))
+    if isinstance(interlace, str):
+        return interlace
+    if interlace:
+        return 'bcc'  # body-centered lattice (2 primitive sc lattices, standard interlacing)
+    return 'sc'  # simple cubic lattice (no interlacing)
 for key, val in replace_ellipsis(dict(potential_options.get('interlace', {}))).items():
     key = key.lower()
     if isinstance(val, dict):
@@ -2907,14 +2918,29 @@ for key, val in replace_ellipsis(dict(potential_options.get('interlace', {}))).i
             subd_key.lower(): subd_val for subd_key, subd_val in replace_ellipsis(val).items()
         })
     else:
-        force_interlacings[key] = {'pm': bool(val), 'p3m': bool(val)}
+        force_interlacings[key] = {
+            'pm' : interlace2latticekind(val),
+            'p3m': interlace2latticekind(val),
+        }
+    for key2, val2 in force_interlacings[key].copy().items():
+        val2 = any2list(val2)
+        if len(val2) == 1:
+            val2 *= 2
+        if len(val2) == 2:
+            val2 = PotentialUpstreamDownstreamPair(*interlace2latticekind(val2))
+        else:
+            abort(
+                f'potential_options["interlace"]["{key}"]["{key2}"] = {val2} '
+                f'but should to be a tuple of two booleans or strs, corresponding to the upstream '
+                f'and downstream interlacing'
+            )
+        force_interlacings[key][key2] = val2
 for key, val in force_interlacings.copy().items():
     subd = {}
     for subd_key, subd_val in val.items():
         subd_key = re.sub(r'[ _\-^()]', '', subd_key.lower())
         for n in range(10):
             subd_key = subd_key.replace(unicode_superscript(str(n)), str(n))
-        subd_val = bool(subd_val)
         subd[subd_key] = subd_val
     force_interlacings[key] = subd
 potential_options['interlace'] = force_interlacings
@@ -3137,6 +3163,9 @@ for key, val in d.copy().items():
 d = powerspec_options['interpolation']
 for key, val in d.copy().items():
     d[key] = int(interpolation_orders.get(str(val).upper(), val))
+d = powerspec_options['interlace']
+for key, val in d.copy().items():
+    d[key] = interlace2latticekind(val)
 d = powerspec_options['k_max']
 for key, val in d.copy().items():
     if isinstance(val, str):
@@ -3282,16 +3311,80 @@ if user_params.get('select_boltzmann_closure'):
         select_boltzmann_closure = {'all': str(user_params['select_boltzmann_closure'])}
 select_boltzmann_closure['default'] = 'class'
 user_params['select_boltzmann_closure'] = select_boltzmann_closure
-select_realization_options = {}
-if user_params.get('select_realization_options'):
-    select_realization_options = dict(
-        user_params['select_realization_options']
-    )
-    replace_ellipsis(select_realization_options)
-    if select_realization_options:
-        for d in select_realization_options.values():
-            replace_ellipsis(d)
-user_params['select_realization_options'] = select_realization_options
+realization_options_defaults = {
+    'gauge': {
+        'default': 'N-body',
+    },
+    'backscale': {
+        'default': False,
+    },
+    'lpt': {
+        'default': 1,
+    },
+    'structure': {
+        'default': 'non-linear',
+    },
+    'compound': {
+        'default': 'linear',
+    },
+}
+realization_options = dict(user_params.get('realization_options', {}))
+for key, val in realization_options.items():
+    replace_ellipsis(val)
+for key, d in realization_options.copy().items():
+    if not isinstance(d, dict):
+        realization_options[key] = {'default': d}
+def simplify_str(s):
+    if isinstance(s, str):
+        return s.lower().replace('-', '').replace('_', '').replace(' ', '')
+    return s
+for key, d in realization_options.copy().items():
+    realization_options.pop(key)
+    realization_options[simplify_str(key)] = {
+        key2: simplify_str(val2)
+        for key2, val2 in d.items()
+    }
+for key, d_defaults in realization_options_defaults.items():
+    realization_options.setdefault(simplify_str(key), {})
+    d = realization_options[simplify_str(key)]
+    for key, val in d_defaults.items():
+        d.setdefault(simplify_str(key), simplify_str(val))
+d = realization_options['gauge']
+for key, val in d.copy().items():
+    val = str(val)
+    if val.startswith('nb'):
+        val = 'nbody'
+    elif val.startswith('syn'):
+        val = 'synchronous'
+    elif val.startswith('newt'):
+        val = 'newtonian'
+    d[key] = val
+d = realization_options['backscale']
+for key, val in d.copy().items():
+    d[key] = bool(val)
+d = realization_options['lpt']
+for key, val in d.copy().items():
+    d[key] = int(round(val))
+    if d[key] not in {1, 2}:
+        abort(f'{d[key]}LPT not implemented')
+d = realization_options['structure']
+for key, val in d.copy().items():
+    if val not in {'primordial', 'nonlinear'}:
+        abort(
+            f'Unrecognised value "{val}" ∉ {{"primordial", "non-linear"}} '
+            f'for realization_options["structure"]["{key}"]'
+        )
+d = realization_options['compound']
+for key, val in d.copy().items():
+    if val not in {'linear', 'nonlinear'}:
+        abort(
+            f'Unrecognised value "{val}" ∉ {{"linear", "non-linear"}} '
+            f'for realization_options["compound"]["{key}"]'
+        )
+for key in realization_options:
+    if key not in realization_options_defaults:
+        abort(f'realization_options["{key}"] not implemented')
+user_params['realization_options'] = realization_options
 select_lives = {}
 if user_params.get('select_lives'):
     if isinstance(user_params['select_lives'], dict):
@@ -3360,8 +3453,18 @@ fftw_wisdom_share = bool(user_params.get('fftw_wisdom_share', False))
 user_params['fftw_wisdom_share'] = fftw_wisdom_share
 random_generator = user_params.get('random_generator', 'PCG64DXSM')
 user_params['random_generator'] = random_generator
-random_seed = to_int(user_params.get('random_seed', 0))
-user_params['random_seed'] = random_seed
+random_seeds_default = {
+    'general'              :     0,
+    'primordial amplitudes': 1_000,
+    'primordial phases'    : 2_000,
+}
+random_seeds = user_params.get('random_seeds', {})
+for key, val in random_seeds_default.items():
+    random_seeds.setdefault(key, val)
+    random_seeds[key] = to_int(random_seeds[key])
+for key in random_seeds.keys():
+    if key not in random_seeds_default:
+        abort(f'Key {key} in random_seeds not understood')
 primordial_amplitude_fixed = bool(user_params.get('primordial_amplitude_fixed', False))
 user_params['primordial_amplitude_fixed'] = primordial_amplitude_fixed
 primordial_phase_shift = np.mod(float(user_params.get('primordial_phase_shift', 0)), τ)
@@ -3369,14 +3472,14 @@ user_params['primordial_phase_shift'] = primordial_phase_shift
 cell_centered = bool(user_params.get('cell_centered', True))
 user_params['cell_centered'] = cell_centered
 fourier_structure_caching = {'primordial': True, 'all': True}
-if user_params.get('fourier_structure_caching'):
+if 'fourier_structure_caching' in user_params:
     if isinstance(user_params['fourier_structure_caching'], dict):
         fourier_structure_caching = user_params['fourier_structure_caching']
         replace_ellipsis(fourier_structure_caching)
     else:
         fourier_structure_caching = {
-            'primordial': user_params['fourier_structure_caching'],
-            'all'       : user_params['fourier_structure_caching'],
+            'primordial': bool(user_params['fourier_structure_caching']),
+            'all'       : bool(user_params['fourier_structure_caching']),
         }
 fourier_structure_caching['default'] = True
 user_params['fourier_structure_caching'] = fourier_structure_caching
@@ -3572,6 +3675,9 @@ for key, val in d.copy().items():
 d = render2D_options['interpolation']
 for key, val in d.copy().items():
     d[key] = int(interpolation_orders.get(str(val).upper(), val))
+d = render2D_options['interlace']
+for key, val in d.copy().items():
+    d[key] = interlace2latticekind(val)
 d = render2D_options['axis']
 for key, val in d.copy().items():
     d[key] = val.lower()
@@ -3748,7 +3854,7 @@ if not enable_class_background:
 nghosts = 0
 for options in (powerspec_options, render2D_options):
     interpolation_order_option = np.max(list(options['interpolation'].values()))
-    interlace_option = any(list(options['interlace'].values()))
+    interlace_option = any([val != 'sc' for val in options['interlace'].values()])
     nghosts_option = interpolation_order_option//2
     if interlace_option and interpolation_order_option%2 != 0:
         nghosts_option += 1
@@ -3758,7 +3864,8 @@ for force, d in potential_options['interpolation'].items():
         nghosts = np.max([
             nghosts,
             force_interpolation//2 + (
-                potential_options['interlace'][force][method] and force_interpolation%2 != 0
+                potential_options['interlace'][force][method] != ('sc', 'sc')
+                and force_interpolation%2 != 0
             )
         ])
 for name, d0 in potential_options['differentiation'].items():
@@ -4188,8 +4295,15 @@ FakeClass = collections.namedtuple(
 # Absolute function for numbers
 with copy_on_import:
     if not cython.compiled:
-        # Use NumPy's abs function in pure Python
-        abs = np.abs
+        # Use NumPy's abs function in pure Python.
+        # If the argument is a Python int, let the result by a
+        # Python int as well (instead of a NumPy int).
+        def abs(x):
+            ispyint = isinstance(x, int)
+            x = np.abs(x)
+            if ispyint:
+                x = int(x)
+            return x
     else:
         @cython.inline
         @cython.header(
@@ -4201,6 +4315,70 @@ with copy_on_import:
                 return fabs(x)
             else:
                 return llabs(x)
+
+# Integer cube root
+with copy_on_import:
+    @cython.inline
+    @cython.header(
+        # Arguments
+        x='Py_ssize_t',
+        # Locals
+        b='Py_ssize_t',
+        bits='Py_ssize_t',
+        s='Py_ssize_t',
+        y='Py_ssize_t',
+        returns='Py_ssize_t',
+    )
+    def icbrt(x):
+        """This function implements the cube root for integers x such
+        that icbrt(x) = int(cbrt(x)), though this function is about
+        twice as fast as using the floating-point cbrt(). Unlike the
+        floating-point cbrt(), this function is exact
+        (e.g. int(cbrt(15**3)) == 14). A defining relation for this
+        function more appropriate than icbrt(x) = int(cbrt(x)) is then
+        that y = icbrt(x) such that y**3 == x or (y + 1)**3 > x.
+        The code below works for integers with at most the first 'bits'
+        bits set, where 'bits' must be a multiple of 3. Lowering 'bits'
+        results in faster execution.
+        """
+        bits = 3*14  # largest x: 2**(3*14) - 1 = (2**14)**3 - 1 = 16384**3 - 1
+        for s in range(bits - 3, -3, -3):
+            if (x >> s) == 0:
+                continue
+            x -= 1 << s
+            y = 1
+            for s in range(s - 3, -3, -3):
+                y += y
+                b = 1 + 3*y*(y + 1)
+                if (x >> s) >= b:
+                    x -= b << s
+                    y += 1
+            return y
+        return 0
+
+# Check whether integer is cubic
+with copy_on_import:
+    @cython.inline
+    @cython.header(
+        # Arguments
+        x='Py_ssize_t',
+        # Locals
+        returns='bint',
+    )
+    def iscubic(x):
+        return (icbrt(x)**3 == x)
+
+# Function returning a nice str representation of cubic-ish integers
+def get_cubenum_strrep(n):
+    if n < 8:
+        return str(n)
+    if iscubic(n):
+        return '{}³'.format(icbrt(n))
+    for denom in range(2, 5):
+        r = n//denom
+        if r*denom == n and iscubic(r):
+            return '{}×{}³'.format(denom, str(icbrt(r)))
+    return str(n)
 
 # Max function for 1D memory views of numbers
 with copy_on_import:
@@ -4242,7 +4420,7 @@ with copy_on_import:
             return m
         """
 
-# Max function for pairs of numbers
+# Maximum function for pairs of numbers
 with copy_on_import:
     @cython.inline
     @cython.header(a=fused_numeric, b=fused_numeric, returns=fused_numeric)
@@ -4251,7 +4429,7 @@ with copy_on_import:
             return a
         return b
 
-# Min function for pairs of numbers
+# Minimum function for pairs of numbers
 with copy_on_import:
     @cython.inline
     @cython.header(a=fused_numeric, b=fused_numeric, returns=fused_numeric)
@@ -4454,7 +4632,7 @@ def significant_figures(numbers, nfigs, fmt='', incl_zeros=True, scientific=Fals
         else:
             coefficient = number_str
             exponent = ''
-        # Remove coefficient if it is just 1 (as in 1×10¹⁰ --> 10¹⁰)
+        # Remove coefficient if it is just 1 (as in 1×10¹⁰ → 10¹⁰)
         if coefficient == '1' and exponent and fmt in ('tex', 'unicode') and not scientific:
             coefficient = ''
             exponent = exponent.replace(r'\times ', '').replace(unicode('×'), '')
@@ -4488,7 +4666,7 @@ def significant_figures(numbers, nfigs, fmt='', incl_zeros=True, scientific=Fals
 
 # Function for correcting floating-point numbers
 def correct_float(val_raw):
-    """Example: correct_float(1.234499999999998) -> 1.2345
+    """Example: correct_float(1.234499999999998) → 1.2345
     """
     isnumber = False
     try:
@@ -4795,7 +4973,7 @@ def open_hdf5(filename, raise_exception=False, **kwargs):
         if collective:
             for kwarg in ('driver', 'comm'):
                 if kwarg in kwargs_noncollective:
-                    del kwargs_noncollective[kwarg]
+                    kwargs_noncollective.pop(kwarg)
         sleep_time = sleep_time_min
         while True:
             try:
@@ -4935,9 +5113,10 @@ if N_rungs == 1 and Δt_rung_factor != 1:
 # Abort on illegal FFTW rigour
 if fftw_wisdom_rigor not in ('estimate', 'measure', 'patient', 'exhaustive'):
     abort('Does not recognise FFTW rigour "{}"'.format(user_params['fftw_wisdom_rigor']))
-# Abort on negative random_seed
-if random_seed < 0:
-    abort(f'A random_seed of {random_seed} < 0 was specified')
+# Abort on negative random seed
+for random_seed in random_seeds.values():
+    if random_seed < 0:
+        abort(f'A random seed of {random_seed} < 0 was specified')
 # Sanity check on the primordial phase shift
 if primordial_phase_shift == 1:
     masterwarn(

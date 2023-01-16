@@ -24,15 +24,16 @@
 # In the .pyx file, Cython declared variables will also get cimported.
 from commons import *
 
-# Cython imports.
-# Functions from the 'analysis' and 'graphics' modules are not dumped
-# directly into the global namespace of this module, as functions with
-# identical names are defined here.
+# Cython imports
 cimport('import analysis')
 cimport('from analysis import measure')
-cimport('from communication import domain_subdivisions, exchange, partition, smart_mpi')
+cimport('from communication import exchange')
 cimport('import graphics')
-cimport('from integration import cosmic_time, remove_doppelgängers')
+cimport(
+    'from integration import   '
+    '    cosmic_time,          '
+    '    remove_doppelgängers, '
+)
 cimport(
     'from linear import                   '
     '    class_extra_perturbations_class, '
@@ -42,9 +43,19 @@ cimport(
     '    transferfunctions_registered,    '
 )
 cimport('from mesh import convert_particles_to_fluid')
-cimport('from snapshot import compare_parameters, get_snapshot_type, snapshot_extensions')
+cimport(
+    'from snapshot import     '
+    '    compare_parameters,  '
+    '    get_snapshot_type,   '
+    '    snapshot_extensions, '
+)
 cimport('import species')
-cimport('from snapshot import get_initial_conditions, load, save')
+cimport(
+    'from snapshot import        '
+    '    get_initial_conditions, '
+    '    load,                   '
+    '    save,                   '
+)
 
 # Pure Python imports
 from integration import init_time
@@ -178,7 +189,7 @@ def convert():
                 # written name and delete the wrongly written name key
                 # from the attributes.
                 attributes[names[names_lower.index(name.lower())]].update(attributes[name])
-                del attributes[name]
+                attributes.pop(name)
             else:
                 masterwarn(
                     f'The following attributes are specified for {name}, '
@@ -218,7 +229,7 @@ def convert():
         # way around is not supported).
         if component.N > 1 and component.gridsize > 1:
             component.representation = 'fluid'
-        # Apply particles --> fluid conversion, if necessary
+        # Apply particles → fluid conversion, if necessary
         if original_representation == 'particles' and component.representation == 'fluid':
             # To do the conversion, the particles need to be
             # distributed according to which domain they are in.
@@ -357,7 +368,7 @@ def convert():
     filenames=list,
     msg=str,
     snapshot_filenames=list,
-    returns=list,
+    returns=object,  # list or str; always list when called externally
 )
 def locate_snapshots(
     path_or_paths_snapshot,
@@ -392,7 +403,7 @@ def locate_snapshots(
         # Handle single string (pointing to file or directory)
         path_snapshot = path_or_paths_snapshot
         # Get all files and directories from the path
-        if get_snapshot_type(path_snapshot):
+        if get_snapshot_type(path_snapshot, collective=False):
             filenames = [path_snapshot]
         elif os.path.isdir(path_snapshot):
             filenames = []
@@ -403,7 +414,11 @@ def locate_snapshots(
         else:
             filenames = [path_snapshot]
         # Only use snapshots
-        snapshot_filenames = [filename for filename in filenames if get_snapshot_type(filename)]
+        snapshot_filenames = [
+            filename
+            for filename in filenames
+            if get_snapshot_type(filename, collective=False)
+        ]
         if not snapshot_filenames:
             if os.path.isdir(path_snapshot):
                 msg = f'The directory "{path_snapshot}" does not contain any snapshots'
@@ -571,7 +586,6 @@ def info():
                 snapshot_filename,
                 compare_params=False,
                 only_params=(not special_params['stats']),
-                do_exchange=False,
             )
         params = snapshot.params
         snapshot_type = get_snapshot_type(snapshot_filename)
@@ -755,23 +769,17 @@ def info():
             # Representation-specific attributes
             if component.representation == 'particles':
                 # Print the particle number N
-                if isint(cbrt(component.N)):
-                    # When N is cube number, print also the cube root
-                    masterprint(
-                        '{:<16} {} = {:.0f}³'.format(
-                            'N', component.N, cbrt(component.N),
-                        ),
-                        indent=4,
-                    )
-                else:
-                    masterprint('{:<16} {}'.format('N', component.N), indent=4)
+                masterprint(
+                    '{:<16} {} = {}'.format('N', component.N, get_cubenum_strrep(component.N)),
+                    indent=4,
+                )
                 masterprint(
                     '{:<16} {} m☉'.format(
                         'mass',
                         significant_figures(
                             component.mass/units.m_sun, 6, fmt='unicode', incl_zeros=False,
-                        ),
-                    ),
+                        )
+                    ) if component.mass != -1 else '{:<16} ?'.format('mass'),
                     indent=4,
                 )
             elif component.representation == 'fluid':
@@ -981,7 +989,16 @@ def class_():
         cosmoresults = compute_cosmo(
             gridsize_or_k_magnitudes,
             'synchronous' if gauge == 'nbody' else gauge,
-            class_call_reason='in order to get perturbations',
+            class_call_reason=(
+                'in order to get {} gauge perturbations'
+                .format(
+                    {
+                        'nbody'      : '𝘕-body',
+                        'synchronous': 'synchronous',
+                        'newtonian'  : 'Newtonian',
+                    }.get(gauge)
+                )
+            ),
         )
         k_magnitudes = cosmoresults.k_magnitudes
     else:
@@ -1155,7 +1172,7 @@ def class_():
         # Create list of (variable, specific_multi_index, var_name)
         variable_specifications = [(0, None, 'δ')]
         if component.representation == 'particles':
-            if not component.realization_options['mom'].get('velocitiesfromdisplacements', False):
+            if not component.realization_options['backscale']:
                 variable_specifications.append((1, None, 'θ'))
         elif component.representation == 'fluid':
             if component.boltzmann_order > 0 or (
@@ -1297,8 +1314,9 @@ def class_():
     # For the next transfer function, we reuse the same 2D arrays,
     # as all transfer functions are tabulated at the same a and k.
     gauge_str = {
-        'newtonian': 'Newtonian',
-        'nbody'    : 'N-body',
+        'nbody'      : '𝘕-body',
+        'synchronous': 'synchronous',
+        'newtonian'  : 'Newtonian',
     }.get(gauge, gauge)
     if master:
         transfer = empty((all_a_values.shape[0], k_magnitudes.shape[0]), dtype=C2np['double'])

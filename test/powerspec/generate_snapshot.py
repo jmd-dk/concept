@@ -2,7 +2,7 @@
 
 # Imports from the CO𝘕CEPT code
 from commons import *
-from linear import random_gaussian
+from ic import random_gaussian
 from species import Component
 from snapshot import save
 

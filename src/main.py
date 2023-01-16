@@ -25,9 +25,16 @@
 from commons import *
 
 # Cython imports
-cimport('from analysis import measure, powerspec')
-cimport('from communication import domain_subdivisions')
-cimport('from graphics import render2D, render3D')
+cimport(
+    'from analysis import '
+    '    measure,         '
+    '    powerspec,       '
+)
+cimport(
+    'from graphics import '
+    '    render2D,        '
+    '    render3D,        '
+)
 cimport(
     'from integration import   '
     '    cosmic_time,          '
@@ -36,10 +43,15 @@ cimport(
     '    scale_factor,         '
     '    scalefactor_integral, '
 )
-cimport('from snapshot import get_initial_conditions, save')
+cimport(
+    'from snapshot import        '
+    '    get_initial_conditions, '
+    '    save,                   '
+)
 cimport('from utilities import delegate')
 
 # Pure Python imports
+from communication import get_domain_info
 from integration import init_time
 import interactions
 
@@ -76,7 +88,6 @@ import interactions
     time_step_last_sync='Py_ssize_t',
     time_step_previous='Py_ssize_t',
     time_step_type=str,
-    timespan='double',
     Δt='double',
     Δt_autosave='double',
     Δt_backup='double',
@@ -147,10 +158,10 @@ def timeloop():
     components = [component for component in components if component not in passive_components]
     # Realise all linear fluid variables of all components
     for component in components:
-        component.realize_if_linear(0, specific_multi_index=0)        # ϱ
-        component.realize_if_linear(1, specific_multi_index=0)        # J
-        component.realize_if_linear(2, specific_multi_index='trace')  # 𝒫
-        component.realize_if_linear(2, specific_multi_index=(0, 0))   # ς
+        component.realize_if_linear(0,        )  # ϱ
+        component.realize_if_linear(1,       0)  # J
+        component.realize_if_linear(2, 'trace')  # 𝒫
+        component.realize_if_linear(2,  (0, 0))  # ς
     masterprint('done')
     # Possibly output at the beginning of simulation
     if dump_times[0].t == universals.t or dump_times[0].a == universals.a:
@@ -167,11 +178,6 @@ def timeloop():
     initial_fac_times.add(universals.t)
     Δt_max, bottleneck = get_base_timestep_size(components, static_timestepping_func)
     Δt_begin = Δt_max
-    # We always want the simulation time span to be at least
-    # one whole Δt_period long.
-    timespan = dump_times[len(dump_times) - 1].t - universals.t
-    if Δt_begin > timespan/Δt_period:
-        Δt_begin = timespan/Δt_period
     # We need at least a whole base time step before the first dump
     if Δt_begin > dump_times[0].t - universals.t:
         Δt_begin = dump_times[0].t - universals.t
@@ -1123,12 +1129,8 @@ def kick_long(components, Δt, sync_time, step_type):
     a_start = universals.a
     a_end = scale_factor(t_end)
     for component in components:
-        component.realize_if_linear(0,  # ϱ
-            specific_multi_index=0, a=a_start, a_next=a_end,
-        )
-        component.realize_if_linear(2,  # 𝒫
-            specific_multi_index='trace', a=a_start, a_next=a_end,
-        )
+        component.realize_if_linear(0,       0, a_start, a_end)  # ϱ
+        component.realize_if_linear(2, 'trace', a_start, a_end)  # 𝒫
     # Apply the effect of all internal source terms
     for component in components:
         component.apply_internal_sources(ᔑdt, a_end)
@@ -1774,10 +1776,10 @@ def activate_terminate(components, a, Δt, act='activate terminate'):
             for component in activated_components:
                 masterprint(f'Activating "{component.name}" ...')
                 component.realize()
-                component.realize_if_linear(0, specific_multi_index=0)        # ϱ
-                component.realize_if_linear(1, specific_multi_index=0)        # J
-                component.realize_if_linear(2, specific_multi_index='trace')  # 𝒫
-                component.realize_if_linear(2, specific_multi_index=(0, 0))   # ς
+                component.realize_if_linear(0,        )  # ϱ
+                component.realize_if_linear(1,       0)  # J
+                component.realize_if_linear(2, 'trace')  # 𝒫
+                component.realize_if_linear(2,  (0, 0))  # ς
                 masterprint('done')
             universals.a = universal_a_backup
             # Remove newly activated components from the list
@@ -1831,7 +1833,7 @@ def autosave(components, time_step, Δt_begin, Δt, output_filenames):
     autosave_auxiliary_filename_old = f'{autosave_auxiliary_filename}_old'
     autosave_auxiliary_filename_new = f'{autosave_auxiliary_filename}_new'
     # Save auxiliary file containing information
-    # about the current time stepping.
+    # about the current time-stepping.
     if master:
         os.makedirs(autosave_subdir, exist_ok=True)
     if master:
@@ -2316,6 +2318,11 @@ DumpTime = collections.namedtuple(
 )
 
 
+
+# Get local domain information
+domain_info = get_domain_info()
+cython.declare(domain_subdivisions='int[::1]')
+domain_subdivisions = domain_info.subdivisions
 
 # Here we set various values used for the time integration. These are
 # purely numerical in character. For factors used to control the time

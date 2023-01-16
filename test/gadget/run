@@ -68,7 +68,7 @@ print(int(round(mean_momentum_spreads[1]/mean_momentum_spreads[0])))
 # Expected rate of std(mom) between the two snapshots.
 # Note that this depends slightly on the
 # pseudo-random number generation.
-momentum_spread_growth_expected_low=13
+momentum_spread_growth_expected_low=12
 momentum_spread_growth_expected_high=14
 if     [ ${momentum_spread_growth} -lt ${momentum_spread_growth_expected_low}  ] \
     || [ ${momentum_spread_growth} -gt ${momentum_spread_growth_expected_high} ]; then

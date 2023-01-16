@@ -81,6 +81,12 @@ CO\ *N*\ CEPT run.
                                  'N'      : 64**3,
                              },
                          ]
+
+                      When realising two particle components with the same
+                      number of particles :math:`N`, the two particle
+                      distributions will be pre-initialised on relatively
+                      shifted lattices, amounting to using a body-centered
+                      cubic (bcc) lattice for the combined particle system.
 -- --------------- -- -
 \  **Example 3**   \  Generate initial conditions consisting of a combined
                       matter component with :math:`64^3` particles, as well as
@@ -127,6 +133,27 @@ CO\ *N*\ CEPT run.
                                  'boltzmann order': +1,  # non-linear
                              },
                          ]
+
+-- --------------- -- -
+\  **Example 5**   \  Generate initial conditions consisting of a single
+                      component comprised of :math:`2\times 64^3` matter
+                      particles:
+
+                      .. code-block:: python3
+
+                         initial_conditions = {
+                            'species': 'matter',
+                            'N'      : 2*64**3,
+                         }
+
+                      As the number of particles is of the form
+                      :math:`N = 2n^3` rather than the standard
+                      :math:`N = n^3`, the particles will be pre-initialised
+                      on lattice points of a body-centered (bcc) lattice
+                      rather than a simple cubic (sc) lattice. Similarly,
+                      components with :math:`N = 4n^3` (e.g. ``'N': 4*64**3``)
+                      particles will be pre-initialised on a face-centered
+                      cubic (fcc) lattice.
 
 == =============== == =
 
@@ -565,10 +592,10 @@ CO\ *N*\ CEPT run.
                       .. caution::
                          Leaving out certain data when reading in snapshots
                          will result in components not being fully
-                         initialized, e.g. in this example all particles
+                         initialised, e.g. in this example all particles
                          loaded from disk will now have any momenta assigned
                          (not even :math:`0`). Running a simulation with such
-                         a partially initialized component will result in a
+                         a partially initialised component will result in a
                          crash.
 
                       The usefulness of this example is found when using e.g.

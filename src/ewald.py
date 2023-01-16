@@ -25,7 +25,11 @@
 from commons import *
 
 # Cython imports
-cimport('from mesh import interpolate_in_vectorgrid, tabulate_vectorgrid')
+cimport(
+    'from mesh import               '
+    '    interpolate_in_vectorgrid, '
+    '    tabulate_vectorgrid,       '
+)
 
 
 

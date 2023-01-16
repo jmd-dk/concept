@@ -14,5 +14,9 @@ a_begin = 0.1
 
 # Simulation
 random_generator = 'PCG64DXSM'
-random_seed      = 0
+random_seeds = {
+    'general'              :    0,
+    'primordial amplitudes': 1_000,
+    'primordial phases'    : 2_000,
+}
 

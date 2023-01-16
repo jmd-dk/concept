@@ -74,7 +74,7 @@ masks = {
         k_values < k_max,
     ),
 }
-rel_tol = 0.02
+rel_tol = 0.025
 for kind in ('particles', 'fluid'):
     for n in n_values:
         k, power = powerspecs_all[kind][n]

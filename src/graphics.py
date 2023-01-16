@@ -26,19 +26,15 @@ from commons import *
 
 # Cython imports
 cimport(
-    'from communication import        '
-    '    domain_layout_local_indices, '
-    '    domain_start_x,              '
-    '    domain_start_y,              '
-    '    domain_start_z,              '
+    'from mesh import          '
+    '    domain_decompose,     '
+    '    fft,                  '
+    '    interpolate_upstream, '
+    '    resize_grid,          '
 )
-cimport(
-    'from mesh import              '
-    '    domain_decompose,         '
-    '    fft,                      '
-    '    interpolate_upstream,     '
-    '    resize_grid,              '
-)
+
+# Pure Python imports
+from communication import get_domain_info
 
 
 
@@ -115,19 +111,33 @@ def plot_powerspec(powerspec_declaration, filename):
     )
     # Plot power spectrum in new figure
     fig, ax = plt.subplots()
+    label = 'simulation'
     if np.any(power):
-        ax.loglog(k_bin_centers, power, '-', label='simulation')
+        ax.loglog(k_bin_centers, power, '-', label=label)
     else:
         # The odd case of no power at all
-        ax.semilogx(k_bin_centers, power, '-', label='simulation')
+        ax.semilogx(k_bin_centers, power, '-', label=label)
     # Also plot linear CLASS power spectra, if specified
     if power_linear is not None:
+        gauge = collections.Counter(
+            [component.realization_options['gauge'] for component in components]
+        ).most_common(1)[0][0]
+        gauge = {
+            'nbody'      : r'$N$-body',
+            'synchronous': r'synchronous',
+            'newtonian'  : r'Newtonian',
+        }.get(gauge, gauge)
+        backscale = collections.Counter(
+            [component.realization_options['backscale'] for component in components]
+        ).most_common(1)[0][0]
+        backscale_str = ', back-scaled'*backscale
+        label_linear = f'linear ({gauge} gauge{backscale_str})'
         ylim = ax.get_ylim()
         if np.any(power_linear) and np.any(~np.isnan(power_linear)):
-            ax.loglog(k_bin_centers, power_linear, 'k--', label='linear')
+            ax.loglog(k_bin_centers, power_linear, 'k--', label=label_linear)
         else:
             # The odd case of no power at all
-            ax.semilogx(k_bin_centers, power_linear, 'k--', label='linear')
+            ax.semilogx(k_bin_centers, power_linear, 'k--', label=label_linear)
         # Labels are only needed when both the non-linear (simulation)
         # and linear spectrum are plotted.
         ax.legend(fontsize=14)
@@ -604,7 +614,7 @@ Render2DDeclaration = collections.namedtuple(
     gridsize='Py_ssize_t',
     gridsizes_upstream=list,
     i='Py_ssize_t',
-    interlace='bint',
+    interlace=str,
     interpolation='int',
     j='Py_ssize_t',
     key=str,
@@ -688,7 +698,7 @@ def compute_render2D(declaration):
     dim='int',
     dim_axis='int',
     dims='int[::1]',
-    domain_start_indices='Py_ssize_t[::1]',
+    domain_bgn_indices='Py_ssize_t[::1]',
     float_index_global_bgn='double',
     float_index_global_end='double',
     frac='double',
@@ -740,11 +750,11 @@ def project_render2D(grid, projection, axis, extent):
     frac_end = 1 - (indices_global_end[dim_axis] - float_index_global_end)
     # Convert the global indices to local indices,
     # disregarding ghost points, for now.
-    domain_start_indices = asarray(
+    domain_bgn_indices = asarray(
         [
-            int(round(domain_start_x/cellsize)),
-            int(round(domain_start_y/cellsize)),
-            int(round(domain_start_z/cellsize)),
+            int(round(domain_bgn_x/cellsize)),
+            int(round(domain_bgn_y/cellsize)),
+            int(round(domain_bgn_z/cellsize)),
         ],
         dtype=C2np['Py_ssize_t'],
     )
@@ -754,7 +764,7 @@ def project_render2D(grid, projection, axis, extent):
     )
     participate = True
     if participate:
-        indices_local_bgn = asarray(indices_global_bgn) - asarray(domain_start_indices)
+        indices_local_bgn = asarray(indices_global_bgn) - asarray(domain_bgn_indices)
         for dim in range(3):
             if indices_local_bgn[dim] < 0:
                 indices_local_bgn[dim] = 0
@@ -764,7 +774,7 @@ def project_render2D(grid, projection, axis, extent):
                 participate = False
                 break
     if participate:
-        indices_local_end = asarray(indices_global_end) - asarray(domain_start_indices)
+        indices_local_end = asarray(indices_global_end) - asarray(domain_bgn_indices)
         for dim in range(3):
             if indices_local_end[dim] < 0:
                 participate = False
@@ -784,8 +794,8 @@ def project_render2D(grid, projection, axis, extent):
     if participate:
         # Redefine the global indices so that they correspond to the
         # local chunk, but indexing into a global grid.
-        indices_global_bgn = asarray(indices_local_bgn) + asarray(domain_start_indices)
-        indices_global_end = asarray(indices_local_end) + asarray(domain_start_indices)
+        indices_global_bgn = asarray(indices_local_bgn) + asarray(domain_bgn_indices)
+        indices_global_end = asarray(indices_local_end) + asarray(domain_bgn_indices)
         # Get indices into the projection
         dims = asarray(
             {
@@ -1200,7 +1210,7 @@ def save_render2D_image(declaration, filename, n_dumps):
 def augment_filename(filename, text, ext=''):
     """Example of use:
     augment_filename('/path/to/powerspec_a=1.0.png', 'matter', 'png')
-      -> '/path/to/powerspec_matter_a=1.0.png'
+      → '/path/to/powerspec_matter_a=1.0.png'
     """
     text = text.lstrip('_')
     ext = '.' + ext.lstrip('.')
@@ -1308,9 +1318,9 @@ def set_terminal_colormap(colormap):
     color='double[::1]',
     component='Component',
     component_dict=dict,
-    domain_start_i='Py_ssize_t',
-    domain_start_j='Py_ssize_t',
-    domain_start_k='Py_ssize_t',
+    domain_bgn_i='Py_ssize_t',
+    domain_bgn_j='Py_ssize_t',
+    domain_bgn_k='Py_ssize_t',
     figname=str,
     filename_component=str,
     filename_component_alpha=str,
@@ -1428,16 +1438,16 @@ def render3D(components, filename, cleanup=True, tmp_dirname='.renders3D'):
                 posz = cython.address(posz_mv[:])
                 # Fill the arrays
                 gridsize = component.gridsize
-                domain_start_i = domain_layout_local_indices[0]*size_i
-                domain_start_j = domain_layout_local_indices[1]*size_j
-                domain_start_k = domain_layout_local_indices[2]*size_k
+                domain_bgn_i = domain_layout_local_indices[0]*size_i
+                domain_bgn_j = domain_layout_local_indices[1]*size_j
+                domain_bgn_k = domain_layout_local_indices[2]*size_k
                 indexᵖ = 0
                 for i in range(size_i):
-                    xi = (ℝ[domain_start_i + 0.5*cell_centered] + i)*ℝ[boxsize/gridsize]
+                    xi = (ℝ[domain_bgn_i + 0.5*cell_centered] + i)*ℝ[boxsize/gridsize]
                     for j in range(size_j):
-                        yj = (ℝ[domain_start_j + 0.5*cell_centered] + j)*ℝ[boxsize/gridsize]
+                        yj = (ℝ[domain_bgn_j + 0.5*cell_centered] + j)*ℝ[boxsize/gridsize]
                         for k in range(size_k):
-                            zk = (ℝ[domain_start_k + 0.5*cell_centered] + k)*ℝ[boxsize/gridsize]
+                            zk = (ℝ[domain_bgn_k + 0.5*cell_centered] + k)*ℝ[boxsize/gridsize]
                             posx[indexᵖ] = xi
                             posy[indexᵖ] = yj
                             posz[indexᵖ] = zk
@@ -1788,3 +1798,18 @@ def add_background():
                     alpha*render3D_image[i, j, rgb] + (1 - alpha)*render3D_bgcolor[rgb]
                 )
                 render3D_image[i, j, 3] = 1
+
+
+
+# Get local domain information
+domain_info = get_domain_info()
+cython.declare(
+    domain_layout_local_indices='int[::1]',
+    domain_bgn_x='double',
+    domain_bgn_y='double',
+    domain_bgn_z='double',
+)
+domain_layout_local_indices = domain_info.layout_local_indices
+domain_bgn_x                = domain_info.bgn_x
+domain_bgn_y                = domain_info.bgn_y
+domain_bgn_z                = domain_info.bgn_z

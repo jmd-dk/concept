@@ -79,7 +79,7 @@ with open_file(powerspec_filename, mode='r', encoding='utf-8') as powespec_file:
 σ_concept = float(search.group(1))
 
 # Do the σ from CO𝘕CEPT agree with the one computed via the cubic boxes?
-rel_tol = 3e-2
+rel_tol = 4e-2
 if not isclose(σ, σ_concept, rel_tol=rel_tol):
     abort('The rms density variation σ = {:.6g} from "{}" do not agree with direct computation '
            '({:.6g}). The power spectrum from which σ is calculated is plotted in "{}"'

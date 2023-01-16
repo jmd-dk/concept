@@ -25,7 +25,11 @@
 from commons import *
 
 # Cython imports
-cimport('from integration import cosmic_time, scale_factor')
+cimport(
+    'from integration import '
+    '    cosmic_time,        '
+    '    scale_factor,       '
+)
 cimport('from mesh import diff_domaingrid')
 
 # Function pointer types used in this module
@@ -233,7 +237,7 @@ def kurganov_tadmor(component, ᔑdt, a=-1, rk_order=2, rk_step=0):
     ϱ_ptr  = cython.address(ϱ [:, :, :])
     ϱˣ_ptr = cython.address(ϱˣ[:, :, :])
     # Extract pressure 𝒫 grid and pointer, realising it if 𝒫 is linear
-    component.realize_if_linear(2, specific_multi_index='trace', a=a, use_gridˣ=𝔹['ˣ' in view])
+    component.realize_if_linear(2, 'trace', a, use_gridˣ=𝔹['ˣ' in view])
     𝒫 = getattr(component.𝒫, view)
     𝒫_ptr = cython.address(𝒫[:, :, :])
     # Allocate needed interface arrays
@@ -244,7 +248,7 @@ def kurganov_tadmor(component, ᔑdt, a=-1, rk_order=2, rk_step=0):
     f_interface  = empty(2, dtype=C2np['double'])
     # Loop over the elements of J, realising them if J is linear
     for m in range(3):
-        component.realize_if_linear(1, specific_multi_index=m, a=a, use_gridˣ=𝔹['ˣ' in view])
+        component.realize_if_linear(1, m, a, use_gridˣ=𝔹['ˣ' in view])
         Jᵐ = getattr(component.J[m], view)
         Jᵐ_ptr  = cython.address(Jᵐ[:, :, :])
         # Triple loop over local interfaces [i-½, j, k] for m = 0
@@ -342,9 +346,7 @@ def kurganov_tadmor(component, ᔑdt, a=-1, rk_order=2, rk_step=0):
                 if use_ς:
                     if m <= n:
                         # Realising element of ς if ς is linear
-                        component.realize_if_linear(
-                            2, specific_multi_index=(m, n), a=a, use_gridˣ=𝔹['ˣ' in view],
-                        )
+                        component.realize_if_linear(2, (m, n), a, use_gridˣ=𝔹['ˣ' in view])
                         ςᵐₙ = getattr(component.ς[m, n], view)
                         ςᵐₙ_ptr = cython.address(ςᵐₙ[:, :, :])
             # Triple loop over local interfaces [i-½, j, k] for n = 0
@@ -903,11 +905,11 @@ def maccormack_step(component, ᔑdt, steps, mc_step, a_next=-1):
     # and so is off below.
     masterprint('Computing momentum fluxes in the Euler equation ...')
     if False:
-        component.realize_if_linear(2, specific_multi_index='trace', a_next=a_next, use_gridˣ=(mc_step == 1))
+        component.realize_if_linear(2, 'trace', a_next=a_next, use_gridˣ=(mc_step == 1))
         𝒫 = getattr(component.𝒫, view)
     else:
         if mc_step == 0:
-            component.realize_if_linear(2, specific_multi_index='trace', a_next=a_next)
+            component.realize_if_linear(2, 'trace', a_next=a_next)
         𝒫  = component.𝒫.grid_mv
     for dim_el in range(3):  # Loop over elements of J
         J_el  = getattr(component.J[dim_el], view )
@@ -1275,7 +1277,7 @@ def correct_vacuum(component, mc_step):
                         # become lower than the vacuum density is given
                         # by
                         # ϱ + timesteps*dϱ == ρ_vacuum, dϱ = ½(ϱˣ - ϱ).
-                        # --> timesteps = 2*(ϱ - ρ_vacuum)/(ϱ - ϱˣ).
+                        # → timesteps = 2*(ϱ - ρ_vacuum)/(ϱ - ϱˣ).
                         fac_time = 0.5*(ϱ_ijk - ϱˣ_ijk)/(ϱ_ijk - ρ_vacuum)
                     else:  # mc_step == 1
                         # The density is already lower
