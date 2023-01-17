@@ -197,6 +197,7 @@
 <li class="toctree-l2"><a class="reference internal" href="physics.html">Physics</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="physics.html#select-forces"><code class="docutils literal notranslate"><span class="pre">select_forces</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="physics.html#select-species"><code class="docutils literal notranslate"><span class="pre">select_species</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="physics.html#realization-options"><code class="docutils literal notranslate"><span class="pre">realization_options</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="physics.html#select-lives"><code class="docutils literal notranslate"><span class="pre">select_lives</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="physics.html#softening-kernel"><code class="docutils literal notranslate"><span class="pre">softening_kernel</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="physics.html#select-softening-length"><code class="docutils literal notranslate"><span class="pre">select_softening_length</span></code></a></li>
@@ -209,11 +210,12 @@
 <li class="toctree-l3"><a class="reference internal" href="simulation.html#t-rung-factor"><code class="docutils literal notranslate"><span class="pre">Δt_rung_factor</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="simulation.html#a-max-early"><code class="docutils literal notranslate"><span class="pre">Δa_max_early</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="simulation.html#a-max-late"><code class="docutils literal notranslate"><span class="pre">Δa_max_late</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#static-timestepping"><code class="docutils literal notranslate"><span class="pre">static_timestepping</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="simulation.html#n-rungs"><code class="docutils literal notranslate"><span class="pre">N_rungs</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="simulation.html#fftw-wisdom-rigor"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_rigor</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="simulation.html#fftw-wisdom-reuse"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_reuse</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="simulation.html#fftw-wisdom-share"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_share</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="simulation.html#random-seed"><code class="docutils literal notranslate"><span class="pre">random_seed</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#random-seeds"><code class="docutils literal notranslate"><span class="pre">random_seeds</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="simulation.html#primordial-amplitude-fixed"><code class="docutils literal notranslate"><span class="pre">primordial_amplitude_fixed</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="simulation.html#primordial-phase-shift"><code class="docutils literal notranslate"><span class="pre">primordial_phase_shift</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="simulation.html#cell-centered"><code class="docutils literal notranslate"><span class="pre">cell_centered</span></code></a></li>
@@ -451,6 +453,11 @@ components, each comprised of <span class="math notranslate nohighlight">\(64^3\
 <span class="p">]</span>
 </pre></div>
 </div>
+<p>When realising two particle components with the same
+number of particles <span class="math notranslate nohighlight">\(N\)</span>, the two particle
+distributions will be pre-initialised on relatively
+shifted lattices, amounting to using a body-centered
+cubic (bcc) lattice for the combined particle system.</p>
 </td>
 </tr>
 <tr class="row-odd"><td><p></p></td>
@@ -503,6 +510,28 @@ component generated on the fly:</p>
 <span class="p">]</span>
 </pre></div>
 </div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Example 5</strong></p></td>
+<td><p></p></td>
+<td><p>Generate initial conditions consisting of a single
+component comprised of <span class="math notranslate nohighlight">\(2\times 64^3\)</span> matter
+particles:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">initial_conditions</span> <span class="o">=</span> <span class="p">{</span>
+   <span class="s1">&#39;species&#39;</span><span class="p">:</span> <span class="s1">&#39;matter&#39;</span><span class="p">,</span>
+   <span class="s1">&#39;N&#39;</span>      <span class="p">:</span> <span class="mi">2</span><span class="o">*</span><span class="mi">64</span><span class="o">**</span><span class="mi">3</span><span class="p">,</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>As the number of particles is of the form
+<span class="math notranslate nohighlight">\(N = 2n^3\)</span> rather than the standard
+<span class="math notranslate nohighlight">\(N = n^3\)</span>, the particles will be pre-initialised
+on lattice points of a body-centered (bcc) lattice
+rather than a simple cubic (sc) lattice. Similarly,
+components with <span class="math notranslate nohighlight">\(N = 4n^3\)</span> (e.g. <code class="docutils literal notranslate"><span class="pre">'N':</span> <span class="pre">4*64**3</span></code>)
+particles will be pre-initialised on a face-centered
+cubic (fcc) lattice.</p>
 </td>
 </tr>
 </tbody>
@@ -1019,10 +1048,10 @@ so the above may be shortened to</p>
 <p class="admonition-title">Caution</p>
 <p>Leaving out certain data when reading in snapshots
 will result in components not being fully
-initialized, e.g. in this example all particles
+initialised, e.g. in this example all particles
 loaded from disk will now have any momenta assigned
 (not even <span class="math notranslate nohighlight">\(0\)</span>). Running a simulation with such
-a partially initialized component will result in a
+a partially initialised component will result in a
 crash.</p>
 </div>
 <p>The usefulness of this example is found when using e.g.

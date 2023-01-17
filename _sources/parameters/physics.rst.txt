@@ -238,6 +238,219 @@ physical models and schemes to be used.
 
 
 
+.. _realization_options:
+
+``realization_options``
+.......................
+== =============== == =
+\  **Description** \  Specifies how to realise different components
+-- --------------- -- -
+\  **Default**     \  .. code-block:: python3
+
+                         {
+                             'gauge': {
+                                 'default': 'N-body',
+                             },
+                             'back-scale': {
+                                'default': False,
+                             },
+                             'LPT': {
+                                 'default': 1,
+                             },
+                             'structure': {
+                                 'default': 'non-linear',
+                             },
+                             'compound': {
+                                 'default': 'linear',
+                             },
+                         }
+
+-- --------------- -- -
+\  **Elaboration** \  This is a ``dict`` of several individual sub-parameters,
+                      specifying how individual components are to be
+                      *realised*. All sub-parameters are themselves
+                      :ref:`component selections <components_and_selections>`.
+                      A realisation refers to the generation of
+                      initial conditions --- i.e. particle positions and
+                      momenta for particle components and fluid grids like
+                      energy and momentum densities for fluid components ---
+                      but also late-time re-realisation of fluid grids for
+                      fluid components.
+
+                      Each sub-parameter is described below:
+
+                      * ``'gauge'``: Sets the general relativistic gauge in
+                        which to perform the realisation, i.e. the gauge of
+                        the transfer functions :math:`T(a, k)` to use.
+                        Available gauges are ``'N-body'``
+                        (:math:`N`-body gauge), ``'synchronous'``
+                        (synchronous gauge) or ``'Newtonian'`` (conformal
+                        Newtonian / longitudinal gauge).
+
+                      * ``'back-scale'``: Specifies whether to do particle
+                        realisation using a back-scaled density transfer
+                        function, rather than using the transfer function
+                        as is. That is, without back-scaling, the raw density
+                        transfer function :math:`T_\delta(a, k)` is used
+                        for realisation at time (scale factor value) :math:`a`
+                        of particle positions, and similarly the raw velocity
+                        transfer function :math:`T_\theta(a, k)` is used for
+                        the particle velocities. With back-scaling, the
+                        density transfer function is substituted by a
+                        scaled-back version of itself at time :math:`a = 1`:
+
+                        .. math::
+
+                           T_\delta(a, k) \rightarrow \frac{D(a)}{D(a=1)} T_\delta(a=1, k)\,,
+
+                        where :math:`D(a)` is the linear, Newtonian growth
+                        factor. Also, the velocity transfer function
+                        :math:`T_\theta(a, k)` is no longer used at all,
+                        but replaced with a Newtonian approximation
+
+                        .. math::
+
+                           T_\theta(a, k) \rightarrow -aH(a)f(a) \biggl(\frac{D(a)}{D(a=1)} T_\delta(a=1, k) \biggr)\,,
+
+                        where
+                        :math:`f(a) \equiv \mathrm{d}\ln D(a) / \mathrm{d}\ln a`
+                        is the linear, Newtonian growth rate. Back-scaling is
+                        only possible for particle components.
+
+                      * ``'LPT'``: Specifies the order of Lagrangian
+                        perturbation theory to use when realising particle
+                        components. Orders :math:`1` and :math:`2` are
+                        available. While the first order (1LPT) is carried out
+                        relativistically (if not using back-scaling), the
+                        second-order (2LPT) contributions are always
+                        constructed in a Newtonian fashion (though they are
+                        build from the (relativistic) 1LPT results).
+
+                      * ``'structure'``: Specifies the underlying 3D structure
+                        to use for a realisation. This can be either the
+                        primordial noise (``'primordial'``)
+                        :math:`\zeta(k)\mathcal{R}(\boldsymbol{k})`
+                        (:ref:`random noise <random_seeds>`
+                        :math:`\mathcal{R}(\boldsymbol{k})` with
+                        :ref:`amplitude <primordial_spectrum>`
+                        :math:`\zeta(k)`) or the structure extracted from the
+                        non-linearly evolved energy density of the component
+                        (``'non-linear'``), i.e.
+                        :math:`\delta(a, \boldsymbol{k})/T_\delta(a, k)`.
+                        Realisation happening at the initial time of the
+                        simulation (i.e. initial condition generation) will
+                        always make use of the primordial noise, though at
+                        this time the two options are mathematically
+                        equivalent. As late-time realisation is not possible
+                        for particle components, this realisation option only
+                        affects fluid components.
+
+                      * ``'compound'``: When performing late-time realisations
+                        for fluid components using the non-linearly evolved
+                        energy density as the source of structure, some fluid
+                        variables can be defined in several ways. Consider
+                        the (conserved) shear stress fluid variable
+                        :math:`\varsigma^i_j(a, \boldsymbol{x})`,
+                        realised through
+
+                        .. math::
+
+                           \varsigma^i_j(a, \boldsymbol{x}) = \bigl(\varrho + c^{-2}\mathcal{P}\bigr)\sigma^i_j(a, \boldsymbol{x})\,,
+
+                        with :math:`\sigma^i_j(a, \boldsymbol{x})` itself
+                        realised from the scalar anisotropic stress. With the
+                        ``'compound'`` realisation option set to ``'linear'``,
+                        the (conserved) energy density and pressure in the
+                        parenthesis above will be evaluated at the background
+                        level,
+                        :math:`\varrho + c^{-2}\mathcal{P} \rightarrow (1 + w)\bar{\varrho}(a)`.
+                        With the ``'compound'`` realisation option set to
+                        ``'non-linear'``, the full non-linearly evolved fluid
+                        grids are used,
+                        :math:`\varrho + c^{-2}\mathcal{P} \rightarrow \varrho(a, \boldsymbol{x}) + c^{-2}\mathcal{P}(a, \boldsymbol{x})`.
+                        Using the non-linear option injects additional
+                        non-linearity into the realised fluid variable,
+                        which can be desirable. See the paper on
+                        ':ref:`νCO𝘕CEPT: Cosmological neutrino simulations from the non-linear Boltzmann hierarchy <nuconcept_cosmological_neutrino_simulations_from_the_nonlinear_boltzmann_hierarchy>`'
+                        for further details.
+
+-- --------------- -- -
+\  **Example 0**   \  Do all realisations in synchronous gauge. Also, use
+                      back-scaling when realising components with a
+                      name/species of ``'matter``:
+
+                      .. code-block:: python3
+
+                         realization_options = {
+                             'gauge': {
+                                 'all': 'synchronous',
+                             },
+                             'back-scaling': {
+                                 'matter': True,
+                             },
+                         }
+
+                      .. note::
+
+                         When using back-scaling, the :math:`\delta` transfer
+                         function is used not only for the particle positions
+                         but also for the velocities. This is crucial when
+                         using the synchronous gauge, as the velocity transfer
+                         function in this gauge is not well suited for
+                         :math:`N`-body initial conditions.
+
+-- --------------- -- -
+\  **Example 1**   \  Make use of second-order Lagrangian perturbation
+                      theory (2LPT) when realising particle components:
+
+                      .. code-block:: python3
+
+                         realization_options = {
+                             'LPT': {
+                                 'particles': 2,
+                             },
+                         }
+
+                      As the ``'LPT'`` specification only applies to particle
+                      components anyway, we can also do
+
+                      .. code-block:: python3
+
+                         realization_options = {
+                             'LPT': {
+                                 'all': 2,
+                             },
+                         }
+
+                      which can be more succinctly expressed as
+
+                      .. code-block:: python3
+
+                         realization_options = {
+                             'LPT': 2,
+                         }
+
+-- --------------- -- -
+\  **Example 2**   \  Always perform realisations using the primordial noise
+                      as the underlying source of structure, regardless of the
+                      time of realisation:
+
+                      .. code-block:: python3
+
+                         realization_options = {
+                             'structure': {
+                                 'all': 'primordial',
+                             },
+                         }
+
+== =============== == =
+
+
+
+------------------------------------------------------------------------------
+
+
+
 ``select_lives``
 ................
 == =============== == =

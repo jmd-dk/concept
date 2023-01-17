@@ -85,11 +85,11 @@ some numerical resolutions and length scales.
                                  'global': {},
                                  'particles': {
                                      'gravity': {
-                                         'pm' : (  'cbrt(N)',   'cbrt(N)')
-                                         'p3m': ('2*cbrt(N)', '2*cbrt(N)'),
+                                         'pm' : (  'cbrt(Ñ)',   'cbrt(Ñ)'),
+                                         'p3m': ('2*cbrt(Ñ)', '2*cbrt(Ñ)'),
                                      },
                                      'lapse': {
-                                         'pm': ('cbrt(N)', 'cbrt(N)'),
+                                         'pm': ('cbrt(Ñ)', 'cbrt(Ñ)'),
                                      },
                                  },
                                  'fluid': {
@@ -121,11 +121,11 @@ some numerical resolutions and length scales.
                              },
                              'interlace': {
                                  'gravity': {
-                                     'pm' : False,
-                                     'p3m': False,
+                                     'pm' : (False, False),
+                                     'p3m': (False, False),
                                  },
                                  'lapse': {
-                                     'pm': False,
+                                     'pm': (False, False),
                                  },
                              },
                              'differentiation': {
@@ -176,8 +176,8 @@ some numerical resolutions and length scales.
                       the *suppliers* and the *receivers*, which respectively
                       build the potential and receive a force due to it. In
                       the simplest case of self-gravity between particles of
-                      a component, this component is both the sole supplier
-                      and receiver component.
+                      a single component, this component is both the sole
+                      supplier and receiver component.
 
                       CO\ *N*\ CEPT uses an '*upstream* :math:`\rightarrow`
                       *global* :math:`\rightarrow` *downstream* scheme' for
@@ -188,11 +188,14 @@ some numerical resolutions and length scales.
                          each component. More precisely, a specific quantity
                          of the supplier components is interpolated, e.g. the
                          mass (particle components) or energy density (fluid
-                         components) in the case of gravity.
+                         components) in the case of gravity. For particle
+                         components, the interpolation may be interlaced,
+                         meaning carried out multiple times with shifted
+                         grids.
                       2. Transform each upstream grid to Fourier space.
-                      3. Optionally perform deconvolution and interlacing of
-                         upstream grids constructed from particle suppliers
-                         (see
+                      3. Optionally perform deconvolution and/or shifting of
+                         the complex phase (due to interlacing) of upstream
+                         grids constructed from particle suppliers (see
                          "`Computer simulation using particles <https://dx.doi.org/10.1201/9780367806934>`_").
                       4. Add upstream Fourier grids together, producing a
                          'global' Fourier grid, with the global grid size
@@ -203,15 +206,15 @@ some numerical resolutions and length scales.
                             together in Fourier space, as all
                             :math:`\boldsymbol{k}` modes (grid cells) of
                             smaller grids are contained within larger grids.
-                            One need to be careful though, as complex phase
-                            shifts are needed to correct for the change of
-                            grid size.
+                            Complex phase shifts are needed to correct for the
+                            change of grid size, all taken care of
+                            by CO\ *N*\ CEPT.
 
                       5. Convert the values within the global grid to
                          potential values. For gravity, this amounts to
                          solving the Poisson equation.
                       6. For each receiver component, produce a 'downstream'
-                         version of the global Fourier potential, by copying
+                         version of the global Fourier potential by copying
                          (and shifting) the modes onto grids individual to
                          each receiver.
                       7. Optionally perform (another) deconvolution for
@@ -237,7 +240,11 @@ some numerical resolutions and length scales.
                          9. Transform the force grid to real space.
 
                       10. Apply each force grid by interpolating it back onto
-                          the corresponding receiver.
+                          the corresponding receiver. This downstream
+                          interpolation may again be carried out using
+                          interlacing, requiring steps 8--9 to be carried out
+                          multiple times as well as shifting of the
+                          complex phases.
 
                       .. note::
                          Though the above recipe is conceptually faithful to
@@ -287,7 +294,15 @@ some numerical resolutions and length scales.
                            intrinsic 'fluid grid size' of fluid components.
                            Importantly, fluid components must have upstream
                            and downstream grid sizes equal to their fluid grid
-                           size.
+                           size. For particle components with :math:`N = 2n^3`
+                           or :math:`N = 4n^3` particles (pre-initialised on
+                           interleaved lattices, see the ``initial_conditions``
+                           :ref:`parameter <initial_conditions>`), you can
+                           refer to just the cubic part as ``'Ñ'``. That is,
+                           regardless of whether the number of particles is
+                           :math:`N = n^3`, :math:`N = 2n^3` or
+                           :math:`N = 4n^3`, we always have
+                           :math:`\widetilde{N} = n^3`.
 
                         A special key ``'global'`` is further specified within
                         the ``'gridsize'`` sub-\ ``dict``, with a value of the
@@ -363,14 +378,21 @@ some numerical resolutions and length scales.
 
                            'dinterlace': {
                                'gravity': {
-                                   'pm' : interlace_pm,
-                                   'p3m': interlace_p3m,
+                                   'pm' : (interlace_pm_upstream,  interlace_pm_downstream),
+                                   'p3m': (interlace_p3m_upstream, interlace_p3m_downstream),
                                },
                            }
 
                         with the ``interlace_*`` variables specifying whether
-                        grid interlacing should be used when interpolating
-                        particles onto upstream grids.
+                        grid interlacing should be used for particle upstream
+                        and downstream interpolation.  Possible values are
+                        ``'sc'`` (or ``False``) for a simple cubic lattice
+                        (meaning no interlacing), ``'bcc'`` (or ``True``) for
+                        a body-centered cubic lattice (meaning standard
+                        interlacing involving two relatively shifted particle
+                        interpolations) or ``'fcc'`` for a face-centered cubic
+                        lattice (meaning interlacing involving four relatively
+                        shifted particle interpolations).
 
                       * ``'differentiation'``: This is a
                         :ref:`component selection <components_and_selections>`
@@ -517,8 +539,9 @@ some numerical resolutions and length scales.
 -- --------------- -- -
 \  **Example 2**   \  For the gravitational interaction, be it PM or P³M, make
                       use of the highest available order for particle
-                      interpolation (PCS), as well as interlacing. Use
-                      :math:`80` as the size of all potential grids.
+                      interpolation (PCS), as well as both upstream and
+                      downstream (standard) interlacing. Use :math:`80` as the
+                      size of all potential grids.
 
                       .. code-block:: python3
 
@@ -528,7 +551,7 @@ some numerical resolutions and length scales.
                                  'gravity': 'PCS',
                              },
                              'interlace': {
-                                 'gravity': True,
+                                 'gravity': (True, True),  # or ('bcc', 'bcc')
                              }
                          }
 
@@ -731,7 +754,7 @@ some numerical resolutions and length scales.
 
                          {
                              'upstream gridsize': {
-                                 'particles': '2*cbrt(N)',
+                                 'particles': '2*cbrt(Ñ)',
                                  'fluid'    : 'gridsize',
                              },
                              'global gridsize': {},
@@ -781,7 +804,10 @@ some numerical resolutions and length scales.
                       Each sub-parameter is described below:
 
                       * ``'upstream gridsize'``: Specifies the upstream grid
-                        sizes to use for each component.
+                        sizes to use for each component. See the
+                        ``potential_options``
+                        :ref:`parameter <potential_options>` for the use of
+                        the ``'Ñ'`` notation.
 
                       * ``'global gridsize'``: Specifies the global grid size
                         to use for each power spectrum. Which power spectra to
@@ -810,7 +836,14 @@ some numerical resolutions and length scales.
                         deconvolution for upstream particle interpolations.
 
                       * ``'interlace'``: Specifies whether to use interlacing
-                        for upstream particle interpolations.
+                        for upstream particle interpolations. Possible values
+                        are ``'sc'`` (or ``False``) for a simple cubic lattice
+                        (meaning no interlacing), ``'bcc'`` (or ``True``) for
+                        a body-centered cubic lattice (meaning standard
+                        interlacing involving two relatively shifted particle
+                        interpolations) or ``'fcc'`` for a face-centered cubic
+                        lattice (meaning interlacing involving four relatively
+                        shifted particle interpolations).
 
                       * ``'k_max'``: Specifies the largest :math:`k` mode to
                         include in the power spectrum output files (data files
@@ -940,7 +973,7 @@ some numerical resolutions and length scales.
                                  'matter': 'CIC',
                              },
                              'interlace': {
-                                 'matter': False,
+                                 'matter': False,  # or 'sc'
                              }
                          }
 

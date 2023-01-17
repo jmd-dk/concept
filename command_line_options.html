@@ -196,6 +196,7 @@
 <li class="toctree-l2"><a class="reference internal" href="parameters/physics.html">Physics</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="parameters/physics.html#select-forces"><code class="docutils literal notranslate"><span class="pre">select_forces</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="parameters/physics.html#select-species"><code class="docutils literal notranslate"><span class="pre">select_species</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="parameters/physics.html#realization-options"><code class="docutils literal notranslate"><span class="pre">realization_options</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="parameters/physics.html#select-lives"><code class="docutils literal notranslate"><span class="pre">select_lives</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="parameters/physics.html#softening-kernel"><code class="docutils literal notranslate"><span class="pre">softening_kernel</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="parameters/physics.html#select-softening-length"><code class="docutils literal notranslate"><span class="pre">select_softening_length</span></code></a></li>
@@ -208,11 +209,12 @@
 <li class="toctree-l3"><a class="reference internal" href="parameters/simulation.html#t-rung-factor"><code class="docutils literal notranslate"><span class="pre">Δt_rung_factor</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="parameters/simulation.html#a-max-early"><code class="docutils literal notranslate"><span class="pre">Δa_max_early</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="parameters/simulation.html#a-max-late"><code class="docutils literal notranslate"><span class="pre">Δa_max_late</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="parameters/simulation.html#static-timestepping"><code class="docutils literal notranslate"><span class="pre">static_timestepping</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="parameters/simulation.html#n-rungs"><code class="docutils literal notranslate"><span class="pre">N_rungs</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="parameters/simulation.html#fftw-wisdom-rigor"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_rigor</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="parameters/simulation.html#fftw-wisdom-reuse"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_reuse</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="parameters/simulation.html#fftw-wisdom-share"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_share</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="parameters/simulation.html#random-seed"><code class="docutils literal notranslate"><span class="pre">random_seed</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="parameters/simulation.html#random-seeds"><code class="docutils literal notranslate"><span class="pre">random_seeds</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="parameters/simulation.html#primordial-amplitude-fixed"><code class="docutils literal notranslate"><span class="pre">primordial_amplitude_fixed</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="parameters/simulation.html#primordial-phase-shift"><code class="docutils literal notranslate"><span class="pre">primordial_phase_shift</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="parameters/simulation.html#cell-centered"><code class="docutils literal notranslate"><span class="pre">cell_centered</span></code></a></li>
@@ -402,7 +404,7 @@ run CO<em>N</em>CEPT simulations locally.</p>
 <section id="help-h-help">
 <h3><a class="toc-backref" href="#id7">Help: <code class="docutils literal notranslate"><span class="pre">-h</span></code>, <code class="docutils literal notranslate"><span class="pre">--help</span></code></a><a class="headerlink" href="#help-h-help" title="Permalink to this headline"></a></h3>
 <p>Displays a short description of each command-line option and exits:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept -h
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>-h
 </pre></div>
 </div>
 <p>This is helpful if you have forgotten the name of some particular option. For
@@ -411,7 +413,7 @@ learning about the usage of a given option, this page is much preferable.</p>
 <section id="parameter-file-p-params">
 <span id="parameter-file"></span><h3><a class="toc-backref" href="#id8">Parameter file: <code class="docutils literal notranslate"><span class="pre">-p</span></code>, <code class="docutils literal notranslate"><span class="pre">--params</span></code></a><a class="headerlink" href="#parameter-file-p-params" title="Permalink to this headline"></a></h3>
 <p>Specifies the parameter file to use:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept -p &lt;/path/to/parameter-file&gt;
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>-p<span class="w"> </span>&lt;/path/to/parameter-file&gt;
 </pre></div>
 </div>
 <p>The path may be specified in any of these formats:</p>
@@ -424,7 +426,7 @@ learning about the usage of a given option, this page is much preferable.</p>
 <p>Typically, parameter files are kept in the <code class="docutils literal notranslate"><span class="pre">param</span></code> directory. With the
 parameter file <code class="docutils literal notranslate"><span class="pre">my_param</span></code> located in this directory, specifying the use
 of this parameter file may then look like e.g.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept -p param/my_param
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>-p<span class="w"> </span>param/my_param
 </pre></div>
 </div>
 <p>The many possible parameters to put inside parameter files are each described
@@ -438,23 +440,23 @@ simulation as no output is specified by default.</p>
 <span id="command-line-parameters"></span><h3><a class="toc-backref" href="#id9">Command-line parameters: <code class="docutils literal notranslate"><span class="pre">-c</span></code>, <code class="docutils literal notranslate"><span class="pre">--command-line-params</span></code></a><a class="headerlink" href="#command-line-parameters-c-command-line-params" title="Permalink to this headline"></a></h3>
 <p>Directly specifies parameters to use, without referring to a parameter file.
 E.g.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept -c <span class="s2">&quot;boxsize = 512*Mpc&quot;</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;boxsize = 512*Mpc&quot;</span>
 </pre></div>
 </div>
 <p>Often this is used in combination with a parameter file, e.g. if a suite of
 similar simulations is to be run where only a few parameter values change
 between the simulations. E.g.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># First simulation</span>
-./concept <span class="se">\</span>
-    -p param/my_param <span class="se">\</span>
-    -c <span class="s2">&quot;Ωb = 0.049&quot;</span> <span class="se">\</span>
-    -c <span class="s2">&quot;Ωcdm = 0.270&quot;</span>
+./concept<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-p<span class="w"> </span>param/my_param<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-c<span class="w"> </span><span class="s2">&quot;Ωb = 0.049&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-c<span class="w"> </span><span class="s2">&quot;Ωcdm = 0.270&quot;</span>
 
 <span class="c1"># Second simulation</span>
-./concept <span class="se">\</span>
-    -p param/my_param <span class="se">\</span>
-    -c <span class="s2">&quot;Ωb = 0.048&quot;</span> <span class="se">\</span>
-    -c <span class="s2">&quot;Ωcdm = 0.271&quot;</span>
+./concept<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-p<span class="w"> </span>param/my_param<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-c<span class="w"> </span><span class="s2">&quot;Ωb = 0.048&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-c<span class="w"> </span><span class="s2">&quot;Ωcdm = 0.271&quot;</span>
 </pre></div>
 </div>
 <p>Note that the <code class="docutils literal notranslate"><span class="pre">-c</span></code> option may be specified multiple times.</p>
@@ -485,15 +487,15 @@ defined both in the parameter file and on the command-line.</p>
 <p>Specifies the number of MPI processes to use, with each MPI process being
 mapped to its own CPU core (assuming enough of these are available). To run
 using e.g. 8 processes:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept -n <span class="m">8</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>-n<span class="w"> </span><span class="m">8</span>
 </pre></div>
 </div>
 <p>If not specified, this defaults to 1.</p>
 <p>You may write the number of processes as a (Python 3) expression. All of these
 specifies that 8 processes should be used:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept -n <span class="m">2</span>*4
-./concept -n <span class="m">2</span>**3
-./concept -n <span class="s2">&quot;3 + 5&quot;</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>-n<span class="w"> </span><span class="m">2</span>*4
+./concept<span class="w"> </span>-n<span class="w"> </span><span class="m">2</span>**3
+./concept<span class="w"> </span>-n<span class="w"> </span><span class="s2">&quot;3 + 5&quot;</span>
 </pre></div>
 </div>
 <section id="specifying-multiple-nodes">
@@ -501,10 +503,10 @@ specifies that 8 processes should be used:</p>
 <p>When running on a cluster with multiple compute nodes, you may also specify
 the number of nodes to be used. The following examples all specify 8 MPI
 processes distributed over 2 nodes each with 4 CPU cores:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept -n <span class="m">2</span>:4
-./concept -n <span class="m">2</span>:2*2
-./concept -n <span class="s2">&quot;2 2*2&quot;</span>
-./concept -n <span class="s2">&quot;1 + 1 : 2**2&quot;</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>-n<span class="w"> </span><span class="m">2</span>:4
+./concept<span class="w"> </span>-n<span class="w"> </span><span class="m">2</span>:2*2
+./concept<span class="w"> </span>-n<span class="w"> </span><span class="s2">&quot;2 2*2&quot;</span>
+./concept<span class="w"> </span>-n<span class="w"> </span><span class="s2">&quot;1 + 1 : 2**2&quot;</span>
 </pre></div>
 </div>
 <p>Note that inhomogeneous layouts are not describable. If you leave out the node
@@ -519,7 +521,7 @@ the number of CPU cores/node.</p>
 <span id="utility"></span><h3><a class="toc-backref" href="#id11">Utility: <code class="docutils literal notranslate"><span class="pre">-u</span></code>, <code class="docutils literal notranslate"><span class="pre">--utility</span></code></a><a class="headerlink" href="#utility-u-utility" title="Permalink to this headline"></a></h3>
 <p>Signals that one of the CO<em>N</em>CEPT utilities is to be run instead of a
 simulation. To run e.g. the <code class="docutils literal notranslate"><span class="pre">powerspec</span></code> utility, do</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept -u powerspec &lt;/path/to/snapshot&gt;
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>-u<span class="w"> </span>powerspec<span class="w"> </span>&lt;/path/to/snapshot&gt;
 </pre></div>
 </div>
 <p>which will then produce a power spectrum of the snapshot file located at
@@ -528,15 +530,15 @@ simulation. To run e.g. the <code class="docutils literal notranslate"><span cla
 utility, a required path to a snapshot), which you should specify together
 with the normal <code class="docutils literal notranslate"><span class="pre">concept</span></code> command-line options. In the case of the
 <code class="docutils literal notranslate"><span class="pre">powerspec</span></code> utility, this could look like</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept -n <span class="m">4</span> -u powerspec &lt;/path/to/snapshot&gt;
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>-n<span class="w"> </span><span class="m">4</span><span class="w"> </span>-u<span class="w"> </span>powerspec<span class="w"> </span>&lt;/path/to/snapshot&gt;
 <span class="c1"># or</span>
-./concept -u powerspec &lt;/path/to/snapshot&gt; -n <span class="m">4</span>
+./concept<span class="w"> </span>-u<span class="w"> </span>powerspec<span class="w"> </span>&lt;/path/to/snapshot&gt;<span class="w"> </span>-n<span class="w"> </span><span class="m">4</span>
 </pre></div>
 </div>
 <p>both of which will produce a power spectrum of the snapshot using 4 processes.
 Some utilities have elaborate command-line interfaces of their own. Brief
 summaries gets printed if you do e.g.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept -u powerspec -h
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>-u<span class="w"> </span>powerspec<span class="w"> </span>-h
 </pre></div>
 </div>
 <p>You can also read about the different utilities and their command-line
@@ -565,11 +567,11 @@ with multiple compute nodes, as documented
 <span id="queue"></span><h3><a class="toc-backref" href="#id13">Queue: <code class="docutils literal notranslate"><span class="pre">-q</span></code>, <code class="docutils literal notranslate"><span class="pre">--queue</span></code></a><a class="headerlink" href="#queue-q-queue" title="Permalink to this headline"></a></h3>
 <p>Specifies the name of the queue (called ‘partition’ in Slurm) to which the
 remote job is to be submitted:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept -q &lt;queue&gt;
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>-q<span class="w"> </span>&lt;queue&gt;
 </pre></div>
 </div>
 <p>If using Slurm, you can specify multiple queues:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept -q &lt;queue1&gt;,&lt;queue2&gt;,&lt;queue3&gt;
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>-q<span class="w"> </span>&lt;queue1&gt;,&lt;queue2&gt;,&lt;queue3&gt;
 </pre></div>
 </div>
 <p>No remote job will be submitted if you do not supply this option. A job script
@@ -581,12 +583,12 @@ will however be produced, which you may edit and submit manually.</p>
 remote job has to have completed. If the job runs for the entire specified
 maximum wall time, it will be killed by the job scheduler.</p>
 <p>You have a lot of freedom in how you want to express this time:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept -w <span class="m">2</span>:30:00       <span class="c1">#  2 hours and 30 minutes</span>
-./concept -w 45min         <span class="c1">#              45 minutes</span>
-./concept -w 100m          <span class="c1">#  1 hour  and 40 minutes</span>
-./concept -w <span class="s2">&quot;3 days&quot;</span>      <span class="c1"># 72 hours</span>
-./concept -w <span class="m">3</span>:12:00:00    <span class="c1"># 84 hours</span>
-./concept -w <span class="s2">&quot;2d + 7.5hr&quot;</span>  <span class="c1"># 55 hours and 30 minutes</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>-w<span class="w"> </span><span class="m">2</span>:30:00<span class="w">       </span><span class="c1">#  2 hours and 30 minutes</span>
+./concept<span class="w"> </span>-w<span class="w"> </span>45min<span class="w">         </span><span class="c1">#              45 minutes</span>
+./concept<span class="w"> </span>-w<span class="w"> </span>100m<span class="w">          </span><span class="c1">#  1 hour  and 40 minutes</span>
+./concept<span class="w"> </span>-w<span class="w"> </span><span class="s2">&quot;3 days&quot;</span><span class="w">      </span><span class="c1"># 72 hours</span>
+./concept<span class="w"> </span>-w<span class="w"> </span><span class="m">3</span>:12:00:00<span class="w">    </span><span class="c1"># 84 hours</span>
+./concept<span class="w"> </span>-w<span class="w"> </span><span class="s2">&quot;2d + 7.5hr&quot;</span><span class="w">  </span><span class="c1"># 55 hours and 30 minutes</span>
 </pre></div>
 </div>
 <p>If not specified, the system typically sets some default wall time.</p>
@@ -598,11 +600,11 @@ insufficient memory to a job, it will be killed (usually with a somewhat
 cryptic error message) by the system once its memory needs exceed the
 specified amount.</p>
 <p>Examples of memory specifications:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept --memory 4GB     <span class="c1">#   4 gigabytes</span>
-./concept --memory 2048MB  <span class="c1">#   2 gigabytes</span>
-./concept --memory <span class="m">8</span>*2GB   <span class="c1">#  16 gigabytes</span>
-./concept --memory <span class="m">0</span>.5*TB  <span class="c1"># 512 gigabytes</span>
-./concept --mem 8G         <span class="c1">#   8 gigabytes</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>--memory<span class="w"> </span>4GB<span class="w">     </span><span class="c1">#   4 gigabytes</span>
+./concept<span class="w"> </span>--memory<span class="w"> </span>2048MB<span class="w">  </span><span class="c1">#   2 gigabytes</span>
+./concept<span class="w"> </span>--memory<span class="w"> </span><span class="m">8</span>*2GB<span class="w">   </span><span class="c1">#  16 gigabytes</span>
+./concept<span class="w"> </span>--memory<span class="w"> </span><span class="m">0</span>.5*TB<span class="w">  </span><span class="c1"># 512 gigabytes</span>
+./concept<span class="w"> </span>--mem<span class="w"> </span>8G<span class="w">         </span><span class="c1">#   8 gigabytes</span>
 </pre></div>
 </div>
 <p>Note that the specified memory is the total memory available to the job, to be
@@ -613,7 +615,7 @@ compute nodes.</p>
 <section id="job-name-job-name">
 <h3><a class="toc-backref" href="#id16">Job name: <code class="docutils literal notranslate"><span class="pre">--job-name</span></code></a><a class="headerlink" href="#job-name-job-name" title="Permalink to this headline"></a></h3>
 <p>Specify a name for the job, used by the job scheduler:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept --job-name <span class="s2">&quot;my job&quot;</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>--job-name<span class="w"> </span><span class="s2">&quot;my job&quot;</span>
 </pre></div>
 </div>
 <p>This name then shows up when listing your current jobs (i.e. via <code class="docutils literal notranslate"><span class="pre">squeue</span></code> in
@@ -632,7 +634,7 @@ job scheduler. If you desire further fine tuning of system resources, you may
 supply further such directives using this command-line option.</p>
 <p>What job directives are available depend on the job scheduler, as well as the
 local configuration of the cluster and queue. As an example, consider</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept -j<span class="o">=</span><span class="s2">&quot;--exclusive&quot;</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>-j<span class="o">=</span><span class="s2">&quot;--exclusive&quot;</span>
 </pre></div>
 </div>
 <p>which tells Slurm to give the job exclusive access to the allocated nodes, so
@@ -665,7 +667,7 @@ for you to follow the progression of the job. This have no effect on the job
 itself, and you may stop watching its printout using <code class="docutils literal notranslate"><span class="pre">Ctrl</span></code>+<code class="docutils literal notranslate"><span class="pre">C</span></code>.</p>
 <p>If you have no desire to watch the job progression, you may specify this
 option:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept --no-watching
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>--no-watching
 </pre></div>
 </div>
 <p>in which case the watch utility will not be run at all.</p>
@@ -686,7 +688,7 @@ rather than starting the run directly, it is submitted as a remote job.</p>
 <p>Supply this option to disregard the fact that you are running on a remote
 server/cluster. That is, do not submit the CO<em>N</em>CEPT run as a remote job
 using the job scheduler, but run it directly as if you were running locally.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept --local
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>--local
 </pre></div>
 </div>
 </section>
@@ -695,7 +697,7 @@ using the job scheduler, but run it directly as if you were running locally.</p>
 <p>When this option is supplied, CO<em>N</em>CEPT is run directly off of the Python
 source files in <code class="docutils literal notranslate"><span class="pre">src</span></code>, disregarding the presence of
 any <a class="reference internal" href="#build"><span class="std std-ref">build</span></a>:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept --pure-python
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>--pure-python
 </pre></div>
 </div>
 <p>While handy for development, running actual simulations in pure Python mode
@@ -704,7 +706,7 @@ is impractical due to an enormous performance hit.</p>
 <section id="build-b-build">
 <span id="build"></span><h3><a class="toc-backref" href="#id22">Build: <code class="docutils literal notranslate"><span class="pre">-b</span></code>, <code class="docutils literal notranslate"><span class="pre">--build</span></code></a><a class="headerlink" href="#build-b-build" title="Permalink to this headline"></a></h3>
 <p>Specifies a build directory to use:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept -b my_build
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>-b<span class="w"> </span>my_build
 </pre></div>
 </div>
 <p>If a build already exists in this directory and is up-to-date with the source
@@ -722,14 +724,14 @@ to apply architecture-dependent,
 possible to use a temporary scratch directory for the build. Say your cluster
 creates a designated <code class="docutils literal notranslate"><span class="pre">/scratch/&lt;ID&gt;</span></code> for every job and it uses Slurm,
 you could then run CO<em>N</em>CEPT as</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept -b <span class="s1">&#39;/scratch/$SLURM_JOB_ID&#39;</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>-b<span class="w"> </span><span class="s1">&#39;/scratch/$SLURM_JOB_ID&#39;</span>
 </pre></div>
 </div>
 <p>making use of the Slurm variable <code class="docutils literal notranslate"><span class="pre">SLURM_JOB_ID</span></code>, holding the job ID.</p>
 <div class="admonition caution">
 <p class="admonition-title">Caution</p>
 <p>Note the use of single-quotes above. Were we to do</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept -b <span class="s2">&quot;/scratch/</span><span class="nv">$SLURM_JOB_ID</span><span class="s2">&quot;</span>  <span class="c1"># wrong!</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>-b<span class="w"> </span><span class="s2">&quot;/scratch/</span><span class="nv">$SLURM_JOB_ID</span><span class="s2">&quot;</span><span class="w">  </span><span class="c1"># wrong!</span>
 </pre></div>
 </div>
 <p>it would not work, as <code class="docutils literal notranslate"><span class="pre">$SLURM_JOB_ID</span></code> would be expanded right there on
@@ -749,11 +751,11 @@ really corresponds to a separate directory on each node.</p>
 <span id="rebuild"></span><h3><a class="toc-backref" href="#id23">Rebuild: <code class="docutils literal notranslate"><span class="pre">--rebuild</span></code></a><a class="headerlink" href="#rebuild-rebuild" title="Permalink to this headline"></a></h3>
 <p>Even if the compiled code in the <a class="reference internal" href="#build"><span class="std std-ref">build</span></a> directory is up-to-date
 with the source in <code class="docutils literal notranslate"><span class="pre">src</span></code>, a rebuild can be triggered by using</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept --rebuild True
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>--rebuild<span class="w"> </span>True
 </pre></div>
 </div>
 <p>Conversely, an out-of-date build will be used as is if you specify</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept --rebuild False
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>--rebuild<span class="w"> </span>False
 </pre></div>
 </div>
 <p>Specifying just <code class="docutils literal notranslate"><span class="pre">--rebuild</span></code> is equivalent to <code class="docutils literal notranslate"><span class="pre">--rebuild</span> <span class="pre">True</span></code>.</p>
@@ -765,7 +767,7 @@ that the compiled code may be run on different hardware (within reason).</p>
 <p>Supply this option if you are willing to use non-portable optimizations native
 to your particular system, by which it is possible to squeeze a further few
 percent performance increase out of the compilation:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept --native-optimizations
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>--native-optimizations
 </pre></div>
 </div>
 <p>Specifically, this adds the <code class="docutils literal notranslate"><span class="pre">-march=native</span></code> compiler optimization.</p>
@@ -778,7 +780,7 @@ optimizations. See the <a class="reference internal" href="#build"><span class="
 is up-to-date with the source at <code class="docutils literal notranslate"><span class="pre">src</span></code> (built with or without
 native optimizations), the code will not be rebuild. To rebuild with native
 optimizations, you can make use of the <a class="reference internal" href="#rebuild"><span class="std std-ref">rebuild</span></a> option:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept --native-optimizations --rebuild
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>--native-optimizations<span class="w"> </span>--rebuild
 </pre></div>
 </div>
 </div>
@@ -789,7 +791,7 @@ optimizations, you can make use of the <a class="reference internal" href="#rebu
 if supported by the compiler. Though preferable, the associated increase in
 build time and especially memory may be undesirable. To build CO<em>N</em>CEPT
 without link time optimizations, supply this option:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept --no-lto
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>--no-lto
 </pre></div>
 </div>
 <div class="admonition note">
@@ -798,7 +800,7 @@ without link time optimizations, supply this option:</p>
 is up-to-date with the source at <code class="docutils literal notranslate"><span class="pre">src</span></code> (built with or without LTO),
 the code will not be rebuild. To rebuild without LTO, you can make use of
 the <a class="reference internal" href="#rebuild"><span class="std std-ref">rebuild</span></a> option:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept --no-lto --rebuild
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>--no-lto<span class="w"> </span>--rebuild
 </pre></div>
 </div>
 </div>
@@ -811,7 +813,7 @@ as standard C compiler optimizations (including
 <a class="reference internal" href="#no-link-time-optimizations"><span class="std std-ref">LTO</span></a>), applied in the <code class="docutils literal notranslate"><span class="pre">Makefile</span></code>. Though
 these optimizations should not be disabled under normal circumstances, you may
 do so by supplying this option:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept --no-optimizations
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>--no-optimizations
 </pre></div>
 </div>
 <div class="admonition note">
@@ -820,7 +822,7 @@ do so by supplying this option:</p>
 is up-to-date with the source at <code class="docutils literal notranslate"><span class="pre">src</span></code> (built with or without
 optimizations), the code will not be rebuild. To rebuild without
 optimizations, you can make use of the <a class="reference internal" href="#rebuild"><span class="std std-ref">rebuild</span></a> option:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept --no-optimizations --rebuild
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>--no-optimizations<span class="w"> </span>--rebuild
 </pre></div>
 </div>
 </div>
@@ -833,7 +835,7 @@ rely on the specific file in question. If you know that a change is entirely
 internal to the given file, you may save yourself some compilation time by
 supplying this option, in which case all interdependencies between the files
 are ignored during compilation:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept --unsafe-building
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>--unsafe-building
 </pre></div>
 </div>
 <div class="admonition caution">
@@ -841,7 +843,7 @@ are ignored during compilation:</p>
 <p>This option really <em>is</em> unsafe and may very well lead to a buggy build. To
 clean up after an unsuccessful build, use the <a class="reference internal" href="#rebuild"><span class="std std-ref">rebuild</span></a>
 option or remove the <code class="docutils literal notranslate"><span class="pre">build</span></code> directory entirely using</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="o">(</span><span class="nb">source</span> concept <span class="o">&amp;&amp;</span> make clean<span class="o">)</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="o">(</span><span class="nb">source</span><span class="w"> </span>concept<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w"> </span>clean<span class="o">)</span>
 </pre></div>
 </div>
 </div>
@@ -863,7 +865,7 @@ this option to run these tests, checking that the code works correctly.</p>
 <p>To run e.g. the <code class="docutils literal notranslate"><span class="pre">concept_vs_gadget_p3m</span></code> test — which runs a small
 CO<em>N</em>CEPT P³M simulation and a (supposedly) equivalent GADGET-2 TreePM
 simulation, after which it compares the results — do e.g.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept -t test/concept_vs_gadget_p3m
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>-t<span class="w"> </span>test/concept_vs_gadget_p3m
 </pre></div>
 </div>
 <p>The path to the test may be specified in any of these formats:</p>
@@ -883,13 +885,13 @@ the corresponding test subdirectory, e.g.</p>
 </pre></div>
 </div>
 <p>The entire test suite may be run using</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept -t all
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>-t<span class="w"> </span>all
 </pre></div>
 </div>
 <p>which runs each test sequentially. If one of the tests fails, the process
 terminates immediately. To clean up after all tests, i.e. run the <code class="docutils literal notranslate"><span class="pre">clean</span></code>
 script within each subdirectory of the <code class="docutils literal notranslate"><span class="pre">test</span></code> directory, do</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="o">(</span><span class="nb">source</span> concept <span class="o">&amp;&amp;</span> make clean-test<span class="o">)</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="o">(</span><span class="nb">source</span><span class="w"> </span>concept<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w"> </span>clean-test<span class="o">)</span>
 </pre></div>
 </div>
 <div class="admonition note">
@@ -906,8 +908,8 @@ build the actual CO<em>N</em>CEPT code (if not running in
 <a class="reference internal" href="#pure-python"><span class="std std-ref">pure Python mode</span></a>) and then launch a job (or submit a
 remote job which then is launched from within a generated job script).
 Skipping over many details, this final launch step looks something like</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python -m build/main.so  <span class="c1"># compiled mode</span>
-python src/main.py       <span class="c1"># pure Python mode</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>build/main.so<span class="w">  </span><span class="c1"># compiled mode</span>
+python<span class="w"> </span>src/main.py<span class="w">       </span><span class="c1"># pure Python mode</span>
 </pre></div>
 </div>
 <p>which fires up the <code class="docutils literal notranslate"><span class="pre">main</span></code> module, which in turn initiates the simulation.
@@ -919,14 +921,14 @@ other main entry point.</p>
 <div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">commons</span> <span class="kn">import</span> <span class="o">*</span>  <span class="c1"># import everything from the CO𝘕CEPT commons module</span>
 
 <span class="n">h</span> <span class="o">=</span> <span class="n">H0</span><span class="o">/</span><span class="p">(</span><span class="mi">100</span><span class="o">*</span><span class="n">units</span><span class="o">.</span><span class="n">km</span><span class="o">/</span><span class="p">(</span><span class="n">units</span><span class="o">.</span><span class="n">s</span><span class="o">*</span><span class="n">units</span><span class="o">.</span><span class="n">Mpc</span><span class="p">))</span>
-<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">h</span> <span class="si">= :</span><span class="s1">g</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">h</span><span class="w"> </span><span class="si">= :</span><span class="s1">g</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
 </pre></div>
 </div>
 </div>
 <p>We can run this script using</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept <span class="se">\</span>
-    -m hubble.py <span class="se">\</span>
-    --pure-python
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-m<span class="w"> </span>hubble.py<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--pure-python
 </pre></div>
 </div>
 <div class="admonition note">
@@ -936,10 +938,10 @@ script itself is not compiled, and the compiled <code class="docutils literal no
 not expose <code class="docutils literal notranslate"><span class="pre">H0</span></code> as a Python-level object.</p>
 </div>
 <p>To see that this really does hook into the CO<em>N</em>CEPT machinery:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept <span class="se">\</span>
-    -m hubble.py <span class="se">\</span>
-    -c <span class="s2">&quot;H0 = 72*km/(s*Mpc)&quot;</span> <span class="se">\</span>
-    --pure-python
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-m<span class="w"> </span>hubble.py<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-c<span class="w"> </span><span class="s2">&quot;H0 = 72*km/(s*Mpc)&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--pure-python
 </pre></div>
 </div>
 <p>Using <code class="docutils literal notranslate"><span class="pre">-m</span></code> with a script as above is convenient for e.g. making plotting
@@ -947,13 +949,13 @@ scripts which need access to some CO<em>N</em>CEPT functionality. For small
 printouts, we can specify the Python code directly as the value to <code class="docutils literal notranslate"><span class="pre">-m</span></code>. To
 e.g. get the value of the gravitational constant implemented in CO<em>N</em>CEPT,
 we can do</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept <span class="se">\</span>
-    -m <span class="s2">&quot;from commons import *; \</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-m<span class="w"> </span><span class="s2">&quot;from commons import *; \</span>
 <span class="s2">        unit = units.m**3/(units.kg*units.s**2); \</span>
 <span class="s2">        print(f&#39;{G_Newton/unit:g}&#39;); \</span>
-<span class="s2">    &quot;</span> <span class="se">\</span>
-    --pure-python <span class="se">\</span>
-<span class="p">|</span> tail -n <span class="m">1</span>
+<span class="s2">    &quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--pure-python<span class="w"> </span><span class="se">\</span>
+<span class="p">|</span><span class="w"> </span>tail<span class="w"> </span>-n<span class="w"> </span><span class="m">1</span>
 </pre></div>
 </div>
 </section>
@@ -964,11 +966,11 @@ the run has completed. You can use this option to instead end up in a live
 Python prompt, with the <a class="reference internal" href="#main-entry-point"><span class="std std-ref">main</span></a> scope available for
 exploration and further execution.</p>
 <p>You could run a simulation interactively if you wanted to:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept <span class="se">\</span>
-    -c <span class="s2">&quot;a_begin = 0.1&quot;</span> <span class="se">\</span>
-    -c <span class="s2">&quot;initial_conditions = {&#39;species&#39;: &#39;matter&#39;, &#39;N&#39;: 16**3}&quot;</span> <span class="se">\</span>
-    -i <span class="se">\</span>
-    --pure-python
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-c<span class="w"> </span><span class="s2">&quot;a_begin = 0.1&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-c<span class="w"> </span><span class="s2">&quot;initial_conditions = {&#39;species&#39;: &#39;matter&#39;, &#39;N&#39;: 16**3}&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-i<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--pure-python
 </pre></div>
 </div>
 <div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">output_times</span><span class="p">[</span><span class="s1">&#39;a&#39;</span><span class="p">][</span><span class="s1">&#39;render2D&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">render2D_times</span><span class="p">[</span><span class="s1">&#39;a&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="p">)</span>
@@ -992,7 +994,7 @@ writing auxiliary scripts, or to use it purely exploratory. Say we did not
 know the variable name and value of the gravitational constant implemented in
 CO<em>N</em>CEPT, an we wanted to find out. We might go exploring, doing
 something like</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept -i --pure-python
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>-i<span class="w"> </span>--pure-python
 </pre></div>
 </div>
 <div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># 💭 What variables are available?</span>
@@ -1017,7 +1019,7 @@ something like</p>
 <section id="version-v-version">
 <h3><a class="toc-backref" href="#id32">Version: <code class="docutils literal notranslate"><span class="pre">-v</span></code>, <code class="docutils literal notranslate"><span class="pre">--version</span></code></a><a class="headerlink" href="#version-v-version" title="Permalink to this headline"></a></h3>
 <p>Prints out the version of CO<em>N</em>CEPT that is installed:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept -v
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>-v
 </pre></div>
 </div>
 </section>

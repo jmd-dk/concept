@@ -669,6 +669,7 @@ one can extract and use (some of) the data within this file:
 
    import re
    import numpy as np
+   import matplotlib; matplotlib.use('agg')
    import matplotlib.pyplot as plt
    import scipy.interpolate
    import h5py

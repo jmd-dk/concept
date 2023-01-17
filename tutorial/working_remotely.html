@@ -196,6 +196,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../parameters/physics.html">Physics</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/physics.html#select-forces"><code class="docutils literal notranslate"><span class="pre">select_forces</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/physics.html#select-species"><code class="docutils literal notranslate"><span class="pre">select_species</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/physics.html#realization-options"><code class="docutils literal notranslate"><span class="pre">realization_options</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/physics.html#select-lives"><code class="docutils literal notranslate"><span class="pre">select_lives</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/physics.html#softening-kernel"><code class="docutils literal notranslate"><span class="pre">softening_kernel</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/physics.html#select-softening-length"><code class="docutils literal notranslate"><span class="pre">select_softening_length</span></code></a></li>
@@ -208,11 +209,12 @@
 <li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#t-rung-factor"><code class="docutils literal notranslate"><span class="pre">Δt_rung_factor</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#a-max-early"><code class="docutils literal notranslate"><span class="pre">Δa_max_early</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#a-max-late"><code class="docutils literal notranslate"><span class="pre">Δa_max_late</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#static-timestepping"><code class="docutils literal notranslate"><span class="pre">static_timestepping</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#n-rungs"><code class="docutils literal notranslate"><span class="pre">N_rungs</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#fftw-wisdom-rigor"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_rigor</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#fftw-wisdom-reuse"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_reuse</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#fftw-wisdom-share"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_share</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#random-seed"><code class="docutils literal notranslate"><span class="pre">random_seed</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#random-seeds"><code class="docutils literal notranslate"><span class="pre">random_seeds</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#primordial-amplitude-fixed"><code class="docutils literal notranslate"><span class="pre">primordial_amplitude_fixed</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#primordial-phase-shift"><code class="docutils literal notranslate"><span class="pre">primordial_phase_shift</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#cell-centered"><code class="docutils literal notranslate"><span class="pre">cell_centered</span></code></a></li>
@@ -358,10 +360,10 @@ the directives at the top of the job script.</p>
 (called <em>partition</em> in Slurm) in which to submit the job using the <code class="docutils literal notranslate"><span class="pre">-q</span></code>
 option to <code class="docutils literal notranslate"><span class="pre">concept</span></code>. Submitting a simulation using e.g. a parameter file
 named <code class="docutils literal notranslate"><span class="pre">param/tutorial</span></code> using 8 cores then looks like</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept <span class="se">\</span>
-    -p param/tutorial <span class="se">\</span>
-    -n <span class="m">8</span> <span class="se">\</span>
-    -q &lt;queue&gt;  <span class="c1"># replace &lt;queue&gt; with queue name</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-p<span class="w"> </span>param/tutorial<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-n<span class="w"> </span><span class="m">8</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-q<span class="w"> </span>&lt;queue&gt;<span class="w">  </span><span class="c1"># replace &lt;queue&gt; with queue name</span>
 </pre></div>
 </div>
 <p>The 8 cores may be distributed over several <em>(compute) nodes</em> of the cluster.
@@ -383,12 +385,12 @@ is expected to be completed, further supply the <code class="docutils literal no
 Examples of legal wall time specifications include <code class="docutils literal notranslate"><span class="pre">-w</span> <span class="pre">60min</span></code>, <code class="docutils literal notranslate"><span class="pre">-w</span> <span class="pre">60m</span></code>,
 <code class="docutils literal notranslate"><span class="pre">-w</span> <span class="pre">1hr</span></code>, <code class="docutils literal notranslate"><span class="pre">-w</span> <span class="pre">1h</span></code>, which all request one hour of wall time.</p>
 <p>A complete CO<em>N</em>CEPT job submission could then look like</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept <span class="se">\</span>
-    -p param/tutorial <span class="se">\</span>
-    -n <span class="m">8</span> <span class="se">\</span>
-    -q &lt;queue&gt; <span class="se">\</span>
-    --mem 8G <span class="se">\</span>
-    -w 1h
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-p<span class="w"> </span>param/tutorial<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-n<span class="w"> </span><span class="m">8</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-q<span class="w"> </span>&lt;queue&gt;<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--mem<span class="w"> </span>8G<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-w<span class="w"> </span>1h
 </pre></div>
 </div>
 <div class="admonition tip">
@@ -410,7 +412,7 @@ time.</p>
 <code class="docutils literal notranslate"><span class="pre">--no-watching</span></code> option to <code class="docutils literal notranslate"><span class="pre">concept</span></code> instead of having to kill the process
 after submission.</p>
 <p>You may manually run the watch utility at any later time, like so:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept -u watch &lt;ID&gt;  <span class="c1"># replace &lt;ID&gt; with job ID of remote running job</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>-u<span class="w"> </span>watch<span class="w"> </span>&lt;ID&gt;<span class="w">  </span><span class="c1"># replace &lt;ID&gt; with job ID of remote running job</span>
 </pre></div>
 </div>
 <p>The job ID — and hence log file name — of submitted jobs is determined by

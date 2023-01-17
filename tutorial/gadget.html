@@ -197,6 +197,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../parameters/physics.html">Physics</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/physics.html#select-forces"><code class="docutils literal notranslate"><span class="pre">select_forces</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/physics.html#select-species"><code class="docutils literal notranslate"><span class="pre">select_species</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/physics.html#realization-options"><code class="docutils literal notranslate"><span class="pre">realization_options</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/physics.html#select-lives"><code class="docutils literal notranslate"><span class="pre">select_lives</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/physics.html#softening-kernel"><code class="docutils literal notranslate"><span class="pre">softening_kernel</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/physics.html#select-softening-length"><code class="docutils literal notranslate"><span class="pre">select_softening_length</span></code></a></li>
@@ -209,11 +210,12 @@
 <li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#t-rung-factor"><code class="docutils literal notranslate"><span class="pre">Δt_rung_factor</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#a-max-early"><code class="docutils literal notranslate"><span class="pre">Δa_max_early</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#a-max-late"><code class="docutils literal notranslate"><span class="pre">Δa_max_late</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#static-timestepping"><code class="docutils literal notranslate"><span class="pre">static_timestepping</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#n-rungs"><code class="docutils literal notranslate"><span class="pre">N_rungs</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#fftw-wisdom-rigor"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_rigor</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#fftw-wisdom-reuse"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_reuse</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#fftw-wisdom-share"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_share</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#random-seed"><code class="docutils literal notranslate"><span class="pre">random_seed</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#random-seeds"><code class="docutils literal notranslate"><span class="pre">random_seeds</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#primordial-amplitude-fixed"><code class="docutils literal notranslate"><span class="pre">primordial_amplitude_fixed</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#primordial-phase-shift"><code class="docutils literal notranslate"><span class="pre">primordial_phase_shift</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#cell-centered"><code class="docutils literal notranslate"><span class="pre">cell_centered</span></code></a></li>
@@ -342,12 +344,12 @@
 the well-known <a class="reference external" href="https://wwwmpa.mpa-garching.mpg.de/gadget/">GADGET-2</a> code.
 Due to the two codes utilising different numerical schemes, as well as the
 fact that CO<em>N</em>CEPT — unlike GADGET-2 — is designed to be consistent
-with general relativistic perturbation theory, running simulations with
-CO<em>N</em>CEPT that are truly equivalent to those of GADGET-2 requires some
-tricks.</p>
+with general relativistic perturbation theory by default, some subtleties need
+to be taken into account in order to perform simulations with CO<em>N</em>CEPT
+that are truly equivalent to those of GADGET-2.</p>
 <p>If you are unfamiliar with GADGET-2 or have no interest in running GADGET-2
 equivalent simulations with CO<em>N</em>CEPT, you may skip this section. However,
-some of the tricks to come are not directly related to GADGET-2.</p>
+many of the tricks to come are not exclusively related to GADGET-2.</p>
 <h3>CO<em>N</em> CEPT</h3><p>As always, we start with a CO<em>N</em>CEPT parameter file, which you should save
 as e.g. <code class="docutils literal notranslate"><span class="pre">param/tutorial</span></code>:</p>
 <div class="literal-block-wrapper docutils container" id="param-gadget">
@@ -380,17 +382,18 @@ as e.g. <code class="docutils literal notranslate"><span class="pre">param/tutor
 <span class="n">Ωcdm</span> <span class="o">=</span> <span class="mf">0.27</span>
 <span class="n">a_begin</span> <span class="o">=</span> <span class="mf">0.02</span>
 
-<span class="c1"># Non-parameter variables</span>
-<span class="n">_size</span> <span class="o">=</span> <span class="mi">64</span><span class="hll"><span class="n">_gen</span> <span class="o">=</span> <span class="kc">False</span></span></pre></div>
+<span class="c1"># Physics</span><span class="hll"><span class="n">realization_options</span> <span class="o">=</span> <span class="p">{</span></span><span class="hll">    <span class="s1">&#39;gauge&#39;</span>     <span class="p">:</span> <span class="s1">&#39;synchronous&#39;</span><span class="p">,</span></span><span class="hll">    <span class="s1">&#39;back-scale&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span></span><span class="hll"><span class="p">}</span></span><span class="hll"></span>
+<span class="c1"># Non-parameter variables</span><span class="hll"><span class="n">_size</span> <span class="o">=</span> <span class="mi">64</span></span><span class="n">_gen</span> <span class="o">=</span> <span class="kc">False</span>
+</pre></div>
 </div>
 </div>
 <p>To perform the same simulation with both CO<em>N</em>CEPT and GADGET-2, we shall
 want to start from a common initial snapshot. The
 <a class="reference internal" href="#param-gadget"><span class="std std-ref">parameter file</span></a> is set up to produce this initial
 snapshot when <code class="docutils literal notranslate"><span class="pre">_gen</span></code> is <code class="docutils literal notranslate"><span class="pre">True</span></code>. To create the snapshot then, do</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept <span class="se">\</span>
-    -p param/tutorial <span class="se">\</span>
-    -c <span class="s2">&quot;_gen = True&quot;</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-p<span class="w"> </span>param/tutorial<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-c<span class="w"> </span><span class="s2">&quot;_gen = True&quot;</span>
 </pre></div>
 </div>
 <p>(as always, feel free to tack on the number of processes you want
@@ -405,7 +408,7 @@ ensures that this component gets mapped to GADGET particle type 1
 running with <code class="docutils literal notranslate"><span class="pre">-c</span> <span class="pre">&quot;_gen</span> <span class="pre">=</span> <span class="pre">False&quot;</span></code>. As this is also the value set in the
 <a class="reference internal" href="#param-gadget"><span class="std std-ref">parameter file</span></a>, we may in fact start the simulation
 simply by</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept -p param/tutorial
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>-p<span class="w"> </span>param/tutorial
 </pre></div>
 </div>
 <p>Note that the <code class="docutils literal notranslate"><span class="pre">initial_conditions</span></code> is set to the path of the generated
@@ -415,19 +418,19 @@ snapshot when <code class="docutils literal notranslate"><span class="pre">_gen<
 <h3>GADGET-2</h3><p>For GADGET-2, the first thing we need is the source code itself. If you have
 installed CO<em>N</em>CEPT the easy way, you already have it! Let’s make a copy
 just for use with this tutorial:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="o">(</span><span class="nb">source</span> concept <span class="o">&amp;&amp;</span> cp -r <span class="s2">&quot;</span><span class="si">${</span><span class="nv">Gadget2_dir</span><span class="si">}</span><span class="s2">&quot;</span> output/tutorial/<span class="o">)</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="o">(</span><span class="nb">source</span><span class="w"> </span>concept<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>cp<span class="w"> </span>-r<span class="w"> </span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">Gadget2_dir</span><span class="si">}</span><span class="s2">&quot;</span><span class="w"> </span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">output_dir</span><span class="si">}</span><span class="s2">&quot;</span>/tutorial/<span class="o">)</span>
 </pre></div>
 </div>
 <p>You now have the complete GADGET-2 code in <code class="docutils literal notranslate"><span class="pre">output/tutorial/Gadget2</span></code>.</p>
 <p>The <code class="docutils literal notranslate"><span class="pre">Makefile</span></code> of GADGET-2 needs to be set up with correct path information
 for its dependencies. Furthermore, various options need to be set in order
 for the GADGET-2 simulation to come to be equivalent to the CO<em>N</em>CEPT
-simulation. Last but not least we need a GADGET-2 parameter file equivalent to
-the <a class="reference internal" href="#param-gadget"><span class="std std-ref">CO<em>N</em>CEPT parameter file</span></a>. All of this can be
+simulation. Last but not least, we need a GADGET-2 parameter file equivalent
+to the <a class="reference internal" href="#param-gadget"><span class="std std-ref">CO<em>N</em>CEPT parameter file</span></a>. All of this can be
 conveniently achieved using the <em>gadget utility</em> included with CO<em>N</em>CEPT:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept <span class="se">\</span>
-    -u gadget output/tutorial/Gadget2 <span class="se">\</span>
-    -p param/tutorial
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-u<span class="w"> </span>gadget<span class="w"> </span>output/tutorial/Gadget2<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-p<span class="w"> </span>param/tutorial
 </pre></div>
 </div>
 <p>The <code class="docutils literal notranslate"><span class="pre">output/tutorial/Gadget2</span></code> directory now has a properly set up
@@ -446,18 +449,18 @@ essence to the P³M method used by the CO<em>N</em>CEPT simulation, the
 difference being that the tree approximates the gravitational short-range
 force by grouping particles together.</p>
 <p>Lastly, the values of physical constants employed by CO<em>N</em>CEPT and
-GADGET-2 differ slightly, which will make a noticeable difference for the
+GADGET-2 differ slightly, which will make a small difference for the
 comparison. If the GADGET-2 source code you are using is the one that goes
 with the CO<em>N</em>CEPT installation, all such constants of the GADGET-2
 source code have been patched to match the values used by CO<em>N</em>CEPT.</p>
 </div>
 <p>With the various GADGET-2 files in place, let’s build the code and launch
 the simulation:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="o">(</span><span class="nb">source</span> concept <span class="se">\</span>
-    <span class="o">&amp;&amp;</span> <span class="nb">cd</span> output/tutorial/Gadget2 <span class="se">\</span>
-    <span class="o">&amp;&amp;</span> make clean <span class="se">\</span>
-    <span class="o">&amp;&amp;</span> make <span class="se">\</span>
-    <span class="o">&amp;&amp;</span> mpiexec -n <span class="m">4</span> ./Gadget2 param<span class="o">)</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="o">(</span><span class="nb">source</span><span class="w"> </span>concept<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">cd</span><span class="w"> </span>output/tutorial/Gadget2<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w"> </span>clean<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span><span class="o">&amp;&amp;</span><span class="w"> </span>mpiexec<span class="w"> </span>-n<span class="w"> </span><span class="m">4</span><span class="w"> </span>./Gadget2<span class="w"> </span>param<span class="o">)</span>
 </pre></div>
 </div>
 <p>where you may wish to change the specified number of processes deployed.</p>
@@ -465,7 +468,7 @@ the simulation:</p>
 simulation are raw snapshots, placed along with other files in
 <code class="docutils literal notranslate"><span class="pre">output/tutorial/Gadget2/output</span></code>. To investigate these snapshots, we can
 make use of the info utility:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept -u info output/tutorial/Gadget2/output
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>-u<span class="w"> </span>info<span class="w"> </span>output/tutorial/Gadget2/output
 </pre></div>
 </div>
 <p>You should find that the snapshots indeed have the same values of the scale
@@ -473,9 +476,9 @@ factor <span class="math notranslate nohighlight">\(a\)</span> as specified in t
 (perhaps with small numerical errors).</p>
 <p>To measure the power spectra of the particle distributions contained within
 the snapshots, we may make use of the <em>powerspec utility</em>:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept <span class="se">\</span>
-    -u powerspec output/tutorial/Gadget2/output <span class="se">\</span>
-    -p param/tutorial
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-u<span class="w"> </span>powerspec<span class="w"> </span>output/tutorial/Gadget2/output<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-p<span class="w"> </span>param/tutorial
 </pre></div>
 </div>
 <p>(as always, you may choose to throw more processes at the task with <code class="docutils literal notranslate"><span class="pre">-n</span></code>).</p>
@@ -529,7 +532,7 @@ script below:</p>
 </div>
 </div>
 <p>Store the script as e.g. <code class="docutils literal notranslate"><span class="pre">output/tutorial/plot.py</span></code> and run it using</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept -m output/tutorial/plot.py
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>-m<span class="w"> </span>output/tutorial/plot.py
 </pre></div>
 </div>
 <p>The upper subplot — with absolute power spectra — of the generated
@@ -542,12 +545,12 @@ alleviate by adjusting the CO<em>N</em>CEPT simulation.</p>
 snapshot file <code class="docutils literal notranslate"><span class="pre">ic/tutorial_a=0.02</span></code>, should ideally be close to homogeneous
 and isotropic. We can check this qualitatively by plotting the distribution
 in 3D. For this, let’s use the <em>render3D utility</em>:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept <span class="se">\</span>
-    -u render3D ic/tutorial_a<span class="o">=</span><span class="m">0</span>.02 <span class="se">\</span>
-    -p param/tutorial <span class="se">\</span>
-    -c <span class="s2">&quot;render3D_resolution = 2000&quot;</span> <span class="se">\</span>
-    -c <span class="s2">&quot;render3D_colors = (&#39;black&#39;, 1.5)&quot;</span> <span class="se">\</span>
-    -c <span class="s2">&quot;render3D_bgcolor = &#39;white&#39;&quot;</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-u<span class="w"> </span>render3D<span class="w"> </span>ic/tutorial_a<span class="o">=</span><span class="m">0</span>.02<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-p<span class="w"> </span>param/tutorial<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-c<span class="w"> </span><span class="s2">&quot;render3D_resolution = 2000&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-c<span class="w"> </span><span class="s2">&quot;render3D_colors = (&#39;black&#39;, 1.5)&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-c<span class="w"> </span><span class="s2">&quot;render3D_bgcolor = &#39;white&#39;&quot;</span>
 </pre></div>
 </div>
 <p>This produces an image file in the <code class="docutils literal notranslate"><span class="pre">ic</span></code> directory. Zooming in on one of the
@@ -559,14 +562,14 @@ homogeneous system, it is far from isotropic.</p>
 which more clearly shows what we’re after. Playing around with the given
 values is encouraged. Their function should quickly become apparent.</p>
 </div>
-<p>The strong anisotropy of the particles is inherited from the grid used for
-realisation of the initial conditions. This grid-like structure of the
-particle distribution makes the system sensitive towards other grids used
-during the simulation, e.g. the potential grid. In CO<em>N</em>CEPT, a default
-choice of using ‘cell-centred’ grid discretisation is made, whereas GADGET-2
-uses ‘cell-vertex’ grid discretisation. In effect this means that the
-potential grids of the two codes are shifted by half a grid cell relative to
-each other, in all three dimensions (see the <code class="docutils literal notranslate"><span class="pre">cell_centered</span></code>
+<p>The strong anisotropy of the particles is inherited from the grid on which
+they are (pre-)initialised. This grid-like structure of the particle
+distribution makes the system sensitive towards other grids used during the
+simulation, e.g. the potential grid. In CO<em>N</em>CEPT, a default choice of
+using ‘cell-centred’ grid discretisation is made, whereas GADGET-2 uses
+‘cell-vertex’ grid discretisation. In effect this means that the potential
+grids of the two codes are shifted by half a grid cell relative to each other,
+in all three dimensions (see the <code class="docutils literal notranslate"><span class="pre">cell_centered</span></code>
 <a class="reference internal" href="../parameters/simulation.html#cell-centered"><span class="std std-ref">parameter</span></a> for more information). This detail oughtn’t
 matter much, but the grid structure imprinted on the particle distribution,
 together with the fact that our simulations are rather small
@@ -584,26 +587,21 @@ now much smaller, though still a few percent.</p>
 <p>Though we now have better agreement, we should not be tempted to conclude
 that cell-vertex discretisation is superior to its cell-centred cousin.
 The improvement came from using the <em>same</em> discretisation.</p>
-<p>Presumably the observed difference in results for the two discretisation
-schemes would be much smaller had the initial conditions not contained the
-strong anisotropies, e.g. if they had been generated from <em>glass</em>
-pre-initial conditions. This feature is not (yet) available
-in CO<em>N</em>CEPT.</p>
+<p>The observed difference in results for the two discretisation schemes would
+be smaller had the initial conditions not contained the strong
+anisotropies. CO<em>N</em>CEPT does allow for the creation of more isotropic
+initial condition by initially placing the particles on either a
+body-centered cubic (bcc) lattice or a face-centered cubic (fcc) lattice,
+rather than the standard simple cubic (sc) lattice. See the
+<code class="docutils literal notranslate"><span class="pre">initial_conditions</span></code> <a class="reference internal" href="../parameters/input_output.html#initial-conditions"><span class="std std-ref">parameter</span></a>
+for more information.</p>
 <p>Though undesirable when comparing against GADGET-2, CO<em>N</em>CEPT
 additionally effectively allows for simultaneous usage of both
 discretisation schemes by carrying out both of them followed by an
 <em>interlacing</em> step to combine the results. This technique effectively
-halves the discretisation scale, reducing the numerical artefacts. For
+lowers the discretisation scale, reducing the numerical artefacts. For
 more information about potential interlacing, see the <code class="docutils literal notranslate"><span class="pre">potential_options</span></code>
 <a class="reference internal" href="../parameters/numerics.html#potential-options"><span class="std std-ref">parameter</span></a>.</p>
-<p>Another solution is to apply a random spatial shift to the potential grid
-(or the particle positions) at each time step, an approach built into
-GADGET-4. While the size of individual force errors remain the same, their
-directions are now uncorrelated in time.</p>
-<p>The mismatch between results of cell-centred and cell-vertex simulations is
-reduced for larger simulations, as the details of what’s going on at the
-scale of a grid cell becomes more negligible for the whole. Thus for large
-(say <span class="math notranslate nohighlight">\(N \gtrsim 512^3\)</span>) simulations, we may ignore this issue.</p>
 </div>
 <h4>Radiation in the background</h4><p>A key difference between CO<em>N</em>CEPT and GADGET-2 is that the former
 — unlike the latter — tries to incorporate all species of a given
@@ -651,12 +649,10 @@ well within 1%.</p>
 including the updated <code class="docutils literal notranslate"><span class="pre">shortrange_params</span></code> when running the CO<em>N</em>CEPT
 <code class="docutils literal notranslate"><span class="pre">gadget</span></code> utility or by manually setting <code class="docutils literal notranslate"><span class="pre">RCUT</span></code> in
 <code class="docutils literal notranslate"><span class="pre">output/tutorial/Gadget2/Makefile</span></code>) and then re-compiling and -running
-GADGET-2. Improved agreement between the two codes is also achieved by
-increasing the simulation size.</p>
-<h4>Final notes</h4><p>Though it does not matter for the comparison, the simulations performed in
-this section have been performed in a manner which is slightly inconsistent
-— not which each other, but with physics.</p>
-<p>CO<em>N</em>CEPT strives to be consistent with general relativistic perturbation
+GADGET-2 and computing the power spectra from the new snapshots. Improved
+agreement between the two codes is also achieved by increasing the
+simulation size.</p>
+<h4>Final notes</h4><p>CO<em>N</em>CEPT strives to be consistent with general relativistic perturbation
 theory. It does so by using the full background from CLASS, and adding in
 gravitational effects from linear perturbations of other species (when
 <a class="reference internal" href="beyond_matter_only.html"><span class="doc">enabled</span></a>), ensuring that the simulation stays in
@@ -674,28 +670,29 @@ initial conditions at <span class="math notranslate nohighlight">\(a = a_{\text{
 general relativistic perturbations theory (which also accounts for radiation)
 at <span class="math notranslate nohighlight">\(a = 1\)</span>, but scaled back in time using the Newtonian growth factor.
 Thus, only the <span class="math notranslate nohighlight">\(a = 1\)</span> results of such <em>back-scaled</em> simulations are
-really physical.</p>
-<p>As CO<em>N</em>CEPT works in <em>N</em>-body gauge, the initial conditions generated for
-this section are in this gauge. As the corresponding <em>N</em>-body gauge
-perturbations have not been continually applied to the particles during their
-evolution, these have drifted away from this gauge. As we further did not
-use back-scaling for the initial conditions (CO<em>N</em>CEPT simply realises
-the <span class="math notranslate nohighlight">\(a = a_{\text{begin}}\)</span> <em>N</em>-body gauge perturbations directly), the
-<span class="math notranslate nohighlight">\(a = 1\)</span> results deviate slightly from what we would have got,
-starting from back-scaled initial conditions. The simulations ran during this
-section is then not quite compatible with either of these two standards.</p>
-<p>Note that with <code class="docutils literal notranslate"><span class="pre">enable_class_background</span> <span class="pre">=</span> <span class="pre">False</span></code> and without adding in
-linear species, CO<em>N</em>CEPT <em>does</em> evolve the system just like GADGET-2,
-i.e. with the exact same physics. The <em>N</em>-body gauge vs. back-scaling issue
-then only concerns the initial conditions. To run CO<em>N</em>CEPT with
-back-scaled initial conditions, simply provide such an initial snapshot
-yourself (as back-scaling is not available as an option when generating
-initial conditions with CO<em>N</em>CEPT).</p>
-<p>With the above note of warning about the perils of insufficient rigour taken
-towards the two techniques of the <em>N</em>-body gauge and back-scaling, let it be
-said that the results from the two techniques (and indeed the “mixed”
-technique used by the simulations in this section) differ only slightly
-— assuming simple <span class="math notranslate nohighlight">\(\Lambda\)</span>CDM cosmologies.</p>
+really physical. The <code class="docutils literal notranslate"><span class="pre">realization_options</span></code>
+<a class="reference internal" href="../parameters/physics.html#realization-options"><span class="std std-ref">parameter</span></a> in the
+<a class="reference internal" href="#param-gadget"><span class="std std-ref">parameter file used for this section</span></a> specifies that
+back-scaling should be used when generating the initial conditions, and also
+that this should be done within the synchronous gauge (as opposed to the
+default <em>N</em>-body gauge), as is typically used with back-scaling.</p>
+<p>When using back-scaling, the particle velocities are obtained from the same
+(<span class="math notranslate nohighlight">\(\delta\)</span>) transfer function as the positions, using a Newtonian
+approximation. The velocities are thus not the actual synchronous gauge
+velocities, but are in fact closer to the velocities within the <em>N</em>-body
+gauge, as obtained from the <span class="math notranslate nohighlight">\(\theta\)</span> transfer function and no
+back-scaling. As the synchronous and <em>N</em>-body gauge <span class="math notranslate nohighlight">\(\delta\)</span> transfer
+functions are quite similar, the back-scaled synchronous gauge initial
+conditions — used within this section — are then in fact very similar to
+the non-back-scaled <em>N</em>-body gauge initial conditions used within
+CO<em>N</em>CEPT by default. The specifications within <code class="docutils literal notranslate"><span class="pre">realization_options</span></code> in
+the <a class="reference internal" href="#param-gadget"><span class="std std-ref">parameter file</span></a> are thus not very crucial for the
+results, but mostly put there to comply with the spirit of Newtonian
+<em>N</em>-body simulations and GADGET-2. We note again that the real difference
+between the <em>N</em>-body gauge approach and the back-scaled, synchronous gauge
+approach is to be found outside basic <span class="math notranslate nohighlight">\(\Lambda\)</span>CDM cosmologies and
+matter-only simulations, where the Newtonian approximations used for the
+back-scaling break down.</p>
 </section>
 
 

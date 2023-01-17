@@ -197,6 +197,7 @@
 <li class="toctree-l2"><a class="reference internal" href="physics.html">Physics</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="physics.html#select-forces"><code class="docutils literal notranslate"><span class="pre">select_forces</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="physics.html#select-species"><code class="docutils literal notranslate"><span class="pre">select_species</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="physics.html#realization-options"><code class="docutils literal notranslate"><span class="pre">realization_options</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="physics.html#select-lives"><code class="docutils literal notranslate"><span class="pre">select_lives</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="physics.html#softening-kernel"><code class="docutils literal notranslate"><span class="pre">softening_kernel</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="physics.html#select-softening-length"><code class="docutils literal notranslate"><span class="pre">select_softening_length</span></code></a></li>
@@ -209,11 +210,12 @@
 <li class="toctree-l3"><a class="reference internal" href="simulation.html#t-rung-factor"><code class="docutils literal notranslate"><span class="pre">Δt_rung_factor</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="simulation.html#a-max-early"><code class="docutils literal notranslate"><span class="pre">Δa_max_early</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="simulation.html#a-max-late"><code class="docutils literal notranslate"><span class="pre">Δa_max_late</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#static-timestepping"><code class="docutils literal notranslate"><span class="pre">static_timestepping</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="simulation.html#n-rungs"><code class="docutils literal notranslate"><span class="pre">N_rungs</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="simulation.html#fftw-wisdom-rigor"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_rigor</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="simulation.html#fftw-wisdom-reuse"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_reuse</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="simulation.html#fftw-wisdom-share"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_share</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="simulation.html#random-seed"><code class="docutils literal notranslate"><span class="pre">random_seed</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#random-seeds"><code class="docutils literal notranslate"><span class="pre">random_seeds</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="simulation.html#primordial-amplitude-fixed"><code class="docutils literal notranslate"><span class="pre">primordial_amplitude_fixed</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="simulation.html#primordial-phase-shift"><code class="docutils literal notranslate"><span class="pre">primordial_phase_shift</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="simulation.html#cell-centered"><code class="docutils literal notranslate"><span class="pre">cell_centered</span></code></a></li>
@@ -447,11 +449,11 @@ this is equivalent to</p>
         <span class="s1">&#39;global&#39;</span><span class="p">:</span> <span class="p">{},</span>
         <span class="s1">&#39;particles&#39;</span><span class="p">:</span> <span class="p">{</span>
             <span class="s1">&#39;gravity&#39;</span><span class="p">:</span> <span class="p">{</span>
-                <span class="s1">&#39;pm&#39;</span> <span class="p">:</span> <span class="p">(</span>  <span class="s1">&#39;cbrt(N)&#39;</span><span class="p">,</span>   <span class="s1">&#39;cbrt(N)&#39;</span><span class="p">)</span>
-                <span class="s1">&#39;p3m&#39;</span><span class="p">:</span> <span class="p">(</span><span class="s1">&#39;2*cbrt(N)&#39;</span><span class="p">,</span> <span class="s1">&#39;2*cbrt(N)&#39;</span><span class="p">),</span>
+                <span class="s1">&#39;pm&#39;</span> <span class="p">:</span> <span class="p">(</span>  <span class="s1">&#39;cbrt(Ñ)&#39;</span><span class="p">,</span>   <span class="s1">&#39;cbrt(Ñ)&#39;</span><span class="p">),</span>
+                <span class="s1">&#39;p3m&#39;</span><span class="p">:</span> <span class="p">(</span><span class="s1">&#39;2*cbrt(Ñ)&#39;</span><span class="p">,</span> <span class="s1">&#39;2*cbrt(Ñ)&#39;</span><span class="p">),</span>
             <span class="p">},</span>
             <span class="s1">&#39;lapse&#39;</span><span class="p">:</span> <span class="p">{</span>
-                <span class="s1">&#39;pm&#39;</span><span class="p">:</span> <span class="p">(</span><span class="s1">&#39;cbrt(N)&#39;</span><span class="p">,</span> <span class="s1">&#39;cbrt(N)&#39;</span><span class="p">),</span>
+                <span class="s1">&#39;pm&#39;</span><span class="p">:</span> <span class="p">(</span><span class="s1">&#39;cbrt(Ñ)&#39;</span><span class="p">,</span> <span class="s1">&#39;cbrt(Ñ)&#39;</span><span class="p">),</span>
             <span class="p">},</span>
         <span class="p">},</span>
         <span class="s1">&#39;fluid&#39;</span><span class="p">:</span> <span class="p">{</span>
@@ -483,11 +485,11 @@ this is equivalent to</p>
     <span class="p">},</span>
     <span class="s1">&#39;interlace&#39;</span><span class="p">:</span> <span class="p">{</span>
         <span class="s1">&#39;gravity&#39;</span><span class="p">:</span> <span class="p">{</span>
-            <span class="s1">&#39;pm&#39;</span> <span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
-            <span class="s1">&#39;p3m&#39;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+            <span class="s1">&#39;pm&#39;</span> <span class="p">:</span> <span class="p">(</span><span class="kc">False</span><span class="p">,</span> <span class="kc">False</span><span class="p">),</span>
+            <span class="s1">&#39;p3m&#39;</span><span class="p">:</span> <span class="p">(</span><span class="kc">False</span><span class="p">,</span> <span class="kc">False</span><span class="p">),</span>
         <span class="p">},</span>
         <span class="s1">&#39;lapse&#39;</span><span class="p">:</span> <span class="p">{</span>
-            <span class="s1">&#39;pm&#39;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+            <span class="s1">&#39;pm&#39;</span><span class="p">:</span> <span class="p">(</span><span class="kc">False</span><span class="p">,</span> <span class="kc">False</span><span class="p">),</span>
         <span class="p">},</span>
     <span class="p">},</span>
     <span class="s1">&#39;differentiation&#39;</span><span class="p">:</span> <span class="p">{</span>
@@ -542,8 +544,8 @@ between two groups of
 the <em>suppliers</em> and the <em>receivers</em>, which respectively
 build the potential and receive a force due to it. In
 the simplest case of self-gravity between particles of
-a component, this component is both the sole supplier
-and receiver component.</p>
+a single component, this component is both the sole
+supplier and receiver component.</p>
 <p>CO<em>N</em>CEPT uses an ‘<em>upstream</em> <span class="math notranslate nohighlight">\(\rightarrow\)</span>
 <em>global</em> <span class="math notranslate nohighlight">\(\rightarrow\)</span> <em>downstream</em> scheme’ for
 potentials, as outlined below:</p>
@@ -553,11 +555,14 @@ potentials, as outlined below:</p>
 each component. More precisely, a specific quantity
 of the supplier components is interpolated, e.g. the
 mass (particle components) or energy density (fluid
-components) in the case of gravity.</p></li>
+components) in the case of gravity. For particle
+components, the interpolation may be interlaced,
+meaning carried out multiple times with shifted
+grids.</p></li>
 <li><p>Transform each upstream grid to Fourier space.</p></li>
-<li><p>Optionally perform deconvolution and interlacing of
-upstream grids constructed from particle suppliers
-(see
+<li><p>Optionally perform deconvolution and/or shifting of
+the complex phase (due to interlacing) of upstream
+grids constructed from particle suppliers (see
 “<a class="reference external" href="https://dx.doi.org/10.1201/9780367806934">Computer simulation using particles</a>”).</p></li>
 <li><p>Add upstream Fourier grids together, producing a
 ‘global’ Fourier grid, with the global grid size
@@ -568,16 +573,16 @@ being a free parameter.</p>
 together in Fourier space, as all
 <span class="math notranslate nohighlight">\(\boldsymbol{k}\)</span> modes (grid cells) of
 smaller grids are contained within larger grids.
-One need to be careful though, as complex phase
-shifts are needed to correct for the change of
-grid size.</p>
+Complex phase shifts are needed to correct for the
+change of grid size, all taken care of
+by CO<em>N</em>CEPT.</p>
 </div>
 </li>
 <li><p>Convert the values within the global grid to
 potential values. For gravity, this amounts to
 solving the Poisson equation.</p></li>
 <li><p>For each receiver component, produce a ‘downstream’
-version of the global Fourier potential, by copying
+version of the global Fourier potential by copying
 (and shifting) the modes onto grids individual to
 each receiver.</p></li>
 <li><p>Optionally perform (another) deconvolution for
@@ -608,7 +613,11 @@ multiplication by
 </div></blockquote>
 <ol class="arabic simple" start="10">
 <li><p>Apply each force grid by interpolating it back onto
-the corresponding receiver.</p></li>
+the corresponding receiver. This downstream
+interpolation may again be carried out using
+interlacing, requiring steps 8–9 to be carried out
+multiple times as well as shifting of the
+complex phases.</p></li>
 </ol>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
@@ -657,7 +666,15 @@ above default specifications. Similarly,
 intrinsic ‘fluid grid size’ of fluid components.
 Importantly, fluid components must have upstream
 and downstream grid sizes equal to their fluid grid
-size.</p>
+size. For particle components with <span class="math notranslate nohighlight">\(N = 2n^3\)</span>
+or <span class="math notranslate nohighlight">\(N = 4n^3\)</span> particles (pre-initialised on
+interleaved lattices, see the <code class="docutils literal notranslate"><span class="pre">initial_conditions</span></code>
+<a class="reference internal" href="input_output.html#initial-conditions"><span class="std std-ref">parameter</span></a>), you can
+refer to just the cubic part as <code class="docutils literal notranslate"><span class="pre">'Ñ'</span></code>. That is,
+regardless of whether the number of particles is
+<span class="math notranslate nohighlight">\(N = n^3\)</span>, <span class="math notranslate nohighlight">\(N = 2n^3\)</span> or
+<span class="math notranslate nohighlight">\(N = 4n^3\)</span>, we always have
+<span class="math notranslate nohighlight">\(\widetilde{N} = n^3\)</span>.</p>
 </div>
 <p>A special key <code class="docutils literal notranslate"><span class="pre">'global'</span></code> is further specified within
 the <code class="docutils literal notranslate"><span class="pre">'gridsize'</span></code> sub-<code class="docutils literal notranslate"><span class="pre">dict</span></code>, with a value of the
@@ -725,15 +742,22 @@ interpolation should take place.</p>
 <li><p><code class="docutils literal notranslate"><span class="pre">'interlace'</span></code>: This is a <code class="docutils literal notranslate"><span class="pre">dict</span></code> of the form</p>
 <div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="s1">&#39;dinterlace&#39;</span><span class="p">:</span> <span class="p">{</span>
     <span class="s1">&#39;gravity&#39;</span><span class="p">:</span> <span class="p">{</span>
-        <span class="s1">&#39;pm&#39;</span> <span class="p">:</span> <span class="n">interlace_pm</span><span class="p">,</span>
-        <span class="s1">&#39;p3m&#39;</span><span class="p">:</span> <span class="n">interlace_p3m</span><span class="p">,</span>
+        <span class="s1">&#39;pm&#39;</span> <span class="p">:</span> <span class="p">(</span><span class="n">interlace_pm_upstream</span><span class="p">,</span>  <span class="n">interlace_pm_downstream</span><span class="p">),</span>
+        <span class="s1">&#39;p3m&#39;</span><span class="p">:</span> <span class="p">(</span><span class="n">interlace_p3m_upstream</span><span class="p">,</span> <span class="n">interlace_p3m_downstream</span><span class="p">),</span>
     <span class="p">},</span>
 <span class="p">}</span>
 </pre></div>
 </div>
 <p>with the <code class="docutils literal notranslate"><span class="pre">interlace_*</span></code> variables specifying whether
-grid interlacing should be used when interpolating
-particles onto upstream grids.</p>
+grid interlacing should be used for particle upstream
+and downstream interpolation.  Possible values are
+<code class="docutils literal notranslate"><span class="pre">'sc'</span></code> (or <code class="docutils literal notranslate"><span class="pre">False</span></code>) for a simple cubic lattice
+(meaning no interlacing), <code class="docutils literal notranslate"><span class="pre">'bcc'</span></code> (or <code class="docutils literal notranslate"><span class="pre">True</span></code>) for
+a body-centered cubic lattice (meaning standard
+interlacing involving two relatively shifted particle
+interpolations) or <code class="docutils literal notranslate"><span class="pre">'fcc'</span></code> for a face-centered cubic
+lattice (meaning interlacing involving four relatively
+shifted particle interpolations).</p>
 </li>
 <li><p><code class="docutils literal notranslate"><span class="pre">'differentiation'</span></code>: This is a
 <a class="reference internal" href="parameters.html#components-and-selections"><span class="std std-ref">component selection</span></a>
@@ -879,15 +903,16 @@ for which these are unset, including <code class="docutils literal notranslate">
 <td><p></p></td>
 <td><p>For the gravitational interaction, be it PM or P³M, make
 use of the highest available order for particle
-interpolation (PCS), as well as interlacing. Use
-<span class="math notranslate nohighlight">\(80\)</span> as the size of all potential grids.</p>
+interpolation (PCS), as well as both upstream and
+downstream (standard) interlacing. Use <span class="math notranslate nohighlight">\(80\)</span> as the
+size of all potential grids.</p>
 <div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">potential_options</span> <span class="o">=</span> <span class="p">{</span>
     <span class="s1">&#39;gridsize&#39;</span><span class="p">:</span> <span class="mi">80</span><span class="p">,</span>
     <span class="s1">&#39;interpolation&#39;</span><span class="p">:</span> <span class="p">{</span>
         <span class="s1">&#39;gravity&#39;</span><span class="p">:</span> <span class="s1">&#39;PCS&#39;</span><span class="p">,</span>
     <span class="p">},</span>
     <span class="s1">&#39;interlace&#39;</span><span class="p">:</span> <span class="p">{</span>
-        <span class="s1">&#39;gravity&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="s1">&#39;gravity&#39;</span><span class="p">:</span> <span class="p">(</span><span class="kc">True</span><span class="p">,</span> <span class="kc">True</span><span class="p">),</span>  <span class="c1"># or (&#39;bcc&#39;, &#39;bcc&#39;)</span>
     <span class="p">}</span>
 <span class="p">}</span>
 </pre></div>
@@ -1111,7 +1136,7 @@ and dumps</p></td>
 <td><p></p></td>
 <td><div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
     <span class="s1">&#39;upstream gridsize&#39;</span><span class="p">:</span> <span class="p">{</span>
-        <span class="s1">&#39;particles&#39;</span><span class="p">:</span> <span class="s1">&#39;2*cbrt(N)&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;particles&#39;</span><span class="p">:</span> <span class="s1">&#39;2*cbrt(Ñ)&#39;</span><span class="p">,</span>
         <span class="s1">&#39;fluid&#39;</span>    <span class="p">:</span> <span class="s1">&#39;gridsize&#39;</span><span class="p">,</span>
     <span class="p">},</span>
     <span class="s1">&#39;global gridsize&#39;</span><span class="p">:</span> <span class="p">{},</span>
@@ -1164,7 +1189,10 @@ of the scheme.</p>
 <p>Each sub-parameter is described below:</p>
 <ul>
 <li><p><code class="docutils literal notranslate"><span class="pre">'upstream</span> <span class="pre">gridsize'</span></code>: Specifies the upstream grid
-sizes to use for each component.</p></li>
+sizes to use for each component. See the
+<code class="docutils literal notranslate"><span class="pre">potential_options</span></code>
+<a class="reference internal" href="#potential-options"><span class="std std-ref">parameter</span></a> for the use of
+the <code class="docutils literal notranslate"><span class="pre">'Ñ'</span></code> notation.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">'global</span> <span class="pre">gridsize'</span></code>: Specifies the global grid size
 to use for each power spectrum. Which power spectra to
 compute are in turn specified by the
@@ -1193,7 +1221,14 @@ The implemented interpolations are:</p>
 <li><p><code class="docutils literal notranslate"><span class="pre">'deconvolve'</span></code>: Specifies whether to apply
 deconvolution for upstream particle interpolations.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">'interlace'</span></code>: Specifies whether to use interlacing
-for upstream particle interpolations.</p></li>
+for upstream particle interpolations. Possible values
+are <code class="docutils literal notranslate"><span class="pre">'sc'</span></code> (or <code class="docutils literal notranslate"><span class="pre">False</span></code>) for a simple cubic lattice
+(meaning no interlacing), <code class="docutils literal notranslate"><span class="pre">'bcc'</span></code> (or <code class="docutils literal notranslate"><span class="pre">True</span></code>) for
+a body-centered cubic lattice (meaning standard
+interlacing involving two relatively shifted particle
+interpolations) or <code class="docutils literal notranslate"><span class="pre">'fcc'</span></code> for a face-centered cubic
+lattice (meaning interlacing involving four relatively
+shifted particle interpolations).</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">'k_max'</span></code>: Specifies the largest <span class="math notranslate nohighlight">\(k\)</span> mode to
 include in the power spectrum output files (data files
 and plots). If given as a <code class="docutils literal notranslate"><span class="pre">str</span></code>, <code class="docutils literal notranslate"><span class="pre">'nyquist'</span></code> is
@@ -1320,7 +1355,7 @@ spectra of the component with a name/species of
         <span class="s1">&#39;matter&#39;</span><span class="p">:</span> <span class="s1">&#39;CIC&#39;</span><span class="p">,</span>
     <span class="p">},</span>
     <span class="s1">&#39;interlace&#39;</span><span class="p">:</span> <span class="p">{</span>
-        <span class="s1">&#39;matter&#39;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="s1">&#39;matter&#39;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>  <span class="c1"># or &#39;sc&#39;</span>
     <span class="p">}</span>
 <span class="p">}</span>
 </pre></div>

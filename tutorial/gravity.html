@@ -197,6 +197,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../parameters/physics.html">Physics</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/physics.html#select-forces"><code class="docutils literal notranslate"><span class="pre">select_forces</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/physics.html#select-species"><code class="docutils literal notranslate"><span class="pre">select_species</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/physics.html#realization-options"><code class="docutils literal notranslate"><span class="pre">realization_options</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/physics.html#select-lives"><code class="docutils literal notranslate"><span class="pre">select_lives</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/physics.html#softening-kernel"><code class="docutils literal notranslate"><span class="pre">softening_kernel</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/physics.html#select-softening-length"><code class="docutils literal notranslate"><span class="pre">select_softening_length</span></code></a></li>
@@ -209,11 +210,12 @@
 <li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#t-rung-factor"><code class="docutils literal notranslate"><span class="pre">Δt_rung_factor</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#a-max-early"><code class="docutils literal notranslate"><span class="pre">Δa_max_early</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#a-max-late"><code class="docutils literal notranslate"><span class="pre">Δa_max_late</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#static-timestepping"><code class="docutils literal notranslate"><span class="pre">static_timestepping</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#n-rungs"><code class="docutils literal notranslate"><span class="pre">N_rungs</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#fftw-wisdom-rigor"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_rigor</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#fftw-wisdom-reuse"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_reuse</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#fftw-wisdom-share"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_share</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#random-seed"><code class="docutils literal notranslate"><span class="pre">random_seed</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#random-seeds"><code class="docutils literal notranslate"><span class="pre">random_seeds</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#primordial-amplitude-fixed"><code class="docutils literal notranslate"><span class="pre">primordial_amplitude_fixed</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#primordial-phase-shift"><code class="docutils literal notranslate"><span class="pre">primordial_phase_shift</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#cell-centered"><code class="docutils literal notranslate"><span class="pre">cell_centered</span></code></a></li>
@@ -382,7 +384,7 @@ to the ones encountered in the previous section.</p>
 work, you may safely overwrite the old content. Similarly, it’s best to
 clean up (or remove entirely) the <code class="docutils literal notranslate"><span class="pre">output/tutorial</span></code> directory before
 continuing. If you wish to keep the old content, you can do e.g.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>mv output/tutorial output/tutorial_3
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>mv<span class="w"> </span>output/tutorial<span class="w"> </span>output/tutorial_3
 </pre></div>
 </div>
 <p>If you wish to store the outputs of each tutorial section separately, you
@@ -392,9 +394,9 @@ file name.</p>
 </div>
 <p>Now run a simulation using the <a class="reference internal" href="#param-gravity"><span class="std std-ref">tutorial</span></a> parameter file
 by executing</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept <span class="se">\</span>
-    -p param/tutorial <span class="se">\</span>
-    -c <span class="s2">&quot;_sim = &#39;A&#39;&quot;</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-p<span class="w"> </span>param/tutorial<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-c<span class="w"> </span><span class="s2">&quot;_sim = &#39;A&#39;&quot;</span>
 </pre></div>
 </div>
 <p>and optionally specifying whatever number of processes you’d like with the
@@ -427,9 +429,9 @@ To try this out, update <code class="docutils literal notranslate"><span class="
 </pre></div>
 </div>
 <p>in <code class="docutils literal notranslate"><span class="pre">param/tutorial</span></code> and run a new simulation, this time using</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept <span class="se">\</span>
-    -p param/tutorial <span class="se">\</span>
-    -c <span class="s2">&quot;_sim = &#39;B&#39;&quot;</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-p<span class="w"> </span>param/tutorial<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-c<span class="w"> </span><span class="s2">&quot;_sim = &#39;B&#39;&quot;</span>
 </pre></div>
 </div>
 <p>Visually comparing <code class="docutils literal notranslate"><span class="pre">powerspec_A_a=1.00.png</span></code> to <code class="docutils literal notranslate"><span class="pre">powerspec_B_a=1.00.png</span></code>,
@@ -441,9 +443,9 @@ the grid size, i.e. switch to using</p>
 </pre></div>
 </div>
 <p>in <code class="docutils literal notranslate"><span class="pre">param/tutorial</span></code> and execute</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept <span class="se">\</span>
-    -p param/tutorial <span class="se">\</span>
-    -c <span class="s2">&quot;_sim = &#39;C&#39;&quot;</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-p<span class="w"> </span>param/tutorial<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-c<span class="w"> </span><span class="s2">&quot;_sim = &#39;C&#39;&quot;</span>
 </pre></div>
 </div>
 <p>Properly comparing the three individual output plots is not so easy. To better
@@ -479,7 +481,7 @@ script below:</p>
 <span class="k">for</span> <span class="n">sim</span><span class="p">,</span> <span class="n">P_sim</span> <span class="ow">in</span> <span class="n">P_sims</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
     <span class="n">linestyle</span> <span class="o">=</span> <span class="n">linestyles</span><span class="p">[</span>
         <span class="nb">sum</span><span class="p">(</span>
-            <span class="n">np</span><span class="o">.</span><span class="n">allclose</span><span class="p">(</span><span class="n">line</span><span class="o">.</span><span class="n">get_ydata</span><span class="p">(),</span> <span class="n">P_sim</span><span class="p">,</span> <span class="mf">5e-2</span><span class="p">)</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">allclose</span><span class="p">(</span><span class="n">line</span><span class="o">.</span><span class="n">get_ydata</span><span class="p">(),</span> <span class="n">P_sim</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">)</span>
             <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">ax</span><span class="o">.</span><span class="n">lines</span>
             <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">line</span><span class="o">.</span><span class="n">get_ydata</span><span class="p">())</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">P_sim</span><span class="p">)</span>
         <span class="p">)</span>
@@ -502,7 +504,7 @@ script below:</p>
 on in the tutorial — without studying it in any detail. To run the script,
 save the <a class="reference internal" href="#plot-gravity"><span class="std std-ref">above code</span></a> to a file in the <code class="docutils literal notranslate"><span class="pre">output/tutorial</span></code>
 directory, say <code class="docutils literal notranslate"><span class="pre">output/tutorial/plot.py</span></code>, then do</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept -m output/tutorial/plot.py
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>-m<span class="w"> </span>output/tutorial/plot.py
 </pre></div>
 </div>
 <div class="admonition note">
@@ -558,10 +560,10 @@ You will find that this time, the P³M simulation isn’t nearly as slow, as
 the smaller potential cell size means that there is less work to be done for
 the short-range part.</p>
 <p>Updating the comparison plot with the latest result, we see some long-awaited
-stability: The two P³M simulations give very nearly identical results, and
-as such these are the ones we should put our trust in.</p>
-<p>As changing the size of the potential grid under P³M doesn’t really affect
-the output, we are free to optimize it for performance. Generally, using a P³M
+stability: The two P³M simulations give very similar results, and as such
+these are the ones in which we should put our trust.</p>
+<p>As changing the size of the potential grid under P³M doesn’t much affect the
+output, we are free to optimize it for performance. Generally, using a P³M
 grid twice that of the “particle grid”
 (<code class="docutils literal notranslate"><span class="pre">potential_options</span></code><span class="math notranslate nohighlight">\(= 2 \sqrt[3]{N}\)</span>) is recommended;</p>
 <div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">potential_options</span> <span class="o">=</span> <span class="mi">2</span><span class="o">*</span><span class="n">_size</span>

@@ -47,14 +47,13 @@ and plot.
 
    <h2>Don't forget about gravity</h2>
 
-The above simulation should take about a minute to complete, with almost none
-of the time spent on the actual simulation (time-stepping), but rather on the
-generation of initial conditions. The reason for this rapid time-stepping is
-that CO\ *N*\ CEPT does not assign interactions implicitly, meaning that no
-gravitational forces were applied during the simulation. This also explains
-the low simulation power spectrum compared to the linear power spectrum (which
-do include the effects of gravity), both of which are present in
-``output/powerspec_a=1.00`` and ``output/powerspec_a=1.00.png``.
+The above simulation should only take a few seconds to complete. The reason
+for the rapid time evolution is that CO\ *N*\ CEPT does not assign
+interactions implicitly, meaning that no gravitational forces were applied
+during the simulation. This also explains the low simulation power spectrum
+compared to the linear power spectrum (which do include the effects of
+gravity), both of which are present in ``output/powerspec_a=1.00``
+and ``output/powerspec_a=1.00.png``.
 
 Let's try again, this time specifying a size for the gravitational potential
 grid:

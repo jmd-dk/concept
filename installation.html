@@ -198,6 +198,7 @@
 <li class="toctree-l2"><a class="reference internal" href="parameters/physics.html">Physics</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="parameters/physics.html#select-forces"><code class="docutils literal notranslate"><span class="pre">select_forces</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="parameters/physics.html#select-species"><code class="docutils literal notranslate"><span class="pre">select_species</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="parameters/physics.html#realization-options"><code class="docutils literal notranslate"><span class="pre">realization_options</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="parameters/physics.html#select-lives"><code class="docutils literal notranslate"><span class="pre">select_lives</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="parameters/physics.html#softening-kernel"><code class="docutils literal notranslate"><span class="pre">softening_kernel</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="parameters/physics.html#select-softening-length"><code class="docutils literal notranslate"><span class="pre">select_softening_length</span></code></a></li>
@@ -210,11 +211,12 @@
 <li class="toctree-l3"><a class="reference internal" href="parameters/simulation.html#t-rung-factor"><code class="docutils literal notranslate"><span class="pre">Δt_rung_factor</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="parameters/simulation.html#a-max-early"><code class="docutils literal notranslate"><span class="pre">Δa_max_early</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="parameters/simulation.html#a-max-late"><code class="docutils literal notranslate"><span class="pre">Δa_max_late</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="parameters/simulation.html#static-timestepping"><code class="docutils literal notranslate"><span class="pre">static_timestepping</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="parameters/simulation.html#n-rungs"><code class="docutils literal notranslate"><span class="pre">N_rungs</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="parameters/simulation.html#fftw-wisdom-rigor"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_rigor</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="parameters/simulation.html#fftw-wisdom-reuse"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_reuse</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="parameters/simulation.html#fftw-wisdom-share"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_share</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="parameters/simulation.html#random-seed"><code class="docutils literal notranslate"><span class="pre">random_seed</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="parameters/simulation.html#random-seeds"><code class="docutils literal notranslate"><span class="pre">random_seeds</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="parameters/simulation.html#primordial-amplitude-fixed"><code class="docutils literal notranslate"><span class="pre">primordial_amplitude_fixed</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="parameters/simulation.html#primordial-phase-shift"><code class="docutils literal notranslate"><span class="pre">primordial_phase_shift</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="parameters/simulation.html#cell-centered"><code class="docutils literal notranslate"><span class="pre">cell_centered</span></code></a></li>
@@ -417,7 +419,7 @@ from the installation process entirely (assuming you have
 <a class="reference external" href="https://www.docker.com/">Docker</a> already installed).</p>
 <p>To start a Docker container based on the latest CO<em>N</em>CEPT Docker
 image, do e.g.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>docker run --rm -it -v <span class="s2">&quot;</span><span class="si">${</span><span class="nv">PWD</span><span class="si">}</span><span class="s2">:/concept/output&quot;</span> jmddk/concept
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>-it<span class="w"> </span>-v<span class="w"> </span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">PWD</span><span class="si">}</span><span class="s2">:/concept/output&quot;</span><span class="w"> </span>jmddk/concept
 </pre></div>
 </div>
 <p>Any files dumped in the CO<em>N</em>CEPT <code class="docutils literal notranslate"><span class="pre">output</span></code> directory will then
@@ -442,18 +444,18 @@ performance.</p>
 on <a class="reference external" href="https://hub.docker.com/_/debian">Debian</a>. If you want access to
 additional software (e.g. Git or a text editor) within a Docker
 container, first run</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo apt update
-sudo apt install -y ca-certificates <span class="m">2</span>&gt;/dev/null <span class="o">||</span> sudo apt install -y ca-certificates
-sudo apt install -y apt-utils
-sudo apt install -y gfortran
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>apt<span class="w"> </span>update
+sudo<span class="w"> </span>apt<span class="w"> </span>install<span class="w"> </span>-y<span class="w"> </span>ca-certificates<span class="w"> </span><span class="m">2</span>&gt;/dev/null<span class="w"> </span><span class="o">||</span><span class="w"> </span>sudo<span class="w"> </span>apt<span class="w"> </span>install<span class="w"> </span>-y<span class="w"> </span>ca-certificates
+sudo<span class="w"> </span>apt<span class="w"> </span>install<span class="w"> </span>-y<span class="w"> </span>apt-utils
+sudo<span class="w"> </span>apt<span class="w"> </span>install<span class="w"> </span>-y<span class="w"> </span>gfortran
 </pre></div>
 </div>
 <p>after which you may search for software packages to install using</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>apt search &lt;keyword&gt;
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>apt<span class="w"> </span>search<span class="w"> </span>&lt;keyword&gt;
 </pre></div>
 </div>
 <p>and install a package using</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo apt install &lt;package&gt;
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>apt<span class="w"> </span>install<span class="w"> </span>&lt;package&gt;
 </pre></div>
 </div>
 <p>Note that the default user (<code class="docutils literal notranslate"><span class="pre">concept</span></code>) has root access via <code class="docutils literal notranslate"><span class="pre">sudo</span></code>
@@ -468,12 +470,12 @@ to use the CO<em>N</em>CEPT <code class="docutils literal notranslate"><span cla
 CO<em>N</em>CEPT source code, and so if you have CO<em>N</em>CEPT already
 <a class="reference external" href="https://github.com/jmd-dk/concept">downloaded</a>, you may locate and run
 this script:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>bash install
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>bash<span class="w"> </span>install
 </pre></div>
 </div>
 <p>However, the simplest way to run the script is to just execute</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">concept_version</span><span class="o">=</span>v1.0.1
-bash &lt;<span class="o">(</span>wget -O- https://raw.githubusercontent.com/jmd-dk/concept/<span class="si">${</span><span class="nv">concept_version</span><span class="si">}</span>/install<span class="o">)</span>
+bash<span class="w"> </span>&lt;<span class="o">(</span>wget<span class="w"> </span>-O-<span class="w"> </span>https://raw.githubusercontent.com/jmd-dk/concept/<span class="si">${</span><span class="nv">concept_version</span><span class="si">}</span>/install<span class="o">)</span>
 </pre></div>
 </div>
 <p>in a terminal, which will fetch and run the <code class="docutils literal notranslate"><span class="pre">install</span></code> script directly from
@@ -551,7 +553,7 @@ CO<em>N</em>CEPT using an MPI library already present on the cluster, presumably
 configured optimally by the system administrator. To do this, simply set the
 <code class="docutils literal notranslate"><span class="pre">mpi_dir</span></code> variable to the directory containing this MPI library when
 invoking the <code class="docutils literal notranslate"><span class="pre">install</span></code> script, e.g.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">mpi_dir</span><span class="o">=</span>/path/to/mpi bash install
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">mpi_dir</span><span class="o">=</span>/path/to/mpi<span class="w"> </span>bash<span class="w"> </span>install
 </pre></div>
 </div>
 <p>It is important that your environment is set up so that the MPI installation
@@ -564,7 +566,7 @@ their entirety, if you want to swap out the MPI library.</p>
 <p class="admonition-title">Tip</p>
 <p>If you have <code class="docutils literal notranslate"><span class="pre">/path/to/mpi/bin</span></code> already in your <code class="docutils literal notranslate"><span class="pre">PATH</span></code> you may use
 simply</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">mpi_dir</span><span class="o">=</span><span class="s2">&quot;</span><span class="k">$(</span>which mpicc<span class="k">)</span><span class="s2">&quot;</span> bash install
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">mpi_dir</span><span class="o">=</span><span class="s2">&quot;</span><span class="k">$(</span>which<span class="w"> </span>mpicc<span class="k">)</span><span class="s2">&quot;</span><span class="w"> </span>bash<span class="w"> </span>install
 </pre></div>
 </div>
 <p>Though <code class="docutils literal notranslate"><span class="pre">which</span> <span class="pre">mpicc</span></code> does not evaluate exactly to <code class="docutils literal notranslate"><span class="pre">/path/to/mpi</span></code>, it
@@ -591,13 +593,13 @@ into a temporary directory and simply drop the <code class="docutils literal not
 root of your CO<em>N</em>CEPT installation.</p>
 <p>The above can be achieved from within the CO<em>N</em>CEPT installation directory
 using</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git clone https://github.com/jmd-dk/concept.git git
-mv git/.git .
-rm -rf git
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/jmd-dk/concept.git<span class="w"> </span>git
+mv<span class="w"> </span>git/.git<span class="w"> </span>.
+rm<span class="w"> </span>-rf<span class="w"> </span>git
 </pre></div>
 </div>
 <p>If you now do a</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git status
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>status
 </pre></div>
 </div>
 <p>it should detect changes to the <code class="docutils literal notranslate"><span class="pre">.path</span></code> and <code class="docutils literal notranslate"><span class="pre">.env</span></code>
@@ -608,21 +610,21 @@ customizations carried out during installation.</p>
 <p>If you do not want Git to show the local changes to the <code class="docutils literal notranslate"><span class="pre">.path</span></code> and
 <code class="docutils literal notranslate"><span class="pre">.env</span></code> files, you can tell Git to ignore these. The recommended way of
 doing so is as follows:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="o">(</span><span class="nb">source</span> concept <span class="se">\</span>
-    <span class="o">&amp;&amp;</span> git stash push <span class="s2">&quot;</span><span class="si">${</span><span class="nv">path</span><span class="si">}</span><span class="s2">&quot;</span> <span class="s2">&quot;</span><span class="si">${</span><span class="nv">env</span><span class="si">}</span><span class="s2">&quot;</span> -m path-env <span class="se">\</span>
-    <span class="o">&amp;&amp;</span> git stash apply stash^<span class="o">{</span>/path-env<span class="o">}</span> <span class="se">\</span>
-    <span class="o">&amp;&amp;</span> git update-index --skip-worktree <span class="s2">&quot;</span><span class="si">${</span><span class="nv">path</span><span class="si">}</span><span class="s2">&quot;</span> <span class="s2">&quot;</span><span class="si">${</span><span class="nv">env</span><span class="si">}</span><span class="s2">&quot;</span> <span class="se">\</span>
-    <span class="o">&amp;&amp;</span> git status <span class="se">\</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="o">(</span><span class="nb">source</span><span class="w"> </span>concept<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span><span class="o">&amp;&amp;</span><span class="w"> </span>git<span class="w"> </span>stash<span class="w"> </span>push<span class="w"> </span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">path</span><span class="si">}</span><span class="s2">&quot;</span><span class="w"> </span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">env</span><span class="si">}</span><span class="s2">&quot;</span><span class="w"> </span>-m<span class="w"> </span>path-env<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span><span class="o">&amp;&amp;</span><span class="w"> </span>git<span class="w"> </span>stash<span class="w"> </span>apply<span class="w"> </span>stash^<span class="o">{</span>/path-env<span class="o">}</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span><span class="o">&amp;&amp;</span><span class="w"> </span>git<span class="w"> </span>update-index<span class="w"> </span>--skip-worktree<span class="w"> </span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">path</span><span class="si">}</span><span class="s2">&quot;</span><span class="w"> </span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">env</span><span class="si">}</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span><span class="o">&amp;&amp;</span><span class="w"> </span>git<span class="w"> </span>status<span class="w"> </span><span class="se">\</span>
 <span class="o">)</span>
 </pre></div>
 </div>
 <p>Should you need to undo this, run</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="o">(</span><span class="nb">source</span> concept <span class="o">&amp;&amp;</span> git update-index --no-skip-worktree <span class="s2">&quot;</span><span class="si">${</span><span class="nv">path</span><span class="si">}</span><span class="s2">&quot;</span> <span class="s2">&quot;</span><span class="si">${</span><span class="nv">env</span><span class="si">}</span><span class="s2">&quot;</span><span class="o">)</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="o">(</span><span class="nb">source</span><span class="w"> </span>concept<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>git<span class="w"> </span>update-index<span class="w"> </span>--no-skip-worktree<span class="w"> </span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">path</span><span class="si">}</span><span class="s2">&quot;</span><span class="w"> </span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">env</span><span class="si">}</span><span class="s2">&quot;</span><span class="o">)</span>
 </pre></div>
 </div>
 <p>If you need to explicitly (re)insert the <code class="docutils literal notranslate"><span class="pre">.path</span></code> and <code class="docutils literal notranslate"><span class="pre">.env</span></code> files
 (e.g. because you changed to a different branch), you can use</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git stash apply stash^<span class="o">{</span>/path-env<span class="o">}</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>stash<span class="w"> </span>apply<span class="w"> </span>stash^<span class="o">{</span>/path-env<span class="o">}</span>
 </pre></div>
 </div>
 </div>
@@ -721,7 +723,7 @@ testing e.g. NumPy).</p>
 <p>When invoking the <code class="docutils literal notranslate"><span class="pre">install</span></code> script — whether a local copy or directly off
 of GitHub — you may supply optional command-line arguments, the most useful
 of which is probably the installation path. That is,</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>bash install /path/to/concept
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>bash<span class="w"> </span>install<span class="w"> </span>/path/to/concept
 </pre></div>
 </div>
 <p>will not prompt you for an installation directory but instead use the supplied
@@ -757,7 +759,7 @@ results in a non-functioning CO<em>N</em>CEPT, but it is unknown which of the
 many dependencies does not function correctly. Generally though, this option
 is not recommended as it increases the installation time by a couple of hours.</p>
 <p>The tests performed on the CO<em>N</em>CEPT code itself are those of</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept -t all
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>-t<span class="w"> </span>all
 </pre></div>
 </div>
 <p>and so may also be run at any time after the installation, whether or not the
@@ -847,12 +849,12 @@ environment variables. An example is the <code class="docutils literal notransla
 through which we can let the <code class="docutils literal notranslate"><span class="pre">install</span></code> script make use of a pre-installed
 MPI library, rather than letting it install one itself. We can specify
 <code class="docutils literal notranslate"><span class="pre">mpi_dir</span></code> either directly in the invocation of <code class="docutils literal notranslate"><span class="pre">install</span></code>;</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">mpi_dir</span><span class="o">=</span>/path/to/mpi bash install
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">mpi_dir</span><span class="o">=</span>/path/to/mpi<span class="w"> </span>bash<span class="w"> </span>install
 </pre></div>
 </div>
 <p>or defining it as an environment variable prior to the invocation;</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span> <span class="nv">mpi_dir</span><span class="o">=</span>/path/to/mpi  <span class="c1"># assuming Bash-like shell</span>
-bash install
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">mpi_dir</span><span class="o">=</span>/path/to/mpi<span class="w">  </span><span class="c1"># assuming Bash-like shell</span>
+bash<span class="w"> </span>install
 </pre></div>
 </div>
 <p>All other influential environment variables may be set in similar ways.</p>
@@ -974,7 +976,7 @@ immediate dependencies, which in turn sets <code class="docutils literal notrans
 dependencies, and so on. If you run the <code class="docutils literal notranslate"><span class="pre">install</span></code> script with
 <code class="docutils literal notranslate"><span class="pre">concept_install=False</span></code>, nothing will be installed.</p>
 <p>To install e.g. just FFTW, use</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">concept_install</span><span class="o">=</span>False <span class="nv">fftw_install</span><span class="o">=</span>True bash install
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">concept_install</span><span class="o">=</span>False<span class="w"> </span><span class="nv">fftw_install</span><span class="o">=</span>True<span class="w"> </span>bash<span class="w"> </span>install
 </pre></div>
 </div>
 <p>possibly adding in a specific version (<code class="docutils literal notranslate"><span class="pre">fftw_version=...</span></code>) and an MPI
@@ -982,7 +984,7 @@ library (<code class="docutils literal notranslate"><span class="pre">mpi_dir=..
 does not absolutely need MPI, <code class="docutils literal notranslate"><span class="pre">mpi_install</span></code> is not set by having
 <code class="docutils literal notranslate"><span class="pre">fftw_install=True</span></code>.</p>
 <p>To install GADGET-2, use</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">concept_install</span><span class="o">=</span>False <span class="nv">gadget_install</span><span class="o">=</span>True bash install
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">concept_install</span><span class="o">=</span>False<span class="w"> </span><span class="nv">gadget_install</span><span class="o">=</span>True<span class="w"> </span>bash<span class="w"> </span>install
 </pre></div>
 </div>
 <p>This time, MPI, GSL and FFTW (2) will be installed as well, as these are hard
@@ -1072,7 +1074,7 @@ will have to obtain the patched CLASS + classy by some other means. A good
 solution is to install everything else first, including CO<em>N</em>CEPT itself,
 and then make use of the CO<em>N</em>CEPT <code class="docutils literal notranslate"><span class="pre">update</span></code> utility to install and patch
 CLASS + classy:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept -u update --class &lt;version&gt;
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>-u<span class="w"> </span>update<span class="w"> </span>--class<span class="w"> </span>&lt;version&gt;
 </pre></div>
 </div>
 <p>Here, <code class="docutils literal notranslate"><span class="pre">&lt;version&gt;</span></code> should be replaced with the CO<em>N</em>CEPT version whose
@@ -1182,7 +1184,7 @@ before running CO<em>N</em>CEPT.</p>
 <p>If you are installing CO<em>N</em>CEPT without the use of the <code class="docutils literal notranslate"><span class="pre">install</span></code> script
 or some crucial part of the environment was not picked up during the
 installation, you may add it yourself to the <code class="docutils literal notranslate"><span class="pre">.env</span></code> file, i.e. place</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span> <span class="nv">name</span><span class="o">=</span><span class="s2">&quot;value&quot;</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">name</span><span class="o">=</span><span class="s2">&quot;value&quot;</span>
 </pre></div>
 </div>
 <p>somewhere in <code class="docutils literal notranslate"><span class="pre">.env</span></code> to make the variable <code class="docutils literal notranslate"><span class="pre">name</span></code> with value <code class="docutils literal notranslate"><span class="pre">value</span></code> be
@@ -1194,13 +1196,13 @@ part of the global CO<em>N</em>CEPT environment.</p>
 Such environment variables are potentially dangerous to overwrite, so
 instead they are merely updated by either prepending or appending new
 substrings to their present value, e.g.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span> <span class="nv">PATH</span><span class="o">=</span><span class="s2">&quot;/some/new/path:</span><span class="si">${</span><span class="nv">PATH</span><span class="si">}</span><span class="s2">&quot;</span>  <span class="c1"># prepending</span>
-<span class="nb">export</span> <span class="nv">PATH</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">PATH</span><span class="si">}</span><span class="s2">:/some/new/path&quot;</span>  <span class="c1"># appending</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">PATH</span><span class="o">=</span><span class="s2">&quot;/some/new/path:</span><span class="si">${</span><span class="nv">PATH</span><span class="si">}</span><span class="s2">&quot;</span><span class="w">  </span><span class="c1"># prepending</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">PATH</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">PATH</span><span class="si">}</span><span class="s2">:/some/new/path&quot;</span><span class="w">  </span><span class="c1"># appending</span>
 </pre></div>
 </div>
 <p>The above syntax is allowed in <code class="docutils literal notranslate"><span class="pre">.env</span></code>. Equivalently, the
 <code class="docutils literal notranslate"><span class="pre">pathenv_name_value_pairs_custom</span></code> array variable may be used;</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">pathenv_name_value_pairs_custom</span><span class="o">=(</span>PATH <span class="s2">&quot;/some/new/path&quot;</span><span class="o">)</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">pathenv_name_value_pairs_custom</span><span class="o">=(</span>PATH<span class="w"> </span><span class="s2">&quot;/some/new/path&quot;</span><span class="o">)</span>
 </pre></div>
 </div>
 <p>which either prepends or appends <code class="docutils literal notranslate"><span class="pre">/some/new/path</span></code> to <code class="docutils literal notranslate"><span class="pre">PATH</span></code>, depending on
@@ -1219,9 +1221,9 @@ CO<em>N</em>CEPT installation (the default), the following lines are placed in
 <code class="docutils literal notranslate"><span class="pre">.env</span></code> (see the
 <a class="reference external" href="https://docs.python.org/3/using/cmdline.html#environment-variables">Python documentation</a>
 for details):</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">unset</span> PYTHONPATH
-<span class="nb">unset</span> PYTHONHOME
-<span class="nb">export</span> <span class="nv">PYTHONNOUSERSITE</span><span class="o">=</span><span class="s2">&quot;True&quot;</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">unset</span><span class="w"> </span>PYTHONPATH
+<span class="nb">unset</span><span class="w"> </span>PYTHONHOME
+<span class="nb">export</span><span class="w"> </span><span class="nv">PYTHONNOUSERSITE</span><span class="o">=</span><span class="s2">&quot;True&quot;</span>
 </pre></div>
 </div>
 <p>This is to eliminate any chance of interference from other Python
@@ -1251,9 +1253,9 @@ takes precedence over the <code class="docutils literal notranslate"><span class
 specify whether CO<em>N</em>CEPT should be built in parallel. The default
 behaviour is to build in parallel when working locally and build serially
 when working remotely. To overrule this, add one of e.g.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span> <span class="nv">make_jobs</span><span class="o">=</span><span class="s2">&quot;-j 1&quot;</span>  <span class="c1"># always build serially</span>
-<span class="nb">export</span> <span class="nv">make_jobs</span><span class="o">=</span><span class="s2">&quot;-j 2&quot;</span>  <span class="c1"># always build in parallel, using 2 cores</span>
-<span class="nb">export</span> <span class="nv">make_jobs</span><span class="o">=</span><span class="s2">&quot;-j&quot;</span>    <span class="c1"># always build in parallel, using any number of cores</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">make_jobs</span><span class="o">=</span><span class="s2">&quot;-j 1&quot;</span><span class="w">  </span><span class="c1"># always build serially</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">make_jobs</span><span class="o">=</span><span class="s2">&quot;-j 2&quot;</span><span class="w">  </span><span class="c1"># always build in parallel, using 2 cores</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">make_jobs</span><span class="o">=</span><span class="s2">&quot;-j&quot;</span><span class="w">    </span><span class="c1"># always build in parallel, using any number of cores</span>
 </pre></div>
 </div>
 <p>to <code class="docutils literal notranslate"><span class="pre">.env</span></code>.</p>

@@ -197,6 +197,7 @@
 <li class="toctree-l2"><a class="reference internal" href="parameters/physics.html">Physics</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="parameters/physics.html#select-forces"><code class="docutils literal notranslate"><span class="pre">select_forces</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="parameters/physics.html#select-species"><code class="docutils literal notranslate"><span class="pre">select_species</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="parameters/physics.html#realization-options"><code class="docutils literal notranslate"><span class="pre">realization_options</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="parameters/physics.html#select-lives"><code class="docutils literal notranslate"><span class="pre">select_lives</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="parameters/physics.html#softening-kernel"><code class="docutils literal notranslate"><span class="pre">softening_kernel</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="parameters/physics.html#select-softening-length"><code class="docutils literal notranslate"><span class="pre">select_softening_length</span></code></a></li>
@@ -209,11 +210,12 @@
 <li class="toctree-l3"><a class="reference internal" href="parameters/simulation.html#t-rung-factor"><code class="docutils literal notranslate"><span class="pre">Δt_rung_factor</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="parameters/simulation.html#a-max-early"><code class="docutils literal notranslate"><span class="pre">Δa_max_early</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="parameters/simulation.html#a-max-late"><code class="docutils literal notranslate"><span class="pre">Δa_max_late</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="parameters/simulation.html#static-timestepping"><code class="docutils literal notranslate"><span class="pre">static_timestepping</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="parameters/simulation.html#n-rungs"><code class="docutils literal notranslate"><span class="pre">N_rungs</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="parameters/simulation.html#fftw-wisdom-rigor"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_rigor</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="parameters/simulation.html#fftw-wisdom-reuse"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_reuse</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="parameters/simulation.html#fftw-wisdom-share"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_share</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="parameters/simulation.html#random-seed"><code class="docutils literal notranslate"><span class="pre">random_seed</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="parameters/simulation.html#random-seeds"><code class="docutils literal notranslate"><span class="pre">random_seeds</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="parameters/simulation.html#primordial-amplitude-fixed"><code class="docutils literal notranslate"><span class="pre">primordial_amplitude_fixed</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="parameters/simulation.html#primordial-phase-shift"><code class="docutils literal notranslate"><span class="pre">primordial_phase_shift</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="parameters/simulation.html#cell-centered"><code class="docutils literal notranslate"><span class="pre">cell_centered</span></code></a></li>
@@ -392,7 +394,7 @@ entry.</p>
 <p>To check whether the problem is confined to the compilation process, run the
 code in pure Python mode. From within the CO<em>N</em>CEPT installation
 directory, do</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept --pure-python --local
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>--pure-python<span class="w"> </span>--local
 </pre></div>
 </div>
 <p>If this simple invocation of <code class="docutils literal notranslate"><span class="pre">concept</span></code> fails, the problem is not with the
@@ -406,22 +408,22 @@ cause of compilation errors might be insufficient memory, try out the below
 steps from within the CO<em>N</em>CEPT installation directory.</p>
 <ul>
 <li><p>Standard (parallel) compilation:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept --rebuild --local
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>--rebuild<span class="w"> </span>--local
 </pre></div>
 </div>
 </li>
 <li><p>Compile each module in serial:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">make_jobs</span><span class="o">=</span><span class="s2">&quot;-j 1&quot;</span> ./concept --rebuild --local
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">make_jobs</span><span class="o">=</span><span class="s2">&quot;-j 1&quot;</span><span class="w"> </span>./concept<span class="w"> </span>--rebuild<span class="w"> </span>--local
 </pre></div>
 </div>
 </li>
 <li><p>Add extra swap memory: If you have root privileges on the system, you can
 temporarily increase the available memory by adding a swap file:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">n</span><span class="o">=</span><span class="m">8</span>
-sudo dd <span class="k">if</span><span class="o">=</span>/dev/zero <span class="nv">of</span><span class="o">=</span>swapfile <span class="nv">bs</span><span class="o">=</span><span class="m">1024</span> <span class="nv">count</span><span class="o">=</span><span class="k">$((</span>n*2**20<span class="k">))</span>
-sudo chmod <span class="m">600</span> swapfile
-sudo mkswap swapfile
-sudo swapon swapfile
+sudo<span class="w"> </span>dd<span class="w"> </span><span class="k">if</span><span class="o">=</span>/dev/zero<span class="w"> </span><span class="nv">of</span><span class="o">=</span>swapfile<span class="w"> </span><span class="nv">bs</span><span class="o">=</span><span class="m">1024</span><span class="w"> </span><span class="nv">count</span><span class="o">=</span><span class="k">$((</span>n*2**20<span class="k">))</span>
+sudo<span class="w"> </span>chmod<span class="w"> </span><span class="m">600</span><span class="w"> </span>swapfile
+sudo<span class="w"> </span>mkswap<span class="w"> </span>swapfile
+sudo<span class="w"> </span>swapon<span class="w"> </span>swapfile
 </pre></div>
 </div>
 <p>This will add an additional 8 GB of swap memory (taken from available disk
@@ -430,8 +432,8 @@ may try with a lower value of <code class="docutils literal notranslate"><span c
 try compiling the code again. If it still fails even when compiling
 serially, insufficient memory is probably not the problem. To clean up the
 swap file, do</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo swapoff swapfile
-sudo rm -f swapfile
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>swapoff<span class="w"> </span>swapfile
+sudo<span class="w"> </span>rm<span class="w"> </span>-f<span class="w"> </span>swapfile
 </pre></div>
 </div>
 </li>
@@ -445,7 +447,7 @@ the compilation taken place without trouble.</p>
 <a class="reference internal" href="#insufficient-memory"><span class="std std-ref">insufficient memory</span></a>, it may be that one or more
 of the applied optimizations cause trouble. First, try compiling without link
 time optimizations:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept --rebuild --no-lto --local
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>--rebuild<span class="w"> </span>--no-lto<span class="w"> </span>--local
 </pre></div>
 </div>
 <div class="admonition note">
@@ -459,7 +461,7 @@ fully optimized build.</p>
 this a working solution, as the performance improvements obtained through
 link time optimizations are not crucial.</p>
 <p>A much more drastic thing to try is to compile without <em>any</em> optimizations:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept --rebuild --no-optimizations --local
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>--rebuild<span class="w"> </span>--no-optimizations<span class="w"> </span>--local
 </pre></div>
 </div>
 <p>If this works, the problem is definitely with some of the optimization flags.
@@ -523,7 +525,7 @@ up appropriately (see the <code class="docutils literal notranslate"><span class
 <p>whenever you run CO<em>N</em>CEPT using more than a single process, it is likely
 a problem with OpenMPI, more specifically vader/CMA. If CO<em>N</em>CEPT
 otherwise produces correct results, you can silence these messages by placing</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span> <span class="nv">OMPI_MCA_btl_vader_single_copy_mechanism</span><span class="o">=</span>none
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">OMPI_MCA_btl_vader_single_copy_mechanism</span><span class="o">=</span>none
 </pre></div>
 </div>
 <p>in the <code class="docutils literal notranslate"><span class="pre">.env</span></code> file of your CO<em>N</em>CEPT installation.</p>
@@ -535,7 +537,7 @@ future, it is likely a problem either with the system clock or the time stamps
 of the CO<em>N</em>CEPT source files. Regardless, the problem — as far as it
 pertains to CO<em>N</em>CEPT — is likely to go away if you update the time
 stamps. To do so, run</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>touch * src/*
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>touch<span class="w"> </span>*<span class="w"> </span>src/*
 </pre></div>
 </div>
 <p>from within the CO<em>N</em>CEPT installation directory.</p>
@@ -576,7 +578,7 @@ CO<em>N</em>CEPT in pure Python mode using the <code class="docutils literal not
 obviously wrong results, or exhibit other bad behaviour, it may be due to
 improper installation or a code bug. To inspect the extent of the erroneous
 behaviour, try running the full CO<em>N</em>CEPT test suite via</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept -t all
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>-t<span class="w"> </span>all
 </pre></div>
 </div>
 <p>If any tests are unsuccessful and you are running an official version of
@@ -640,7 +642,7 @@ use, using the <code class="docutils literal notranslate"><span class="pre">--mp
 </div>
 <p>in the <code class="docutils literal notranslate"><span class="pre">.env</span></code> file. To see which MPI implementations <code class="docutils literal notranslate"><span class="pre">srun</span></code>
 supports, run</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>srun --mpi<span class="o">=</span>list
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>srun<span class="w"> </span>--mpi<span class="o">=</span>list
 </pre></div>
 </div>
 <p>directly on the front-end. You may wish to try your luck on all
@@ -656,7 +658,7 @@ this is preferred.</p>
 set to one of <code class="docutils literal notranslate"><span class="pre">mpiexec</span></code> or <code class="docutils literal notranslate"><span class="pre">mpirun</span></code> by default, possibly with
 additional options. The first thing to try is to leave out these options,
 i.e. setting</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">mpi_executor</span><span class="o">=</span><span class="s2">&quot;mpiexec&quot;</span>  <span class="c1"># or &quot;mpirun&quot;</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">mpi_executor</span><span class="o">=</span><span class="s2">&quot;mpiexec&quot;</span><span class="w">  </span><span class="c1"># or &quot;mpirun&quot;</span>
 </pre></div>
 </div>
 <p>in the <code class="docutils literal notranslate"><span class="pre">.env</span></code> file. Note that CO<em>N</em>CEPT sets the <code class="docutils literal notranslate"><span class="pre">PATH</span></code> so that
@@ -664,7 +666,7 @@ i.e. setting</p>
 correct MPI implementation (that specified in the <code class="docutils literal notranslate"><span class="pre">.path</span></code> file). You
 are however allowed to specify absolute paths as well.</p>
 <p>An important option to try out with <code class="docutils literal notranslate"><span class="pre">mpiexec</span></code>/<code class="docutils literal notranslate"><span class="pre">mpirun</span></code> is</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">mpi_executor</span><span class="o">=</span><span class="s2">&quot;mpiexec --bind-to none&quot;</span>  <span class="c1"># or &quot;mpirun --bind-to none&quot;</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">mpi_executor</span><span class="o">=</span><span class="s2">&quot;mpiexec --bind-to none&quot;</span><span class="w">  </span><span class="c1"># or &quot;mpirun --bind-to none&quot;</span>
 </pre></div>
 </div>
 <div class="admonition note">
@@ -674,7 +676,7 @@ are however allowed to specify absolute paths as well.</p>
 </div>
 <p>If remote jobs still fail, you may look for other possible MPI executors,
 e.g. by running</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="o">(</span><span class="nb">source</span> concept <span class="o">&amp;&amp;</span> ls <span class="s2">&quot;</span><span class="si">${</span><span class="nv">mpi_bindir</span><span class="si">}</span><span class="s2">&quot;</span><span class="o">)</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="o">(</span><span class="nb">source</span><span class="w"> </span>concept<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>ls<span class="w"> </span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">mpi_bindir</span><span class="si">}</span><span class="s2">&quot;</span><span class="o">)</span>
 </pre></div>
 </div>
 <p>(other possible MPI executors include <code class="docutils literal notranslate"><span class="pre">mpiexec.hydra</span></code> and <code class="docutils literal notranslate"><span class="pre">orterun</span></code>).</p>
@@ -733,13 +735,13 @@ described <a class="reference internal" href="installation.html#optimal-network-
 <span class="nv">install_dir</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">HOME</span><span class="si">}</span><span class="s2">/concept&quot;</span>
 
 <span class="nv">install_url</span><span class="o">=</span><span class="s2">&quot;https://raw.githubusercontent.com/jmd-dk/concept/</span><span class="si">${</span><span class="nv">concept_version</span><span class="si">}</span><span class="s2">/install&quot;</span>
-<span class="nv">make_jobs</span><span class="o">=</span><span class="s2">&quot;-j 8&quot;</span> bash &lt;<span class="o">(</span>wget -O- --no-check-certificate <span class="s2">&quot;</span><span class="si">${</span><span class="nv">install_url</span><span class="si">}</span><span class="s2">&quot;</span><span class="o">)</span> <span class="s2">&quot;</span><span class="si">${</span><span class="nv">install_dir</span><span class="si">}</span><span class="s2">&quot;</span>
+<span class="nv">make_jobs</span><span class="o">=</span><span class="s2">&quot;-j 8&quot;</span><span class="w"> </span>bash<span class="w"> </span>&lt;<span class="o">(</span>wget<span class="w"> </span>-O-<span class="w"> </span>--no-check-certificate<span class="w"> </span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">install_url</span><span class="si">}</span><span class="s2">&quot;</span><span class="o">)</span><span class="w"> </span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">install_dir</span><span class="si">}</span><span class="s2">&quot;</span>
 </pre></div>
 </div>
 <p>To use this installation job script, save its content to e.g.
 <code class="docutils literal notranslate"><span class="pre">jobscript_install</span></code> (replacing <code class="docutils literal notranslate"><span class="pre">&lt;queue&gt;</span></code> with the queue/partition
 in question) and submit it using</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sbatch jobscript_install
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sbatch<span class="w"> </span>jobscript_install
 </pre></div>
 </div>
 </div><div aria-labelledby="tab-1-VE9SUVVFL1BCUw==" class="sphinx-tabs-panel group-tab" hidden="true" id="panel-1-VE9SUVVFL1BCUw==" name="VE9SUVVFL1BCUw==" role="tabpanel" tabindex="0"><p>An example TORQUE/PBS job script for installing CO<em>N</em>CEPT is
@@ -756,19 +758,19 @@ shown below.</p>
 <span class="nv">install_dir</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">HOME</span><span class="si">}</span><span class="s2">/concept&quot;</span>
 
 <span class="nv">install_url</span><span class="o">=</span><span class="s2">&quot;https://raw.githubusercontent.com/jmd-dk/concept/</span><span class="si">${</span><span class="nv">concept_version</span><span class="si">}</span><span class="s2">/install&quot;</span>
-<span class="nv">make_jobs</span><span class="o">=</span><span class="s2">&quot;-j 8&quot;</span> bash &lt;<span class="o">(</span>wget -O- --no-check-certificate <span class="s2">&quot;</span><span class="si">${</span><span class="nv">install_url</span><span class="si">}</span><span class="s2">&quot;</span><span class="o">)</span> <span class="s2">&quot;</span><span class="si">${</span><span class="nv">install_dir</span><span class="si">}</span><span class="s2">&quot;</span>
+<span class="nv">make_jobs</span><span class="o">=</span><span class="s2">&quot;-j 8&quot;</span><span class="w"> </span>bash<span class="w"> </span>&lt;<span class="o">(</span>wget<span class="w"> </span>-O-<span class="w"> </span>--no-check-certificate<span class="w"> </span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">install_url</span><span class="si">}</span><span class="s2">&quot;</span><span class="o">)</span><span class="w"> </span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">install_dir</span><span class="si">}</span><span class="s2">&quot;</span>
 </pre></div>
 </div>
 <p>To use this installation job script, save its content to e.g.
 <code class="docutils literal notranslate"><span class="pre">jobscript_install</span></code> (replacing <code class="docutils literal notranslate"><span class="pre">&lt;queue&gt;</span></code> with the queue in question)
 and submit it using</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>qsub jobscript_install
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>qsub<span class="w"> </span>jobscript_install
 </pre></div>
 </div>
 </div></div>
 <p>Once a CO<em>N</em>CEPT installation job has begun, you can follow the
 installation process by executing</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>tail -f &lt;install_dir&gt;/.tmp/install_log
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>tail<span class="w"> </span>-f<span class="w"> </span>&lt;install_dir&gt;/.tmp/install_log
 </pre></div>
 </div>
 </section>
@@ -779,11 +781,11 @@ the MPI process binding/affinity is wrong, try removing some of the added
 environment variables that gets set in <code class="docutils literal notranslate"><span class="pre">job/&lt;ID&gt;/jobscript</span></code> (under the
 ‘Environment variables’ heading). After altering the job script, submit it
 manually using</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sbatch job/&lt;ID&gt;/jobscript  <span class="c1"># Slurm</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sbatch<span class="w"> </span>job/&lt;ID&gt;/jobscript<span class="w">  </span><span class="c1"># Slurm</span>
 </pre></div>
 </div>
 <p>or</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>qsub job/&lt;ID&gt;/jobscript  <span class="c1"># TORQUE/PBS</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>qsub<span class="w"> </span>job/&lt;ID&gt;/jobscript<span class="w">  </span><span class="c1"># TORQUE/PBS</span>
 </pre></div>
 </div>
 <div class="admonition note">
@@ -833,7 +835,7 @@ additional configuration from the user ought not be necessary.</p>
 <p>CO<em>N</em>CEPT comes with the ability to set up the <code class="docutils literal notranslate"><span class="pre">~/.ssh</span></code> as needed for
 multi-node communication. Currently this feature resides as part of the
 <code class="docutils literal notranslate"><span class="pre">install</span></code> script. To apply it, execute</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./install --fix-ssh
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./install<span class="w"> </span>--fix-ssh
 </pre></div>
 </div>
 <p>from the CO<em>N</em>CEPT installation directory.</p>

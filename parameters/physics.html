@@ -197,6 +197,7 @@
 <li class="toctree-l2 current"><a class="current reference internal" href="#">Physics</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#select-forces"><code class="docutils literal notranslate"><span class="pre">select_forces</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#select-species"><code class="docutils literal notranslate"><span class="pre">select_species</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#realization-options"><code class="docutils literal notranslate"><span class="pre">realization_options</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#select-lives"><code class="docutils literal notranslate"><span class="pre">select_lives</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#softening-kernel"><code class="docutils literal notranslate"><span class="pre">softening_kernel</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#select-softening-length"><code class="docutils literal notranslate"><span class="pre">select_softening_length</span></code></a></li>
@@ -209,11 +210,12 @@
 <li class="toctree-l3"><a class="reference internal" href="simulation.html#t-rung-factor"><code class="docutils literal notranslate"><span class="pre">Δt_rung_factor</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="simulation.html#a-max-early"><code class="docutils literal notranslate"><span class="pre">Δa_max_early</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="simulation.html#a-max-late"><code class="docutils literal notranslate"><span class="pre">Δa_max_late</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#static-timestepping"><code class="docutils literal notranslate"><span class="pre">static_timestepping</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="simulation.html#n-rungs"><code class="docutils literal notranslate"><span class="pre">N_rungs</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="simulation.html#fftw-wisdom-rigor"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_rigor</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="simulation.html#fftw-wisdom-reuse"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_reuse</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="simulation.html#fftw-wisdom-share"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_share</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="simulation.html#random-seed"><code class="docutils literal notranslate"><span class="pre">random_seed</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#random-seeds"><code class="docutils literal notranslate"><span class="pre">random_seeds</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="simulation.html#primordial-amplitude-fixed"><code class="docutils literal notranslate"><span class="pre">primordial_amplitude_fixed</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="simulation.html#primordial-phase-shift"><code class="docutils literal notranslate"><span class="pre">primordial_phase_shift</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="simulation.html#cell-centered"><code class="docutils literal notranslate"><span class="pre">cell_centered</span></code></a></li>
@@ -342,16 +344,17 @@
 physical models and schemes to be used.</p>
 <div class="contents local topic" id="contents">
 <ul class="simple">
-<li><p><a class="reference internal" href="#select-forces" id="id6"><code class="docutils literal notranslate"><span class="pre">select_forces</span></code></a></p></li>
-<li><p><a class="reference internal" href="#select-species" id="id7"><code class="docutils literal notranslate"><span class="pre">select_species</span></code></a></p></li>
-<li><p><a class="reference internal" href="#select-lives" id="id8"><code class="docutils literal notranslate"><span class="pre">select_lives</span></code></a></p></li>
-<li><p><a class="reference internal" href="#softening-kernel" id="id9"><code class="docutils literal notranslate"><span class="pre">softening_kernel</span></code></a></p></li>
-<li><p><a class="reference internal" href="#select-softening-length" id="id10"><code class="docutils literal notranslate"><span class="pre">select_softening_length</span></code></a></p></li>
+<li><p><a class="reference internal" href="#select-forces" id="id7"><code class="docutils literal notranslate"><span class="pre">select_forces</span></code></a></p></li>
+<li><p><a class="reference internal" href="#select-species" id="id8"><code class="docutils literal notranslate"><span class="pre">select_species</span></code></a></p></li>
+<li><p><a class="reference internal" href="#realization-options" id="id9"><code class="docutils literal notranslate"><span class="pre">realization_options</span></code></a></p></li>
+<li><p><a class="reference internal" href="#select-lives" id="id10"><code class="docutils literal notranslate"><span class="pre">select_lives</span></code></a></p></li>
+<li><p><a class="reference internal" href="#softening-kernel" id="id11"><code class="docutils literal notranslate"><span class="pre">softening_kernel</span></code></a></p></li>
+<li><p><a class="reference internal" href="#select-softening-length" id="id12"><code class="docutils literal notranslate"><span class="pre">select_softening_length</span></code></a></p></li>
 </ul>
 </div>
 <hr class="docutils" />
 <section id="select-forces">
-<span id="id1"></span><h2><a class="toc-backref" href="#id6"><code class="docutils literal notranslate"><span class="pre">select_forces</span></code></a><a class="headerlink" href="#select-forces" title="Permalink to this headline"></a></h2>
+<span id="id1"></span><h2><a class="toc-backref" href="#id7"><code class="docutils literal notranslate"><span class="pre">select_forces</span></code></a><a class="headerlink" href="#select-forces" title="Permalink to this headline"></a></h2>
 <table>
 <colgroup>
 <col style="width: 4%" />
@@ -532,7 +535,7 @@ the PM method:</p>
 <hr class="docutils" />
 </section>
 <section id="select-species">
-<span id="id2"></span><h2><a class="toc-backref" href="#id7"><code class="docutils literal notranslate"><span class="pre">select_species</span></code></a><a class="headerlink" href="#select-species" title="Permalink to this headline"></a></h2>
+<span id="id2"></span><h2><a class="toc-backref" href="#id8"><code class="docutils literal notranslate"><span class="pre">select_species</span></code></a><a class="headerlink" href="#select-species" title="Permalink to this headline"></a></h2>
 <table>
 <colgroup>
 <col style="width: 4%" />
@@ -621,10 +624,225 @@ mapping everything else to <code class="docutils literal notranslate"><span clas
 </tr>
 </tbody>
 </table>
+<hr class="docutils" />
+</section>
+<section id="realization-options">
+<span id="id4"></span><h2><a class="toc-backref" href="#id9"><code class="docutils literal notranslate"><span class="pre">realization_options</span></code></a><a class="headerlink" href="#realization-options" title="Permalink to this headline"></a></h2>
+<table>
+<colgroup>
+<col style="width: 4%" />
+<col style="width: 10%" />
+<col style="width: 4%" />
+<col style="width: 82%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Description</strong></p></td>
+<td><p></p></td>
+<td><p>Specifies how to realise different components</p></td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Default</strong></p></td>
+<td><p></p></td>
+<td><div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+    <span class="s1">&#39;gauge&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="s1">&#39;N-body&#39;</span><span class="p">,</span>
+    <span class="p">},</span>
+    <span class="s1">&#39;back-scale&#39;</span><span class="p">:</span> <span class="p">{</span>
+       <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="p">},</span>
+    <span class="s1">&#39;LPT&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+    <span class="p">},</span>
+    <span class="s1">&#39;structure&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="s1">&#39;non-linear&#39;</span><span class="p">,</span>
+    <span class="p">},</span>
+    <span class="s1">&#39;compound&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="s1">&#39;linear&#39;</span><span class="p">,</span>
+    <span class="p">},</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Elaboration</strong></p></td>
+<td><p></p></td>
+<td><p>This is a <code class="docutils literal notranslate"><span class="pre">dict</span></code> of several individual sub-parameters,
+specifying how individual components are to be
+<em>realised</em>. All sub-parameters are themselves
+<a class="reference internal" href="parameters.html#components-and-selections"><span class="std std-ref">component selections</span></a>.
+A realisation refers to the generation of
+initial conditions — i.e. particle positions and
+momenta for particle components and fluid grids like
+energy and momentum densities for fluid components —
+but also late-time re-realisation of fluid grids for
+fluid components.</p>
+<p>Each sub-parameter is described below:</p>
+<ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">'gauge'</span></code>: Sets the general relativistic gauge in
+which to perform the realisation, i.e. the gauge of
+the transfer functions <span class="math notranslate nohighlight">\(T(a, k)\)</span> to use.
+Available gauges are <code class="docutils literal notranslate"><span class="pre">'N-body'</span></code>
+(<span class="math notranslate nohighlight">\(N\)</span>-body gauge), <code class="docutils literal notranslate"><span class="pre">'synchronous'</span></code>
+(synchronous gauge) or <code class="docutils literal notranslate"><span class="pre">'Newtonian'</span></code> (conformal
+Newtonian / longitudinal gauge).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'back-scale'</span></code>: Specifies whether to do particle
+realisation using a back-scaled density transfer
+function, rather than using the transfer function
+as is. That is, without back-scaling, the raw density
+transfer function <span class="math notranslate nohighlight">\(T_\delta(a, k)\)</span> is used
+for realisation at time (scale factor value) <span class="math notranslate nohighlight">\(a\)</span>
+of particle positions, and similarly the raw velocity
+transfer function <span class="math notranslate nohighlight">\(T_\theta(a, k)\)</span> is used for
+the particle velocities. With back-scaling, the
+density transfer function is substituted by a
+scaled-back version of itself at time <span class="math notranslate nohighlight">\(a = 1\)</span>:</p>
+<div class="math notranslate nohighlight">
+\[T_\delta(a, k) \rightarrow \frac{D(a)}{D(a=1)} T_\delta(a=1, k)\,,\]</div>
+<p>where <span class="math notranslate nohighlight">\(D(a)\)</span> is the linear, Newtonian growth
+factor. Also, the velocity transfer function
+<span class="math notranslate nohighlight">\(T_\theta(a, k)\)</span> is no longer used at all,
+but replaced with a Newtonian approximation</p>
+<div class="math notranslate nohighlight">
+\[T_\theta(a, k) \rightarrow -aH(a)f(a) \biggl(\frac{D(a)}{D(a=1)} T_\delta(a=1, k) \biggr)\,,\]</div>
+<p>where
+<span class="math notranslate nohighlight">\(f(a) \equiv \mathrm{d}\ln D(a) / \mathrm{d}\ln a\)</span>
+is the linear, Newtonian growth rate. Back-scaling is
+only possible for particle components.</p>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'LPT'</span></code>: Specifies the order of Lagrangian
+perturbation theory to use when realising particle
+components. Orders <span class="math notranslate nohighlight">\(1\)</span> and <span class="math notranslate nohighlight">\(2\)</span> are
+available. While the first order (1LPT) is carried out
+relativistically (if not using back-scaling), the
+second-order (2LPT) contributions are always
+constructed in a Newtonian fashion (though they are
+build from the (relativistic) 1LPT results).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'structure'</span></code>: Specifies the underlying 3D structure
+to use for a realisation. This can be either the
+primordial noise (<code class="docutils literal notranslate"><span class="pre">'primordial'</span></code>)
+<span class="math notranslate nohighlight">\(\zeta(k)\mathcal{R}(\boldsymbol{k})\)</span>
+(<a class="reference internal" href="simulation.html#random-seeds"><span class="std std-ref">random noise</span></a>
+<span class="math notranslate nohighlight">\(\mathcal{R}(\boldsymbol{k})\)</span> with
+<a class="reference internal" href="cosmology.html#primordial-spectrum"><span class="std std-ref">amplitude</span></a>
+<span class="math notranslate nohighlight">\(\zeta(k)\)</span>) or the structure extracted from the
+non-linearly evolved energy density of the component
+(<code class="docutils literal notranslate"><span class="pre">'non-linear'</span></code>), i.e.
+<span class="math notranslate nohighlight">\(\delta(a, \boldsymbol{k})/T_\delta(a, k)\)</span>.
+Realisation happening at the initial time of the
+simulation (i.e. initial condition generation) will
+always make use of the primordial noise, though at
+this time the two options are mathematically
+equivalent. As late-time realisation is not possible
+for particle components, this realisation option only
+affects fluid components.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'compound'</span></code>: When performing late-time realisations
+for fluid components using the non-linearly evolved
+energy density as the source of structure, some fluid
+variables can be defined in several ways. Consider
+the (conserved) shear stress fluid variable
+<span class="math notranslate nohighlight">\(\varsigma^i_j(a, \boldsymbol{x})\)</span>,
+realised through</p>
+<div class="math notranslate nohighlight">
+\[\varsigma^i_j(a, \boldsymbol{x}) = \bigl(\varrho + c^{-2}\mathcal{P}\bigr)\sigma^i_j(a, \boldsymbol{x})\,,\]</div>
+<p>with <span class="math notranslate nohighlight">\(\sigma^i_j(a, \boldsymbol{x})\)</span> itself
+realised from the scalar anisotropic stress. With the
+<code class="docutils literal notranslate"><span class="pre">'compound'</span></code> realisation option set to <code class="docutils literal notranslate"><span class="pre">'linear'</span></code>,
+the (conserved) energy density and pressure in the
+parenthesis above will be evaluated at the background
+level,
+<span class="math notranslate nohighlight">\(\varrho + c^{-2}\mathcal{P} \rightarrow (1 + w)\bar{\varrho}(a)\)</span>.
+With the <code class="docutils literal notranslate"><span class="pre">'compound'</span></code> realisation option set to
+<code class="docutils literal notranslate"><span class="pre">'non-linear'</span></code>, the full non-linearly evolved fluid
+grids are used,
+<span class="math notranslate nohighlight">\(\varrho + c^{-2}\mathcal{P} \rightarrow \varrho(a, \boldsymbol{x}) + c^{-2}\mathcal{P}(a, \boldsymbol{x})\)</span>.
+Using the non-linear option injects additional
+non-linearity into the realised fluid variable,
+which can be desirable. See the paper on
+‘<a class="reference internal" href="../publications.html#nuconcept-cosmological-neutrino-simulations-from-the-nonlinear-boltzmann-hierarchy"><span class="std std-ref">νCO𝘕CEPT: Cosmological neutrino simulations from the non-linear Boltzmann hierarchy</span></a>’
+for further details.</p>
+</li>
+</ul>
+</td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Example 0</strong></p></td>
+<td><p></p></td>
+<td><p>Do all realisations in synchronous gauge. Also, use
+back-scaling when realising components with a
+name/species of <code class="docutils literal notranslate"><span class="pre">'matter</span></code>:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">realization_options</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;gauge&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;all&#39;</span><span class="p">:</span> <span class="s1">&#39;synchronous&#39;</span><span class="p">,</span>
+    <span class="p">},</span>
+    <span class="s1">&#39;back-scaling&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;matter&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="p">},</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>When using back-scaling, the <span class="math notranslate nohighlight">\(\delta\)</span> transfer
+function is used not only for the particle positions
+but also for the velocities. This is crucial when
+using the synchronous gauge, as the velocity transfer
+function in this gauge is not well suited for
+<span class="math notranslate nohighlight">\(N\)</span>-body initial conditions.</p>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Example 1</strong></p></td>
+<td><p></p></td>
+<td><p>Make use of second-order Lagrangian perturbation
+theory (2LPT) when realising particle components:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">realization_options</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;LPT&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;particles&#39;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span>
+    <span class="p">},</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>As the <code class="docutils literal notranslate"><span class="pre">'LPT'</span></code> specification only applies to particle
+components anyway, we can also do</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">realization_options</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;LPT&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;all&#39;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span>
+    <span class="p">},</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>which can be more succinctly expressed as</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">realization_options</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;LPT&#39;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Example 2</strong></p></td>
+<td><p></p></td>
+<td><p>Always perform realisations using the primordial noise
+as the underlying source of structure, regardless of the
+time of realisation:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">realization_options</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;structure&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;all&#39;</span><span class="p">:</span> <span class="s1">&#39;primordial&#39;</span><span class="p">,</span>
+    <span class="p">},</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
 </section>
 <hr class="docutils" />
 <section id="select-lives">
-<h2><a class="toc-backref" href="#id8"><code class="docutils literal notranslate"><span class="pre">select_lives</span></code></a><a class="headerlink" href="#select-lives" title="Permalink to this headline"></a></h2>
+<h2><a class="toc-backref" href="#id10"><code class="docutils literal notranslate"><span class="pre">select_lives</span></code></a><a class="headerlink" href="#select-lives" title="Permalink to this headline"></a></h2>
 <table>
 <colgroup>
 <col style="width: 4%" />
@@ -699,7 +917,7 @@ for a similar example use case.</p>
 <hr class="docutils" />
 </section>
 <section id="softening-kernel">
-<span id="id4"></span><h2><a class="toc-backref" href="#id9"><code class="docutils literal notranslate"><span class="pre">softening_kernel</span></code></a><a class="headerlink" href="#softening-kernel" title="Permalink to this headline"></a></h2>
+<span id="id5"></span><h2><a class="toc-backref" href="#id11"><code class="docutils literal notranslate"><span class="pre">softening_kernel</span></code></a><a class="headerlink" href="#softening-kernel" title="Permalink to this headline"></a></h2>
 <table>
 <colgroup>
 <col style="width: 4%" />
@@ -781,7 +999,7 @@ and <span class="math notranslate nohighlight">\(\epsilon_{\text{B}} = 2.8\epsil
 <hr class="docutils" />
 </section>
 <section id="select-softening-length">
-<span id="id5"></span><h2><a class="toc-backref" href="#id10"><code class="docutils literal notranslate"><span class="pre">select_softening_length</span></code></a><a class="headerlink" href="#select-softening-length" title="Permalink to this headline"></a></h2>
+<span id="id6"></span><h2><a class="toc-backref" href="#id12"><code class="docutils literal notranslate"><span class="pre">select_softening_length</span></code></a><a class="headerlink" href="#select-softening-length" title="Permalink to this headline"></a></h2>
 <table>
 <colgroup>
 <col style="width: 4%" />

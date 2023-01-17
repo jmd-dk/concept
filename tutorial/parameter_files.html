@@ -197,6 +197,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../parameters/physics.html">Physics</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/physics.html#select-forces"><code class="docutils literal notranslate"><span class="pre">select_forces</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/physics.html#select-species"><code class="docutils literal notranslate"><span class="pre">select_species</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/physics.html#realization-options"><code class="docutils literal notranslate"><span class="pre">realization_options</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/physics.html#select-lives"><code class="docutils literal notranslate"><span class="pre">select_lives</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/physics.html#softening-kernel"><code class="docutils literal notranslate"><span class="pre">softening_kernel</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/physics.html#select-softening-length"><code class="docutils literal notranslate"><span class="pre">select_softening_length</span></code></a></li>
@@ -209,11 +210,12 @@
 <li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#t-rung-factor"><code class="docutils literal notranslate"><span class="pre">Δt_rung_factor</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#a-max-early"><code class="docutils literal notranslate"><span class="pre">Δa_max_early</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#a-max-late"><code class="docutils literal notranslate"><span class="pre">Δa_max_late</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#static-timestepping"><code class="docutils literal notranslate"><span class="pre">static_timestepping</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#n-rungs"><code class="docutils literal notranslate"><span class="pre">N_rungs</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#fftw-wisdom-rigor"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_rigor</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#fftw-wisdom-reuse"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_reuse</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#fftw-wisdom-share"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_share</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#random-seed"><code class="docutils literal notranslate"><span class="pre">random_seed</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#random-seeds"><code class="docutils literal notranslate"><span class="pre">random_seeds</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#primordial-amplitude-fixed"><code class="docutils literal notranslate"><span class="pre">primordial_amplitude_fixed</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#primordial-phase-shift"><code class="docutils literal notranslate"><span class="pre">primordial_phase_shift</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#cell-centered"><code class="docutils literal notranslate"><span class="pre">cell_centered</span></code></a></li>
@@ -377,9 +379,9 @@ parameter files. It comes with a few example parameter files included.</p>
 </div>
 </div>
 <p>To run CO<em>N</em>CEPT using this parameter file, do</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept <span class="se">\</span>
-    -p param/tutorial <span class="se">\</span>
-    -n <span class="m">4</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-p<span class="w"> </span>param/tutorial<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-n<span class="w"> </span><span class="m">4</span>
 </pre></div>
 </div>
 <p>The simulation specified by the above parameters is quite similar to the
@@ -403,7 +405,7 @@ underscore <code class="docutils literal notranslate"><span class="pre">_</span>
 and <code class="docutils literal notranslate"><span class="pre">param</span></code> variables, available to all parameter files. The <code class="docutils literal notranslate"><span class="pre">path</span></code>
 variable holds absolute paths specified in the <code class="docutils literal notranslate"><span class="pre">.path</span></code> file.
 If you want to take a look at this <code class="docutils literal notranslate"><span class="pre">.path</span></code> file, do e.g.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cat .path
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cat<span class="w"> </span>.path
 </pre></div>
 </div>
 <p>Writing <code class="docutils literal notranslate"><span class="pre">path.output_dir</span></code> then maps to whatever value is specified for
@@ -446,10 +448,10 @@ and cold dark matter.</p></li>
 parameter) option. As an example, consider leaving out the definition of
 <code class="docutils literal notranslate"><span class="pre">_size</span></code> from the parameter file and instead supplying it when running the
 code:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept <span class="se">\</span>
-    -p param/tutorial <span class="se">\</span>
-    -c <span class="s2">&quot;_size = 64&quot;</span> <span class="se">\</span>
-    -n <span class="m">4</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-p<span class="w"> </span>param/tutorial<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-c<span class="w"> </span><span class="s2">&quot;_size = 64&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-n<span class="w"> </span><span class="m">4</span>
 </pre></div>
 </div>
 <p>If you forget to specify <code class="docutils literal notranslate"><span class="pre">_size</span></code> — or any other variable referenced by the
@@ -472,7 +474,7 @@ in the copied parameter file.</p>
 <p class="admonition-title">Tip</p>
 <p>To view the logged output of e.g. CO<em>N</em>CEPT job 1 with proper
 colouring, use</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>less -rf job/1/log
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>less<span class="w"> </span>-rf<span class="w"> </span>job/1/log
 </pre></div>
 </div>
 <p>Arrow keys to navigate, <code class="docutils literal notranslate"><span class="pre">q</span></code> to quit.</p>

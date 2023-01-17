@@ -197,6 +197,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../parameters/physics.html">Physics</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/physics.html#select-forces"><code class="docutils literal notranslate"><span class="pre">select_forces</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/physics.html#select-species"><code class="docutils literal notranslate"><span class="pre">select_species</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/physics.html#realization-options"><code class="docutils literal notranslate"><span class="pre">realization_options</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/physics.html#select-lives"><code class="docutils literal notranslate"><span class="pre">select_lives</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/physics.html#softening-kernel"><code class="docutils literal notranslate"><span class="pre">softening_kernel</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/physics.html#select-softening-length"><code class="docutils literal notranslate"><span class="pre">select_softening_length</span></code></a></li>
@@ -209,11 +210,12 @@
 <li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#t-rung-factor"><code class="docutils literal notranslate"><span class="pre">Δt_rung_factor</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#a-max-early"><code class="docutils literal notranslate"><span class="pre">Δa_max_early</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#a-max-late"><code class="docutils literal notranslate"><span class="pre">Δa_max_late</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#static-timestepping"><code class="docutils literal notranslate"><span class="pre">static_timestepping</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#n-rungs"><code class="docutils literal notranslate"><span class="pre">N_rungs</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#fftw-wisdom-rigor"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_rigor</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#fftw-wisdom-reuse"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_reuse</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#fftw-wisdom-share"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_share</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#random-seed"><code class="docutils literal notranslate"><span class="pre">random_seed</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#random-seeds"><code class="docutils literal notranslate"><span class="pre">random_seeds</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#primordial-amplitude-fixed"><code class="docutils literal notranslate"><span class="pre">primordial_amplitude_fixed</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#primordial-phase-shift"><code class="docutils literal notranslate"><span class="pre">primordial_phase_shift</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#cell-centered"><code class="docutils literal notranslate"><span class="pre">cell_centered</span></code></a></li>
@@ -367,9 +369,9 @@ file:</p>
 </div>
 <p>Run a simulation using the <a class="reference internal" href="#param-output-types"><span class="std std-ref">above</span></a> parameters, e.g.
 by saving them to <code class="docutils literal notranslate"><span class="pre">param/tutorial</span></code> and executing</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept <span class="se">\</span>
-    -p param/tutorial <span class="se">\</span>
-    -n <span class="m">4</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-p<span class="w"> </span>param/tutorial<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-n<span class="w"> </span><span class="m">4</span>
 </pre></div>
 </div>
 <p>This will take a few minutes. You may read along in the meantime.</p>
@@ -390,7 +392,7 @@ spectrum — as output, not plots of this data.</p>
 <p>Looking in the output directory, among other things you’ll find image files
 with names starting with <code class="docutils literal notranslate"><span class="pre">render3D</span></code>. These are — unsurprisingly — the 3D
 renders. The colours are controlled through the <code class="docutils literal notranslate"><span class="pre">render3D_colors</span></code> and
-<code class="docutils literal notranslate"><span class="pre">render3D_bgcolor</span></code> parameters, while the (square) size (in pixels) is set by
+<code class="docutils literal notranslate"><span class="pre">render3D_bgcolor</span></code> parameters, while the (linear) size (in pixels) is set by
 <code class="docutils literal notranslate"><span class="pre">render3D_resolution</span></code>. All particles of a given component gets the same
 colour, though different colours may be used for different components when
 running such simulations. The brightness of each pixel indicates the local
@@ -432,12 +434,12 @@ know its job ID.</p>
 <div class="admonition tip">
 <p class="admonition-title">Tip</p>
 <p>To grab the job ID from a power spectra data file, you can do e.g.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>grep -o <span class="s2">&quot;job [0-9]*&quot;</span> output/tutorial/powerspec_a<span class="o">=</span><span class="m">1</span>.00
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>grep<span class="w"> </span>-o<span class="w"> </span><span class="s2">&quot;job [0-9]*&quot;</span><span class="w"> </span>output/tutorial/powerspec_a<span class="o">=</span><span class="m">1</span>.00
 </pre></div>
 </div>
 </div>
 <p>With the job ID at hand, try the following:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept -u play &lt;ID&gt;  <span class="c1"># replace &lt;ID&gt; with job ID number</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>-u<span class="w"> </span>play<span class="w"> </span>&lt;ID&gt;<span class="w">  </span><span class="c1"># replace &lt;ID&gt; with job ID number</span>
 </pre></div>
 </div>
 <p>You should see a nice animation of the evolution of the large-scale structure,
@@ -448,13 +450,13 @@ a <em>utility</em> rather than running a simulation. These utilities are handy (
 in this case goofy) side programs baked into CO<em>N</em>CEPT. You are encouraged
 to play around with the options to the play utility, a brief overview of which
 gets printed by</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept -u play -h
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>-u<span class="w"> </span>play<span class="w"> </span>-h
 </pre></div>
 </div>
 <p>Another such utility — the <em>info utility</em> — is encountered just below,
 and we will encounter others in later sections of the tutorial. To see the
 available utilities, do .e.g</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ls util
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ls<span class="w"> </span>util
 </pre></div>
 </div>
 <p>For focused documentation on the individual utilities,
@@ -471,22 +473,22 @@ its own snapshot format, which is simply a well-structured HDF5 file.</p>
 <a class="reference external" href="https://vitables.org/">ViTables</a>. If you encounter problems viewing HDF5
 files produced by CO<em>N</em>CEPT, check that you are using ViTables 3.</p>
 <p>You can install ViTables as part of the CO<em>N</em>CEPT installation via</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="o">(</span><span class="nb">source</span> concept <span class="o">&amp;&amp;</span> <span class="nv">$python</span> -m pip install vitables<span class="o">)</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="o">(</span><span class="nb">source</span><span class="w"> </span>concept<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nv">$python</span><span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>vitables<span class="o">)</span>
 </pre></div>
 </div>
 <p>after which you can run it by e.g. doing</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="o">(</span><span class="nb">source</span> concept <span class="o">&amp;&amp;</span> <span class="nv">$python</span> -m vitables <span class="p">&amp;</span><span class="o">)</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="o">(</span><span class="nb">source</span><span class="w"> </span>concept<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nv">$python</span><span class="w"> </span>-m<span class="w"> </span>vitables<span class="w"> </span><span class="p">&amp;</span><span class="o">)</span>
 </pre></div>
 </div>
 <p>If ViTables is unable to start, it might be due to Qt 5 not being installed
 on your system. If you’re on a Debian/Ubuntu-like system (and have root
 privileges), you can install Qt 5 by</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo apt install qtbase5-dev
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>apt<span class="w"> </span>install<span class="w"> </span>qtbase5-dev
 </pre></div>
 </div>
 </div>
 <p>Such snapshots are useful if you want to process the raw data using some
-external program. You can also initialize a simulation from a snapshot, instead
+external program. You can also initialise a simulation from a snapshot, instead
 of generating initial conditions from scratch. To try this, redefine the
 initial conditions to simply be the path to the snapshot produced by the
 simulation you just ran:</p>
@@ -517,7 +519,7 @@ will also be present.</p>
 <code class="docutils literal notranslate"><span class="pre">Ωb</span> <span class="pre">=</span> <span class="pre">0.05</span></code>. Once the simulation has completed, check out the error
 log file.</p>
 <p>If you intend to run many simulations using the same initial conditions,
-it might be worthwhile to initialize these from a common snapshot. To produce
+it might be worthwhile to initialise these from a common snapshot. To produce
 such an initial snapshot, simply set <code class="docutils literal notranslate"><span class="pre">output_times</span> <span class="pre">=</span> <span class="pre">{'snapshot':</span> <span class="pre">a_begin}</span></code>,
 in which case CO<em>N</em>CEPT will exit right after the snapshot has been dumped
 at the initial time, without doing any simulation. An <code class="docutils literal notranslate"><span class="pre">ic</span></code> directory should
@@ -545,11 +547,11 @@ the default CO<em>N</em>CEPT (HDF5) snapshots. It would be nice to have a genera
 tool which worked for the supported GADGET snapshots as well. Luckily,
 CO<em>N</em>CEPT comes with just such a tool: the <em>info utility</em>. To try it out,
 simply do</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept -u info output/tutorial
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>-u<span class="w"> </span>info<span class="w"> </span>output/tutorial
 </pre></div>
 </div>
 <p>or</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept -u info ic
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>-u<span class="w"> </span>info<span class="w"> </span>ic
 </pre></div>
 </div>
 <p>The content of all snapshots — CO<em>N</em>CEPT (HDF5) or GADGET format — in

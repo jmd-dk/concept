@@ -197,6 +197,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../parameters/physics.html">Physics</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/physics.html#select-forces"><code class="docutils literal notranslate"><span class="pre">select_forces</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/physics.html#select-species"><code class="docutils literal notranslate"><span class="pre">select_species</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/physics.html#realization-options"><code class="docutils literal notranslate"><span class="pre">realization_options</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/physics.html#select-lives"><code class="docutils literal notranslate"><span class="pre">select_lives</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/physics.html#softening-kernel"><code class="docutils literal notranslate"><span class="pre">softening_kernel</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/physics.html#select-softening-length"><code class="docutils literal notranslate"><span class="pre">select_softening_length</span></code></a></li>
@@ -209,11 +210,12 @@
 <li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#t-rung-factor"><code class="docutils literal notranslate"><span class="pre">Δt_rung_factor</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#a-max-early"><code class="docutils literal notranslate"><span class="pre">Δa_max_early</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#a-max-late"><code class="docutils literal notranslate"><span class="pre">Δa_max_late</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#static-timestepping"><code class="docutils literal notranslate"><span class="pre">static_timestepping</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#n-rungs"><code class="docutils literal notranslate"><span class="pre">N_rungs</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#fftw-wisdom-rigor"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_rigor</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#fftw-wisdom-reuse"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_reuse</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#fftw-wisdom-share"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_share</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#random-seed"><code class="docutils literal notranslate"><span class="pre">random_seed</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#random-seeds"><code class="docutils literal notranslate"><span class="pre">random_seeds</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#primordial-amplitude-fixed"><code class="docutils literal notranslate"><span class="pre">primordial_amplitude_fixed</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#primordial-phase-shift"><code class="docutils literal notranslate"><span class="pre">primordial_phase_shift</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#cell-centered"><code class="docutils literal notranslate"><span class="pre">cell_centered</span></code></a></li>
@@ -343,7 +345,7 @@ Unless otherwise specified, all code examples to come is meant to be executed
 from within this directory. At the top level you’ll find a few key files, like
 the all-important <code class="docutils literal notranslate"><span class="pre">concept</span></code> script used to launch the code.</p>
 <p>Try invoking the script using</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept --local
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>--local
 </pre></div>
 </div>
 <p>This will fire up CO<em>N</em>CEPT, which should display a few lines of colourful
@@ -357,10 +359,10 @@ CO<em>N</em>CEPT jobs to the scheduler when
 <a class="reference internal" href="working_remotely.html"><span class="doc">working on a cluster</span></a>.</p>
 <p>As we did not provide any parameters to CO<em>N</em>CEPT, it shut down
 immediately. We can add parameters using the <code class="docutils literal notranslate"><span class="pre">-c</span></code> option, like so:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept <span class="se">\</span>
-    -c <span class="s2">&quot;initial_conditions = {&#39;species&#39;: &#39;matter&#39;, &#39;N&#39;: 64**3}&quot;</span> <span class="se">\</span>
-    -c <span class="s2">&quot;a_begin = 0.02&quot;</span> <span class="se">\</span>
-    -c <span class="s2">&quot;output_times = {&#39;powerspec&#39;: 1}&quot;</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-c<span class="w"> </span><span class="s2">&quot;initial_conditions = {&#39;species&#39;: &#39;matter&#39;, &#39;N&#39;: 64**3}&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-c<span class="w"> </span><span class="s2">&quot;a_begin = 0.02&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-c<span class="w"> </span><span class="s2">&quot;output_times = {&#39;powerspec&#39;: 1}&quot;</span>
 </pre></div>
 </div>
 <p>A simulation with <span class="math notranslate nohighlight">\(N = 64^3\)</span> matter particles will now be run, with
@@ -373,20 +375,19 @@ and plot.</p>
 <p>Once a simulation is complete, its total computation time is shown in the
 last line of output</p>
 </div>
-<h2>Don't forget about gravity</h2><p>The above simulation should take about a minute to complete, with almost none
-of the time spent on the actual simulation (time-stepping), but rather on the
-generation of initial conditions. The reason for this rapid time-stepping is
-that CO<em>N</em>CEPT does not assign interactions implicitly, meaning that no
-gravitational forces were applied during the simulation. This also explains
-the low simulation power spectrum compared to the linear power spectrum (which
-do include the effects of gravity), both of which are present in
-<code class="docutils literal notranslate"><span class="pre">output/powerspec_a=1.00</span></code> and <code class="docutils literal notranslate"><span class="pre">output/powerspec_a=1.00.png</span></code>.</p>
+<h2>Don't forget about gravity</h2><p>The above simulation should only take a few seconds to complete. The reason
+for the rapid time evolution is that CO<em>N</em>CEPT does not assign
+interactions implicitly, meaning that no gravitational forces were applied
+during the simulation. This also explains the low simulation power spectrum
+compared to the linear power spectrum (which do include the effects of
+gravity), both of which are present in <code class="docutils literal notranslate"><span class="pre">output/powerspec_a=1.00</span></code>
+and <code class="docutils literal notranslate"><span class="pre">output/powerspec_a=1.00.png</span></code>.</p>
 <p>Let’s try again, this time specifying a size for the gravitational potential
 grid:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept <span class="se">\</span>
-    -c <span class="s2">&quot;initial_conditions = {&#39;species&#39;: &#39;matter&#39;, &#39;N&#39;: 64**3}&quot;</span> <span class="se">\</span>
-    -c <span class="s2">&quot;a_begin = 0.02&quot;</span> <span class="se">\</span>
-    -c <span class="s2">&quot;output_times = {&#39;powerspec&#39;: 1}&quot;</span> <span class="se">\</span><span class="hll">    -c <span class="s2">&quot;potential_options = 128&quot;</span></span></pre></div>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-c<span class="w"> </span><span class="s2">&quot;initial_conditions = {&#39;species&#39;: &#39;matter&#39;, &#39;N&#39;: 64**3}&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-c<span class="w"> </span><span class="s2">&quot;a_begin = 0.02&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-c<span class="w"> </span><span class="s2">&quot;output_times = {&#39;powerspec&#39;: 1}&quot;</span><span class="w"> </span><span class="se">\</span><span class="hll"><span class="w">    </span>-c<span class="w"> </span><span class="s2">&quot;potential_options = 128&quot;</span></span></pre></div>
 </div>
 <p>The simulation time will increase noticeably. Once done, take a look at the
 output <code class="docutils literal notranslate"><span class="pre">output/powerspec_a=1.00.png</span></code> again, and you should see that the
@@ -395,11 +396,11 @@ simulated power spectrum has caught up to the linear one.</p>
 <a class="reference internal" href="gravity.html"><span class="doc">in a little while</span></a>.</p>
 <h2>Going multi-core</h2><p>To cut down on the computation time we may make use of multiple CPU cores. To
 run with e.g. 4 CPU cores, execute</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept <span class="se">\</span>
-    -c <span class="s2">&quot;initial_conditions = {&#39;species&#39;: &#39;matter&#39;, &#39;N&#39;: 64**3}&quot;</span> <span class="se">\</span>
-    -c <span class="s2">&quot;a_begin = 0.02&quot;</span> <span class="se">\</span>
-    -c <span class="s2">&quot;output_times = {&#39;powerspec&#39;: 1}&quot;</span> <span class="se">\</span>
-    -c <span class="s2">&quot;potential_options = 128&quot;</span> <span class="se">\</span><span class="hll">    -n <span class="m">4</span></span></pre></div>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-c<span class="w"> </span><span class="s2">&quot;initial_conditions = {&#39;species&#39;: &#39;matter&#39;, &#39;N&#39;: 64**3}&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-c<span class="w"> </span><span class="s2">&quot;a_begin = 0.02&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-c<span class="w"> </span><span class="s2">&quot;output_times = {&#39;powerspec&#39;: 1}&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-c<span class="w"> </span><span class="s2">&quot;potential_options = 128&quot;</span><span class="w"> </span><span class="se">\</span><span class="hll"><span class="w">    </span>-n<span class="w"> </span><span class="m">4</span></span></pre></div>
 </div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
@@ -408,7 +409,7 @@ by <span class="math notranslate nohighlight">\(3\)</span>. Further such restric
 processes is chosen, CO<em>N</em>CEPT exits with a helpful error message.</p>
 </div>
 <p>To see a complete list of possible options to the <code class="docutils literal notranslate"><span class="pre">concept</span></code> script, invoke</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept -h
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>-h
 </pre></div>
 </div>
 <p>For full documentation on each option, consult

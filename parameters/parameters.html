@@ -197,6 +197,7 @@
 <li class="toctree-l2"><a class="reference internal" href="physics.html">Physics</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="physics.html#select-forces"><code class="docutils literal notranslate"><span class="pre">select_forces</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="physics.html#select-species"><code class="docutils literal notranslate"><span class="pre">select_species</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="physics.html#realization-options"><code class="docutils literal notranslate"><span class="pre">realization_options</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="physics.html#select-lives"><code class="docutils literal notranslate"><span class="pre">select_lives</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="physics.html#softening-kernel"><code class="docutils literal notranslate"><span class="pre">softening_kernel</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="physics.html#select-softening-length"><code class="docutils literal notranslate"><span class="pre">select_softening_length</span></code></a></li>
@@ -209,11 +210,12 @@
 <li class="toctree-l3"><a class="reference internal" href="simulation.html#t-rung-factor"><code class="docutils literal notranslate"><span class="pre">Δt_rung_factor</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="simulation.html#a-max-early"><code class="docutils literal notranslate"><span class="pre">Δa_max_early</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="simulation.html#a-max-late"><code class="docutils literal notranslate"><span class="pre">Δa_max_late</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#static-timestepping"><code class="docutils literal notranslate"><span class="pre">static_timestepping</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="simulation.html#n-rungs"><code class="docutils literal notranslate"><span class="pre">N_rungs</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="simulation.html#fftw-wisdom-rigor"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_rigor</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="simulation.html#fftw-wisdom-reuse"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_reuse</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="simulation.html#fftw-wisdom-share"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_share</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="simulation.html#random-seed"><code class="docutils literal notranslate"><span class="pre">random_seed</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#random-seeds"><code class="docutils literal notranslate"><span class="pre">random_seeds</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="simulation.html#primordial-amplitude-fixed"><code class="docutils literal notranslate"><span class="pre">primordial_amplitude_fixed</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="simulation.html#primordial-phase-shift"><code class="docutils literal notranslate"><span class="pre">primordial_phase_shift</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="simulation.html#cell-centered"><code class="docutils literal notranslate"><span class="pre">cell_centered</span></code></a></li>
@@ -617,9 +619,9 @@ defined. For this, you can do either of:</p>
 <li><p>Run CO<em>N</em>CEPT with a printout of specific parameters (here
 <code class="docutils literal notranslate"><span class="pre">parameter0</span></code> and <code class="docutils literal notranslate"><span class="pre">parameter1</span></code>) as a substitute for the usual
 <a class="reference internal" href="../command_line_options.html#main-entry-point"><span class="std std-ref">main entry point</span></a>, e.g.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept --pure-python <span class="se">\</span>
-    <span class="o">[</span>-p param<span class="o">]</span> <span class="o">[</span>-c cmd-param<span class="o">]</span> <span class="se">\</span>
-    -m <span class="s2">&quot;from commons import *; \</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>--pure-python<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span><span class="o">[</span>-p<span class="w"> </span>param<span class="o">]</span><span class="w"> </span><span class="o">[</span>-c<span class="w"> </span>cmd-param<span class="o">]</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-m<span class="w"> </span><span class="s2">&quot;from commons import *; \</span>
 <span class="s2">        print(f&#39;{parameter0 = }&#39;); \</span>
 <span class="s2">        print(f&#39;{parameter1 = }&#39;); \</span>
 <span class="s2">    &quot;</span>
@@ -627,8 +629,8 @@ defined. For this, you can do either of:</p>
 </div>
 </li>
 <li><p>Run CO<em>N</em>CEPT in <a class="reference internal" href="../command_line_options.html#interactive"><span class="std std-ref">interactive mode</span></a> like so:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept --pure-python -i -m <span class="s2">&quot;from commons import *;&quot;</span> <span class="se">\</span>
-    <span class="o">[</span>-p param<span class="o">]</span> <span class="o">[</span>-c cmd-param<span class="o">]</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>--pure-python<span class="w"> </span>-i<span class="w"> </span>-m<span class="w"> </span><span class="s2">&quot;from commons import *;&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span><span class="o">[</span>-p<span class="w"> </span>param<span class="o">]</span><span class="w"> </span><span class="o">[</span>-c<span class="w"> </span>cmd-param<span class="o">]</span>
 </pre></div>
 </div>
 <p>and then check the values of the parameters on the interactive Python
@@ -781,14 +783,17 @@ deterministic simulations, always yielding bitwise identical outputs
 (snapshots included) when run several times over. Note that this does come at
 a performance penalty.</p>
 <ul>
-<li><p><code class="docutils literal notranslate"><span class="pre">random_seed</span></code>: Some randomness is inherent to most simulations. Currently,
-CO<em>N</em>CEPT only makes use of explicit (pseudo-)randomness for generating
-initial conditions, specifically the primordial noise. For the sake of
-reproducibility, this random noise is generated using a particular random
-seed, specified by the <code class="docutils literal notranslate"><span class="pre">random_seed</span></code> <a class="reference internal" href="simulation.html#random-seed"><span class="std std-ref">parameter</span></a>.</p>
-<p>For deterministic behaviour, you should then keep this seed value fixed
-between simulations, e.g.</p>
-<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">random_seed</span> <span class="o">=</span> <span class="mi">0</span>  <span class="c1"># keep fixed between runs</span>
+<li><p><code class="docutils literal notranslate"><span class="pre">random_seeds</span></code>: CO<em>N</em>CEPT makes use of explicit (pseudo-)randomness
+for generating initial conditions, specifically the primordial noise. For
+the sake of reproducibility, this random noise is generated using particular
+random seeds, specified by the
+<code class="docutils literal notranslate"><span class="pre">random_seeds</span></code> <a class="reference internal" href="simulation.html#random-seeds"><span class="std std-ref">parameter</span></a>.</p>
+<p>For deterministic behaviour, you should then keep the values of these seeds
+fixed between simulations, e.g.</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">random_seeds</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;primordial amplitudes&#39;</span><span class="p">:</span> <span class="mi">1_000</span><span class="p">,</span>  <span class="c1"># keep fixed between runs</span>
+    <span class="s1">&#39;primordial phases&#39;</span>    <span class="p">:</span> <span class="mi">2_000</span><span class="p">,</span>  <span class="c1"># keep fixed between runs</span>
+<span class="p">}</span>
 </pre></div>
 </div>
 </li>

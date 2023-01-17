@@ -98,7 +98,7 @@ The 'graphics' parameter category contains parameters specifying the look of
 
                          {
                              'upstream gridsize': {
-                                 'particles': 'cbrt(N)',
+                                 'particles': 'cbrt(Ñ)',
                                  'fluid'    : 'gridsize',
                              },
                              'global gridsize': {},
@@ -152,7 +152,10 @@ The 'graphics' parameter category contains parameters specifying the look of
                       Each sub-parameter is described below:
 
                       * ``'upstream gridsize'``: Specifies the upstream grid
-                        sizes to use for each component.
+                        sizes to use for each component. See the
+                        ``potential_options``
+                        :ref:`parameter <potential_options>` for the use of
+                        the ``'Ñ'`` notation.
 
                       * ``'global gridsize'``: Specifies the global grid size
                         to use for each 2D render. Which 2D renders to compute
@@ -194,7 +197,14 @@ The 'graphics' parameter category contains parameters specifying the look of
                         deconvolution for upstream particle interpolations.
 
                       * ``'interlace'``: Specifies whether to use interlacing
-                        for upstream particle interpolations.
+                        for upstream particle interpolations. Possible values
+                        are ``'sc'`` (or ``False``) for a simple cubic lattice
+                        (meaning no interlacing), ``'bcc'`` (or ``True``) for
+                        a body-centered cubic lattice (meaning standard
+                        interlacing involving two relatively shifted particle
+                        interpolations) or ``'fcc'`` for a face-centered cubic
+                        lattice (meaning interlacing involving four relatively
+                        shifted particle interpolations).
 
                       * ``'axis'``: Specifies the projection axis. Valid axes
                         are ``'x'``, ``'y'``, ``'z'``.

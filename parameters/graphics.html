@@ -196,6 +196,7 @@
 <li class="toctree-l2"><a class="reference internal" href="physics.html">Physics</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="physics.html#select-forces"><code class="docutils literal notranslate"><span class="pre">select_forces</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="physics.html#select-species"><code class="docutils literal notranslate"><span class="pre">select_species</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="physics.html#realization-options"><code class="docutils literal notranslate"><span class="pre">realization_options</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="physics.html#select-lives"><code class="docutils literal notranslate"><span class="pre">select_lives</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="physics.html#softening-kernel"><code class="docutils literal notranslate"><span class="pre">softening_kernel</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="physics.html#select-softening-length"><code class="docutils literal notranslate"><span class="pre">select_softening_length</span></code></a></li>
@@ -208,11 +209,12 @@
 <li class="toctree-l3"><a class="reference internal" href="simulation.html#t-rung-factor"><code class="docutils literal notranslate"><span class="pre">Δt_rung_factor</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="simulation.html#a-max-early"><code class="docutils literal notranslate"><span class="pre">Δa_max_early</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="simulation.html#a-max-late"><code class="docutils literal notranslate"><span class="pre">Δa_max_late</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#static-timestepping"><code class="docutils literal notranslate"><span class="pre">static_timestepping</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="simulation.html#n-rungs"><code class="docutils literal notranslate"><span class="pre">N_rungs</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="simulation.html#fftw-wisdom-rigor"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_rigor</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="simulation.html#fftw-wisdom-reuse"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_reuse</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="simulation.html#fftw-wisdom-share"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_share</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="simulation.html#random-seed"><code class="docutils literal notranslate"><span class="pre">random_seed</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#random-seeds"><code class="docutils literal notranslate"><span class="pre">random_seeds</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="simulation.html#primordial-amplitude-fixed"><code class="docutils literal notranslate"><span class="pre">primordial_amplitude_fixed</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="simulation.html#primordial-phase-shift"><code class="docutils literal notranslate"><span class="pre">primordial_phase_shift</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="simulation.html#cell-centered"><code class="docutils literal notranslate"><span class="pre">cell_centered</span></code></a></li>
@@ -470,7 +472,7 @@ formatting, a few bits and pieces remain</p>
 <td><p></p></td>
 <td><div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
     <span class="s1">&#39;upstream gridsize&#39;</span><span class="p">:</span> <span class="p">{</span>
-        <span class="s1">&#39;particles&#39;</span><span class="p">:</span> <span class="s1">&#39;cbrt(N)&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;particles&#39;</span><span class="p">:</span> <span class="s1">&#39;cbrt(Ñ)&#39;</span><span class="p">,</span>
         <span class="s1">&#39;fluid&#39;</span>    <span class="p">:</span> <span class="s1">&#39;gridsize&#39;</span><span class="p">,</span>
     <span class="p">},</span>
     <span class="s1">&#39;global gridsize&#39;</span><span class="p">:</span> <span class="p">{},</span>
@@ -527,7 +529,10 @@ according to a given colormap.</p>
 <p>Each sub-parameter is described below:</p>
 <ul>
 <li><p><code class="docutils literal notranslate"><span class="pre">'upstream</span> <span class="pre">gridsize'</span></code>: Specifies the upstream grid
-sizes to use for each component.</p></li>
+sizes to use for each component. See the
+<code class="docutils literal notranslate"><span class="pre">potential_options</span></code>
+<a class="reference internal" href="numerics.html#potential-options"><span class="std std-ref">parameter</span></a> for the use of
+the <code class="docutils literal notranslate"><span class="pre">'Ñ'</span></code> notation.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">'global</span> <span class="pre">gridsize'</span></code>: Specifies the global grid size
 to use for each 2D render. Which 2D renders to compute
 are in turn specified by the
@@ -570,7 +575,14 @@ The implemented interpolations are:</p>
 <li><p><code class="docutils literal notranslate"><span class="pre">'deconvolve'</span></code>: Specifies whether to apply
 deconvolution for upstream particle interpolations.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">'interlace'</span></code>: Specifies whether to use interlacing
-for upstream particle interpolations.</p></li>
+for upstream particle interpolations. Possible values
+are <code class="docutils literal notranslate"><span class="pre">'sc'</span></code> (or <code class="docutils literal notranslate"><span class="pre">False</span></code>) for a simple cubic lattice
+(meaning no interlacing), <code class="docutils literal notranslate"><span class="pre">'bcc'</span></code> (or <code class="docutils literal notranslate"><span class="pre">True</span></code>) for
+a body-centered cubic lattice (meaning standard
+interlacing involving two relatively shifted particle
+interpolations) or <code class="docutils literal notranslate"><span class="pre">'fcc'</span></code> for a face-centered cubic
+lattice (meaning interlacing involving four relatively
+shifted particle interpolations).</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">'axis'</span></code>: Specifies the projection axis. Valid axes
 are <code class="docutils literal notranslate"><span class="pre">'x'</span></code>, <code class="docutils literal notranslate"><span class="pre">'y'</span></code>, <code class="docutils literal notranslate"><span class="pre">'z'</span></code>.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">'extent'</span></code>: Specifies the thickness of a slab

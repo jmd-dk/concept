@@ -97,7 +97,7 @@ spectrum --- as output, not plots of this data.
 Looking in the output directory, among other things you'll find image files
 with names starting with ``render3D``. These are --- unsurprisingly --- the 3D
 renders. The colours are controlled through the ``render3D_colors`` and
-``render3D_bgcolor`` parameters, while the (square) size (in pixels) is set by
+``render3D_bgcolor`` parameters, while the (linear) size (in pixels) is set by
 ``render3D_resolution``. All particles of a given component gets the same
 colour, though different colours may be used for different components when
 running such simulations. The brightness of each pixel indicates the local
@@ -222,7 +222,7 @@ its own snapshot format, which is simply a well-structured HDF5 file.
       sudo apt install qtbase5-dev
 
 Such snapshots are useful if you want to process the raw data using some
-external program. You can also initialize a simulation from a snapshot, instead
+external program. You can also initialise a simulation from a snapshot, instead
 of generating initial conditions from scratch. To try this, redefine the
 initial conditions to simply be the path to the snapshot produced by the
 simulation you just ran:
@@ -257,7 +257,7 @@ To generate a warning and error log file, try wrongly specifying e.g.
 log file.
 
 If you intend to run many simulations using the same initial conditions,
-it might be worthwhile to initialize these from a common snapshot. To produce
+it might be worthwhile to initialise these from a common snapshot. To produce
 such an initial snapshot, simply set ``output_times = {'snapshot': a_begin}``,
 in which case CO\ *N*\ CEPT will exit right after the snapshot has been dumped
 at the initial time, without doing any simulation. An ``ic`` directory should
