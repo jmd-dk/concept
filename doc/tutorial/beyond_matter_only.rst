@@ -1730,7 +1730,7 @@ you should save as e.g. ``param/tutorial``:
 .. code-block:: python3
    :caption: param/tutorial :math:`\,` (non-linear massive neutrinos)
    :name: param-nonlinear-massive-neutrinos
-   :emphasize-lines: 19-35, 75-79, 83-88, 94-95
+   :emphasize-lines: 19-35, 75-79, 83-88, 96-97
 
    # Non-parameter helper variable used to control the size of the simulation
    _size = 80
@@ -1820,6 +1820,8 @@ you should save as e.g. ``param/tutorial``:
            'linear (no neutrino)': (_nutrans, inf),
            'non-linear neutrino' : (_nutrans, inf),
        }
+
+   # Simulation
    primordial_amplitude_fixed = True
 
    # Non-parameter helper variables which should
