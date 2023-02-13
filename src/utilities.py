@@ -485,16 +485,64 @@ def powerspec():
             index = len(basename) - len(ext)
             basename = basename[:index]
             break
-    output_filename = '{}/{}{}{}'.format(output_dir,
-                                         output_bases['powerspec'],
-                                         '_' if output_bases['powerspec'] else '',
-                                         basename)
+    output_filename = '{}/{}{}{}'.format(
+        output_dir,
+        output_bases['powerspec'],
+        '_' if output_bases['powerspec'] else '',
+        basename,
+    )
     # Prepend 'powerspec_' to filename if it
     # is identical to the snapshot filename.
     if output_filename == snapshot_filename:
-        output_filename = '{}/powerspec_{}'.format(output_dir, basename)
+        output_filename = f'{output_dir}/powerspec_{basename}'
     # Produce power spectrum of the snapshot
     analysis.powerspec(snapshot.components, output_filename)
+
+# Function that produces a bispectrum of the file
+# specified by the special_params['snapshot_filename'] parameter.
+@cython.pheader(
+    # Locals
+    basename=str,
+    index='int',
+    ext=str,
+    output_dir=str,
+    output_filename=str,
+    snapshot=object,
+    snapshot_filename=str,
+)
+def bispec():
+    init_time()
+    # Extract the snapshot filename
+    snapshot_filename = special_params['snapshot_filename']
+    # Read in the snapshot, postponing the parameter comparison
+    snapshot = load(snapshot_filename, compare_params=False)
+    # Set universal scale factor and cosmic time and to match
+    # that of the snapshot.
+    universals.a = snapshot.params['a']
+    if enable_Hubble:
+        universals.t = cosmic_time(universals.a)
+    # Now do the parameter comparison
+    compare_parameters(snapshot, snapshot_filename)
+    # Construct output filename based on the snapshot filename.
+    # Importantly, remove any file extension signalling a snapshot.
+    output_dir, basename = os.path.split(snapshot_filename)
+    for ext in snapshot_extensions:
+        if basename.endswith(ext):
+            index = len(basename) - len(ext)
+            basename = basename[:index]
+            break
+    output_filename = '{}/{}{}{}'.format(
+        output_dir,
+        output_bases['bispec'],
+        '_' if output_bases['bispec'] else '',
+        basename,
+    )
+    # Prepend 'bispec_' to filename if it
+    # is identical to the snapshot filename.
+    if output_filename == snapshot_filename:
+        output_filename = f'{output_dir}/bispec_{basename}'
+    # Produce bispectrum of the snapshot
+    analysis.bispec(snapshot.components, output_filename)
 
 # Function which produces a 3D render of the file
 # specified by the special_params['snapshot_filename'] parameter.
@@ -529,20 +577,25 @@ def render3D():
             index = len(basename) - len(ext)
             basename = basename[:index]
             break
-    output_filename = '{}/{}{}{}'.format(output_dir,
-                                         output_bases['render3D'],
-                                         '_' if output_bases['render3D'] else '',
-                                         basename)
+    output_filename = '{}/{}{}{}'.format(
+        output_dir,
+        output_bases['render3D'],
+        '_' if output_bases['render3D'] else '',
+        basename,
+    )
     # Attach missing extension to filename
     if not output_filename.endswith('.png'):
         output_filename += '.png'
     # Prepend 'render3D_' to filename if it
     # is identical to the snapshot filename.
     if output_filename == snapshot_filename:
-        output_filename = '{}/render3D_{}'.format(output_dir, basename)
+        output_filename = f'{output_dir}/render3D_{basename}'
     # Render the snapshot
-    graphics.render3D(snapshot.components, output_filename,
-                    True, '.renders3D_{}'.format(basename))
+    graphics.render3D(
+        snapshot.components,
+        output_filename,
+        f'.renders3D_{basename}',
+    )
 
 # Function for printing all informations within a snapshot
 @cython.pheader(
@@ -586,6 +639,7 @@ def info():
                 snapshot_filename,
                 compare_params=False,
                 only_params=(not special_params['stats']),
+                do_exchange=False,
             )
         params = snapshot.params
         snapshot_type = get_snapshot_type(snapshot_filename)
@@ -624,7 +678,7 @@ def info():
             # as it is grepped for by several of the Bash utilities.
             heading = '\nParameters of "{}"'.format(sensible_path(snapshot_filename))
             masterprint(terminal.bold(heading), wrap=False)
-            with open_file(parameter_filename, mode='w') as pfile:
+            with open_file(parameter_filename, mode='w', encoding='utf-8') as pfile:
                 masterprint(
                     f'# Auto-generated parameter file for the snapshot\n# "{snapshot_filename}"\n',
                     file=pfile, wrap=False,
@@ -808,7 +862,7 @@ def info():
                     '{:<16} [{}, {}, {}] {}'.format(
                         'momentum sum',
                         *significant_figures(
-                            asarray(Σmom)/units.m_sun, 6, fmt='unicode', scientific=True,
+                            asarray(Σmom)/units.m_sun, 6, fmt='unicode', force_scientific=True,
                         ),
                         f'm☉ {unit_length} {unit_time}⁻¹',
                     ),
@@ -818,7 +872,7 @@ def info():
                     '{:<16} [{}, {}, {}] {}'.format(
                         'momentum spread',
                         *significant_figures(
-                            asarray(σmom)/units.m_sun, 6, fmt='unicode', scientific=True,
+                            asarray(σmom)/units.m_sun, 6, fmt='unicode', force_scientific=True,
                         ),
                         f'm☉ {unit_length} {unit_time}⁻¹',
                     ),
@@ -838,6 +892,7 @@ def info():
     all_a_values='double[::1]',
     arr='double[::1]',
     boltzmann_order='Py_ssize_t',
+    class_modes_per_decade_ori=dict,
     class_species=str,
     component='Component',
     component_variables=dict,
@@ -858,7 +913,6 @@ def info():
     k_magnitudes='double[::1]',
     k_max='double',
     k_min='double',
-    k_modes_per_decade_ori=dict,
     key=str,
     modes=object,  # int or np.ndarray
     perturbations=object,  # PerturbationDict
@@ -922,7 +976,7 @@ def class_():
         # the perturbations, or the exact k values of these modes.
         # A value of -1 means that no specific number of modes has been
         # requested, in which case we should use the number obtained
-        # from k_modes_per_decade as is.
+        # from class_modes_per_decade as is.
         modes = bcast(
             handle_class_arg(special_params['modes'], 'modes', k_min, k_max)
             if master else None
@@ -952,28 +1006,28 @@ def class_():
                         dtype=C2np['double'],
                     )
             elif modes != -1:
-                # Adjust the global user parameter k_modes_per_decade
-                # so that the exact requested number of k modes
-                # is obtained.
-                k_modes_per_decade_ori = k_modes_per_decade.copy()
+                # Adjust the global user parameter
+                # class_modes_per_decade so that the exact requested
+                # number of k modes is obtained.
+                class_modes_per_decade_ori = class_modes_per_decade.copy()
                 k_magnitudes, _ = get_k_magnitudes(gridsize, use_cache=False)
                 fac = 1
                 while k_magnitudes.shape[0] < modes:
                     fac *= 1.1
-                    for k_magnitude, val in k_modes_per_decade_ori.items():
-                        k_modes_per_decade[k_magnitude] = fac*val
+                    for k_magnitude, val in class_modes_per_decade_ori.items():
+                        class_modes_per_decade[k_magnitude] = fac*val
                     k_magnitudes, _ = get_k_magnitudes(gridsize, use_cache=False)
                 fac_max = fac
                 while k_magnitudes.shape[0] > modes:
                     fac *= 0.9
-                    for k_magnitude, val in k_modes_per_decade_ori.items():
-                        k_modes_per_decade[k_magnitude] = fac*val
+                    for k_magnitude, val in class_modes_per_decade_ori.items():
+                        class_modes_per_decade[k_magnitude] = fac*val
                     k_magnitudes, _ = get_k_magnitudes(gridsize, use_cache=False)
                 fac_min = fac
                 while True:
                     fac = sqrt(fac_min*fac_max)
-                    for k_magnitude, val in k_modes_per_decade_ori.items():
-                        k_modes_per_decade[k_magnitude] = fac*val
+                    for k_magnitude, val in class_modes_per_decade_ori.items():
+                        class_modes_per_decade[k_magnitude] = fac*val
                     k_magnitudes, _ = get_k_magnitudes(gridsize, use_cache=False)
                     if isclose(fac_min, fac_max):
                         break

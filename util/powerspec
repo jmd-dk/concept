@@ -88,8 +88,11 @@ sys.stdout = stdout
 # Print out the arguments.
 # These will be captured in the Bash 'args' variable.
 print('argparse_finished=True')
-print('paths=({})'.format(' '.join(['\"{}\"'.format(paths) for paths in args.paths])))
-print('yes_to_defaults=\"{}\"'.format(args.yes_to_defaults))
+for arg, val in vars(args).items():
+    if isinstance(val, list):
+        print(f'{arg}=({{}})'.format(' '.join([f'\"{el}\"' for el in val])))
+    else:
+        print(f'{arg}=\"{val}\"')
 " "$@" || echo "argparse_exit_code=$?")
 # Evaluate the handled arguments into this scope
 eval "${args}"
@@ -147,8 +150,6 @@ done
 # Get filenames of snapshots and create matching (temporary) parameter files
 info="$(                                                                        \
     "${concept}"                                                                \
-        -c="${command_line_params}"                                             \
-        -p="${param}"                                                           \
         -u=info                                                                 \
             "$(bash_array2python_list "${paths[@]}")"                           \
             --generate-params="${tmp_dir}/param/${start_time_human_nosep}/info" \
@@ -230,6 +231,15 @@ special_params = {
 _param_ori, param = param, type(param)('${param}')
 # Auto-generated parameters
 $(cat "${snapshot_param_filename}")
+# Record the scale factor and boxsize
+try:
+    _a_begin = a_begin
+except NameError:
+    _a_begin = None
+try:
+    _boxsize = boxsize
+except NameError:
+    _boxsize = None
 ###################
 # User parameters #
 ###################
@@ -239,6 +249,11 @@ $(cat "${param}")
 ##########################
 # Reinsert original path to the parameter file
 param = _param_ori
+# Use scale factor and boxsize from snapshot
+if _a_begin is not None:
+    a_begin = _a_begin
+if _boxsize is not None:
+    boxsize = _boxsize
 " > "${param_filename}"
     # Cleanup
     rm -f "${snapshot_param_filename}"
@@ -286,7 +301,16 @@ param = _param_ori
         2>/dev/null)" || :
     jobids=("${jobids[@]}" "${jobid}")
     # Cleanup
-    rm -f "${param_filename}"
+    if [ "${remote}" == "False" ] || [ -n "${jobid}" ]; then
+        rm -f "${param_filename}"
+    fi
+done
+any_jobs="False"
+for jobid in "${jobids[@]}"; do
+    if [ -n "${jobid}" ]; then
+        any_jobs="True"
+        break
+    fi
 done
 
 # Cleanup
@@ -301,26 +325,22 @@ plural=""
 if [ ${N_snapshots} -gt 1 ]; then
     plural="s"
 fi
-if [ "${remote}" == "True" ] && [ "${no_watching}" == "False" ]; then
+if [ "${remote}" == "True" ] && [ "${no_watching}" == "False" ] && [ "${any_jobs}" == "True" ]; then
     printf "\nYou can now kill (Ctrl+C) this script without cancelling the job${plural}\n"
-    printf "\nWill now watch the submitted job${plural}\n\n"
+    printf "\nWill now watch the submitted job${plural}\n"
     for jobid in "${jobids[@]}"; do
-        "${concept}" -u=watch ${jobid}
-        echo
+        if [ -n "${jobid}" ]; then
+            "${concept}" -u=watch "${jobid}"
+        fi
     done
-else
-    echo
 fi
+echo
 
 # Exit gracefully
 if [ "${remote}" == "False" ] || [ "${no_watching}" == "False" ]; then
     completely_successful="True"
     for jobid in "${jobids[@]}"; do
-        if [ -z "${jobid}" ]; then
-            colorprint "Error capturing jobid from output" "red"
-            exit 1
-        fi
-        if [ -f "${job_dir}/${jobid}/log_err" ]; then
+        if  [ -z "${jobid}" ] || [ -f "${job_dir}/${jobid}/log_err" ]; then
             completely_successful="False"
         fi
     done

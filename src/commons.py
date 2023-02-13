@@ -52,6 +52,7 @@ from numpy import arange, asarray, empty, linspace, logspace, ones, zeros
 import mpi4py.rc; mpi4py.rc.threads = False  # Do not use threads
 from mpi4py import MPI
 # I/O
+import io
 from glob import glob
 # For fancy terminal output
 import blessings
@@ -214,7 +215,7 @@ Sendrecv = (lambda sendbuf, dest, sendtag=0, recvbuf=None, source=MPI.ANY_SOURCE
 )
 allgather  = comm.allgather
 allreduce  = comm.allreduce
-bcast      = lambda obj=None, root=master_rank: comm.bcast (obj, root)
+bcast      = lambda obj=None, root=master_rank: comm.bcast(obj, root)
 gather     = lambda obj, root=master_rank: comm.gather(obj, root)
 iprobe     = comm.iprobe
 isend      = comm.isend
@@ -503,6 +504,7 @@ np.lib   .npyio.asunicode = asstr
 # the function additionally:
 #   - Ensures that we use the agg back-end.
 #   - Sets some custom preferences.
+#   - Ensure that I/O exceptions trigger abort
 #   - Patches a bug.
 def get_matplotlib():
     if matplotlib_cache:
@@ -529,8 +531,11 @@ def get_matplotlib():
     plt.imread  = tryexcept_wrapper(plt.imread,  'plt.imread() failed')
     plt.imsave  = tryexcept_wrapper(plt.imsave,  'plt.imsave() failed')
     plt.savefig = tryexcept_wrapper(plt.savefig, 'plt.savefig() failed')
+    matplotlib.figure.savefig = tryexcept_wrapper(
+        matplotlib.figure.Figure.savefig, 'matplotlib.figure.Figure.savefig() failed',
+    )
     # Patch a bug about automatic minor tick labels by monkey patching
-    # plt.tight_layout() and plt.savefig().
+    # tight_layout() and savefig().
     # The bug is reported here:
     #   https://github.com/matplotlib/matplotlib/issues/10029
     import matplotlib.mathtext
@@ -538,15 +543,11 @@ def get_matplotlib():
         if fig is None:
             fig = plt.gcf()
         # Force the figure to be drawn, ignoring the warning about
-        # \times not being recognised. Prior to Matplotlib 3.1.0,
-        # the warning is emitted through the warnings module,
-        # whereas later versions uses the logging module.
+        # \times not being recognised.
         logger = logging.getLogger('matplotlib.mathtext')
         original_level = logger.getEffectiveLevel()
         logger.setLevel(logging.ERROR)
-        with warnings.catch_warnings():
-            warnings.simplefilter('ignore', category=matplotlib.mathtext.MathTextWarning)
-            fig.canvas.draw()
+        fig.canvas.draw()
         logger.setLevel(original_level)
         # Remove \mathdefault from all minor tick labels
         for ax in fig.axes:
@@ -555,20 +556,23 @@ def get_matplotlib():
                     label.get_text().replace(r'\mathdefault', '')
                     for label in getattr(ax, f'get_{xy}minorticklabels')()
                 ]
-                # In at least Matplotlib 3.3, setting the tick labels
-                # can throw an erroneous UserWarning:
-                #   FixedFormatter should only be used together with FixedLocator
-                with warnings.catch_warnings():
-                    warnings.simplefilter('ignore', category=UserWarning)
-                    getattr(ax, f'set_{xy}ticklabels')(labels, minor=True)
+                getattr(ax, f'set_{xy}ticklabels')(labels, minor=True)
     def fix_minor_tick_labels_decorator(f):
         @functools.wraps(f)
         def wrapper(*args, **kwargs):
-            fix_minor_tick_labels()
-            f(*args, **kwargs)
+            fig = None
+            if len(args) > 0 and isinstance(args[0], matplotlib.figure.Figure):
+                fig = args[0]
+            # Matplotlib might emit several differet UserWarning's,
+            # which we do not want to display.
+            with warnings.catch_warnings():
+                warnings.simplefilter('ignore', category=UserWarning)
+                fix_minor_tick_labels(fig)
+                f(*args, **kwargs)
         return wrapper
     for func in ('tight_layout', 'savefig'):
-        setattr(plt, func, fix_minor_tick_labels_decorator(getattr(plt, func)))
+        for obj in (plt, matplotlib.figure.Figure):
+            setattr(obj, func, fix_minor_tick_labels_decorator(getattr(obj, func)))
     # Add the matplotlib module to the global store for future lookups
     matplotlib_cache.append(matplotlib)
     # Return the matplotlib module itself
@@ -1457,7 +1461,6 @@ def unicode_repl(match):
 
 # This function takes in a number (string) and
 # returns it written in Unicode subscript.
-@cython.header(s=str, returns=str)
 def unicode_subscript(s):
     return ''.join([unicode_subscripts.get(c, c) for c in s])
 cython.declare(unicode_subscripts=dict)
@@ -2108,13 +2111,13 @@ def stringify_dict(d):
     for key, val in d.items():
         try:
             f = ast.literal_eval(key)
-            if isinstance(f, float):
+            if isinstance(f, (float, np.floating)):
                 key = f'{f:.12g}'
         except:
             pass
         try:
             f = ast.literal_eval(val)
-            if isinstance(f, float):
+            if isinstance(f, (float, np.floating)):
                 val = f'{f:.12g}'
         except:
             pass
@@ -2367,6 +2370,7 @@ cython.declare(
     autosave_interval='double',
     snapshot_select=dict,
     powerspec_select=dict,
+    bispec_select=dict,
     render2D_select=dict,
     render3D_select=dict,
     snapshot_type=str,
@@ -2383,7 +2387,10 @@ cython.declare(
     ewald_gridsize='Py_ssize_t',
     shortrange_params=dict,
     powerspec_options=dict,
-    k_modes_per_decade=dict,
+    bispec_options=dict,
+    bispec_antialiasing='bint',
+    class_dedicated_spectra='bint',
+    class_modes_per_decade=dict,
     # Cosmology
     H0='double',
     Ωb='double',
@@ -2445,7 +2452,7 @@ cython.declare(
 # Input/output
 initial_conditions = user_params.get('initial_conditions', '')
 user_params['initial_conditions'] = initial_conditions
-output_kinds = ('snapshot', 'powerspec', 'render2D', 'render3D')
+output_kinds = ('snapshot', 'powerspec', 'bispec', 'render2D', 'render3D')
 if isinstance(user_params.get('output_dirs'), str):
     output_dirs = {
         kind: user_params['output_dirs']
@@ -2521,8 +2528,46 @@ for key, val in powerspec_select.copy().items():
         val.setdefault('linear', False)
         val.setdefault('plot', False)
     else:
-        powerspec_select[key] = {'data': bool(val), 'linear': bool(val), 'plot': bool(val)}
+        powerspec_select[key] = {
+            'data': bool(val),
+            'linear': bool(val),
+            'plot': bool(val),
+        }
 user_params['powerspec_select'] = powerspec_select
+if 'bispec_select' in user_params:
+    if isinstance(user_params['bispec_select'], dict):
+        bispec_select = user_params['bispec_select']
+    else:
+        bispec_select = {'default': user_params['bispec_select']}
+    for key, val in bispec_select.copy().items():
+        if not isinstance(val, dict):
+            continue
+        bispec_select[key] = {
+            key2.replace(' ', '').replace('-', '').replace('_', ''): val2
+            for key2, val2 in val.items()
+        }
+    bispec_select.setdefault(
+        'default', {'data': False, 'reduced': False, 'treelevel': False, 'plot': False},
+    )
+else:
+    bispec_select = {
+        'default': {'data': True, 'reduced': True, 'treelevel': True, 'plot': True},
+    }
+replace_ellipsis(bispec_select)
+for key, val in bispec_select.copy().items():
+    if isinstance(val, dict):
+        val.setdefault('data', False)
+        val.setdefault('reduced', False)
+        val.setdefault('treelevel', False)
+        val.setdefault('plot', False)
+    else:
+        bispec_select[key] = {
+            'data': bool(val),
+            'reduced': bool(val),
+            'treelevel': bool(val),
+            'plot': bool(val),
+        }
+user_params['bispec_select'] = bispec_select
 if 'render2D_select' in user_params:
     if isinstance(user_params['render2D_select'], dict):
         render2D_select = user_params['render2D_select']
@@ -2711,7 +2756,7 @@ user_params['class_extra_perturbations'] = class_extra_perturbations
 # Numerical parameters
 boxsize = float(user_params.get('boxsize', 512*units.Mpc))
 user_params['boxsize'] = boxsize
-if isinstance(user_params.get('potential_options', {}), (int, float)):
+if isinstance(user_params.get('potential_options', {}), (int, float, np.integer, np.floating)):
     potential_options = {
         'gridsize': int(round(user_params['potential_options'])),
     }
@@ -2967,7 +3012,7 @@ for name, d in potential_differentiations_input.items():
             })
         elif isinstance(val, (tuple, list)):
             potential_differentiations[name][key][val[0].lower()] = val[1]
-        elif isinstance(val, (int, float)):
+        elif isinstance(val, (int, float, np.integer, np.floating)):
             potential_differentiations[name][key] = {'pm': int(round(val)), 'p3m': int(round(val))}
         elif isinstance(val, str):
             potential_differentiations[name][key] = {'pm': val, 'p3m': val}
@@ -2979,7 +3024,7 @@ for name, d in potential_differentiations_input.items():
             subd_key = re.sub(r'[ _\-^()]', '', subd_key.lower())
             for n in range(10):
                 subd_key = subd_key.replace(unicode_superscript(str(n)), str(n))
-            if isinstance(subd_val, (int, float)):
+            if isinstance(subd_val, (int, float, np.integer, np.floating)):
                 subd_val = int(round(subd_val))
             elif isinstance(subd_val, str):
                 subd_val = subd_val.lower()
@@ -3059,7 +3104,7 @@ for force, d in shortrange_params.items():
             val = val.replace('gridsize', str(gridsize))
         if 'scale' in val:
             scale = d.get('scale')
-            if not isinstance(scale, (float, int)):
+            if not isinstance(scale, (int, float, np.integer, np.floating)):
                 abort(
                     f'Could not detect scale needed for '
                     f'shortrange_params["{force}"]["{key}"]. '
@@ -3073,7 +3118,7 @@ for force, d in shortrange_params.items():
                 val = val.replace('scale', str(scale))
         if 'range' in val:
             forcerange = d.get('range')
-            if not isinstance(forcerange, (float, int)):
+            if not isinstance(forcerange, (int, float, np.integer, np.floating)):
                 abort(
                     f'Could not detect range needed for '
                     f'shortrange_params["{force}"]["{key}"]. '
@@ -3126,10 +3171,10 @@ powerspec_options_defaults = {
     'k_max': {
         'default': 'Nyquist',
     },
-    'binsize': {
+    'bins per decade': {
         'default': {
-            '1*k_min': 1*π/boxsize,
-            '5*k_min': 2*π/boxsize,
+            '  4*k_min':  4,
+            '100*k_min': 40,
         },
     },
     'tophat': {
@@ -3170,7 +3215,7 @@ d = powerspec_options['k_max']
 for key, val in d.copy().items():
     if isinstance(val, str):
         d[key] = val.replace('Nyquist', 'nyquist')
-d = powerspec_options['binsize']
+d = powerspec_options['bins per decade']
 for key, val in d.copy().items():
     if not isinstance(val, dict):
         val = {1: val}
@@ -3185,20 +3230,196 @@ for key in powerspec_options:
     if key not in powerspec_options_defaults:
         abort(f'powerspec_options["{key}"] not implemented')
 user_params['powerspec_options'] = powerspec_options
-if isinstance(user_params.get('k_modes_per_decade', {}), (int, float)):
-    k_modes_per_decade = {1: user_params['k_modes_per_decade']}
+bispec_options_defaults = {
+    'configuration': {
+        'default': ('equilateral', 20),
+    },
+    'shellthickness': {
+        'default': [
+            {
+                '1*k_fundamental': '0.25*k_fundamental',
+                '4*k_fundamental': 'max(3*k_fundamental, 1/20*log(10)*k)',
+            },
+        ]*3,
+    },
+    'upstream gridsize': {
+        'default': -1,
+    },
+    'global gridsize': {
+        'default': -1,
+    },
+    'interpolation': {
+        'default': 'PCS',
+    },
+    'deconvolve': {
+        'default': True,
+    },
+    'interlace': {
+        'default': True,
+    },
+    'significant figures': {
+        'default': 8,
+    },
+}
+bispec_options = dict(user_params.get('bispec_options', {}))
+for key, val in bispec_options.items():
+    replace_ellipsis(val)
+if 'gridsize' in bispec_options:
+    d = bispec_options['gridsize']
+    if not isinstance(d, dict):
+        d = {'default': d}
+    bispec_options.setdefault('upstream gridsize', d.copy())
+    bispec_options.setdefault('global gridsize'  , d.copy())
+    bispec_options.pop('gridsize')
+for key, d in bispec_options.copy().items():
+    if not isinstance(d, dict):
+        bispec_options[key] = {'default': d}
+for key, d_defaults in bispec_options_defaults.items():
+    bispec_options.setdefault(key, {})
+    d = bispec_options[key]
+    for key, val in d_defaults.items():
+        d.setdefault(key, val)
+d = bispec_options['global gridsize']
+for key, val in d.copy().items():
+    d[key] = int(round(val))
+d = bispec_options['configuration']
+replace_ellipsis(d)
+def transform(key, val):
+    n = 20
+    if isinstance(val, (tuple, list)) and len(val) == 2:
+        if not isinstance(val[0], str) and not isinstance(val[1], str):
+            abort(
+                f'bispec_options["configuration"]["{key}"] contains '
+                f'{val} with 2 elements, none of which is a str'
+            )
+        if isinstance(val[1], str):
+            val = (val[1], val[0])
+        val, n = val
+    if isinstance(val, str):
+        # Format: str, together with n
+        val = (val, n)
+    elif isinstance(val, dict):
+        # Format: {'k': ..., 't': ..., 'μ': ...}
+        replace_ellipsis(val)
+        d = {}
+        for key2, val2 in val.copy().items():
+            key2 = key2.replace('k_', 'k')
+            key2 = key2.replace('1', '')
+            key2 = key2.replace(unicode('₁'), '').replace(asciify('₁'), '')
+            key2 = key2.replace(unicode('¹'), '').replace(asciify('¹'), '')
+            key2 = key2.replace(unicode('μ'), 'μ').replace(asciify('μ'), 'μ').replace('mu', 'μ')
+            if key2 not in ('k', 't', 'μ'):
+                abort(f'Key "{key2}" in bispec_options["configuration"]["{key}"] not understood')
+            d[key2] = val2
+        for key2 in ('k', 't', 'μ'):
+            if key2 not in d:
+                abort(
+                    f'Mapping {val} in bispec_options["configuration"]["{key}"] '
+                    f'is missing required key "{key2}"'
+                )
+        val = d
+    elif isinstance(val, (tuple, list)):
+        if len(val) == 3:
+            # Format: (k, t, μ)
+            if not all(
+                [isinstance(el, (int, float, np.integer, np.floating, str)) for el in val]
+            ):
+                abort(
+                    f'bispec_options["configuration"]["{key}"] contains '
+                    f'{val} which has an element which is not a number or a str'
+                )
+        else:
+            abort(
+                f'bispec_options["configuration"]["{key}"] contains '
+                f'{val} which has {len(val)} ≠ 3 elements'
+            )
+        val = tuple(val)
+    else:
+        abort(
+            f'Failed to parse bispec_options["configuration"]["{key}"] = '
+            f'{val} of type {type(val)}'
+        )
+    return val
+for key, val in d.copy().items():
+    if isinstance(val, (tuple, list)):
+        if isinstance(val, tuple) and len(val) in {2, 3} and all(
+            [isinstance(el, (int, float, np.integer, np.floating, str)) for el in val]
+        ):
+            val = [transform(key, tuple(val))]
+        else:
+            val = list(val)
+            for i, el in enumerate(val):
+                val[i] = transform(key, el)
+    else:
+        val = [transform(key, val)]
+    d[key] = val
+d = bispec_options['shellthickness']
+replace_ellipsis(d)
+for key, val in d.copy().items():
+    if isinstance(val, (int, float, np.integer, np.floating)):
+        val = {1: val}
+    elif isinstance(val, str):
+        val = {0: val, ထ: val}  # signals that this should be applied from k_min to k_max
+    if isinstance(val, dict):
+        val = [val]
+    if isinstance(val, (tuple, list)):
+        if len(val) == 1:
+            val *= 3
+        if len(val) != 3:
+            abort(
+                f'You have specified {len(val)} shell thicknesses in '
+                f'bispec_options["shellthickness"]["{key}"]. Please specify 3.'
+            )
+    val = list(val)
+    for i, d2 in enumerate(val):
+        if isinstance(d2, (int, float, np.integer, np.floating, str)):
+            d2 = {1: d2}  # modified below
+        replace_ellipsis(d2)
+        if len(d2) == 1:
+            key2 = tuple(d2.keys())[0]
+            val2 = tuple(d2.values())[0]
+            if isinstance(val2, str):
+                d2.clear()
+                d2 |= {0: val2, ထ: val2}
+            else:
+                if isinstance(key2, str):
+                    d2[f'{key2} + 1'] = val2
+                else:
+                    d2[key2 + 1] = val2
+        val[i] = d2
+    d[key] = tuple(val)
+d = bispec_options['interpolation']
+for key, val in d.copy().items():
+    d[key] = int(interpolation_orders.get(str(val).upper(), val))
+d = bispec_options['interlace']
+for key, val in d.copy().items():
+    d[key] = interlace2latticekind(val)
+for key in bispec_options:
+    if key not in bispec_options_defaults:
+        abort(f'bispec_options["{key}"] not implemented')
+user_params['bispec_options'] = bispec_options
+bispec_antialiasing = bool(user_params.get('bispec_antialiasing', True))
+user_params['bispec_antialiasing'] = bispec_antialiasing
+class_dedicated_spectra = bool(user_params.get('class_dedicated_spectra', False))
+user_params['class_dedicated_spectra'] = class_dedicated_spectra
+if isinstance(
+    user_params.get('class_modes_per_decade', {}),
+    (int, float, np.integer, np.floating),
+):
+    class_modes_per_decade = {1: user_params['class_modes_per_decade']}
 else:
-    k_modes_per_decade = dict(user_params.get('k_modes_per_decade', {}))
-    if not k_modes_per_decade:
-        k_modes_per_decade = {
+    class_modes_per_decade = dict(user_params.get('class_modes_per_decade', {}))
+    replace_ellipsis(class_modes_per_decade)
+    if not class_modes_per_decade:
+        class_modes_per_decade = {
             3e-3*units.Mpc**(-1): 10,
             3e-2*units.Mpc**(-1): 30,
             3e-1*units.Mpc**(-1): 30,
             1e+0*units.Mpc**(-1): 10,
         }
-if len(k_modes_per_decade) == 1:
-    k_modes_per_decade.update({(key + 1): val for key, val in k_modes_per_decade.items()})
-user_params['k_modes_per_decade'] = k_modes_per_decade
+if len(class_modes_per_decade) == 1:
+    class_modes_per_decade.update({(key + 1): val for key, val in class_modes_per_decade.items()})
+user_params['class_modes_per_decade'] = class_modes_per_decade
 # Cosmology
 H0 = float(user_params.get('H0', 67*units.km/(units.s*units.Mpc)))
 user_params['H0'] = H0
@@ -3321,6 +3542,9 @@ realization_options_defaults = {
     'lpt': {
         'default': 1,
     },
+    'nongaussianity': {
+        'default': 0,
+    },
     'structure': {
         'default': 'non-linear',
     },
@@ -3367,6 +3591,14 @@ for key, val in d.copy().items():
     d[key] = int(round(val))
     if d[key] not in {1, 2}:
         abort(f'{d[key]}LPT not implemented')
+for s in ('nongauss', 'nongaussian', 'nongaussianity'):
+    if s not in realization_options:
+        continue
+    d = realization_options.pop(s)
+    for key, val in d.copy().items():
+        d[key] = float(val)
+    realization_options['nongaussianity'] = d
+    break
 d = realization_options['structure']
 for key, val in d.copy().items():
     if val not in {'primordial', 'nonlinear'}:
@@ -3762,19 +3994,6 @@ universals, universals_dict = build_struct(
 # Derived and internally defined constants #
 ############################################
 cython.declare(
-    snapshot_dir=str,
-    snapshot_base=str,
-    snapshot_times=dict,
-    powerspec_dir=str,
-    powerspec_base=str,
-    powerspec_times=dict,
-    render2D_dir=str,
-    render2D_base=str,
-    render2D_times=dict,
-    render3D_dir=str,
-    render3D_base=str,
-    render3D_times=dict,
-    autosave_dir=str,
     nghosts='int',
     ρ_crit='double',
     Ωdcdm='double',
@@ -3811,38 +4030,19 @@ output_times = {
     }
     for time_param in ('a', 't')
 }
-# Extract output variables from output dicts
-snapshot_dir = output_dirs['snapshot']
-snapshot_base = output_bases['snapshot']
-snapshot_times = {
-    time_param: output_times[time_param]['snapshot'] for time_param in ('a', 't')
-}
-powerspec_dir = output_dirs['powerspec']
-powerspec_base = output_bases['powerspec']
-powerspec_times = {
-    time_param: output_times[time_param]['powerspec'] for time_param in ('a', 't')
-}
-render2D_dir = output_dirs['render2D']
-render2D_base = output_bases['render2D']
-render2D_times = {
-    time_param: output_times[time_param]['render2D'] for time_param in ('a', 't')
-}
-render3D_dir = output_dirs['render3D']
-render3D_base = output_bases['render3D']
-render3D_times = {
-    time_param: output_times[time_param]['render3D'] for time_param in ('a', 't')
-}
-autosave_dir = output_dirs['autosave']
 # We never include linear power spectra in power spectrum output
-# if the CLASS background is disabled.
+# nor tree-level bispectra in bispectrum output if the
+# CLASS background is disabled.
 if not enable_class_background:
     for d in powerspec_select.values():
         d['linear'] = False
+    for d in bispec_select.values():
+        d['treelevel'] = False
 # The number of ghost point layers around the domain grids (so that the
 # full shape of each grid is (nghosts + shape[0] + nghosts,
 # nghosts + shape[1] + nghosts, nghosts + shape[2] + nghosts). This is
-# determined by the interpolation orders of potential, power spectrum
-# and render2D interpolations (order 1 (NGP): 0 ghost layers,
+# determined by the interpolation orders of potential, power spectrum,
+# bispectrum and render2D interpolations (order 1 (NGP): 0 ghost layers,
 # 2 (CIC): 1 ghost layer, order 3 (TSC): 1 ghost layer,
 # order 4 (PCS): 2 ghost layers), as well as force differentiations
 # (order 1: 1 ghost layer, order 2: 1 ghost layer, order 4: 2 ghost
@@ -3852,7 +4052,7 @@ if not enable_class_background:
 # grid cell). Finally, second-order differentiation is used to compute
 # fluid source terms, and so nghosts should always be at least 1.
 nghosts = 0
-for options in (powerspec_options, render2D_options):
+for options in (powerspec_options, bispec_options, render2D_options):
     interpolation_order_option = np.max(list(options['interpolation'].values()))
     interlace_option = any([val != 'sc' for val in options['interlace'].values()])
     nghosts_option = interpolation_order_option//2
@@ -4316,6 +4516,37 @@ with copy_on_import:
             else:
                 return llabs(x)
 
+# Integer square root
+with copy_on_import:
+    @cython.inline
+    @cython.header(
+        # Arguments
+        x='Py_ssize_t',
+        # Locals
+        returns='Py_ssize_t',
+    )
+    def isqrt(x):
+        """This function implements the square root for integers x such
+        that isqrt(x) = int(sqrt(x)). Though proper integer-only code
+        for this purpose (similar to the code for icbrt() below)
+        is available, I have found that using the floating-point sqrt()
+        function is in fact the fastest option. Note that unlike
+        int(cbrt(x)), int(sqrt(x)) always returns the correct answer.
+        """
+        return cast(sqrt(x), 'Py_ssize_t')
+
+# Check whether integer is quadratic
+with copy_on_import:
+    @cython.inline
+    @cython.header(
+        # Arguments
+        x='Py_ssize_t',
+        # Locals
+        returns='bint',
+    )
+    def isquadratic(x):
+        return (isqrt(x)**2 == x)
+
 # Integer cube root
 with copy_on_import:
     @cython.inline
@@ -4425,18 +4656,14 @@ with copy_on_import:
     @cython.inline
     @cython.header(a=fused_numeric, b=fused_numeric, returns=fused_numeric)
     def pairmax(a, b):
-        if a > b:
-            return a
-        return b
+        return a*(b <= a) + b*(a < b)
 
 # Minimum function for pairs of numbers
 with copy_on_import:
     @cython.inline
     @cython.header(a=fused_numeric, b=fused_numeric, returns=fused_numeric)
     def pairmin(a, b):
-        if a < b:
-            return a
-        return b
+        return a*(a <= b) + b*(b < a)
 
 # Proper modulo function mod(x, length) for scalars,
 # with x ∈ [0, length) for length > 0.
@@ -4587,32 +4814,53 @@ with copy_on_import:
     fmt=str,
     # Locals
     coefficient=str,
+    coefficient_int='Py_ssize_t',
+    coefficient_float='double',
     exponent=str,
+    fmt_str=str,
+    fmt_str_scientific=str,
+    is_small='bint',
     n_missing_zeros='int',
     number=object,  # Single number of any type
     number_str=str,
     return_list=list,
     returns=object,  # String or list of strings
 )
-def significant_figures(numbers, nfigs, fmt='', incl_zeros=True, scientific=False):
+def significant_figures(
+    numbers, nfigs, fmt='', incl_zeros=True, force_scientific=False,
+    base_call=True,
+):
     """This function formats a floating-point number to have nfigs
     significant figures.
     Set fmt to 'TeX' to format to TeX math code
     (e.g. '1.234\times 10^{-5}') or 'Unicode' to format to superscript
     Unicode (e.g. 1.234×10⁻⁵).
     Set incl_zeros to False to avoid zero-padding.
-    Set scientific to True to force scientific notation.
+    Set force_scientific to True to force full scientific notation.
     """
     fmt = fmt.lower()
     if fmt not in ('', 'tex', 'unicode'):
         abort('Formatting mode "{}" not understood'.format(fmt))
     return_list = []
     for number in any2list(numbers):
+        is_small = (np.abs(number) < 1)
         # Format the number using nfigs
-        number_str = ('{{:.{}{}}}'
-                      .format((nfigs - 1) if scientific else nfigs, 'e' if scientific else 'g')
-                      .format(number)
-                      )
+        fmt_str_scientific = f'{{:.{nfigs - 1}e}}'
+        if force_scientific:
+            fmt_str = fmt_str_scientific
+        else:
+            fmt_str = f'{{:.{nfigs}g}}'
+            if 'e' in fmt_str.format(number) or (number != 0 and 'e' in fmt_str.format(1/number)):
+                fmt_str = fmt_str_scientific
+        number_str = fmt_str.format(number)
+        if is_small and base_call:
+            # For consistent formatting for numbers with absolute values
+            # below unity, we need to call this function once more,
+            # with the rounded number.
+            return significant_figures(
+                float(number_str), nfigs, fmt, incl_zeros, force_scientific,
+                base_call=False,
+            )
         # Handle the exponent
         if 'e' in number_str:
             e_index = number_str.index('e')
@@ -4632,12 +4880,16 @@ def significant_figures(numbers, nfigs, fmt='', incl_zeros=True, scientific=Fals
         else:
             coefficient = number_str
             exponent = ''
+        coefficient_float = float(coefficient)
+        coefficient_int = int(coefficient_float)
+        if coefficient_int == coefficient_float:
+            coefficient = str(coefficient_int)
         # Remove coefficient if it is just 1 (as in 1×10¹⁰ → 10¹⁰)
-        if coefficient == '1' and exponent and fmt in ('tex', 'unicode') and not scientific:
+        if coefficient == '1' and exponent and fmt in ('tex', 'unicode') and not force_scientific:
             coefficient = ''
             exponent = exponent.replace(r'\times ', '').replace(unicode('×'), '')
-        # Pad with zeros in case of too few significant digits
-        if incl_zeros:
+        elif incl_zeros:
+            # Pad with zeros in case of too few significant digits
             digits = coefficient.replace('.', '').replace('-', '')
             for i, d in enumerate(digits):
                 if d != '0':
@@ -4698,6 +4950,83 @@ def correct_float(val_raw):
             val_correct = val_new
         val_new = np.nextafter(val_new, ထ)
     return (val_correct if len(str(val_correct)) < len(str(val_raw)) - 2 else val_raw)
+
+# Function for finding unique elements of a floating-point array,
+# using fuzzy comparison.
+@cython.pheader(
+    # Arguments
+    arr='double[::1]',
+    rel_tol='double',
+    abs_tol='double',
+    # Locals
+    mask='unsigned char[::1]',  # really boolean np.ndarray
+    a='double',
+    b='double',
+    i='Py_ssize_t',
+    i_accept='Py_ssize_t',
+    returns='double[::1]',
+)
+def unique(arr, rel_tol=1e-9, abs_tol=0):
+    # Find truly unique elements. This also sorts the elements.
+    arr = np.unique(arr)
+    # Build mask
+    mask = ones(arr.shape[0], dtype=C2np['bint'])
+    i_accept = 0  # Always include first element
+    a = arr[i_accept]
+    i = -1
+    for i in range(i_accept + 1, arr.shape[0]):
+        b = arr[i]
+        if isclose(a, b, rel_tol, abs_tol):
+            mask[i] = False
+        else:
+            a = b
+            i_accept = i
+    # Always include the last element
+    if i_accept != i != -1:
+        mask[i_accept] = False
+        mask[i       ] = True
+    # Apply mask
+    return asarray(arr)[mask]
+
+# Generalized getattr() function accepting dotted (nested) arguments
+def getattr_nested(obj, attr):
+    if '[:].' in attr:
+        attr_0, attr_1 = attr.split('[:].')
+        return [getattr(el, attr_1) for el in getattr(obj, attr_0)]
+    return eval(f'obj.{attr}')
+
+# Function creating and returning a spline
+# from a dictionary of control points.
+def get_controlpoint_spline(
+    d,
+    transform_x=(lambda x: x), transform_x_onlookup=False, kind='linear',
+):
+    import scipy.interpolate
+    x = np.fromiter(d.keys(), dtype=C2np['double'])
+    y = np.fromiter(d.values(), dtype=C2np['double'])
+    fill_min = d[np.min(x)]
+    fill_max = d[np.max(x)]
+    if transform_x is np.log10:
+        _transform_x = transform_x
+        def transform_x_scalar(x):
+            return _transform_x(x) if x > 0 else -ထ
+        def transform_x(x):
+            if isinstance(x, (int, float, np.integer, np.floating)):
+                return transform_x_scalar(x)
+            return asarray([transform_x_scalar(x_i) for x_i in x])
+    x_transformed = transform_x(x)
+    if transform_x_onlookup:
+        transform_x_lookup = transform_x
+    else:
+        transform_x_lookup = (lambda x: x)
+    interp = lambda x_new, *, f=scipy.interpolate.interp1d(
+        x_transformed,
+        y,
+        kind=kind,
+        bounds_error=False,
+        fill_value=(fill_min, fill_max),
+    ): float(f(transform_x_lookup(x_new)))
+    return interp
 
 # Function which searches a dictionary for a component
 # or a set of components.
@@ -4812,6 +5141,26 @@ def is_selected(component_or_components, d, accumulate=False, default=None):
             return selected[-1]
         else:
             return default
+
+# Function for generating file names for reusable data
+def get_reusable_filename(kind, *objects, extension='', sha_length=10):
+    """This function will generate a file name based on the hash of the
+    passed objects. The number of characters of the sha to include in
+    the file name is set through sha_length. With a sha_length of 10
+    there is a 50% chance of a single hash collision after ~10⁶ hashes.
+    """
+    objects = list(objects)
+    for i, obj in enumerate(objects):
+        if isinstance(obj, set):
+            objects[i] = sorted(obj)
+        elif isinstance(obj, dict):
+            objects[i] = sorted(obj.items())
+    sha = hashlib.sha1(str(objects).encode('utf-8')).hexdigest()
+    sha = sha[:sha_length]
+    if extension:
+        extension = f'.{extension}'
+    filename = f'{path.reusable_dir}/{kind}/{sha}{extension}'
+    return filename
 
 # Function for doing lookup into shortrange_params which depend on the
 # component(s) in question, i.e. if the values involves the number of
@@ -5008,9 +5357,6 @@ def open_hdf5(filename, raise_exception=False, **kwargs):
 
 
 
-
-
-
 ##############################################################
 # Sanity checks and corrections/additions to user parameters #
 ##############################################################
@@ -5154,19 +5500,6 @@ for output_kind, times in output_times['a'].items():
         masterwarn('{} output is requested at a = {}, '
                    'but the simulation will not continue after a = 1.'
                    .format(output_kind.capitalize(), np.max(times)))
-# Reassign output times of the individual types
-snapshot_times = {
-    time_param: output_times[time_param]['snapshot'] for time_param in ('a', 't')
-}
-powerspec_times = {
-    time_param: output_times[time_param]['powerspec'] for time_param in ('a', 't')
-}
-render2D_times = {
-    time_param: output_times[time_param]['render2D'] for time_param in ('a', 't')
-}
-render3D_times = {
-    time_param: output_times[time_param]['render3D'] for time_param in ('a', 't')
-}
 # Warn about cosmological autosave interval
 if autosave_interval > 1*units.yr and autosave_interval != ထ:
     masterwarn(

@@ -304,14 +304,16 @@ of ellipses '``...``' like so:
    output_dirs = {
        'snapshot' : f'{path.output_dir}/{param}',
        'powerspec': ...,
+       'bispec'   : ...,
        'render2D' : ...,
        'render3D' : ...,
    }
 
-Here, the keys ``'powerspec'``, ``'render2D'`` and ``'render3D'`` will map
-to the same value as ``'snapshot'``. More generally, an ellipsis is replaced
-by the first non-ellipsis value encountered when looking back up the key-value
-definitions, wrapping around if necessary. Thus,
+Here, the keys ``'powerspec'``, ``'bispec'``, ``'render2D'`` and
+``'render3D'`` will all map to the same value as ``'snapshot'``. More
+generally, an ellipsis is replaced by the first non-ellipsis value encountered
+when looking back up the key-value definitions, wrapping around if necessary.
+Thus,
 
 .. code-block:: python3
 
@@ -319,12 +321,13 @@ definitions, wrapping around if necessary. Thus,
    output_times = {
        'snapshot' : ...,
        'powerspec': 1,
+       'bispec'   : ...,
        'render2D' : ...,
        'render3D' : [0.1, 0.3, 1],
    }
 
-results in ``'snapshot'`` being mapped to ``[0.1, 0.3, 1]`` and ``'render2D'``
-to ``1``.
+results in ``'snapshot'`` being mapped to ``[0.1, 0.3, 1]`` while ``'bispec'``
+and ``'render2D'`` are being mapped to ``1``.
 
 .. note::
    Another takeaway from the above example is the fact that CO\ *N*\ CEPT
@@ -372,6 +375,7 @@ defined. For this, you can do either of:
 
      >>> parameter0
      >>> parameter1
+     >>> exit()
 
 Here brackets ``[...]`` indicate optional command-line arguments, with
 ``param`` the :ref:`parameter file <parameter_file>` and ``cmd-param`` any
@@ -473,7 +477,7 @@ We can also refer to components using their representation, like so:
        'fluid'    : -1,
    }
 
-which again would assign :math:`25\,\mathrm{kpc}` as the softening length to
+which again would assign :math:`25\,\text{kpc}` as the softening length to
 both ``'spam'`` and ``'ham'``, assuming these are particle components. As
 fluid components do not have an associated softening length, the value set for
 ``'fluid'`` does not matter for this particular component selection, even in
@@ -490,8 +494,8 @@ Component selections support the
        'all' : 15*kpc,
    }
 
-which assigns :math:`25\,\mathrm{kpc}` as the softening length to the
-``'spam'`` and ``'ham'`` components and :math:`15\,\mathrm{kpc}` to
+which assigns :math:`25\,\tet{kpc}` as the softening length to the
+``'spam'`` and ``'ham'`` components and :math:`15\,\text{kpc}` to
 all others.
 
 There is also a ``'default'`` key --- which works similar to ``'all'`` ---
@@ -501,9 +505,8 @@ the code, intended to catch otherwise unset components within a selection.
 Some component selection parameters further support component *combinations*.
 An example is the ``powerspec_select`` :ref:`parameter <powerspec_select>`.
 The following specifies that we want power spectrum outputs for both
-``'spam'`` and ``'ham'`` individually, as well as for their combination
-(equivalent to what we would have gotten had all constituent particles of
-both components been part of a single component):
+``'spam'`` and ``'ham'`` individually, as well as their combined (auto)
+power spectrum:
 
 .. code-block:: python3
 

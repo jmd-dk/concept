@@ -52,7 +52,7 @@ for powerspec_global in ${powerspec_global_list[@]}; do
         -u powerspec "${this_dir}/output"                               \
         -n 4                                                            \
         -p "${this_dir}/param"                                          \
-        -c "powerspec_options['binsize'] = 0"                           \
+        -c "powerspec_options['bins per decade'] = inf"                 \
         -c "powerspec_options['global gridsize'] = ${powerspec_global}" \
         --local
     mv "${this_dir}/output/powerspec"*.png "${subtest_dir}/powerspec_${powerspec_global}.png"

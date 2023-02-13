@@ -27,6 +27,7 @@ from commons import *
 # Cython imports
 cimport(
     'from analysis import '
+    '    bispec,          '
     '    measure,         '
     '    powerspec,       '
 )
@@ -465,8 +466,8 @@ def timeloop():
     if master and os.path.isdir(autosave_subdir):
         masterprint('Removing autosave ...')
         shutil.rmtree(autosave_subdir)
-        if not os.listdir(autosave_dir):
-            shutil.rmtree(autosave_dir)
+        if not os.listdir(output_dirs['autosave']):
+            shutil.rmtree(output_dirs['autosave'])
         masterprint('done')
 
 # Set of (cosmic) times at which the maximum time step size Δt_max
@@ -1681,30 +1682,21 @@ def dump(components, output_filenames, dump_time, Δt=0):
             any_activations |= (
                 activate_terminate(components, time_value, Δt, act) and act == 'activate'
             )
-    # Dump snapshot
-    if time_value in snapshot_times[time_param]:
-        filename = output_filenames['snapshot'].format(time_param, time_value)
+    # Dump output
+    output_funcs = {
+        'snapshot' : save,
+        'powerspec': powerspec,
+        'bispec'   : bispec,
+        'render3D' : render3D,
+        'render2D' : render2D,
+    }
+    for output_kind, output_func in output_funcs.items():
+        if time_value not in output_times[time_param][output_kind]:
+            continue
+        filename = output_filenames[output_kind].format(time_param, time_value)
         if time_param == 't':
             filename += unit_time
-        save(components, filename)
-    # Dump power spectrum
-    if time_value in powerspec_times[time_param]:
-        filename = output_filenames['powerspec'].format(time_param, time_value)
-        if time_param == 't':
-            filename += unit_time
-        powerspec(components, filename)
-    # Dump render3D
-    if time_value in render3D_times[time_param]:
-        filename = output_filenames['render3D'].format(time_param, time_value)
-        if time_param == 't':
-            filename += unit_time
-        render3D(components, filename)
-    # Dump render2D
-    if time_value in render2D_times[time_param]:
-        filename = output_filenames['render2D'].format(time_param, time_value)
-        if time_param == 't':
-            filename += unit_time
-        render2D(components, filename)
+        output_func(components, filename)
     # Activate or terminate components after dumps
     for act in 𝕆[life_output_order[life_output_order.index('dump')+1:]]:
         if time_value in activation_termination_times[time_param]:
@@ -2453,7 +2445,7 @@ if jobid != -1:
         delegate()
     else:
         # Set paths to autosaved snapshot and auxiliary file
-        autosave_subdir = f'{autosave_dir}/{os.path.basename(param)}'
+        autosave_subdir = '{}/{}'.format(output_dirs['autosave'], os.path.basename(param))
         autosave_filename = f'{autosave_subdir}/snapshot.hdf5'
         autosave_auxiliary_filename = f'{autosave_subdir}/auxiliary'
         # Run the time loop

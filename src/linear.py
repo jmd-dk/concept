@@ -187,16 +187,18 @@ class CosmoResults:
             # the user specified extra CLASS background quantities and
             # perturbations (if any), as well as the CLASS variables
             # _VERSION, _ARGUMENT_LENGTH_MAX_ and a_min.
-            # We use a sha1 hash, which is 40 characters (hexadecimals)
-            # long. For the sake of short filenames, we only use the
-            # first sha_length characters.
-            sha_length = 10  # 10 → 50% chance of 1 hash collision after ~10⁶ hashes
-            self.id = hashlib.sha1(str(
-                tuple(sorted({str(key).replace(' ', ''): str(val).replace(' ', '').lower()
-                    for key, val in self.params.items()}.items()))
-                + (class__VERSION_, class__ARGUMENT_LENGTH_MAX_, class_a_min)
-            ).encode('utf-8')).hexdigest()[:sha_length]
-            self.filename = f'{path.reusable_dir}/class/{self.id}.hdf5'
+            self.filename = get_reusable_filename(
+                'class',
+                {
+                    str(key).replace(' ', ''): str(val).replace(' ', '').lower()
+                    for key, val in self.params.items()
+                },
+                class__VERSION_,
+                class__ARGUMENT_LENGTH_MAX_,
+                class_a_min,
+                extension='hdf5',
+            )
+            self.id = os.path.basename(self.filename).removesuffix('.hdf5')
         # Message that gets printed if and when CLASS is called
         self.class_call_reason = class_call_reason
         # Add methods which return transfer function splines for a
@@ -1084,7 +1086,7 @@ class CosmoResults:
             spline = self.splines(f'(.)rho_{class_species}')
             # The input a may be either a scalar or an array
             with unswitch:
-                if isinstance(a, (int, float)):
+                if isinstance(a, (int, float, np.integer, np.floating)):
                     values += spline.eval(a)
                 else:
                     values += asarray([spline.eval(a_i) for a_i in a])
@@ -1105,7 +1107,7 @@ class CosmoResults:
             spline = self.splines(f'(.)p_{class_species}')
             # The input a may be either a scalar or an array
             with unswitch:
-                if isinstance(a, (int, float)):
+                if isinstance(a, (int, float, np.integer, np.floating)):
                     values += spline.eval(a)
                 else:
                     values += asarray([spline.eval(a_i) for a_i in a])
@@ -1127,7 +1129,7 @@ class CosmoResults:
             P_bar_spline = self.splines(f'(.)p_{class_species}')
             # The input a may be either a scalar or an array
             with unswitch:
-                if isinstance(a, (int, float)):
+                if isinstance(a, (int, float, np.integer, np.floating)):
                     ρ_bar += ρ_bar_spline.eval(a)
                     P_bar += P_bar_spline.eval(a)
                 else:
@@ -2383,7 +2385,7 @@ class TransferFunction:
         # Arguments
         a='double',
         # Locals
-        k='Py_ssize_t',
+        k_local='Py_ssize_t',
         returns='double[::1]',
     )
     def deriv_as_function_of_k(self, a):
@@ -2797,7 +2799,7 @@ def compute_transfer(
         return transfer, cosmoresults
 
 # Function which given a grid size computes an array of k values
-# based on the boxsize and the k_modes_per_decade parameter.
+# based on the boxsize and the class_modes_per_decade parameter.
 @cython.header(
     # Arguments
     gridsize='Py_ssize_t',
@@ -2840,7 +2842,7 @@ def get_k_magnitudes(gridsize, use_cache=True):
     # using a running number of modes/decade.
     logk = logk_min
     logk_magnitudes = [logk]
-    logk_modes_per_decade_interp = get_logk_modes_per_decade_interp()
+    logk_modes_per_decade_interp = get_controlpoint_spline(class_modes_per_decade, np.log10)
     while logk <= logk_max:
         logk += 1/logk_modes_per_decade_interp(logk)
         logk_magnitudes.append(logk)
@@ -2870,19 +2872,6 @@ def get_k_magnitudes(gridsize, use_cache=True):
 # Cache and helper functions used by the get_k_magnitudes() function
 cython.declare(k_magnitudes_cache=dict)
 k_magnitudes_cache = {}
-def get_logk_modes_per_decade_interp():
-    import scipy.interpolate
-    logk_modes_per_decade_interp = lambda logk, *, f=scipy.interpolate.interp1d(
-        np.log10(tuple(k_modes_per_decade.keys())),
-        tuple(k_modes_per_decade.values()),
-        kind='linear',
-        bounds_error=False,
-        fill_value=(
-            k_modes_per_decade[np.min(tuple(k_modes_per_decade.keys()))],
-            k_modes_per_decade[np.max(tuple(k_modes_per_decade.keys()))],
-        ),
-    ): float(f(logk))
-    return logk_modes_per_decade_interp
 def prepare_class_k(k_magnitudes, n_extra=0):
     # Convert to CLASS units, i.e. Mpc⁻¹, which shall be the unit
     # used for the str representation of k_magnitudes.
@@ -2922,15 +2911,15 @@ def k_float2str(k_float, n=-1):
     )
     return k_str
 def get_k_str_n_decimals():
-    return np.max([1, int(ceil(log10(1 + np.max(tuple(k_modes_per_decade.values())))))])
+    return np.max([1, int(ceil(log10(1 + np.max(tuple(class_modes_per_decade.values())))))])
 
 # Function returning the linear power spectrum of a given component
 @cython.pheader(
     # Arguments
     component_or_components=object, # Component or list of Components
     k_magnitudes='double[::1]',
-    a='double',
     power='double[::1]',
+    a='double',
     # Locals
     backscale='bint',
     backscales=object,  # collections.Counter
@@ -2951,9 +2940,8 @@ def get_k_str_n_decimals():
     δ_spline='Spline',
     returns='double[::1]',
 )
-def get_linear_powerspec(component_or_components, k_magnitudes, a=-1, power=None):
-    """The linear power spectrum is only returned to the master process.
-    """
+def get_linear_powerspec(component_or_components, k_magnitudes, power=None, a=-1):
+    """The linear power spectrum is only returned by the master process"""
     if isinstance(component_or_components, list):
         components = component_or_components
     else:
@@ -2995,24 +2983,26 @@ def get_linear_powerspec(component_or_components, k_magnitudes, a=-1, power=None
         boltzmann_closure='class',
     )
     linear_component.name = 'linear power spectrum'
-    # Get grid size for linear perturbation computation. In an attempt
-    # to not rerun CLASS, we reuse any existing CosmoResults object,
+    # Get grid size for linear perturbation computation.
+    # If class_dedicated_spectra is False, we will try to reuse any
+    # existing CosmoResults object in an attempt to not rerun CLASS,
     # even if this has too small a grid size, in which case the largest
     # k modes will be filled with NaN values.
     gridsize_max = -1
-    for (gridsize_or_k_magnitudes, gauge_cached), cosmoresults in cosmoresults_cache.items():
-        if not isinstance(gridsize_or_k_magnitudes, int):
-            if not isinstance(gridsize_or_k_magnitudes, str):
+    if not class_dedicated_spectra:
+        for (gridsize_or_k_magnitudes, gauge_cached), cosmoresults in cosmoresults_cache.items():
+            if not isinstance(gridsize_or_k_magnitudes, int):
+                if not isinstance(gridsize_or_k_magnitudes, str):
+                    continue
+                try:
+                    int(gridsize_or_k_magnitudes)
+                except Exception:
+                    continue
+            if gauge_cached != 𝕊['synchronous' if gauge == 'nbody' else gauge]:
                 continue
-            try:
-                int(gridsize_or_k_magnitudes)
-            except Exception:
-                continue
-        if gauge_cached != 𝕊['synchronous' if gauge == 'nbody' else gauge]:
-            continue
-        gridsize = int(gridsize_or_k_magnitudes)
-        if gridsize > gridsize_max:
-            gridsize_max = gridsize
+            gridsize = int(gridsize_or_k_magnitudes)
+            if gridsize > gridsize_max:
+                gridsize_max = gridsize
     gridsize = gridsize_max
     if gridsize == -1:
         gridsize = np.max([component.powerspec_upstream_gridsize for component in components])
@@ -3026,15 +3016,164 @@ def get_linear_powerspec(component_or_components, k_magnitudes, a=-1, power=None
     # Compute linear power (ζ*δ)**2
     if power is None:
         power = empty(k_magnitudes.shape[0], dtype=C2np['double'])
+    k_min = δ_spline.x[0]
     k_max = δ_spline.x[len(δ_spline.x) - 1]
     for i in range(k_magnitudes.shape[0]):
         k_magnitude = k_magnitudes[i]
-        if k_magnitude > k_max:
-            power[i:] = NaN
-            break
+        if not (k_min <= k_magnitude <= k_max):
+            power[i] = NaN
+            continue
         δ = δ_spline.eval(k_magnitude)
         power[i] = (get_primordial_curvature_perturbation(k_magnitude)*δ)**2
     return power
+
+# Function returning the tree-level bispectrum of a given component
+@cython.pheader(
+    # Arguments
+    component_or_components=object, # Component or list of Components
+    k_magnitudes_0='double[::1]',
+    k_magnitudes_1='double[::1]',
+    k_magnitudes_2='double[::1]',
+    bpower='double[::1]',
+    bpower_reduced='double[::1]',
+    eds_limit='bint',
+    a='double',
+    # Locals
+    bpower_ptr='double*',
+    bpower_reduced_ptr='double*',
+    cosmoresults=object,  # CosmoResults
+    growth_fac_D='double',
+    growth_fac_D2='double',
+    index='Py_ssize_t',
+    index_0='Py_ssize_t',
+    index_1='Py_ssize_t',
+    index_2='Py_ssize_t',
+    indices_0='Py_ssize_t[::1]',
+    indices_0_ptr='Py_ssize_t*',
+    indices_1='Py_ssize_t[::1]',
+    indices_1_ptr='Py_ssize_t*',
+    indices_2='Py_ssize_t[::1]',
+    indices_2_ptr='Py_ssize_t*',
+    k_magnitude_0='double',
+    k_magnitude_1='double',
+    k_magnitude_2='double',
+    k_magnitudes='double[::1]',
+    k_magnitudes_arr=object,  # np.ndarray
+    k_magnitudes_ptr='double*',
+    power='double[::1]',
+    power_ptr='double*',
+    size='Py_ssize_t',
+    value='double',
+    α='double',
+    returns='double[::1]',
+)
+def get_treelevel_bispec(
+    component_or_components, k_magnitudes_0, k_magnitudes_1, k_magnitudes_2,
+    bpower=None, bpower_reduced=None, eds_limit=False, a=-1,
+):
+    """The tree-level bispectrum is only returned by the master process.
+    If the reduced tree-level bispectrum should be returned as well,
+    a pre-allocated array must be passed as bpower_reduced.
+    The bispectrum kernel for matter will be used for all species.
+    If eds_limit (Einstein-de Sitter limit; matter domination) is True,
+    the value α = 2/7 will be used for the kernel. Otherwise,
+    α = (1 + D⁽²⁾(a)/D²(a))/2 in accordance with (2.25) in
+    https://arxiv.org/abs/1602.05933
+    """
+    if a == -1:
+        a = universals.a
+    # Assemble all k into single, sorted array,
+    # keeping track of where each element go.
+    # Only the master process needs to know the k values.
+    k_magnitudes = None
+    if master:
+        k_magnitudes_arr = np.unique(np.concatenate((
+            asarray(k_magnitudes_0), asarray(k_magnitudes_1), asarray(k_magnitudes_2),
+        )))
+        k_magnitudes_arr.sort()
+        k_magnitudes = k_magnitudes_arr
+        k_magnitudes_ptr = cython.address(k_magnitudes[:])
+        size = k_magnitudes_0.shape[0]
+        indices_0 = empty(size, dtype=C2np['Py_ssize_t'])
+        indices_1 = empty(size, dtype=C2np['Py_ssize_t'])
+        indices_2 = empty(size, dtype=C2np['Py_ssize_t'])
+        indices_0_ptr = cython.address(indices_0[:])
+        indices_1_ptr = cython.address(indices_1[:])
+        indices_2_ptr = cython.address(indices_2[:])
+        for index in range(size):
+            indices_0_ptr[index] = np.searchsorted(k_magnitudes, k_magnitudes_0[index])
+        for index in range(size):
+            indices_1_ptr[index] = np.searchsorted(k_magnitudes, k_magnitudes_1[index])
+        for index in range(size):
+            indices_2_ptr[index] = np.searchsorted(k_magnitudes, k_magnitudes_2[index])
+    # Compute linear power spectrum at all k
+    power = get_linear_powerspec(component_or_components, k_magnitudes, None, a)
+    # Get α used in bispectrum kernel
+    if eds_limit:
+        α = 2./7.
+    else:
+        cosmoresults = compute_cosmo(class_call_reason='in order to get growth factor')
+        growth_fac_D  = cosmoresults.growth_fac_D (a)
+        growth_fac_D2 = cosmoresults.growth_fac_D2(a)
+        α = 0.5*(1 + growth_fac_D2/growth_fac_D**2)
+    # Only the master process will return the tree-level bispectrum
+    if not master:
+        return bpower
+    # Compute tree-level matter bispectrum
+    if bpower is None:
+        bpower = empty(size, dtype=C2np['double'])
+        if bpower_reduced is not None:
+            abort('get_treelevel_bispec() called with bpower_reduced but not bpower')
+    power_ptr = cython.address(power[:])
+    bpower_ptr = cython.address(bpower[:])
+    if bpower_reduced is not None:
+        bpower_reduced_ptr = cython.address(bpower_reduced[:])
+    for index in range(size):
+        index_0 = indices_0_ptr[index]
+        index_1 = indices_1_ptr[index]
+        index_2 = indices_2_ptr[index]
+        k_magnitude_0 = k_magnitudes_ptr[index_0]
+        k_magnitude_1 = k_magnitudes_ptr[index_1]
+        k_magnitude_2 = k_magnitudes_ptr[index_2]
+        power_0 = power_ptr[index_0]
+        power_1 = power_ptr[index_1]
+        power_2 = power_ptr[index_2]
+        value = 2*(
+            + get_matter_bispec_kernel(
+                k_magnitude_0, k_magnitude_1, k_magnitude_2, α,
+            )*power_0*power_1
+            + get_matter_bispec_kernel(
+                k_magnitude_1, k_magnitude_2, k_magnitude_0, α,
+            )*power_1*power_2
+            + get_matter_bispec_kernel(
+                k_magnitude_2, k_magnitude_0, k_magnitude_1, α,
+            )*power_2*power_0
+        )
+        bpower_ptr[index] = value
+        with unswitch:
+            if bpower_reduced is not None:
+                # Also compute the reduced tree-level bispectrum
+                bpower_reduced_ptr[index] = value/(
+                    + power_0*power_1
+                    + power_1*power_2
+                    + power_2*power_0
+                )
+    return bpower
+
+# Second-order perturbation theory kernel for the matter bispectrum
+@cython.header(
+    # Arguments
+    k0='double',
+    k1='double',
+    k2='double',
+    α='double',
+    # Locals
+    x='double',
+    returns='double',
+)
+def get_matter_bispec_kernel(k0, k1, k2, α=2./7.):
+    x = (k2**2 - k1**2 - k0**2)/(k0*k1)
+    return (1 - α) + 0.25*x*((k0/k1 + k1/k0) + α*x)
 
 # The primordial curvature perturbation ζ(k),
 # parametrised by parameters in the primordial_spectrum dict.
@@ -3105,7 +3244,7 @@ def register_species(
         nickname for nickname in dict.fromkeys(nicknames) if nickname
     ]
     # Transform Γ to function
-    if isinstance(Γ, (int, float)):
+    if isinstance(Γ, (int, float, np.integer, np.floating)):
         Γ = (lambda cosmoresults, a, Γ=Γ: Γ)
     # Default log behaviour
     if logs is None:
@@ -3116,7 +3255,7 @@ def register_species(
         else:
             logs = {'rho': (None, None), 'p': (None, None)}
     # Transform source_continuity to function
-    if isinstance(source_continuity, (int, float)):
+    if isinstance(source_continuity, (int, float, np.integer, np.floating)):
         source_continuity = (lambda cosmoresults, a, source_continuity=source_continuity: source_continuity)
     # Pack the information into a SpeciesInfo instance
     species_info = SpeciesInfo(

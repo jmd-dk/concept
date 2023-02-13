@@ -7,8 +7,41 @@
 ### 🚀 1.1.0 — *Still under development*
 
 #### ✨ Features added
-- Particle IDs.
-- The `--kmin`, `--kmax` and `--modes` options to the `class` utility.
+- Overhaul of initial condition generation:
+  - Both 1LPT and **2LPT** now available.
+    - Second-order growth factor and rate implemented via CLASS.
+  - **BCC** and **FCC** lattices for pre-initial conditions.
+  - Local **non-Gaussianity** now available.
+  - Besides the *N*-body gauge, the synchronous and the Newtonian gauge
+    are now available as well.
+  - Optional back-scaling (as opposed to direct realisation).
+- **Bispectrum** functionality:
+  - Various configurations (equilateral, squeezed, stretched, isosceles, ...).
+  - On-the-fly bispectrum measurements.
+  - A `bispec` utility for computing bispectra from snapshots.
+  - Reduced bispectra.
+  - Novel anti-aliasing for bispectrum shells.
+  - Perturbation theory (tree-level) predictions.
+- Particle **IDs**.
+- Interlacing is now implemented through the new lattice system, meaning that
+  we can now use either BCC (standard) or FCC interlacing. For potentials,
+  we now have independent upstream and downstream interlacing.
+- Support for loading of TIPSY snapshots.
+- The `class` utility is easier to work with, owing to the new `--kmin`,
+  `--kmax` and `--modes` options. The `--times` option can now also be used to
+  specify explicit scale factor values to use.
+
+#### ⚡ Optimizations
+- Snapshot data can now be saved and loaded partially (e.g. only particle
+  positions).
+- Faster detrending of perturbations.
+
+#### 👌 Other changes
+- The binning of power spectra is now done logarithmically in wave number.
+  The `powerspec_options['binsize']` parameter has accordingly been
+  substituted for `powerspec_options['bins per decade']`.
+- The `install` script has been made more robust regarding pre-installed MPI
+  distributions as well as the installation of NumPy/SciPy.
 
 [Commits since 1.0.1](https://github.com/jmd-dk/concept/compare/v1.0.1...master)
 
@@ -44,11 +77,12 @@
 ### 🚀 [1.0.0](https://github.com/jmd-dk/concept/releases/tag/v1.0.0) — 2021-12-03
 
 #### ✨ Features added
-- [Documentation](https://jmd-dk.github.io/concept/).
-- [Docker images](https://hub.docker.com/r/jmddk/concept/).
-- Proper example parameter files.
-- Proper P³M via tiles and subtiles.
-- Adaptive particle time-stepping.
+- [**Documentation**](https://jmd-dk.github.io/concept/).
+- [**Docker** images](https://hub.docker.com/r/jmddk/concept/).
+- **Continuous integration** and **deployment** through GitHub workflows.
+- Proper **example parameter files**.
+- Proper **P³M** via tiles and subtiles.
+- **Adaptive particle time-stepping**.
 - Overhaul of grid implementation:
   - Grids used for PM, power spectra and 2D renders are now separate.
   - Addition of grid quantities from components are now carried out in an
@@ -57,15 +91,15 @@
     global grid in Fourier space.
   - Nyquist planes are explicitly zeroed.
   - Switched to cell-centred values.
-  - NGP, CIC, TSC, PCS interpolation.
+  - NGP, CIC, TSC, **PCS** interpolation.
   - Differentiation orders 2, 4, 6, 8, Fourier space differentiation.
-  - Toggleable interlacing.
+  - Toggleable **interlacing**.
   - Toggleable deconvolution.
-- Full GADGET snapshot support.
-- Switch to B-spline particle softening and only soften the Newtonian force.
+- Full **GADGET snapshot** support.
+- B-spline particle softening and only soften the Newtonian force.
 - History-independent time step size.
 - Allow for static global time-stepping.
-- 'Paired-and-fixed' initial conditions.
+- **'Paired-and-fixed'** initial conditions.
 - Linear *N*-body gauge power spectrum output.
 - Allow finite life times of components.
 - Display of load imbalance.
@@ -92,7 +126,7 @@
 - Transpile-time insertions of `NAN` and `INFINITY` literals.
 
 #### 🤖 Tests
-- Test of update utility.
+- Test of `update` utility.
 - Test of example parameter files.
 
 #### 👌 Other changes
@@ -119,8 +153,9 @@
 ### 🚀 [0.3.0](https://github.com/jmd-dk/concept/releases/tag/v0.3.0) — 2019-04-29
 
 #### ✨ Features added
-- Decaying dark matter, including dark radiation and the 'lapse component'.
-- Additional perturbations available from the `CLASS` utility (e.g. ϕ, ψ).
+- **Decaying dark matter**, including dark radiation
+  and the 'lapse component'.
+- Additional perturbations available from the `class` utility (e.g. ϕ, ψ).
 
 #### 🐛 Bugs fixed
 - PPF dark energy pressure perturbation corrected in CLASS.
@@ -149,7 +184,7 @@
 ### 🚀 [0.2.1](https://github.com/jmd-dk/concept/releases/tag/v0.2.1) — 2019-02-11
 
 #### ✨ Features added
-- Linear, dynamical dark energy (fluid and PPF).
+- Linear, **dynamical dark energy** (fluid and PPF).
 - The `update` utility can now update CLASS as well.
 
 #### 🐛 Bugs fixed
@@ -169,8 +204,8 @@
 ### 🚀 [0.2.0](https://github.com/jmd-dk/concept/releases/tag/v0.2.0) — 2018-11-05
 
 #### ✨ Features added
-- Linear neutrinos, photons and the 'metric component'.
-- The `CLASS` utility.
+- Linear **neutrinos**, **photons** and the '**metric** component'.
+- The `class` utility.
 - Command-line parameters (`-c`) and job directives (`-j`)
   as options to `concept`.
 
@@ -189,17 +224,22 @@
 
 ### 🚀 [0.1.0](https://github.com/jmd-dk/concept/releases/tag/v0.1.0) — 2018-01-16
 
-First release, containing the following:
-- Installation script.
+#### ✨ Features
+- **Installation script**.
 - [Cython](https://cython.org/) framework.
 - [CLASS](http://class-code.net/) integration.
-- Initial condition generation, adopting the *N*-body gauge.
-- Particle (matter) components with Plummer softening.
-- Fluid (massive neutrino) components, focusing on non-linear evolution.
-- Gravity: PP, PM, (inefficient) P³M.
-- Snapshots: CO*N*CEPT and (limited) GADGET formats.
-- Power spectra: Basic (using the PM grid).
-- Renders: 3D and 2D (using the PM grid).
-- Utilities.
-- Test suite.
+- **Initial condition generation**, adopting the *N*-body gauge.
+- **Particle** (matter) components with Plummer softening.
+- **Fluid** (massive neutrino) components, focusing on non-linear evolution.
+- **Gravity**:
+  - PP.
+  - PM.
+  - P³M (inefficient).
+- **Snapshots**:
+  - Native CO*N*CEPT format.
+  - GADGET format (limited).
+- **Power spectra**.
+- 3D and 2D **renders**.
+- **Utilities**.
+- **Test** suite.
 

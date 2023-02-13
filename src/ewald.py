@@ -245,7 +245,7 @@ def tabulate():
 # The global Ewald grid and its path on disk
 cython.declare(grid='double[:, :, :, ::1]', filename=str)
 grid = None
-filename = f'{path.reusable_dir}/ewald/{ewald_gridsize}.hdf5'
+filename = get_reusable_filename('ewald', ewald_gridsize, extension='hdf5')
 
 # Set parameters for the Ewald summation at import time
 cython.declare(
@@ -259,12 +259,13 @@ cython.declare(
 )
 # The values chosen match those listed in the article mentioned in the
 # docstring of the summation function. These are also those used
-# (in effect) in GADGET-2.
-rs = 0.25  # Corresponds to alpha = 2
+# (in effect) in GADGET-2, though GADGET-2 lacks checks for
+# dist > maxdist and h2 > maxh2.
+rs = 0.25  # corresponds to alpha = 2
 maxdist = 3.6
 maxh2 = 10
 # Derived constants
-h_lower = int(-sqrt(maxh2))      # GADGET-2: -4 (same here for maxh2 = 10)
-h_upper = int(+sqrt(maxh2)) + 1  # GADGET-2:  5 (same here for maxh2 = 10)
-n_lower = int(-(maxdist + 1))    # GADGET-2: -4 (same here for maxdist = 3.6)
-n_upper = int(maxdist + 1) + 1   # GADGET-2:  5 (same here for maxdist = 3.6)
+h_lower = -isqrt(maxh2)
+h_upper = +isqrt(maxh2) + 1
+n_lower = -int(maxdist + 1)
+n_upper = +int(maxdist + 1) + 1

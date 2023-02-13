@@ -26,7 +26,7 @@ order = np.argsort(times)
 times  = [times[o]  for o in order]
 fluids = [fluids[o] for o in order]
 # Use precise times
-times = snapshot_times['t']
+times = output_times['t']['snapshot']
 
 # Begin analysis
 masterprint('Analysing {} data ...'.format(this_test))
@@ -52,9 +52,8 @@ for ax_i, fluid, t, phase in zip(ax, fluids, times, phases):
             significant_figures(
                 1/units.m_sun,
                 3,
-                fmt='tex',
+                fmt='TeX',
                 incl_zeros=False,
-                scientific=False,
             ),
             unit_length,
         )

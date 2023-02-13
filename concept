@@ -300,14 +300,16 @@ absolute_path() {
         # Assume the path is relative to the user's current working directory
         cd "${workdir}"
     fi
-    # Place backslashes before spaces and dollar signs.
+    # Place backslashes before spaces, dollar signs and parentheses.
     # These are needed when expanding tilde, but they will not persist.
     path="${path// /\\ }"
     path="${path//$/\\$}"
+    path="${path//\(/\\(}"
+    path="${path//\)/\\)}"
     # Expand tilde
     eval path="${path}"
     # Convert to absolute path
-    path=$(readlink -m "${path}")
+    path="$(readlink -m "${path}")"
     cd "${current_dir}"
     if [ -z "${path}" ]; then
         colorprint "Cannot convert \"${1}\" to an absolute path!" "red"
@@ -375,37 +377,47 @@ except:
 }
 
 # Function for recursively removing empty sub-directories
-# within the tmp directory.
+# within the tmp directory (including the tmp directly itself).
 cleanup_empty_tmp() {
-    local tmp_subdir
-    tmp_subdir="$1"
-    if [ -z "${tmp_subdir}" ]; then
-        tmp_subdir="${tmp_dir}"
-    fi
-    if [ ! -d "${tmp_subdir}" ]; then
-        return
-    fi
-    sleep_before_rm="0.01"
-    for d in "${tmp_subdir}/"* "${tmp_subdir}/"*; do
-        if [ ! -d "${d}" ]; then
-            continue
-        fi
-        if [ -z "$(ls -A "${d}")" ]; then
-            sleep ${sleep_before_rm}
-            if [ -z "$(ls -A "${d}")" ]; then
-                rm -rf "${d}" || :
-            fi
-        else
-            cleanup_empty_tmp "${d}"
-        fi
-    done
+    local d
     if [ ! -d "${tmp_dir}" ]; then
         return
     fi
-    if [ "${tmp_subdir}" == "${tmp_dir}" ] && [ -z "$(ls -A "${tmp_dir}")" ]; then
-        sleep ${sleep_before_rm}
+    tmp_subdirs=("${tmp_dir}")
+    deleted_any="False"
+    while :; do
+        tmp_subdirs_new=()
+        for tmp_subdir in "${tmp_subdirs[@]}"; do
+            for d in "${tmp_subdir}/"*; do
+                if [ ! -d "${d}" ]; then
+                    continue
+                fi
+                is_empty="True"
+                for f in "${d}/"*; do
+                    if [ "${f}" != "${d}/*" ]; then
+                        # Much faster than ls -A
+                        is_empty="False"
+                        break
+                    fi
+                done
+                if [ "${is_empty}" == "True" ]; then
+                    rm -rf "${d}" || :
+                    deleted_any="True"
+                else
+                    tmp_subdirs_new=("${tmp_subdirs_new[@]}" "${d}")
+                fi
+            done
+        done
+        if [ ${#tmp_subdirs_new} -eq 0 ]; then
+            break
+        fi
+        tmp_subdirs=("${tmp_subdirs_new[@]}")
+    done
+    if [ "${deleted_any}" == "True" ]; then
         if [ -z "$(ls -A "${tmp_dir}")" ]; then
             rm -rf "${tmp_dir}" || :
+        else
+            cleanup_empty_tmp
         fi
     fi
 }
@@ -1453,6 +1465,7 @@ if [ "${test}" != "${test_unspecified}" ]; then
             -c="${command_line_params}"           \
             -m="
 from commons import *
+${2}
 try:
     print('param_var =', ${1})
 except NameError:
@@ -1497,10 +1510,11 @@ order = (
     'basic',
     # Tests of the CLASS installation,
     # the Friedmann equation, realisations
-    # and the power spectrum functionality.
+    # and the power spectrum and bispectrum functionality.
     'friedmann',
     'realize',
     'powerspec',
+    'bispec',
     # Test of the GADGET-2 installation
     'gadget',
     # Tests of the particle implementation
@@ -1994,7 +2008,7 @@ An almost complete job script has been saved to\n\
     fi
     # Only submit if a queue is specified
     if [ "${queue}" == "${queue_unspecified}" ]; then
-        printf "Job not submitted as no queue is specified.\n\
+        printf "\nJob not submitted as no queue is specified.\n\
 An almost complete job script has been saved to\n\
 \"${jobscript}\"\n"
         trap : 0

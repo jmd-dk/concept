@@ -2949,6 +2949,7 @@ def save(
     only_params='bint',
     only_components='bint',
     do_exchange='bint',
+    compare_boxsize_on_exchange='bint',
     as_if=str,
     # Locals
     component='Component',
@@ -2960,7 +2961,7 @@ def save(
 def load(
     filename,
     compare_params=True, only_params=False, only_components=False,
-    do_exchange=True, as_if='',
+    do_exchange=True, compare_boxsize_on_exchange=True, as_if='',
 ):
     """When only_params is False and only_components is False,
     the return type is simply a snapshot object containing all the
@@ -3008,6 +3009,15 @@ def load(
             if not component.snapshot_vars['load']['pos']:
                 # Only components with loaded positions can be exchanged
                 continue
+            if not compare_params and compare_boxsize_on_exchange:
+                # The exchange() function may crash if the snapshot uses
+                # a boxsize different (larger) than the one currently
+                # set within the program. This mismatching boxsize is
+                # almost certainly not what the user wants.
+                # A proper warning is already printed in the case
+                # where compare_params is True. If not,
+                # we print the warning now.
+                compare_parameters(snapshot, filename, only_boxsize=True)
             exchange(
                 component,
                 component.snapshot_vars['load']['mom'],
@@ -3070,6 +3080,7 @@ def get_snapshot_type(filename, collective=True):
     # Arguments
     snapshot=object,
     filename=str,
+    only_boxsize='bint',
     # Locals
     a='double',
     component='Component',
@@ -3087,7 +3098,7 @@ def get_snapshot_type(filename, collective=True):
     ρ_bar_backgrounds=list,
     ρ_bar_component='double',
 )
-def compare_parameters(snapshot, filename):
+def compare_parameters(snapshot, filename, only_boxsize=False):
     params = snapshot.params
     components = snapshot.components
     # The relative tolerance by which the parameters are compared
@@ -3096,70 +3107,75 @@ def compare_parameters(snapshot, filename):
     line_fmt = '    {{}}: {{:.{num}g}} vs {{:.{num}g}}'.format(num=int(1 - log10(rel_tol)))
     msg_list = [f'Mismatch between current parameters and those in the snapshot "{filename}":']
     # Compare parameters one by one
-    if enable_Hubble and not isclose(universals.a, float(params['a']), rel_tol):
-        msg_list.append(line_fmt.format('a', universals.a, params['a']))
     if not isclose(boxsize, float(params['boxsize']), rel_tol):
-        msg_list.append(line_fmt.format('boxsize', boxsize, params['boxsize']) + f' [{unit_length}]')
-    if not isclose(H0, float(params['H0']), rel_tol):
-        unit = units.km/(units.s*units.Mpc)
-        msg_list.append(line_fmt.format('H0', H0/unit, params['H0']/unit) + ' [km s⁻¹ Mpc⁻¹]')
-    if not isclose(Ωb, float(params.get('Ωb', Ωb)), rel_tol):
-        msg_list.append(line_fmt.format('Ωb', Ωb, params['Ωb']))
-    if not isclose(Ωcdm, float(params.get('Ωcdm', Ωcdm)), rel_tol):
-        msg_list.append(line_fmt.format('Ωcdm', Ωcdm, params['Ωcdm']))
-    if not isclose(Ωm, float(params.get('Ωm', Ωm)), rel_tol):
-        msg_list.append(line_fmt.format('Ωm', Ωm, params['Ωm']))
-    # Check if the total mass of each species within components
-    # adds up to the correct value as set by the CLASS background.
-    if enable_class_background:
-        # One species may be distributed over several components.
-        # Group components together according to their species.
-        species_components = collections.defaultdict(list)
-        for component in components:
-            species_components[component.species].append(component)
-        # Do the check for each species
-        a = correct_float(params['a'])
-        for component_group in species_components.values():
-            factors = [a**(-3*(1 + component.w_eff(a=a))) for component in component_group]
-            if len(set(factors)) > 1:
-                # Different w_eff despite same species.
-                # This is presumably caused by the user having some
-                # weird specifications. Skip check for this species.
-                continue
-            ρ_bar_backgrounds = [
-                factor*component.ϱ_bar
-                for component, factor in zip(component_group, factors)
-            ]
-            if len(set(ρ_bar_backgrounds)) > 1:
-                # Different ρ_bar_background despite same species.
-                # This is presumably caused by the user having some
-                # weird specifications. Skip check for this species.
-                continue
-            factor = factors[0]
-            ρ_bar_background = ρ_bar_backgrounds[0]
-            ϱ_bar_component = 0
-            for component in component_group:
-                if component.representation == 'particles':
-                    ϱ_bar_component += component.N*component.mass/boxsize**3
-                elif component.representation == 'fluid':
-                    ϱ_bar_component += (
-                        allreduce(np.sum(component.ϱ.grid_noghosts), op=MPI.SUM)
-                        /component.gridsize**3
-                    )
-                else:
+        msg_list.append(
+            line_fmt.format('boxsize', boxsize, params['boxsize']) + f' [{unit_length}]'
+        )
+    if not only_boxsize:
+        if enable_Hubble and not isclose(universals.a, float(params['a']), rel_tol):
+            msg_list.append(line_fmt.format('a', universals.a, params['a']))
+        if not isclose(H0, float(params['H0']), rel_tol):
+            unit = units.km/(units.s*units.Mpc)
+            msg_list.append(
+                line_fmt.format('H0', H0/unit, params['H0']/unit) + ' [km s⁻¹ Mpc⁻¹]'
+            )
+        if not isclose(Ωb, float(params.get('Ωb', Ωb)), rel_tol):
+            msg_list.append(line_fmt.format('Ωb', Ωb, params['Ωb']))
+        if not isclose(Ωcdm, float(params.get('Ωcdm', Ωcdm)), rel_tol):
+            msg_list.append(line_fmt.format('Ωcdm', Ωcdm, params['Ωcdm']))
+        if not isclose(Ωm, float(params.get('Ωm', Ωm)), rel_tol):
+            msg_list.append(line_fmt.format('Ωm', Ωm, params['Ωm']))
+        # Check if the total mass of each species within components
+        # adds up to the correct value as set by the CLASS background.
+        if enable_class_background:
+            # One species may be distributed over several components.
+            # Group components together according to their species.
+            species_components = collections.defaultdict(list)
+            for component in components:
+                species_components[component.species].append(component)
+            # Do the check for each species
+            a = correct_float(params['a'])
+            for component_group in species_components.values():
+                factors = [a**(-3*(1 + component.w_eff(a=a))) for component in component_group]
+                if len(set(factors)) > 1:
+                    # Different w_eff despite same species.
+                    # This is presumably caused by the user having some
+                    # weird specifications. Skip check for this species.
                     continue
-            ρ_bar_component = factor*ϱ_bar_component
-            if not isclose(ρ_bar_background, ρ_bar_component, rel_tol):
-                msg = ', '.join([f'"{component.name}"' for component in component_group])
-                if len(component_group) > 1:
-                    msg = f'{{{msg}}}'
-                msg_list.append(
-                    line_fmt.format(
-                        f'̅ρ(a = {a}) of {msg} (species: {component.species})',
-                        ρ_bar_background,
-                        ρ_bar_component,
-                    ) + f' [{unit_mass} {unit_length}⁻³]'
-                )
+                ρ_bar_backgrounds = [
+                    factor*component.ϱ_bar
+                    for component, factor in zip(component_group, factors)
+                ]
+                if len(set(ρ_bar_backgrounds)) > 1:
+                    # Different ρ_bar_background despite same species.
+                    # This is presumably caused by the user having some
+                    # weird specifications. Skip check for this species.
+                    continue
+                factor = factors[0]
+                ρ_bar_background = ρ_bar_backgrounds[0]
+                ϱ_bar_component = 0
+                for component in component_group:
+                    if component.representation == 'particles':
+                        ϱ_bar_component += component.N*component.mass/boxsize**3
+                    elif component.representation == 'fluid':
+                        ϱ_bar_component += (
+                            allreduce(np.sum(component.ϱ.grid_noghosts), op=MPI.SUM)
+                            /component.gridsize**3
+                        )
+                    else:
+                        continue
+                ρ_bar_component = factor*ϱ_bar_component
+                if not isclose(ρ_bar_background, ρ_bar_component, rel_tol):
+                    msg = ', '.join([f'"{component.name}"' for component in component_group])
+                    if len(component_group) > 1:
+                        msg = f'{{{msg}}}'
+                    msg_list.append(
+                        line_fmt.format(
+                            f'̅ρ(a = {a}) of {msg} (species: {component.species})',
+                            ρ_bar_background,
+                            ρ_bar_component,
+                        ) + f' [{unit_mass} {unit_length}⁻³]'
+                    )
     # Print out accumulated warning messages
     if len(msg_list) > 1:
         masterwarn('\n'.join(msg_list))

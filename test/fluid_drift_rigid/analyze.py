@@ -82,9 +82,8 @@ for ax_i, particles, ϱ_i, y_i, y_interp_i, a_i in zip(ax, particle_components, 
             significant_figures(
                 1/units.m_sun,
                 3,
-                fmt='tex',
+                fmt='TeX',
                 incl_zeros=False,
-                scientific=False,
             ),
             unit_length,
         )

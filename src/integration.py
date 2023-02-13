@@ -933,8 +933,10 @@ def init_time(reinitialize=False):
             # a_begin specified
             if 't_begin' in user_params_keys_raw:
                 # t_begin also specified
-                masterwarn('Ignoring t_begin = {}*{} because enable_Hubble is True '
-                           'and a_begin is specified'.format(t_begin, unit_time))
+                masterwarn(
+                    f'Ignoring t_begin = {t_begin}*{unit_time} because '
+                    f'enable_Hubble is True and a_begin is specified'
+                )
             a_begin_correct = a_begin
             t_begin_correct = cosmic_time(a_begin_correct)
         elif 't_begin' in user_params_keys_raw:
@@ -958,7 +960,7 @@ def init_time(reinitialize=False):
         # are meaningless. Set a_begin to unity,
         # effectively ignoring its existence.
         a_begin_correct = 1.0
-        if 'a_begin' in user_params_keys_raw:
+        if 'a_begin' in user_params_keys_raw and a_begin != 1:
             masterwarn(f'Ignoring a_begin = {a_begin} because enable_Hubble is False')
     # Now t_begin_correct and a_begin_correct are defined and store
     # the actual values of the initial time and scale factor.

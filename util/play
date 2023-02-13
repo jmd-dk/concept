@@ -143,10 +143,11 @@ sys.stdout = stdout
 # Print out the arguments.
 # These will be captured in the Bash 'args' variable.
 print('argparse_finished=True')
-print('path=\"{}\"'.format(args.path))
-print('fps={}'.format(args.fps))
-print('component_combination=\"{}\"'.format(args.component))
-print('repeats={}'.format(args.repeats))
+for arg, val in vars(args).items():
+    if isinstance(val, list):
+        print(f'{arg}=({{}})'.format(' '.join([f'\"{el}\"' for el in val])))
+    else:
+        print(f'{arg}=\"{val}\"')
 " "$@" || echo "argparse_exit_code=$?")
 # Evaluate the handled arguments into this scope
 eval "${args}"
@@ -210,7 +211,7 @@ inf = float('inf')
 # Variables from Bash
 path = '${path}'
 fps = ${fps}
-selected_component_combination = '${component_combination}'
+selected_component_combination = '${component}'
 repeats = float('${repeats}')
 # The ANSI ESC character
 ANSI_ESC = '\x1b'

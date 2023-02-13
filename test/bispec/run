@@ -1,0 +1,115 @@
+#!/usr/bin/env bash
+
+# This script performs a test of the bispectrum functionality.
+# It compares the number of modes with the expected number,
+# with and without shell aliasing. It also compares the reduced
+# equilateral matter bispectrum of a 2LPT realisation with the
+# tree-level prediction. Finally, it compares the squeezed bispectrum
+# of a realization with local non-Gaussianity to the analytical prediction.
+
+# Absolute path and name of the directory of this file
+this_dir="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
+this_test="$(basename "$(dirname "${this_dir}")")"
+
+# Set up error trapping
+ctrl_c() {
+    trap : 0
+    exit 2
+}
+abort() {
+    exit_code=$?
+    colorprint "An error occurred during ${this_test} test!" "red"
+    exit ${exit_code}
+}
+trap 'ctrl_c' SIGINT
+trap 'abort' EXIT
+set -e
+
+# Function for renaming bispectrum data files
+rename_bispec() {
+    suffix="$1"
+    if [ -n "${suffix}" ]; then
+        suffix="_${suffix}"
+    fi
+    cwd="$(pwd)"
+    cd "${this_dir}/output"
+    for f in "bispec"*; do
+        if [[ "${f}" != *antialiasing* ]]; then
+            mv "${f}" "${f/bispec/bispec_antialiasing=${antialiasing}${suffix}}"
+        fi
+    done
+    cd "${cwd}"
+}
+
+# Generate snapshot and antialiased bispectrum
+antialiasing="True"
+"${concept}"                                   \
+    -n 4                                       \
+    -c "bispec_antialiasing = ${antialiasing}" \
+    -c "output_times['snapshot'] = ..."        \
+    -p "${this_dir}/param"                     \
+    --local
+rename_bispec
+
+# Compute antialiased bispectrum for a paired realisation
+"${concept}"                                   \
+    -n 2                                       \
+    -p "${this_dir}/param"                     \
+    -c "bispec_antialiasing = ${antialiasing}" \
+    -c "primordial_phase_shift = π"            \
+    --local
+rename_bispec pi
+
+# Compute bispectrum without antialiasing using the bispec utility.
+# Use a tiny shell width and choose triangle configurations with small,
+# integer k, so that we can quickly compute the true number of modes.
+antialiasing="False"
+"${concept}"                                                     \
+    -n 2                                                         \
+    -p "${this_dir}/param"                                       \
+    -c "bispec_antialiasing = ${antialiasing}"                   \
+    -c "bispec_options['shellthickness'] = '1e-3*k_fundamental'" \
+    -c "\
+_k_samples = [\
+    ( 2,  1,  1),\
+    ( 3,  3,  2),\
+    ( 7,  6,  3),\
+    (10, 10, 10),\
+    (13, 12,  9),\
+]  # (k₁, k₂, k₃)\
+"                                                                \
+    -u bispec "${this_dir}/output/snapshot"*                     \
+    --local
+rename_bispec
+
+# Compute antialiased squeezed bispectrum for a paired
+# fluid realisation with local non-Gaussianity.
+antialiasing="True"
+fnl=0.05
+fluid_ic="{'species': 'matter', 'gridsize': _size, \
+'boltzmann order': -1, 'boltzmann closure': 'class'}"
+for shift in 0 pi; do
+    "${concept}"                                                       \
+        -n 2                                                           \
+        -p "${this_dir}/param"                                         \
+        -c "bispec_antialiasing = ${antialiasing}"                     \
+        -c "primordial_phase_shift = ${shift}"                         \
+        -c "initial_conditions = ${fluid_ic}"                          \
+        -c "realization_options['non-Gaussianity'] = ${fnl}"           \
+        -c "bispec_options['configuration']['all'] = ('squeezed', 20)" \
+        --local
+    rename_bispec "squeezed_${shift}"
+done
+
+# Analyse the output bispectra
+"${concept}"                                             \
+    -n 1                                                 \
+    -p "${this_dir}/param"                               \
+    -c "realization_options['non-Gaussianity'] = ${fnl}" \
+    -m "${this_dir}/analyze.py"                          \
+    --pure-python                                        \
+    --local
+
+# Test ran successfully. Deactivate traps.
+trap : 0
+

@@ -26,7 +26,9 @@ set -e
 
 # Create the Ewald grid using Cython
 ewald_gridsize="$(get_param ewald_gridsize)"
+ewald_filename="$(get_param "ewald.filename" "import ewald")"
 echo "ewald_gridsize = ${ewald_gridsize}" > "${this_dir}/param_ewald"
+rm -f "${ewald_filename}"
 "${concept}"                            \
     -n 1                                \
     -p "${this_dir}/param_ewald"        \
@@ -62,13 +64,13 @@ for n in ${nprocs_list[@]}; do
 done
 
 # Tabulate the Ewald grid using pure Python
-mv "${reusable_dir}/ewald/${ewald_gridsize}.hdf5" "${this_dir}/ewald_cython.hdf5"
+mv "${ewald_filename}" "${this_dir}/ewald_cython.hdf5"
 "${concept}"                            \
     -n 1                                \
     -p "${this_dir}/param_ewald"        \
     -m "import ewald; ewald.tabulate()" \
     --pure-python --local
-mv "${reusable_dir}/ewald/${ewald_gridsize}.hdf5" "${this_dir}/ewald_python.hdf5"
+cp "${ewald_filename}" "${this_dir}/ewald_python.hdf5"
 
 # Analyse the output snapshots and Ewald grids
 "${concept}" -n 1 -p "${this_dir}/param" -m "${this_dir}/analyze.py" \

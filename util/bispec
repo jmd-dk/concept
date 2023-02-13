@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015–2023 Jeppe Mosgaard Dakin.
+# Copyright © 2015–2022 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -22,7 +22,7 @@
 
 
 
-# This utility can produce 3D renders of snapshots
+# This utility can produce bispectra of snapshots
 
 
 
@@ -126,6 +126,11 @@ if [ "${param}" == "${param_default}" ]; then
 ##############################
 # Utility default parameters #
 ##############################
+# Input/output
+bispec_select = {
+    'all'             : {'data': True, 'reduced': True, 'plot': True},
+    'all combinations': {'data': True, 'reduced': True, 'plot': True},
+}
 snapshot_select = {
     'load': {
         'all': {
@@ -158,19 +163,19 @@ info="$(                                                                        
         ${unsafe_building_flag}                                                 \
 )"
 snapshot_filenames="$(echo "${info}" | grep -x 'Parameters.*' | grep -o '".*"')"
-snapshot_param_filenames="$( \
+snapshot_param_filenames="$(                                 \
     echo "${info}"                                           \
     | grep -x 'The above parameters have been written to .*' \
     | grep -o '".*"'                                         \
 )"
 snapshot_param_filenames="${snapshot_param_filenames//\"/}"
 
-# Print out the snapshots which will be 3D rendered
+# Print out the snapshots of which a bispectrum will be computed
 N_snapshots="$(echo "${snapshot_filenames}" | wc -l)"
 if [ ${N_snapshots} == 1 ]; then
-    echo "A 3D render will be produced of the following snapshot:"
+    echo "A bispectrum will be produced of the following snapshot:"
 else
-    echo "3D renders will be produced of the following snapshots:"
+    echo "Bispectra will be produced of the following snapshots:"
 fi
 echo "${snapshot_filenames}"
 
@@ -204,7 +209,7 @@ of the above snapshots anyway? [Y/n] " yn
     fi
 fi
 
-# For each snapshot, run the CO𝘕CEPT code to create the 3D render
+# For each snapshot, run the CO𝘕CEPT code to create the bispectrum
 jobids=()
 for ((i = 1; i <= N_snapshots; i += 1)); do
     # Filename of the parameter file to create and use
@@ -252,7 +257,7 @@ if _boxsize is not None:
 " > "${param_filename}"
     # Cleanup
     rm -f "${snapshot_param_filename}"
-    # Run CO𝘕CEPT to produce the 3D render.
+    # Run CO𝘕CEPT to produce the bispectrum.
     # Submitted jobs should not be watched at this time.
     # Capture the jobid and exit code.
     exec 4>&1

@@ -56,9 +56,9 @@ for kind, markersize, in zip(('particles', 'fluid'), (15, 10)):
                 significant_figures(
                     1/units.m_sun,
                     3,
-                    fmt='tex',
+                    fmt='TeX',
                     incl_zeros=False,
-                    scientific=False,
+                    force_scientific=False,
                 ),
                 unit_length,
             )

@@ -1443,6 +1443,24 @@ def particle_particle(
         xi='double',
         yi='double',
         zi='double',
+        # Yielded
+        indexˣ_i='Py_ssize_t',
+        indexᵖ_j='Py_ssize_t',
+        indexˣ_j='Py_ssize_t',
+        rung_index_i='signed char',
+        rung_index_s='signed char',
+        x_ji='double',
+        y_ji='double',
+        z_ji='double',
+        periodic_offset_x='double',
+        periodic_offset_y='double',
+        periodic_offset_z='double',
+        apply_to_i='bint',
+        apply_to_j='bint',
+        factor_i='double',
+        subtile_contain_jumping_s='bint',
+        particle_particle_t_begin='double',
+        subtiling_r='Tiling',
     )
     # Extract particle variables from the receiver component
     pos_r = receiver.pos

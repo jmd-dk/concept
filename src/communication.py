@@ -1363,7 +1363,7 @@ def smart_mpi(
     # If block_recv is an int or str,
     # this designates a specific buffer to use as recvbuf.
     recvbuf_name = 'recv'
-    if isinstance(block_recv, (int, str)):
+    if isinstance(block_recv, (int, np.integer, str)):
         recvbuf_name = block_recv
     # NumPy arrays over the data
     arr_send = asarray(block_send)

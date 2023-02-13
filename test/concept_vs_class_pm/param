@@ -38,7 +38,7 @@ powerspec_options = {
     'gridsize'     : 2*_size,
     'interpolation': 'PCS',
 }
-k_modes_per_decade = 30
+class_modes_per_decade = 30
 
 # Simulation
 primordial_amplitude_fixed = True

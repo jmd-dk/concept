@@ -54,6 +54,11 @@ jobs:
         steps:
           - name: Pass
             run: exit 0
+    test_bispec:
+        runs-on: [self-hosted, linux]
+        steps:
+          - name: Pass
+            run: exit 0
     test_gadget:
         runs-on: [self-hosted, linux]
         steps:

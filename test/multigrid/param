@@ -32,7 +32,7 @@ powerspec_options = {
     'interlace'    : True,
     'k_max'        : 'Nyquist',
 }
-k_modes_per_decade = 8
+class_modes_per_decade = 8
 
 # Cosmology
 a_begin = 0.1

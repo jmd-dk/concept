@@ -320,7 +320,7 @@ set_version "blessings"         "1.7"
 set_version "cython"            "0.29.28"
 set_version "cythongsl"         "0.2.2"
 set_version "h5py"              "3.6.0"
-set_version "matplotlib"        "3.5.1"
+set_version "matplotlib"        "3.6.3"
 set_version "mpi4py"            "3.1.3"
 set_version "numpy"             "1.22.3"
 set_version "pip"               "22.0.4"
@@ -616,18 +616,21 @@ reset_environment() {
 }
 
 # Function for converting a path to its absolute form
-initial_dir="$(pwd)"  # It is crucial that this line is before any cd
+initial_dir="$(pwd)"  # it is crucial that this line is before any cd
 convert_to_abs_path() {
     # Arguments: path
     current_dir="$(pwd)"
     cd "${initial_dir}"
-    # Places backslashes before spaces.
+    # Place backslashes before spaces, dollar signs and parentheses.
     # These are needed when expanding tilde, but they will not persist.
-    abs_path="${1// /\\ }"
+    local abs_path="${1// /\\ }"
+    abs_path="${abs_path//$/\\$}"
+    abs_path="${abs_path//\(/\\(}"
+    abs_path="${abs_path//\)/\\)}"
     # Expand tilde
     eval abs_path="${abs_path}"
     # Convert to absolute path
-    abs_path=$(readlink -m "${abs_path}")
+    abs_path="$(readlink -m "${abs_path}")"
     cd "${current_dir}"
     echo "${abs_path}"
 }
@@ -7163,15 +7166,35 @@ fi
 # as we need to link to OpenBLAS).
 if [ "${scipy_install}" == "True" ] && [ "${scipy_installed}" == "False" ] \
     && [ "$(check_pypackage_installed scipy)" == "False" ]; then
-    # As of SciPy 1.4, pybind11 is a required dependency.
-    # As of SciPy 1.7, Pythran is a required dependency.
-    # These are not automatically installed by pip.
-    # If not already installed, we install these Python packages now.
+    # As of SciPy 1.4, pybind11 is a required build dependency.
+    # This may not be automatically installed by pip.
+    # If not already installed, we install this Python packages now.
+    # If not pre-installed, we shall remove this again once we are done
+    # building SciPy.
     dependencies=( \
         "pybind11" \
+    )
+    for dependency in ${dependencies[@]}; do
+        dependency_installed=$(check_pypackage_installed ${dependency})
+        eval "${dependency}_installed=\"${dependency_installed}\""
+    done
+    pip_install_pypackage_dependencies "SciPy" "False"
+    # As of SciPy 1.7, Pythran is a required build dependency.
+    # Pythran itself depends on Beniget and PLY, and Beniget further
+    # depends on GAST.
+    # If not pre-installed, we shall remove these again once we are done
+    # building SciPy.
+    dependencies=( \
+        "gast"     \
+        "beniget"  \
+        "ply"      \
         "pythran"  \
     )
-    pip_install_pypackage_dependencies "SciPy"
+    for dependency in "${dependencies[@]}"; do
+        dependency_installed=$(check_pypackage_installed ${dependency})
+        eval "${dependency}_installed=\"${dependency_installed}\""
+    done
+    pip_install_pypackage_dependencies "SciPy" "False"
     # The testing of SciPy depends on other Python packages
     # not directly used by CO𝘕CEPT.
     # If missing, we install these now.
@@ -7331,13 +7354,21 @@ extra_argv=['-q', '--color=yes', '-k not test_face'])" 2>&1 | tee "test_log"; \
             fi
             rm -f "${exit_code_filename}" || :
         fi
+        # If installing in slim mode, remove build dependencies
+        # that are no longer needed.
         if [ "${slim}" == "True" ]; then
             removable_dependencies=( \
+                "beniget"            \
+                "gast"               \
+                "ply"                \
                 "pybind11"           \
                 "pythran"            \
             )
             for dependency in "${removable_dependencies[@]}"; do
-                "${python}" -m pip uninstall "${dependency}" -y 2>&1 || :
+                eval "dependency_installed=\"\${${dependency}_installed}\""
+                if [ "${dependency_installed}" == "False" ]; then
+                    "${python}" -m pip uninstall "${dependency}" -y 2>&1 || :
+                fi
             done
         fi
     }
@@ -7361,11 +7392,14 @@ if [ "${matplotlib_install}" == "True" ] && [ "${matplotlib_installed}" == "Fals
     # Matplotlib depends on other Python packages not directly used by
     # CO𝘕CEPT. If missing, these will automatically be installed when
     # installing Matplotlib. However, as we install Matplotlib from
-    # source, these dependencies will only be attempted install from
-    # source as well, which may fail without further hacking. We thus
-    # install the hard dependencies of Matplotlib now, not including
-    # packages which should already have been installed by this script.
+    # source, these dependencies may not be successfully installed
+    # during the Matplotlib installation. We thus install the hard
+    # dependencies of Matplotlib now, not including packages which
+    # should already have been installed by this script.
+    # This list of mandatory dependencies are taken from
+    #   https://matplotlib.org/stable/devel/dependencies.html#mandatory-dependencies
     dependencies=(        \
+        "contourpy"       \
         "cycler"          \
         "fonttools"       \
         "python-dateutil" \
@@ -7374,6 +7408,26 @@ if [ "${matplotlib_install}" == "True" ] && [ "${matplotlib_installed}" == "Fals
         "pyparsing"       \
     )
     pip_install_pypackage_dependencies "Matplotlib"
+    # Note that python-dateutil is simply called dateutil in the
+    # Matplotlib documentation. Also, pillow is missing from the above
+    # list, as we shall install this manually below.
+    # Matplotlib additionally has "setup dependencies", which may not be
+    # crucial to over manual installation of Matplotlib. We attempt to
+    # install these as well, but allow the overall installation to
+    # continue in case of failure.
+    # If not pre-installed, we shall remove these again once we are done
+    # building Matplotlib.
+    # This list of setup dependencies are taken from
+    #   https://matplotlib.org/stable/devel/dependencies.html#setup-dependencies
+    dependencies=(       \
+        "certifi"        \
+        "setuptools_scm" \
+    )
+    for dependency in "${dependencies[@]}"; do
+        dependency_installed=$(check_pypackage_installed ${dependency})
+        eval "${dependency}_installed=\"${dependency_installed}\""
+    done
+    pip_install_pypackage_dependencies "Matplotlib" "False"
     # The pillow packages is missing from the above list of Matplotlib
     # dependencies, as it may require more work to install. The pillow
     # package itself depends on zlib and libjpeg, the latter of which
@@ -7571,6 +7625,20 @@ print(inspect.getfile(bdist_egg))
             rm -rf "${tmp_dir}/${matplotlib_clib_lowercase}" || :
         done
         reset_environment
+        # If installing in slim mode, remove build dependencies
+        # that are no longer needed.
+        if [ "${slim}" == "True" ]; then
+            removable_dependencies=( \
+                "certifi"            \
+                "setuptools_scm"     \
+            )
+            for dependency in "${removable_dependencies[@]}"; do
+                eval "dependency_installed=\"\${${dependency}_installed}\""
+                if [ "${dependency_installed}" == "False" ]; then
+                    "${python}" -m pip uninstall "${dependency}" -y 2>&1 || :
+                fi
+            done
+        fi
     }
     set_matplotlib_clibs() {
         # Written like the class names in setupext.py
@@ -9456,9 +9524,7 @@ site-packages/scipy/misc/face.dat" || :
         # Python packages to remove
         removable_dependencies=( \
             "hypothesis"         \
-            "pybind11"           \
             "pytest"             \
-            "pythran"            \
         )
         for dependency in "${removable_dependencies[@]}"; do
             dependency_installed="$(check_pypackage_installed "${dependency}")"

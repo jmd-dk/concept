@@ -98,9 +98,8 @@ plt.ylabel(
         significant_figures(
             1/units.m_sun,
             3,
-            fmt='tex',
+            fmt='TeX',
             incl_zeros=False,
-            scientific=False,
         ),
         unit_length,
     )

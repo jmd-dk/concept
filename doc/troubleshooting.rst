@@ -552,7 +552,7 @@ or
 .. note::
    When manually submitting an auto-generated job script, a subdirectory
    within the ``job`` directory will be created for the new job, just as when
-   a job is auto-submitted via the ``concept`` script. This sub-directory can
+   a job is auto-submitted via the ``concept`` script. This subdirectory can
    take a minute to appear though.
 
 It is also possible that the cluster configuration just does not play nicely

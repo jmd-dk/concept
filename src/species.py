@@ -944,8 +944,9 @@ class Component:
         public double mass
         public double softening_length
         public Py_ssize_t powerspec_upstream_gridsize
-        public str preic_lattice
+        public Py_ssize_t bispec_upstream_gridsize
         public Py_ssize_t render2D_upstream_gridsize
+        public str preic_lattice
         # Particle data
         double* pos
         public double[::1] pos_mv
@@ -1360,10 +1361,12 @@ class Component:
                     masterwarn(f'No softening length set for {self.name}')
             softening_length = 0
         self.softening_length = float(softening_length)
-        # Set upstream grid size for power spectra and 2D renders
+        # Set upstream grid size for power spectra,
+        # bispectra and 2D renders.
         for output_type, options in {
             'powerspec': powerspec_options,
-            'render2D': render2D_options,
+            'bispec'   : bispec_options,
+            'render2D' : render2D_options,
         }.items():
             upstream_gridsize = is_selected(
                 self, options['upstream gridsize'],
@@ -1375,6 +1378,7 @@ class Component:
                 elif self.representation == 'particles':
                     upstream_gridsize = {
                         'powerspec': '2*cbrt(Ñ)',
+                        'bispec'   : '2*cbrt(Ñ)',
                         'render2D' : '1*cbrt(Ñ)',
                     }[output_type]
             upstream_gridsize = int(round(to_float(upstream_gridsize)))
@@ -1928,7 +1932,7 @@ class Component:
                                    )
                     index, multi_index = fluid_indices
             # Type check on the multi_index
-            if not isinstance(multi_index, (int, tuple, str)):
+            if not isinstance(multi_index, (int, np.integer, tuple, str)):
                 abort(
                     f'A multi_index of type "{type(multi_index)}" was supplied. '
                     f'This should be either an int, a tuple or a str.'

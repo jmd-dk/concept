@@ -45,7 +45,7 @@ for output.
 
 -- --------------- -- -
 \  **Example 1**   \  Many other codes make use of units like
-                      :math:`\mathrm{Mpc}/h` or :math:`\mathrm{kpc}/h`, where
+                      :math:`\text{Mpc}/h` or :math:`\text{kpc}/h`, where
                       :math:`h \equiv H_0/(100\, \text{km}\, \text{s}^{-1}\, \text{Mpc}^{-1})`
                       and :math:`H_0` is the :ref:`Hubble constant <H0>`.
                       Specifying simply ``'Mpc/h'`` as ``unit_length`` will

@@ -463,7 +463,7 @@ def kurganov_tadmor(component, ᔑdt, a=-1, rk_order=2, rk_step=0):
     # No further non-linear fluid equations implemented. Stop here.
     finalize_rk_step(component, ᔑdt, a_passed, rk_order, rk_step)
 
-# Helper function to the kurganov_tadmor function,
+# Helper function for the kurganov_tadmor() function,
 # which given cell-centred values compute the 4 interface values.
 @cython.header(
     # Arguments
@@ -503,8 +503,9 @@ def at_interface(index_m2, index_m, index_c, index_p, center_ptr, interface, ϕ)
     interface[0] = center_m +   0.5*ϕ(r_m) *ℝ[center_c - center_m]  # Interface i-½, left
     interface[1] = center_c - ℝ[0.5*ϕ(r_c)]*ℝ[center_p - center_c]  # Interface i-½, right
 
-# Helper function to the at_interface function, which compute the ratio
-# of the given numerator and denominator in a numerically stable way.
+# Helper function for the at_interface() function,
+# which computes the ratio of the given numerator and denominator
+# in a numerically stable way.
 @cython.header(
     # Arguments
     numerator='double',
@@ -524,7 +525,7 @@ def slope_ratio(numerator, denominator):
 cython.declare(slope_ratio_ϵ='double')
 slope_ratio_ϵ = 1e+2*machine_ϵ
 
-# Helper function to the kurganov_tadmor function,
+# Helper function for the kurganov_tadmor() function,
 # which given the 4 interface values of a quantity, its fluxes and
 # its speeds compute the total flux through the cell.
 @cython.header(

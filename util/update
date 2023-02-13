@@ -105,9 +105,11 @@ sys.stdout = stdout
 # Print out the arguments.
 # These will be captured in the Bash 'args' variable.
 print('argparse_finished=True')
-print('version=\"{}\"'.format(args.version))
-print('yes_to_defaults=\"{}\"'.format(args.yes_to_defaults))
-print('class=\"{}\"'.format(getattr(args, 'class')))
+for arg, val in vars(args).items():
+    if isinstance(val, list):
+        print(f'{arg}=({{}})'.format(' '.join([f'\"{el}\"' for el in val])))
+    else:
+        print(f'{arg}=\"{val}\"')
 " "$@" || echo "argparse_exit_code=$?")
 # Evaluate the handled arguments into this scope
 eval "${args}"

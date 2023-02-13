@@ -790,7 +790,13 @@ def float_literals(lines, no_optimization):
             for name, value in literals.items():
                 while True:
                     for match in re.finditer(name, line):
-                        line_modified = line.replace('==', ' +')
+                        line_modified = (
+                            line
+                            .replace('==', ' +')
+                            .replace('!=', ' +')
+                            .replace('>=', ' +')
+                            .replace('<=', ' +')
+                        )
                         index_equal = -1
                         if '=' in line_modified:
                             index_equal = len(line_modified) - 1 - line_modified[::-1].index('=')
@@ -1858,7 +1864,7 @@ def constant_expressions(lines, no_optimization, first_call=True):
                             continue
                         in_docstring = {'"""': False, "'''": False}
                         for j, line2 in enumerate(reversed(lines[:end])):
-                            # Skip doc strings
+                            # Skip docstrings
                             line2_lstripped = line2.lstrip()
                             for triple_quote in ('"""', "'''"):
                                 if line2_lstripped.startswith(triple_quote):

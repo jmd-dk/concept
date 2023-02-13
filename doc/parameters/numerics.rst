@@ -30,7 +30,7 @@ some numerical resolutions and length scales.
                       box of constant comoving side length
                       :math:`L_{\text{box}}`. This parameter sets this length.
 -- --------------- -- -
-\  **Example 0**   \  Use a box size of :math:`1024\,\mathrm{Mpc}`:
+\  **Example 0**   \  Use a box size of :math:`1024\,\text{Mpc}`:
 
                       .. code-block:: python3
 
@@ -38,21 +38,21 @@ some numerical resolutions and length scales.
 
 -- --------------- -- -
 \  **Example 1**   \  Use a box size of
-                      :math:`1\,\mathrm{Gpc} = 1000\,\mathrm{Mpc}`:
+                      :math:`1\,\text{Gpc} = 1000\,\text{Mpc}`:
 
                       .. code-block:: python3
 
                          boxsize = 1*Gpc
 
 -- --------------- -- -
-\  **Example 2**   \  Use a box size of :math:`1024\,\mathrm{Mpc}/h`:
+\  **Example 2**   \  Use a box size of :math:`1024\,\text{Mpc}/h`:
 
                       .. code-block:: python3
 
                          boxsize = 1024*Mpc/h
 
                       With e.g.
-                      :math:`H_0 = 64\,\mathrm{km}\, \mathrm{s}^{-1}\, \mathrm{Mpc}^{-1}`,
+                      :math:`H_0 = 64\,\text{km}\, \text{s}^{-1}\, \text{Mpc}^{-1}`,
                       this is equivalent to
 
                       .. code-block:: python3
@@ -610,8 +610,8 @@ some numerical resolutions and length scales.
                       force. Currently, ``'gravity'`` is the only short-range
                       force implemented. For detailed information about the
                       short-range force --- including the short-/long-range
-                      force split scale :math:`x_{\mathrm{s}}` and cut-off
-                      :math:`x_{\mathrm{r}}` as well as tiles, subtiles and
+                      force split scale :math:`x_{\text{s}}` and cut-off
+                      :math:`x_{\text{r}}` as well as tiles, subtiles and
                       automatic refinement thereof --- we refer to the paper
                       on
                       ':ref:`The cosmological simulation code CO𝘕CEPT 1.0<the_cosmological_simulation_code_concept_10>`'.
@@ -619,7 +619,7 @@ some numerical resolutions and length scales.
                       Each of the sub-parameters are described below.
 
                       * ``'scale'``: This is the short-/long-range force split
-                        scale :math:`x_{\mathrm{s}}`, specifying the scale at
+                        scale :math:`x_{\text{s}}`, specifying the scale at
                         which the short- and long-range P³M forces are
                         comparable. The default value corresponds to a scale
                         of :math:`1.25` grid cell widths, as ``'gridsize'`` is
@@ -630,16 +630,16 @@ some numerical resolutions and length scales.
                         for details on this grid.
 
                       * ``'range'``: This is the cut-off scale
-                        :math:`x_{\mathrm{r}}`, specifying the range of the
+                        :math:`x_{\text{r}}`, specifying the range of the
                         short-range force. The default value is set to
-                        :math:`4.5 x_{\mathrm{s}}`, as ``'scale'`` is being
+                        :math:`4.5 x_{\text{s}}`, as ``'scale'`` is being
                         dynamically substituted.
 
                       * ``'tilesize'``: This sets the (minimum) width of the
                         tiles. To ensure that all particle pairs within
-                        :math:`x_{\mathrm{r}}` of each other gets paired up,
+                        :math:`x_{\text{r}}` of each other gets paired up,
                         this should be set no lower than
-                        :math:`x_{\mathrm{r}}`, i.e. ``'range'``. At the same
+                        :math:`x_{\text{r}}`, i.e. ``'range'``. At the same
                         time, there is typically no reason to set a larger
                         value, as this just slows down the short-range
                         interaction without actually increasing the number of
@@ -670,8 +670,8 @@ some numerical resolutions and length scales.
                         the ``'tablesize'`` sub-parameter.
 
 -- --------------- -- -
-\  **Example 0**   \  Extend :math:`x_{\mathrm{r}}` all the way to
-                      :math:`5.5 x_{\mathrm{s}}`, for the gravitational
+\  **Example 0**   \  Extend :math:`x_{\text{r}}` all the way to
+                      :math:`5.5 x_{\text{s}}`, for the gravitational
                       short-range interaction:
 
                       .. code-block:: python3
@@ -770,10 +770,10 @@ some numerical resolutions and length scales.
                              'k_max': {
                                  'default': 'nyquist',
                              },
-                             'binsize': {
+                             'bins per decade': {
                                  'default': {
-                                     '1*k_min':   π/boxsize,
-                                     '5*k_min': 2*π/boxsize,
+                                     '  4*k_min':  4,
+                                     '100*k_min': 40,
                                  },
                              },
                              'tophat': {
@@ -853,10 +853,10 @@ some numerical resolutions and length scales.
                         .. math::
 
                            \require{upgreek}
-                           k_{\mathrm{Nyquist}} = \biggl\lfloor\frac{n_{\mathrm{ps}}}{2}\biggr\rfloor \times \frac{2\uppi}{L_{\mathrm{box}}}\, ,
+                           k_{\text{Nyquist}} = \biggl\lfloor\frac{n_{\text{ps}}}{2}\biggr\rfloor \times \frac{2\uppi}{L_{\text{box}}}\, ,
 
-                        with :math:`L_{\mathrm{box}}` given by ``boxsize`` and
-                        :math:`n_{\mathrm{ps}}` the global grid size used for
+                        with :math:`L_{\text{box}}` given by ``boxsize`` and
+                        :math:`n_{\text{ps}}` the global grid size used for
                         the power spectrum.
 
                         .. note::
@@ -864,18 +864,20 @@ some numerical resolutions and length scales.
                            will not yield further data points, as no further
                            data is available in the 3D grid.
 
-                      * ``'binsize'``: Specifies the width of the power
-                        spectrum bins. By specifying different widths at
-                        different :math:`k`, a running (logarithmically
-                        interpolated) bin size is obtained. When the
-                        :math:`k`\ 's are given as ``str``\ s, the following
-                        sub\ ``str``\ s are dynamically substituted:
+                      * ``'bins per decade'``: Specifies the number of power
+                        spectrum bins per decade in :math:`k`. By specifying
+                        different numbers at different :math:`k`, a running
+                        (logarithmically interpolated) number of bins is
+                        obtained. When the :math:`k`\ 's are given as
+                        ``str``\ s, the following sub\ ``str``\ s are
+                        dynamically substituted:
 
                         * ``'k_min'``: ``2*π/boxsize``.
                         * ``'k_max'``: Value set for ``'k_max'``, though at
-                          most ``sqrt(3)*gridsize//2*k_min``.
+                          most ``sqrt(3)*(gridsize//2)*k_min``.
                         * ``'gridsize'``: ``gridsize``.
                         * ``'nyquist'``: ``gridsize//2*k_min``.
+                        * ``'k_fundamental'``/``'k_f'``: ``2*π/boxsize``.
 
                       * ``'tophat'``: Included in the power spectrum data
                         files is also the root-mean-square density variation
@@ -885,7 +887,7 @@ some numerical resolutions and length scales.
                         .. math::
 
                            \require{upgreek}
-                           \sigma_R &= \frac{1}{2\uppi^2} \left( \int k^2 W^2(kR) P(k)\,\mathrm{d}k \right)^{1/2}\, , \\
+                           \sigma_R &= \frac{1}{2\uppi^2} \left( \int k^2 W^2(kR) P(k)\,\mathrm{d}k \right)^{\frac{1}{2}}\, , \\
                            W(s) &= \frac{3}{s^3}\bigl(\sin(s) - s\cos(s)\bigr)\, ,
 
                         with :math:`P(k)` the power spectrum.
@@ -941,14 +943,14 @@ some numerical resolutions and length scales.
                       shortcut for setting both ``'upstream gridsize'`` and
                       ``'global gridsize'``.
 -- --------------- -- -
-\  **Example 1**   \  Use small bins of the same size for all :math:`k` of
-                      every power spectrum:
+\  **Example 1**   \  Employ many (small) bins of the same (logarithmic) size
+                      for all :math:`k` of every power spectrum:
 
                       .. code-block:: python3
 
                          powerspec_options = {
-                             'binsize': {
-                                 'all'             : 0.5*π/boxsize,
+                             'bins per decade': {
+                                 'all'             : 100,
                                  'all combinations': ...,
                              },
                          }
@@ -958,7 +960,7 @@ some numerical resolutions and length scales.
                       .. code-block:: python3
 
                          powerspec_options = {
-                             'binsize': 0.5*π/boxsize,
+                             'bins per decade': 100,
                          }
 
 -- --------------- -- -
@@ -985,10 +987,797 @@ some numerical resolutions and length scales.
 
 
 
-.. _k_modes_per_decade:
+.. _bispec_options:
 
-``k_modes_per_decade``
-......................
+``bispec_options``
+..................
+== =============== == =
+\  **Description** \  Specifications for bispectrum computations
+                      and dumps
+-- --------------- -- -
+\  **Default**     \  .. code-block:: python3
+
+                         {
+                             'configuration': {
+                                 'default': ('equilateral', 20),
+                             },
+                             'shellthickness': {
+                                 'default': [
+                                     {
+                                         '1*k_fundamental': '0.25*k_fundamental',
+                                         '4*k_fundamental': 'max(3*k_fundamental, 1/20*log(10)*k)',
+                                     },
+                                     {
+                                         '1*k_fundamental': '0.25*k_fundamental',
+                                         '4*k_fundamental': 'max(3*k_fundamental, 1/20*log(10)*k)',
+                                     },
+                                     {
+                                         '1*k_fundamental': '0.25*k_fundamental',
+                                         '4*k_fundamental': 'max(3*k_fundamental, 1/20*log(10)*k)',
+                                     },
+                                 ]
+                             },
+                             'upstream gridsize': {
+                                 'particles': '2*cbrt(Ñ)',
+                                 'fluid'    : 'gridsize',
+                             },
+                             'global gridsize': {},
+                             'interpolation': {
+                                 'default': 'PCS',
+                             },
+                             'deconvolve': {
+                                 'default': True,
+                             },
+                             'interlace': {
+                                 'default': True,
+                             },
+                             'significant figures': {
+                                 'default': 8,
+                             },
+                         }
+
+-- --------------- -- -
+\  **Elaboration** \  This is a ``dict`` of several individual sub-parameters,
+                      specifying details of how to compute and save bispectra.
+                      All sub-parameters are themselves
+                      :ref:`component selections <components_and_selections>`.
+
+                      For computing a bispectrum, one or more components are
+                      first interpolated onto individual *upstream* grids,
+                      possibly using deconvolution and interlacing, after
+                      which they are added together in Fourier space,
+                      producing a *global* grid. This scheme is similar to the
+                      one used for potentials, except here we never go back to
+                      real space, neither do we interpolate anything back to
+                      the particles. See the ``potential_options``
+                      :ref:`parameter <potential_options>` for a walk-through
+                      of the scheme.
+
+                      Many of the sub-parameters are the same as within the
+                      ``powerspec_options``
+                      :ref:`parameter <powerspec_options>`, and have the same
+                      meaning. These will not be reiterated here. The
+                      remaining sub-parameters are described below:
+
+                      * ``'configuration'``: Specifies the triangle
+                        configurations for which to compute the bispectrum for
+                        each component. Rather than writing the bispectrum as
+                        a function of the length of the three wave vectors
+                        :math:`B(k_1, k_2, k_3)`, CO\ *N*\ CEPT makes use of
+                        parametrisation :math:`B(k, t, \mu)`, where
+
+                        .. math::
+
+                           k &\equiv k_1\,,\\
+                           t &\equiv \frac{k_2}{k_1}\,,\\
+                           \mu &\equiv \frac{k_1^2 + k_2^2 - k_3^2}{2k_1k_2}\,,
+
+                        or conversely
+
+                        .. math::
+
+                           k_1 &\equiv k\,,\\
+                           k_2 &\equiv tk_1\,,\\
+                           k_3 &\equiv \sqrt{k_1^2 + k_2^2 - 2\mu k_1k_2}\,.
+
+                        Using this parametrisation, the configurations to use
+                        may be specified in multiple different ways:
+
+                        * ``(k, t, μ)``: Single configuration, corresponding
+                          to one bispectrum bin. Note that ``k``, ``t`` and
+                          ``μ`` must each be a single number, given in that
+                          order. The bin represents the average of triangles
+                          with :math:`(k, t, \mu)` in the vicinity of the
+                          values specified, in accordance with the
+                          ``'shellthickness'`` sub-parameter (see below).
+                        * ``{'k': <...>, 't': <...>, 'μ': <...>}``: Multiple
+                          configurations spanning a chunk of configuration
+                          space. Here each ``<...>`` is stand-in for either a
+                          single number or multiple numbers (e.g. within in a
+                          ``list``). All configurations in the Cartesian
+                          product of the three ``<...>`` will be included.
+                        * ``'<named-configuration>'``: Multiple configurations
+                          spanning a named portion of configuration space.
+                          Many typical configurations are known to
+                          CO\ *N*\ CEPT by name. These include:
+
+                          * ``'equilateral'``: :math:`t = 1`,
+                            :math:`\mu = \frac{1}{2}`,
+                            :math:`\,(k_1 = k_2 = k_3).`
+                          * ``'stretched'``: :math:`t = \frac{1}{2}`,
+                            :math:`\mu = 1`, :math:`\,(k_1 = 2k_2 = 2k_3).`
+                          * ``'squeezed'``: :math:`t = 1`, :math:`\mu = 0.99`,
+                            :math:`\,(k_1 = k_2, k_3 \approx 0).`
+                          * ``'isosceles right'``: :math:`t = 1/\sqrt{2}`,
+                            :math:`\mu = 1/\sqrt{2}`,
+                            :math:`\,(k_1 = \sqrt{2}k_2 = \sqrt{2}k_3).`
+                          * ``'L-isosceles'``: :math:`t = 1`,
+                            :math:`\frac{1}{2} \le \mu < 1`,
+                            :math:`\,(k_1 = k_2 \ge k_3).`
+                          * ``'S-isosceles'``:
+                            :math:`\frac{1}{2} \le t \le 1`,
+                            :math:`\mu = (2t)^{-1}`,
+                            :math:`\,(k_1 \ge k_2 = k_3).`
+                          * ``'elongated'``/``'flattened'``/``'folded'``/``'linear'``:
+                            :math:`\frac{1}{2} \le t < 1`, :math:`\mu = 1`,
+                            :math:`\,(k_1 = k_2 + k_3).`
+                          * ``'right'``: :math:`1/\sqrt{2} \le t = \mu < 1`
+                            :math:`\,(k_1^2 = k_2^2 + k_3^2).`
+                          * ``'acute'``: :math:`1/\sqrt{2} \le t \le 1`,
+                            :math:`(2t)^{-1} \le \mu < 1`,
+                            :math:`\,(k_1^2 \le k_2^2 + k_3^2).`
+                          * ``'obtuse'`` :math:`1/\sqrt{2} \le \mu < 1`,
+                            :math:`(2\mu)^{-1} \le t < \mu`,
+                            :math:`\,(k_1^2 \ge k_2^2 + k_3^2).`
+                          * ``'all'`` :math:`\frac{1}{2} \le t \le 1`,
+                            :math:`(2t)^{-1} \le \mu < 1`
+                            :math:`\,(k_1 \ge k_2 \ge k_3).`
+
+                          In all of th above named configurations,
+                          :math:`k = k_1` goes from ``5*k_f`` to
+                          ``2/3*nyquist``, with ``k_f = 2*π/boxsize`` and
+                          ``nyquist = gridsize//2*k_f``.
+
+                          For all of the bove named configurations,
+                          the convention that :math:`k_1 \ge k_2 \ge k_3` is
+                          used, corresponding to
+
+                          .. math::
+
+                             \frac{1}{2} &\le t \le 1\,, \\
+                             \frac{1}{2} &\le \mu \le 1\,, \\
+                             \frac{1}{2} &\le t\mu\,.
+
+                          Note that this restriction is not imposed when
+                          manually specifying :math:`k`, :math:`t`,
+                          :math:`\mu`.
+
+                        * (``'<named-configuration>'``, n): Named portion of
+                          configuration space like above, with the number of
+                          bins set through the integer ``n``. This is
+                          interpreted as the number of bins per decade along
+                          the :math:`k = k_1` dimension, with the total number
+                          further depending on the global grid size in use for
+                          the bispectrum measurement. The :math:`t` and
+                          :math:`\mu` dimensions are likewise subdivided,
+                          using the same total number of cuts as for the
+                          :math:`k` dimension.
+
+                          When ``n`` is not specified (corresponding to the
+                          previous bullet point), ``n`` defaults to ``20``.
+
+                          .. tip::
+                             From the above, it can be shown that the total
+                             number of bispectrum bins in the named
+                             configurations grows approximately like
+                             :math:`\mathcal{O}[(n^d(\ln (n_{\text{bs}}) - 1)^d]`,
+                             with :math:`n_{\text{bs}}` the global grid size
+                             used for the bispectrum computation and :math:`d`
+                             the dimensionality of the selected chunk of
+                             parameter space:
+
+                             * :math:`d = 1`: ``'equilateral'``,
+                               ``'stretched'``, ``'squeezed'``,
+                               ``'isosceles right'``.
+                             * :math:`d = 2`: ``'L-isosceles'``,
+                               ``'S-isosceles'``, ``'elongated'``,
+                               ``'right'``.
+                             * :math:`d = 3`: ``'acute'``, ``'obtuse'``,
+                               ``'all'``.
+
+                        * Finally, multiple specifications of any of the above
+                          kinds can be simultaneously selected by writing them
+                          together in a ``list``.
+
+                      * ``'shellthickness'``: Specifies the thickness of the
+                        three :math:`k` shells (one for each of :math:`k_1`,
+                        :math:`k_2`, :math:`k_3`) making up each bispectrum
+                        bin. By specifying different thicknesses at different
+                        :math:`k`, a running (logarithmically interpolated)
+                        thickness is obtained. Both the thickness values
+                        themselves and the :math:`k` values (shell radii) at
+                        which they apply can be given as either numbers (in
+                        units of inverse length) or as ``str``\ s. In the
+                        latter case, the following sub\ ``str``\ s are
+                        dynamically substituted:
+
+                        * ``'k_min'``: ``2*π/boxsize``.
+                        * ``'k_max'``: ``sqrt(3)*(gridsize//2)*k_min``.
+                        * ``'gridsize'``: ``gridsize``.
+                        * ``'nyquist'``: ``gridsize//2*k_min``.
+                        * ``'k_fundamental'``/``'k_f'``: ``2*π/boxsize``.
+
+                        For specifying individual shell thicknesses for the
+                        :math:`k_1`, :math:`k_2` and :math:`k_3` shells,
+                        ``'shellthickness'`` should be specified as a ``list``
+                        of three ``dict``\ s. If instead ``'shellthickness'``
+                        is given as just a single such ``dict``, the same
+                        shell thickness will be used for all three shells.
+
+                      .. note::
+                         For all sub-parameters except
+                         ``'upstream gridsize'``, the keys used within the
+                         :ref:`component selection <components_and_selections>`
+                         sub-\ ``dict``\ s may refer to either a single
+                         component or a combination of components. In the case
+                         of the latter, this designates a combined (auto)
+                         bispectrum.
+
+-- --------------- -- -
+\  **Example 0**   \  Use the equilateral configurations for bispectra of the
+                      component with a name/species of ``'matter'``:
+
+                      .. code-block:: python3
+
+                         bispec_options = {
+                             'configuration': {
+                                 'matter': 'equilateral',
+                             },
+                         }
+
+                      If we want more control over the number of bispectrum
+                      bins (the density of sampling points), we can specify
+                      the number of bins/subdivisions per decade along the
+                      :math:`k = k_1` dimension (with the number of
+                      subdivisions along the :math:`t` and :math:`\mu`
+                      dimensions also adapting accordingly):
+
+                      .. code-block:: python3
+
+                         bispec_options = {
+                             'configuration': {
+                                 'matter': ('equilateral', 30),
+                             },
+                         }
+
+                      Instead of using the predefined name ``'equilateral'``,
+                      we can specify such configurations --- defined by having
+                      :math:`t = 1` and :math:`\mu = \frac{1}{2}`
+                      --- manually:
+
+                      .. code-block:: python3
+
+                         bispec_options = {
+                             'configuration': {
+                                 'matter': {
+                                     'k': 'logspace(log10(k_f), log10(nyquist), int(30*log10(nyquist/k_f)))',
+                                     't': 1,
+                                     'μ': 0.5,
+                                 },
+                             },
+                         }
+
+                      The above specification for ``'k'`` results in 30 values
+                      per decade, placed logarithmically equidistant between
+                      ``k_f`` and ``nyquist``; a wider parameter range than
+                      what is used by the built-in ``'equilateral'``
+                      configuration.
+
+                      If we prefer, we might instead list each equilateral bin
+                      individually:
+
+                      .. code-block:: python3
+
+                         _gridsize = 128  # global grid size for bispectrum
+                         bispec_options = {
+                             'configuration': {
+                                 'matter': [
+                                     (k, 1, 0.5)
+                                     for k in logspace(
+                                         log10(2*π/boxsize),
+                                         log10(2*π/boxsize*(_gridsize//2)),
+                                         int(30*log10(_gridsize//2)),
+                                     )
+                                 ],
+                             },
+                         }
+
+                      Note that in the above we have to reference the grid
+                      size explicitly, whereas previously this was encoded in
+                      ``'nyquist'``. Likewise we previously made use of the
+                      fundamental frequency ``'k_f'``, whereas just above we
+                      write this out explicitly as ``2*π/boxsize``. We can
+                      reintroduce ``'k_f'`` to (perhaps) simplify the above:
+
+                      .. code-block:: python3
+
+                         _gridsize = 128  # global grid size for bispectrum
+                         bispec_options = {
+                             'configuration': {
+                                 'matter': [
+                                     (f'{q}*k_f', 1, 0.5)
+                                     for q in logspace(
+                                         0,
+                                         log10(_gridsize//2),
+                                         int(30*log10(_gridsize//2)),
+                                     )
+                                 ],
+                             },
+                         }
+
+-- --------------- -- -
+\  **Example 1**   \  Use a constant shell thickness equal to three times the
+                      fundamental frequency, for shell :math:`k_1`,
+                      shell :math:`k_2` and shell :math:`k_3`, for
+                      every bispectrum:
+
+                      .. code-block:: python3
+
+                         bispec_options = {
+                             'shellthickness': {
+                                 'all'             : ['3*k_f', '3*k_f', '3*k_f'],
+                                 'all combinations': ...,
+                             },
+                         }
+
+                      This may be shortened to
+
+                      .. code-block:: python3
+
+                         bispec_options = {
+                             'shellthickness': ['3*k_f', '3*k_f', '3*k_f'],
+                         }
+
+                      or indeed
+
+                      .. code-block:: python3
+
+                         bispec_options = {
+                             'shellthickness': '3*k_f',
+                         }
+
+-- --------------- -- -
+\  **Example 2**   \  Use the equilateral configurations for bispectra of the
+                      component with a name/species of ``'matter'``, with 30
+                      bins per decade along the :math:`k` dimension.
+
+                      .. code-block:: python3
+
+                         bispec_options = {
+                             'configuration': {
+                                 'matter': ('equilateral', 30),
+                             },
+                         }
+
+                      Ideally, the concentric shells of different bins should
+                      not overlap, as otherwise the same underlying modes will
+                      each contribute to multiple bins. At the same time, we
+                      would like to include all available modes within our
+                      bins, and so together they should cover all of
+                      configuration space, i.e. we want there to be no gaps
+                      between the concentric shells. Given the 30
+                      logarithmically equidistant shell radii above, we can
+                      match the shell thicknesses in order to achieve this:
+
+                      .. code-block:: python3
+
+                         bispec_options = {
+                             'configuration': {
+                                 'matter': ('equilateral', 30),
+                             },
+                             'shellthickness': {
+                                 'matter': '1/30*log(10)*k',
+                             },
+                         }
+
+                      Note that with the growing shell thickness above,
+                      the usual shell thickness of :math:`3k_{\text{f}}` is not
+                      achieved until :math:`k \sim 40k_{\text{f}}`. We may
+                      introduce a minimum shell thickness --- say of
+                      :math:`1.5k_{\text{f}}` --- like so:
+
+                      .. code-block:: python3
+
+                         bispec_options = {
+                             'configuration': {
+                                 'matter': ('equilateral', 30),
+                             },
+                             'shellthickness': {
+                                 'matter': 'max(1.5*k_f, 1/30*log(10)*k)',
+                             },
+                         }
+
+                      The above minimum shell thickness of
+                      :math:`1.5k_{\text{f}}` applies for
+                      :math:`k \lesssim 20k_{\text{f}}`, though for the very
+                      lowest :math:`k` we might want a smaller value. We can
+                      introduce a lowest thickness of e.g.
+                      :math:`0.25k_{\text{f}}` below e.g.
+                      :math:`1k_{\text{f}}`, with the previous thickness
+                      specification being applied above e.g.
+                      :math:`10k_{\text{f}}`:
+
+                      .. code-block:: python3
+
+                         bispec_options = {
+                             'configuration': {
+                                 'matter': ('equilateral', 30),
+                             },
+                             'shellthickness': {
+                                 'matter': {
+                                      '1*k_f': '0.25*k_f',
+                                     '10*k_f': 'max(1.5*k_f, 1/30*log(10)*k)',
+                                 },
+                             },
+                         }
+
+                      Between the two control points :math:`1k_{\text{f}}`
+                      and :math:`10k_{\text{f}}`, the shell thickness is
+                      obtained through logarithmic interpolation. For example,
+                      the shell thickness at :math:`4k_{\text{f}}` becomes
+                      :math:`\sim 1.0k_{\text{f}}`, given the above
+                      specification.
+
+                      Note the similarity with the above shell thickness
+                      settings and the default settings.
+-- --------------- -- -
+\  **Example 3**   \  Measure the bispectrum for all isosceles configurations
+                      --- i.e. both L-isosceles and S-isosceles --- for the
+                      component with a name/species of ``'matter'``.
+
+                      .. code-block:: python3
+
+                         bispec_options = {
+                             'configuration': {
+                                 'matter': ['L-isosceles', 'S-isosceles'],
+                             },
+                         }
+
+                      We might want to explicitly control the number of bins
+                      for each of two configuration subspaces:
+
+                      .. code-block:: python3
+
+                         bispec_options = {
+                             'configuration': {
+                                 'matter': [('L-isosceles', 15), ('S-isosceles', 25)],
+                             },
+                         }
+
+                      .. caution::
+                         Due to the many possible configuration
+                         specifications, the parsing of these specifications
+                         is less robust than what is usually the case. In
+                         particular, swapping ``list``\ s for ``tuple``\ s
+                         or vice versa can lead to erroneous parsing,
+                         ultimately crashing the program. That is, while
+
+                         .. code-block:: python3
+
+                            ['L-isosceles', 'S-isosceles']
+
+                         is a valid specification, this is not:
+
+                         .. code-block:: python3
+
+                            ('L-isosceles', 'S-isosceles')  # ❌
+
+                      Note that the two sets of bins are written without
+                      separation in the output data file. However, the order
+                      in which the bins appear will always match the order in
+                      which they are specified.
+
+                      .. tip::
+                         For the case above (and most others), the transition
+                         from one configuration subset to another within a
+                         bispectrum data file can easily be located as the row
+                         where :math:`k` *de*\ creases in relation to the
+                         previous row.
+
+-- --------------- -- -
+\  **Example 4**   \  Use a squeezed configurations for bispectra of the
+                      component with a name/species of ``'matter'``:
+
+                      .. code-block:: python3
+
+                         bispec_options = {
+                             'configuration': {
+                                 'matter': 'squeezed',  # or e.g. (squeezed, 20)
+                             },
+                         }
+
+                      The squeezed configurations are more tricky than other
+                      configurations, as the :math:`k_3` shell vanishes in
+                      the squeezed limit :math:`t\rightarrow 1`,
+                      :math:`\mu\rightarrow 0`, while a reliable bispectrum
+                      measurement requires each shell to contain a substantial
+                      amount of grid points. For the built-in ``'squeezed'``,
+                      he values ``t = 1``, ``μ = 0.99`` are chosen. We can use
+                      a less restrictive ``μ = 0.95`` --- leading to a less
+                      noisy bispectrum --- by specifying the configurations
+                      manually:
+
+                      .. code-block:: python3
+
+                         bispec_options = {
+                             'configuration': {
+                                 'matter': {
+                                     'k': (
+                                         'logspace(log10(5*k_f), '
+                                         'log10(2/3*nyquist), '
+                                         'int(20*log10(2/3*nyquist/(5*k_f))))'
+                                     ),
+                                     't': 1,
+                                     'μ': 0.95,
+                                 },
+                             },
+                         }
+
+                      In the above we have kept the :math:`k = k_1` range the
+                      same as the default; 20 points logarithmically
+                      equidistant between 5 times the fundamental frequency
+                      and two-thirds times the Nyquist frequency. Note however
+                      that some of these configurations are rejected when
+                      using the built-in ``'squeezed'``, as :math:`k_3` is
+                      deemed too small.
+
+                      With :math:`k_3` much smaller than :math:`k_1` and
+                      :math:`k_2` it might makes sense to assign the
+                      :math:`k_3` shell a thickness that is different from
+                      the one used by the :math:`k_1` and :math:`k_2` shell:
+
+                      .. code-block:: python3
+
+                         bispec_options = {
+                             'configuration': {
+                                 'matter': {
+                                     'k': (
+                                         'logspace(log10(5*k_f), '
+                                         'log10(2/3*nyquist), '
+                                         'int(20*log10(2/3*nyquist/(5*k_f))))'
+                                     ),
+                                     't': 1,
+                                     'μ': 0.95,
+                                 },
+                             },
+                             'shellthickness': {
+                                 'matter': ['3*k_f', '3*k_f', '1.5*k_f'],
+                             },
+                         }
+
+-- --------------- -- -
+\  **Example 5**   \  Imitate the way
+                      `Pylians <https://pylians3.readthedocs.io/>`_ computes
+                      bispectra:
+
+                      * Specify :math:`k_1 = |\boldsymbol{k}_1|` and
+                        :math:`k_2 = |\boldsymbol{k}_2|` as well as the angle
+                        :math:`\theta = \cos^{-1}(\hat{\boldsymbol{k}}_1 \cdot \hat{\boldsymbol{k}}_2)`
+                        (opposite sign convention compared to CO\ *N*\ CEPT,
+                        making :math:`\mu = -\cos\theta`).
+                      * Use a constant shell thickness of twice the
+                        fundamental frequency.
+
+                      Use :math:`k_1 = 1.1\, h\, \text{Mpc}^{-1}`,
+                      :math:`k_2 = 0.8\, h\, \text{Mpc}^{-1}` and :math:`50`
+                      values of :math:`\theta` between :math:`0` and
+                      :math:`\require{upgreek}\uppi`. Apply all of this for
+                      the component with a name/species of ``'matter'``:
+
+                      .. code-block:: python3
+
+                         _k1 = 1.1*h/Mpc
+                         _k2 = 0.8*h/Mpc
+                         _θ = linspace(0, π, 50)
+                         bispec_options = {
+                             'configuration': {
+                                 'matter': {
+                                     'k': _k1,
+                                     't': _k2/_k1,
+                                     'μ': -cos(_θ),
+                                 },
+                             },
+                             'shellthickness': {
+                                 'matter': '2*k_f',
+                             },
+                         }
+
+                      .. note::
+                         In order to fully reduce the bispectrum computation within
+                         CO\ *N*\ CEPT to one consisten with that of
+                         `Pylians <https://pylians3.readthedocs.io/>`_, one
+                         should further disable
+                         :ref:`shell anti-aliasing <bispec_antialiasing>`.
+
+-- --------------- -- -
+\  **Example 6**   \  Sample the full configuration space for the component
+                      with a name/species of ``'matter'``:
+
+                      .. code-block:: python3
+
+                         bispec_options = {
+                             'configuration': {
+                                 'matter': ('all', 5),
+                             },
+                         }
+
+                      We recall that the full configuration space is
+                      parametrised as
+
+                      .. math::
+
+                         \frac{1}{2} &\le t \le 1\,, \\
+                         \frac{1}{2} &\le \mu \le 1\,, \\
+                         \frac{1}{2} &\le t\mu\,,
+
+                      which uniquely covers each configuration (triangle
+                      shape) for a given :math:`k` (triangle size). While the
+                      built-in ``'all'`` samples configuration space evenly
+                      (logarithmically in :math:`k`, linear in :math:`t` and
+                      :math:`\mu`), we might instead wish to sample randomly.
+
+                      .. code-block:: python3
+
+                         np.random.seed(42)  # for consistent bins
+                         def _sample():
+                             r = np.random.random(3)
+                             k = f'k_min*(k_max/k_min)**{r[0]}'
+                             t = (1 + r[1])/2
+                             μ = (1 + r[2])/2
+                             if t*μ < 0.5:
+                                 return _sample()
+                             return k, t, μ
+                         bispec_options = {
+                             'configuration': {
+                                 'matter': [_sample() for _ in range(100)],
+                             },
+                         }
+
+                      Note that the above samples the entire possible
+                      :math:`k = k_1` range, whereas this range is reduced
+                      for the built-in ``'all'`` (as well as the other named
+                      configurations).
+== =============== == =
+
+
+
+------------------------------------------------------------------------------
+
+
+
+.. _bispec_antialiasing:
+
+``bispec_antialiasing``
+.......................
+== =============== == =
+\  **Description** \  Specifies whether to enable anti-aliasing for
+                      bispectrum shells
+-- --------------- -- -
+\  **Default**     \  .. code-block:: python3
+
+                         True
+
+-- --------------- -- -
+\  **Elaboration** \  Numerically, each bispectrum shell is a collection of
+                      Fourier grid cells, each positioned a distance (measured
+                      from their centres) of about :math:`k` from the origin
+                      (with :math:`k = k_1` for the first shell,
+                      :math:`k = k_2` for the second shell, :math:`k = k_3`
+                      for the third shell). Call this distance the radial
+                      coordinate of the cell. With shell anti-aliasing
+                      disabled (not the default), a cell is included in the
+                      shell if its radial coordinate lies between
+                      :math:`k - s/2` and :math:`k + s/2`, :math:`s` being the
+                      shell thickness of the shell with radius :math:`k`.
+
+                      The simple scheme for cell inclusion/exclusion within a
+                      shell described above comes with a number of drawbacks,
+                      arising from allowing the discrete nature of the
+                      underlying grid to spread into the shell. A more
+                      sophisticated approach is to treat the shells as being
+                      truly spherical and continuous, with cells on the
+                      boundary being taken into account in proportion to their
+                      volumetric overlap with the shell. This is what we refer
+                      to as shell anti-aliasing (enabled by default).
+
+                      Note that with shell anti-aliasing, the inner and outer
+                      shell radii --- related by their difference equalling
+                      the shell thickness :math:`s` --- can now be chosen such
+                      that the average (weighted) radial coordinate of the
+                      cells within the shell exactly equals the radius
+                      :math:`k` of the shell, i.e. a measured bispectrum value
+                      :math:`B(k_1, k_2, k_3)` really do belong *exactly* to
+                      the given :math:`k_1`, :math:`k_2`, :math:`k_3`. This is
+                      unlike the non-anti-aliased case where small changes to
+                      :math:`k_1`, :math:`k_2`, :math:`k_3` do not alter the
+                      measured value :math:`B(k_1, k_2, k_3)`.
+
+                      .. note::
+                         For all but the smallest :math:`k`, CO\ *N*\ CEPT in
+                         fact chooses the inner and outer shell radii not so
+                         that the average radial coordinate of the cells
+                         results in the radius :math:`k` of the shell, but
+                         instead so that the average of the logarithm of the
+                         radial coordinates of the cells results in
+                         :math:`\log k`.
+
+-- --------------- -- -
+\  **Example 0**   \  Turn off bispectrum shell anti-aliasing:
+
+                      .. code-block:: python3
+
+                         bispec_antialiasing = False
+
+                      Though generally not preferable, this is useful if the
+                      resulting bispectra are to be compared with ones
+                      computed by a different code which does not have this
+                      feature.
+== =============== == =
+
+
+
+------------------------------------------------------------------------------
+
+
+
+.. _class_dedicated_spectra:
+
+``class_dedicated_spectra``
+...........................
+== =============== == =
+\  **Description** \  Specifies whether to carry out a dedicated CLASS
+                      computation for use with perturbation theory spectra
+-- --------------- -- -
+\  **Default**     \  .. code-block:: python3
+
+                         False
+
+-- --------------- -- -
+\  **Elaboration** \  When ``False`` (the default), rather than running CLASS,
+                      already obtained CLASS results are reused whenever a
+                      perturbation theory spectrum (a linear power spectrum or
+                      a tree-level bispectrum) is requested, even if this
+                      does not cover the entire :math:`k` region in question.
+                      This often leads to a few missing (``NaN``) values in
+                      the perturbation theory columns of output spectra, but
+                      saves time as fewer invocations of CLASS are needed.
+
+                      .. note::
+                         This will only affect the perturbation theory output
+                         in power spectrum and bispectrum data files; the
+                         CLASS data used internally for simulation purposes
+                         will always be complete.
+
+-- --------------- -- -
+\  **Example 0**   \  Always rerun CLASS as necessary, ensuring fully
+                      populated perturbation theory data in spectral output:
+
+                      .. code-block:: python3
+
+                         class_dedicated_spectra = True
+
+== =============== == =
+
+
+
+------------------------------------------------------------------------------
+
+
+
+.. _class_modes_per_decade:
+
+``class_modes_per_decade``
+..........................
 == =============== == =
 \  **Description** \  Number of Fourier modes :math:`k` per decade in
                       CLASS computations
@@ -1016,27 +1805,27 @@ some numerical resolutions and length scales.
 \  **Example 0**   \  Use a constant :math:`20` modes per decade, i.e.
                       :math:`20` values of :math:`k` placed logarithmically
                       equidistant between
-                      :math:`k = 10^{-3}\,\mathrm{Mpc}^{-1}` and
-                      :math:`k = 10^{-2}\,\mathrm{Mpc}^{-1}`, between
-                      :math:`k = 10^{-2}\,\mathrm{Mpc}^{-1}` and
-                      :math:`k = 10^{-1}\,\mathrm{Mpc}^{-1}`, etc:
+                      :math:`k = 10^{-3}\,\text{Mpc}^{-1}` and
+                      :math:`k = 10^{-2}\,\text{Mpc}^{-1}`, between
+                      :math:`k = 10^{-2}\,\text{Mpc}^{-1}` and
+                      :math:`k = 10^{-1}\,\text{Mpc}^{-1}`, etc:
 
                       .. code-block:: python3
 
-                         k_modes_per_decade = 20
+                         class_modes_per_decade = 20
 
 -- --------------- -- -
 \  **Example 1**   \  Use :math:`50` modes per decade around
-                      :math:`k = 10^{-4}\,\mathrm{Mpc}^{-1}` and :math:`10`
+                      :math:`k = 10^{-4}\,\text{Mpc}^{-1}` and :math:`10`
                       modes per decade around
-                      :math:`k = 10^1\,\mathrm{Mpc}^{-1}`, with a running
+                      :math:`k = 10^1\,\text{Mpc}^{-1}`, with a running
                       number per decade in between found through logarithmic
                       interpolation (resulting in e.g. :math:`42` modes per
-                      decade around :math:`k = 10^{-3}\,\mathrm{Mpc}^{-1}`):
+                      decade around :math:`k = 10^{-3}\,\text{Mpc}^{-1}`):
 
                       .. code-block:: python3
 
-                         k_modes_per_decade = {
+                         class_modes_per_decade = {
                              1e-4/Mpc: 50,
                              1e+1/Mpc: 10,
                          }

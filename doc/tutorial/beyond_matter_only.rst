@@ -242,17 +242,17 @@ lowest :math:`k`. At higher :math:`k` the agreement is worse. Though this can
 be remedied by increasing the resolution of the simulation (e.g. by increasing
 ``_size``), we shall not do so here, as we focus on the lower :math:`k` only.
 
-The power spectra outputted by the simulation are binned using a linear bin
-size in :math:`k`. This is usually desirable, though higher precision at the
-lowest :math:`k` can be achieved by leaving out this binning. The bin size
---- among many other specifics --- is controlled by the ``powerspec_options``
-parameter. Disabling the binning can be achieved by setting the bin size
-to ``0``. Add
+The power spectra outputted by the simulation are binned logarithmically in
+:math:`k`. This is usually desirable, though higher precision at the lowest
+:math:`k` can be achieved by leaving out this binning. The number of bins per
+decade --- among many other specifics --- is controlled through the
+``powerspec_options`` parameter. Disabling the binning can be achieved by
+requesting an infinite number of bins per decade. Add
 
 .. code-block:: python3
 
    powerspec_options = {
-       'binsize': 0,
+       'bins per decade': inf,
    }
 
 to the parameter file, then rerun the simulation and the plotting script.
@@ -1225,7 +1225,7 @@ you should save as e.g. ``param/tutorial``:
    # Non-parameter helper variable used to control the size of the simulation
    _size = 96
 
-   # Non-parameter variables used to control the dcdm cosmology
+   # Non-parameter helper variables used to control the dcdm cosmology
    _Ω_cdm_plus_dcdm = 0.27  # total amount of stable and decaying cold dark matter
    _Γ = 80*km/(s*Mpc)       # decay rate
 

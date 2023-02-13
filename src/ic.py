@@ -351,9 +351,12 @@ gauges_used = collections.defaultdict(set)
     fluidscalar='FluidScalar',
     gridsize='Py_ssize_t',
     index='Py_ssize_t',
+    nongaussianity='double',
+    options=dict,
     ptr='double*',
     shape=tuple,
     slab='double[:, :, ::1]',
+    value='double',
     w='double',
     w_eff='double',
     δ_min='double',
@@ -384,10 +387,9 @@ def realize_fluid(component, a, a_next, variable, multi_index, use_gridˣ=False)
     domain_decompose(slab, fluidscalar.gridˣ_mv if use_gridˣ else fluidscalar.grid_mv)
     # Transform the realised fluid variable to the actual quantity used
     # in the non-linear fluid equations. Include ghost points.
-    compound = (
-        variable == component.boltzmann_order + 1
-        and component.realization_options['compound'] == 'nonlinear'
-    )
+    options = component.realization_options
+    nongaussianity = options['nongaussianity']
+    compound = (variable == component.boltzmann_order + 1 and options['compound'] == 'nonlinear')
     ϱ_bar = component.ϱ_bar
     w = component.w(a=a)
     w_eff = component.w_eff(a=a)
@@ -397,9 +399,14 @@ def realize_fluid(component, a, a_next, variable, multi_index, use_gridˣ=False)
         # δ → ϱ = ϱ_bar(1 + δ)
         δ_min = ထ
         for index in range(component.size):
-            if ℝ[ϱ_ptr[index]] < δ_min:
+            value = ϱ_ptr[index]
+            if value < δ_min:
                 δ_min = ℝ[ϱ_ptr[index]]
-            ϱ_ptr[index] = ϱ_bar*(1 + ℝ[ϱ_ptr[index]])
+            with unswitch:
+                if nongaussianity:
+                    # Add non-Gaussian contribution: δ → δ + f_NL*δ²
+                    value += nongaussianity*value**2
+            ϱ_ptr[index] = ϱ_bar*(1 + value)
         δ_min = allreduce(δ_min, op=MPI.MIN)
         if δ_min < -1:
             masterwarn(
@@ -407,6 +414,8 @@ def realize_fluid(component, a, a_next, variable, multi_index, use_gridˣ=False)
                 f'has min(δ) = {δ_min:.4g} < -1'
             )
     elif variable == 1:
+        # Note that the momentum grids are currently unaffected
+        # by the non-Gaussianity.
         Jⁱ_ptr = ptr
         if compound:
             # uⁱ → Jⁱ = a⁴(ρ + c⁻²P)uⁱ
@@ -497,6 +506,7 @@ def realize_approximative(component, a, variable, multi_index, use_gridˣ=False)
     cosmoresults_δ=object,  # CosmoResults
     k2='Py_ssize_t',
     k2_max='Py_ssize_t',
+    k_fundamental='double',
     k_magnitude='double',
     normalization='double',
     nyquist='Py_ssize_t',
@@ -575,9 +585,10 @@ def get_amplitudes(gridsize, component, a, a_next=-1, variable=-1, multi_index=N
         normalization = float(gridsize)**(-3)
     normalization *= factor
     # Tabulate amplitudes
+    k_fundamental = ℝ[2*π/boxsize]
     amplitudes_ptr[0] = 0
     for k2 in range(1, k2_max + 1):
-        k_magnitude = ℝ[2*π/boxsize]*sqrt(k2)
+        k_magnitude = k_fundamental*sqrt(k2)
         with unswitch:
             if use_primordial:
                 amplitudes_ptr[k2] = (
@@ -613,6 +624,7 @@ buffer_names = {
     lattice='Lattice',
     diff_dim='int',
     slab_structure='double[:, :, ::1]',
+    nongaussianity='double',
     # Locals
     amplitude='double',
     amplitude_const='double',
@@ -625,6 +637,7 @@ buffer_names = {
     index0='int',
     index1='int',
     k2='Py_ssize_t',
+    k_fundamental='double',
     ki='Py_ssize_t',
     kj='Py_ssize_t',
     kk='Py_ssize_t',
@@ -641,7 +654,7 @@ buffer_names = {
 )
 def realize_grid(
     gridsize, component, a, amplitude_or_amplitudes, variable,
-    multi_index=None, lattice=None, diff_dim=-1, slab_structure=None,
+    multi_index=None, lattice=None, diff_dim=-1, slab_structure=None, nongaussianity=0,
 ):
     """Note that this function returns a slab in real space"""
     index0 = index1 = 0
@@ -678,6 +691,7 @@ def realize_grid(
         amplitudes = amplitude_or_amplitudes
         amplitudes_ptr = cython.address(amplitudes[:])
     # Populate realisation slab
+    k_fundamental = ℝ[2*π/boxsize]
     for index, ki, kj, kk, factor, θ in fourier_loop(
         gridsize, skip_origin=True, interlace_lattice=lattice,
     ):
@@ -741,7 +755,7 @@ def realize_grid(
                     ]
                         | ℤ[ℤ[-(diff_dim == 2)] & kk]
                 )
-                amplitude *= ℝ[2*π/boxsize]*kl
+                amplitude *= k_fundamental*kl
                 re, im = -im, re
         # Store results
         slab_ptr[index    ] = amplitude*re
@@ -750,6 +764,11 @@ def realize_grid(
     nullify_modes(slab, ['origin', 'nyquist'])
     # Fourier transform the slabs to coordinate space
     fft(slab, 'backward')
+    # Imprint non-Gaussianity.
+    # Note that this destroys the Gaussian part.
+    if nongaussianity:
+        for index in range(slab.shape[0]*slab.shape[1]*slab.shape[2]):
+            slab_ptr[index] = nongaussianity*slab_ptr[index]**2
     return slab
 
 # Function for fetching and populating a slab decomposed grid with the
@@ -1006,12 +1025,14 @@ def generate_primordial_noise(slab):
     n_different_sized='Py_ssize_t',
     n_local='Py_ssize_t',
     n_particles='Py_ssize_t',
+    nongaussianity='double',
     options=dict,
     particle_components=list,
     pos='double*',
     slab='double[:, :, ::1]',
     slab_2lpt='double[:, :, ::1]',
     slab_2lpt_ptr='double*',
+    slab_nongaussian='double[:, :, ::1]',
     slab_ptr='double*',
     slab_xx='double[:, :, ::1]',
     slab_xx_ptr='double*',
@@ -1103,17 +1124,16 @@ def realize_particles(component, a):
         .format(f'{len(lattice)}×'*(len(lattice) > 1), 'using back-scaling '*backscale)
     )
     # Get growth factors if needed
+    nongaussianity = options['nongaussianity']
     do_2lpt = (options['lpt'] > 1)
-    if backscale or do_2lpt:
-        cosmoresults = compute_cosmo(
-            gauge=('synchronous' if options['gauge'] == 'nbody' else options['gauge']),
-            class_call_reason='in order to get growth factor',
-        )
+    if backscale or nongaussianity or do_2lpt:
+        cosmoresults = compute_cosmo(class_call_reason='in order to get growth factor')
         growth_fac_D  = cosmoresults.growth_fac_D (a)
         growth_fac_f  = cosmoresults.growth_fac_f (a)
         growth_fac_D2 = cosmoresults.growth_fac_D2(a)
         growth_fac_f2 = cosmoresults.growth_fac_f2(a)
     # Realise particles, one lattice at a time
+    fft_factor = float(gridsize)**(-3)
     n_particles = gridsize**3
     indexᵖ_bgn = 0
     id_bgn = n_particles_realized['particles_tally']
@@ -1152,13 +1172,45 @@ def realize_particles(component, a):
                     # if using back-scaling.
                     velocity_factor = a*hubble(a)*growth_fac_f
                     displace_particles(
-                        component, slab, a, n_particles, indexᵖ_bgn, 1, dim,
-                        velocity_factor,
+                        component, slab, a, n_particles, indexᵖ_bgn, 1, dim, velocity_factor,
                     )
             masterprint('done')
             # Done with both positions and momenta if using back-scaling
             if backscale:
                 break
+        # Add non-Gaussian contributions to positions and momenta
+        if nongaussianity:
+            masterprint(
+                'Displacing particle positions and boosting momenta '
+                '(local non-Gaussianity) ...'
+            )
+            # Fetch δ amplitudes
+            factor = -1
+            amplitudes = get_amplitudes(gridsize, component, a, variable=0, factor=factor)
+            # Create purely non-Gaussian δ grid. The sign aplied to the
+            # Gaussian displacement field is applied here as well.
+            slab = realize_grid(
+                gridsize, component, a, amplitudes, 0,
+                lattice=lattice, nongaussianity=factor*nongaussianity,
+            )
+            # Transform to Fourier space
+            fft(slab, 'forward')
+            slab_nongaussian = asarray(slab).copy()
+            # Displace positions and boost velocities
+            amplitude = fft_factor
+            velocity_factor = a*hubble(a)*growth_fac_f
+            for dim in range(3):
+                slab = realize_grid(
+                    gridsize, component, a, amplitude, 1, dim, lattice,
+                    slab_structure=slab_nongaussian,
+                )
+                displace_particles(
+                    component, slab, a, n_particles, indexᵖ_bgn, 0, dim,
+                )
+                displace_particles(
+                    component, slab, a, n_particles, indexᵖ_bgn, 1, dim, velocity_factor,
+                )
+            masterprint('done')
         # Add second-order (2LPT) contributions to positions and momenta
         if do_2lpt:
             masterprint('Displacing particle positions and boosting momenta (2LPT) ...')
@@ -1200,7 +1252,6 @@ def realize_particles(component, a):
             slab_2lpt = asarray(slab).copy()
             slab_2lpt_ptr = cython.address(slab_2lpt[:, :, :])
             # Displace positions and boost velocities
-            fft_factor = float(gridsize)**(-3)
             amplitude = fft_factor*growth_fac_D2/growth_fac_D**2
             velocity_factor = a*hubble(a)*growth_fac_f2
             for dim in range(3):
@@ -1369,7 +1420,6 @@ def preinitialize_particles(component, n_particles=-1, indexᵖ_bgn=0, id_bgn=0,
     dim='int',
     factor='double',
     # Locals
-    cosmoresults=object,  # CosmoResults
     data='double*',
     gridsize='Py_ssize_t',
     i='Py_ssize_t',

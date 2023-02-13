@@ -68,7 +68,7 @@ powerspec_options = {
     'interpolation': 'PCS',
     'k_max'        : '1.5*Nyquist',
 }
-k_modes_per_decade = {
+class_modes_per_decade = {
     3e-3/Mpc: 10,
     3e-2/Mpc: 30,
     3e-1/Mpc: 30,

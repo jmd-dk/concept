@@ -40,65 +40,51 @@ from communication import get_domain_info
 
 # Function for plotting an already computed power spectrum
 # and saving an image file to disk.
-@cython.header(
-    # Arguments
-    powerspec_declaration=object,  # PowerspecDeclaration or list
-    filename=str,
-    # Locals
-    a_str=str,
-    component='Component',
-    components=list,
-    components_str=str,
-    k_bin_centers='double[::1]',
-    power='double[::1]',
-    power_linear='double[::1]',
-    powerspec_declarations=list,
-    t_str=str,
-    returns='void',
-)
-def plot_powerspec(powerspec_declaration, filename):
+def plot_powerspec(declaration, filename):
     if not master:
         return
     # Recursive dispatch
-    if isinstance(powerspec_declaration, list):
-        powerspec_declarations = powerspec_declaration
+    if isinstance(declaration, list):
+        declarations = declaration
     else:
-        powerspec_declarations = [powerspec_declaration]
-    powerspec_declarations = [
-        powerspec_declaration
-        for powerspec_declaration in powerspec_declarations
-        if powerspec_declaration.do_plot
+        declarations = [declaration]
+    declarations = [
+        declaration
+        for declaration in declarations
+        if declaration.do_plot
     ]
-    if not powerspec_declarations:
+    if not declarations:
         return
-    if len(powerspec_declarations) > 1:
-        for powerspec_declaration in powerspec_declarations:
+    if len(declarations) > 1:
+        for declaration in declarations:
             # Since we have multiple plots --- one for each
             # set of components --- we augment each filename
             # with this information.
             plot_powerspec(
-                powerspec_declaration,
+                declaration,
                 augment_filename(
                     filename,
                     '_'.join([
                         component.name.replace(' ', '-')
-                        for component in powerspec_declaration.components
+                        for component in declaration.components
                     ]),
                     '.png',
                 )
             )
         return
-    powerspec_declaration = powerspec_declarations[0]
+    declaration = declarations[0]
     # Fetch Matplotlib
     plt = get_matplotlib().pyplot
     # Ensure correct filename extension
     if not filename.endswith('.png'):
         filename += '.png'
     # Extract variables
-    components    = powerspec_declaration.components
-    k_bin_centers = powerspec_declaration.k_bin_centers
-    power         = powerspec_declaration.power
-    power_linear  = powerspec_declaration.power_linear
+    components    = declaration.components
+    k_bin_centers = asarray(declaration.k_bin_centers)
+    power         = asarray(declaration.power)
+    power_linear  = declaration.power_linear
+    if power_linear is not None:
+        power_linear = asarray(power_linear)
     # Begin progress message
     if len(components) == 1:
         components_str = components[0].name
@@ -142,25 +128,627 @@ def plot_powerspec(powerspec_declaration, filename):
         # and linear spectrum are plotted.
         ax.legend(fontsize=14)
         ax.set_ylim(ylim)
+    ax.set_xlim(k_bin_centers[0], k_bin_centers[-1])
+    # Finishing touches
     ax.set_xlabel(rf'$k$ $[\mathrm{{{unit_length}}}^{{-1}}]$', fontsize=14)
-    ax.set_ylabel(rf'power $[\mathrm{{{unit_length}}}^3]$',    fontsize=14)
+    ax.set_ylabel(rf'$P$ $[\mathrm{{{unit_length}}}^3]$',      fontsize=14)
     t_str = (
         rf'$t = {{}}\, \mathrm{{{{{unit_time}}}}}$'
-        .format(significant_figures(universals.t, 4, fmt='tex'))
+        .format(significant_figures(universals.t, 4, fmt='TeX'))
     )
     a_str = ''
     if enable_Hubble:
-        a_str = ', $a = {}$'.format(significant_figures(universals.a, 4, fmt='tex'))
+        a_str = ', $a = {}$'.format(significant_figures(universals.a, 4, fmt='TeX'))
     components_str = (
         components_str
         .replace('{', r'$\{$')
         .replace('}', r'$\}$')
     )
-    ax.set_title(f'{components_str}\nat {t_str}{a_str}', fontsize=16, horizontalalignment='center')
+    ax.set_title(f'{components_str}\n{t_str}{a_str}', fontsize=16, horizontalalignment='center')
     ax.tick_params(axis='both', which='major', labelsize=13)
     ax.tick_params(axis='both', which='minor', labelsize=11)
-    plt.tight_layout()
-    plt.savefig(filename)
+    fig.tight_layout()
+    fig.savefig(filename, dpi=150)
+    # Done with this plot.
+    # Close the figure, leaving no trace in memory of the plot.
+    plt.close(fig)
+    masterprint('done')
+
+# Function for plotting an already computed bispectrum
+# and saving an image file to disk.
+def plot_bispec(declaration, filename):
+    if not master:
+        return
+    # Recursive dispatch
+    if isinstance(declaration, list):
+        declarations = declaration
+    else:
+        declarations = [declaration]
+    declarations = [
+        declaration
+        for declaration in declarations
+        if declaration.do_plot
+    ]
+    if not declarations:
+        return
+    if len(declarations) > 1:
+        for declaration in declarations:
+            # Since we have multiple plots --- one for each
+            # set of components --- we augment each filename
+            # with this information.
+            plot_bispec(
+                declaration,
+                augment_filename(
+                    filename,
+                    '_'.join([
+                        component.name.replace(' ', '-')
+                        for component in declaration.components
+                    ]),
+                    '.png',
+                )
+            )
+        return
+    declaration = declarations[0]
+    do_treelevel = declaration.do_treelevel
+    do_reduced = declaration.do_reduced
+    # Fetch Matplotlib
+    matplotlib = get_matplotlib()
+    plt = matplotlib.pyplot
+    # Ensure correct filename extension
+    if not filename.endswith('.png'):
+        filename += '.png'
+    # Begin progress message
+    components = declaration.components
+    if len(components) == 1:
+        components_str = components[0].name
+    else:
+        components_str = '{{{}}}'.format(
+            ', '.join([component.name for component in components])
+        )
+    masterprint(
+        f'Plotting bispectrum of {components_str} and saving to "{filename}" ...'
+    )
+    # Extract data and mask out NaN values
+    bpower = asarray(declaration.bpower)
+    bpower[bpower == 0] = NaN
+    mask = ~np.isnan(bpower)
+    bpower = asarray(bpower)[mask]
+    if bpower.shape[0] == 0:
+        masterwarn('No bispectrum data to be plotted')
+        masterprint('done')
+        return
+    k = asarray([bin.k for bin in declaration.bins])[mask]
+    t = asarray([bin.t for bin in declaration.bins])[mask]
+    μ = asarray([bin.μ for bin in declaration.bins])[mask]
+    if do_treelevel:
+        bpower_treelevel = asarray(declaration.bpower_treelevel)
+        mask_treelevel = ~np.isnan(bpower_treelevel)
+        bpower_treelevel = bpower_treelevel[mask_treelevel]
+        if bpower_treelevel.shape[0] == 0:
+            do_treelevel = False
+        else:
+            k_treelevel = asarray([bin.k for bin in declaration.bins])[mask_treelevel]
+            t_treelevel = asarray([bin.t for bin in declaration.bins])[mask_treelevel]
+            μ_treelevel = asarray([bin.μ for bin in declaration.bins])[mask_treelevel]
+    if do_reduced:
+        bpower_reduced = asarray(declaration.bpower_reduced)[mask]
+        if do_treelevel:
+            bpower_reduced_treelevel = asarray(
+                declaration.bpower_reduced_treelevel
+            )[mask_treelevel]
+    # Specifications for each bispectrum parameter
+    bins_data = {
+        'k': k,
+        't': t,
+        'μ': μ,
+    }
+    if do_treelevel:
+        bins_data_treelevel = {
+            'k': k_treelevel,
+            't': t_treelevel,
+            'μ': μ_treelevel,
+        }
+    axis_scales = {
+        'k': 'log',
+        't': 'linear',
+        'μ': 'linear',
+    }
+    axis_labels = {
+        'k': rf'$k$ $[\mathrm{{{unit_length}}}^{{-1}}]$',
+        't': r'$t$',
+        'μ': r'$\mu$',
+        'B': rf'$B$ $[\mathrm{{{unit_length}}}^6]$',
+        'Q': rf'$Q$',
+    }
+    # Labels
+    label = 'simulation'
+    if do_treelevel:
+        gauge = collections.Counter(
+            [component.realization_options['gauge'] for component in components]
+        ).most_common(1)[0][0]
+        gauge = {
+            'nbody'      : r'$N$-body',
+            'synchronous': r'synchronous',
+            'newtonian'  : r'Newtonian',
+        }.get(gauge, gauge)
+        backscale = collections.Counter(
+            [component.realization_options['backscale'] for component in components]
+        ).most_common(1)[0][0]
+        backscale_str = ', back-scaled'*backscale
+        label_treelevel = f'tree-level ({gauge} gauge{backscale_str})'
+    # Helper functions
+    def add_param_text(ax, *param_names):
+        text = []
+        for other_param_name, other_param_vals in bins_data.items():
+            if other_param_name in param_names:
+                continue
+            val_str = significant_figures(np.mean(other_param_vals), 3, fmt='TeX')
+            text.append(
+                re.subn(
+                    r'(\$ )|(\$$)',
+                    rf' = {val_str}$ '.replace('\\', '\\\\'),
+                    axis_labels[other_param_name],
+                    1,
+                )[0]
+            )
+        ax.text(
+            0.05, 0.05, '\n'.join(text),
+            transform=ax.transAxes,
+            horizontalalignment='left',
+            verticalalignment='bottom',
+            fontsize=14,
+        )
+    def get_logc(data, fac=0.85, threshold=1e+2):
+        data_min, data_max = np.min(data), np.max(data)
+        data = data[(data_min/fac < data) & (data < data_max*fac)]
+        if len(data) < 3:
+            return False
+        data_min, data_max = np.min(data), np.max(data)
+        return (data_max/data_min > threshold)
+    def get_logticks(xdata, ydata):
+        fig_tmp, ax_tmp = plt.subplots()
+        if axis_scales[dimensions[0]] == 'log':
+            xdata = 10**xdata
+        if axis_scales[dimensions[1]] == 'log':
+            ydata = 10**ydata
+        ax_tmp.tripcolor(xdata, ydata, bpower)
+        if axis_scales[dimensions[0]] == 'log':
+            ax_tmp.set_xscale('log')
+        if axis_scales[dimensions[1]] == 'log':
+            ax_tmp.set_yscale('log')
+        x_min, x_max = np.min(xdata), np.max(xdata)
+        y_min, y_max = np.min(ydata), np.max(ydata)
+        ticks = {
+            'x': [x for x in ax_tmp.get_xticks() if x_min <= x <= x_max],
+            'y': [y for y in ax_tmp.get_yticks() if y_min <= y <= y_max],
+        }
+        plt.close(fig_tmp)
+        for key, val in ticks.items():
+            ticks[key] = correct_float(np.concatenate(([1e-1*val[0]], val, [1e+1*val[-1]])))
+        return ticks
+    def log_tick_formatter(val, pos=None):
+        """Log scaling does not work for 3D axes nor for the Gouraud
+        shading. In these cases we instead explicitly plot log10(k).
+        To now display the tick labels properly, we need a custom
+        tick formatter function (this function).
+        For the 3D axis issue, see
+          https://github.com/matplotlib/matplotlib/issues/209
+        """
+        ticklabel = significant_figures(10**val, 2, fmt='TeX', incl_zeros=False)
+        return f'${ticklabel}$'
+    # Determine what to plot
+    dimensions = []
+    if bpower.shape[0] > 1:
+        if not np.all(np.isclose(k, k[0], 1e-4, 0)):
+            dimensions.append('k')
+        if not np.all(np.isclose(t, t[0], 1e-4, 0)):
+            dimensions.append('t')
+        if not np.all(np.isclose(μ, μ[0], 1e-4, 0)):
+            dimensions.append('μ')
+    # Plot bispectrum in new figure
+    ticklabelsizefac = 1
+    if len(dimensions) == 0:
+        # Single dot
+        fig, axes = plt.subplots(1 + do_reduced, 1, sharex=True)
+        axes = any2list(axes)
+        param_name = 'k'
+        xdata = bins_data[param_name]
+        if do_treelevel:
+            xdata_treelevel = bins_data_treelevel[param_name]
+        xmin = np.min((np.min(xdata), 2*π/boxsize))
+        xmax = np.max((np.max(xdata), 2*π/boxsize*sqrt(3)*(declaration.gridsize//2)))
+        axes[0].plot(xdata, bpower, '.', label=label)
+        if do_treelevel:
+            axes[0].plot(xdata_treelevel, bpower_treelevel, 'k.', label=label_treelevel)
+        if do_reduced:
+            axes[1].plot(xdata, bpower_reduced, '.', label=label)
+            if do_treelevel:
+                axes[1].plot(xdata_treelevel, bpower_reduced_treelevel, 'k.', label=label_treelevel)
+        axes[ 0].set_xscale(axis_scales[param_name])
+        axes[ 0].set_xlim(xmin, xmax)
+        axes[-1].set_xlabel(axis_labels[param_name], fontsize=14)
+        axes[ 0].set_ylabel(axis_labels['B'], fontsize=14)
+        if do_reduced:
+            axes[1].set_ylabel(axis_labels['Q'], fontsize=14)
+        add_param_text(axes[0], param_name)
+    elif len(dimensions) == 1:
+        # 1D line plot
+        fig, axes = plt.subplots(1 + do_reduced, 1, sharex=True)
+        axes = any2list(axes)
+        param_name = dimensions[0]
+        xdata = bins_data[param_name]
+        sorting = np.argsort(xdata)
+        xdata = xdata[sorting]
+        xmin, xmax = np.min(xdata), np.max(xdata)
+        if do_treelevel:
+            xdata_treelevel = bins_data_treelevel[param_name]
+            sorting_treelevel = np.argsort(xdata_treelevel)
+            xdata_treelevel = xdata_treelevel[sorting_treelevel]
+        bpower_negnan = bpower.copy()
+        bpower_negnan[bpower < 0] = NaN
+        axes[0].semilogy(xdata, np.abs(bpower[sorting]), '--')
+        axes[0].set_prop_cycle(None)
+        axes[0].semilogy(xdata, np.abs(bpower_negnan[sorting]), '-', label=label)
+        if do_treelevel:
+            ylim = axes[0].get_ylim()
+            axes[0].semilogy(
+                xdata_treelevel, bpower_treelevel[sorting_treelevel], 'k--',
+                label=label_treelevel,
+            )
+            axes[0].set_ylim(ylim)
+        if do_reduced:
+            axes[1].plot(xdata, bpower_reduced[sorting], '-', label=label)
+            ylim = axes[1].get_ylim()
+            if do_treelevel:
+                axes[1].plot(
+                    xdata_treelevel, bpower_reduced_treelevel[sorting_treelevel], 'k--',
+                    label=label_treelevel,
+                )
+            axes[1].plot(
+                [xmin, xmax],
+                [0]*2,
+                '-',
+                color='grey',
+                lw=1,
+                zorder=-1,
+            )
+            axes[1].set_ylim(ylim)
+        axes[-1].set_xlabel(axis_labels[param_name], fontsize=14)
+        axes[ 0].set_xscale(axis_scales[param_name])
+        axes[ 0].set_xlim(xmin, xmax)
+        axes[ 0].set_ylabel(axis_labels['B'], fontsize=14)
+        if do_reduced:
+            axes[1].set_ylabel(axis_labels['Q'], fontsize=14)
+        add_param_text(axes[0], param_name)
+    elif len(dimensions) == 2:
+        # 2D contour plot
+        fig, axes = plt.subplots(1 + do_reduced, 1, sharex=True)
+        axes = any2list(axes)
+        def ensuretri(xdata, ydata, bpower, bpower_reduced):
+            if len(xdata) > 2:
+                return xdata, ydata, bpower, bpower_reduced
+            xdata = asarray([
+                xdata[0],
+                np.mean(xdata)*(1 - 1e-3),
+                np.mean(xdata)*(1 + 1e-3),
+                xdata[1],
+            ])
+            ydata = asarray([
+                ydata[0],
+                np.mean(ydata)*(1 - 1e-3),
+                np.mean(ydata)*(1 + 1e-3),
+                ydata[1],
+            ])
+            bpower = asarray([
+                bpower[0],
+                np.mean(bpower),
+                np.mean(bpower),
+                bpower[1],
+            ])
+            if do_reduced:
+                bpower_reduced = asarray([
+                    bpower_reduced[0],
+                    np.mean(bpower_reduced),
+                    np.mean(bpower_reduced),
+                    bpower_reduced[1],
+                ])
+            return xdata, ydata, bpower, bpower_reduced
+        xdata, ydata = bins_data[dimensions[0]], bins_data[dimensions[1]]
+        if axis_scales[dimensions[0]] == 'log':
+            xdata = np.log10(xdata)
+        if axis_scales[dimensions[1]] == 'log':
+            ydata = np.log10(ydata)
+        xdata, ydata, bpower, bpower_reduced = ensuretri(
+            xdata, ydata, bpower,
+            (bpower_reduced if do_reduced else None),
+        )
+        if do_treelevel:
+            xdata_treelevel, ydata_treelevel = (
+                bins_data_treelevel[dimensions[0]], bins_data_treelevel[dimensions[1]],
+            )
+            xdata_treelevel, ydata_treelevel, bpower_treelevel, bpower_reduced_treelevel = ensuretri(
+                xdata_treelevel, ydata_treelevel, bpower_treelevel,
+                (bpower_reduced_treelevel if do_reduced else None),
+            )
+            if axis_scales[dimensions[0]] == 'log':
+                xdata_treelevel = np.log10(xdata_treelevel)
+            if axis_scales[dimensions[1]] == 'log':
+                ydata_treelevel = np.log10(ydata_treelevel)
+        logc = get_logc(np.abs(bpower))
+        tri = matplotlib.tri.Triangulation(xdata, ydata)
+        tri.set_mask((bpower[tri.triangles] < 0).any(axis=1))
+        pc = axes[0].tripcolor(
+            tri, np.abs(bpower),
+            norm=(matplotlib.colors.LogNorm() if logc else None),
+            shading='gouraud',
+        )
+        pcs = [pc]
+        if (bpower < 0).sum() > 2:
+            α = 0.4
+            cmap = getattr(
+                matplotlib.cm, matplotlib.rcParams['image.cmap'],
+            )(linspace(0, 1, 256))
+            cmap = (1 - α) + α*cmap
+            axes[0].tripcolor(
+                xdata, ydata, np.abs(bpower),
+                norm=pc.norm,
+                cmap=matplotlib.colors.ListedColormap(cmap),
+                shading='gouraud',
+                zorder=-1,
+            )
+        def create_legend_marker(ax):
+            markerfacecolors = getattr(
+                matplotlib.cm, matplotlib.rcParams['image.cmap'],
+            )([0.2, 0.8])[:, :3]
+            ylim = ax.get_ylim()
+            ax.plot(
+                np.mean(xdata),
+                np.max((2*np.max(ydata) - np.min(ydata), np.max(ydata)**2/np.min(ydata))),
+                's',
+                markersize=13, markeredgecolor='none', fillstyle='top',
+                markerfacecolor=markerfacecolors[1], markerfacecoloralt=markerfacecolors[0],
+                label=label,
+            )
+            ax.set_ylim(ylim)
+        create_legend_marker(axes[0])
+        if do_treelevel:
+            logc_treelevel = get_logc(bpower_treelevel)
+            axes[0].tricontour(
+                xdata_treelevel, ydata_treelevel, bpower_treelevel,
+                norm=pc.norm,
+                linewidths=1,
+            )
+            tcs = [
+                axes[0].tricontour(
+                    xdata_treelevel, ydata_treelevel, bpower_treelevel,
+                    norm=pc.norm,
+                    colors='k',
+                    linestyles='dashed',
+                    linewidths=1,
+                )
+            ]
+            if logc_treelevel != logc:
+                for α in range(2):
+                    tc = axes[0].tricontour(
+                        xdata_treelevel, ydata_treelevel, bpower_treelevel,
+                        norm=(matplotlib.colors.LogNorm() if logc_treelevel else None),
+                        colors='k',
+                        linestyles='dashed',
+                        linewidths=1,
+                        alpha=α,
+                    )
+                    if α:
+                        break
+                    axes[0].tricontour(
+                        xdata_treelevel, ydata_treelevel, bpower_treelevel,
+                        norm=pc.norm,
+                        linewidths=1,
+                        levels=tc.levels,
+                    )
+                tcs.append(tc)
+            def get_fmt_treelevel(tc):
+                nfigs = 2
+                vmin = np.min(tc.levels)
+                if vmin > 0:
+                    x = np.max(tc.levels)/vmin - 1
+                    if x > 0:
+                        nfigs = np.max((nfigs, int(2 - log10(x))))
+                fmt_treelevel = lambda x: '${}$'.format(
+                    significant_figures(
+                        x, nfigs, fmt='TeX', incl_zeros=False,
+                    )
+                )
+                return fmt_treelevel
+            for tc in tcs:
+                axes[0].clabel(tc, tc.levels, fontsize=10, fmt=get_fmt_treelevel(tc))
+            def create_legend_marker_treelevel(ax):
+                ax.plot(
+                    np.mean(xdata_treelevel), np.mean(ydata_treelevel), 'k--',
+                    lw=1, label=label_treelevel,
+                )
+            create_legend_marker_treelevel(axes[0])
+        if do_reduced:
+            pc = axes[1].tripcolor(xdata, ydata, bpower_reduced, shading='gouraud')
+            pcs.append(pc)
+            create_legend_marker(axes[1])
+            if do_treelevel:
+                axes[1].tricontour(
+                    xdata_treelevel, ydata_treelevel, bpower_reduced_treelevel,
+                    norm=pc.norm,
+                    linewidths=1,
+                )
+                tc = axes[1].tricontour(
+                    xdata_treelevel, ydata_treelevel, bpower_reduced_treelevel,
+                    colors='k',
+                    linestyles='dashed',
+                    linewidths=1,
+                )
+                axes[1].clabel(tc, tc.levels, fontsize=10, fmt=get_fmt_treelevel(tc))
+                create_legend_marker_treelevel(axes[1])
+        axes[-1].set_xlabel(axis_labels[dimensions[0]], fontsize=14)
+        ticks = get_logticks(xdata, ydata)
+        for ax in axes:
+            for i, c in enumerate('xy'):
+                if axis_scales[dimensions[i]] == 'log':
+                    getattr(ax, f'set_{c}ticks')(np.log10(ticks[c]))
+                    getattr(ax, f'{c}axis').set_major_formatter(
+                        matplotlib.ticker.FuncFormatter(log_tick_formatter)
+                    )
+                    getattr(ax, f'{c}axis').set_minor_locator(
+                        matplotlib.ticker.AutoMinorLocator()
+                    )
+        add_param_text(axes[0], *dimensions)
+        for ax in axes:
+            ax.set_xlim(np.min(xdata), np.max(xdata))
+            ax.set_ylim(np.min(ydata), np.max(ydata))
+        for ax, pc, bq in zip(axes, pcs, ['B', 'Q']):
+            ax.set_ylabel(axis_labels[dimensions[1]], fontsize=14)
+            cbar = fig.colorbar(pc, ax=ax)
+            cbar.ax.tick_params(labelsize=ticklabelsizefac*13)
+            cbar.set_label(axis_labels[bq], fontsize=14)
+            if logc and bq == 'B':
+                cbar.ax.set_yscale('log')
+    elif len(dimensions) == 3:
+        # 3D scatter plot
+        fig = plt.figure(figsize=(6.4, 4.8*(1 + 0.9*do_reduced)))
+        axes = [fig.add_subplot(1 + do_reduced, 1, 1, projection='3d')]
+        if do_reduced:
+            axes.append(fig.add_subplot(1 + do_reduced, 1, 2, projection='3d'))
+        ticklabelsizefac *= 0.8
+        marker_size = 1.8e+3*bpower.shape[0]**(-2.0/3.0)
+        marker_size = np.min((500, marker_size))
+        marker_size = np.max(( 10, marker_size))
+        logc = get_logc(np.abs(bpower))
+        logk = np.log10(k)
+        bpower_neg = (bpower < 0)
+        fillstyle = ('top' if do_treelevel else 'full')
+        if bpower_neg.any():
+            axes[0].scatter(
+                logk[bpower_neg], t[bpower_neg], μ[bpower_neg],
+                s=marker_size,
+                c=np.abs(bpower[bpower_neg]),
+                marker=matplotlib.markers.MarkerStyle('X', fillstyle=fillstyle),
+                norm=(matplotlib.colors.LogNorm() if logc else None),
+            )
+        bpower_pos = (bpower > 0)
+        arts = [None]
+        if bpower_pos.any():
+            arts[0] = axes[0].scatter(
+                logk[bpower_pos], t[bpower_pos], μ[bpower_pos],
+                s=marker_size,
+                c=bpower[bpower_pos],
+                marker=matplotlib.markers.MarkerStyle('o', fillstyle=fillstyle),
+                norm=(matplotlib.colors.LogNorm() if logc else None),
+                label=label,
+            )
+        if do_treelevel:
+            logk_treelevel = np.log10(k_treelevel)
+            vmin, vmax = np.min(np.abs(bpower)), np.max(np.abs(bpower))
+            bpower_treelevel_truncated = bpower_treelevel.copy()
+            bpower_treelevel_truncated[bpower_treelevel_truncated < vmin] = vmin
+            bpower_treelevel_truncated[bpower_treelevel_truncated > vmax] = vmax
+            bpower_treelevel_truncated = np.concatenate((
+                bpower_treelevel_truncated, [vmin, vmax],
+            ))
+            logk_treelevel_truncated = np.concatenate((logk_treelevel, [np.mean(logk_treelevel)]*2))
+            t_treelevel_truncated    = np.concatenate((t_treelevel,    [np.mean(t_treelevel)]*2))
+            μ_treelevel_truncated    = np.concatenate((μ_treelevel,    [np.mean(μ_treelevel)]*2))
+            fillstyle_treelevel = 'bottom'
+            linewidth_treelevel = 2*bpower.shape[0]**(-1.0/3.0)
+            hatch_linewidth_ori = matplotlib.rcParams['hatch.linewidth']
+            matplotlib.rcParams['hatch.linewidth'] = linewidth_treelevel
+            axes[0].scatter(
+                logk_treelevel_truncated, t_treelevel_truncated, μ_treelevel_truncated,
+                s=([marker_size]*bpower_treelevel.shape[0] + [0, 0]),
+                c=bpower_treelevel_truncated,
+                marker=matplotlib.markers.MarkerStyle('o', fillstyle=fillstyle_treelevel),
+                norm=(matplotlib.colors.LogNorm() if logc else None),
+                hatch='/'*5,
+                edgecolor='k',
+                linewidth=linewidth_treelevel,
+            )
+            def create_legend_marker_treelevel(ax):
+                ax.scatter(
+                    logk_treelevel[0], t_treelevel[0], μ_treelevel[0],
+                    s=marker_size,
+                    facecolor='none',
+                    marker=matplotlib.markers.MarkerStyle('o', fillstyle=fillstyle_treelevel),
+                    hatch='/'*5,
+                    edgecolor='k',
+                    linewidth=linewidth_treelevel,
+                    label=label_treelevel,
+                )
+            create_legend_marker_treelevel(axes[0])
+        if do_reduced:
+            arts.append(
+                axes[1].scatter(
+                    logk, t, μ,
+                    s=marker_size,
+                    c=bpower_reduced,
+                    marker=matplotlib.markers.MarkerStyle('o', fillstyle=fillstyle),
+                    label=label,
+                )
+            )
+            if do_treelevel:
+                vmin, vmax = np.min(bpower_reduced), np.max(bpower_reduced)
+                bpower_reduced_treelevel_truncated = bpower_reduced_treelevel.copy()
+                bpower_reduced_treelevel_truncated[bpower_reduced_treelevel_truncated < vmin] = vmin
+                bpower_reduced_treelevel_truncated[bpower_reduced_treelevel_truncated > vmax] = vmax
+                bpower_reduced_treelevel_truncated = np.concatenate((
+                    bpower_reduced_treelevel_truncated, [vmin, vmax],
+                ))
+                axes[1].scatter(
+                    logk_treelevel_truncated, t_treelevel_truncated, μ_treelevel_truncated,
+                    s=([marker_size]*bpower_reduced_treelevel.shape[0] + [0, 0]),
+                    c=bpower_reduced_treelevel_truncated,
+                    marker=matplotlib.markers.MarkerStyle('o', fillstyle=fillstyle_treelevel),
+                    norm=(matplotlib.colors.LogNorm() if logc else None),
+                    hatch='/'*5,
+                    edgecolor='k',
+                    linewidth=linewidth_treelevel,
+                )
+                create_legend_marker_treelevel(axes[1])
+        ticks = get_logticks(logk, t)
+        for ax, art, bq in zip(axes, arts, ['B', 'Q']):
+            ax.set_xlabel(axis_labels[dimensions[0]], fontsize=14)
+            ax.set_ylabel(axis_labels[dimensions[1]], fontsize=14)
+            ax.set_zlabel(axis_labels[dimensions[2]], fontsize=14)
+            xlim = ax.get_xlim()
+            ax.set_xticks(np.log10(ticks['x']))
+            ax.xaxis.set_major_formatter(matplotlib.ticker.FuncFormatter(log_tick_formatter))
+            ax.xaxis.set_minor_locator(matplotlib.ticker.AutoMinorLocator())
+            ax.set_xlim(xlim)
+            if art is not None:
+                cbar = fig.colorbar(art, ax=ax, location='left')
+            cbar.ax.tick_params(labelsize=ticklabelsizefac*13)
+            cbar.set_label(axis_labels[bq], fontsize=14)
+            if logc and bq == 'B':
+                cbar.ax.set_yscale('log')
+    # Finishing touches
+    t_str = (
+        rf'$t = {{}}\, \mathrm{{{{{unit_time}}}}}$'
+        .format(significant_figures(universals.t, 4, fmt='TeX'))
+    )
+    a_str = ''
+    if enable_Hubble:
+        a_str = ', $a = {}$'.format(significant_figures(universals.a, 4, fmt='TeX'))
+    components_str = (
+        components_str
+        .replace('{', r'$\{$')
+        .replace('}', r'$\}$')
+    )
+    axes[0].set_title(f'{components_str}\n{t_str}{a_str}', fontsize=16)
+    for ax in axes:
+        ax.tick_params(axis='both', which='major', labelsize=ticklabelsizefac*13)
+        ax.tick_params(axis='both', which='minor', labelsize=ticklabelsizefac*11)
+    if do_treelevel:
+        axes[-1].legend(fontsize=(14 - 2*(do_reduced or len(dimensions) == 3)))
+    fig.tight_layout()
+    if do_reduced and len(dimensions) != 3:
+        fig.subplots_adjust(hspace=(0.1 if len(dimensions) == 3 else 0.15))
+    fig.savefig(filename, dpi=150)
+    if len(dimensions) == 3 and do_treelevel:
+        matplotlib.rcParams['hatch.linewidth'] = hatch_linewidth_ori
     # Done with this plot.
     # Close the figure, leaving no trace in memory of the plot.
     plt.close(fig)
@@ -211,7 +799,7 @@ def plot_detrended_perturbations(k, k_magnitude, transferfunction_info, class_sp
         n_subplots += 1
     fig, axes = plt.subplots(1, n_subplots, figsize=(6*n_subplots + 0.4, 4.8))
     axes = any2list(axes)
-    k_str = significant_figures(k_magnitude, 3, fmt='tex', scientific=True)
+    k_str = significant_figures(k_magnitude, 3, fmt='TeX', force_scientific=True)
     fig.suptitle(
         ('' if transferfunction_info.total else rf'{class_species}, ')
         + rf'$k = {k_str}\, \mathrm{{{unit_length}}}^{{-1}}$',
@@ -228,11 +816,15 @@ def plot_detrended_perturbations(k, k_magnitude, transferfunction_info, class_sp
         if n != n_subplots - 1:
             index_right -= crossover
         a_values = a_values[index_left:index_right]
-        a_min = significant_figures(a_values[0], 4, fmt='tex', scientific=True)
-        a_max = significant_figures(a_values[a_values.shape[0] - 1], 4, fmt='tex', scientific=True)
+        a_min = significant_figures(
+            a_values[0], 4, fmt='TeX', force_scientific=True,
+        )
+        a_max = significant_figures(
+            a_values[a_values.shape[0] - 1], 4, fmt='TeX', force_scientific=True,
+        )
         perturbations_detrended = perturbations_detrended[index_left:index_right]
         # Plot the detrended CLASS data
-        ax.semilogx(a_values, perturbations_detrended, '.', markersize=3)
+        ax.semilogx(asarray(a_values), asarray(perturbations_detrended), '.', markersize=3)
         # Plot the spline at values midway between the data points
         loga_values = np.log(a_values)
         loga_values_spline             = empty(loga_values.shape[0] - 1, dtype=C2np['double'])
@@ -247,8 +839,10 @@ def plot_detrended_perturbations(k, k_magnitude, transferfunction_info, class_sp
             perturbations_detrended_spline[ℤ[i - skip]] = spline.eval(exp(loga_value))
         loga_values_spline = loga_values_spline[:ℤ[i - skip + 1]]
         perturbations_detrended_spline = perturbations_detrended_spline[:ℤ[i - skip + 1]]
-        ax.semilogx(np.exp(loga_values_spline), perturbations_detrended_spline, '-',
-            linewidth=1, zorder=0)
+        ax.semilogx(
+            np.exp(loga_values_spline), asarray(perturbations_detrended_spline), '-',
+            linewidth=1, zorder=0,
+        )
         ax.set_xlim(a_values[0], a_values[a_values.shape[0] - 1])
         # Decorate plot
         if n == 0:
@@ -260,8 +854,8 @@ def plot_detrended_perturbations(k, k_magnitude, transferfunction_info, class_sp
                 fontsize=14,
             )
         ax.set_xlabel(rf'$a \in [{a_min}, {a_max}]$', fontsize=14)
-        factor_str = significant_figures(factor, 6, fmt='tex', scientific=True)
-        exponent_str = significant_figures(exponent, 6, scientific=False)
+        factor_str = significant_figures(factor, 6, fmt='TeX', force_scientific=True)
+        exponent_str = significant_figures(exponent, 6, force_scientific=False)
         trend_str = (
             rf'$\mathrm{{trend}} = 0$'
             if factor == 0 else
@@ -293,7 +887,7 @@ def plot_detrended_perturbations(k, k_magnitude, transferfunction_info, class_sp
     ])
     os.makedirs(filename, exist_ok=True)
     filename += f'/{k}.png'
-    plt.savefig(filename, bbox_inches='tight', pad_inches=0.1)
+    fig.savefig(filename, bbox_inches='tight', pad_inches=0.1, dpi=150)
     plt.close()
 
 # Function for plotting processed CLASS perturbations
@@ -343,36 +937,38 @@ def plot_processed_perturbations(
     os.makedirs(dirname, exist_ok=True)
     nfigs = int(log10(a_values.shape[0])) + 1
     i_figure = 0
-    plt.figure()
+    fig, ax = plt.subplots()
     for i in range(a_values.shape[0]):
         a = a_values[i]
-        plt.semilogx(k_magnitudes, transfer[i, :],
-            label='$a={}$'.format(significant_figures(a, nfigs, fmt='tex')))
+        ax.semilogx(
+            asarray(k_magnitudes), asarray(transfer[i, :]),
+            label='$a={}$'.format(significant_figures(a, nfigs, fmt='TeX')),
+        )
         if ((i + 1)%n_plots_in_figure == 0) or i == ℤ[a_values.shape[0] - 1]:
-            plt.legend()
-            plt.xlabel(rf'$k\,[\mathrm{{{unit_length}}}^{{-1}}]$', fontsize=14)
-            plt.ylabel(
+            ax.legend()
+            ax.set_xlabel(rf'$k\,[\mathrm{{{unit_length}}}^{{-1}}]$', fontsize=14)
+            ax.set_ylabel(
                 rf'${transferfunction_info.name_latex}\, [{transferfunction_info.units_latex}]$'
                 if transferfunction_info.units_latex else
                 rf'${transferfunction_info.name_latex}$',
                 fontsize=14,
             )
             if not transferfunction_info.total:
-                plt.title(
+                ax.set_title(
                     class_species,
                     fontsize=16,
                     horizontalalignment='center',
                 )
-            plt.gca().tick_params(axis='x', which='major', labelsize=13)
-            plt.tight_layout()
-            plt.savefig(f'{dirname}/{i_figure}.png')
+            ax.tick_params(axis='x', which='major', labelsize=13)
+            fig.tight_layout()
+            fig.savefig(f'{dirname}/{i_figure}.png', dpi=150)
             i_figure += 1
-            plt.cla()
-    plt.close()
+            ax.cla()
+    plt.close(fig)
     masterprint('done')
 
 # Top-level function for computing, rendering and saving 2D renders
-@cython.header(
+@cython.pheader(
     # Arguments
     components=list,
     filename=str,
@@ -1305,11 +1901,10 @@ def set_terminal_colormap(colormap):
         print(statechange, end='')
 
 # Function for 3D renderings of the components
-@cython.header(
+@cython.pheader(
     # Arguments
     components=list,
     filename=str,
-    cleanup='bint',
     tmp_dirname=str,
     # Locals
     N_local='Py_ssize_t',
@@ -1362,7 +1957,7 @@ def set_terminal_colormap(colormap):
     ϱ_noghosts='double[:, :, :]',
     ϱbar_component='double',
 )
-def render3D(components, filename, cleanup=True, tmp_dirname='.renders3D'):
+def render3D(components, filename, tmp_dirname='.renders3D'):
     global render3D_image
     # Do not 3D render anything if
     # render3D_select does not contain any True values.
@@ -1592,11 +2187,11 @@ def render3D(components, filename, cleanup=True, tmp_dirname='.renders3D'):
             t_str = a_str = ''
             t_str = (
                 r'$t = {}\, \mathrm{{{}}}$'
-                .format(significant_figures(universals.t, 4, 'tex'), unit_time)
+                .format(significant_figures(universals.t, 4, 'TeX'), unit_time)
             )
             artists_text['t'].set_text(t_str)
             if enable_Hubble:
-                a_str = '$a = {}$'.format(significant_figures(universals.a, 4, 'tex'))
+                a_str = '$a = {}$'.format(significant_figures(universals.a, 4, 'TeX'))
                 artists_text['a'].set_text(a_str)
             # Make the text colour black or white,
             # dependent on the background colour.
@@ -1677,8 +2272,8 @@ def render3D(components, filename, cleanup=True, tmp_dirname='.renders3D'):
             add_background()
             plt.imsave(filename, asarray(render3D_image))
             masterprint('done')
-    # Remove the temporary directory, if cleanup is requested
-    if master and cleanup and not (nprocs == 1 == len(render3D_dict)):
+    # Remove the temporary directory
+    if master and not (nprocs == 1 == len(render3D_dict)):
         shutil.rmtree(render3D_dir)
 # Declare global variables used in the render3D() function
 cython.declare(

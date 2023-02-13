@@ -175,6 +175,7 @@ CO\ *N*\ CEPT run.
                          {
                              'snapshot' : path.output_dir,
                              'powerspec': path.output_dir,
+                             'bispec'   : path.output_dir,
                              'render2D' : path.output_dir,
                              'render3D' : path.output_dir,
                              'autosave' : f'{path.ic_dir}/autosave',
@@ -182,10 +183,11 @@ CO\ *N*\ CEPT run.
 
 -- --------------- -- -
 \  **Elaboration** \  This is a ``dict`` with the keys ``'snapshot'``,
-                      ``'powerspec'``, ``'render2D'``, ``'render3D'`` and
-                      ``'autosave'``, mapping to directory paths to use for
-                      snapshot outputs, power spectrum outputs, 2D render
-                      outputs, 3D render outputs and autosaves, respectively.
+                      ``'powerspec'``, ``'bispec'``, ``'render2D'``,
+                      ``'render3D'`` and ``'autosave'``, mapping to directory
+                      paths to use for snapshot outputs, power spectrum
+                      outputs, bispectrum outputs, 2D render outputs,
+                      3D render outputs and autosaves, respectively.
 -- --------------- -- -
 \  **Example 0**   \  Dump power spectra to a directory with a name that
                       reflects the name of the parameter file:
@@ -209,6 +211,7 @@ CO\ *N*\ CEPT run.
                          output_dirs = {
                              'snapshot' : f'{path.output_dir}/{jobid}',
                              'powerspec': ...,
+                             'bispec'   : ...,
                              'render2D' : ...,
                              'render3D' : ...,
                          }
@@ -222,6 +225,7 @@ CO\ *N*\ CEPT run.
                          output_dirs = {
                              'snapshot' : param.dir,
                              'powerspec': ...,
+                             'bispec'   : ...,
                              'render2D' : ...,
                              'render3D' : ...,
                              'autosave' : ...,
@@ -253,15 +257,16 @@ CO\ *N*\ CEPT run.
                          {
                              'snapshot' : 'snapshot',
                              'powerspec': 'powerspec',
+                             'bispec'   : 'bispec',
                              'render2D' : 'render2D',
                              'render3D' : 'render3D',
                          }
 
 -- --------------- -- -
 \  **Elaboration** \  This is a ``dict`` with the keys ``'snapshot'``,
-                      ``'powerspec'``, ``'render2D'`` and ``'render3D'``,
-                      mapping to file base names of the respective
-                      output types.
+                      ``'powerspec'``, ``'bispec'``, ``'render2D'`` and
+                      ``'render3D'``, mapping to file base names of the
+                      respective output types.
 
                       The file name of e.g. a power spectrum output at scale
                       factor :math:`a = 1.0` will be
@@ -301,9 +306,10 @@ CO\ *N*\ CEPT run.
 
 -- --------------- -- -
 \  **Elaboration** \  In its simplest form this is a ``dict`` with the keys
-                      ``'snapshot'``, ``'powerspec'``, ``'render2D'`` and
-                      ``'render3D'``, mapping to scale factor values :math:`a`
-                      at which to dump the respective outputs.
+                      ``'snapshot'``, ``'powerspec'``, ``'bispec'``,
+                      ``'render2D'`` and ``'render3D'``, mapping to scale
+                      factor values :math:`a` at which to dump the respective
+                      outputs.
 
                       Alternatively, such ``dict``\ s can be used as values
                       within an outer ``dict`` with keys ``'a'`` and ``'t'``,
@@ -331,7 +337,7 @@ CO\ *N*\ CEPT run.
 
 -- --------------- -- -
 \  **Example 2**   \  Specify 8 power spectrum outputs between the initial
-                      :math:`a = a_{\mathrm{begin}}` and final :math:`a = 1`,
+                      :math:`a = a_{\text{begin}}` and final :math:`a = 1`,
                       placed logarithmically equidistant:
 
                       .. code-block:: python3
@@ -353,8 +359,8 @@ CO\ *N*\ CEPT run.
 
 -- --------------- -- -
 \  **Example 4**   \  Specify snapshots at cosmic times
-                      :math:`t = 1729\,\mathrm{Myr}` and
-                      :math:`t = 13\,\mathrm{Gyr}`, as well as at scale factor
+                      :math:`t = 1729\,\text{Myr}` and
+                      :math:`t = 13\,\text{Gyr}`, as well as at scale factor
                       :math:`a = 1`.
 
                       .. code-block:: python3
@@ -633,20 +639,15 @@ CO\ *N*\ CEPT run.
                       :ref:`component selection <components_and_selections>`
                       determining which components participate in power
                       spectrum output, as well as what kind of power
-                      spectrum outputs to include.
+                      spectrum output to include.
 
                       Here ``'data'`` refers to text files containing
                       tabulated values of the (auto) power spectrum
-                      :math:`P(k)`. A separate data column within these files
+                      :math:`P(k)`. A separate column within these files
                       containing the corresponding linear-theory power
                       spectrum is added if ``'linear'`` is also selected.
-                      Selecting ``'plot'`` results in a plot of the selected
-                      (non-)linear data, stored as a PNG file.
-
-                      .. note::
-                         As CO\ *N*\ CEPT runs in *N*\ -body gauge, the output
-                         power spectra will also be in this gauge.
-                         This includes the linear power spectra.
+                      Selecting ``'plot'`` results in a plot of the specified
+                      data, stored as a PNG file.
 
                       To tune the specifics of how power spectra are computed,
                       see the ``powerspec_options``
@@ -707,6 +708,146 @@ CO\ *N*\ CEPT run.
                       .. code-block:: python3
 
                          powerspec_select = {
+                             'all'                 : True,
+                             ('matter', 'neutrino'): True,
+                         }
+
+== =============== == =
+
+
+
+------------------------------------------------------------------------------
+
+
+
+.. _bispec_select:
+
+``bispec_select``
+.................
+== =============== == =
+\  **Description** \  Specifies the kind of bispectrum output to include
+                      for different components
+-- --------------- -- -
+\  **Default**     \  .. code-block:: python3
+
+                         {
+                             'default': {
+                                 'data'      : True,
+                                 'reduced'   : True,
+                                 'tree-level': True,
+                                 'plot'      : True,
+                             },
+                         }
+
+-- --------------- -- -
+\  **Elaboration** \  This is a
+                      :ref:`component selection <components_and_selections>`
+                      determining which components participate in bispectrum
+                      output, as well as what kind of bispectrum output
+                      to include.
+
+                      Here ``'data'`` refers to text files containing
+                      tabulated values of the (auto) bispectrum
+                      :math:`B(k, t, \mu) = B(k_1, k_2, k_3)`. If
+                      ``'reduced'`` is also selected, a separate column
+                      containing the reduced bispectrum
+                      :math:`Q(k_1, k_2, k_3) \equiv B(k_1, k_2, k_3)/[P(k_1)P(k_2) + P(k_2)P(k_3) + P(k_3)P(k_1)]`
+                      will be included within the text file. When
+                      ``'tree-level'`` is selected, a separate column
+                      containing the perturbative tree-level prediction of
+                      :math:`B` is added, and likewise for :math:`Q` if
+                      ``'reduced'`` is simultaneously selected. Selecting
+                      ``'plot'`` results in a plot of the specified data,
+                      stored as a PNG file.
+
+                      .. note::
+                         Tree-level predictions are available for matter-like
+                         species only, and are
+                         `given by <https://arxiv.org/abs/1602.05933>`_
+
+                         .. math::
+
+                            B_{\text{tree-level}}(k_1, k_2, k_3) = 2 [ \quad &\mathcal{K}(k_1, k_2, k_3)P_{\text{L}}(k_1)P_{\text{L}}(k_2) \\
+                            + &\mathcal{K}(k_2, k_3, k_1)P_{\text{L}}(k_2)P_{\text{L}}(k_3) \\
+                            + &\mathcal{K}(k_3, k_1, k_2)P_{\text{L}}(k_3)P_{\text{L}}(k_1) ]\,,
+
+                         .. math::
+
+                            \mathcal{K}(k_1, k_2, k_3) = 1 - \frac{1}{2}\biggl(1 + \frac{D^{(2)}}{D^2}\biggr) (1 - \mu^2) - \frac{\mu}{2}\biggl( \frac{k_1}{k_2} + \frac{k_2}{k_1} \biggr)\,,
+
+                         .. math::
+
+                            \mu = -\hat{\boldsymbol{k}}_1\cdot\hat{\boldsymbol{k}}_2 = \frac{k_1^2 + k_2^2 - k_3^2}{2k_1k_2}\,,
+
+                         where :math:`P_{\text{L}}(k)` is the linear power
+                         spectrum while :math:`D` and :math:`D^{(2)}` are the
+                         first- and second-order growth factors.
+
+                      To tune the specifics of how bispectra are computed, see
+                      the ``bispec_options`` :ref:`parameter <bispec_options>`.
+-- --------------- -- -
+\  **Example 0**   \  Dump bispectrum data files containing spectra for all
+                      components, including both non-linear and tree-level
+                      data, for both the full and reduced bispectrum. Do not
+                      dump any plots of this data:
+
+                      .. code-block:: python3
+
+                         bispec_select = {
+                             'all': {
+                                 'data'      : True,
+                                 'reduced'   : True,
+                                 'tree-level': True,
+                                 'plot'      : False,
+                             },
+                         }
+
+-- --------------- -- -
+\  **Example 1**   \  Leave out the reduced bispectrum for every component
+                      except the one with a name/species of ``'matter'``.
+                      Do not include any tree-level predictions and do not
+                      make any plots:
+
+                      .. code-block:: python3
+
+                         bispec_select = {
+                             'all': {
+                                 'data': True,
+                             },
+                             'matter': {
+                                 'data'   : True,
+                                 'reduced': True,
+                             },
+                         }
+
+                      .. note::
+                         Unspecified values are assigned ``False``
+
+-- --------------- -- -
+\  **Example 2**   \  Do not create any bispectrum outputs except plots
+                      of the component with a name/species of ``'matter'``.
+                      Include both the full and reduced bispectrum as well as
+                      their tree-level predictions in the plots:
+
+                      .. code-block:: python3
+
+                         bispec_select = {
+                             'all'   : False,
+                             'matter': {
+                                 'reduced'   : True,
+                                 'tree-level': True,
+                                 'plot'      : True,
+                             },
+                         }
+
+-- --------------- -- -
+\  **Example 3**   \  Create full (auto) bispectrum outputs for all
+                      components, as well as for the combined
+                      ``'matter'`` and ``'neutrino'`` components:
+
+                      .. code-block:: python3
+
+                         bispec_select = {
                              'all'                 : True,
                              ('matter', 'neutrino'): True,
                          }
@@ -1114,8 +1255,8 @@ CO\ *N*\ CEPT run.
 
 -- --------------- -- -
 \  **Elaboration** \  All particles should have positions
-                      :math:`0 \leq x, y, z < L_{\mathrm{box}}`, with
-                      :math:`L_{\mathrm{box}}` corresponding to the
+                      :math:`0 \leq x, y, z < L_{\text{box}}`, with
+                      :math:`L_{\text{box}}` corresponding to the
                       ``boxsize`` :ref:`parameter <boxsize>`.
                       During simulation, particles drifting out of the cubic
                       box is immediately wrapped around.
@@ -1123,7 +1264,7 @@ CO\ *N*\ CEPT run.
                       When reading particles from a snapshot, some particles
                       may be erroneously located outside of the box. If a
                       particle is positioned exactly on the upper boundary
-                      :math:`L_{\mathrm{box}}`, this is silently wrapped back
+                      :math:`L_{\text{box}}`, this is silently wrapped back
                       to :math:`0`. Positions beyond this as well as as
                       negative positions are counted as out-of-bounds.
 
@@ -1166,8 +1307,8 @@ CO\ *N*\ CEPT run.
 -- --------------- -- -
 \  **Elaboration** \  This is a
                       :ref:`component selection <components_and_selections>`
-                      specifying which particle components should make use of
-                      particle IDs, i.e. unique inter labels, one for each
+                      specifying particle components that should make use of
+                      particle IDs, i.e. unique integer labels, one for each
                       particle.
 
                       When a component using particle IDs are saved to a
@@ -1180,7 +1321,6 @@ CO\ *N*\ CEPT run.
                          IDs. In this case, some IDs are simply made up when
                          the snapshot is written. Thus, the IDs in GADGET
                          snapshots should not be relied upon in such cases.
-
 
                       When saving a GADGET snapshot, the data type used for
                       the IDs is determined by the ``gadget_snapshot_params``

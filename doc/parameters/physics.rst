@@ -257,6 +257,9 @@ physical models and schemes to be used.
                              'LPT': {
                                  'default': 1,
                              },
+                             'non-Gaussianity': {
+                                 'default': 0.0,
+                             },
                              'structure': {
                                  'default': 'non-linear',
                              },
@@ -325,6 +328,29 @@ physical models and schemes to be used.
                         second-order (2LPT) contributions are always
                         constructed in a Newtonian fashion (though they are
                         build from the (relativistic) 1LPT results).
+
+                      * ``'non-Gaussianity'``: Sets the amount of local
+                        non-Gaussianity to include in realisations. This is
+                        simply the number :math:`f_{\text{NL}}` in the
+                        transformation
+
+                        .. math::
+
+                           \delta(\boldsymbol{x}) \rightarrow \delta(\boldsymbol{x}) + f_{\text{NL}}\delta^2(\boldsymbol{x})\,,
+
+                        where the :math:`\delta^2(\boldsymbol{x})` term
+                        introduces local non-Gaussianity into the otherwise
+                        Gaussian density contrast field
+                        :math:`\delta(\boldsymbol{x})`.
+
+                        For fluid components, only :math:`\delta` (the energy
+                        density) will be affected. For particle components,
+                        both the positions and velocities are affected, with
+                        the non-Gaussian velocity contribution obtained from
+                        :math:`f_{\text{NL}}\delta^2(\boldsymbol{x})` using
+                        :math:`aH(a)f(a)` as a conversion factor, similar to
+                        how the velocities are obtained when using
+                        back-scaling (see above).
 
                       * ``'structure'``: Specifies the underlying 3D structure
                         to use for a realisation. This can be either the
@@ -553,7 +579,7 @@ physical models and schemes to be used.
 
                         .. math::
 
-                           |\boldsymbol{x}|^{-3} \rightarrow \bigl(|\boldsymbol{x}|^2 + \epsilon^2\bigr)^{-3/2}\, ,
+                           |\boldsymbol{x}|^{-3} \rightarrow \bigl(|\boldsymbol{x}|^2 + \epsilon^2\bigr)^{-\frac{3}{2}}\, ,
 
                         with :math:`\epsilon` the
                         :ref:`softening length <select_softening_length>`.

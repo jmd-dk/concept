@@ -6,7 +6,7 @@ powerspec_select = {'all': {'data': True}}
 _size = 128
 boxsize            = 8*Gpc
 powerspec_options  = {'gridsize': _size}
-k_modes_per_decade = 30
+class_modes_per_decade = 30
 
 # Cosmology
 H0      = 70*km/(s*Mpc)
