@@ -2482,7 +2482,8 @@ bispec_grid_cache = {}
     # Locals
     frac='double',
     grid='double[:, :, ::1]',
-    index='Py_ssize_t',
+    index_neg='Py_ssize_t',
+    index_pos='Py_ssize_t',
     k_inner='double',
     k_outer='double',
     k2_inner='double',
@@ -2490,9 +2491,11 @@ bispec_grid_cache = {}
     ki='Py_ssize_t',
     kj='Py_ssize_t',
     kk='Py_ssize_t',
+    nyquist='Py_ssize_t',
     slab='double[:, :, ::1]',
     slab_data_ptr='double*',
     slab_ptr='double*',
+    slab_size_k='Py_ssize_t',
     returns='double[:, :, ::1]',
 )
 def get_bispec_grid(gridsize, shell, buffer_name, slab_data):
@@ -2503,29 +2506,38 @@ def get_bispec_grid(gridsize, shell, buffer_name, slab_data):
     # Fetch nullified slab
     slab = get_fftw_slab(gridsize, 'slab_bispec', nullify=True)
     slab_ptr = cython.address(slab[:, :, :])
-    # Populate the shell defined by (k2_inner, k2_outer) with values
+    # Populate the shell defined by (k2_inner, k2_outer) with values.
+    # We loop over ki ≥ 0 only, obtaining the ki > 0 half
+    # through symmetry.
     slab_data_ptr = NULL
     if slab_data is not None:
         slab_data_ptr = cython.address(slab_data[:, :, :])
-    for index, ki, kj, kk in fourier_shell_loop(
+    nyquist = gridsize//2
+    slab_size_k = gridsize + 2
+    for index_pos, ki, kj, kk in fourier_shell_loop(
         gridsize, k_inner, k_outer,
-        skip_origin=True,
+        skip_origin=True, skip_negative_ki=True,
     ):
         # The fractional overlap between the shell and this cell
         with unswitch:
             if bispec_antialiasing:
                 frac = get_bispec_overlap_cellshell(ki, kj, kk, k_inner, k_outer)
             else:
-                frac = (k2_inner < ℤ[kj**2] + ki**2 + kk**2 <= k2_outer)
+                frac = (k2_inner < ℤ[ℤ[kj**2] + ki**2] + kk**2 <= k2_outer)
+        # Obtain index for (-ki, kj, kk)
+        index_neg = index_pos + (-ki + (-(ki != 0) & nyquist))*ℤ[2*slab_size_k]
         # Fill out either indicator or data element
         with unswitch:
             if slab_data is None:
                 # Indicator field
-                slab_ptr[index] = frac  # imag part stays at 0
+                slab_ptr[index_pos] = frac  # imag part stays at 0
+                slab_ptr[index_neg] = frac  # imag part stays at 0
             else:
                 # Data field
-                slab_ptr[index    ] = frac*slab_data_ptr[index    ]
-                slab_ptr[index + 1] = frac*slab_data_ptr[index + 1]
+                slab_ptr[index_pos    ] = frac*slab_data_ptr[index_pos    ]
+                slab_ptr[index_pos + 1] = frac*slab_data_ptr[index_pos + 1]
+                slab_ptr[index_neg    ] = frac*slab_data_ptr[index_neg    ]
+                slab_ptr[index_neg + 1] = frac*slab_data_ptr[index_neg + 1]
     # Convert to real space domain grid.
     # Note that we have to nullify the ghosts of all grids as possible
     # appearances of NaN values in the ghost layers otherwise break
@@ -2534,7 +2546,6 @@ def get_bispec_grid(gridsize, shell, buffer_name, slab_data):
     grid = domain_decompose(
         slab,
         buffer_name,
-        do_ghost_communication=False,
         do_ghost_nullification=True,
     )
     return grid

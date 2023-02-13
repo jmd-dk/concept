@@ -623,7 +623,10 @@ def interpolate_upstream(
     fft(slab_global, 'backward')
     # Domain-decompose and return the global real space grid
     grid_global = get_buffer(get_gridshape_local(gridsize_global), 'grid_global')
-    domain_decompose(slab_global, grid_global, do_ghost_communication=do_ghost_communication)
+    domain_decompose(
+        slab_global, grid_global,
+        do_ghost_communication=do_ghost_communication,
+    )
     return grid_global
 
 # Helper function for interpolate_upstream(), taking in a real space
@@ -888,7 +891,8 @@ def resize_grid(
                 slab = slab_internal
             fft(slab, 'backward')
             grid_new = domain_decompose(
-                slab, output_grid_or_buffer_name, do_ghost_communication,
+                slab, output_grid_or_buffer_name,
+                do_ghost_communication=do_ghost_communication,
             )
             return grid_new
     # Resizing should take place. Go to Fourier space.
@@ -916,7 +920,10 @@ def resize_grid(
     # resulting grid, depending on the output space.
     if output_space == 'real':
         fft(slab_new, 'backward')
-        grid_new = domain_decompose(slab_new, output_grid_or_buffer_name, do_ghost_communication)
+        grid_new = domain_decompose(
+            slab_new, output_grid_or_buffer_name,
+            do_ghost_communication=do_ghost_communication,
+        )
         return grid_new
     else:  # output_space == 'fourier'
         return slab_new
@@ -2994,11 +3001,16 @@ fourier_coords = cython.address(fourier_coords_mv[:])
 # k_max (the maximum floating-point k in grid units).
 # If skip_origin is True, the ki = kj = kk = 0 point will be excluded
 # from the iteration.
+# If skip_negative_ki is True, only the ki ≥ 0 quarter of the shell will
+# be visited (remember that kk < 0 is always skipped, as this half is
+# not represented in memory). For a given point (ki, kj, kk),
+# the reflection (-ki, kj, kk) always recides on the same process,
+# hence why we choose skip_negative_ki rather than skip_negative_kj.
 @cython.iterator
 def fourier_shell_loop(
     gridsize, k_min, k_max,
     *,
-    skip_origin=False,
+    skip_origin=False, skip_negative_ki=False,
 ):
     # Cython declarations for variables used for the iteration,
     # including all arguments and variables to yield.
@@ -3009,6 +3021,7 @@ def fourier_shell_loop(
         k_min='double',
         k_max='double',
         skip_origin='bint',
+        skip_negative_ki='bint',
         # Locals
         _i_bgn='Py_ssize_t',
         _i_chunk='int',
@@ -3069,7 +3082,7 @@ def fourier_shell_loop(
             _kj_bgn = pairmax(-_kj_lim, ℤ[_slab_size_j*rank] - gridsize)
             _kj_end = pairmin(0, ℤ[_slab_size_j*(rank + 1)] - gridsize)
             _offset_j += gridsize
-        for _i_chunk in range(2):
+        for _i_chunk in range(2 - skip_negative_ki):
             _index_j = ℤ[(_kj_bgn + _offset_j)*_slab_size_i - ℤ[_slab_size_i + 1]]
             for kj in range(_kj_bgn, _kj_end):
                 _index_j += _slab_size_i

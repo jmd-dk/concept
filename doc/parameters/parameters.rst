@@ -494,7 +494,7 @@ Component selections support the
        'all' : 15*kpc,
    }
 
-which assigns :math:`25\,\tet{kpc}` as the softening length to the
+which assigns :math:`25\,\text{kpc}` as the softening length to the
 ``'spam'`` and ``'ham'`` components and :math:`15\,\text{kpc}` to
 all others.
 

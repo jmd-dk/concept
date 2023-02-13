@@ -1593,11 +1593,17 @@ some numerical resolutions and length scales.
                          }
 
                       .. note::
-                         In order to fully reduce the bispectrum computation within
-                         CO\ *N*\ CEPT to one consisten with that of
+                         In order to fully reduce the bispectrum computation
+                         within CO\ *N*\ CEPT to one consistent with that of
                          `Pylians <https://pylians3.readthedocs.io/>`_, one
-                         should further disable
-                         :ref:`shell anti-aliasing <bispec_antialiasing>`.
+                         should further:
+
+                         * Disable
+                           :ref:`shell anti-aliasing <bispec_antialiasing>`.
+                         * Disable interlacing (specified trough
+                           ``bispec_options['interlace']``).
+                         * Switch to :ref:`cell-vertex <cell_centered>` grid
+                           discretisation.
 
 -- --------------- -- -
 \  **Example 6**   \  Sample the full configuration space for the component
@@ -1798,9 +1804,15 @@ some numerical resolutions and length scales.
                       decade. The resulting tabulation of :math:`k` is
                       employed for all CLASS perturbations, which are used
                       for e.g. initial conditions. The default choice yields a
-                      relatively sparse tabulation of perturbations except
+                      relatively sparse tabulation of perturbations, except
                       around baryon acoustic oscillations, where more detail
                       is added.
+
+                      If you seek highly resolved linear power spectra or
+                      tree-level, make sure to not just increase
+                      ``class_modes_per_decade``, but also enable the
+                      ``class_dedicated_spectra``
+                      :ref:`parameter <class_dedicated_spectra>`.
 -- --------------- -- -
 \  **Example 0**   \  Use a constant :math:`20` modes per decade, i.e.
                       :math:`20` values of :math:`k` placed logarithmically
