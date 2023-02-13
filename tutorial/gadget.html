@@ -4,7 +4,7 @@
   <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>8. Comparison with GADGET-2 &mdash; CONCEPT Documentation</title>
+  <title>9. Comparison with GADGET-2 &mdash; CONCEPT Documentation</title>
       <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
       <link rel="stylesheet" href="../_static/copybutton.css" type="text/css" />
@@ -27,7 +27,7 @@
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
     <link rel="next" title="Installation" href="../installation.html" />
-    <link rel="prev" title="7. Beyond matter-only simulations" href="beyond_matter_only.html" /> 
+    <link rel="prev" title="8. Bispectra and 2LPT" href="bispectra.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -57,9 +57,10 @@
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="output_types.html">5. Other kinds of output</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="output_types.html#d-renders">5.1. 3D renders</a></li>
-<li class="toctree-l3"><a class="reference internal" href="output_types.html#id1">5.2. 2D renders</a></li>
-<li class="toctree-l3"><a class="reference internal" href="output_types.html#snapshots">5.3. Snapshots</a></li>
+<li class="toctree-l3"><a class="reference internal" href="output_types.html#bispectra">5.1. Bispectra</a></li>
+<li class="toctree-l3"><a class="reference internal" href="output_types.html#d-renders">5.2. 3D renders</a></li>
+<li class="toctree-l3"><a class="reference internal" href="output_types.html#id1">5.3. 2D renders</a></li>
+<li class="toctree-l3"><a class="reference internal" href="output_types.html#snapshots">5.4. Snapshots</a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="working_remotely.html">6. Working on remote clusters</a></li>
@@ -71,7 +72,8 @@
 <li class="toctree-l3"><a class="reference internal" href="beyond_matter_only.html#non-linear-massive-neutrinos">7.5. Non-linear massive neutrinos</a></li>
 </ul>
 </li>
-<li class="toctree-l2 current"><a class="current reference internal" href="#">8. Comparison with GADGET-2</a></li>
+<li class="toctree-l2"><a class="reference internal" href="bispectra.html">8. Bispectra and 2LPT</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">9. Comparison with GADGET-2</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../installation.html">Installation</a><ul>
@@ -165,6 +167,7 @@
 <li class="toctree-l3"><a class="reference internal" href="../parameters/input_output.html#autosave-interval"><code class="docutils literal notranslate"><span class="pre">autosave_interval</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/input_output.html#snapshot-select"><code class="docutils literal notranslate"><span class="pre">snapshot_select</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/input_output.html#powerspec-select"><code class="docutils literal notranslate"><span class="pre">powerspec_select</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/input_output.html#bispec-select"><code class="docutils literal notranslate"><span class="pre">bispec_select</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/input_output.html#render2d-select"><code class="docutils literal notranslate"><span class="pre">render2D_select</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/input_output.html#render3d-select"><code class="docutils literal notranslate"><span class="pre">render3D_select</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/input_output.html#snapshot-type"><code class="docutils literal notranslate"><span class="pre">snapshot_type</span></code></a></li>
@@ -181,7 +184,10 @@
 <li class="toctree-l3"><a class="reference internal" href="../parameters/numerics.html#potential-options"><code class="docutils literal notranslate"><span class="pre">potential_options</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/numerics.html#shortrange-params"><code class="docutils literal notranslate"><span class="pre">shortrange_params</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/numerics.html#powerspec-options"><code class="docutils literal notranslate"><span class="pre">powerspec_options</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="../parameters/numerics.html#k-modes-per-decade"><code class="docutils literal notranslate"><span class="pre">k_modes_per_decade</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/numerics.html#bispec-options"><code class="docutils literal notranslate"><span class="pre">bispec_options</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/numerics.html#bispec-antialiasing"><code class="docutils literal notranslate"><span class="pre">bispec_antialiasing</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/numerics.html#class-dedicated-spectra"><code class="docutils literal notranslate"><span class="pre">class_dedicated_spectra</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/numerics.html#class-modes-per-decade"><code class="docutils literal notranslate"><span class="pre">class_modes_per_decade</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="../parameters/cosmology.html">Cosmology</a><ul>
@@ -275,6 +281,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../utilities/info.html">info utility</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../utilities/play.html">play utility</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../utilities/powerspec.html">powerspec utility</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/bispec.html">bispec utility</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../utilities/render3D.html">render3D utility</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../utilities/update.html">update utility</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../utilities/watch.html">watch utility</a></li>
@@ -325,12 +332,12 @@
   <ul class="wy-breadcrumbs">
       <li><a href="../index.html" class="icon icon-home"></a> &raquo;</li>
           <li><a href="tutorial.html">Tutorial</a> &raquo;</li>
-      <li><span class="section-number">8. </span>Comparison with GADGET-2</li>
+      <li><span class="section-number">9. </span>Comparison with GADGET-2</li>
       <li class="wy-breadcrumbs-aside">
               <a href="https://github.com/jmd-dk/concept/" class="fa fa-github"> Code Repository</a>
       </li>
   </ul><div class="rst-breadcrumbs-buttons" role="navigation" aria-label="Sequential page navigation">
-        <a href="beyond_matter_only.html" class="btn btn-neutral float-left" title="7. Beyond matter-only simulations" accesskey="p"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="bispectra.html" class="btn btn-neutral float-left" title="8. Bispectra and 2LPT" accesskey="p"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
 
   </div>
   <hr/>
@@ -339,7 +346,7 @@
            <div itemprop="articleBody">
              
   <section id="comparison-with-gadget-2">
-<h1><span class="section-number">8. </span>Comparison with GADGET-2<a class="headerlink" href="#comparison-with-gadget-2" title="Permalink to this headline"></a></h1>
+<h1><span class="section-number">9. </span>Comparison with GADGET-2<a class="headerlink" href="#comparison-with-gadget-2" title="Permalink to this headline"></a></h1>
 <p>In this section we shall perform equivalent simulations with CO<em>N</em>CEPT and
 the well-known <a class="reference external" href="https://wwwmpa.mpa-garching.mpg.de/gadget/">GADGET-2</a> code.
 Due to the two codes utilising different numerical schemes, as well as the
@@ -382,9 +389,8 @@ as e.g. <code class="docutils literal notranslate"><span class="pre">param/tutor
 <span class="n">Ωcdm</span> <span class="o">=</span> <span class="mf">0.27</span>
 <span class="n">a_begin</span> <span class="o">=</span> <span class="mf">0.02</span>
 
-<span class="c1"># Physics</span><span class="hll"><span class="n">realization_options</span> <span class="o">=</span> <span class="p">{</span></span><span class="hll">    <span class="s1">&#39;gauge&#39;</span>     <span class="p">:</span> <span class="s1">&#39;synchronous&#39;</span><span class="p">,</span></span><span class="hll">    <span class="s1">&#39;back-scale&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span></span><span class="hll"><span class="p">}</span></span><span class="hll"></span>
-<span class="c1"># Non-parameter variables</span><span class="hll"><span class="n">_size</span> <span class="o">=</span> <span class="mi">64</span></span><span class="n">_gen</span> <span class="o">=</span> <span class="kc">False</span>
-</pre></div>
+<span class="c1"># Physics</span><span class="hll"><span class="n">realization_options</span> <span class="o">=</span> <span class="p">{</span></span><span class="hll">    <span class="s1">&#39;gauge&#39;</span>     <span class="p">:</span> <span class="s1">&#39;synchronous&#39;</span><span class="p">,</span></span><span class="hll">    <span class="s1">&#39;back-scale&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span></span><span class="hll"><span class="p">}</span></span><span class="hll"></span><span class="c1"># Non-parameter helper variables</span>
+<span class="n">_size</span> <span class="o">=</span> <span class="mi">64</span><span class="hll"><span class="n">_gen</span> <span class="o">=</span> <span class="kc">False</span></span></pre></div>
 </div>
 </div>
 <p>To perform the same simulation with both CO<em>N</em>CEPT and GADGET-2, we shall
@@ -662,16 +668,15 @@ not support.</p>
 <p>GADGET-2 only allows for the simulation of matter (though besides the standard
 cold dark matter particles, it further supports (smoothed-particle)
 hydrodynamical baryons), and always uses a background containing just matter
-and <span class="math notranslate nohighlight">\(\Lambda\)</span>. Sticking to even the simplest <span class="math notranslate nohighlight">\(\Lambda\)</span>CDM
-cosmologies (which <em>do</em> include photons), neglecting the gravitational tug
-from radiation is unacceptable for precision simulations. To resolve this
-problem, the usual trick used with Newtonian <em>N</em>-body codes is to generate
-initial conditions at <span class="math notranslate nohighlight">\(a = a_{\text{begin}}\)</span> using the results of
-general relativistic perturbations theory (which also accounts for radiation)
-at <span class="math notranslate nohighlight">\(a = 1\)</span>, but scaled back in time using the Newtonian growth factor.
-Thus, only the <span class="math notranslate nohighlight">\(a = 1\)</span> results of such <em>back-scaled</em> simulations are
-really physical. The <code class="docutils literal notranslate"><span class="pre">realization_options</span></code>
-<a class="reference internal" href="../parameters/physics.html#realization-options"><span class="std std-ref">parameter</span></a> in the
+and <span class="math notranslate nohighlight">\(\Lambda\)</span>. Sticking to even the simplest ΛCDM cosmologies (which
+<em>do</em> include photons), neglecting the gravitational tug from radiation is
+unacceptable for precision simulations. To resolve this problem, the usual
+trick used with Newtonian <em>N</em>-body codes is to generate initial conditions at
+<span class="math notranslate nohighlight">\(a = a_{\text{begin}}\)</span> using the results of general relativistic
+perturbations theory (which also accounts for radiation) at <span class="math notranslate nohighlight">\(a = 1\)</span>, but
+scaled back in time using the Newtonian growth factor. Thus, only the
+<span class="math notranslate nohighlight">\(a = 1\)</span> results of such <em>back-scaled</em> simulations are really physical.
+The <code class="docutils literal notranslate"><span class="pre">realization_options</span></code> <a class="reference internal" href="../parameters/physics.html#realization-options"><span class="std std-ref">parameter</span></a> in the
 <a class="reference internal" href="#param-gadget"><span class="std std-ref">parameter file used for this section</span></a> specifies that
 back-scaling should be used when generating the initial conditions, and also
 that this should be done within the synchronous gauge (as opposed to the
@@ -690,16 +695,16 @@ the <a class="reference internal" href="#param-gadget"><span class="std std-ref"
 results, but mostly put there to comply with the spirit of Newtonian
 <em>N</em>-body simulations and GADGET-2. We note again that the real difference
 between the <em>N</em>-body gauge approach and the back-scaled, synchronous gauge
-approach is to be found outside basic <span class="math notranslate nohighlight">\(\Lambda\)</span>CDM cosmologies and
-matter-only simulations, where the Newtonian approximations used for the
-back-scaling break down.</p>
+approach is to be found outside basic ΛCDM cosmologies and matter-only
+simulations, where the Newtonian approximations used for the back-scaling
+break down.</p>
 </section>
 
 
            </div>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
-        <a href="beyond_matter_only.html" class="btn btn-neutral float-left" title="7. Beyond matter-only simulations" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="bispectra.html" class="btn btn-neutral float-left" title="8. Bispectra and 2LPT" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
 
     </div>
 

@@ -157,7 +157,7 @@ at least:
 
         less -rf job/1/log
 
-     Arrow keys to navigate, ``q`` to quit.
+     Arrow keys to navigate, ``Q`` to quit.
 
 So far we've introduced only the most essential parameters. The remaining
 sections of this tutorial will introduce further parameters --- and expand on

@@ -1,0 +1,961 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>8. Bispectra and 2LPT &mdash; CONCEPT Documentation</title>
+      <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/copybutton.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/tabs.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
+    <link rel="shortcut icon" href="../_static/favicon.ico"/>
+    <link rel="canonical" href="https://jmd-dk.github.io/concept/tutorial/bispectra.html" />
+  <!--[if lt IE 9]>
+    <script src="../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/doctools.js"></script>
+        <script src="../_static/clipboard.min.js"></script>
+        <script src="../_static/copybutton.js"></script>
+        <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="9. Comparison with GADGET-2" href="gadget.html" />
+    <link rel="prev" title="7. Beyond matter-only simulations" href="beyond_matter_only.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+            <a href="../index.html" class="icon icon-home"> CO<em>N</em>CEPT
+            <img src="../_static/logo.png" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search documentation" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="tutorial.html">Tutorial</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="installation.html">1. Effortless installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="first_simulations.html">2. Your first simulations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="parameter_files.html">3. Working with parameter files</a></li>
+<li class="toctree-l2"><a class="reference internal" href="gravity.html">4. Mastering gravity</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="gravity.html#the-pm-method">4.1. The PM method</a></li>
+<li class="toctree-l3"><a class="reference internal" href="gravity.html#the-p3m-method">4.2. The P³M method</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="output_types.html">5. Other kinds of output</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="output_types.html#bispectra">5.1. Bispectra</a></li>
+<li class="toctree-l3"><a class="reference internal" href="output_types.html#d-renders">5.2. 3D renders</a></li>
+<li class="toctree-l3"><a class="reference internal" href="output_types.html#id1">5.3. 2D renders</a></li>
+<li class="toctree-l3"><a class="reference internal" href="output_types.html#snapshots">5.4. Snapshots</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="working_remotely.html">6. Working on remote clusters</a></li>
+<li class="toctree-l2"><a class="reference internal" href="beyond_matter_only.html">7. Beyond matter-only simulations</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="beyond_matter_only.html#radiation">7.1. Radiation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="beyond_matter_only.html#massive-neutrinos">7.2. Massive neutrinos</a></li>
+<li class="toctree-l3"><a class="reference internal" href="beyond_matter_only.html#dynamical-dark-energy">7.3. Dynamical dark energy</a></li>
+<li class="toctree-l3"><a class="reference internal" href="beyond_matter_only.html#decaying-cold-dark-matter">7.4. Decaying cold dark matter</a></li>
+<li class="toctree-l3"><a class="reference internal" href="beyond_matter_only.html#non-linear-massive-neutrinos">7.5. Non-linear massive neutrinos</a></li>
+</ul>
+</li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">8. Bispectra and 2LPT</a></li>
+<li class="toctree-l2"><a class="reference internal" href="gadget.html">9. Comparison with GADGET-2</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../installation.html">Installation</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../installation.html#supported-platforms">Supported platforms</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../installation.html#standard-installation">Standard installation</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../installation.html#optimal-network-performance-on-clusters">Optimal network performance on clusters</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../installation.html#cloning-with-git">Cloning with Git</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../installation.html#the-install-script-in-depth">The <code class="docutils literal notranslate"><span class="pre">install</span></code> script in-depth</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../installation.html#programs-installed">Programs installed</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../installation.html#command-line-options">Command-line options</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../installation.html#influential-environment-variables">Influential environment variables</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../installation.html#making-use-of-pre-installed-libraries">Making use of pre-installed libraries</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../installation.html#specifying-dependency-versions">Specifying dependency versions</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../installation.html#specifying-dependency-urls">Specifying dependency URLs</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../installation.html#choosing-compiler-precedence">Choosing compiler precedence</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../installation.html#installing-mpich-or-openmpi">Installing MPICH or OpenMPI</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../installation.html#parallel-builds">Parallel builds</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../installation.html#using-the-install-script-to-install-specific-libraries-but-not-concept-itself">Using the <code class="docutils literal notranslate"><span class="pre">install</span></code> script to install specific libraries but not CO<em>N</em>CEPT itself</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../installation.html#dependencies">Dependencies</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../installation.html#python-dependencies">Python dependencies</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../installation.html#other-primary-dependencies">Other primary dependencies</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../installation.html#system-dependencies">System dependencies</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../installation.html#the-path-and-env-files">The <code class="docutils literal notranslate"><span class="pre">.path</span></code> and <code class="docutils literal notranslate"><span class="pre">.env</span></code> files</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../installation.html#the-path-file">The <code class="docutils literal notranslate"><span class="pre">.path</span></code> file</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../installation.html#the-env-file">The <code class="docutils literal notranslate"><span class="pre">.env</span></code> file</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../installation.html#path-like-environment-variables"><code class="docutils literal notranslate"><span class="pre">PATH</span></code>-like environment variables</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../installation.html#eliminating-interference-from-foreign-python-installations">Eliminating interference from foreign Python installations</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../installation.html#the-mpi-executor">The <code class="docutils literal notranslate"><span class="pre">mpi_executor</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../installation.html#the-make-jobs-environment-variable">The <code class="docutils literal notranslate"><span class="pre">make_jobs</span></code> environment variable</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../command_line_options.html">Command-line options</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../command_line_options.html#basics">Basics</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#help-h-help">Help: <code class="docutils literal notranslate"><span class="pre">-h</span></code>, <code class="docutils literal notranslate"><span class="pre">--help</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#parameter-file-p-params">Parameter file: <code class="docutils literal notranslate"><span class="pre">-p</span></code>, <code class="docutils literal notranslate"><span class="pre">--params</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#command-line-parameters-c-command-line-params">Command-line parameters: <code class="docutils literal notranslate"><span class="pre">-c</span></code>, <code class="docutils literal notranslate"><span class="pre">--command-line-params</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#number-of-processes-n-nprocs">Number of processes: <code class="docutils literal notranslate"><span class="pre">-n</span></code>, <code class="docutils literal notranslate"><span class="pre">--nprocs</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../command_line_options.html#specifying-multiple-nodes">Specifying multiple nodes</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#utility-u-utility">Utility: <code class="docutils literal notranslate"><span class="pre">-u</span></code>, <code class="docutils literal notranslate"><span class="pre">--utility</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../command_line_options.html#remote-job-submission">Remote job submission</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#queue-q-queue">Queue: <code class="docutils literal notranslate"><span class="pre">-q</span></code>, <code class="docutils literal notranslate"><span class="pre">--queue</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#wall-time-w-walltime">Wall time: <code class="docutils literal notranslate"><span class="pre">-w</span></code>, <code class="docutils literal notranslate"><span class="pre">--walltime</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#memory-memory">Memory: <code class="docutils literal notranslate"><span class="pre">--memory</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#job-name-job-name">Job name: <code class="docutils literal notranslate"><span class="pre">--job-name</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#job-directive-j-job-directive">Job directive: <code class="docutils literal notranslate"><span class="pre">-j</span></code>, <code class="docutils literal notranslate"><span class="pre">--job-directive</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#no-watching-no-watching">No watching: <code class="docutils literal notranslate"><span class="pre">--no-watching</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../command_line_options.html#other-modes-of-building-running">Other modes of building/running</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#local-local">Local: <code class="docutils literal notranslate"><span class="pre">--local</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#pure-python-pure-python">Pure Python: <code class="docutils literal notranslate"><span class="pre">--pure-python</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#build-b-build">Build: <code class="docutils literal notranslate"><span class="pre">-b</span></code>, <code class="docutils literal notranslate"><span class="pre">--build</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#rebuild-rebuild">Rebuild: <code class="docutils literal notranslate"><span class="pre">--rebuild</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#native-optimizations-native-optimizations">Native optimizations: <code class="docutils literal notranslate"><span class="pre">--native-optimizations</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#no-link-time-optimizations-no-lto">No link time optimizations: <code class="docutils literal notranslate"><span class="pre">--no-lto</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#no-optimizations-no-optimizations">No optimizations: <code class="docutils literal notranslate"><span class="pre">--no-optimizations</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#unsafe-building-unsafe-building">Unsafe building: <code class="docutils literal notranslate"><span class="pre">--unsafe-building</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../command_line_options.html#specials">Specials</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#test-t-tests">Test: <code class="docutils literal notranslate"><span class="pre">-t</span></code>, <code class="docutils literal notranslate"><span class="pre">--tests</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#main-entry-point-m-main">Main entry point: <code class="docutils literal notranslate"><span class="pre">-m</span></code>, <code class="docutils literal notranslate"><span class="pre">--main</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#interactive-i-interactive">Interactive: <code class="docutils literal notranslate"><span class="pre">-i</span></code>, <code class="docutils literal notranslate"><span class="pre">--interactive</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#version-v-version">Version: <code class="docutils literal notranslate"><span class="pre">-v</span></code>, <code class="docutils literal notranslate"><span class="pre">--version</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../parameters/parameters.html">Parameters</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../parameters/input_output.html">Input/output</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/input_output.html#initial-conditions"><code class="docutils literal notranslate"><span class="pre">initial_conditions</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/input_output.html#output-dirs"><code class="docutils literal notranslate"><span class="pre">output_dirs</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/input_output.html#output-bases"><code class="docutils literal notranslate"><span class="pre">output_bases</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/input_output.html#output-times"><code class="docutils literal notranslate"><span class="pre">output_times</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/input_output.html#autosave-interval"><code class="docutils literal notranslate"><span class="pre">autosave_interval</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/input_output.html#snapshot-select"><code class="docutils literal notranslate"><span class="pre">snapshot_select</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/input_output.html#powerspec-select"><code class="docutils literal notranslate"><span class="pre">powerspec_select</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/input_output.html#bispec-select"><code class="docutils literal notranslate"><span class="pre">bispec_select</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/input_output.html#render2d-select"><code class="docutils literal notranslate"><span class="pre">render2D_select</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/input_output.html#render3d-select"><code class="docutils literal notranslate"><span class="pre">render3D_select</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/input_output.html#snapshot-type"><code class="docutils literal notranslate"><span class="pre">snapshot_type</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/input_output.html#gadget-snapshot-params"><code class="docutils literal notranslate"><span class="pre">gadget_snapshot_params</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/input_output.html#snapshot-wrap"><code class="docutils literal notranslate"><span class="pre">snapshot_wrap</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/input_output.html#select-particle-id"><code class="docutils literal notranslate"><span class="pre">select_particle_id</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/input_output.html#class-plot-perturbations"><code class="docutils literal notranslate"><span class="pre">class_plot_perturbations</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/input_output.html#class-extra-background"><code class="docutils literal notranslate"><span class="pre">class_extra_background</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/input_output.html#class-extra-perturbations"><code class="docutils literal notranslate"><span class="pre">class_extra_perturbations</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../parameters/numerics.html">Numerics</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/numerics.html#boxsize"><code class="docutils literal notranslate"><span class="pre">boxsize</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/numerics.html#potential-options"><code class="docutils literal notranslate"><span class="pre">potential_options</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/numerics.html#shortrange-params"><code class="docutils literal notranslate"><span class="pre">shortrange_params</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/numerics.html#powerspec-options"><code class="docutils literal notranslate"><span class="pre">powerspec_options</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/numerics.html#bispec-options"><code class="docutils literal notranslate"><span class="pre">bispec_options</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/numerics.html#bispec-antialiasing"><code class="docutils literal notranslate"><span class="pre">bispec_antialiasing</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/numerics.html#class-dedicated-spectra"><code class="docutils literal notranslate"><span class="pre">class_dedicated_spectra</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/numerics.html#class-modes-per-decade"><code class="docutils literal notranslate"><span class="pre">class_modes_per_decade</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../parameters/cosmology.html">Cosmology</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/cosmology.html#h0"><code class="docutils literal notranslate"><span class="pre">H0</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/cosmology.html#b"><code class="docutils literal notranslate"><span class="pre">Ωb</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/cosmology.html#cdm"><code class="docutils literal notranslate"><span class="pre">Ωcdm</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/cosmology.html#a-begin"><code class="docutils literal notranslate"><span class="pre">a_begin</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/cosmology.html#t-begin"><code class="docutils literal notranslate"><span class="pre">t_begin</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/cosmology.html#primordial-spectrum"><code class="docutils literal notranslate"><span class="pre">primordial_spectrum</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/cosmology.html#class-params"><code class="docutils literal notranslate"><span class="pre">class_params</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../parameters/physics.html">Physics</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/physics.html#select-forces"><code class="docutils literal notranslate"><span class="pre">select_forces</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/physics.html#select-species"><code class="docutils literal notranslate"><span class="pre">select_species</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/physics.html#realization-options"><code class="docutils literal notranslate"><span class="pre">realization_options</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/physics.html#select-lives"><code class="docutils literal notranslate"><span class="pre">select_lives</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/physics.html#softening-kernel"><code class="docutils literal notranslate"><span class="pre">softening_kernel</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/physics.html#select-softening-length"><code class="docutils literal notranslate"><span class="pre">select_softening_length</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../parameters/simulation.html">Simulation</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#t-base-background-factor"><code class="docutils literal notranslate"><span class="pre">Δt_base_background_factor</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#t-base-nonlinear-factor"><code class="docutils literal notranslate"><span class="pre">Δt_base_nonlinear_factor</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#t-increase-max-factor"><code class="docutils literal notranslate"><span class="pre">Δt_increase_max_factor</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#t-rung-factor"><code class="docutils literal notranslate"><span class="pre">Δt_rung_factor</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#a-max-early"><code class="docutils literal notranslate"><span class="pre">Δa_max_early</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#a-max-late"><code class="docutils literal notranslate"><span class="pre">Δa_max_late</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#static-timestepping"><code class="docutils literal notranslate"><span class="pre">static_timestepping</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#n-rungs"><code class="docutils literal notranslate"><span class="pre">N_rungs</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#fftw-wisdom-rigor"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_rigor</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#fftw-wisdom-reuse"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_reuse</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#fftw-wisdom-share"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_share</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#random-seeds"><code class="docutils literal notranslate"><span class="pre">random_seeds</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#primordial-amplitude-fixed"><code class="docutils literal notranslate"><span class="pre">primordial_amplitude_fixed</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#primordial-phase-shift"><code class="docutils literal notranslate"><span class="pre">primordial_phase_shift</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#cell-centered"><code class="docutils literal notranslate"><span class="pre">cell_centered</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#class-k-max"><code class="docutils literal notranslate"><span class="pre">class_k_max</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/simulation.html#class-reuse"><code class="docutils literal notranslate"><span class="pre">class_reuse</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../parameters/graphics.html">Graphics</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/graphics.html#terminal-width"><code class="docutils literal notranslate"><span class="pre">terminal_width</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/graphics.html#enable-terminal-formatting"><code class="docutils literal notranslate"><span class="pre">enable_terminal_formatting</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/graphics.html#render2d-options"><code class="docutils literal notranslate"><span class="pre">render2D_options</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/graphics.html#render3d-colors"><code class="docutils literal notranslate"><span class="pre">render3D_colors</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/graphics.html#render3d-bgcolor"><code class="docutils literal notranslate"><span class="pre">render3D_bgcolor</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/graphics.html#render3d-resolution"><code class="docutils literal notranslate"><span class="pre">render3D_resolution</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../parameters/units.html">Units</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/units.html#unit-length"><code class="docutils literal notranslate"><span class="pre">unit_length</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/units.html#unit-time"><code class="docutils literal notranslate"><span class="pre">unit_time</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/units.html#unit-mass"><code class="docutils literal notranslate"><span class="pre">unit_mass</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../parameters/debugging.html">Debugging</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/debugging.html#print-load-imbalance"><code class="docutils literal notranslate"><span class="pre">print_load_imbalance</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/debugging.html#particle-reordering"><code class="docutils literal notranslate"><span class="pre">particle_reordering</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/debugging.html#enable-hubble"><code class="docutils literal notranslate"><span class="pre">enable_Hubble</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/debugging.html#enable-class-background"><code class="docutils literal notranslate"><span class="pre">enable_class_background</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../utilities/utilities.html">Utilities</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/class.html">class utility</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../utilities/class.html#basic-usage">Basic usage</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../utilities/class.html#command-line-options">Command-line options</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../utilities/class.html#help-h-help">Help: <code class="docutils literal notranslate"><span class="pre">-h</span></code>, <code class="docutils literal notranslate"><span class="pre">--help</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../utilities/class.html#minimum-fourier-mode-kmin">Minimum Fourier mode: <code class="docutils literal notranslate"><span class="pre">--kmin</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../utilities/class.html#maximum-fourier-mode-kmax">Maximum Fourier mode: <code class="docutils literal notranslate"><span class="pre">--kmax</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../utilities/class.html#fourier-modes-modes">Fourier modes: <code class="docutils literal notranslate"><span class="pre">--modes</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../utilities/class.html#times-times">Times: <code class="docutils literal notranslate"><span class="pre">--times</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../utilities/class.html#gauge-gauge">Gauge: <code class="docutils literal notranslate"><span class="pre">--gauge</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../utilities/class.html#file-contents">File contents</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../utilities/class.html#data-layout">Data layout</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../utilities/class.html#extra-output">Extra output</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../utilities/class.html#units">Units</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../utilities/class.html#complete-example-massive-neutrinos">Complete example (massive neutrinos)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../utilities/class.html#running-through-docker">Running through Docker</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../utilities/class.html#tips-and-tricks">Tips and tricks</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/convert.html">convert utility</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/gadget.html">gadget utility</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/info.html">info utility</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/play.html">play utility</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/powerspec.html">powerspec utility</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/bispec.html">bispec utility</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/render3D.html">render3D utility</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/update.html">update utility</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/watch.html">watch utility</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../troubleshooting.html">Troubleshooting</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../troubleshooting.html#installation-failed">Installation failed</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../troubleshooting.html#compilation-failed">Compilation failed</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../troubleshooting.html#insufficient-memory">Insufficient memory</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../troubleshooting.html#dangerous-optimizations">Dangerous optimizations</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../troubleshooting.html#terminal-colour-output-looks-weird">Terminal colour output looks weird</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../troubleshooting.html#problems-related-to-python-libraries-and-packages">Problems related to Python libraries and packages</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../troubleshooting.html#error-messages-containing-read-1">Error messages containing ‘Read -1’</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../troubleshooting.html#clock-skew-and-or-modification-times-in-the-future">Clock skew and/or modification times in the future</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../troubleshooting.html#mixed-compiled-and-pure-python-mode">Mixed compiled and pure Python mode</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../troubleshooting.html#the-simulation-hangs-when-calling-class">The simulation hangs when calling CLASS</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../troubleshooting.html#crashes-or-other-bad-behaviour">Crashes or other bad behaviour</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../troubleshooting.html#problems-when-running-remotely">Problems when running remotely</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../troubleshooting.html#choosing-an-mpi-executor">Choosing an MPI executor</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../troubleshooting.html#different-hardware-architecture-on-front-end-and-remote-node">Different hardware architecture on front-end and remote node</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../troubleshooting.html#it-still-does-not-work">It <em>still</em> does not work!</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../troubleshooting.html#bad-performance-when-using-multiple-processes-nodes">Bad performance when using multiple processes/nodes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../troubleshooting.html#problems-when-using-multiple-nodes">Problems when using multiple nodes</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../publications.html">Publications</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../publications.html#theses">Theses</a></li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">CO<em>N</em>CEPT</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content style-external-links">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home"></a> &raquo;</li>
+          <li><a href="tutorial.html">Tutorial</a> &raquo;</li>
+      <li><span class="section-number">8. </span>Bispectra and 2LPT</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/jmd-dk/concept/" class="fa fa-github"> Code Repository</a>
+      </li>
+  </ul><div class="rst-breadcrumbs-buttons" role="navigation" aria-label="Sequential page navigation">
+        <a href="beyond_matter_only.html" class="btn btn-neutral float-left" title="7. Beyond matter-only simulations" accesskey="p"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="gadget.html" class="btn btn-neutral float-right" title="9. Comparison with GADGET-2" accesskey="n">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+  </div>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="bispectra-and-2lpt">
+<h1><span class="section-number">8. </span>Bispectra and 2LPT<a class="headerlink" href="#bispectra-and-2lpt" title="Permalink to this headline"></a></h1>
+<p>The focus of this section is on bispectrum measurements from simulations. We
+shall also see how using 2LPT initial conditions improves the initial
+bispectrum of the particle distribution.</p>
+<h3>Equilateral bispectra</h3><p>We shall make use of the following parameter file throughout this section.
+Save it as e.g. <code class="docutils literal notranslate"><span class="pre">param/tutorial</span></code>:</p>
+<div class="literal-block-wrapper docutils container" id="param-bispec">
+<div class="code-block-caption"><span class="caption-text">param/tutorial</span><a class="headerlink" href="#param-bispec" title="Permalink to this code"></a></div>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="c1"># Non-parameter helper variable used to control the size of the simulation</span>
+<span class="n">_size</span> <span class="o">=</span> <span class="mi">64</span>
+
+<span class="c1"># Input/output</span>
+<span class="n">initial_conditions</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;species&#39;</span><span class="p">:</span> <span class="s1">&#39;matter&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;N&#39;</span>      <span class="p">:</span> <span class="n">_size</span><span class="o">**</span><span class="mi">3</span><span class="p">,</span>
+<span class="p">}</span>
+<span class="n">output_dirs</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;snapshot&#39;</span><span class="p">:</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">path</span><span class="o">.</span><span class="n">output_dir</span><span class="si">}</span><span class="s1">/</span><span class="si">{</span><span class="n">param</span><span class="si">}</span><span class="s1">/</span><span class="si">{</span><span class="n">_lpt</span><span class="si">}</span><span class="s1">LPT/seed</span><span class="si">{</span><span class="n">_seed</span><span class="si">}</span><span class="s1">_shift</span><span class="si">{</span><span class="n">_shift</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span><span class="hll">    <span class="s1">&#39;bispec&#39;</span>  <span class="p">:</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">path</span><span class="o">.</span><span class="n">output_dir</span><span class="si">}</span><span class="s1">/</span><span class="si">{</span><span class="n">param</span><span class="si">}</span><span class="s1">/</span><span class="si">{</span><span class="n">_lpt</span><span class="si">}</span><span class="s1">LPT/seed</span><span class="si">{</span><span class="n">_seed</span><span class="si">}</span><span class="s1">_shift</span><span class="si">{</span><span class="n">_shift</span><span class="si">}</span><span class="s1">/</span><span class="si">{</span><span class="n">_conf</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span></span><span class="p">}</span>
+<span class="n">output_times</span> <span class="o">=</span> <span class="p">{</span><span class="hll">    <span class="s1">&#39;bispec&#39;</span><span class="p">:</span> <span class="p">[</span><span class="n">a_begin</span><span class="p">,</span> <span class="mf">0.3</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span></span><span class="p">}</span><span class="hll"><span class="k">if</span> <span class="n">_lpt</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span></span><span class="hll">    <span class="n">output_times</span> <span class="o">|=</span> <span class="p">{</span><span class="s1">&#39;snapshot&#39;</span><span class="p">:</span> <span class="o">...</span><span class="p">}</span></span><span class="hll"><span class="n">bispec_select</span> <span class="o">=</span> <span class="p">{</span></span><span class="hll">    <span class="s1">&#39;matter&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;data&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span> <span class="s1">&#39;reduced&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span> <span class="s1">&#39;tree-level&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span> <span class="s1">&#39;plot&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">},</span></span><span class="hll"><span class="p">}</span></span>
+<span class="c1"># Numerics</span>
+<span class="n">boxsize</span> <span class="o">=</span> <span class="mi">512</span><span class="o">*</span><span class="n">Mpc</span>
+<span class="n">potential_options</span> <span class="o">=</span> <span class="mi">2</span><span class="o">*</span><span class="n">_size</span><span class="hll"><span class="n">bispec_options</span> <span class="o">=</span> <span class="p">{</span></span><span class="hll">    <span class="s1">&#39;configuration&#39;</span><span class="p">:</span> <span class="p">{</span></span><span class="hll">        <span class="s1">&#39;matter&#39;</span><span class="p">:</span> <span class="n">_conf</span><span class="p">,</span></span><span class="hll">    <span class="p">},</span></span><span class="hll"><span class="p">}</span></span>
+<span class="c1"># Cosmology</span>
+<span class="n">H0</span>      <span class="o">=</span> <span class="mi">67</span><span class="o">*</span><span class="n">km</span><span class="o">/</span><span class="p">(</span><span class="n">s</span><span class="o">*</span><span class="n">Mpc</span><span class="p">)</span>
+<span class="n">Ωb</span>      <span class="o">=</span> <span class="mf">0.049</span>
+<span class="n">Ωcdm</span>    <span class="o">=</span> <span class="mf">0.27</span>
+<span class="n">a_begin</span> <span class="o">=</span> <span class="mf">0.02</span>
+
+<span class="c1"># Physics</span><span class="hll"><span class="n">realization_options</span> <span class="o">=</span> <span class="p">{</span></span><span class="hll">    <span class="s1">&#39;LPT&#39;</span><span class="p">:</span> <span class="n">_lpt</span><span class="p">,</span></span><span class="hll"><span class="p">}</span></span>
+<span class="c1"># Simulation</span><span class="hll"><span class="n">random_seeds</span> <span class="o">=</span> <span class="p">{</span></span><span class="hll">    <span class="s1">&#39;primordial phases&#39;</span><span class="p">:</span> <span class="mi">2_000</span> <span class="o">+</span> <span class="n">_seed</span><span class="p">,</span></span><span class="hll"><span class="p">}</span></span><span class="n">primordial_amplitude_fixed</span> <span class="o">=</span> <span class="kc">False</span><span class="hll"><span class="n">primordial_phase_shift</span> <span class="o">=</span> <span class="n">_shift</span></span>
+<span class="c1"># Non-parameter helper variables which should</span>
+<span class="c1"># be supplied as command-line parameters.</span><span class="hll"><span class="n">_conf</span>  <span class="o">=</span> <span class="s1">&#39;equilateral&#39;</span>  <span class="c1"># triangle configurations for bispectra</span></span><span class="hll"><span class="n">_seed</span>  <span class="o">=</span> <span class="mi">0</span>              <span class="c1"># seed offset used for the phases of the primordial noise</span></span><span class="hll"><span class="n">_shift</span> <span class="o">=</span> <span class="mi">0</span>              <span class="c1"># phase shift for primordial noise</span></span><span class="hll"><span class="n">_lpt</span>   <span class="o">=</span> <span class="mi">1</span>              <span class="c1"># order of Lagrangian perturbation theory</span></span></pre></div>
+</div>
+</div>
+<p>We start by running this parameter file as is:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>-p<span class="w"> </span>param/tutorial
+</pre></div>
+</div>
+<p>(feel free to run this in parallel by further supplying <code class="docutils literal notranslate"><span class="pre">-n</span></code>). This will run
+a simple simulation and measure the matter bispectrum at three different times
+along the evolution, as specified in <code class="docutils literal notranslate"><span class="pre">output_times</span></code>. The bispectra (data
+files and plots) are dumped into a nested set of subdirectories within
+<code class="docutils literal notranslate"><span class="pre">output/tutorial</span></code> (for organisational purposes, as many more simulations are
+to come). You can have a look at these, but what we really want is to plot the
+different bispectra together in a single plot, for which we can use the
+plotting script below:</p>
+<div class="literal-block-wrapper docutils container" id="plot-bispec">
+<div class="code-block-caption"><span class="caption-text">output/tutorial/plot.py</span><a class="headerlink" href="#plot-bispec" title="Permalink to this code"></a></div>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">collections</span><span class="o">,</span> <span class="nn">glob</span><span class="o">,</span> <span class="nn">os</span><span class="o">,</span> <span class="nn">re</span><span class="o">,</span> <span class="nn">sys</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">matplotlib</span><span class="p">;</span> <span class="n">matplotlib</span><span class="o">.</span><span class="n">use</span><span class="p">(</span><span class="s1">&#39;agg&#39;</span><span class="p">)</span>
+<span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
+
+<span class="c1"># Read in data</span>
+<span class="n">this_dir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">realpath</span><span class="p">(</span><span class="vm">__file__</span><span class="p">))</span>
+<span class="n">data</span> <span class="o">=</span> <span class="n">collections</span><span class="o">.</span><span class="n">defaultdict</span><span class="p">(</span><span class="k">lambda</span><span class="p">:</span> <span class="n">collections</span><span class="o">.</span><span class="n">defaultdict</span><span class="p">(</span><span class="nb">float</span><span class="p">))</span>
+<span class="n">confs</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+<span class="n">lpts</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+<span class="n">a_values</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+<span class="k">for</span> <span class="n">dirname</span> <span class="ow">in</span> <span class="n">glob</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">this_dir</span><span class="si">}</span><span class="s1">/*LPT&#39;</span><span class="p">):</span>
+    <span class="n">lpt</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">re</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;(\d)LPT$&#39;</span><span class="p">,</span> <span class="n">dirname</span><span class="p">)</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">1</span><span class="p">))</span>
+    <span class="n">lpts</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">lpt</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">dirname</span> <span class="ow">in</span> <span class="n">glob</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">dirname</span><span class="si">}</span><span class="s1">/seed*_shift*&#39;</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">dirname</span> <span class="ow">in</span> <span class="n">glob</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">dirname</span><span class="si">}</span><span class="s1">/*&#39;</span><span class="p">):</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">dirname</span><span class="p">):</span>
+                <span class="k">continue</span>
+            <span class="n">conf</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">dirname</span><span class="p">)</span>
+            <span class="n">confs</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">conf</span><span class="p">)</span>
+            <span class="n">a_files</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+            <span class="k">for</span> <span class="n">filename</span> <span class="ow">in</span> <span class="n">glob</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">dirname</span><span class="si">}</span><span class="s1">/bispec*&#39;</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">filename</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">&#39;.png&#39;</span><span class="p">):</span>
+                    <span class="k">continue</span>
+                <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="s1">&#39;r&#39;</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s1">&#39;utf-8&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+                    <span class="n">a</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">re</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;a = (.+)&#39;</span><span class="p">,</span> <span class="n">f</span><span class="o">.</span><span class="n">readline</span><span class="p">())</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">1</span><span class="p">))</span>
+                <span class="n">a_values</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">a</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">a_files</span><span class="p">:</span>
+                    <span class="nb">print</span><span class="p">(</span>
+                        <span class="sa">f</span><span class="s1">&#39;Found multiple bispectrum data files&#39;</span>
+                        <span class="sa">f</span><span class="s1">&#39;for a = </span><span class="si">{</span><span class="n">a</span><span class="si">}</span><span class="s1"> in </span><span class="si">{</span><span class="n">dirname</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span>
+                        <span class="n">file</span><span class="o">=</span><span class="n">sys</span><span class="o">.</span><span class="n">stderr</span><span class="p">,</span>
+                    <span class="p">)</span>
+                <span class="n">a_files</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">a</span><span class="p">)</span>
+                <span class="n">k</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">μ</span><span class="p">,</span> <span class="n">B</span><span class="p">,</span> <span class="n">B_tree</span><span class="p">,</span> <span class="n">Q</span><span class="p">,</span> <span class="n">Q_tree</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">loadtxt</span><span class="p">(</span>
+                    <span class="n">filename</span><span class="p">,</span> <span class="n">usecols</span><span class="o">=</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">6</span><span class="p">,</span> <span class="mi">7</span><span class="p">,</span> <span class="mi">8</span><span class="p">),</span> <span class="n">unpack</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                <span class="p">)</span>
+                <span class="n">data</span><span class="p">[</span><span class="n">conf</span><span class="p">,</span> <span class="n">lpt</span><span class="p">,</span> <span class="n">a</span><span class="p">][</span><span class="s1">&#39;k&#39;</span>     <span class="p">]</span> <span class="o">=</span> <span class="n">k</span>
+                <span class="n">data</span><span class="p">[</span><span class="n">conf</span><span class="p">,</span> <span class="n">lpt</span><span class="p">,</span> <span class="n">a</span><span class="p">][</span><span class="s1">&#39;t&#39;</span>     <span class="p">]</span> <span class="o">=</span> <span class="n">t</span>
+                <span class="n">data</span><span class="p">[</span><span class="n">conf</span><span class="p">,</span> <span class="n">lpt</span><span class="p">,</span> <span class="n">a</span><span class="p">][</span><span class="s1">&#39;μ&#39;</span>     <span class="p">]</span> <span class="o">=</span> <span class="n">μ</span>
+                <span class="n">data</span><span class="p">[</span><span class="n">conf</span><span class="p">,</span> <span class="n">lpt</span><span class="p">,</span> <span class="n">a</span><span class="p">][</span><span class="s1">&#39;B_tree&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">B_tree</span>
+                <span class="n">data</span><span class="p">[</span><span class="n">conf</span><span class="p">,</span> <span class="n">lpt</span><span class="p">,</span> <span class="n">a</span><span class="p">][</span><span class="s1">&#39;Q_tree&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">Q_tree</span>
+                <span class="n">data</span><span class="p">[</span><span class="n">conf</span><span class="p">,</span> <span class="n">lpt</span><span class="p">,</span> <span class="n">a</span><span class="p">][</span><span class="s1">&#39;B&#39;</span>     <span class="p">]</span> <span class="o">+=</span> <span class="n">B</span>
+                <span class="n">data</span><span class="p">[</span><span class="n">conf</span><span class="p">,</span> <span class="n">lpt</span><span class="p">,</span> <span class="n">a</span><span class="p">][</span><span class="s1">&#39;Q&#39;</span>     <span class="p">]</span> <span class="o">+=</span> <span class="n">Q</span>
+                <span class="n">data</span><span class="p">[</span><span class="n">conf</span><span class="p">,</span> <span class="n">lpt</span><span class="p">,</span> <span class="n">a</span><span class="p">][</span><span class="s1">&#39;n&#39;</span>     <span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+<span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+    <span class="n">d</span><span class="p">[</span><span class="s1">&#39;B&#39;</span><span class="p">]</span> <span class="o">/=</span> <span class="n">d</span><span class="p">[</span><span class="s1">&#39;n&#39;</span><span class="p">]</span>
+    <span class="n">d</span><span class="p">[</span><span class="s1">&#39;Q&#39;</span><span class="p">]</span> <span class="o">/=</span> <span class="n">d</span><span class="p">[</span><span class="s1">&#39;n&#39;</span><span class="p">]</span>
+<span class="n">confs</span>    <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">confs</span><span class="p">)</span>
+<span class="n">lpts</span>     <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">lpts</span><span class="p">)</span>
+<span class="n">a_values</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">a_values</span><span class="p">)</span>
+
+<span class="c1"># Plotting functions</span>
+<span class="k">def</span> <span class="nf">plot1D</span><span class="p">(</span><span class="n">conf</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">get_color</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">lpt</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+        <span class="n">color</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span>
+            <span class="n">matplotlib</span><span class="o">.</span><span class="n">colors</span><span class="o">.</span><span class="n">ColorConverter</span><span class="p">()</span><span class="o">.</span><span class="n">to_rgb</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;C</span><span class="si">{</span><span class="n">a_values</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">a</span><span class="p">)</span><span class="o">%</span><span class="mi">10</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="p">)</span>
+        <span class="n">color</span> <span class="o">/=</span> <span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="mi">2</span><span class="o">/</span><span class="mi">3</span><span class="o">*</span><span class="p">(</span><span class="n">lpt</span> <span class="o">-</span> <span class="mi">1</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">color</span>
+    <span class="n">fig</span><span class="p">,</span> <span class="n">axes</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="n">sharex</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">lpt</span> <span class="ow">in</span> <span class="n">lpts</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">a_values</span><span class="p">:</span>
+            <span class="n">subdata</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">((</span><span class="n">conf</span><span class="p">,</span> <span class="n">lpt</span><span class="p">,</span> <span class="n">a</span><span class="p">))</span>
+            <span class="k">if</span> <span class="n">subdata</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="n">k</span> <span class="o">=</span> <span class="n">subdata</span><span class="p">[</span><span class="s1">&#39;k&#39;</span><span class="p">]</span>
+            <span class="n">axes</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">loglog</span>  <span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">subdata</span><span class="p">[</span><span class="s1">&#39;B&#39;</span><span class="p">],</span> <span class="s1">&#39;-&#39;</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="n">get_color</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">lpt</span><span class="p">))</span>
+            <span class="n">axes</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">semilogx</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">subdata</span><span class="p">[</span><span class="s1">&#39;Q&#39;</span><span class="p">],</span> <span class="s1">&#39;-&#39;</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="n">get_color</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">lpt</span><span class="p">))</span>
+            <span class="n">axes</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">loglog</span>  <span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">subdata</span><span class="p">[</span><span class="s1">&#39;B_tree&#39;</span><span class="p">],</span> <span class="s1">&#39;k--&#39;</span><span class="p">,</span> <span class="n">linewidth</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+            <span class="n">axes</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">semilogx</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">subdata</span><span class="p">[</span><span class="s1">&#39;Q_tree&#39;</span><span class="p">],</span> <span class="s1">&#39;k--&#39;</span><span class="p">,</span> <span class="n">linewidth</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+            <span class="n">axes</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">set_xlim</span><span class="p">(</span><span class="n">k</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">k</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+    <span class="n">axes</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;$k\, [\mathrm</span><span class="si">{Mpc}</span><span class="s1">^{-1}]$&#39;</span><span class="p">)</span>
+    <span class="n">axes</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;$B\, [\mathrm</span><span class="si">{Mpc}</span><span class="s1">^6]$&#39;</span><span class="p">)</span>
+    <span class="n">axes</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;$Q$&#39;</span><span class="p">)</span>
+    <span class="n">axes</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">tick_params</span><span class="p">(</span><span class="s1">&#39;x&#39;</span><span class="p">,</span> <span class="n">direction</span><span class="o">=</span><span class="s1">&#39;inout&#39;</span><span class="p">,</span> <span class="n">which</span><span class="o">=</span><span class="s1">&#39;both&#39;</span><span class="p">)</span>
+    <span class="n">axes</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">set_zorder</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+    <span class="c1"># Legends</span>
+    <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">a_values</span><span class="p">:</span>
+        <span class="n">axes</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span>
+            <span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">,</span> <span class="s1">&#39;-&#39;</span><span class="p">,</span>
+            <span class="n">transform</span><span class="o">=</span><span class="n">axes</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">transAxes</span><span class="p">,</span>
+            <span class="n">color</span><span class="o">=</span><span class="n">get_color</span><span class="p">(</span><span class="n">a</span><span class="p">),</span> <span class="n">label</span><span class="o">=</span><span class="sa">rf</span><span class="s1">&#39;$a = </span><span class="si">{</span><span class="n">a</span><span class="si">}</span><span class="s1">$&#39;</span><span class="p">,</span>
+        <span class="p">)</span>
+    <span class="k">for</span> <span class="n">lpt</span> <span class="ow">in</span> <span class="n">lpts</span><span class="p">:</span>
+        <span class="n">axes</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span>
+            <span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">,</span> <span class="s1">&#39;-&#39;</span><span class="p">,</span>
+            <span class="n">transform</span><span class="o">=</span><span class="n">axes</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">transAxes</span><span class="p">,</span>
+            <span class="n">color</span><span class="o">=</span><span class="n">get_color</span><span class="p">(</span><span class="n">a_values</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">lpt</span><span class="p">),</span> <span class="n">label</span><span class="o">=</span><span class="sa">f</span><span class="s1">&#39;simulation: </span><span class="si">{</span><span class="n">lpt</span><span class="si">}</span><span class="s1">LPT&#39;</span><span class="p">,</span>
+        <span class="p">)</span>
+    <span class="n">axes</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span>
+        <span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">,</span> <span class="s1">&#39;k--&#39;</span><span class="p">,</span>
+        <span class="n">transform</span><span class="o">=</span><span class="n">axes</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">transAxes</span><span class="p">,</span>
+        <span class="n">linewidth</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s1">&#39;tree-level&#39;</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="k">for</span> <span class="n">ax</span> <span class="ow">in</span> <span class="n">axes</span><span class="p">:</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">legend</span><span class="p">(</span><span class="n">fontsize</span><span class="o">=</span><span class="mi">9</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">fig</span>
+<span class="k">def</span> <span class="nf">plot2D</span><span class="p">(</span><span class="n">conf</span><span class="p">,</span> <span class="n">y</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">get_logticks</span><span class="p">(</span><span class="n">logk</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">B</span><span class="p">):</span>
+        <span class="n">fig_tmp</span><span class="p">,</span> <span class="n">ax_tmp</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">()</span>
+        <span class="n">k</span> <span class="o">=</span> <span class="mi">10</span><span class="o">**</span><span class="n">logk</span>
+        <span class="n">ax_tmp</span><span class="o">.</span><span class="n">tripcolor</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">B</span><span class="p">)</span>
+        <span class="n">ax_tmp</span><span class="o">.</span><span class="n">set_xscale</span><span class="p">(</span><span class="s1">&#39;log&#39;</span><span class="p">)</span>
+        <span class="n">x_min</span><span class="p">,</span> <span class="n">x_max</span> <span class="o">=</span> <span class="n">k</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">k</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+        <span class="n">ticks</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">log10</span><span class="p">(</span><span class="n">ax_tmp</span><span class="o">.</span><span class="n">get_xticks</span><span class="p">())</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">close</span><span class="p">(</span><span class="n">fig_tmp</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">ticks</span>
+    <span class="n">fig</span><span class="p">,</span> <span class="n">axes</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span>
+        <span class="mi">2</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">a_values</span><span class="p">),</span>
+        <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mf">6.4</span><span class="o">*</span><span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="mf">0.5</span><span class="o">*</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">a_values</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)),</span> <span class="mf">4.8</span><span class="p">),</span>
+        <span class="n">sharex</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="k">for</span> <span class="n">lpt</span> <span class="ow">in</span> <span class="n">lpts</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">a</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">a_values</span><span class="p">):</span>
+            <span class="n">subdata</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">((</span><span class="n">conf</span><span class="p">,</span> <span class="n">lpt</span><span class="p">,</span> <span class="n">a</span><span class="p">))</span>
+            <span class="k">if</span> <span class="n">subdata</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="n">logk</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">log10</span><span class="p">(</span><span class="n">subdata</span><span class="p">[</span><span class="s1">&#39;k&#39;</span><span class="p">])</span>
+            <span class="n">B</span><span class="p">,</span> <span class="n">B_tree</span> <span class="o">=</span> <span class="n">subdata</span><span class="p">[</span><span class="s1">&#39;B&#39;</span><span class="p">],</span> <span class="n">subdata</span><span class="p">[</span><span class="s1">&#39;B_tree&#39;</span><span class="p">]</span>
+            <span class="n">Q</span><span class="p">,</span> <span class="n">Q_tree</span> <span class="o">=</span> <span class="n">subdata</span><span class="p">[</span><span class="s1">&#39;Q&#39;</span><span class="p">],</span> <span class="n">subdata</span><span class="p">[</span><span class="s1">&#39;Q_tree&#39;</span><span class="p">]</span>
+            <span class="c1"># B</span>
+            <span class="n">ax</span> <span class="o">=</span> <span class="n">axes</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="n">i</span><span class="p">]</span>
+            <span class="n">logc</span> <span class="o">=</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">B</span><span class="p">[</span><span class="n">B</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">])</span><span class="o">/</span><span class="n">np</span><span class="o">.</span><span class="n">min</span><span class="p">(</span><span class="n">B</span><span class="p">[</span><span class="n">B</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">])</span> <span class="o">&gt;</span> <span class="mf">1e+2</span><span class="p">)</span>
+            <span class="n">pc</span> <span class="o">=</span> <span class="n">ax</span><span class="o">.</span><span class="n">tripcolor</span><span class="p">(</span>
+                <span class="n">logk</span><span class="p">,</span> <span class="n">subdata</span><span class="p">[</span><span class="n">y</span><span class="p">],</span> <span class="n">B</span><span class="p">,</span>
+                <span class="n">norm</span><span class="o">=</span><span class="p">(</span><span class="n">matplotlib</span><span class="o">.</span><span class="n">colors</span><span class="o">.</span><span class="n">LogNorm</span><span class="p">()</span> <span class="k">if</span> <span class="n">logc</span> <span class="k">else</span> <span class="kc">None</span><span class="p">),</span>
+                <span class="n">shading</span><span class="o">=</span><span class="s1">&#39;gouraud&#39;</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="n">cbar</span> <span class="o">=</span> <span class="n">fig</span><span class="o">.</span><span class="n">colorbar</span><span class="p">(</span><span class="n">pc</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="n">ax</span><span class="p">,</span> <span class="n">shrink</span><span class="o">=</span><span class="mf">0.9</span><span class="p">)</span>
+            <span class="n">cbar</span><span class="o">.</span><span class="n">ax</span><span class="o">.</span><span class="n">tick_params</span><span class="p">(</span><span class="n">labelsize</span><span class="o">=</span><span class="mi">8</span><span class="p">)</span>
+            <span class="n">cbar</span><span class="o">.</span><span class="n">set_label</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;$B\, [\mathrm</span><span class="si">{Mpc}</span><span class="s1">^6]$&#39;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">logc</span><span class="p">:</span>
+                <span class="n">cbar</span><span class="o">.</span><span class="n">ax</span><span class="o">.</span><span class="n">set_yscale</span><span class="p">(</span><span class="s1">&#39;log&#39;</span><span class="p">)</span>
+            <span class="n">ax</span><span class="o">.</span><span class="n">tricontour</span><span class="p">(</span>
+                <span class="n">logk</span><span class="p">,</span> <span class="n">subdata</span><span class="p">[</span><span class="n">y</span><span class="p">],</span> <span class="n">B_tree</span><span class="p">,</span>
+                <span class="n">norm</span><span class="o">=</span><span class="n">pc</span><span class="o">.</span><span class="n">norm</span><span class="p">,</span> <span class="n">linewidths</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="n">logc_tree</span> <span class="o">=</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">B_tree</span><span class="p">)</span><span class="o">/</span><span class="n">np</span><span class="o">.</span><span class="n">min</span><span class="p">(</span><span class="n">B_tree</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mf">1e+2</span><span class="p">)</span>
+            <span class="n">tc</span> <span class="o">=</span> <span class="n">axes</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">tricontour</span><span class="p">(</span>
+                <span class="n">logk</span><span class="p">,</span> <span class="n">subdata</span><span class="p">[</span><span class="n">y</span><span class="p">],</span> <span class="n">B_tree</span><span class="p">,</span>
+                <span class="n">norm</span><span class="o">=</span><span class="p">(</span><span class="n">matplotlib</span><span class="o">.</span><span class="n">colors</span><span class="o">.</span><span class="n">LogNorm</span><span class="p">()</span> <span class="k">if</span> <span class="n">logc_tree</span> <span class="k">else</span> <span class="kc">None</span><span class="p">),</span>
+                <span class="n">colors</span><span class="o">=</span><span class="s1">&#39;k&#39;</span><span class="p">,</span> <span class="n">linestyles</span><span class="o">=</span><span class="s1">&#39;dashed&#39;</span><span class="p">,</span> <span class="n">linewidths</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="n">fmt</span> <span class="o">=</span> <span class="n">matplotlib</span><span class="o">.</span><span class="n">ticker</span><span class="o">.</span><span class="n">LogFormatterSciNotation</span><span class="p">()</span>
+            <span class="n">fmt</span><span class="o">.</span><span class="n">create_dummy_axis</span><span class="p">()</span>
+            <span class="n">ax</span><span class="o">.</span><span class="n">clabel</span><span class="p">(</span><span class="n">tc</span><span class="p">,</span> <span class="n">tc</span><span class="o">.</span><span class="n">levels</span><span class="p">,</span> <span class="n">fmt</span><span class="o">=</span><span class="n">fmt</span><span class="p">)</span>
+            <span class="n">ticks</span> <span class="o">=</span> <span class="n">get_logticks</span><span class="p">(</span><span class="n">logk</span><span class="p">,</span> <span class="n">subdata</span><span class="p">[</span><span class="n">y</span><span class="p">],</span> <span class="n">B</span><span class="p">)</span>
+            <span class="c1"># Q</span>
+            <span class="n">ax</span> <span class="o">=</span> <span class="n">axes</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="n">i</span><span class="p">]</span>
+            <span class="n">pc</span> <span class="o">=</span> <span class="n">ax</span><span class="o">.</span><span class="n">tripcolor</span><span class="p">(</span><span class="n">logk</span><span class="p">,</span> <span class="n">subdata</span><span class="p">[</span><span class="n">y</span><span class="p">],</span> <span class="n">Q</span><span class="p">,</span> <span class="n">shading</span><span class="o">=</span><span class="s1">&#39;gouraud&#39;</span><span class="p">)</span>
+            <span class="n">cbar</span> <span class="o">=</span> <span class="n">fig</span><span class="o">.</span><span class="n">colorbar</span><span class="p">(</span><span class="n">pc</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="n">ax</span><span class="p">,</span> <span class="n">shrink</span><span class="o">=</span><span class="mf">0.9</span><span class="p">)</span>
+            <span class="n">cbar</span><span class="o">.</span><span class="n">ax</span><span class="o">.</span><span class="n">tick_params</span><span class="p">(</span><span class="n">labelsize</span><span class="o">=</span><span class="mi">8</span><span class="p">)</span>
+            <span class="n">cbar</span><span class="o">.</span><span class="n">set_label</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;$Q$&#39;</span><span class="p">)</span>
+            <span class="n">ax</span><span class="o">.</span><span class="n">tricontour</span><span class="p">(</span>
+                <span class="n">logk</span><span class="p">,</span> <span class="n">subdata</span><span class="p">[</span><span class="n">y</span><span class="p">],</span> <span class="n">Q_tree</span><span class="p">,</span>
+                <span class="n">norm</span><span class="o">=</span><span class="n">pc</span><span class="o">.</span><span class="n">norm</span><span class="p">,</span> <span class="n">linewidths</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="n">tc</span> <span class="o">=</span> <span class="n">ax</span><span class="o">.</span><span class="n">tricontour</span><span class="p">(</span>
+                <span class="n">logk</span><span class="p">,</span> <span class="n">subdata</span><span class="p">[</span><span class="n">y</span><span class="p">],</span> <span class="n">Q_tree</span><span class="p">,</span>
+                <span class="n">colors</span><span class="o">=</span><span class="s1">&#39;k&#39;</span><span class="p">,</span> <span class="n">linestyles</span><span class="o">=</span><span class="s1">&#39;dashed&#39;</span><span class="p">,</span> <span class="n">linewidths</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="n">ax</span><span class="o">.</span><span class="n">clabel</span><span class="p">(</span><span class="n">tc</span><span class="p">,</span> <span class="n">tc</span><span class="o">.</span><span class="n">levels</span><span class="p">)</span>
+            <span class="n">axes</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="sa">rf</span><span class="s1">&#39;$a = </span><span class="si">{</span><span class="n">a</span><span class="si">}</span><span class="s1">$&#39;</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">j</span><span class="p">,</span> <span class="n">ax</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">axes</span><span class="p">[:,</span> <span class="n">i</span><span class="p">]):</span>
+                <span class="n">ax</span><span class="o">.</span><span class="n">set_ylim</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">min</span><span class="p">(</span><span class="n">subdata</span><span class="p">[</span><span class="n">y</span><span class="p">]),</span> <span class="mi">1</span> <span class="o">-</span> <span class="mf">1e-6</span><span class="o">*</span><span class="n">j</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">ax</span> <span class="ow">in</span> <span class="n">axes</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="p">:]:</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;$k\, [\mathrm</span><span class="si">{Mpc}</span><span class="s1">^{-1}]$&#39;</span><span class="p">)</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">set_xticks</span><span class="p">(</span><span class="n">ticks</span><span class="p">)</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">xaxis</span><span class="o">.</span><span class="n">set_major_formatter</span><span class="p">(</span>
+            <span class="n">matplotlib</span><span class="o">.</span><span class="n">ticker</span><span class="o">.</span><span class="n">FuncFormatter</span><span class="p">(</span>
+                <span class="k">lambda</span> <span class="n">val</span><span class="p">,</span> <span class="n">pos</span><span class="o">=</span><span class="kc">None</span><span class="p">:</span> <span class="n">matplotlib</span><span class="o">.</span><span class="n">ticker</span><span class="o">.</span><span class="n">LogFormatterSciNotation</span><span class="p">()(</span>
+                    <span class="mi">10</span><span class="o">**</span><span class="n">val</span><span class="p">,</span> <span class="n">pos</span><span class="p">,</span>
+                <span class="p">)</span>
+            <span class="p">)</span>
+        <span class="p">)</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">xaxis</span><span class="o">.</span><span class="n">set_minor_locator</span><span class="p">(</span><span class="n">matplotlib</span><span class="o">.</span><span class="n">ticker</span><span class="o">.</span><span class="n">AutoMinorLocator</span><span class="p">())</span>
+    <span class="k">for</span> <span class="n">ax</span> <span class="ow">in</span> <span class="n">axes</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]:</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">({</span><span class="s1">&#39;t&#39;</span><span class="p">:</span> <span class="sa">r</span><span class="s1">&#39;$t$&#39;</span><span class="p">,</span> <span class="s1">&#39;μ&#39;</span><span class="p">:</span> <span class="sa">r</span><span class="s1">&#39;$\mu$&#39;</span><span class="p">}[</span><span class="n">y</span><span class="p">])</span>
+    <span class="k">for</span> <span class="n">ax</span> <span class="ow">in</span> <span class="n">axes</span><span class="o">.</span><span class="n">flatten</span><span class="p">():</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">tick_params</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="s1">&#39;both&#39;</span><span class="p">,</span> <span class="n">which</span><span class="o">=</span><span class="s1">&#39;both&#39;</span><span class="p">,</span> <span class="n">labelsize</span><span class="o">=</span><span class="mi">8</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">ax</span> <span class="ow">in</span> <span class="n">axes</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="p">:]:</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">tick_params</span><span class="p">(</span><span class="s1">&#39;x&#39;</span><span class="p">,</span> <span class="n">direction</span><span class="o">=</span><span class="s1">&#39;inout&#39;</span><span class="p">,</span> <span class="n">which</span><span class="o">=</span><span class="s1">&#39;both&#39;</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">ax</span> <span class="ow">in</span> <span class="n">axes</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">:]</span><span class="o">.</span><span class="n">flatten</span><span class="p">():</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">tick_params</span><span class="p">(</span><span class="s1">&#39;y&#39;</span><span class="p">,</span> <span class="n">direction</span><span class="o">=</span><span class="s1">&#39;inout&#39;</span><span class="p">,</span> <span class="n">which</span><span class="o">=</span><span class="s1">&#39;both&#39;</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">axes</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]):</span>
+        <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">axes</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]):</span>
+            <span class="n">axes</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">]</span><span class="o">.</span><span class="n">set_zorder</span><span class="p">(</span><span class="n">j</span> <span class="o">-</span> <span class="n">i</span><span class="p">)</span>
+    <span class="c1"># Legend</span>
+    <span class="n">ax</span> <span class="o">=</span> <span class="n">axes</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
+    <span class="n">markerfacecolors</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span>
+        <span class="n">matplotlib</span><span class="o">.</span><span class="n">cm</span><span class="p">,</span> <span class="n">matplotlib</span><span class="o">.</span><span class="n">rcParams</span><span class="p">[</span><span class="s1">&#39;image.cmap&#39;</span><span class="p">],</span>
+    <span class="p">)([</span><span class="mf">0.2</span><span class="p">,</span> <span class="mf">0.8</span><span class="p">])[:,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span>
+    <span class="n">ylim</span> <span class="o">=</span> <span class="n">ax</span><span class="o">.</span><span class="n">get_ylim</span><span class="p">()</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span>
+        <span class="mf">0.5</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="s1">&#39;s&#39;</span><span class="p">,</span>
+        <span class="n">transform</span><span class="o">=</span><span class="n">ax</span><span class="o">.</span><span class="n">transAxes</span><span class="p">,</span>
+        <span class="n">markersize</span><span class="o">=</span><span class="mi">13</span><span class="p">,</span> <span class="n">markeredgecolor</span><span class="o">=</span><span class="s1">&#39;none&#39;</span><span class="p">,</span> <span class="n">fillstyle</span><span class="o">=</span><span class="s1">&#39;top&#39;</span><span class="p">,</span>
+        <span class="n">markerfacecolor</span><span class="o">=</span><span class="n">markerfacecolors</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">markerfacecoloralt</span><span class="o">=</span><span class="n">markerfacecolors</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+        <span class="n">label</span><span class="o">=</span><span class="s1">&#39;simulation&#39;</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_ylim</span><span class="p">(</span><span class="n">ylim</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span>
+        <span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">,</span> <span class="s1">&#39;k--&#39;</span><span class="p">,</span>
+        <span class="n">transform</span><span class="o">=</span><span class="n">ax</span><span class="o">.</span><span class="n">transAxes</span><span class="p">,</span>
+        <span class="n">linewidth</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+        <span class="n">label</span><span class="o">=</span><span class="s1">&#39;tree-level&#39;</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">legend</span><span class="p">(</span><span class="n">fontsize</span><span class="o">=</span><span class="mi">9</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">fig</span>
+
+<span class="c1"># Plot</span>
+<span class="k">for</span> <span class="n">conf</span> <span class="ow">in</span> <span class="n">confs</span><span class="p">:</span>
+    <span class="n">conf_simplified</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">conf</span>
+        <span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;-&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">)</span>
+        <span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;_&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">)</span>
+        <span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39; &#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">)</span>
+        <span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+    <span class="p">)</span>
+    <span class="k">if</span> <span class="n">conf_simplified</span> <span class="ow">in</span> <span class="p">{</span><span class="s1">&#39;equilateral&#39;</span><span class="p">,</span> <span class="s1">&#39;stretched&#39;</span><span class="p">,</span> <span class="s1">&#39;squeezed&#39;</span><span class="p">,</span> <span class="s1">&#39;isoscelesright&#39;</span><span class="p">}:</span>
+        <span class="n">fig</span> <span class="o">=</span> <span class="n">plot1D</span><span class="p">(</span><span class="n">conf</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">conf_simplified</span> <span class="ow">in</span> <span class="p">{</span><span class="s1">&#39;lisosceles&#39;</span><span class="p">,</span> <span class="s1">&#39;sisosceles&#39;</span><span class="p">}:</span>
+        <span class="n">fig</span> <span class="o">=</span> <span class="n">plot2D</span><span class="p">(</span><span class="n">conf</span><span class="p">,</span> <span class="s1">&#39;μ&#39;</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">conf_simplified</span> <span class="ow">in</span> <span class="p">{</span><span class="s1">&#39;elongated&#39;</span><span class="p">,</span> <span class="s1">&#39;linear&#39;</span><span class="p">,</span> <span class="s1">&#39;right&#39;</span><span class="p">}:</span>
+        <span class="n">fig</span> <span class="o">=</span> <span class="n">plot2D</span><span class="p">(</span><span class="n">conf</span><span class="p">,</span> <span class="s1">&#39;t&#39;</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s1">&#39;Configuration </span><span class="si">{</span><span class="n">conf</span><span class="si">}</span><span class="s1"> not known to plotting script&#39;</span><span class="p">,</span>
+            <span class="n">file</span><span class="o">=</span><span class="n">sys</span><span class="o">.</span><span class="n">stderr</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">continue</span>
+    <span class="n">fig</span><span class="o">.</span><span class="n">suptitle</span><span class="p">(</span><span class="n">conf</span><span class="p">)</span>
+    <span class="n">fig</span><span class="o">.</span><span class="n">tight_layout</span><span class="p">()</span>
+    <span class="n">fig</span><span class="o">.</span><span class="n">subplots_adjust</span><span class="p">(</span><span class="n">hspace</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+    <span class="n">fig</span><span class="o">.</span><span class="n">savefig</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">this_dir</span><span class="si">}</span><span class="s1">/plot_</span><span class="si">{</span><span class="n">conf</span><span class="si">}</span><span class="s1">.png&#39;</span><span class="p">,</span> <span class="n">dpi</span><span class="o">=</span><span class="mi">150</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">close</span><span class="p">(</span><span class="n">fig</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<p>Do not worry about the large size of the plotting script; though we shall make
+use of it, we shall not study its content in any detail. Store the plotting
+script as e.g. <code class="docutils literal notranslate"><span class="pre">output/tutorial/plot.py</span></code>. With the first simulation
+completed, run this script using</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>-m<span class="w"> </span>output/tutorial/plot.py
+</pre></div>
+</div>
+<p>This will produce a file named <code class="docutils literal notranslate"><span class="pre">plot_equilateral.png</span></code> in the
+<code class="docutils literal notranslate"><span class="pre">output/tutorial</span></code> directory. Here, ‘equilateral’ refers to the particular
+bispectrum configuration measured within the simulation, as specified within
+the <code class="docutils literal notranslate"><span class="pre">bispec_options</span></code> parameter. In our <a class="reference internal" href="#param-bispec"><span class="std std-ref">parameter file</span></a>
+this value is set through the helper variable <code class="docutils literal notranslate"><span class="pre">_conf</span></code>, which indeed is given
+a default value of <code class="docutils literal notranslate"><span class="pre">'equilateral'</span></code>. The plot shows the full bispectrum
+<span class="math notranslate nohighlight">\(B\)</span> in the upper panel and the reduced bispectrum <span class="math notranslate nohighlight">\(Q\)</span> in the lower
+panel. Both the simulation results and the theoretical tree-level predictions
+are shown for both <span class="math notranslate nohighlight">\(B\)</span> and <span class="math notranslate nohighlight">\(Q\)</span>. All of these are made available in
+the bispectrum data files due to them being enabled in the <code class="docutils literal notranslate"><span class="pre">bispec_select</span></code>
+parameter in the <a class="reference internal" href="#param-bispec"><span class="std std-ref">parameter file</span></a>.</p>
+<p>While the intermediary (<span class="math notranslate nohighlight">\(a = 0.3\)</span>) bispectrum seems to agree reasonably
+well with the tree-level prediction, the final (<span class="math notranslate nohighlight">\(a = 1\)</span>) bispectrum has
+grown beyond the tree-level prediction as a result of the non-linear gravity
+applied throughout the simulation. The initial
+(<span class="math notranslate nohighlight">\(a = a_{\text{begin}} = 0.02\)</span>) bispectrum looks very bad in comparison,
+which is caused by the low bispectrum signal mostly drowning in noise.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>It may appear that only a single tree-level prediction is shown for the
+reduced bispectrum <span class="math notranslate nohighlight">\(Q\)</span> in the lower panel, but this is really due to
+this value being very close to time-independent (and approximately equal to
+<span class="math notranslate nohighlight">\(\frac{4}{7}\)</span> for the case of the equilateral bispectrum).</p>
+</div>
+<h4>Precision through averages</h4><p>To help with the noise issue (especially noticeable at early times), we can
+fix the amplitudes for the primordial random noise to all have the value of
+the ensemble average. For this we use the <code class="docutils literal notranslate"><span class="pre">primordial_amplitude_fixed</span></code>
+<a class="reference internal" href="../parameters/simulation.html#primordial-amplitude-fixed"><span class="std std-ref">parameter</span></a>, already present in the
+<a class="reference internal" href="#param-bispec"><span class="std std-ref">parameter file</span></a> but set to <code class="docutils literal notranslate"><span class="pre">False</span></code>. Change this to
+<code class="docutils literal notranslate"><span class="pre">True</span></code>, rerun the simulation and update the plot.</p>
+<p>While simply fixing the primordial amplitudes works wonders for the <em>power</em>
+spectrum, its usefulness for the <em>bi</em>spectrum may not be so evident. The true
+strength of the fixed amplitudes comes when we combine two such simulations,
+having primordial noise which is completely out of phase with each other. That
+is, we now want to run a partner-simulation also with fixed amplitudes, but
+with the phases shifted by <span class="math notranslate nohighlight">\(\require{upgreek}\uppi\)</span>. For this we can use
+the <code class="docutils literal notranslate"><span class="pre">primordial_phase_shift</span></code> <a class="reference internal" href="../parameters/simulation.html#primordial-phase-shift"><span class="std std-ref">parameter</span></a>, which
+in the <a class="reference internal" href="#param-bispec"><span class="std std-ref">parameter file above</span></a> is controlled through the
+<code class="docutils literal notranslate"><span class="pre">_shift</span></code> helper variable:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-p<span class="w"> </span>param/tutorial<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-c<span class="w"> </span><span class="s2">&quot;_shift = π&quot;</span>
+</pre></div>
+</div>
+<p>Running the above does not overwrite the existing results, but dumps the new
+output into a separate subdirectory in accordance with the shift. If you now
+compare the <em>automatically generated</em> bispectrum plot at the initial time
+(<cite>output/tutorial/2LPT/seed0_shift0/equilateral/bispec_a=0.02.png</cite>) of the
+non-shifted simulation with that of the shifted simulation, you will find that
+the two bispectra almost look like each others negative (dashed pieces of the
+coloured line indicate negative <span class="math notranslate nohighlight">\(B\)</span>). Averaging them together will thus
+cancel out much of the noise, resulting in a much better measurement of the
+true matter bispectrum inherent to the cosmology under consideration. In fact,
+the <a class="reference internal" href="#plot-bispec"><span class="std std-ref">plotting script</span></a> is set up to do exactly that! Rerun
+the plotting script to now make <code class="docutils literal notranslate"><span class="pre">plot_equilateral.png</span></code> much nicer,
+especially at early times.</p>
+<p>While the primordial amplitudes are kept fixed, the phases are still being
+randomly drawn. We can thus further reduce the noise in the bispectrum by
+increasing the number of phases. We could do this by increasing the simulation
+size, but we may instead choose to carry out the simulations multiple times
+over, each time making use of a different set of random primordial phases,
+again with the intent of averaging together their individual bispectra. The
+various random seeds used by CO<em>N</em>CEPT live within the <code class="docutils literal notranslate"><span class="pre">random_seeds</span></code>
+<a class="reference internal" href="../parameters/simulation.html#random-seeds"><span class="std std-ref">parameter</span></a>, with <code class="docutils literal notranslate"><span class="pre">'primordial</span> <span class="pre">phases'</span></code> being the seed
+of interest currently. Furthermore, our <a class="reference internal" href="#param-bispec"><span class="std std-ref">parameter file</span></a>
+is set up to construct this seed based on a <code class="docutils literal notranslate"><span class="pre">_seed</span></code> helper variable. To
+increase the precision of our final bispectrum significantly, let us perform
+three additional paired simulations, i.e. make use of three additional seeds,
+with two anti-correlated (“paired”) simulations being carried out for each
+such seed:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="k">for</span><span class="w"> </span>seed<span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="m">2</span><span class="w"> </span><span class="m">3</span><span class="p">;</span><span class="w"> </span><span class="k">do</span>
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="nb">shift</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="m">0</span><span class="w"> </span>π<span class="p">;</span><span class="w"> </span><span class="k">do</span>
+<span class="w">        </span>./concept<span class="w"> </span><span class="se">\</span>
+<span class="w">            </span>-p<span class="w"> </span>param/tutorial<span class="w"> </span><span class="se">\</span>
+<span class="w">            </span>-c<span class="w"> </span><span class="s2">&quot;_seed = </span><span class="nv">$seed</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">            </span>-c<span class="w"> </span><span class="s2">&quot;_shift = </span><span class="nv">$shift</span><span class="s2">&quot;</span>
+<span class="w">    </span><span class="k">done</span>
+<span class="k">done</span>
+</pre></div>
+</div>
+<p>Once all simulations are complete, update the plot. The bispectrum should now
+have become decently smooth at all three times, possibly with some numerical
+artefacts at the high and/or low <span class="math notranslate nohighlight">\(k\)</span> end. It is now very clear that the
+initial bispectrum falls short of the tree-level value, implying that the
+particle system is not initialised in a manner that respects this theoretical
+prediction.</p>
+<h3>Second-order Lagrangian perturbation theory initial conditions</h3><p>The reason for the mismatch between the simulation initial conditions and the
+perturbative tree-level prediction is that the former makes use of first-order
+(Lagrangian) perturbation theory while the latter is a second-order result.
+While CO<em>N</em>CEPT uses first-order Lagrangian perturbation theory (1LPT) to
+assign initial particle positions and momenta (through what is often referred
+to as the Zel’dovich approximation), a second-order (2LPT) correction can
+optionally be applied on top. The order of LPT to use is specified by the
+<code class="docutils literal notranslate"><span class="pre">'LPT'</span></code> sub-parameter of the <code class="docutils literal notranslate"><span class="pre">realization_options</span></code>
+<a class="reference internal" href="../parameters/physics.html#realization-options"><span class="std std-ref">parameter</span></a>, which defaults to <code class="docutils literal notranslate"><span class="pre">1</span></code>. In
+<a class="reference internal" href="#param-bispec"><span class="std std-ref">our parameter file</span></a>, this is controlled through the
+<code class="docutils literal notranslate"><span class="pre">_lpt</span></code> helper variable.</p>
+<p>To see what difference switching out 1LPT for 2LPT has on the initial as well
+as the later bispectra, we should run all <span class="math notranslate nohighlight">\(4\times 2\)</span> simulations again,
+this time with <code class="docutils literal notranslate"><span class="pre">_lpt</span> <span class="pre">=</span> <span class="pre">2</span></code>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="k">for</span><span class="w"> </span>seed<span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="m">0</span><span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="m">2</span><span class="w"> </span><span class="m">3</span><span class="p">;</span><span class="w"> </span><span class="k">do</span>
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="nb">shift</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="m">0</span><span class="w"> </span>π<span class="p">;</span><span class="w"> </span><span class="k">do</span>
+<span class="w">        </span>./concept<span class="w"> </span><span class="se">\</span>
+<span class="w">            </span>-p<span class="w"> </span>param/tutorial<span class="w"> </span><span class="se">\</span>
+<span class="w">            </span>-c<span class="w"> </span><span class="s2">&quot;_seed = </span><span class="nv">$seed</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">            </span>-c<span class="w"> </span><span class="s2">&quot;_shift = </span><span class="nv">$shift</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">            </span>-c<span class="w"> </span><span class="s2">&quot;_lpt = 2&quot;</span>
+<span class="w">    </span><span class="k">done</span>
+<span class="k">done</span>
+</pre></div>
+</div>
+<p>Once again, these new results will not overwrite any of the old. While you can
+in fact update the plot continually while the above simulations are busy being
+carried out, you should suspend any judgement until they are all completed.
+The 2LPT results will be shown as darkened versions of the colours used
+for 1LP.</p>
+<p>With the plot updated following the completion of every simulation, we see that
+opting for 2LPT indeed leads to excellent agreement with the tree-level
+prediction at the initial time. At later times, the (relative) difference in
+the simulation bispectra for 1LPT and 2LPT becomes less pronounced. We also
+see that the simulation bispectrum follows the tree-level prediction closely
+up until rather late times, before outgrowing it at the larger
+<span class="math notranslate nohighlight">\(k\)</span> values.</p>
+<p>If you would like to see still better convergence of the bispectrum, feel free
+to run even more paired simulations with different seeds (using 2LPT, 1LPT,
+or both).</p>
+<h3>Other bispectrum configurations</h3><p>Let us now consider bispectrum configurations different from the equilateral
+case. Another commonly studied case is that of the “squeezed” bispectrum,
+where one of the triangle legs (one of the three <span class="math notranslate nohighlight">\(k\)</span> values) are much
+smaller than the other two. The configuration to use is controlled by the
+<code class="docutils literal notranslate"><span class="pre">'configuration'</span></code> sub-parameter of the <code class="docutils literal notranslate"><span class="pre">bispec_options</span></code>
+<a class="reference internal" href="../parameters/numerics.html#bispec-options"><span class="std std-ref">parameter</span></a>, which in the
+<a class="reference internal" href="#param-bispec"><span class="std std-ref">above parameter file</span></a> is controlled through the <code class="docutils literal notranslate"><span class="pre">_conf</span></code>
+helper variable. We could rerun the many simulations in a manner similar to
+what we did above (now with <code class="docutils literal notranslate"><span class="pre">_conf</span> <span class="pre">=</span> <span class="pre">'squeezed'</span></code> included), but we can save
+time by computing the bispectra directly off of the snapshots dumped during
+the 2LPT runs (that’s right; all of the 2LPT simulations sneakily dumped
+snapshots as well!).</p>
+<p>In order to compute bispectra directly from the snapshots, we shall make use
+of the <em>bispec utility</em>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-u<span class="w"> </span>bispec<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-p<span class="w"> </span>param/tutorial<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-c<span class="w"> </span><span class="s2">&quot;_conf = &#39;squeezed&#39;&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>output/tutorial/2LPT/*
+</pre></div>
+</div>
+<p>(possibly with the inclusion of <code class="docutils literal notranslate"><span class="pre">-n</span></code>). Note that the above will compute the
+squeezed bispectrum for all snapshots produced by the 2LPT runs. For a given
+snapshot, the output files produced by the bispec utility will be placed in
+the directory containing said snapshot. That is, they will not all be neatly
+collected into a separate subdirectory named <code class="docutils literal notranslate"><span class="pre">squeezed</span></code>, next to the already
+existing <code class="docutils literal notranslate"><span class="pre">equilateral</span></code> subdirectory. Let’s organise the squeezed bispectra
+appropriately ourselves, then:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>organise<span class="o">()</span><span class="w"> </span><span class="o">{</span>
+<span class="w">    </span><span class="o">(</span>
+<span class="w">        </span><span class="nb">cd</span><span class="w"> </span>output/tutorial/2LPT<span class="w"> </span><span class="se">\</span>
+<span class="w">        </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="k">for</span><span class="w"> </span>d<span class="w"> </span><span class="k">in</span><span class="w"> </span>*<span class="p">;</span><span class="w"> </span><span class="k">do</span><span class="w"> </span><span class="se">\</span>
+<span class="w">            </span><span class="nb">cd</span><span class="w"> </span><span class="nv">$d</span><span class="w"> </span><span class="se">\</span>
+<span class="w">            </span><span class="o">&amp;&amp;</span><span class="w"> </span>mkdir<span class="w"> </span>-p<span class="w"> </span><span class="nv">$1</span><span class="w"> </span><span class="se">\</span>
+<span class="w">            </span><span class="o">&amp;&amp;</span><span class="w"> </span>mv<span class="w"> </span>bispec*<span class="w"> </span><span class="nv">$1</span>/<span class="w"> </span><span class="se">\</span>
+<span class="w">            </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">cd</span><span class="w"> </span>..
+<span class="w">        </span><span class="k">done</span>
+<span class="w">    </span><span class="o">)</span>
+<span class="o">}</span>
+organise<span class="w"> </span>squeezed
+</pre></div>
+</div>
+<p>If you now take a look at the contents of the <code class="docutils literal notranslate"><span class="pre">output/tutorial/2LPT</span></code>
+directory, each subdirectory should have equilateral and squeezed bispectrum
+files neatly sorted into separate further subdirectories.</p>
+<p>Rerunning the plotting script, we now additionally get <code class="docutils literal notranslate"><span class="pre">plot_squeezed.png</span></code>,
+showing only the 2LPT (as we did not compute the squeezed bispectra for the
+1LPT simulations) results together with their tree-level predictions. Looking
+at the lower <span class="math notranslate nohighlight">\(Q\)</span> panel, the agreement between the simulation measurements
+and the tree-level predictions does not appear to be as good as for the
+equilateral configurations. From this it is clear that we cannot generally
+expect our simulations to be initialized with a bispectrum matching the
+tree-level prediction, even when using 2LPT. As tree-level and 2LPT are in
+fact not equivalent perturbative methods, the striking agreement we found for
+equilateral configurations appears even more incredible. Looking at the
+upper <span class="math notranslate nohighlight">\(B\)</span> panel of <code class="docutils literal notranslate"><span class="pre">plot_squeezed.png</span></code>, we see that the simulation and
+theory results <em>do</em> manage to closely follow each other over many orders
+of magnitude.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>To specify a given triangle configuration, CO<em>N</em>CEPT uses the
+<span class="math notranslate nohighlight">\((k, t, \mu)\)</span> parametrisation, related to the side lengths of the
+triangle <span class="math notranslate nohighlight">\((k_1, k_2, k_3)\)</span> through</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}k &amp;\equiv k_1\,,\\
+t &amp;\equiv \frac{k_2}{k_1}\,,\\
+\mu &amp;\equiv \frac{k_1^2 + k_2^2 - k_3^2}{2k_1k_2}\,.\end{split}\]</div>
+<p>Here <span class="math notranslate nohighlight">\(k\)</span> specifies the overall size of the triangle, while <span class="math notranslate nohighlight">\(t\)</span>
+and <span class="math notranslate nohighlight">\(\mu\)</span> together specify the shape. The equilateral configuration
+<span class="math notranslate nohighlight">\(k_1 = k_2 = k_3\)</span> thus corresponds to <span class="math notranslate nohighlight">\(t = 1\)</span>,
+<span class="math notranslate nohighlight">\(\mu = \frac{1}{2}\)</span>, leaving <span class="math notranslate nohighlight">\(k\)</span> to be varied. The squeezed
+limit is defined by <span class="math notranslate nohighlight">\(k_3 = 0\)</span> and thus <span class="math notranslate nohighlight">\(k_1 = k_2\)</span>,
+corresponding to <span class="math notranslate nohighlight">\(t = 1\)</span>, <span class="math notranslate nohighlight">\(\mu = 1\)</span>. At this very limit, the
+<span class="math notranslate nohighlight">\(k_3\)</span> shell contains no modes and so no measurement of the bispectrum
+can be performed. A slight deviation from the true squeezed limit thus has
+to be made, with  CO<em>N</em>CEPT choosing to use <span class="math notranslate nohighlight">\(\mu = 0.99\)</span>.</p>
+<p>The first three columns of the bispectrum data files contain <span class="math notranslate nohighlight">\(k\)</span>,
+<span class="math notranslate nohighlight">\(t\)</span> and <span class="math notranslate nohighlight">\(\mu\)</span>, respectively.</p>
+<p>For further details on the <span class="math notranslate nohighlight">\((k, t, \mu)\)</span> parametrisation used for the
+various pre-defined configurations in CO<em>N</em>CEPT, see the
+<code class="docutils literal notranslate"><span class="pre">bispec_options</span></code> <a class="reference internal" href="../parameters/numerics.html#bispec-options"><span class="std std-ref">parameter</span></a>.</p>
+</div>
+<p>Using the same snapshots as before, we can compute the bispectrum for yet
+another class of configurations. Let’s choose “S-isosceles”:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">conf</span><span class="o">=</span>S-isosceles
+./concept<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-u<span class="w"> </span>bispec<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-p<span class="w"> </span>param/tutorial<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-c<span class="w"> </span><span class="s2">&quot;_conf = &#39;</span><span class="nv">$conf</span><span class="s2">&#39;&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>output/tutorial/2LPT/*<span class="w"> </span><span class="se">\</span>
+<span class="o">&amp;&amp;</span><span class="w"> </span>organise<span class="w"> </span><span class="nv">$conf</span><span class="w"> </span><span class="se">\</span>
+<span class="o">&amp;&amp;</span><span class="w"> </span>./concept<span class="w"> </span>-m<span class="w"> </span>output/tutorial/plot.py
+</pre></div>
+</div>
+<p>Note that the above includes the bispectrum measurements, file organisation
+and subsequent plotting. Once completed, <code class="docutils literal notranslate"><span class="pre">plot_S-isosceles.png</span></code> will have
+appeared. This plot is qualitatively different from the equilateral and
+squeezed plots, as now the configuration subspace is two-dimensional, with
+both <span class="math notranslate nohighlight">\(k\)</span> and <span class="math notranslate nohighlight">\(\mu\)</span> varying. In fact, “S-isosceles” is defined
+through <span class="math notranslate nohighlight">\(\frac{1}{2} \le t \le 1\)</span>, <span class="math notranslate nohighlight">\(\mu = (2t)^{-1}\)</span> (or
+equivalently <span class="math notranslate nohighlight">\(k_1 \ge k_2 = k_3\)</span>), meaning that <span class="math notranslate nohighlight">\(t\)</span> varies as
+well, but in a manner dependent on <span class="math notranslate nohighlight">\(\mu\)</span>. The simulation results are
+shown in this plot as shaded regions, with the colours corresponding to
+<span class="math notranslate nohighlight">\(B\)</span> and <span class="math notranslate nohighlight">\(Q\)</span> values as indicated by the colorbars. The tree-level
+predictions are shown on top with dashed, black contour lines. Though it can
+be difficult to see, each dashed tree-level line further consists of a full,
+coloured line (drawn underneath), with the colour again corresponding to the
+value via the colorbars. For the lower <span class="math notranslate nohighlight">\(Q\)</span> panels, the colours of the
+tree-level lines appear more clearly on top of the shaded regions (especially
+toward high <span class="math notranslate nohighlight">\(\mu\)</span>), indicating a significant difference between the
+simulation and tree-level <span class="math notranslate nohighlight">\(Q\)</span> value. Conversely, the fact that the
+colour of the tree-level lines does not stand out on top of the upper shaded
+regions tells us that the tree-level and simulation results for <span class="math notranslate nohighlight">\(B\)</span>
+agree well. As expected, the simulation results start to clearly deviate from
+the tree-level prediction at late times, as seen in the upper right panel.</p>
+<p>Let us measure the bispectrum for yet another two-dimensional configuration
+subspace, say that of “elongated” triangles, meaning triangles with no
+enclosed area; <span class="math notranslate nohighlight">\(\frac{1}{2} \le t \le 1\)</span>, <span class="math notranslate nohighlight">\(\mu = 1\)</span> (or
+equivalently <span class="math notranslate nohighlight">\(k_1 = k_2 + k_3\)</span>).</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>In the literature, “elongated” configurations are also sometimes referred to
+as “flattened”, “folded” or “linear”.</p>
+</div>
+<p>Perform the bispectrum measurements in the usual manner:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">conf</span><span class="o">=</span>elongated
+./concept<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-u<span class="w"> </span>bispec<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-p<span class="w"> </span>param/tutorial<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-c<span class="w"> </span><span class="s2">&quot;_conf = &#39;</span><span class="nv">$conf</span><span class="s2">&#39;&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>output/tutorial/2LPT/*<span class="w"> </span><span class="se">\</span>
+<span class="o">&amp;&amp;</span><span class="w"> </span>organise<span class="w"> </span><span class="nv">$conf</span><span class="w"> </span><span class="se">\</span>
+<span class="o">&amp;&amp;</span><span class="w"> </span>./concept<span class="w"> </span>-m<span class="w"> </span>output/tutorial/plot.py
+</pre></div>
+</div>
+<p>The resulting <code class="docutils literal notranslate"><span class="pre">plot_elongated.png</span></code> will again show two-dimensional subplots,
+though this time with <span class="math notranslate nohighlight">\(t\)</span> as the second independent variable. We again
+see reasonable agreement between the simulation and tree-level results,
+though not quite as stunning as for S-isosceles. Most strikingly though, a
+significant chunk of parameter space is missing, corresponding to low
+<span class="math notranslate nohighlight">\(k\)</span> and high <span class="math notranslate nohighlight">\(t\)</span>. Though this part in fact belongs to the
+elongated subspace of the full triangle configuration space, it has been
+excluded due to <span class="math notranslate nohighlight">\(k_3\)</span> being dangerously small, leading to measurements
+of <span class="math notranslate nohighlight">\(B\)</span> being much less accurate here.</p>
+<p>You are encouraged to explore even more triangle configurations on your own.
+The <a class="reference internal" href="#plot-bispec"><span class="std std-ref">plotting script</span></a> will recognize the following
+configurations:</p>
+<ul class="simple">
+<li><p>elongated</p></li>
+<li><p>equilateral</p></li>
+<li><p>isosceles-right</p></li>
+<li><p>L-isosceles</p></li>
+<li><p>right</p></li>
+<li><p>S-isosceles</p></li>
+<li><p>squeezed</p></li>
+<li><p>stretched</p></li>
+</ul>
+<p>To learn more about the different bispectrum configurations available in
+CO<em>N</em>CEPT — including completely general, manual configuration
+specification — consult the <code class="docutils literal notranslate"><span class="pre">bispec_options</span></code>
+<a class="reference internal" href="../parameters/numerics.html#bispec-options"><span class="std std-ref">parameter</span></a>.</p>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="beyond_matter_only.html" class="btn btn-neutral float-left" title="7. Beyond matter-only simulations" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="gadget.html" class="btn btn-neutral float-right" title="9. Comparison with GADGET-2" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p></p>
+  </div>
+
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

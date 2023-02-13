@@ -792,8 +792,9 @@ You could run a simulation interactively if you wanted to:
 
 .. code-block:: python3
 
-   >>> output_times['a']['render2D'] = render2D_times['a'] = (1, )
+   >>> output_times['a']['render2D'] = (1, )
    >>> timeloop()
+   >>> exit()
 
 where ``>>>`` indicates input which should be typed at the interactive Python
 prompt. We use :ref:`pure Python mode <pure_python>` as our interactive
@@ -835,6 +836,7 @@ something like
    >>> G_Newton/(units.m**3/(units.kg*units.s**2))
 
    >>> # 💭 Success!
+   >>> exit()
 
 
 

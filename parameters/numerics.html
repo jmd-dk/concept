@@ -57,9 +57,10 @@
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="../tutorial/output_types.html">5. Other kinds of output</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="../tutorial/output_types.html#d-renders">5.1. 3D renders</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../tutorial/output_types.html#id1">5.2. 2D renders</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../tutorial/output_types.html#snapshots">5.3. Snapshots</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../tutorial/output_types.html#bispectra">5.1. Bispectra</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../tutorial/output_types.html#d-renders">5.2. 3D renders</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../tutorial/output_types.html#id1">5.3. 2D renders</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../tutorial/output_types.html#snapshots">5.4. Snapshots</a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="../tutorial/working_remotely.html">6. Working on remote clusters</a></li>
@@ -71,7 +72,8 @@
 <li class="toctree-l3"><a class="reference internal" href="../tutorial/beyond_matter_only.html#non-linear-massive-neutrinos">7.5. Non-linear massive neutrinos</a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="../tutorial/gadget.html">8. Comparison with GADGET-2</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorial/bispectra.html">8. Bispectra and 2LPT</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorial/gadget.html">9. Comparison with GADGET-2</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../installation.html">Installation</a><ul>
@@ -165,6 +167,7 @@
 <li class="toctree-l3"><a class="reference internal" href="input_output.html#autosave-interval"><code class="docutils literal notranslate"><span class="pre">autosave_interval</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="input_output.html#snapshot-select"><code class="docutils literal notranslate"><span class="pre">snapshot_select</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="input_output.html#powerspec-select"><code class="docutils literal notranslate"><span class="pre">powerspec_select</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="input_output.html#bispec-select"><code class="docutils literal notranslate"><span class="pre">bispec_select</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="input_output.html#render2d-select"><code class="docutils literal notranslate"><span class="pre">render2D_select</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="input_output.html#render3d-select"><code class="docutils literal notranslate"><span class="pre">render3D_select</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="input_output.html#snapshot-type"><code class="docutils literal notranslate"><span class="pre">snapshot_type</span></code></a></li>
@@ -181,7 +184,10 @@
 <li class="toctree-l3"><a class="reference internal" href="#potential-options"><code class="docutils literal notranslate"><span class="pre">potential_options</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#shortrange-params"><code class="docutils literal notranslate"><span class="pre">shortrange_params</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#powerspec-options"><code class="docutils literal notranslate"><span class="pre">powerspec_options</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="#k-modes-per-decade"><code class="docutils literal notranslate"><span class="pre">k_modes_per_decade</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#bispec-options"><code class="docutils literal notranslate"><span class="pre">bispec_options</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#bispec-antialiasing"><code class="docutils literal notranslate"><span class="pre">bispec_antialiasing</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#class-dedicated-spectra"><code class="docutils literal notranslate"><span class="pre">class_dedicated_spectra</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#class-modes-per-decade"><code class="docutils literal notranslate"><span class="pre">class_modes_per_decade</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="cosmology.html">Cosmology</a><ul>
@@ -275,6 +281,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../utilities/info.html">info utility</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../utilities/play.html">play utility</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../utilities/powerspec.html">powerspec utility</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/bispec.html">bispec utility</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../utilities/render3D.html">render3D utility</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../utilities/update.html">update utility</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../utilities/watch.html">watch utility</a></li>
@@ -345,16 +352,19 @@ options regarding the numerical methods used within the simulation, as well as
 some numerical resolutions and length scales.</p>
 <div class="contents local topic" id="contents">
 <ul class="simple">
-<li><p><a class="reference internal" href="#boxsize" id="id6"><code class="docutils literal notranslate"><span class="pre">boxsize</span></code></a></p></li>
-<li><p><a class="reference internal" href="#potential-options" id="id7"><code class="docutils literal notranslate"><span class="pre">potential_options</span></code></a></p></li>
-<li><p><a class="reference internal" href="#shortrange-params" id="id8"><code class="docutils literal notranslate"><span class="pre">shortrange_params</span></code></a></p></li>
-<li><p><a class="reference internal" href="#powerspec-options" id="id9"><code class="docutils literal notranslate"><span class="pre">powerspec_options</span></code></a></p></li>
-<li><p><a class="reference internal" href="#k-modes-per-decade" id="id10"><code class="docutils literal notranslate"><span class="pre">k_modes_per_decade</span></code></a></p></li>
+<li><p><a class="reference internal" href="#boxsize" id="id10"><code class="docutils literal notranslate"><span class="pre">boxsize</span></code></a></p></li>
+<li><p><a class="reference internal" href="#potential-options" id="id11"><code class="docutils literal notranslate"><span class="pre">potential_options</span></code></a></p></li>
+<li><p><a class="reference internal" href="#shortrange-params" id="id12"><code class="docutils literal notranslate"><span class="pre">shortrange_params</span></code></a></p></li>
+<li><p><a class="reference internal" href="#powerspec-options" id="id13"><code class="docutils literal notranslate"><span class="pre">powerspec_options</span></code></a></p></li>
+<li><p><a class="reference internal" href="#bispec-options" id="id14"><code class="docutils literal notranslate"><span class="pre">bispec_options</span></code></a></p></li>
+<li><p><a class="reference internal" href="#bispec-antialiasing" id="id15"><code class="docutils literal notranslate"><span class="pre">bispec_antialiasing</span></code></a></p></li>
+<li><p><a class="reference internal" href="#class-dedicated-spectra" id="id16"><code class="docutils literal notranslate"><span class="pre">class_dedicated_spectra</span></code></a></p></li>
+<li><p><a class="reference internal" href="#class-modes-per-decade" id="id17"><code class="docutils literal notranslate"><span class="pre">class_modes_per_decade</span></code></a></p></li>
 </ul>
 </div>
 <hr class="docutils" />
 <section id="boxsize">
-<span id="id1"></span><h2><a class="toc-backref" href="#id6"><code class="docutils literal notranslate"><span class="pre">boxsize</span></code></a><a class="headerlink" href="#boxsize" title="Permalink to this headline"></a></h2>
+<span id="id1"></span><h2><a class="toc-backref" href="#id10"><code class="docutils literal notranslate"><span class="pre">boxsize</span></code></a><a class="headerlink" href="#boxsize" title="Permalink to this headline"></a></h2>
 <table>
 <colgroup>
 <col style="width: 4%" />
@@ -386,7 +396,7 @@ box of constant comoving side length
 <tr class="row-even"><td><p></p></td>
 <td><p><strong>Example 0</strong></p></td>
 <td><p></p></td>
-<td><p>Use a box size of <span class="math notranslate nohighlight">\(1024\,\mathrm{Mpc}\)</span>:</p>
+<td><p>Use a box size of <span class="math notranslate nohighlight">\(1024\,\text{Mpc}\)</span>:</p>
 <div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">boxsize</span> <span class="o">=</span> <span class="mi">1024</span><span class="o">*</span><span class="n">Mpc</span>
 </pre></div>
 </div>
@@ -396,7 +406,7 @@ box of constant comoving side length
 <td><p><strong>Example 1</strong></p></td>
 <td><p></p></td>
 <td><p>Use a box size of
-<span class="math notranslate nohighlight">\(1\,\mathrm{Gpc} = 1000\,\mathrm{Mpc}\)</span>:</p>
+<span class="math notranslate nohighlight">\(1\,\text{Gpc} = 1000\,\text{Mpc}\)</span>:</p>
 <div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">boxsize</span> <span class="o">=</span> <span class="mi">1</span><span class="o">*</span><span class="n">Gpc</span>
 </pre></div>
 </div>
@@ -405,12 +415,12 @@ box of constant comoving side length
 <tr class="row-even"><td><p></p></td>
 <td><p><strong>Example 2</strong></p></td>
 <td><p></p></td>
-<td><p>Use a box size of <span class="math notranslate nohighlight">\(1024\,\mathrm{Mpc}/h\)</span>:</p>
+<td><p>Use a box size of <span class="math notranslate nohighlight">\(1024\,\text{Mpc}/h\)</span>:</p>
 <div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">boxsize</span> <span class="o">=</span> <span class="mi">1024</span><span class="o">*</span><span class="n">Mpc</span><span class="o">/</span><span class="n">h</span>
 </pre></div>
 </div>
 <p>With e.g.
-<span class="math notranslate nohighlight">\(H_0 = 64\,\mathrm{km}\, \mathrm{s}^{-1}\, \mathrm{Mpc}^{-1}\)</span>,
+<span class="math notranslate nohighlight">\(H_0 = 64\,\text{km}\, \text{s}^{-1}\, \text{Mpc}^{-1}\)</span>,
 this is equivalent to</p>
 <div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">boxsize</span> <span class="o">=</span> <span class="mi">1600</span><span class="o">*</span><span class="n">Mpc</span>
 </pre></div>
@@ -427,7 +437,7 @@ this is equivalent to</p>
 <hr class="docutils" />
 </section>
 <section id="potential-options">
-<span id="id2"></span><h2><a class="toc-backref" href="#id7"><code class="docutils literal notranslate"><span class="pre">potential_options</span></code></a><a class="headerlink" href="#potential-options" title="Permalink to this headline"></a></h2>
+<span id="id2"></span><h2><a class="toc-backref" href="#id11"><code class="docutils literal notranslate"><span class="pre">potential_options</span></code></a><a class="headerlink" href="#potential-options" title="Permalink to this headline"></a></h2>
 <table>
 <colgroup>
 <col style="width: 4%" />
@@ -947,7 +957,7 @@ the gravitational P³M potential:</p>
 <hr class="docutils" />
 </section>
 <section id="shortrange-params">
-<span id="id3"></span><h2><a class="toc-backref" href="#id8"><code class="docutils literal notranslate"><span class="pre">shortrange_params</span></code></a><a class="headerlink" href="#shortrange-params" title="Permalink to this headline"></a></h2>
+<span id="id3"></span><h2><a class="toc-backref" href="#id12"><code class="docutils literal notranslate"><span class="pre">shortrange_params</span></code></a><a class="headerlink" href="#shortrange-params" title="Permalink to this headline"></a></h2>
 <table>
 <colgroup>
 <col style="width: 4%" />
@@ -986,15 +996,15 @@ which specifies sub-parameters for each short-range
 force. Currently, <code class="docutils literal notranslate"><span class="pre">'gravity'</span></code> is the only short-range
 force implemented. For detailed information about the
 short-range force — including the short-/long-range
-force split scale <span class="math notranslate nohighlight">\(x_{\mathrm{s}}\)</span> and cut-off
-<span class="math notranslate nohighlight">\(x_{\mathrm{r}}\)</span> as well as tiles, subtiles and
+force split scale <span class="math notranslate nohighlight">\(x_{\text{s}}\)</span> and cut-off
+<span class="math notranslate nohighlight">\(x_{\text{r}}\)</span> as well as tiles, subtiles and
 automatic refinement thereof — we refer to the paper
 on
 ‘<a class="reference internal" href="../publications.html#the-cosmological-simulation-code-concept-10"><span class="std std-ref">The cosmological simulation code CO𝘕CEPT 1.0</span></a>’.</p>
 <p>Each of the sub-parameters are described below.</p>
 <ul>
 <li><p><code class="docutils literal notranslate"><span class="pre">'scale'</span></code>: This is the short-/long-range force split
-scale <span class="math notranslate nohighlight">\(x_{\mathrm{s}}\)</span>, specifying the scale at
+scale <span class="math notranslate nohighlight">\(x_{\text{s}}\)</span>, specifying the scale at
 which the short- and long-range P³M forces are
 comparable. The default value corresponds to a scale
 of <span class="math notranslate nohighlight">\(1.25\)</span> grid cell widths, as <code class="docutils literal notranslate"><span class="pre">'gridsize'</span></code> is
@@ -1004,15 +1014,15 @@ the long-range potential grid. See the
 <a class="reference internal" href="#potential-options"><span class="std std-ref">parameter</span></a>
 for details on this grid.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">'range'</span></code>: This is the cut-off scale
-<span class="math notranslate nohighlight">\(x_{\mathrm{r}}\)</span>, specifying the range of the
+<span class="math notranslate nohighlight">\(x_{\text{r}}\)</span>, specifying the range of the
 short-range force. The default value is set to
-<span class="math notranslate nohighlight">\(4.5 x_{\mathrm{s}}\)</span>, as <code class="docutils literal notranslate"><span class="pre">'scale'</span></code> is being
+<span class="math notranslate nohighlight">\(4.5 x_{\text{s}}\)</span>, as <code class="docutils literal notranslate"><span class="pre">'scale'</span></code> is being
 dynamically substituted.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">'tilesize'</span></code>: This sets the (minimum) width of the
 tiles. To ensure that all particle pairs within
-<span class="math notranslate nohighlight">\(x_{\mathrm{r}}\)</span> of each other gets paired up,
+<span class="math notranslate nohighlight">\(x_{\text{r}}\)</span> of each other gets paired up,
 this should be set no lower than
-<span class="math notranslate nohighlight">\(x_{\mathrm{r}}\)</span>, i.e. <code class="docutils literal notranslate"><span class="pre">'range'</span></code>. At the same
+<span class="math notranslate nohighlight">\(x_{\text{r}}\)</span>, i.e. <code class="docutils literal notranslate"><span class="pre">'range'</span></code>. At the same
 time, there is typically no reason to set a larger
 value, as this just slows down the short-range
 interaction without actually increasing the number of
@@ -1047,8 +1057,8 @@ the <code class="docutils literal notranslate"><span class="pre">'tablesize'</sp
 <tr class="row-even"><td><p></p></td>
 <td><p><strong>Example 0</strong></p></td>
 <td><p></p></td>
-<td><p>Extend <span class="math notranslate nohighlight">\(x_{\mathrm{r}}\)</span> all the way to
-<span class="math notranslate nohighlight">\(5.5 x_{\mathrm{s}}\)</span>, for the gravitational
+<td><p>Extend <span class="math notranslate nohighlight">\(x_{\text{r}}\)</span> all the way to
+<span class="math notranslate nohighlight">\(5.5 x_{\text{s}}\)</span>, for the gravitational
 short-range interaction:</p>
 <div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">shortrange_params</span> <span class="o">=</span> <span class="p">{</span>
     <span class="s1">&#39;gravity&#39;</span><span class="p">:</span> <span class="p">{</span>
@@ -1116,7 +1126,7 @@ short-range interaction:</p>
 <hr class="docutils" />
 </section>
 <section id="powerspec-options">
-<span id="id4"></span><h2><a class="toc-backref" href="#id9"><code class="docutils literal notranslate"><span class="pre">powerspec_options</span></code></a><a class="headerlink" href="#powerspec-options" title="Permalink to this headline"></a></h2>
+<span id="id4"></span><h2><a class="toc-backref" href="#id13"><code class="docutils literal notranslate"><span class="pre">powerspec_options</span></code></a><a class="headerlink" href="#powerspec-options" title="Permalink to this headline"></a></h2>
 <table>
 <colgroup>
 <col style="width: 4%" />
@@ -1152,10 +1162,10 @@ and dumps</p></td>
     <span class="s1">&#39;k_max&#39;</span><span class="p">:</span> <span class="p">{</span>
         <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="s1">&#39;nyquist&#39;</span><span class="p">,</span>
     <span class="p">},</span>
-    <span class="s1">&#39;binsize&#39;</span><span class="p">:</span> <span class="p">{</span>
+    <span class="s1">&#39;bins per decade&#39;</span><span class="p">:</span> <span class="p">{</span>
         <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="p">{</span>
-            <span class="s1">&#39;1*k_min&#39;</span><span class="p">:</span>   <span class="n">π</span><span class="o">/</span><span class="n">boxsize</span><span class="p">,</span>
-            <span class="s1">&#39;5*k_min&#39;</span><span class="p">:</span> <span class="mi">2</span><span class="o">*</span><span class="n">π</span><span class="o">/</span><span class="n">boxsize</span><span class="p">,</span>
+            <span class="s1">&#39;  4*k_min&#39;</span><span class="p">:</span>  <span class="mi">4</span><span class="p">,</span>
+            <span class="s1">&#39;100*k_min&#39;</span><span class="p">:</span> <span class="mi">40</span><span class="p">,</span>
         <span class="p">},</span>
     <span class="p">},</span>
     <span class="s1">&#39;tophat&#39;</span><span class="p">:</span> <span class="p">{</span>
@@ -1235,9 +1245,9 @@ and plots). If given as a <code class="docutils literal notranslate"><span class
 dynamically substituted for the Nyquist mode,</p>
 <div class="math notranslate nohighlight">
 \[\require{upgreek}
-k_{\mathrm{Nyquist}} = \biggl\lfloor\frac{n_{\mathrm{ps}}}{2}\biggr\rfloor \times \frac{2\uppi}{L_{\mathrm{box}}}\, ,\]</div>
-<p>with <span class="math notranslate nohighlight">\(L_{\mathrm{box}}\)</span> given by <code class="docutils literal notranslate"><span class="pre">boxsize</span></code> and
-<span class="math notranslate nohighlight">\(n_{\mathrm{ps}}\)</span> the global grid size used for
+k_{\text{Nyquist}} = \biggl\lfloor\frac{n_{\text{ps}}}{2}\biggr\rfloor \times \frac{2\uppi}{L_{\text{box}}}\, ,\]</div>
+<p>with <span class="math notranslate nohighlight">\(L_{\text{box}}\)</span> given by <code class="docutils literal notranslate"><span class="pre">boxsize</span></code> and
+<span class="math notranslate nohighlight">\(n_{\text{ps}}\)</span> the global grid size used for
 the power spectrum.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
@@ -1246,18 +1256,20 @@ will not yield further data points, as no further
 data is available in the 3D grid.</p>
 </div>
 </li>
-<li><p><code class="docutils literal notranslate"><span class="pre">'binsize'</span></code>: Specifies the width of the power
-spectrum bins. By specifying different widths at
-different <span class="math notranslate nohighlight">\(k\)</span>, a running (logarithmically
-interpolated) bin size is obtained. When the
-<span class="math notranslate nohighlight">\(k\)</span>‘s are given as <code class="docutils literal notranslate"><span class="pre">str</span></code>s, the following
-sub<code class="docutils literal notranslate"><span class="pre">str</span></code>s are dynamically substituted:</p>
+<li><p><code class="docutils literal notranslate"><span class="pre">'bins</span> <span class="pre">per</span> <span class="pre">decade'</span></code>: Specifies the number of power
+spectrum bins per decade in <span class="math notranslate nohighlight">\(k\)</span>. By specifying
+different numbers at different <span class="math notranslate nohighlight">\(k\)</span>, a running
+(logarithmically interpolated) number of bins is
+obtained. When the <span class="math notranslate nohighlight">\(k\)</span>‘s are given as
+<code class="docutils literal notranslate"><span class="pre">str</span></code>s, the following sub<code class="docutils literal notranslate"><span class="pre">str</span></code>s are
+dynamically substituted:</p>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">'k_min'</span></code>: <code class="docutils literal notranslate"><span class="pre">2*π/boxsize</span></code>.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">'k_max'</span></code>: Value set for <code class="docutils literal notranslate"><span class="pre">'k_max'</span></code>, though at
-most <code class="docutils literal notranslate"><span class="pre">sqrt(3)*gridsize//2*k_min</span></code>.</p></li>
+most <code class="docutils literal notranslate"><span class="pre">sqrt(3)*(gridsize//2)*k_min</span></code>.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">'gridsize'</span></code>: <code class="docutils literal notranslate"><span class="pre">gridsize</span></code>.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">'nyquist'</span></code>: <code class="docutils literal notranslate"><span class="pre">gridsize//2*k_min</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'k_fundamental'</span></code>/<code class="docutils literal notranslate"><span class="pre">'k_f'</span></code>: <code class="docutils literal notranslate"><span class="pre">2*π/boxsize</span></code>.</p></li>
 </ul>
 </li>
 <li><p><code class="docutils literal notranslate"><span class="pre">'tophat'</span></code>: Included in the power spectrum data
@@ -1266,7 +1278,7 @@ files is also the root-mean-square density variation
 top-hat filter <span class="math notranslate nohighlight">\(W(s)\)</span> of radius <span class="math notranslate nohighlight">\(R\)</span>:</p>
 <div class="math notranslate nohighlight">
 \[\begin{split}\require{upgreek}
-\sigma_R &amp;= \frac{1}{2\uppi^2} \left( \int k^2 W^2(kR) P(k)\,\mathrm{d}k \right)^{1/2}\, , \\
+\sigma_R &amp;= \frac{1}{2\uppi^2} \left( \int k^2 W^2(kR) P(k)\,\mathrm{d}k \right)^{\frac{1}{2}}\, , \\
 W(s) &amp;= \frac{3}{s^3}\bigl(\sin(s) - s\cos(s)\bigr)\, ,\end{split}\]</div>
 <p>with <span class="math notranslate nohighlight">\(P(k)\)</span> the power spectrum.</p>
 <div class="admonition note">
@@ -1326,11 +1338,11 @@ shortcut for setting both <code class="docutils literal notranslate"><span class
 <tr class="row-odd"><td><p></p></td>
 <td><p><strong>Example 1</strong></p></td>
 <td><p></p></td>
-<td><p>Use small bins of the same size for all <span class="math notranslate nohighlight">\(k\)</span> of
-every power spectrum:</p>
+<td><p>Employ many (small) bins of the same (logarithmic) size
+for all <span class="math notranslate nohighlight">\(k\)</span> of every power spectrum:</p>
 <div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">powerspec_options</span> <span class="o">=</span> <span class="p">{</span>
-    <span class="s1">&#39;binsize&#39;</span><span class="p">:</span> <span class="p">{</span>
-        <span class="s1">&#39;all&#39;</span>             <span class="p">:</span> <span class="mf">0.5</span><span class="o">*</span><span class="n">π</span><span class="o">/</span><span class="n">boxsize</span><span class="p">,</span>
+    <span class="s1">&#39;bins per decade&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;all&#39;</span>             <span class="p">:</span> <span class="mi">100</span><span class="p">,</span>
         <span class="s1">&#39;all combinations&#39;</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span>
     <span class="p">},</span>
 <span class="p">}</span>
@@ -1338,7 +1350,7 @@ every power spectrum:</p>
 </div>
 <p>This may be shortened to</p>
 <div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">powerspec_options</span> <span class="o">=</span> <span class="p">{</span>
-    <span class="s1">&#39;binsize&#39;</span><span class="p">:</span> <span class="mf">0.5</span><span class="o">*</span><span class="n">π</span><span class="o">/</span><span class="n">boxsize</span><span class="p">,</span>
+    <span class="s1">&#39;bins per decade&#39;</span><span class="p">:</span> <span class="mi">100</span><span class="p">,</span>
 <span class="p">}</span>
 </pre></div>
 </div>
@@ -1366,8 +1378,813 @@ spectra of the component with a name/species of
 </table>
 <hr class="docutils" />
 </section>
-<section id="k-modes-per-decade">
-<span id="id5"></span><h2><a class="toc-backref" href="#id10"><code class="docutils literal notranslate"><span class="pre">k_modes_per_decade</span></code></a><a class="headerlink" href="#k-modes-per-decade" title="Permalink to this headline"></a></h2>
+<section id="bispec-options">
+<span id="id5"></span><h2><a class="toc-backref" href="#id14"><code class="docutils literal notranslate"><span class="pre">bispec_options</span></code></a><a class="headerlink" href="#bispec-options" title="Permalink to this headline"></a></h2>
+<table>
+<colgroup>
+<col style="width: 4%" />
+<col style="width: 10%" />
+<col style="width: 4%" />
+<col style="width: 82%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Description</strong></p></td>
+<td><p></p></td>
+<td><p>Specifications for bispectrum computations
+and dumps</p></td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Default</strong></p></td>
+<td><p></p></td>
+<td><div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+    <span class="s1">&#39;configuration&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="p">(</span><span class="s1">&#39;equilateral&#39;</span><span class="p">,</span> <span class="mi">20</span><span class="p">),</span>
+    <span class="p">},</span>
+    <span class="s1">&#39;shellthickness&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="p">[</span>
+            <span class="p">{</span>
+                <span class="s1">&#39;1*k_fundamental&#39;</span><span class="p">:</span> <span class="s1">&#39;0.25*k_fundamental&#39;</span><span class="p">,</span>
+                <span class="s1">&#39;4*k_fundamental&#39;</span><span class="p">:</span> <span class="s1">&#39;max(3*k_fundamental, 1/20*log(10)*k)&#39;</span><span class="p">,</span>
+            <span class="p">},</span>
+            <span class="p">{</span>
+                <span class="s1">&#39;1*k_fundamental&#39;</span><span class="p">:</span> <span class="s1">&#39;0.25*k_fundamental&#39;</span><span class="p">,</span>
+                <span class="s1">&#39;4*k_fundamental&#39;</span><span class="p">:</span> <span class="s1">&#39;max(3*k_fundamental, 1/20*log(10)*k)&#39;</span><span class="p">,</span>
+            <span class="p">},</span>
+            <span class="p">{</span>
+                <span class="s1">&#39;1*k_fundamental&#39;</span><span class="p">:</span> <span class="s1">&#39;0.25*k_fundamental&#39;</span><span class="p">,</span>
+                <span class="s1">&#39;4*k_fundamental&#39;</span><span class="p">:</span> <span class="s1">&#39;max(3*k_fundamental, 1/20*log(10)*k)&#39;</span><span class="p">,</span>
+            <span class="p">},</span>
+        <span class="p">]</span>
+    <span class="p">},</span>
+    <span class="s1">&#39;upstream gridsize&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;particles&#39;</span><span class="p">:</span> <span class="s1">&#39;2*cbrt(Ñ)&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;fluid&#39;</span>    <span class="p">:</span> <span class="s1">&#39;gridsize&#39;</span><span class="p">,</span>
+    <span class="p">},</span>
+    <span class="s1">&#39;global gridsize&#39;</span><span class="p">:</span> <span class="p">{},</span>
+    <span class="s1">&#39;interpolation&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="s1">&#39;PCS&#39;</span><span class="p">,</span>
+    <span class="p">},</span>
+    <span class="s1">&#39;deconvolve&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="p">},</span>
+    <span class="s1">&#39;interlace&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="p">},</span>
+    <span class="s1">&#39;significant figures&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="mi">8</span><span class="p">,</span>
+    <span class="p">},</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Elaboration</strong></p></td>
+<td><p></p></td>
+<td><p>This is a <code class="docutils literal notranslate"><span class="pre">dict</span></code> of several individual sub-parameters,
+specifying details of how to compute and save bispectra.
+All sub-parameters are themselves
+<a class="reference internal" href="parameters.html#components-and-selections"><span class="std std-ref">component selections</span></a>.</p>
+<p>For computing a bispectrum, one or more components are
+first interpolated onto individual <em>upstream</em> grids,
+possibly using deconvolution and interlacing, after
+which they are added together in Fourier space,
+producing a <em>global</em> grid. This scheme is similar to the
+one used for potentials, except here we never go back to
+real space, neither do we interpolate anything back to
+the particles. See the <code class="docutils literal notranslate"><span class="pre">potential_options</span></code>
+<a class="reference internal" href="#potential-options"><span class="std std-ref">parameter</span></a> for a walk-through
+of the scheme.</p>
+<p>Many of the sub-parameters are the same as within the
+<code class="docutils literal notranslate"><span class="pre">powerspec_options</span></code>
+<a class="reference internal" href="#powerspec-options"><span class="std std-ref">parameter</span></a>, and have the same
+meaning. These will not be reiterated here. The
+remaining sub-parameters are described below:</p>
+<ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">'configuration'</span></code>: Specifies the triangle
+configurations for which to compute the bispectrum for
+each component. Rather than writing the bispectrum as
+a function of the length of the three wave vectors
+<span class="math notranslate nohighlight">\(B(k_1, k_2, k_3)\)</span>, CO<em>N</em>CEPT makes use of
+parametrisation <span class="math notranslate nohighlight">\(B(k, t, \mu)\)</span>, where</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}k &amp;\equiv k_1\,,\\
+t &amp;\equiv \frac{k_2}{k_1}\,,\\
+\mu &amp;\equiv \frac{k_1^2 + k_2^2 - k_3^2}{2k_1k_2}\,,\end{split}\]</div>
+<p>or conversely</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}k_1 &amp;\equiv k\,,\\
+k_2 &amp;\equiv tk_1\,,\\
+k_3 &amp;\equiv \sqrt{k_1^2 + k_2^2 - 2\mu k_1k_2}\,.\end{split}\]</div>
+<p>Using this parametrisation, the configurations to use
+may be specified in multiple different ways:</p>
+<ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">(k,</span> <span class="pre">t,</span> <span class="pre">μ)</span></code>: Single configuration, corresponding
+to one bispectrum bin. Note that <code class="docutils literal notranslate"><span class="pre">k</span></code>, <code class="docutils literal notranslate"><span class="pre">t</span></code> and
+<code class="docutils literal notranslate"><span class="pre">μ</span></code> must each be a single number, given in that
+order. The bin represents the average of triangles
+with <span class="math notranslate nohighlight">\((k, t, \mu)\)</span> in the vicinity of the
+values specified, in accordance with the
+<code class="docutils literal notranslate"><span class="pre">'shellthickness'</span></code> sub-parameter (see below).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">{'k':</span> <span class="pre">&lt;...&gt;,</span> <span class="pre">'t':</span> <span class="pre">&lt;...&gt;,</span> <span class="pre">'μ':</span> <span class="pre">&lt;...&gt;}</span></code>: Multiple
+configurations spanning a chunk of configuration
+space. Here each <code class="docutils literal notranslate"><span class="pre">&lt;...&gt;</span></code> is stand-in for either a
+single number or multiple numbers (e.g. within in a
+<code class="docutils literal notranslate"><span class="pre">list</span></code>). All configurations in the Cartesian
+product of the three <code class="docutils literal notranslate"><span class="pre">&lt;...&gt;</span></code> will be included.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'&lt;named-configuration&gt;'</span></code>: Multiple configurations
+spanning a named portion of configuration space.
+Many typical configurations are known to
+CO<em>N</em>CEPT by name. These include:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">'equilateral'</span></code>: <span class="math notranslate nohighlight">\(t = 1\)</span>,
+<span class="math notranslate nohighlight">\(\mu = \frac{1}{2}\)</span>,
+<span class="math notranslate nohighlight">\(\,(k_1 = k_2 = k_3).\)</span></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'stretched'</span></code>: <span class="math notranslate nohighlight">\(t = \frac{1}{2}\)</span>,
+<span class="math notranslate nohighlight">\(\mu = 1\)</span>, <span class="math notranslate nohighlight">\(\,(k_1 = 2k_2 = 2k_3).\)</span></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'squeezed'</span></code>: <span class="math notranslate nohighlight">\(t = 1\)</span>, <span class="math notranslate nohighlight">\(\mu = 0.99\)</span>,
+<span class="math notranslate nohighlight">\(\,(k_1 = k_2, k_3 \approx 0).\)</span></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'isosceles</span> <span class="pre">right'</span></code>: <span class="math notranslate nohighlight">\(t = 1/\sqrt{2}\)</span>,
+<span class="math notranslate nohighlight">\(\mu = 1/\sqrt{2}\)</span>,
+<span class="math notranslate nohighlight">\(\,(k_1 = \sqrt{2}k_2 = \sqrt{2}k_3).\)</span></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'L-isosceles'</span></code>: <span class="math notranslate nohighlight">\(t = 1\)</span>,
+<span class="math notranslate nohighlight">\(\frac{1}{2} \le \mu &lt; 1\)</span>,
+<span class="math notranslate nohighlight">\(\,(k_1 = k_2 \ge k_3).\)</span></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'S-isosceles'</span></code>:
+<span class="math notranslate nohighlight">\(\frac{1}{2} \le t \le 1\)</span>,
+<span class="math notranslate nohighlight">\(\mu = (2t)^{-1}\)</span>,
+<span class="math notranslate nohighlight">\(\,(k_1 \ge k_2 = k_3).\)</span></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'elongated'</span></code>/<code class="docutils literal notranslate"><span class="pre">'flattened'</span></code>/<code class="docutils literal notranslate"><span class="pre">'folded'</span></code>/<code class="docutils literal notranslate"><span class="pre">'linear'</span></code>:
+<span class="math notranslate nohighlight">\(\frac{1}{2} \le t &lt; 1\)</span>, <span class="math notranslate nohighlight">\(\mu = 1\)</span>,
+<span class="math notranslate nohighlight">\(\,(k_1 = k_2 + k_3).\)</span></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'right'</span></code>: <span class="math notranslate nohighlight">\(1/\sqrt{2} \le t = \mu &lt; 1\)</span>
+<span class="math notranslate nohighlight">\(\,(k_1^2 = k_2^2 + k_3^2).\)</span></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'acute'</span></code>: <span class="math notranslate nohighlight">\(1/\sqrt{2} \le t \le 1\)</span>,
+<span class="math notranslate nohighlight">\((2t)^{-1} \le \mu &lt; 1\)</span>,
+<span class="math notranslate nohighlight">\(\,(k_1^2 \le k_2^2 + k_3^2).\)</span></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'obtuse'</span></code> <span class="math notranslate nohighlight">\(1/\sqrt{2} \le \mu &lt; 1\)</span>,
+<span class="math notranslate nohighlight">\((2\mu)^{-1} \le t &lt; \mu\)</span>,
+<span class="math notranslate nohighlight">\(\,(k_1^2 \ge k_2^2 + k_3^2).\)</span></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'all'</span></code> <span class="math notranslate nohighlight">\(\frac{1}{2} \le t \le 1\)</span>,
+<span class="math notranslate nohighlight">\((2t)^{-1} \le \mu &lt; 1\)</span>
+<span class="math notranslate nohighlight">\(\,(k_1 \ge k_2 \ge k_3).\)</span></p></li>
+</ul>
+<p>In all of th above named configurations,
+<span class="math notranslate nohighlight">\(k = k_1\)</span> goes from <code class="docutils literal notranslate"><span class="pre">5*k_f</span></code> to
+<code class="docutils literal notranslate"><span class="pre">2/3*nyquist</span></code>, with <code class="docutils literal notranslate"><span class="pre">k_f</span> <span class="pre">=</span> <span class="pre">2*π/boxsize</span></code> and
+<code class="docutils literal notranslate"><span class="pre">nyquist</span> <span class="pre">=</span> <span class="pre">gridsize//2*k_f</span></code>.</p>
+<p>For all of the bove named configurations,
+the convention that <span class="math notranslate nohighlight">\(k_1 \ge k_2 \ge k_3\)</span> is
+used, corresponding to</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}\frac{1}{2} &amp;\le t \le 1\,, \\
+\frac{1}{2} &amp;\le \mu \le 1\,, \\
+\frac{1}{2} &amp;\le t\mu\,.\end{split}\]</div>
+<p>Note that this restriction is not imposed when
+manually specifying <span class="math notranslate nohighlight">\(k\)</span>, <span class="math notranslate nohighlight">\(t\)</span>,
+<span class="math notranslate nohighlight">\(\mu\)</span>.</p>
+</li>
+<li><p>(<code class="docutils literal notranslate"><span class="pre">'&lt;named-configuration&gt;'</span></code>, n): Named portion of
+configuration space like above, with the number of
+bins set through the integer <code class="docutils literal notranslate"><span class="pre">n</span></code>. This is
+interpreted as the number of bins per decade along
+the <span class="math notranslate nohighlight">\(k = k_1\)</span> dimension, with the total number
+further depending on the global grid size in use for
+the bispectrum measurement. The <span class="math notranslate nohighlight">\(t\)</span> and
+<span class="math notranslate nohighlight">\(\mu\)</span> dimensions are likewise subdivided,
+using the same total number of cuts as for the
+<span class="math notranslate nohighlight">\(k\)</span> dimension.</p>
+<p>When <code class="docutils literal notranslate"><span class="pre">n</span></code> is not specified (corresponding to the
+previous bullet point), <code class="docutils literal notranslate"><span class="pre">n</span></code> defaults to <code class="docutils literal notranslate"><span class="pre">20</span></code>.</p>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>From the above, it can be shown that the total
+number of bispectrum bins in the named
+configurations grows approximately like
+<span class="math notranslate nohighlight">\(\mathcal{O}[(n^d(\ln (n_{\text{bs}}) - 1)^d]\)</span>,
+with <span class="math notranslate nohighlight">\(n_{\text{bs}}\)</span> the global grid size
+used for the bispectrum computation and <span class="math notranslate nohighlight">\(d\)</span>
+the dimensionality of the selected chunk of
+parameter space:</p>
+<ul class="simple">
+<li><p><span class="math notranslate nohighlight">\(d = 1\)</span>: <code class="docutils literal notranslate"><span class="pre">'equilateral'</span></code>,
+<code class="docutils literal notranslate"><span class="pre">'stretched'</span></code>, <code class="docutils literal notranslate"><span class="pre">'squeezed'</span></code>,
+<code class="docutils literal notranslate"><span class="pre">'isosceles</span> <span class="pre">right'</span></code>.</p></li>
+<li><p><span class="math notranslate nohighlight">\(d = 2\)</span>: <code class="docutils literal notranslate"><span class="pre">'L-isosceles'</span></code>,
+<code class="docutils literal notranslate"><span class="pre">'S-isosceles'</span></code>, <code class="docutils literal notranslate"><span class="pre">'elongated'</span></code>,
+<code class="docutils literal notranslate"><span class="pre">'right'</span></code>.</p></li>
+<li><p><span class="math notranslate nohighlight">\(d = 3\)</span>: <code class="docutils literal notranslate"><span class="pre">'acute'</span></code>, <code class="docutils literal notranslate"><span class="pre">'obtuse'</span></code>,
+<code class="docutils literal notranslate"><span class="pre">'all'</span></code>.</p></li>
+</ul>
+</div>
+</li>
+<li><p>Finally, multiple specifications of any of the above
+kinds can be simultaneously selected by writing them
+together in a <code class="docutils literal notranslate"><span class="pre">list</span></code>.</p></li>
+</ul>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'shellthickness'</span></code>: Specifies the thickness of the
+three <span class="math notranslate nohighlight">\(k\)</span> shells (one for each of <span class="math notranslate nohighlight">\(k_1\)</span>,
+<span class="math notranslate nohighlight">\(k_2\)</span>, <span class="math notranslate nohighlight">\(k_3\)</span>) making up each bispectrum
+bin. By specifying different thicknesses at different
+<span class="math notranslate nohighlight">\(k\)</span>, a running (logarithmically interpolated)
+thickness is obtained. Both the thickness values
+themselves and the <span class="math notranslate nohighlight">\(k\)</span> values (shell radii) at
+which they apply can be given as either numbers (in
+units of inverse length) or as <code class="docutils literal notranslate"><span class="pre">str</span></code>s. In the
+latter case, the following sub<code class="docutils literal notranslate"><span class="pre">str</span></code>s are
+dynamically substituted:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">'k_min'</span></code>: <code class="docutils literal notranslate"><span class="pre">2*π/boxsize</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'k_max'</span></code>: <code class="docutils literal notranslate"><span class="pre">sqrt(3)*(gridsize//2)*k_min</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'gridsize'</span></code>: <code class="docutils literal notranslate"><span class="pre">gridsize</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'nyquist'</span></code>: <code class="docutils literal notranslate"><span class="pre">gridsize//2*k_min</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'k_fundamental'</span></code>/<code class="docutils literal notranslate"><span class="pre">'k_f'</span></code>: <code class="docutils literal notranslate"><span class="pre">2*π/boxsize</span></code>.</p></li>
+</ul>
+<p>For specifying individual shell thicknesses for the
+<span class="math notranslate nohighlight">\(k_1\)</span>, <span class="math notranslate nohighlight">\(k_2\)</span> and <span class="math notranslate nohighlight">\(k_3\)</span> shells,
+<code class="docutils literal notranslate"><span class="pre">'shellthickness'</span></code> should be specified as a <code class="docutils literal notranslate"><span class="pre">list</span></code>
+of three <code class="docutils literal notranslate"><span class="pre">dict</span></code>s. If instead <code class="docutils literal notranslate"><span class="pre">'shellthickness'</span></code>
+is given as just a single such <code class="docutils literal notranslate"><span class="pre">dict</span></code>, the same
+shell thickness will be used for all three shells.</p>
+</li>
+</ul>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>For all sub-parameters except
+<code class="docutils literal notranslate"><span class="pre">'upstream</span> <span class="pre">gridsize'</span></code>, the keys used within the
+<a class="reference internal" href="parameters.html#components-and-selections"><span class="std std-ref">component selection</span></a>
+sub-<code class="docutils literal notranslate"><span class="pre">dict</span></code>s may refer to either a single
+component or a combination of components. In the case
+of the latter, this designates a combined (auto)
+bispectrum.</p>
+</div>
+</td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Example 0</strong></p></td>
+<td><p></p></td>
+<td><p>Use the equilateral configurations for bispectra of the
+component with a name/species of <code class="docutils literal notranslate"><span class="pre">'matter'</span></code>:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">bispec_options</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;configuration&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;matter&#39;</span><span class="p">:</span> <span class="s1">&#39;equilateral&#39;</span><span class="p">,</span>
+    <span class="p">},</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>If we want more control over the number of bispectrum
+bins (the density of sampling points), we can specify
+the number of bins/subdivisions per decade along the
+<span class="math notranslate nohighlight">\(k = k_1\)</span> dimension (with the number of
+subdivisions along the <span class="math notranslate nohighlight">\(t\)</span> and <span class="math notranslate nohighlight">\(\mu\)</span>
+dimensions also adapting accordingly):</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">bispec_options</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;configuration&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;matter&#39;</span><span class="p">:</span> <span class="p">(</span><span class="s1">&#39;equilateral&#39;</span><span class="p">,</span> <span class="mi">30</span><span class="p">),</span>
+    <span class="p">},</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>Instead of using the predefined name <code class="docutils literal notranslate"><span class="pre">'equilateral'</span></code>,
+we can specify such configurations — defined by having
+<span class="math notranslate nohighlight">\(t = 1\)</span> and <span class="math notranslate nohighlight">\(\mu = \frac{1}{2}\)</span>
+— manually:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">bispec_options</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;configuration&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;matter&#39;</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s1">&#39;k&#39;</span><span class="p">:</span> <span class="s1">&#39;logspace(log10(k_f), log10(nyquist), int(30*log10(nyquist/k_f)))&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;t&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+            <span class="s1">&#39;μ&#39;</span><span class="p">:</span> <span class="mf">0.5</span><span class="p">,</span>
+        <span class="p">},</span>
+    <span class="p">},</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>The above specification for <code class="docutils literal notranslate"><span class="pre">'k'</span></code> results in 30 values
+per decade, placed logarithmically equidistant between
+<code class="docutils literal notranslate"><span class="pre">k_f</span></code> and <code class="docutils literal notranslate"><span class="pre">nyquist</span></code>; a wider parameter range than
+what is used by the built-in <code class="docutils literal notranslate"><span class="pre">'equilateral'</span></code>
+configuration.</p>
+<p>If we prefer, we might instead list each equilateral bin
+individually:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">_gridsize</span> <span class="o">=</span> <span class="mi">128</span>  <span class="c1"># global grid size for bispectrum</span>
+<span class="n">bispec_options</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;configuration&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;matter&#39;</span><span class="p">:</span> <span class="p">[</span>
+            <span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">logspace</span><span class="p">(</span>
+                <span class="n">log10</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="n">π</span><span class="o">/</span><span class="n">boxsize</span><span class="p">),</span>
+                <span class="n">log10</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="n">π</span><span class="o">/</span><span class="n">boxsize</span><span class="o">*</span><span class="p">(</span><span class="n">_gridsize</span><span class="o">//</span><span class="mi">2</span><span class="p">)),</span>
+                <span class="nb">int</span><span class="p">(</span><span class="mi">30</span><span class="o">*</span><span class="n">log10</span><span class="p">(</span><span class="n">_gridsize</span><span class="o">//</span><span class="mi">2</span><span class="p">)),</span>
+            <span class="p">)</span>
+        <span class="p">],</span>
+    <span class="p">},</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>Note that in the above we have to reference the grid
+size explicitly, whereas previously this was encoded in
+<code class="docutils literal notranslate"><span class="pre">'nyquist'</span></code>. Likewise we previously made use of the
+fundamental frequency <code class="docutils literal notranslate"><span class="pre">'k_f'</span></code>, whereas just above we
+write this out explicitly as <code class="docutils literal notranslate"><span class="pre">2*π/boxsize</span></code>. We can
+reintroduce <code class="docutils literal notranslate"><span class="pre">'k_f'</span></code> to (perhaps) simplify the above:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">_gridsize</span> <span class="o">=</span> <span class="mi">128</span>  <span class="c1"># global grid size for bispectrum</span>
+<span class="n">bispec_options</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;configuration&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;matter&#39;</span><span class="p">:</span> <span class="p">[</span>
+            <span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">q</span><span class="si">}</span><span class="s1">*k_f&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">q</span> <span class="ow">in</span> <span class="n">logspace</span><span class="p">(</span>
+                <span class="mi">0</span><span class="p">,</span>
+                <span class="n">log10</span><span class="p">(</span><span class="n">_gridsize</span><span class="o">//</span><span class="mi">2</span><span class="p">),</span>
+                <span class="nb">int</span><span class="p">(</span><span class="mi">30</span><span class="o">*</span><span class="n">log10</span><span class="p">(</span><span class="n">_gridsize</span><span class="o">//</span><span class="mi">2</span><span class="p">)),</span>
+            <span class="p">)</span>
+        <span class="p">],</span>
+    <span class="p">},</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Example 1</strong></p></td>
+<td><p></p></td>
+<td><p>Use a constant shell thickness equal to three times the
+fundamental frequency, for shell <span class="math notranslate nohighlight">\(k_1\)</span>,
+shell <span class="math notranslate nohighlight">\(k_2\)</span> and shell <span class="math notranslate nohighlight">\(k_3\)</span>, for
+every bispectrum:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">bispec_options</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;shellthickness&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;all&#39;</span>             <span class="p">:</span> <span class="p">[</span><span class="s1">&#39;3*k_f&#39;</span><span class="p">,</span> <span class="s1">&#39;3*k_f&#39;</span><span class="p">,</span> <span class="s1">&#39;3*k_f&#39;</span><span class="p">],</span>
+        <span class="s1">&#39;all combinations&#39;</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span>
+    <span class="p">},</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>This may be shortened to</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">bispec_options</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;shellthickness&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;3*k_f&#39;</span><span class="p">,</span> <span class="s1">&#39;3*k_f&#39;</span><span class="p">,</span> <span class="s1">&#39;3*k_f&#39;</span><span class="p">],</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>or indeed</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">bispec_options</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;shellthickness&#39;</span><span class="p">:</span> <span class="s1">&#39;3*k_f&#39;</span><span class="p">,</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Example 2</strong></p></td>
+<td><p></p></td>
+<td><p>Use the equilateral configurations for bispectra of the
+component with a name/species of <code class="docutils literal notranslate"><span class="pre">'matter'</span></code>, with 30
+bins per decade along the <span class="math notranslate nohighlight">\(k\)</span> dimension.</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">bispec_options</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;configuration&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;matter&#39;</span><span class="p">:</span> <span class="p">(</span><span class="s1">&#39;equilateral&#39;</span><span class="p">,</span> <span class="mi">30</span><span class="p">),</span>
+    <span class="p">},</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>Ideally, the concentric shells of different bins should
+not overlap, as otherwise the same underlying modes will
+each contribute to multiple bins. At the same time, we
+would like to include all available modes within our
+bins, and so together they should cover all of
+configuration space, i.e. we want there to be no gaps
+between the concentric shells. Given the 30
+logarithmically equidistant shell radii above, we can
+match the shell thicknesses in order to achieve this:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">bispec_options</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;configuration&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;matter&#39;</span><span class="p">:</span> <span class="p">(</span><span class="s1">&#39;equilateral&#39;</span><span class="p">,</span> <span class="mi">30</span><span class="p">),</span>
+    <span class="p">},</span>
+    <span class="s1">&#39;shellthickness&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;matter&#39;</span><span class="p">:</span> <span class="s1">&#39;1/30*log(10)*k&#39;</span><span class="p">,</span>
+    <span class="p">},</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>Note that with the growing shell thickness above,
+the usual shell thickness of <span class="math notranslate nohighlight">\(3k_{\text{f}}\)</span> is not
+achieved until <span class="math notranslate nohighlight">\(k \sim 40k_{\text{f}}\)</span>. We may
+introduce a minimum shell thickness — say of
+<span class="math notranslate nohighlight">\(1.5k_{\text{f}}\)</span> — like so:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">bispec_options</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;configuration&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;matter&#39;</span><span class="p">:</span> <span class="p">(</span><span class="s1">&#39;equilateral&#39;</span><span class="p">,</span> <span class="mi">30</span><span class="p">),</span>
+    <span class="p">},</span>
+    <span class="s1">&#39;shellthickness&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;matter&#39;</span><span class="p">:</span> <span class="s1">&#39;max(1.5*k_f, 1/30*log(10)*k)&#39;</span><span class="p">,</span>
+    <span class="p">},</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>The above minimum shell thickness of
+<span class="math notranslate nohighlight">\(1.5k_{\text{f}}\)</span> applies for
+<span class="math notranslate nohighlight">\(k \lesssim 20k_{\text{f}}\)</span>, though for the very
+lowest <span class="math notranslate nohighlight">\(k\)</span> we might want a smaller value. We can
+introduce a lowest thickness of e.g.
+<span class="math notranslate nohighlight">\(0.25k_{\text{f}}\)</span> below e.g.
+<span class="math notranslate nohighlight">\(1k_{\text{f}}\)</span>, with the previous thickness
+specification being applied above e.g.
+<span class="math notranslate nohighlight">\(10k_{\text{f}}\)</span>:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">bispec_options</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;configuration&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;matter&#39;</span><span class="p">:</span> <span class="p">(</span><span class="s1">&#39;equilateral&#39;</span><span class="p">,</span> <span class="mi">30</span><span class="p">),</span>
+    <span class="p">},</span>
+    <span class="s1">&#39;shellthickness&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;matter&#39;</span><span class="p">:</span> <span class="p">{</span>
+             <span class="s1">&#39;1*k_f&#39;</span><span class="p">:</span> <span class="s1">&#39;0.25*k_f&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;10*k_f&#39;</span><span class="p">:</span> <span class="s1">&#39;max(1.5*k_f, 1/30*log(10)*k)&#39;</span><span class="p">,</span>
+        <span class="p">},</span>
+    <span class="p">},</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>Between the two control points <span class="math notranslate nohighlight">\(1k_{\text{f}}\)</span>
+and <span class="math notranslate nohighlight">\(10k_{\text{f}}\)</span>, the shell thickness is
+obtained through logarithmic interpolation. For example,
+the shell thickness at <span class="math notranslate nohighlight">\(4k_{\text{f}}\)</span> becomes
+<span class="math notranslate nohighlight">\(\sim 1.0k_{\text{f}}\)</span>, given the above
+specification.</p>
+<p>Note the similarity with the above shell thickness
+settings and the default settings.</p>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Example 3</strong></p></td>
+<td><p></p></td>
+<td><p>Measure the bispectrum for all isosceles configurations
+— i.e. both L-isosceles and S-isosceles — for the
+component with a name/species of <code class="docutils literal notranslate"><span class="pre">'matter'</span></code>.</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">bispec_options</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;configuration&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;matter&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;L-isosceles&#39;</span><span class="p">,</span> <span class="s1">&#39;S-isosceles&#39;</span><span class="p">],</span>
+    <span class="p">},</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>We might want to explicitly control the number of bins
+for each of two configuration subspaces:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">bispec_options</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;configuration&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;matter&#39;</span><span class="p">:</span> <span class="p">[(</span><span class="s1">&#39;L-isosceles&#39;</span><span class="p">,</span> <span class="mi">15</span><span class="p">),</span> <span class="p">(</span><span class="s1">&#39;S-isosceles&#39;</span><span class="p">,</span> <span class="mi">25</span><span class="p">)],</span>
+    <span class="p">},</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<div class="admonition caution">
+<p class="admonition-title">Caution</p>
+<p>Due to the many possible configuration
+specifications, the parsing of these specifications
+is less robust than what is usually the case. In
+particular, swapping <code class="docutils literal notranslate"><span class="pre">list</span></code>s for <code class="docutils literal notranslate"><span class="pre">tuple</span></code>s
+or vice versa can lead to erroneous parsing,
+ultimately crashing the program. That is, while</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="p">[</span><span class="s1">&#39;L-isosceles&#39;</span><span class="p">,</span> <span class="s1">&#39;S-isosceles&#39;</span><span class="p">]</span>
+</pre></div>
+</div>
+<p>is a valid specification, this is not:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="p">(</span><span class="s1">&#39;L-isosceles&#39;</span><span class="p">,</span> <span class="s1">&#39;S-isosceles&#39;</span><span class="p">)</span>  <span class="c1"># ❌</span>
+</pre></div>
+</div>
+</div>
+<p>Note that the two sets of bins are written without
+separation in the output data file. However, the order
+in which the bins appear will always match the order in
+which they are specified.</p>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>For the case above (and most others), the transition
+from one configuration subset to another within a
+bispectrum data file can easily be located as the row
+where <span class="math notranslate nohighlight">\(k\)</span> <em>de</em>creases in relation to the
+previous row.</p>
+</div>
+</td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Example 4</strong></p></td>
+<td><p></p></td>
+<td><p>Use a squeezed configurations for bispectra of the
+component with a name/species of <code class="docutils literal notranslate"><span class="pre">'matter'</span></code>:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">bispec_options</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;configuration&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;matter&#39;</span><span class="p">:</span> <span class="s1">&#39;squeezed&#39;</span><span class="p">,</span>  <span class="c1"># or e.g. (squeezed, 20)</span>
+    <span class="p">},</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>The squeezed configurations are more tricky than other
+configurations, as the <span class="math notranslate nohighlight">\(k_3\)</span> shell vanishes in
+the squeezed limit <span class="math notranslate nohighlight">\(t\rightarrow 1\)</span>,
+<span class="math notranslate nohighlight">\(\mu\rightarrow 0\)</span>, while a reliable bispectrum
+measurement requires each shell to contain a substantial
+amount of grid points. For the built-in <code class="docutils literal notranslate"><span class="pre">'squeezed'</span></code>,
+he values <code class="docutils literal notranslate"><span class="pre">t</span> <span class="pre">=</span> <span class="pre">1</span></code>, <code class="docutils literal notranslate"><span class="pre">μ</span> <span class="pre">=</span> <span class="pre">0.99</span></code> are chosen. We can use
+a less restrictive <code class="docutils literal notranslate"><span class="pre">μ</span> <span class="pre">=</span> <span class="pre">0.95</span></code> — leading to a less
+noisy bispectrum — by specifying the configurations
+manually:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">bispec_options</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;configuration&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;matter&#39;</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s1">&#39;k&#39;</span><span class="p">:</span> <span class="p">(</span>
+                <span class="s1">&#39;logspace(log10(5*k_f), &#39;</span>
+                <span class="s1">&#39;log10(2/3*nyquist), &#39;</span>
+                <span class="s1">&#39;int(20*log10(2/3*nyquist/(5*k_f))))&#39;</span>
+            <span class="p">),</span>
+            <span class="s1">&#39;t&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+            <span class="s1">&#39;μ&#39;</span><span class="p">:</span> <span class="mf">0.95</span><span class="p">,</span>
+        <span class="p">},</span>
+    <span class="p">},</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>In the above we have kept the <span class="math notranslate nohighlight">\(k = k_1\)</span> range the
+same as the default; 20 points logarithmically
+equidistant between 5 times the fundamental frequency
+and two-thirds times the Nyquist frequency. Note however
+that some of these configurations are rejected when
+using the built-in <code class="docutils literal notranslate"><span class="pre">'squeezed'</span></code>, as <span class="math notranslate nohighlight">\(k_3\)</span> is
+deemed too small.</p>
+<p>With <span class="math notranslate nohighlight">\(k_3\)</span> much smaller than <span class="math notranslate nohighlight">\(k_1\)</span> and
+<span class="math notranslate nohighlight">\(k_2\)</span> it might makes sense to assign the
+<span class="math notranslate nohighlight">\(k_3\)</span> shell a thickness that is different from
+the one used by the <span class="math notranslate nohighlight">\(k_1\)</span> and <span class="math notranslate nohighlight">\(k_2\)</span> shell:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">bispec_options</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;configuration&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;matter&#39;</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s1">&#39;k&#39;</span><span class="p">:</span> <span class="p">(</span>
+                <span class="s1">&#39;logspace(log10(5*k_f), &#39;</span>
+                <span class="s1">&#39;log10(2/3*nyquist), &#39;</span>
+                <span class="s1">&#39;int(20*log10(2/3*nyquist/(5*k_f))))&#39;</span>
+            <span class="p">),</span>
+            <span class="s1">&#39;t&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+            <span class="s1">&#39;μ&#39;</span><span class="p">:</span> <span class="mf">0.95</span><span class="p">,</span>
+        <span class="p">},</span>
+    <span class="p">},</span>
+    <span class="s1">&#39;shellthickness&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;matter&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;3*k_f&#39;</span><span class="p">,</span> <span class="s1">&#39;3*k_f&#39;</span><span class="p">,</span> <span class="s1">&#39;1.5*k_f&#39;</span><span class="p">],</span>
+    <span class="p">},</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Example 5</strong></p></td>
+<td><p></p></td>
+<td><p>Imitate the way
+<a class="reference external" href="https://pylians3.readthedocs.io/">Pylians</a> computes
+bispectra:</p>
+<ul class="simple">
+<li><p>Specify <span class="math notranslate nohighlight">\(k_1 = |\boldsymbol{k}_1|\)</span> and
+<span class="math notranslate nohighlight">\(k_2 = |\boldsymbol{k}_2|\)</span> as well as the angle
+<span class="math notranslate nohighlight">\(\theta = \cos^{-1}(\hat{\boldsymbol{k}}_1 \cdot \hat{\boldsymbol{k}}_2)\)</span>
+(opposite sign convention compared to CO<em>N</em>CEPT,
+making <span class="math notranslate nohighlight">\(\mu = -\cos\theta\)</span>).</p></li>
+<li><p>Use a constant shell thickness of twice the
+fundamental frequency.</p></li>
+</ul>
+<p>Use <span class="math notranslate nohighlight">\(k_1 = 1.1\, h\, \text{Mpc}^{-1}\)</span>,
+<span class="math notranslate nohighlight">\(k_2 = 0.8\, h\, \text{Mpc}^{-1}\)</span> and <span class="math notranslate nohighlight">\(50\)</span>
+values of <span class="math notranslate nohighlight">\(\theta\)</span> between <span class="math notranslate nohighlight">\(0\)</span> and
+<span class="math notranslate nohighlight">\(\require{upgreek}\uppi\)</span>. Apply all of this for
+the component with a name/species of <code class="docutils literal notranslate"><span class="pre">'matter'</span></code>:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">_k1</span> <span class="o">=</span> <span class="mf">1.1</span><span class="o">*</span><span class="n">h</span><span class="o">/</span><span class="n">Mpc</span>
+<span class="n">_k2</span> <span class="o">=</span> <span class="mf">0.8</span><span class="o">*</span><span class="n">h</span><span class="o">/</span><span class="n">Mpc</span>
+<span class="n">_θ</span> <span class="o">=</span> <span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">π</span><span class="p">,</span> <span class="mi">50</span><span class="p">)</span>
+<span class="n">bispec_options</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;configuration&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;matter&#39;</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s1">&#39;k&#39;</span><span class="p">:</span> <span class="n">_k1</span><span class="p">,</span>
+            <span class="s1">&#39;t&#39;</span><span class="p">:</span> <span class="n">_k2</span><span class="o">/</span><span class="n">_k1</span><span class="p">,</span>
+            <span class="s1">&#39;μ&#39;</span><span class="p">:</span> <span class="o">-</span><span class="n">cos</span><span class="p">(</span><span class="n">_θ</span><span class="p">),</span>
+        <span class="p">},</span>
+    <span class="p">},</span>
+    <span class="s1">&#39;shellthickness&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;matter&#39;</span><span class="p">:</span> <span class="s1">&#39;2*k_f&#39;</span><span class="p">,</span>
+    <span class="p">},</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>In order to fully reduce the bispectrum computation
+within CO<em>N</em>CEPT to one consistent with that of
+<a class="reference external" href="https://pylians3.readthedocs.io/">Pylians</a>, one
+should further:</p>
+<ul class="simple">
+<li><p>Disable
+<a class="reference internal" href="#bispec-antialiasing"><span class="std std-ref">shell anti-aliasing</span></a>.</p></li>
+<li><p>Disable interlacing (specified trough
+<code class="docutils literal notranslate"><span class="pre">bispec_options['interlace']</span></code>).</p></li>
+<li><p>Switch to <a class="reference internal" href="simulation.html#cell-centered"><span class="std std-ref">cell-vertex</span></a> grid
+discretisation.</p></li>
+</ul>
+</div>
+</td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Example 6</strong></p></td>
+<td><p></p></td>
+<td><p>Sample the full configuration space for the component
+with a name/species of <code class="docutils literal notranslate"><span class="pre">'matter'</span></code>:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">bispec_options</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;configuration&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;matter&#39;</span><span class="p">:</span> <span class="p">(</span><span class="s1">&#39;all&#39;</span><span class="p">,</span> <span class="mi">5</span><span class="p">),</span>
+    <span class="p">},</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>We recall that the full configuration space is
+parametrised as</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}\frac{1}{2} &amp;\le t \le 1\,, \\
+\frac{1}{2} &amp;\le \mu \le 1\,, \\
+\frac{1}{2} &amp;\le t\mu\,,\end{split}\]</div>
+<p>which uniquely covers each configuration (triangle
+shape) for a given <span class="math notranslate nohighlight">\(k\)</span> (triangle size). While the
+built-in <code class="docutils literal notranslate"><span class="pre">'all'</span></code> samples configuration space evenly
+(logarithmically in <span class="math notranslate nohighlight">\(k\)</span>, linear in <span class="math notranslate nohighlight">\(t\)</span> and
+<span class="math notranslate nohighlight">\(\mu\)</span>), we might instead wish to sample randomly.</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">seed</span><span class="p">(</span><span class="mi">42</span><span class="p">)</span>  <span class="c1"># for consistent bins</span>
+<span class="k">def</span> <span class="nf">_sample</span><span class="p">():</span>
+    <span class="n">r</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">random</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span>
+    <span class="n">k</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;k_min*(k_max/k_min)**</span><span class="si">{</span><span class="n">r</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s1">&#39;</span>
+    <span class="n">t</span> <span class="o">=</span> <span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="n">r</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span><span class="o">/</span><span class="mi">2</span>
+    <span class="n">μ</span> <span class="o">=</span> <span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="n">r</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span><span class="o">/</span><span class="mi">2</span>
+    <span class="k">if</span> <span class="n">t</span><span class="o">*</span><span class="n">μ</span> <span class="o">&lt;</span> <span class="mf">0.5</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">_sample</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">k</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">μ</span>
+<span class="n">bispec_options</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;configuration&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;matter&#39;</span><span class="p">:</span> <span class="p">[</span><span class="n">_sample</span><span class="p">()</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">100</span><span class="p">)],</span>
+    <span class="p">},</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>Note that the above samples the entire possible
+<span class="math notranslate nohighlight">\(k = k_1\)</span> range, whereas this range is reduced
+for the built-in <code class="docutils literal notranslate"><span class="pre">'all'</span></code> (as well as the other named
+configurations).</p>
+</td>
+</tr>
+</tbody>
+</table>
+<hr class="docutils" />
+</section>
+<section id="bispec-antialiasing">
+<span id="id7"></span><h2><a class="toc-backref" href="#id15"><code class="docutils literal notranslate"><span class="pre">bispec_antialiasing</span></code></a><a class="headerlink" href="#bispec-antialiasing" title="Permalink to this headline"></a></h2>
+<table>
+<colgroup>
+<col style="width: 4%" />
+<col style="width: 10%" />
+<col style="width: 4%" />
+<col style="width: 82%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Description</strong></p></td>
+<td><p></p></td>
+<td><p>Specifies whether to enable anti-aliasing for
+bispectrum shells</p></td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Default</strong></p></td>
+<td><p></p></td>
+<td><div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="kc">True</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Elaboration</strong></p></td>
+<td><p></p></td>
+<td><p>Numerically, each bispectrum shell is a collection of
+Fourier grid cells, each positioned a distance (measured
+from their centres) of about <span class="math notranslate nohighlight">\(k\)</span> from the origin
+(with <span class="math notranslate nohighlight">\(k = k_1\)</span> for the first shell,
+<span class="math notranslate nohighlight">\(k = k_2\)</span> for the second shell, <span class="math notranslate nohighlight">\(k = k_3\)</span>
+for the third shell). Call this distance the radial
+coordinate of the cell. With shell anti-aliasing
+disabled (not the default), a cell is included in the
+shell if its radial coordinate lies between
+<span class="math notranslate nohighlight">\(k - s/2\)</span> and <span class="math notranslate nohighlight">\(k + s/2\)</span>, <span class="math notranslate nohighlight">\(s\)</span> being the
+shell thickness of the shell with radius <span class="math notranslate nohighlight">\(k\)</span>.</p>
+<p>The simple scheme for cell inclusion/exclusion within a
+shell described above comes with a number of drawbacks,
+arising from allowing the discrete nature of the
+underlying grid to spread into the shell. A more
+sophisticated approach is to treat the shells as being
+truly spherical and continuous, with cells on the
+boundary being taken into account in proportion to their
+volumetric overlap with the shell. This is what we refer
+to as shell anti-aliasing (enabled by default).</p>
+<p>Note that with shell anti-aliasing, the inner and outer
+shell radii — related by their difference equalling
+the shell thickness <span class="math notranslate nohighlight">\(s\)</span> — can now be chosen such
+that the average (weighted) radial coordinate of the
+cells within the shell exactly equals the radius
+<span class="math notranslate nohighlight">\(k\)</span> of the shell, i.e. a measured bispectrum value
+<span class="math notranslate nohighlight">\(B(k_1, k_2, k_3)\)</span> really do belong <em>exactly</em> to
+the given <span class="math notranslate nohighlight">\(k_1\)</span>, <span class="math notranslate nohighlight">\(k_2\)</span>, <span class="math notranslate nohighlight">\(k_3\)</span>. This is
+unlike the non-anti-aliased case where small changes to
+<span class="math notranslate nohighlight">\(k_1\)</span>, <span class="math notranslate nohighlight">\(k_2\)</span>, <span class="math notranslate nohighlight">\(k_3\)</span> do not alter the
+measured value <span class="math notranslate nohighlight">\(B(k_1, k_2, k_3)\)</span>.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>For all but the smallest <span class="math notranslate nohighlight">\(k\)</span>, CO<em>N</em>CEPT in
+fact chooses the inner and outer shell radii not so
+that the average radial coordinate of the cells
+results in the radius <span class="math notranslate nohighlight">\(k\)</span> of the shell, but
+instead so that the average of the logarithm of the
+radial coordinates of the cells results in
+<span class="math notranslate nohighlight">\(\log k\)</span>.</p>
+</div>
+</td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Example 0</strong></p></td>
+<td><p></p></td>
+<td><p>Turn off bispectrum shell anti-aliasing:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">bispec_antialiasing</span> <span class="o">=</span> <span class="kc">False</span>
+</pre></div>
+</div>
+<p>Though generally not preferable, this is useful if the
+resulting bispectra are to be compared with ones
+computed by a different code which does not have this
+feature.</p>
+</td>
+</tr>
+</tbody>
+</table>
+<hr class="docutils" />
+</section>
+<section id="class-dedicated-spectra">
+<span id="id8"></span><h2><a class="toc-backref" href="#id16"><code class="docutils literal notranslate"><span class="pre">class_dedicated_spectra</span></code></a><a class="headerlink" href="#class-dedicated-spectra" title="Permalink to this headline"></a></h2>
+<table>
+<colgroup>
+<col style="width: 4%" />
+<col style="width: 10%" />
+<col style="width: 4%" />
+<col style="width: 82%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Description</strong></p></td>
+<td><p></p></td>
+<td><p>Specifies whether to carry out a dedicated CLASS
+computation for use with perturbation theory spectra</p></td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Default</strong></p></td>
+<td><p></p></td>
+<td><div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="kc">False</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Elaboration</strong></p></td>
+<td><p></p></td>
+<td><p>When <code class="docutils literal notranslate"><span class="pre">False</span></code> (the default), rather than running CLASS,
+already obtained CLASS results are reused whenever a
+perturbation theory spectrum (a linear power spectrum or
+a tree-level bispectrum) is requested, even if this
+does not cover the entire <span class="math notranslate nohighlight">\(k\)</span> region in question.
+This often leads to a few missing (<code class="docutils literal notranslate"><span class="pre">NaN</span></code>) values in
+the perturbation theory columns of output spectra, but
+saves time as fewer invocations of CLASS are needed.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>This will only affect the perturbation theory output
+in power spectrum and bispectrum data files; the
+CLASS data used internally for simulation purposes
+will always be complete.</p>
+</div>
+</td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Example 0</strong></p></td>
+<td><p></p></td>
+<td><p>Always rerun CLASS as necessary, ensuring fully
+populated perturbation theory data in spectral output:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">class_dedicated_spectra</span> <span class="o">=</span> <span class="kc">True</span>
+</pre></div>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+<hr class="docutils" />
+</section>
+<section id="class-modes-per-decade">
+<span id="id9"></span><h2><a class="toc-backref" href="#id17"><code class="docutils literal notranslate"><span class="pre">class_modes_per_decade</span></code></a><a class="headerlink" href="#class-modes-per-decade" title="Permalink to this headline"></a></h2>
 <table>
 <colgroup>
 <col style="width: 4%" />
@@ -1404,9 +2221,15 @@ of Fourier modes <span class="math notranslate nohighlight">\(k\)</span> as a (r
 decade. The resulting tabulation of <span class="math notranslate nohighlight">\(k\)</span> is
 employed for all CLASS perturbations, which are used
 for e.g. initial conditions. The default choice yields a
-relatively sparse tabulation of perturbations except
+relatively sparse tabulation of perturbations, except
 around baryon acoustic oscillations, where more detail
-is added.</p></td>
+is added.</p>
+<p>If you seek highly resolved linear power spectra or
+tree-level, make sure to not just increase
+<code class="docutils literal notranslate"><span class="pre">class_modes_per_decade</span></code>, but also enable the
+<code class="docutils literal notranslate"><span class="pre">class_dedicated_spectra</span></code>
+<a class="reference internal" href="#class-dedicated-spectra"><span class="std std-ref">parameter</span></a>.</p>
+</td>
 </tr>
 <tr class="row-even"><td><p></p></td>
 <td><p><strong>Example 0</strong></p></td>
@@ -1414,11 +2237,11 @@ is added.</p></td>
 <td><p>Use a constant <span class="math notranslate nohighlight">\(20\)</span> modes per decade, i.e.
 <span class="math notranslate nohighlight">\(20\)</span> values of <span class="math notranslate nohighlight">\(k\)</span> placed logarithmically
 equidistant between
-<span class="math notranslate nohighlight">\(k = 10^{-3}\,\mathrm{Mpc}^{-1}\)</span> and
-<span class="math notranslate nohighlight">\(k = 10^{-2}\,\mathrm{Mpc}^{-1}\)</span>, between
-<span class="math notranslate nohighlight">\(k = 10^{-2}\,\mathrm{Mpc}^{-1}\)</span> and
-<span class="math notranslate nohighlight">\(k = 10^{-1}\,\mathrm{Mpc}^{-1}\)</span>, etc:</p>
-<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">k_modes_per_decade</span> <span class="o">=</span> <span class="mi">20</span>
+<span class="math notranslate nohighlight">\(k = 10^{-3}\,\text{Mpc}^{-1}\)</span> and
+<span class="math notranslate nohighlight">\(k = 10^{-2}\,\text{Mpc}^{-1}\)</span>, between
+<span class="math notranslate nohighlight">\(k = 10^{-2}\,\text{Mpc}^{-1}\)</span> and
+<span class="math notranslate nohighlight">\(k = 10^{-1}\,\text{Mpc}^{-1}\)</span>, etc:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">class_modes_per_decade</span> <span class="o">=</span> <span class="mi">20</span>
 </pre></div>
 </div>
 </td>
@@ -1427,13 +2250,13 @@ equidistant between
 <td><p><strong>Example 1</strong></p></td>
 <td><p></p></td>
 <td><p>Use <span class="math notranslate nohighlight">\(50\)</span> modes per decade around
-<span class="math notranslate nohighlight">\(k = 10^{-4}\,\mathrm{Mpc}^{-1}\)</span> and <span class="math notranslate nohighlight">\(10\)</span>
+<span class="math notranslate nohighlight">\(k = 10^{-4}\,\text{Mpc}^{-1}\)</span> and <span class="math notranslate nohighlight">\(10\)</span>
 modes per decade around
-<span class="math notranslate nohighlight">\(k = 10^1\,\mathrm{Mpc}^{-1}\)</span>, with a running
+<span class="math notranslate nohighlight">\(k = 10^1\,\text{Mpc}^{-1}\)</span>, with a running
 number per decade in between found through logarithmic
 interpolation (resulting in e.g. <span class="math notranslate nohighlight">\(42\)</span> modes per
-decade around <span class="math notranslate nohighlight">\(k = 10^{-3}\,\mathrm{Mpc}^{-1}\)</span>):</p>
-<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">k_modes_per_decade</span> <span class="o">=</span> <span class="p">{</span>
+decade around <span class="math notranslate nohighlight">\(k = 10^{-3}\,\text{Mpc}^{-1}\)</span>):</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">class_modes_per_decade</span> <span class="o">=</span> <span class="p">{</span>
     <span class="mf">1e-4</span><span class="o">/</span><span class="n">Mpc</span><span class="p">:</span> <span class="mi">50</span><span class="p">,</span>
     <span class="mf">1e+1</span><span class="o">/</span><span class="n">Mpc</span><span class="p">:</span> <span class="mi">10</span><span class="p">,</span>
 <span class="p">}</span>

@@ -57,9 +57,10 @@
 </ul>
 </li>
 <li class="toctree-l2 current"><a class="current reference internal" href="#">5. Other kinds of output</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#d-renders">5.1. 3D renders</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#id1">5.2. 2D renders</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#snapshots">5.3. Snapshots</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#bispectra">5.1. Bispectra</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#d-renders">5.2. 3D renders</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id1">5.3. 2D renders</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#snapshots">5.4. Snapshots</a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="working_remotely.html">6. Working on remote clusters</a></li>
@@ -71,7 +72,8 @@
 <li class="toctree-l3"><a class="reference internal" href="beyond_matter_only.html#non-linear-massive-neutrinos">7.5. Non-linear massive neutrinos</a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="gadget.html">8. Comparison with GADGET-2</a></li>
+<li class="toctree-l2"><a class="reference internal" href="bispectra.html">8. Bispectra and 2LPT</a></li>
+<li class="toctree-l2"><a class="reference internal" href="gadget.html">9. Comparison with GADGET-2</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../installation.html">Installation</a><ul>
@@ -165,6 +167,7 @@
 <li class="toctree-l3"><a class="reference internal" href="../parameters/input_output.html#autosave-interval"><code class="docutils literal notranslate"><span class="pre">autosave_interval</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/input_output.html#snapshot-select"><code class="docutils literal notranslate"><span class="pre">snapshot_select</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/input_output.html#powerspec-select"><code class="docutils literal notranslate"><span class="pre">powerspec_select</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/input_output.html#bispec-select"><code class="docutils literal notranslate"><span class="pre">bispec_select</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/input_output.html#render2d-select"><code class="docutils literal notranslate"><span class="pre">render2D_select</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/input_output.html#render3d-select"><code class="docutils literal notranslate"><span class="pre">render3D_select</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/input_output.html#snapshot-type"><code class="docutils literal notranslate"><span class="pre">snapshot_type</span></code></a></li>
@@ -181,7 +184,10 @@
 <li class="toctree-l3"><a class="reference internal" href="../parameters/numerics.html#potential-options"><code class="docutils literal notranslate"><span class="pre">potential_options</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/numerics.html#shortrange-params"><code class="docutils literal notranslate"><span class="pre">shortrange_params</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/numerics.html#powerspec-options"><code class="docutils literal notranslate"><span class="pre">powerspec_options</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="../parameters/numerics.html#k-modes-per-decade"><code class="docutils literal notranslate"><span class="pre">k_modes_per_decade</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/numerics.html#bispec-options"><code class="docutils literal notranslate"><span class="pre">bispec_options</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/numerics.html#bispec-antialiasing"><code class="docutils literal notranslate"><span class="pre">bispec_antialiasing</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/numerics.html#class-dedicated-spectra"><code class="docutils literal notranslate"><span class="pre">class_dedicated_spectra</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/numerics.html#class-modes-per-decade"><code class="docutils literal notranslate"><span class="pre">class_modes_per_decade</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="../parameters/cosmology.html">Cosmology</a><ul>
@@ -275,6 +281,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../utilities/info.html">info utility</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../utilities/play.html">play utility</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../utilities/powerspec.html">powerspec utility</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/bispec.html">bispec utility</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../utilities/render3D.html">render3D utility</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../utilities/update.html">update utility</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../utilities/watch.html">watch utility</a></li>
@@ -353,8 +360,8 @@ file:</p>
     <span class="s1">&#39;species&#39;</span><span class="p">:</span> <span class="s1">&#39;matter&#39;</span><span class="p">,</span>
     <span class="s1">&#39;N&#39;</span>      <span class="p">:</span> <span class="n">_size</span><span class="o">**</span><span class="mi">3</span><span class="p">,</span>
 <span class="p">}</span>
-<span class="n">output_dirs</span> <span class="o">=</span> <span class="p">{</span><span class="hll">    <span class="s1">&#39;snapshot&#39;</span> <span class="p">:</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">path</span><span class="o">.</span><span class="n">output_dir</span><span class="si">}</span><span class="s1">/</span><span class="si">{</span><span class="n">param</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span></span>    <span class="s1">&#39;powerspec&#39;</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span><span class="hll">    <span class="s1">&#39;render2D&#39;</span> <span class="p">:</span> <span class="o">...</span><span class="p">,</span></span><span class="hll">    <span class="s1">&#39;render3D&#39;</span> <span class="p">:</span> <span class="o">...</span><span class="p">,</span></span><span class="p">}</span>
-<span class="n">output_times</span> <span class="o">=</span> <span class="p">{</span><span class="hll">    <span class="s1">&#39;snapshot&#39;</span> <span class="p">:</span> <span class="mf">0.1</span><span class="p">,</span></span>    <span class="s1">&#39;powerspec&#39;</span><span class="p">:</span> <span class="p">[</span><span class="n">a_begin</span><span class="p">,</span> <span class="mf">0.3</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span><span class="hll">    <span class="s1">&#39;render3D&#39;</span> <span class="p">:</span> <span class="o">...</span><span class="p">,</span></span><span class="hll">    <span class="s1">&#39;render2D&#39;</span> <span class="p">:</span> <span class="n">logspace</span><span class="p">(</span><span class="n">log10</span><span class="p">(</span><span class="n">a_begin</span><span class="p">),</span> <span class="n">log10</span><span class="p">(</span><span class="mi">1</span><span class="p">),</span> <span class="mi">15</span><span class="p">),</span></span><span class="p">}</span><span class="hll"><span class="n">powerspec_select</span> <span class="o">=</span> <span class="p">{</span></span><span class="hll">    <span class="s1">&#39;matter&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;data&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span> <span class="s1">&#39;linear&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span> <span class="s1">&#39;plot&#39;</span><span class="p">:</span> <span class="kc">False</span><span class="p">},</span></span><span class="hll"><span class="p">}</span></span><span class="hll"><span class="n">render2D_select</span> <span class="o">=</span> <span class="p">{</span></span><span class="hll">    <span class="s1">&#39;matter&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;data&#39;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span> <span class="s1">&#39;image&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span> <span class="s1">&#39;terminal image&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">},</span></span><span class="hll"><span class="p">}</span></span>
+<span class="n">output_dirs</span> <span class="o">=</span> <span class="p">{</span><span class="hll">    <span class="s1">&#39;snapshot&#39;</span> <span class="p">:</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">path</span><span class="o">.</span><span class="n">output_dir</span><span class="si">}</span><span class="s1">/</span><span class="si">{</span><span class="n">param</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span></span>    <span class="s1">&#39;powerspec&#39;</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span><span class="hll">    <span class="s1">&#39;bispec&#39;</span>   <span class="p">:</span> <span class="o">...</span><span class="p">,</span></span><span class="hll">    <span class="s1">&#39;render2D&#39;</span> <span class="p">:</span> <span class="o">...</span><span class="p">,</span></span><span class="hll">    <span class="s1">&#39;render3D&#39;</span> <span class="p">:</span> <span class="o">...</span><span class="p">,</span></span><span class="p">}</span>
+<span class="n">output_times</span> <span class="o">=</span> <span class="p">{</span><span class="hll">    <span class="s1">&#39;snapshot&#39;</span> <span class="p">:</span> <span class="mf">0.1</span><span class="p">,</span></span>    <span class="s1">&#39;powerspec&#39;</span><span class="p">:</span> <span class="p">[</span><span class="n">a_begin</span><span class="p">,</span> <span class="mf">0.3</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span><span class="hll">    <span class="s1">&#39;bispec&#39;</span>   <span class="p">:</span> <span class="o">...</span><span class="p">,</span></span><span class="hll">    <span class="s1">&#39;render3D&#39;</span> <span class="p">:</span> <span class="o">...</span><span class="p">,</span></span><span class="hll">    <span class="s1">&#39;render2D&#39;</span> <span class="p">:</span> <span class="n">logspace</span><span class="p">(</span><span class="n">log10</span><span class="p">(</span><span class="n">a_begin</span><span class="p">),</span> <span class="n">log10</span><span class="p">(</span><span class="mi">1</span><span class="p">),</span> <span class="mi">15</span><span class="p">),</span></span><span class="p">}</span><span class="hll"><span class="n">powerspec_select</span> <span class="o">=</span> <span class="p">{</span></span><span class="hll">    <span class="s1">&#39;matter&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;data&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span> <span class="s1">&#39;linear&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span> <span class="s1">&#39;plot&#39;</span><span class="p">:</span> <span class="kc">False</span><span class="p">},</span></span><span class="hll"><span class="p">}</span></span><span class="hll"><span class="n">bispec_select</span> <span class="o">=</span> <span class="p">{</span></span><span class="hll">    <span class="s1">&#39;matter&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;data&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span> <span class="s1">&#39;reduced&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span> <span class="s1">&#39;tree-level&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span> <span class="s1">&#39;plot&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">},</span></span><span class="hll"><span class="p">}</span></span><span class="hll"><span class="n">render2D_select</span> <span class="o">=</span> <span class="p">{</span></span><span class="hll">    <span class="s1">&#39;matter&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;data&#39;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span> <span class="s1">&#39;image&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span> <span class="s1">&#39;terminal image&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">},</span></span><span class="hll"><span class="p">}</span></span>
 <span class="c1"># Numeris</span>
 <span class="n">boxsize</span> <span class="o">=</span> <span class="mi">128</span><span class="o">*</span><span class="n">Mpc</span>
 <span class="n">potential_options</span> <span class="o">=</span> <span class="mi">2</span><span class="o">*</span><span class="n">_size</span>
@@ -375,23 +382,53 @@ by saving them to <code class="docutils literal notranslate"><span class="pre">p
 </pre></div>
 </div>
 <p>This will take a few minutes. You may read along in the meantime.</p>
-<p>We see that besides power spectra, we now have <em>snapshots</em> and <em>renders</em>, the
-latter of which comes in a 2D and a 3D version. The ellipses (<code class="docutils literal notranslate"><span class="pre">...</span></code>) used
-above in <code class="docutils literal notranslate"><span class="pre">output_dirs</span></code> indicate that we want all kinds of output to go to
-the same directory.</p>
+<p>We see that besides power spectra, we now have <em>snapshots</em>, <em>bispectra</em> and
+<em>renders</em>, the latter of which come in a 2D and a 3D version. The ellipses
+(<code class="docutils literal notranslate"><span class="pre">...</span></code>) used above in <code class="docutils literal notranslate"><span class="pre">output_dirs</span></code> indicate that we want all kinds of
+output to go to the same directory.</p>
 <p>For the <code class="docutils literal notranslate"><span class="pre">output_times</span></code>, different values are given for three of the output
-types, while <code class="docutils literal notranslate"><span class="pre">'render3D'</span></code> is set to use the same times as the output just
-above it, i.e. that of <code class="docutils literal notranslate"><span class="pre">'powerspec'</span></code>. For <code class="docutils literal notranslate"><span class="pre">'render2D'</span></code>, we’ve specified 15
-outputs spaced logarithmically equidistant between
+types, while <code class="docutils literal notranslate"><span class="pre">bispec</span></code> and <code class="docutils literal notranslate"><span class="pre">'render3D'</span></code> are set to use the same times as
+the output just above, i.e. that of <code class="docutils literal notranslate"><span class="pre">'powerspec'</span></code>. For <code class="docutils literal notranslate"><span class="pre">'render2D'</span></code>, we’ve
+specified 15 outputs spaced logarithmically equidistant between
 <span class="math notranslate nohighlight">\(a = a_{\text{begin}} = 0.02\)</span> and <span class="math notranslate nohighlight">\(a = 1\)</span>.</p>
 <p>Among the new parameters introduced are <code class="docutils literal notranslate"><span class="pre">powerspec_select</span></code>, in which we have
 specified that we only want the data files — also including the linear theory
 spectrum — as output, not plots of this data.</p>
+<section id="bispectra">
+<h2><span class="section-number">5.1. </span>Bispectra<a class="headerlink" href="#bispectra" title="Permalink to this headline"></a></h2>
+<p>The output directory will be populated with a large number of output files.
+The ones with names beginning with <code class="docutils literal notranslate"><span class="pre">bispec</span></code> are the bispectrum files,
+analogous to the by-now familiar power spectrum files. Looking at the
+bispectrum plots, we see that they show both the bispectrum <span class="math notranslate nohighlight">\(B\)</span> as well
+as its reduced version <span class="math notranslate nohighlight">\(Q\)</span>, and even the perturbative tree-level
+prediction. We get all of these as they are enabled in the <code class="docutils literal notranslate"><span class="pre">bispec_select</span></code>
+parameter.</p>
+<p>For the first bispectrum plot at <span class="math notranslate nohighlight">\(a = a_{\text{begin}}\)</span>, the <span class="math notranslate nohighlight">\(B\)</span>
+line is mostly dashed. Dashed lines are used for negative values, which
+usually indicate that the bispectrum signal present in the simulation is too
+small compared to the noise. Indeed, the later plots show <span class="math notranslate nohighlight">\(B\)</span> as a full
+line, indicating positive, proper values.</p>
+<p>The bispectrum data files are very analogous to the power spectrum files,
+though the number of columns contained within them is usually much greater.</p>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>One way to comfortably view wide text files (e.g.
+<code class="docutils literal notranslate"><span class="pre">output/tutorial/bispec_a=1.00</span></code>) in the terminal is to use</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">less</span> <span class="o">-</span><span class="n">S</span> <span class="n">output</span><span class="o">/</span><span class="n">tutorial</span><span class="o">/</span><span class="n">bispec_a</span><span class="o">=</span><span class="mf">1.00</span>
+</pre></div>
+</div>
+<p>You can then scroll both horizontally and vertically with the arrow keys.
+Press <code class="docutils literal notranslate"><span class="pre">Q</span></code> to quit.</p>
+</div>
+<p>The specific bispectrum that has been measured is the <em>equilateral</em>
+bispectrum. A <a class="reference internal" href="bispectra.html"><span class="doc">later section</span></a> of this tutorial is
+dedicated to the bispectrum, including other configurations.</p>
+</section>
 <section id="d-renders">
-<h2><span class="section-number">5.1. </span>3D renders<a class="headerlink" href="#d-renders" title="Permalink to this headline"></a></h2>
-<p>Looking in the output directory, among other things you’ll find image files
-with names starting with <code class="docutils literal notranslate"><span class="pre">render3D</span></code>. These are — unsurprisingly — the 3D
-renders. The colours are controlled through the <code class="docutils literal notranslate"><span class="pre">render3D_colors</span></code> and
+<h2><span class="section-number">5.2. </span>3D renders<a class="headerlink" href="#d-renders" title="Permalink to this headline"></a></h2>
+<p>You will find other image files in the output directory with names that begin
+with <code class="docutils literal notranslate"><span class="pre">render3D</span></code>. These are — unsurprisingly — the 3D renders. The
+colours are controlled through the <code class="docutils literal notranslate"><span class="pre">render3D_colors</span></code> and
 <code class="docutils literal notranslate"><span class="pre">render3D_bgcolor</span></code> parameters, while the (linear) size (in pixels) is set by
 <code class="docutils literal notranslate"><span class="pre">render3D_resolution</span></code>. All particles of a given component gets the same
 colour, though different colours may be used for different components when
@@ -405,7 +442,7 @@ Alternatively, you may pass a 3-tuple of RGB values (e.g.
 <code class="docutils literal notranslate"><span class="pre">render3D_bgcolor</span> <span class="pre">=</span> <span class="pre">(1,</span> <span class="pre">0,</span> <span class="pre">0)</span></code> makes the background red).</p>
 </section>
 <section id="id1">
-<h2><span class="section-number">5.2. </span>2D renders<a class="headerlink" href="#id1" title="Permalink to this headline"></a></h2>
+<h2><span class="section-number">5.3. </span>2D renders<a class="headerlink" href="#id1" title="Permalink to this headline"></a></h2>
 <p>The 2D renders show the particle configuration projected along one of the axes
 of the box. These can often be prettier than their 3D counterparts, as a
 colormap is used to visualise the density field, rather than just a single
@@ -433,7 +470,8 @@ for a list of available colormaps.</p>
 know its job ID.</p>
 <div class="admonition tip">
 <p class="admonition-title">Tip</p>
-<p>To grab the job ID from a power spectra data file, you can do e.g.</p>
+<p>To grab the job ID from a power spectrum (or bispectrum) data file, you can
+do e.g.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>grep<span class="w"> </span>-o<span class="w"> </span><span class="s2">&quot;job [0-9]*&quot;</span><span class="w"> </span>output/tutorial/powerspec_a<span class="o">=</span><span class="m">1</span>.00
 </pre></div>
 </div>
@@ -463,7 +501,7 @@ available utilities, do .e.g</p>
 consult <a class="reference internal" href="../utilities/utilities.html"><span class="doc">Utilities</span></a>.</p>
 </section>
 <section id="snapshots">
-<h2><span class="section-number">5.3. </span>Snapshots<a class="headerlink" href="#snapshots" title="Permalink to this headline"></a></h2>
+<h2><span class="section-number">5.4. </span>Snapshots<a class="headerlink" href="#snapshots" title="Permalink to this headline"></a></h2>
 <p>Snapshots are raw dumps of the simulated system, in this case the positions
 and momenta of all <span class="math notranslate nohighlight">\(N = 64^3\)</span> particles. By default, CO<em>N</em>CEPT uses
 its own snapshot format, which is simply a well-structured HDF5 file.</p>
@@ -555,9 +593,8 @@ simply do</p>
 </pre></div>
 </div>
 <p>The content of all snapshots — CO<em>N</em>CEPT (HDF5) or GADGET format — in
-the <code class="docutils literal notranslate"><span class="pre">output/tutorial</span></code> directory will now be printed to the screen. Should
-you want information about just a specific snapshot, simply provide its
-entire path.</p>
+the given directory will now be printed to the screen. Should you want
+information about just a specific snapshot, simply provide its entire path.</p>
 </section>
 </section>
 

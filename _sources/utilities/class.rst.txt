@@ -184,11 +184,11 @@ modes for the perturbations. E.g.
 The placement of the :math:`k` modes at which to tabulate the perturbations
 are chosen based on the :ref:`minimum <minimum_fourier_mode>` and
 :ref:`maximum <maximum_fourier_mode>` mode together with the
-``k_modes_per_decade`` :ref:`parameter <k_modes_per_decade>`. When the
-``--modes`` option is *not* specified, ``k_modes_per_decade`` is used as is,
-leading to some number of total modes. When the ``--modes`` option *is*
-specified, the numbers of modes per decade within ``k_modes_per_decade`` are
-all uniformly scaled in order to yield the requested number of modes.
+``class_modes_per_decade`` :ref:`parameter <class_modes_per_decade>`. When the
+``--modes`` option is *not* specified, ``class_modes_per_decade`` is used
+as is, leading to some number of total modes. When the ``--modes`` option *is*
+specified, the numbers of modes per decade within ``class_modes_per_decade``
+are all uniformly scaled in order to yield the requested number of modes.
 
 .. tip::
    If you simply want some definite number (say :math:`128`) of logarithmically
@@ -196,7 +196,7 @@ all uniformly scaled in order to yield the requested number of modes.
 
    .. code-block:: bash
 
-      ./concept -u class --modes 128 -c "k_modes_per_decade = 1"
+      ./concept -u class --modes 128 -c "class_modes_per_decade = 1"
 
 .. tip::
    If the processed perturbations are intended for use with pkdgrav3, note
@@ -526,7 +526,7 @@ implicitly set through the effective number of neutrino species
 all three species) is related to the photon temperature :math:`T_{\gamma}` by
 
 .. math::
-   T_{\nu} = \biggl(\frac{4}{11}\biggr)^{1/3} \biggl(\frac{N_{\text{eff}}}{3}\biggr)^{1/4} T_{\gamma} \,.
+   T_{\nu} = \biggl(\frac{4}{11}\biggr)^{\frac{1}{3}} \biggl(\frac{N_{\text{eff}}}{3}\biggr)^{\frac{1}{4}} T_{\gamma} \,.
 
 .. note::
    We do not need to specify any parameters having to do with the
@@ -539,7 +539,7 @@ species:
 
 .. code-block:: python3
    :caption: class-param
-   :name: class-param
+   :name: param-class
 
    # Input/output
    output_dirs = param.dir
@@ -624,7 +624,7 @@ The key points of this parameter file are:
    example CLASS parameter file, which documents many of the possible CLASS
    parameters.
 
-With the :ref:`above parameter file <class-param>` saved to a file called e.g.
+With the :ref:`above parameter file <param-class>` saved to a file called e.g.
 ``class-param``, we can run the CO\ *N*\ CEPT class utility on it using
 something like
 
@@ -660,7 +660,7 @@ as in the above example command, the entire computation will take around 6
 minutes on modern hardware.
 
 With the ``class_processed.hdf5`` file generated from the above command and
-:ref:`parameter file <class-param>`, the below Python script demonstrates how
+:ref:`parameter file <param-class>`, the below Python script demonstrates how
 one can extract and use (some of) the data within this file:
 
 .. code-block:: python3
@@ -874,7 +874,7 @@ large simulations, running CO\ *N*\ CEPT this way for casual use of the class
 utility is very much encouraged.
 
 Given a parameter file named ``class-param`` (e.g.
-:ref:`the one above <class-param>`), you may run the CO\ *N*\ CEPT class
+:ref:`the one above <param-class>`), you may run the CO\ *N*\ CEPT class
 utility through Docker by executing something like
 
 .. code-block:: bash

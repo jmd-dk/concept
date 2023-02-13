@@ -57,9 +57,10 @@
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="../tutorial/output_types.html">5. Other kinds of output</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="../tutorial/output_types.html#d-renders">5.1. 3D renders</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../tutorial/output_types.html#id1">5.2. 2D renders</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../tutorial/output_types.html#snapshots">5.3. Snapshots</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../tutorial/output_types.html#bispectra">5.1. Bispectra</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../tutorial/output_types.html#d-renders">5.2. 3D renders</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../tutorial/output_types.html#id1">5.3. 2D renders</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../tutorial/output_types.html#snapshots">5.4. Snapshots</a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="../tutorial/working_remotely.html">6. Working on remote clusters</a></li>
@@ -71,7 +72,8 @@
 <li class="toctree-l3"><a class="reference internal" href="../tutorial/beyond_matter_only.html#non-linear-massive-neutrinos">7.5. Non-linear massive neutrinos</a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="../tutorial/gadget.html">8. Comparison with GADGET-2</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorial/bispectra.html">8. Bispectra and 2LPT</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorial/gadget.html">9. Comparison with GADGET-2</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../installation.html">Installation</a><ul>
@@ -165,6 +167,7 @@
 <li class="toctree-l3"><a class="reference internal" href="#autosave-interval"><code class="docutils literal notranslate"><span class="pre">autosave_interval</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#snapshot-select"><code class="docutils literal notranslate"><span class="pre">snapshot_select</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#powerspec-select"><code class="docutils literal notranslate"><span class="pre">powerspec_select</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#bispec-select"><code class="docutils literal notranslate"><span class="pre">bispec_select</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#render2d-select"><code class="docutils literal notranslate"><span class="pre">render2D_select</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#render3d-select"><code class="docutils literal notranslate"><span class="pre">render3D_select</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#snapshot-type"><code class="docutils literal notranslate"><span class="pre">snapshot_type</span></code></a></li>
@@ -181,7 +184,10 @@
 <li class="toctree-l3"><a class="reference internal" href="numerics.html#potential-options"><code class="docutils literal notranslate"><span class="pre">potential_options</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="numerics.html#shortrange-params"><code class="docutils literal notranslate"><span class="pre">shortrange_params</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="numerics.html#powerspec-options"><code class="docutils literal notranslate"><span class="pre">powerspec_options</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="numerics.html#k-modes-per-decade"><code class="docutils literal notranslate"><span class="pre">k_modes_per_decade</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="numerics.html#bispec-options"><code class="docutils literal notranslate"><span class="pre">bispec_options</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="numerics.html#bispec-antialiasing"><code class="docutils literal notranslate"><span class="pre">bispec_antialiasing</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="numerics.html#class-dedicated-spectra"><code class="docutils literal notranslate"><span class="pre">class_dedicated_spectra</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="numerics.html#class-modes-per-decade"><code class="docutils literal notranslate"><span class="pre">class_modes_per_decade</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="cosmology.html">Cosmology</a><ul>
@@ -275,6 +281,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../utilities/info.html">info utility</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../utilities/play.html">play utility</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../utilities/powerspec.html">powerspec utility</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/bispec.html">bispec utility</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../utilities/render3D.html">render3D utility</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../utilities/update.html">update utility</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../utilities/watch.html">watch utility</a></li>
@@ -345,27 +352,28 @@ initial conditions as well as the wanted results to be outputted from the
 CO<em>N</em>CEPT run.</p>
 <div class="contents local topic" id="contents">
 <ul class="simple">
-<li><p><a class="reference internal" href="#initial-conditions" id="id19"><code class="docutils literal notranslate"><span class="pre">initial_conditions</span></code></a></p></li>
-<li><p><a class="reference internal" href="#output-dirs" id="id20"><code class="docutils literal notranslate"><span class="pre">output_dirs</span></code></a></p></li>
-<li><p><a class="reference internal" href="#output-bases" id="id21"><code class="docutils literal notranslate"><span class="pre">output_bases</span></code></a></p></li>
-<li><p><a class="reference internal" href="#output-times" id="id22"><code class="docutils literal notranslate"><span class="pre">output_times</span></code></a></p></li>
-<li><p><a class="reference internal" href="#autosave-interval" id="id23"><code class="docutils literal notranslate"><span class="pre">autosave_interval</span></code></a></p></li>
-<li><p><a class="reference internal" href="#snapshot-select" id="id24"><code class="docutils literal notranslate"><span class="pre">snapshot_select</span></code></a></p></li>
-<li><p><a class="reference internal" href="#powerspec-select" id="id25"><code class="docutils literal notranslate"><span class="pre">powerspec_select</span></code></a></p></li>
-<li><p><a class="reference internal" href="#render2d-select" id="id26"><code class="docutils literal notranslate"><span class="pre">render2D_select</span></code></a></p></li>
-<li><p><a class="reference internal" href="#render3d-select" id="id27"><code class="docutils literal notranslate"><span class="pre">render3D_select</span></code></a></p></li>
-<li><p><a class="reference internal" href="#snapshot-type" id="id28"><code class="docutils literal notranslate"><span class="pre">snapshot_type</span></code></a></p></li>
-<li><p><a class="reference internal" href="#gadget-snapshot-params" id="id29"><code class="docutils literal notranslate"><span class="pre">gadget_snapshot_params</span></code></a></p></li>
-<li><p><a class="reference internal" href="#snapshot-wrap" id="id30"><code class="docutils literal notranslate"><span class="pre">snapshot_wrap</span></code></a></p></li>
-<li><p><a class="reference internal" href="#select-particle-id" id="id31"><code class="docutils literal notranslate"><span class="pre">select_particle_id</span></code></a></p></li>
-<li><p><a class="reference internal" href="#class-plot-perturbations" id="id32"><code class="docutils literal notranslate"><span class="pre">class_plot_perturbations</span></code></a></p></li>
-<li><p><a class="reference internal" href="#class-extra-background" id="id33"><code class="docutils literal notranslate"><span class="pre">class_extra_background</span></code></a></p></li>
-<li><p><a class="reference internal" href="#class-extra-perturbations" id="id34"><code class="docutils literal notranslate"><span class="pre">class_extra_perturbations</span></code></a></p></li>
+<li><p><a class="reference internal" href="#initial-conditions" id="id20"><code class="docutils literal notranslate"><span class="pre">initial_conditions</span></code></a></p></li>
+<li><p><a class="reference internal" href="#output-dirs" id="id21"><code class="docutils literal notranslate"><span class="pre">output_dirs</span></code></a></p></li>
+<li><p><a class="reference internal" href="#output-bases" id="id22"><code class="docutils literal notranslate"><span class="pre">output_bases</span></code></a></p></li>
+<li><p><a class="reference internal" href="#output-times" id="id23"><code class="docutils literal notranslate"><span class="pre">output_times</span></code></a></p></li>
+<li><p><a class="reference internal" href="#autosave-interval" id="id24"><code class="docutils literal notranslate"><span class="pre">autosave_interval</span></code></a></p></li>
+<li><p><a class="reference internal" href="#snapshot-select" id="id25"><code class="docutils literal notranslate"><span class="pre">snapshot_select</span></code></a></p></li>
+<li><p><a class="reference internal" href="#powerspec-select" id="id26"><code class="docutils literal notranslate"><span class="pre">powerspec_select</span></code></a></p></li>
+<li><p><a class="reference internal" href="#bispec-select" id="id27"><code class="docutils literal notranslate"><span class="pre">bispec_select</span></code></a></p></li>
+<li><p><a class="reference internal" href="#render2d-select" id="id28"><code class="docutils literal notranslate"><span class="pre">render2D_select</span></code></a></p></li>
+<li><p><a class="reference internal" href="#render3d-select" id="id29"><code class="docutils literal notranslate"><span class="pre">render3D_select</span></code></a></p></li>
+<li><p><a class="reference internal" href="#snapshot-type" id="id30"><code class="docutils literal notranslate"><span class="pre">snapshot_type</span></code></a></p></li>
+<li><p><a class="reference internal" href="#gadget-snapshot-params" id="id31"><code class="docutils literal notranslate"><span class="pre">gadget_snapshot_params</span></code></a></p></li>
+<li><p><a class="reference internal" href="#snapshot-wrap" id="id32"><code class="docutils literal notranslate"><span class="pre">snapshot_wrap</span></code></a></p></li>
+<li><p><a class="reference internal" href="#select-particle-id" id="id33"><code class="docutils literal notranslate"><span class="pre">select_particle_id</span></code></a></p></li>
+<li><p><a class="reference internal" href="#class-plot-perturbations" id="id34"><code class="docutils literal notranslate"><span class="pre">class_plot_perturbations</span></code></a></p></li>
+<li><p><a class="reference internal" href="#class-extra-background" id="id35"><code class="docutils literal notranslate"><span class="pre">class_extra_background</span></code></a></p></li>
+<li><p><a class="reference internal" href="#class-extra-perturbations" id="id36"><code class="docutils literal notranslate"><span class="pre">class_extra_perturbations</span></code></a></p></li>
 </ul>
 </div>
 <hr class="docutils" />
 <section id="initial-conditions">
-<span id="id1"></span><h2><a class="toc-backref" href="#id19"><code class="docutils literal notranslate"><span class="pre">initial_conditions</span></code></a><a class="headerlink" href="#initial-conditions" title="Permalink to this headline"></a></h2>
+<span id="id1"></span><h2><a class="toc-backref" href="#id20"><code class="docutils literal notranslate"><span class="pre">initial_conditions</span></code></a><a class="headerlink" href="#initial-conditions" title="Permalink to this headline"></a></h2>
 <table>
 <colgroup>
 <col style="width: 4%" />
@@ -539,7 +547,7 @@ cubic (fcc) lattice.</p>
 <hr class="docutils" />
 </section>
 <section id="output-dirs">
-<span id="id2"></span><h2><a class="toc-backref" href="#id20"><code class="docutils literal notranslate"><span class="pre">output_dirs</span></code></a><a class="headerlink" href="#output-dirs" title="Permalink to this headline"></a></h2>
+<span id="id2"></span><h2><a class="toc-backref" href="#id21"><code class="docutils literal notranslate"><span class="pre">output_dirs</span></code></a><a class="headerlink" href="#output-dirs" title="Permalink to this headline"></a></h2>
 <table>
 <colgroup>
 <col style="width: 4%" />
@@ -559,6 +567,7 @@ cubic (fcc) lattice.</p>
 <td><div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
     <span class="s1">&#39;snapshot&#39;</span> <span class="p">:</span> <span class="n">path</span><span class="o">.</span><span class="n">output_dir</span><span class="p">,</span>
     <span class="s1">&#39;powerspec&#39;</span><span class="p">:</span> <span class="n">path</span><span class="o">.</span><span class="n">output_dir</span><span class="p">,</span>
+    <span class="s1">&#39;bispec&#39;</span>   <span class="p">:</span> <span class="n">path</span><span class="o">.</span><span class="n">output_dir</span><span class="p">,</span>
     <span class="s1">&#39;render2D&#39;</span> <span class="p">:</span> <span class="n">path</span><span class="o">.</span><span class="n">output_dir</span><span class="p">,</span>
     <span class="s1">&#39;render3D&#39;</span> <span class="p">:</span> <span class="n">path</span><span class="o">.</span><span class="n">output_dir</span><span class="p">,</span>
     <span class="s1">&#39;autosave&#39;</span> <span class="p">:</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">path</span><span class="o">.</span><span class="n">ic_dir</span><span class="si">}</span><span class="s1">/autosave&#39;</span><span class="p">,</span>
@@ -571,10 +580,11 @@ cubic (fcc) lattice.</p>
 <td><p><strong>Elaboration</strong></p></td>
 <td><p></p></td>
 <td><p>This is a <code class="docutils literal notranslate"><span class="pre">dict</span></code> with the keys <code class="docutils literal notranslate"><span class="pre">'snapshot'</span></code>,
-<code class="docutils literal notranslate"><span class="pre">'powerspec'</span></code>, <code class="docutils literal notranslate"><span class="pre">'render2D'</span></code>, <code class="docutils literal notranslate"><span class="pre">'render3D'</span></code> and
-<code class="docutils literal notranslate"><span class="pre">'autosave'</span></code>, mapping to directory paths to use for
-snapshot outputs, power spectrum outputs, 2D render
-outputs, 3D render outputs and autosaves, respectively.</p></td>
+<code class="docutils literal notranslate"><span class="pre">'powerspec'</span></code>, <code class="docutils literal notranslate"><span class="pre">'bispec'</span></code>, <code class="docutils literal notranslate"><span class="pre">'render2D'</span></code>,
+<code class="docutils literal notranslate"><span class="pre">'render3D'</span></code> and <code class="docutils literal notranslate"><span class="pre">'autosave'</span></code>, mapping to directory
+paths to use for snapshot outputs, power spectrum
+outputs, bispectrum outputs, 2D render outputs,
+3D render outputs and autosaves, respectively.</p></td>
 </tr>
 <tr class="row-even"><td><p></p></td>
 <td><p><strong>Example 0</strong></p></td>
@@ -601,6 +611,7 @@ reflect the ID of the running job:</p>
 <div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">output_dirs</span> <span class="o">=</span> <span class="p">{</span>
     <span class="s1">&#39;snapshot&#39;</span> <span class="p">:</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">path</span><span class="o">.</span><span class="n">output_dir</span><span class="si">}</span><span class="s1">/</span><span class="si">{</span><span class="n">jobid</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span>
     <span class="s1">&#39;powerspec&#39;</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span>
+    <span class="s1">&#39;bispec&#39;</span>   <span class="p">:</span> <span class="o">...</span><span class="p">,</span>
     <span class="s1">&#39;render2D&#39;</span> <span class="p">:</span> <span class="o">...</span><span class="p">,</span>
     <span class="s1">&#39;render3D&#39;</span> <span class="p">:</span> <span class="o">...</span><span class="p">,</span>
 <span class="p">}</span>
@@ -616,6 +627,7 @@ containing the parameter file currently in use:</p>
 <div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">output_dirs</span> <span class="o">=</span> <span class="p">{</span>
     <span class="s1">&#39;snapshot&#39;</span> <span class="p">:</span> <span class="n">param</span><span class="o">.</span><span class="n">dir</span><span class="p">,</span>
     <span class="s1">&#39;powerspec&#39;</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span>
+    <span class="s1">&#39;bispec&#39;</span>   <span class="p">:</span> <span class="o">...</span><span class="p">,</span>
     <span class="s1">&#39;render2D&#39;</span> <span class="p">:</span> <span class="o">...</span><span class="p">,</span>
     <span class="s1">&#39;render3D&#39;</span> <span class="p">:</span> <span class="o">...</span><span class="p">,</span>
     <span class="s1">&#39;autosave&#39;</span> <span class="p">:</span> <span class="o">...</span><span class="p">,</span>
@@ -635,7 +647,7 @@ simply</p>
 </section>
 <hr class="docutils" />
 <section id="output-bases">
-<h2><a class="toc-backref" href="#id21"><code class="docutils literal notranslate"><span class="pre">output_bases</span></code></a><a class="headerlink" href="#output-bases" title="Permalink to this headline"></a></h2>
+<h2><a class="toc-backref" href="#id22"><code class="docutils literal notranslate"><span class="pre">output_bases</span></code></a><a class="headerlink" href="#output-bases" title="Permalink to this headline"></a></h2>
 <table>
 <colgroup>
 <col style="width: 4%" />
@@ -655,6 +667,7 @@ simply</p>
 <td><div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
     <span class="s1">&#39;snapshot&#39;</span> <span class="p">:</span> <span class="s1">&#39;snapshot&#39;</span><span class="p">,</span>
     <span class="s1">&#39;powerspec&#39;</span><span class="p">:</span> <span class="s1">&#39;powerspec&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;bispec&#39;</span>   <span class="p">:</span> <span class="s1">&#39;bispec&#39;</span><span class="p">,</span>
     <span class="s1">&#39;render2D&#39;</span> <span class="p">:</span> <span class="s1">&#39;render2D&#39;</span><span class="p">,</span>
     <span class="s1">&#39;render3D&#39;</span> <span class="p">:</span> <span class="s1">&#39;render3D&#39;</span><span class="p">,</span>
 <span class="p">}</span>
@@ -666,9 +679,9 @@ simply</p>
 <td><p><strong>Elaboration</strong></p></td>
 <td><p></p></td>
 <td><p>This is a <code class="docutils literal notranslate"><span class="pre">dict</span></code> with the keys <code class="docutils literal notranslate"><span class="pre">'snapshot'</span></code>,
-<code class="docutils literal notranslate"><span class="pre">'powerspec'</span></code>, <code class="docutils literal notranslate"><span class="pre">'render2D'</span></code> and <code class="docutils literal notranslate"><span class="pre">'render3D'</span></code>,
-mapping to file base names of the respective
-output types.</p>
+<code class="docutils literal notranslate"><span class="pre">'powerspec'</span></code>, <code class="docutils literal notranslate"><span class="pre">'bispec'</span></code>, <code class="docutils literal notranslate"><span class="pre">'render2D'</span></code> and
+<code class="docutils literal notranslate"><span class="pre">'render3D'</span></code>, mapping to file base names of the
+respective output types.</p>
 <p>The file name of e.g. a power spectrum output at scale
 factor <span class="math notranslate nohighlight">\(a = 1.0\)</span> will be
 <code class="docutils literal notranslate"><span class="pre">output_bases['powerspec']</span> <span class="pre">+</span> <span class="pre">'_a=1.0'</span></code>. The directory
@@ -697,7 +710,7 @@ default values</p>
 </section>
 <hr class="docutils" />
 <section id="output-times">
-<h2><a class="toc-backref" href="#id22"><code class="docutils literal notranslate"><span class="pre">output_times</span></code></a><a class="headerlink" href="#output-times" title="Permalink to this headline"></a></h2>
+<h2><a class="toc-backref" href="#id23"><code class="docutils literal notranslate"><span class="pre">output_times</span></code></a><a class="headerlink" href="#output-times" title="Permalink to this headline"></a></h2>
 <table>
 <colgroup>
 <col style="width: 4%" />
@@ -723,9 +736,10 @@ default values</p>
 <td><p><strong>Elaboration</strong></p></td>
 <td><p></p></td>
 <td><p>In its simplest form this is a <code class="docutils literal notranslate"><span class="pre">dict</span></code> with the keys
-<code class="docutils literal notranslate"><span class="pre">'snapshot'</span></code>, <code class="docutils literal notranslate"><span class="pre">'powerspec'</span></code>, <code class="docutils literal notranslate"><span class="pre">'render2D'</span></code> and
-<code class="docutils literal notranslate"><span class="pre">'render3D'</span></code>, mapping to scale factor values <span class="math notranslate nohighlight">\(a\)</span>
-at which to dump the respective outputs.</p>
+<code class="docutils literal notranslate"><span class="pre">'snapshot'</span></code>, <code class="docutils literal notranslate"><span class="pre">'powerspec'</span></code>, <code class="docutils literal notranslate"><span class="pre">'bispec'</span></code>,
+<code class="docutils literal notranslate"><span class="pre">'render2D'</span></code> and <code class="docutils literal notranslate"><span class="pre">'render3D'</span></code>, mapping to scale
+factor values <span class="math notranslate nohighlight">\(a\)</span> at which to dump the respective
+outputs.</p>
 <p>Alternatively, such <code class="docutils literal notranslate"><span class="pre">dict</span></code>s can be used as values
 within an outer <code class="docutils literal notranslate"><span class="pre">dict</span></code> with keys <code class="docutils literal notranslate"><span class="pre">'a'</span></code> and <code class="docutils literal notranslate"><span class="pre">'t'</span></code>,
 for specifying output times at either scale factor
@@ -759,7 +773,7 @@ values <span class="math notranslate nohighlight">\(a\)</span> or cosmic times <
 <td><p><strong>Example 2</strong></p></td>
 <td><p></p></td>
 <td><p>Specify 8 power spectrum outputs between the initial
-<span class="math notranslate nohighlight">\(a = a_{\mathrm{begin}}\)</span> and final <span class="math notranslate nohighlight">\(a = 1\)</span>,
+<span class="math notranslate nohighlight">\(a = a_{\text{begin}}\)</span> and final <span class="math notranslate nohighlight">\(a = 1\)</span>,
 placed logarithmically equidistant:</p>
 <div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">output_times</span> <span class="o">=</span> <span class="p">{</span>
     <span class="s1">&#39;powerspec&#39;</span><span class="p">:</span> <span class="n">logspace</span><span class="p">(</span><span class="n">log10</span><span class="p">(</span><span class="n">a_begin</span><span class="p">),</span> <span class="n">log10</span><span class="p">(</span><span class="mi">1</span><span class="p">),</span> <span class="mi">8</span><span class="p">),</span>
@@ -785,8 +799,8 @@ same values for 2D renders:</p>
 <td><p><strong>Example 4</strong></p></td>
 <td><p></p></td>
 <td><p>Specify snapshots at cosmic times
-<span class="math notranslate nohighlight">\(t = 1729\,\mathrm{Myr}\)</span> and
-<span class="math notranslate nohighlight">\(t = 13\,\mathrm{Gyr}\)</span>, as well as at scale factor
+<span class="math notranslate nohighlight">\(t = 1729\,\text{Myr}\)</span> and
+<span class="math notranslate nohighlight">\(t = 13\,\text{Gyr}\)</span>, as well as at scale factor
 <span class="math notranslate nohighlight">\(a = 1\)</span>.</p>
 <div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">output_times</span> <span class="o">=</span> <span class="p">{</span>
     <span class="s1">&#39;t&#39;</span><span class="p">:</span> <span class="p">{</span>
@@ -805,7 +819,7 @@ same values for 2D renders:</p>
 </section>
 <hr class="docutils" />
 <section id="autosave-interval">
-<h2><a class="toc-backref" href="#id23"><code class="docutils literal notranslate"><span class="pre">autosave_interval</span></code></a><a class="headerlink" href="#autosave-interval" title="Permalink to this headline"></a></h2>
+<h2><a class="toc-backref" href="#id24"><code class="docutils literal notranslate"><span class="pre">autosave_interval</span></code></a><a class="headerlink" href="#autosave-interval" title="Permalink to this headline"></a></h2>
 <table>
 <colgroup>
 <col style="width: 4%" />
@@ -887,7 +901,7 @@ autosaves on disk.</p>
 <hr class="docutils" />
 </section>
 <section id="snapshot-select">
-<span id="id3"></span><h2><a class="toc-backref" href="#id24"><code class="docutils literal notranslate"><span class="pre">snapshot_select</span></code></a><a class="headerlink" href="#snapshot-select" title="Permalink to this headline"></a></h2>
+<span id="id3"></span><h2><a class="toc-backref" href="#id25"><code class="docutils literal notranslate"><span class="pre">snapshot_select</span></code></a><a class="headerlink" href="#snapshot-select" title="Permalink to this headline"></a></h2>
 <table>
 <colgroup>
 <col style="width: 4%" />
@@ -1064,7 +1078,7 @@ in the momentum information only wastes time and memory.</p>
 <hr class="docutils" />
 </section>
 <section id="powerspec-select">
-<span id="id4"></span><h2><a class="toc-backref" href="#id25"><code class="docutils literal notranslate"><span class="pre">powerspec_select</span></code></a><a class="headerlink" href="#powerspec-select" title="Permalink to this headline"></a></h2>
+<span id="id4"></span><h2><a class="toc-backref" href="#id26"><code class="docutils literal notranslate"><span class="pre">powerspec_select</span></code></a><a class="headerlink" href="#powerspec-select" title="Permalink to this headline"></a></h2>
 <table>
 <colgroup>
 <col style="width: 4%" />
@@ -1100,20 +1114,14 @@ for different components</p></td>
 <a class="reference internal" href="parameters.html#components-and-selections"><span class="std std-ref">component selection</span></a>
 determining which components participate in power
 spectrum output, as well as what kind of power
-spectrum outputs to include.</p>
+spectrum output to include.</p>
 <p>Here <code class="docutils literal notranslate"><span class="pre">'data'</span></code> refers to text files containing
 tabulated values of the (auto) power spectrum
-<span class="math notranslate nohighlight">\(P(k)\)</span>. A separate data column within these files
+<span class="math notranslate nohighlight">\(P(k)\)</span>. A separate column within these files
 containing the corresponding linear-theory power
 spectrum is added if <code class="docutils literal notranslate"><span class="pre">'linear'</span></code> is also selected.
-Selecting <code class="docutils literal notranslate"><span class="pre">'plot'</span></code> results in a plot of the selected
-(non-)linear data, stored as a PNG file.</p>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>As CO<em>N</em>CEPT runs in <em>N</em>-body gauge, the output
-power spectra will also be in this gauge.
-This includes the linear power spectra.</p>
-</div>
+Selecting <code class="docutils literal notranslate"><span class="pre">'plot'</span></code> results in a plot of the specified
+data, stored as a PNG file.</p>
 <p>To tune the specifics of how power spectra are computed,
 see the <code class="docutils literal notranslate"><span class="pre">powerspec_options</span></code>
 <a class="reference internal" href="numerics.html#powerspec-options"><span class="std std-ref">parameter</span></a>.</p>
@@ -1192,8 +1200,161 @@ all components, as well as for the combined
 </table>
 <hr class="docutils" />
 </section>
+<section id="bispec-select">
+<span id="id5"></span><h2><a class="toc-backref" href="#id27"><code class="docutils literal notranslate"><span class="pre">bispec_select</span></code></a><a class="headerlink" href="#bispec-select" title="Permalink to this headline"></a></h2>
+<table>
+<colgroup>
+<col style="width: 4%" />
+<col style="width: 10%" />
+<col style="width: 4%" />
+<col style="width: 82%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Description</strong></p></td>
+<td><p></p></td>
+<td><p>Specifies the kind of bispectrum output to include
+for different components</p></td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Default</strong></p></td>
+<td><p></p></td>
+<td><div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+    <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;data&#39;</span>      <span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="s1">&#39;reduced&#39;</span>   <span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="s1">&#39;tree-level&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="s1">&#39;plot&#39;</span>      <span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="p">},</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Elaboration</strong></p></td>
+<td><p></p></td>
+<td><p>This is a
+<a class="reference internal" href="parameters.html#components-and-selections"><span class="std std-ref">component selection</span></a>
+determining which components participate in bispectrum
+output, as well as what kind of bispectrum output
+to include.</p>
+<p>Here <code class="docutils literal notranslate"><span class="pre">'data'</span></code> refers to text files containing
+tabulated values of the (auto) bispectrum
+<span class="math notranslate nohighlight">\(B(k, t, \mu) = B(k_1, k_2, k_3)\)</span>. If
+<code class="docutils literal notranslate"><span class="pre">'reduced'</span></code> is also selected, a separate column
+containing the reduced bispectrum
+<span class="math notranslate nohighlight">\(Q(k_1, k_2, k_3) \equiv B(k_1, k_2, k_3)/[P(k_1)P(k_2) + P(k_2)P(k_3) + P(k_3)P(k_1)]\)</span>
+will be included within the text file. When
+<code class="docutils literal notranslate"><span class="pre">'tree-level'</span></code> is selected, a separate column
+containing the perturbative tree-level prediction of
+<span class="math notranslate nohighlight">\(B\)</span> is added, and likewise for <span class="math notranslate nohighlight">\(Q\)</span> if
+<code class="docutils literal notranslate"><span class="pre">'reduced'</span></code> is simultaneously selected. Selecting
+<code class="docutils literal notranslate"><span class="pre">'plot'</span></code> results in a plot of the specified data,
+stored as a PNG file.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Tree-level predictions are available for matter-like
+species only, and are
+<a class="reference external" href="https://arxiv.org/abs/1602.05933">given by</a></p>
+<div class="math notranslate nohighlight">
+\[\begin{split}B_{\text{tree-level}}(k_1, k_2, k_3) = 2 [ \quad &amp;\mathcal{K}(k_1, k_2, k_3)P_{\text{L}}(k_1)P_{\text{L}}(k_2) \\
++ &amp;\mathcal{K}(k_2, k_3, k_1)P_{\text{L}}(k_2)P_{\text{L}}(k_3) \\
++ &amp;\mathcal{K}(k_3, k_1, k_2)P_{\text{L}}(k_3)P_{\text{L}}(k_1) ]\,,\end{split}\]</div>
+<div class="math notranslate nohighlight">
+\[\mathcal{K}(k_1, k_2, k_3) = 1 - \frac{1}{2}\biggl(1 + \frac{D^{(2)}}{D^2}\biggr) (1 - \mu^2) - \frac{\mu}{2}\biggl( \frac{k_1}{k_2} + \frac{k_2}{k_1} \biggr)\,,\]</div>
+<div class="math notranslate nohighlight">
+\[\mu = -\hat{\boldsymbol{k}}_1\cdot\hat{\boldsymbol{k}}_2 = \frac{k_1^2 + k_2^2 - k_3^2}{2k_1k_2}\,,\]</div>
+<p>where <span class="math notranslate nohighlight">\(P_{\text{L}}(k)\)</span> is the linear power
+spectrum while <span class="math notranslate nohighlight">\(D\)</span> and <span class="math notranslate nohighlight">\(D^{(2)}\)</span> are the
+first- and second-order growth factors.</p>
+</div>
+<p>To tune the specifics of how bispectra are computed, see
+the <code class="docutils literal notranslate"><span class="pre">bispec_options</span></code> <a class="reference internal" href="numerics.html#bispec-options"><span class="std std-ref">parameter</span></a>.</p>
+</td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Example 0</strong></p></td>
+<td><p></p></td>
+<td><p>Dump bispectrum data files containing spectra for all
+components, including both non-linear and tree-level
+data, for both the full and reduced bispectrum. Do not
+dump any plots of this data:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">bispec_select</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;all&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;data&#39;</span>      <span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="s1">&#39;reduced&#39;</span>   <span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="s1">&#39;tree-level&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="s1">&#39;plot&#39;</span>      <span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="p">},</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Example 1</strong></p></td>
+<td><p></p></td>
+<td><p>Leave out the reduced bispectrum for every component
+except the one with a name/species of <code class="docutils literal notranslate"><span class="pre">'matter'</span></code>.
+Do not include any tree-level predictions and do not
+make any plots:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">bispec_select</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;all&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;data&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="p">},</span>
+    <span class="s1">&#39;matter&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;data&#39;</span>   <span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="s1">&#39;reduced&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="p">},</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Unspecified values are assigned <code class="docutils literal notranslate"><span class="pre">False</span></code></p>
+</div>
+</td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Example 2</strong></p></td>
+<td><p></p></td>
+<td><p>Do not create any bispectrum outputs except plots
+of the component with a name/species of <code class="docutils literal notranslate"><span class="pre">'matter'</span></code>.
+Include both the full and reduced bispectrum as well as
+their tree-level predictions in the plots:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">bispec_select</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;all&#39;</span>   <span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="s1">&#39;matter&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;reduced&#39;</span>   <span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="s1">&#39;tree-level&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="s1">&#39;plot&#39;</span>      <span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="p">},</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Example 3</strong></p></td>
+<td><p></p></td>
+<td><p>Create full (auto) bispectrum outputs for all
+components, as well as for the combined
+<code class="docutils literal notranslate"><span class="pre">'matter'</span></code> and <code class="docutils literal notranslate"><span class="pre">'neutrino'</span></code> components:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">bispec_select</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;all&#39;</span>                 <span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="p">(</span><span class="s1">&#39;matter&#39;</span><span class="p">,</span> <span class="s1">&#39;neutrino&#39;</span><span class="p">):</span> <span class="kc">True</span><span class="p">,</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+<hr class="docutils" />
+</section>
 <section id="render2d-select">
-<span id="id5"></span><h2><a class="toc-backref" href="#id26"><code class="docutils literal notranslate"><span class="pre">render2D_select</span></code></a><a class="headerlink" href="#render2d-select" title="Permalink to this headline"></a></h2>
+<span id="id6"></span><h2><a class="toc-backref" href="#id28"><code class="docutils literal notranslate"><span class="pre">render2D_select</span></code></a><a class="headerlink" href="#render2d-select" title="Permalink to this headline"></a></h2>
 <table>
 <colgroup>
 <col style="width: 4%" />
@@ -1299,7 +1460,7 @@ and nothing else:</p>
 </section>
 <hr class="docutils" />
 <section id="render3d-select">
-<h2><a class="toc-backref" href="#id27"><code class="docutils literal notranslate"><span class="pre">render3D_select</span></code></a><a class="headerlink" href="#render3d-select" title="Permalink to this headline"></a></h2>
+<h2><a class="toc-backref" href="#id29"><code class="docutils literal notranslate"><span class="pre">render3D_select</span></code></a><a class="headerlink" href="#render3d-select" title="Permalink to this headline"></a></h2>
 <table>
 <colgroup>
 <col style="width: 4%" />
@@ -1354,7 +1515,7 @@ of <code class="docutils literal notranslate"><span class="pre">'matter'</span><
 <hr class="docutils" />
 </section>
 <section id="snapshot-type">
-<span id="id6"></span><h2><a class="toc-backref" href="#id28"><code class="docutils literal notranslate"><span class="pre">snapshot_type</span></code></a><a class="headerlink" href="#snapshot-type" title="Permalink to this headline"></a></h2>
+<span id="id7"></span><h2><a class="toc-backref" href="#id30"><code class="docutils literal notranslate"><span class="pre">snapshot_type</span></code></a><a class="headerlink" href="#snapshot-type" title="Permalink to this headline"></a></h2>
 <table>
 <colgroup>
 <col style="width: 4%" />
@@ -1437,7 +1598,7 @@ your needs, see the <code class="docutils literal notranslate"><span class="pre"
 <hr class="docutils" />
 </section>
 <section id="gadget-snapshot-params">
-<span id="id7"></span><h2><a class="toc-backref" href="#id29"><code class="docutils literal notranslate"><span class="pre">gadget_snapshot_params</span></code></a><a class="headerlink" href="#gadget-snapshot-params" title="Permalink to this headline"></a></h2>
+<span id="id8"></span><h2><a class="toc-backref" href="#id31"><code class="docutils literal notranslate"><span class="pre">gadget_snapshot_params</span></code></a><a class="headerlink" href="#gadget-snapshot-params" title="Permalink to this headline"></a></h2>
 <table>
 <colgroup>
 <col style="width: 4%" />
@@ -1630,7 +1791,7 @@ snapshots.</p>
 </section>
 <hr class="docutils" />
 <section id="snapshot-wrap">
-<h2><a class="toc-backref" href="#id30"><code class="docutils literal notranslate"><span class="pre">snapshot_wrap</span></code></a><a class="headerlink" href="#snapshot-wrap" title="Permalink to this headline"></a></h2>
+<h2><a class="toc-backref" href="#id32"><code class="docutils literal notranslate"><span class="pre">snapshot_wrap</span></code></a><a class="headerlink" href="#snapshot-wrap" title="Permalink to this headline"></a></h2>
 <table>
 <colgroup>
 <col style="width: 4%" />
@@ -1657,15 +1818,15 @@ around the periodic box when reading snapshots</p></td>
 <td><p><strong>Elaboration</strong></p></td>
 <td><p></p></td>
 <td><p>All particles should have positions
-<span class="math notranslate nohighlight">\(0 \leq x, y, z &lt; L_{\mathrm{box}}\)</span>, with
-<span class="math notranslate nohighlight">\(L_{\mathrm{box}}\)</span> corresponding to the
+<span class="math notranslate nohighlight">\(0 \leq x, y, z &lt; L_{\text{box}}\)</span>, with
+<span class="math notranslate nohighlight">\(L_{\text{box}}\)</span> corresponding to the
 <code class="docutils literal notranslate"><span class="pre">boxsize</span></code> <a class="reference internal" href="numerics.html#boxsize"><span class="std std-ref">parameter</span></a>.
 During simulation, particles drifting out of the cubic
 box is immediately wrapped around.</p>
 <p>When reading particles from a snapshot, some particles
 may be erroneously located outside of the box. If a
 particle is positioned exactly on the upper boundary
-<span class="math notranslate nohighlight">\(L_{\mathrm{box}}\)</span>, this is silently wrapped back
+<span class="math notranslate nohighlight">\(L_{\text{box}}\)</span>, this is silently wrapped back
 to <span class="math notranslate nohighlight">\(0\)</span>. Positions beyond this as well as as
 negative positions are counted as out-of-bounds.</p>
 <p>If this parameter is set to <code class="docutils literal notranslate"><span class="pre">False</span></code> (the default), any
@@ -1691,7 +1852,7 @@ snapshots:</p>
 <hr class="docutils" />
 </section>
 <section id="select-particle-id">
-<span id="id13"></span><h2><a class="toc-backref" href="#id31"><code class="docutils literal notranslate"><span class="pre">select_particle_id</span></code></a><a class="headerlink" href="#select-particle-id" title="Permalink to this headline"></a></h2>
+<span id="id14"></span><h2><a class="toc-backref" href="#id33"><code class="docutils literal notranslate"><span class="pre">select_particle_id</span></code></a><a class="headerlink" href="#select-particle-id" title="Permalink to this headline"></a></h2>
 <table>
 <colgroup>
 <col style="width: 4%" />
@@ -1721,8 +1882,8 @@ IDs</p></td>
 <td><p></p></td>
 <td><p>This is a
 <a class="reference internal" href="parameters.html#components-and-selections"><span class="std std-ref">component selection</span></a>
-specifying which particle components should make use of
-particle IDs, i.e. unique inter labels, one for each
+specifying particle components that should make use of
+particle IDs, i.e. unique integer labels, one for each
 particle.</p>
 <p>When a component using particle IDs are saved to a
 snapshot, the IDs are saved as well.</p>
@@ -1761,7 +1922,7 @@ IDs, new IDs are assigned.</p>
 <hr class="docutils" />
 </section>
 <section id="class-plot-perturbations">
-<span id="id14"></span><h2><a class="toc-backref" href="#id32"><code class="docutils literal notranslate"><span class="pre">class_plot_perturbations</span></code></a><a class="headerlink" href="#class-plot-perturbations" title="Permalink to this headline"></a></h2>
+<span id="id15"></span><h2><a class="toc-backref" href="#id34"><code class="docutils literal notranslate"><span class="pre">class_plot_perturbations</span></code></a><a class="headerlink" href="#class-plot-perturbations" title="Permalink to this headline"></a></h2>
 <table>
 <colgroup>
 <col style="width: 4%" />
@@ -1842,7 +2003,7 @@ CO<em>N</em>CEPT run:</p>
 <hr class="docutils" />
 </section>
 <section id="class-extra-background">
-<span id="id15"></span><h2><a class="toc-backref" href="#id33"><code class="docutils literal notranslate"><span class="pre">class_extra_background</span></code></a><a class="headerlink" href="#class-extra-background" title="Permalink to this headline"></a></h2>
+<span id="id16"></span><h2><a class="toc-backref" href="#id35"><code class="docutils literal notranslate"><span class="pre">class_extra_background</span></code></a><a class="headerlink" href="#class-extra-background" title="Permalink to this headline"></a></h2>
 <table>
 <colgroup>
 <col style="width: 4%" />
@@ -1941,7 +2102,7 @@ these to disk, e.g. when running the CO<em>N</em>CEPT
 <hr class="docutils" />
 </section>
 <section id="class-extra-perturbations">
-<span id="id17"></span><h2><a class="toc-backref" href="#id34"><code class="docutils literal notranslate"><span class="pre">class_extra_perturbations</span></code></a><a class="headerlink" href="#class-extra-perturbations" title="Permalink to this headline"></a></h2>
+<span id="id18"></span><h2><a class="toc-backref" href="#id36"><code class="docutils literal notranslate"><span class="pre">class_extra_perturbations</span></code></a><a class="headerlink" href="#class-extra-perturbations" title="Permalink to this headline"></a></h2>
 <table>
 <colgroup>
 <col style="width: 4%" />

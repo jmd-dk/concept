@@ -7,7 +7,7 @@ file:
 .. code-block:: python3
    :caption: param/tutorial
    :name: param-output-types
-   :emphasize-lines: 10, 12-13, 16, 18-19, 21-26, 38-54
+   :emphasize-lines: 10, 12-14, 17, 19-21, 23-31, 43-59
 
    # Non-parameter variable used to control the size of the simulation
    _size = 64
@@ -20,17 +20,22 @@ file:
    output_dirs = {
        'snapshot' : f'{path.output_dir}/{param}',
        'powerspec': ...,
+       'bispec'   : ...,
        'render2D' : ...,
        'render3D' : ...,
    }
    output_times = {
        'snapshot' : 0.1,
        'powerspec': [a_begin, 0.3, 1],
+       'bispec'   : ...,
        'render3D' : ...,
        'render2D' : logspace(log10(a_begin), log10(1), 15),
    }
    powerspec_select = {
        'matter': {'data': True, 'linear': True, 'plot': False},
+   }
+   bispec_select = {
+       'matter': {'data': True, 'reduced': True, 'tree-level': True, 'plot': True},
    }
    render2D_select = {
        'matter': {'data': False, 'image': True, 'terminal image': True},
@@ -75,15 +80,15 @@ by saving them to ``param/tutorial`` and executing
 
 This will take a few minutes. You may read along in the meantime.
 
-We see that besides power spectra, we now have *snapshots* and *renders*, the
-latter of which comes in a 2D and a 3D version. The ellipses (``...``) used
-above in ``output_dirs`` indicate that we want all kinds of output to go to
-the same directory.
+We see that besides power spectra, we now have *snapshots*, *bispectra* and
+*renders*, the latter of which come in a 2D and a 3D version. The ellipses
+(``...``) used above in ``output_dirs`` indicate that we want all kinds of
+output to go to the same directory.
 
 For the ``output_times``, different values are given for three of the output
-types, while ``'render3D'`` is set to use the same times as the output just
-above it, i.e. that of ``'powerspec'``. For ``'render2D'``, we've specified 15
-outputs spaced logarithmically equidistant between
+types, while ``bispec`` and ``'render3D'`` are set to use the same times as
+the output just above, i.e. that of ``'powerspec'``. For ``'render2D'``, we've
+specified 15 outputs spaced logarithmically equidistant between
 :math:`a = a_{\text{begin}} = 0.02` and :math:`a = 1`.
 
 Among the new parameters introduced are ``powerspec_select``, in which we have
@@ -92,11 +97,47 @@ spectrum --- as output, not plots of this data.
 
 
 
+Bispectra
+.........
+The output directory will be populated with a large number of output files.
+The ones with names beginning with ``bispec`` are the bispectrum files,
+analogous to the by-now familiar power spectrum files. Looking at the
+bispectrum plots, we see that they show both the bispectrum :math:`B` as well
+as its reduced version :math:`Q`, and even the perturbative tree-level
+prediction. We get all of these as they are enabled in the ``bispec_select``
+parameter.
+
+For the first bispectrum plot at :math:`a = a_{\text{begin}}`, the :math:`B`
+line is mostly dashed. Dashed lines are used for negative values, which
+usually indicate that the bispectrum signal present in the simulation is too
+small compared to the noise. Indeed, the later plots show :math:`B` as a full
+line, indicating positive, proper values.
+
+The bispectrum data files are very analogous to the power spectrum files,
+though the number of columns contained within them is usually much greater.
+
+.. tip::
+   One way to comfortably view wide text files (e.g.
+   ``output/tutorial/bispec_a=1.00``) in the terminal is to use
+
+   .. code-block:: python3
+
+      less -S output/tutorial/bispec_a=1.00
+
+   You can then scroll both horizontally and vertically with the arrow keys.
+   Press ``Q`` to quit.
+
+The specific bispectrum that has been measured is the *equilateral*
+bispectrum. A :doc:`later section </tutorial/bispectra>` of this tutorial is
+dedicated to the bispectrum, including other configurations.
+
+
+
 3D renders
 ..........
-Looking in the output directory, among other things you'll find image files
-with names starting with ``render3D``. These are --- unsurprisingly --- the 3D
-renders. The colours are controlled through the ``render3D_colors`` and
+You will find other image files in the output directory with names that begin
+with ``render3D``. These are --- unsurprisingly --- the 3D renders. The
+colours are controlled through the ``render3D_colors`` and
 ``render3D_bgcolor`` parameters, while the (linear) size (in pixels) is set by
 ``render3D_resolution``. All particles of a given component gets the same
 colour, though different colours may be used for different components when
@@ -151,7 +192,8 @@ For this next trick, the simulation needs to have finished, and we need to
 know its job ID.
 
 .. tip::
-   To grab the job ID from a power spectra data file, you can do e.g.
+   To grab the job ID from a power spectrum (or bispectrum) data file, you can
+   do e.g.
 
    .. code-block:: bash
 
@@ -307,7 +349,6 @@ or
    ./concept -u info ic
 
 The content of all snapshots --- CO\ *N*\ CEPT (HDF5) or GADGET format --- in
-the ``output/tutorial`` directory will now be printed to the screen. Should
-you want information about just a specific snapshot, simply provide its
-entire path.
+the given directory will now be printed to the screen. Should you want
+information about just a specific snapshot, simply provide its entire path.
 

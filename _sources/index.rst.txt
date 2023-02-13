@@ -46,7 +46,8 @@ relativistic perturbation theory. Various non-standard species --- such as
 decaying cold dark matter --- are fully supported.
 
 CO\ *N*\ CEPT comes with a sophisticated initial condition generator built in,
-and can output snapshots, power spectra and several kinds of renders.
+and can output snapshots, power spectra, bispectra and several
+kinds of renders.
 
 The `CLASS <http://class-code.net/>`_ code is fully integrated into
 CO\ *N*\ CEPT, supplying the needed information for e.g. initial condition

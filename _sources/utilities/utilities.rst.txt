@@ -20,6 +20,7 @@ The available utilities are as follows:
    info
    play
    powerspec
+   bispec
    render3D
    update
    watch

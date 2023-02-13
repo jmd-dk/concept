@@ -57,9 +57,10 @@
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="../tutorial/output_types.html">5. Other kinds of output</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="../tutorial/output_types.html#d-renders">5.1. 3D renders</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../tutorial/output_types.html#id1">5.2. 2D renders</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../tutorial/output_types.html#snapshots">5.3. Snapshots</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../tutorial/output_types.html#bispectra">5.1. Bispectra</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../tutorial/output_types.html#d-renders">5.2. 3D renders</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../tutorial/output_types.html#id1">5.3. 2D renders</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../tutorial/output_types.html#snapshots">5.4. Snapshots</a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="../tutorial/working_remotely.html">6. Working on remote clusters</a></li>
@@ -71,7 +72,8 @@
 <li class="toctree-l3"><a class="reference internal" href="../tutorial/beyond_matter_only.html#non-linear-massive-neutrinos">7.5. Non-linear massive neutrinos</a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="../tutorial/gadget.html">8. Comparison with GADGET-2</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorial/bispectra.html">8. Bispectra and 2LPT</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorial/gadget.html">9. Comparison with GADGET-2</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../installation.html">Installation</a><ul>
@@ -165,6 +167,7 @@
 <li class="toctree-l3"><a class="reference internal" href="input_output.html#autosave-interval"><code class="docutils literal notranslate"><span class="pre">autosave_interval</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="input_output.html#snapshot-select"><code class="docutils literal notranslate"><span class="pre">snapshot_select</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="input_output.html#powerspec-select"><code class="docutils literal notranslate"><span class="pre">powerspec_select</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="input_output.html#bispec-select"><code class="docutils literal notranslate"><span class="pre">bispec_select</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="input_output.html#render2d-select"><code class="docutils literal notranslate"><span class="pre">render2D_select</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="input_output.html#render3d-select"><code class="docutils literal notranslate"><span class="pre">render3D_select</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="input_output.html#snapshot-type"><code class="docutils literal notranslate"><span class="pre">snapshot_type</span></code></a></li>
@@ -181,7 +184,10 @@
 <li class="toctree-l3"><a class="reference internal" href="numerics.html#potential-options"><code class="docutils literal notranslate"><span class="pre">potential_options</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="numerics.html#shortrange-params"><code class="docutils literal notranslate"><span class="pre">shortrange_params</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="numerics.html#powerspec-options"><code class="docutils literal notranslate"><span class="pre">powerspec_options</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="numerics.html#k-modes-per-decade"><code class="docutils literal notranslate"><span class="pre">k_modes_per_decade</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="numerics.html#bispec-options"><code class="docutils literal notranslate"><span class="pre">bispec_options</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="numerics.html#bispec-antialiasing"><code class="docutils literal notranslate"><span class="pre">bispec_antialiasing</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="numerics.html#class-dedicated-spectra"><code class="docutils literal notranslate"><span class="pre">class_dedicated_spectra</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="numerics.html#class-modes-per-decade"><code class="docutils literal notranslate"><span class="pre">class_modes_per_decade</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="cosmology.html">Cosmology</a><ul>
@@ -275,6 +281,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../utilities/info.html">info utility</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../utilities/play.html">play utility</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../utilities/powerspec.html">powerspec utility</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities/bispec.html">bispec utility</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../utilities/render3D.html">render3D utility</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../utilities/update.html">update utility</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../utilities/watch.html">watch utility</a></li>
@@ -401,10 +408,10 @@ This parameter acts as a scaling factor on all
 <tr class="row-even"><td><p></p></td>
 <td><p><strong>Example 0</strong></p></td>
 <td><p></p></td>
-<td><p>Scale the background limiters by a factor <span class="math notranslate nohighlight">\(1/2\)</span>,
-typically cutting the time step size <span class="math notranslate nohighlight">\(\Delta t\)</span>
-roughly in half at early times compared to its normal
-size:</p>
+<td><p>Scale the background limiters by a factor
+<span class="math notranslate nohighlight">\(\frac{1}{2}\)</span>, typically cutting the time step
+size <span class="math notranslate nohighlight">\(\Delta t\)</span> roughly in half at early times
+compared to its usual size:</p>
 <div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">Δt_base_background_factor</span> <span class="o">=</span> <span class="mf">0.5</span>
 </pre></div>
 </div>
@@ -450,9 +457,10 @@ This parameter acts as a scaling factor on all
 <tr class="row-even"><td><p></p></td>
 <td><p><strong>Example 0</strong></p></td>
 <td><p></p></td>
-<td><p>Scale the non-linear limiters by a factor <span class="math notranslate nohighlight">\(1/3\)</span>,
-typically reducing the time step size <span class="math notranslate nohighlight">\(\Delta t\)</span>
-to about a third of its normal value at late times:</p>
+<td><p>Scale the non-linear limiters by a factor
+<span class="math notranslate nohighlight">\(\frac{1}{3}\)</span>, typically reducing the time step
+size <span class="math notranslate nohighlight">\(\Delta t\)</span> to about a third of its usual
+value at late times:</p>
 <div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">Δt_base_nonlinear_factor</span> <span class="o">=</span> <span class="mi">1</span><span class="o">/</span><span class="mi">3</span>
 </pre></div>
 </div>
@@ -1224,13 +1232,13 @@ for how the primordial noise is usually defined. For
 each mode <span class="math notranslate nohighlight">\(\boldsymbol{k}\)</span>, instead of drawing
 a random amplitude we may fix it to its mean value
 (<span class="math notranslate nohighlight">\(1\)</span>) and only draw the random phase.
-While not physically sound, statistic such as the
-power spectrum become much smoother by doing this, as
-the discretised Fourier modes now all have amplitudes
-corresponding to the average amplitude taken
+While not physically sound, some statistics such as the
+power spectrum and bispectrum are improved by doing
+this, as the discretised Fourier modes now all have
+amplitudes corresponding to the average amplitude taken
 over an infinite ensemble. See
-<a class="reference external" href="https://academic.oup.com/mnrasl/article/462/1/L1/2589516">this paper</a>
-for more information about such ‘<em>fixed</em> simulations’.</p>
+<a class="reference external" href="https://arxiv.org/abs/1603.05253">this paper</a> for
+more information about such ‘<em>fixed</em> simulations’.</p>
 <div class="admonition tip">
 <p class="admonition-title">Tip</p>
 <p>The random complex numbers generated when using fixed
@@ -1248,8 +1256,8 @@ same value for the
 <tr class="row-even"><td><p></p></td>
 <td><p><strong>Example 0</strong></p></td>
 <td><p></p></td>
-<td><p>Use fixed primordial amplitudes, leading to smoother
-power spectra:</p>
+<td><p>Use fixed primordial amplitudes, leading to improved
+(e.g. smoother) power spectra and bispectra:</p>
 <div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">primordial_amplitude_fixed</span> <span class="o">=</span> <span class="kc">True</span>
 </pre></div>
 </div>
@@ -1306,15 +1314,14 @@ the default:</p>
 <div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">primordial_phase_shift</span> <span class="o">=</span> <span class="n">π</span>
 </pre></div>
 </div>
-<p>By taking the average of e.g. power spectra from this
-simulation and a simulation with
+<p>By taking the average of e.g. power spectra or bispectra
+from this simulation and a simulation with
 <code class="docutils literal notranslate"><span class="pre">primordial_phase_shift</span> <span class="pre">=</span> <span class="pre">0</span></code>, much of the statistical
 noise coming about due to the finite simulation size
 will vanish. This is typically used together with
 <a class="reference internal" href="#primordial-amplitude-fixed"><span class="std std-ref">fixed amplitudes</span></a>.
-See
-<a class="reference external" href="https://academic.oup.com/mnrasl/article/462/1/L1/2589516">this paper</a>
-for more information about such ‘<em>paired</em>-and-<em>fixed</em>
+See <a class="reference external" href="https://arxiv.org/abs/1603.05253">this paper</a> for
+more information about such ‘<em>paired</em>-and-<em>fixed</em>
 simulations’.</p>
 </td>
 </tr>
@@ -1351,10 +1358,10 @@ cell-vertex grid discretisation</p></td>
 <td><p></p></td>
 <td><p>The geometry of a CO<em>N</em>CEPT simulation is that of a
 fixed (in comoving coordinates), periodic, cubic box of
-size length <span class="math notranslate nohighlight">\(L_{\mathrm{box}}\)</span> (corresponding to
+size length <span class="math notranslate nohighlight">\(L_{\text{box}}\)</span> (corresponding to
 the <code class="docutils literal notranslate"><span class="pre">boxsize</span></code> <a class="reference internal" href="numerics.html#boxsize"><span class="std std-ref">parameter</span></a>), with one
 corner at <span class="math notranslate nohighlight">\((0, 0, 0)\)</span> and another at
-<span class="math notranslate nohighlight">\((L_{\mathrm{box}}, L_{\mathrm{box}}, L_{\mathrm{box}})\)</span>.
+<span class="math notranslate nohighlight">\((L_{\text{box}}, L_{\text{box}}, L_{\text{box}})\)</span>.
 This allows us to talk about e.g. the absolute position
 of individual particles. Various global, Cartesian,
 periodic grids — such as

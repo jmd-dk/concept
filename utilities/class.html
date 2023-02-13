@@ -57,9 +57,10 @@
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="../tutorial/output_types.html">5. Other kinds of output</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="../tutorial/output_types.html#d-renders">5.1. 3D renders</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../tutorial/output_types.html#id1">5.2. 2D renders</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../tutorial/output_types.html#snapshots">5.3. Snapshots</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../tutorial/output_types.html#bispectra">5.1. Bispectra</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../tutorial/output_types.html#d-renders">5.2. 3D renders</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../tutorial/output_types.html#id1">5.3. 2D renders</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../tutorial/output_types.html#snapshots">5.4. Snapshots</a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="../tutorial/working_remotely.html">6. Working on remote clusters</a></li>
@@ -71,7 +72,8 @@
 <li class="toctree-l3"><a class="reference internal" href="../tutorial/beyond_matter_only.html#non-linear-massive-neutrinos">7.5. Non-linear massive neutrinos</a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="../tutorial/gadget.html">8. Comparison with GADGET-2</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorial/bispectra.html">8. Bispectra and 2LPT</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../tutorial/gadget.html">9. Comparison with GADGET-2</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../installation.html">Installation</a><ul>
@@ -165,6 +167,7 @@
 <li class="toctree-l3"><a class="reference internal" href="../parameters/input_output.html#autosave-interval"><code class="docutils literal notranslate"><span class="pre">autosave_interval</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/input_output.html#snapshot-select"><code class="docutils literal notranslate"><span class="pre">snapshot_select</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/input_output.html#powerspec-select"><code class="docutils literal notranslate"><span class="pre">powerspec_select</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/input_output.html#bispec-select"><code class="docutils literal notranslate"><span class="pre">bispec_select</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/input_output.html#render2d-select"><code class="docutils literal notranslate"><span class="pre">render2D_select</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/input_output.html#render3d-select"><code class="docutils literal notranslate"><span class="pre">render3D_select</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/input_output.html#snapshot-type"><code class="docutils literal notranslate"><span class="pre">snapshot_type</span></code></a></li>
@@ -181,7 +184,10 @@
 <li class="toctree-l3"><a class="reference internal" href="../parameters/numerics.html#potential-options"><code class="docutils literal notranslate"><span class="pre">potential_options</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/numerics.html#shortrange-params"><code class="docutils literal notranslate"><span class="pre">shortrange_params</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/numerics.html#powerspec-options"><code class="docutils literal notranslate"><span class="pre">powerspec_options</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="../parameters/numerics.html#k-modes-per-decade"><code class="docutils literal notranslate"><span class="pre">k_modes_per_decade</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/numerics.html#bispec-options"><code class="docutils literal notranslate"><span class="pre">bispec_options</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/numerics.html#bispec-antialiasing"><code class="docutils literal notranslate"><span class="pre">bispec_antialiasing</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/numerics.html#class-dedicated-spectra"><code class="docutils literal notranslate"><span class="pre">class_dedicated_spectra</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/numerics.html#class-modes-per-decade"><code class="docutils literal notranslate"><span class="pre">class_modes_per_decade</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="../parameters/cosmology.html">Cosmology</a><ul>
@@ -275,6 +281,7 @@
 <li class="toctree-l2"><a class="reference internal" href="info.html">info utility</a></li>
 <li class="toctree-l2"><a class="reference internal" href="play.html">play utility</a></li>
 <li class="toctree-l2"><a class="reference internal" href="powerspec.html">powerspec utility</a></li>
+<li class="toctree-l2"><a class="reference internal" href="bispec.html">bispec utility</a></li>
 <li class="toctree-l2"><a class="reference internal" href="render3D.html">render3D utility</a></li>
 <li class="toctree-l2"><a class="reference internal" href="update.html">update utility</a></li>
 <li class="toctree-l2"><a class="reference internal" href="watch.html">watch utility</a></li>
@@ -487,16 +494,16 @@ modes for the perturbations. E.g.</p>
 <p>The placement of the <span class="math notranslate nohighlight">\(k\)</span> modes at which to tabulate the perturbations
 are chosen based on the <a class="reference internal" href="#minimum-fourier-mode"><span class="std std-ref">minimum</span></a> and
 <a class="reference internal" href="#maximum-fourier-mode"><span class="std std-ref">maximum</span></a> mode together with the
-<code class="docutils literal notranslate"><span class="pre">k_modes_per_decade</span></code> <a class="reference internal" href="../parameters/numerics.html#k-modes-per-decade"><span class="std std-ref">parameter</span></a>. When the
-<code class="docutils literal notranslate"><span class="pre">--modes</span></code> option is <em>not</em> specified, <code class="docutils literal notranslate"><span class="pre">k_modes_per_decade</span></code> is used as is,
-leading to some number of total modes. When the <code class="docutils literal notranslate"><span class="pre">--modes</span></code> option <em>is</em>
-specified, the numbers of modes per decade within <code class="docutils literal notranslate"><span class="pre">k_modes_per_decade</span></code> are
-all uniformly scaled in order to yield the requested number of modes.</p>
+<code class="docutils literal notranslate"><span class="pre">class_modes_per_decade</span></code> <a class="reference internal" href="../parameters/numerics.html#class-modes-per-decade"><span class="std std-ref">parameter</span></a>. When the
+<code class="docutils literal notranslate"><span class="pre">--modes</span></code> option is <em>not</em> specified, <code class="docutils literal notranslate"><span class="pre">class_modes_per_decade</span></code> is used
+as is, leading to some number of total modes. When the <code class="docutils literal notranslate"><span class="pre">--modes</span></code> option <em>is</em>
+specified, the numbers of modes per decade within <code class="docutils literal notranslate"><span class="pre">class_modes_per_decade</span></code>
+are all uniformly scaled in order to yield the requested number of modes.</p>
 <div class="admonition tip">
 <p class="admonition-title">Tip</p>
 <p>If you simply want some definite number (say <span class="math notranslate nohighlight">\(128\)</span>) of logarithmically
 equidistant modes, you can do e.g.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>-u<span class="w"> </span>class<span class="w"> </span>--modes<span class="w"> </span><span class="m">128</span><span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;k_modes_per_decade = 1&quot;</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>-u<span class="w"> </span>class<span class="w"> </span>--modes<span class="w"> </span><span class="m">128</span><span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;class_modes_per_decade = 1&quot;</span>
 </pre></div>
 </div>
 </div>
@@ -882,7 +889,7 @@ implicitly set through the effective number of neutrino species
 <span class="math notranslate nohighlight">\(m_2\)</span>, <span class="math notranslate nohighlight">\(m_3\)</span>. The neutrino temperature <span class="math notranslate nohighlight">\(T_{\nu}\)</span> (equal for
 all three species) is related to the photon temperature <span class="math notranslate nohighlight">\(T_{\gamma}\)</span> by</p>
 <div class="math notranslate nohighlight">
-\[T_{\nu} = \biggl(\frac{4}{11}\biggr)^{1/3} \biggl(\frac{N_{\text{eff}}}{3}\biggr)^{1/4} T_{\gamma} \,.\]</div>
+\[T_{\nu} = \biggl(\frac{4}{11}\biggr)^{\frac{1}{3}} \biggl(\frac{N_{\text{eff}}}{3}\biggr)^{\frac{1}{4}} T_{\gamma} \,.\]</div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>We do not need to specify any parameters having to do with the
@@ -892,8 +899,8 @@ these do not enter the linear CLASS computation.</p>
 <p>The below parameter file implements the above neutrino cosmology, though
 written in a way that allows one to easily change the number of neutrino
 species:</p>
-<div class="literal-block-wrapper docutils container" id="class-param">
-<div class="code-block-caption"><span class="caption-text">class-param</span><a class="headerlink" href="#class-param" title="Permalink to this code"></a></div>
+<div class="literal-block-wrapper docutils container" id="param-class">
+<div class="code-block-caption"><span class="caption-text">class-param</span><a class="headerlink" href="#param-class" title="Permalink to this code"></a></div>
 <div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="c1"># Input/output</span>
 <span class="n">output_dirs</span> <span class="o">=</span> <span class="n">param</span><span class="o">.</span><span class="n">dir</span>
 
@@ -982,7 +989,7 @@ look for it in the
 example CLASS parameter file, which documents many of the possible CLASS
 parameters.</p>
 </div>
-<p>With the <a class="reference internal" href="#class-param"><span class="std std-ref">above parameter file</span></a> saved to a file called e.g.
+<p>With the <a class="reference internal" href="#param-class"><span class="std std-ref">above parameter file</span></a> saved to a file called e.g.
 <code class="docutils literal notranslate"><span class="pre">class-param</span></code>, we can run the CO<em>N</em>CEPT class utility on it using
 something like</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span><span class="se">\</span>
@@ -1016,7 +1023,7 @@ perturbations will all be in <em>N</em>-body <a class="reference internal" href=
 as in the above example command, the entire computation will take around 6
 minutes on modern hardware.</p>
 <p>With the <code class="docutils literal notranslate"><span class="pre">class_processed.hdf5</span></code> file generated from the above command and
-<a class="reference internal" href="#class-param"><span class="std std-ref">parameter file</span></a>, the below Python script demonstrates how
+<a class="reference internal" href="#param-class"><span class="std std-ref">parameter file</span></a>, the below Python script demonstrates how
 one can extract and use (some of) the data within this file:</p>
 <div class="literal-block-wrapper docutils container" id="plot-class">
 <div class="code-block-caption"><span class="caption-text">plot.py</span><a class="headerlink" href="#plot-class" title="Permalink to this code"></a></div>
@@ -1221,7 +1228,7 @@ possible to run CO<em>N</em>CEPT through Docker. While not preferable for runnin
 large simulations, running CO<em>N</em>CEPT this way for casual use of the class
 utility is very much encouraged.</p>
 <p>Given a parameter file named <code class="docutils literal notranslate"><span class="pre">class-param</span></code> (e.g.
-<a class="reference internal" href="#class-param"><span class="std std-ref">the one above</span></a>), you may run the CO<em>N</em>CEPT class
+<a class="reference internal" href="#param-class"><span class="std std-ref">the one above</span></a>), you may run the CO<em>N</em>CEPT class
 utility through Docker by executing something like</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>docker<span class="w"> </span>run<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--rm<span class="w"> </span><span class="se">\</span>

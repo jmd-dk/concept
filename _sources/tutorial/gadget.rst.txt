@@ -64,8 +64,7 @@ as e.g. ``param/tutorial``:
        'back-scale': True,
    }
 
-
-   # Non-parameter variables
+   # Non-parameter helper variables
    _size = 64
    _gen = False
 
@@ -426,16 +425,15 @@ not support.
 GADGET-2 only allows for the simulation of matter (though besides the standard
 cold dark matter particles, it further supports (smoothed-particle)
 hydrodynamical baryons), and always uses a background containing just matter
-and :math:`\Lambda`. Sticking to even the simplest :math:`\Lambda`\ CDM
-cosmologies (which *do* include photons), neglecting the gravitational tug
-from radiation is unacceptable for precision simulations. To resolve this
-problem, the usual trick used with Newtonian *N*-body codes is to generate
-initial conditions at :math:`a = a_{\text{begin}}` using the results of
-general relativistic perturbations theory (which also accounts for radiation)
-at :math:`a = 1`, but scaled back in time using the Newtonian growth factor.
-Thus, only the :math:`a = 1` results of such *back-scaled* simulations are
-really physical. The ``realization_options``
-:ref:`parameter <realization_options>` in the
+and :math:`\Lambda`. Sticking to even the simplest ΛCDM cosmologies (which
+*do* include photons), neglecting the gravitational tug from radiation is
+unacceptable for precision simulations. To resolve this problem, the usual
+trick used with Newtonian *N*-body codes is to generate initial conditions at
+:math:`a = a_{\text{begin}}` using the results of general relativistic
+perturbations theory (which also accounts for radiation) at :math:`a = 1`, but
+scaled back in time using the Newtonian growth factor. Thus, only the
+:math:`a = 1` results of such *back-scaled* simulations are really physical.
+The ``realization_options`` :ref:`parameter <realization_options>` in the
 :ref:`parameter file used for this section <param-gadget>` specifies that
 back-scaling should be used when generating the initial conditions, and also
 that this should be done within the synchronous gauge (as opposed to the
@@ -455,7 +453,7 @@ the :ref:`parameter file <param-gadget>` are thus not very crucial for the
 results, but mostly put there to comply with the spirit of Newtonian
 *N*-body simulations and GADGET-2. We note again that the real difference
 between the *N*-body gauge approach and the back-scaled, synchronous gauge
-approach is to be found outside basic :math:`\Lambda`\ CDM cosmologies and
-matter-only simulations, where the Newtonian approximations used for the
-back-scaling break down.
+approach is to be found outside basic ΛCDM cosmologies and matter-only
+simulations, where the Newtonian approximations used for the back-scaling
+break down.
 

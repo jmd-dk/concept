@@ -33,10 +33,10 @@ random numbers used for the primordial noise.
                       This parameter acts as a scaling factor on all
                       *background limiters*.
 -- --------------- -- -
-\  **Example 0**   \  Scale the background limiters by a factor :math:`1/2`,
-                      typically cutting the time step size :math:`\Delta t`
-                      roughly in half at early times compared to its normal
-                      size:
+\  **Example 0**   \  Scale the background limiters by a factor
+                      :math:`\frac{1}{2}`, typically cutting the time step
+                      size :math:`\Delta t` roughly in half at early times
+                      compared to its usual size:
 
                       .. code-block:: python3
 
@@ -69,9 +69,10 @@ random numbers used for the primordial noise.
                       This parameter acts as a scaling factor on all
                       *non-linear limiters*.
 -- --------------- -- -
-\  **Example 0**   \  Scale the non-linear limiters by a factor :math:`1/3`,
-                      typically reducing the time step size :math:`\Delta t`
-                      to about a third of its normal value at late times:
+\  **Example 0**   \  Scale the non-linear limiters by a factor
+                      :math:`\frac{1}{3}`, typically reducing the time step
+                      size :math:`\Delta t` to about a third of its usual
+                      value at late times:
 
                       .. code-block:: python3
 
@@ -688,13 +689,13 @@ random numbers used for the primordial noise.
                       each mode :math:`\boldsymbol{k}`, instead of drawing
                       a random amplitude we may fix it to its mean value
                       (:math:`1`) and only draw the random phase.
-                      While not physically sound, statistic such as the
-                      power spectrum become much smoother by doing this, as
-                      the discretised Fourier modes now all have amplitudes
-                      corresponding to the average amplitude taken
+                      While not physically sound, some statistics such as the
+                      power spectrum and bispectrum are improved by doing
+                      this, as the discretised Fourier modes now all have
+                      amplitudes corresponding to the average amplitude taken
                       over an infinite ensemble. See
-                      `this paper <https://academic.oup.com/mnrasl/article/462/1/L1/2589516>`_
-                      for more information about such '*fixed* simulations'.
+                      `this paper <https://arxiv.org/abs/1603.05253>`_ for
+                      more information about such '*fixed* simulations'.
 
                       .. tip::
                          The random complex numbers generated when using fixed
@@ -708,8 +709,8 @@ random numbers used for the primordial noise.
                          :ref:`parameter <random_seeds>`).
 
 -- --------------- -- -
-\  **Example 0**   \  Use fixed primordial amplitudes, leading to smoother
-                      power spectra:
+\  **Example 0**   \  Use fixed primordial amplitudes, leading to improved
+                      (e.g. smoother) power spectra and bispectra:
 
                       .. code-block:: python3
 
@@ -754,15 +755,14 @@ random numbers used for the primordial noise.
 
                          primordial_phase_shift = π
 
-                      By taking the average of e.g. power spectra from this
-                      simulation and a simulation with
+                      By taking the average of e.g. power spectra or bispectra
+                      from this simulation and a simulation with
                       ``primordial_phase_shift = 0``, much of the statistical
                       noise coming about due to the finite simulation size
                       will vanish. This is typically used together with
                       :ref:`fixed amplitudes <primordial_amplitude_fixed>`.
-                      See
-                      `this paper <https://academic.oup.com/mnrasl/article/462/1/L1/2589516>`_
-                      for more information about such '*paired*-and-*fixed*
+                      See `this paper <https://arxiv.org/abs/1603.05253>`_ for
+                      more information about such '*paired*-and-*fixed*
                       simulations'.
 == =============== == =
 
@@ -787,10 +787,10 @@ random numbers used for the primordial noise.
 -- --------------- -- -
 \  **Elaboration** \  The geometry of a CO\ *N*\ CEPT simulation is that of a
                       fixed (in comoving coordinates), periodic, cubic box of
-                      size length :math:`L_{\mathrm{box}}` (corresponding to
+                      size length :math:`L_{\text{box}}` (corresponding to
                       the ``boxsize`` :ref:`parameter <boxsize>`), with one
                       corner at :math:`(0, 0, 0)` and another at
-                      :math:`(L_{\mathrm{box}}, L_{\mathrm{box}}, L_{\mathrm{box}})`.
+                      :math:`(L_{\text{box}}, L_{\text{box}}, L_{\text{box}})`.
                       This allows us to talk about e.g. the absolute position
                       of individual particles. Various global, Cartesian,
                       periodic grids --- such as

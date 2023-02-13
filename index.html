@@ -55,9 +55,10 @@
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="tutorial/output_types.html">5. Other kinds of output</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="tutorial/output_types.html#d-renders">5.1. 3D renders</a></li>
-<li class="toctree-l3"><a class="reference internal" href="tutorial/output_types.html#id1">5.2. 2D renders</a></li>
-<li class="toctree-l3"><a class="reference internal" href="tutorial/output_types.html#snapshots">5.3. Snapshots</a></li>
+<li class="toctree-l3"><a class="reference internal" href="tutorial/output_types.html#bispectra">5.1. Bispectra</a></li>
+<li class="toctree-l3"><a class="reference internal" href="tutorial/output_types.html#d-renders">5.2. 3D renders</a></li>
+<li class="toctree-l3"><a class="reference internal" href="tutorial/output_types.html#id1">5.3. 2D renders</a></li>
+<li class="toctree-l3"><a class="reference internal" href="tutorial/output_types.html#snapshots">5.4. Snapshots</a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="tutorial/working_remotely.html">6. Working on remote clusters</a></li>
@@ -69,7 +70,8 @@
 <li class="toctree-l3"><a class="reference internal" href="tutorial/beyond_matter_only.html#non-linear-massive-neutrinos">7.5. Non-linear massive neutrinos</a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="tutorial/gadget.html">8. Comparison with GADGET-2</a></li>
+<li class="toctree-l2"><a class="reference internal" href="tutorial/bispectra.html">8. Bispectra and 2LPT</a></li>
+<li class="toctree-l2"><a class="reference internal" href="tutorial/gadget.html">9. Comparison with GADGET-2</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a><ul>
@@ -163,6 +165,7 @@
 <li class="toctree-l3"><a class="reference internal" href="parameters/input_output.html#autosave-interval"><code class="docutils literal notranslate"><span class="pre">autosave_interval</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="parameters/input_output.html#snapshot-select"><code class="docutils literal notranslate"><span class="pre">snapshot_select</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="parameters/input_output.html#powerspec-select"><code class="docutils literal notranslate"><span class="pre">powerspec_select</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="parameters/input_output.html#bispec-select"><code class="docutils literal notranslate"><span class="pre">bispec_select</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="parameters/input_output.html#render2d-select"><code class="docutils literal notranslate"><span class="pre">render2D_select</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="parameters/input_output.html#render3d-select"><code class="docutils literal notranslate"><span class="pre">render3D_select</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="parameters/input_output.html#snapshot-type"><code class="docutils literal notranslate"><span class="pre">snapshot_type</span></code></a></li>
@@ -179,7 +182,10 @@
 <li class="toctree-l3"><a class="reference internal" href="parameters/numerics.html#potential-options"><code class="docutils literal notranslate"><span class="pre">potential_options</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="parameters/numerics.html#shortrange-params"><code class="docutils literal notranslate"><span class="pre">shortrange_params</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="parameters/numerics.html#powerspec-options"><code class="docutils literal notranslate"><span class="pre">powerspec_options</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="parameters/numerics.html#k-modes-per-decade"><code class="docutils literal notranslate"><span class="pre">k_modes_per_decade</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="parameters/numerics.html#bispec-options"><code class="docutils literal notranslate"><span class="pre">bispec_options</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="parameters/numerics.html#bispec-antialiasing"><code class="docutils literal notranslate"><span class="pre">bispec_antialiasing</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="parameters/numerics.html#class-dedicated-spectra"><code class="docutils literal notranslate"><span class="pre">class_dedicated_spectra</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="parameters/numerics.html#class-modes-per-decade"><code class="docutils literal notranslate"><span class="pre">class_modes_per_decade</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="parameters/cosmology.html">Cosmology</a><ul>
@@ -273,6 +279,7 @@
 <li class="toctree-l2"><a class="reference internal" href="utilities/info.html">info utility</a></li>
 <li class="toctree-l2"><a class="reference internal" href="utilities/play.html">play utility</a></li>
 <li class="toctree-l2"><a class="reference internal" href="utilities/powerspec.html">powerspec utility</a></li>
+<li class="toctree-l2"><a class="reference internal" href="utilities/bispec.html">bispec utility</a></li>
 <li class="toctree-l2"><a class="reference internal" href="utilities/render3D.html">render3D utility</a></li>
 <li class="toctree-l2"><a class="reference internal" href="utilities/update.html">update utility</a></li>
 <li class="toctree-l2"><a class="reference internal" href="utilities/watch.html">watch utility</a></li>
@@ -343,7 +350,7 @@
 <tr><td class="field-name"><b>Release</b></td><td class="field-body">1.0.1</td></tr>
 <tr><td class="field-name"><b>GitHub</b></td><td class="field-body"><a class="reference external" href="https://github.com/jmd-dk/concept/">https://github.com/jmd-dk/concept/</a>&emsp;<img src="https://github.com/jmd-dk/concept/workflows/build/badge.svg"/></td></tr>
 <tr><td class="field-name"><b>Author</b></td><td class="field-body">Jeppe Dakin, Aarhus University&emsp;<a class="reference external" href="mailto:dakin&#37;&#52;&#48;phys&#46;au&#46;dk">dakin<span>&#64;</span>phys<span>&#46;</span>au<span>&#46;</span>dk</a></td></tr>
-<tr class="field-even field"><td class="field-name"><b>Date</b></td><td class="field-body">January 17, 2023</td></tr>
+<tr class="field-even field"><td class="field-name"><b>Date</b></td><td class="field-body">February 13, 2023</td></tr>
 </tbody>
 </table><p><span class="raw-html"><font size="+1">This is the documentation for CO<i>N</i>CEPT, the <b>CO</b>smological <b><i>N</b></i>-body <b>C</b>od<b>E</b> in <b>P</b>y<b>T</b>hon</font></span></p>
 <section id="introduction">
@@ -364,7 +371,8 @@ such as massive neutrinos, as well as for simulations consistent with general
 relativistic perturbation theory. Various non-standard species — such as
 decaying cold dark matter — are fully supported.</p>
 <p>CO<em>N</em>CEPT comes with a sophisticated initial condition generator built in,
-and can output snapshots, power spectra and several kinds of renders.</p>
+and can output snapshots, power spectra, bispectra and several
+kinds of renders.</p>
 <p>The <a class="reference external" href="http://class-code.net/">CLASS</a> code is fully integrated into
 CO<em>N</em>CEPT, supplying the needed information for e.g. initial condition
 generation and general relativistic corrections.</p>
@@ -385,7 +393,8 @@ taking you on a guided tour through the CO<em>N</em>CEPT universe.</p>
 <li class="toctree-l2"><a class="reference internal" href="tutorial/output_types.html">5. Other kinds of output</a></li>
 <li class="toctree-l2"><a class="reference internal" href="tutorial/working_remotely.html">6. Working on remote clusters</a></li>
 <li class="toctree-l2"><a class="reference internal" href="tutorial/beyond_matter_only.html">7. Beyond matter-only simulations</a></li>
-<li class="toctree-l2"><a class="reference internal" href="tutorial/gadget.html">8. Comparison with GADGET-2</a></li>
+<li class="toctree-l2"><a class="reference internal" href="tutorial/bispectra.html">8. Bispectra and 2LPT</a></li>
+<li class="toctree-l2"><a class="reference internal" href="tutorial/gadget.html">9. Comparison with GADGET-2</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a><ul>
@@ -422,6 +431,7 @@ taking you on a guided tour through the CO<em>N</em>CEPT universe.</p>
 <li class="toctree-l2"><a class="reference internal" href="utilities/info.html">info utility</a></li>
 <li class="toctree-l2"><a class="reference internal" href="utilities/play.html">play utility</a></li>
 <li class="toctree-l2"><a class="reference internal" href="utilities/powerspec.html">powerspec utility</a></li>
+<li class="toctree-l2"><a class="reference internal" href="utilities/bispec.html">bispec utility</a></li>
 <li class="toctree-l2"><a class="reference internal" href="utilities/render3D.html">render3D utility</a></li>
 <li class="toctree-l2"><a class="reference internal" href="utilities/update.html">update utility</a></li>
 <li class="toctree-l2"><a class="reference internal" href="utilities/watch.html">watch utility</a></li>

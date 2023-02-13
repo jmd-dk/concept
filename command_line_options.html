@@ -56,9 +56,10 @@
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="tutorial/output_types.html">5. Other kinds of output</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="tutorial/output_types.html#d-renders">5.1. 3D renders</a></li>
-<li class="toctree-l3"><a class="reference internal" href="tutorial/output_types.html#id1">5.2. 2D renders</a></li>
-<li class="toctree-l3"><a class="reference internal" href="tutorial/output_types.html#snapshots">5.3. Snapshots</a></li>
+<li class="toctree-l3"><a class="reference internal" href="tutorial/output_types.html#bispectra">5.1. Bispectra</a></li>
+<li class="toctree-l3"><a class="reference internal" href="tutorial/output_types.html#d-renders">5.2. 3D renders</a></li>
+<li class="toctree-l3"><a class="reference internal" href="tutorial/output_types.html#id1">5.3. 2D renders</a></li>
+<li class="toctree-l3"><a class="reference internal" href="tutorial/output_types.html#snapshots">5.4. Snapshots</a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="tutorial/working_remotely.html">6. Working on remote clusters</a></li>
@@ -70,7 +71,8 @@
 <li class="toctree-l3"><a class="reference internal" href="tutorial/beyond_matter_only.html#non-linear-massive-neutrinos">7.5. Non-linear massive neutrinos</a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="tutorial/gadget.html">8. Comparison with GADGET-2</a></li>
+<li class="toctree-l2"><a class="reference internal" href="tutorial/bispectra.html">8. Bispectra and 2LPT</a></li>
+<li class="toctree-l2"><a class="reference internal" href="tutorial/gadget.html">9. Comparison with GADGET-2</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a><ul>
@@ -164,6 +166,7 @@
 <li class="toctree-l3"><a class="reference internal" href="parameters/input_output.html#autosave-interval"><code class="docutils literal notranslate"><span class="pre">autosave_interval</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="parameters/input_output.html#snapshot-select"><code class="docutils literal notranslate"><span class="pre">snapshot_select</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="parameters/input_output.html#powerspec-select"><code class="docutils literal notranslate"><span class="pre">powerspec_select</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="parameters/input_output.html#bispec-select"><code class="docutils literal notranslate"><span class="pre">bispec_select</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="parameters/input_output.html#render2d-select"><code class="docutils literal notranslate"><span class="pre">render2D_select</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="parameters/input_output.html#render3d-select"><code class="docutils literal notranslate"><span class="pre">render3D_select</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="parameters/input_output.html#snapshot-type"><code class="docutils literal notranslate"><span class="pre">snapshot_type</span></code></a></li>
@@ -180,7 +183,10 @@
 <li class="toctree-l3"><a class="reference internal" href="parameters/numerics.html#potential-options"><code class="docutils literal notranslate"><span class="pre">potential_options</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="parameters/numerics.html#shortrange-params"><code class="docutils literal notranslate"><span class="pre">shortrange_params</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="parameters/numerics.html#powerspec-options"><code class="docutils literal notranslate"><span class="pre">powerspec_options</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="parameters/numerics.html#k-modes-per-decade"><code class="docutils literal notranslate"><span class="pre">k_modes_per_decade</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="parameters/numerics.html#bispec-options"><code class="docutils literal notranslate"><span class="pre">bispec_options</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="parameters/numerics.html#bispec-antialiasing"><code class="docutils literal notranslate"><span class="pre">bispec_antialiasing</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="parameters/numerics.html#class-dedicated-spectra"><code class="docutils literal notranslate"><span class="pre">class_dedicated_spectra</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="parameters/numerics.html#class-modes-per-decade"><code class="docutils literal notranslate"><span class="pre">class_modes_per_decade</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="parameters/cosmology.html">Cosmology</a><ul>
@@ -274,6 +280,7 @@
 <li class="toctree-l2"><a class="reference internal" href="utilities/info.html">info utility</a></li>
 <li class="toctree-l2"><a class="reference internal" href="utilities/play.html">play utility</a></li>
 <li class="toctree-l2"><a class="reference internal" href="utilities/powerspec.html">powerspec utility</a></li>
+<li class="toctree-l2"><a class="reference internal" href="utilities/bispec.html">bispec utility</a></li>
 <li class="toctree-l2"><a class="reference internal" href="utilities/render3D.html">render3D utility</a></li>
 <li class="toctree-l2"><a class="reference internal" href="utilities/update.html">update utility</a></li>
 <li class="toctree-l2"><a class="reference internal" href="utilities/watch.html">watch utility</a></li>
@@ -973,8 +980,9 @@ exploration and further execution.</p>
 <span class="w">    </span>--pure-python
 </pre></div>
 </div>
-<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">output_times</span><span class="p">[</span><span class="s1">&#39;a&#39;</span><span class="p">][</span><span class="s1">&#39;render2D&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">render2D_times</span><span class="p">[</span><span class="s1">&#39;a&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="p">)</span>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">output_times</span><span class="p">[</span><span class="s1">&#39;a&#39;</span><span class="p">][</span><span class="s1">&#39;render2D&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="p">)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">timeloop</span><span class="p">()</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">exit</span><span class="p">()</span>
 </pre></div>
 </div>
 <p>where <code class="docutils literal notranslate"><span class="pre">&gt;&gt;&gt;</span></code> indicates input which should be typed at the interactive Python
@@ -1013,6 +1021,7 @@ something like</p>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">G_Newton</span><span class="o">/</span><span class="p">(</span><span class="n">units</span><span class="o">.</span><span class="n">m</span><span class="o">**</span><span class="mi">3</span><span class="o">/</span><span class="p">(</span><span class="n">units</span><span class="o">.</span><span class="n">kg</span><span class="o">*</span><span class="n">units</span><span class="o">.</span><span class="n">s</span><span class="o">**</span><span class="mi">2</span><span class="p">))</span>
 
 <span class="gp">&gt;&gt;&gt; </span><span class="c1"># 💭 Success!</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">exit</span><span class="p">()</span>
 </pre></div>
 </div>
 </section>
