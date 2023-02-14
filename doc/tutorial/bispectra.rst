@@ -16,7 +16,7 @@ Save it as e.g. ``param/tutorial``:
 .. code-block:: python3
    :caption: param/tutorial
    :name: param-bispec
-   :emphasize-lines: 11, 14, 16-20, 25-29, 38-40, 43-45, 47, 51-54
+   :emphasize-lines: 12, 16, 23-25, 30-34, 43-45, 48-50, 52, 56-59
 
    # Non-parameter helper variable used to control the size of the simulation
    _size = 64
@@ -27,14 +27,19 @@ Save it as e.g. ``param/tutorial``:
        'N'      : _size**3,
    }
    output_dirs = {
-       'snapshot': f'{path.output_dir}/{param}/{_lpt}LPT/seed{_seed}_shift{_shift}',
-       'bispec'  : f'{path.output_dir}/{param}/{_lpt}LPT/seed{_seed}_shift{_shift}/{_conf}',
+       'snapshot' : f'{path.output_dir}/{param}/{_lpt}LPT/seed{_seed}_shift{_shift}',
+       'powerspec': ...,
+       'bispec'   : f'{path.output_dir}/{param}/{_lpt}LPT/seed{_seed}_shift{_shift}/{_conf}',
    }
    output_times = {
-       'bispec': [a_begin, 0.3, 1],
+       'powerspec': [a_begin, 0.3, 1],
+       'bispec'   : ...,
    }
    if _lpt == 2:
        output_times |= {'snapshot': ...}
+   powerspec_select = {
+       'matter': {'data': True, 'linear': True, 'plot': True},
+   }
    bispec_select = {
        'matter': {'data': True, 'reduced': True, 'tree-level': True, 'plot': True},
    }
@@ -80,13 +85,13 @@ We start by running this parameter file as is:
    ./concept -p param/tutorial
 
 (feel free to run this in parallel by further supplying ``-n``). This will run
-a simple simulation and measure the matter bispectrum at three different times
-along the evolution, as specified in ``output_times``. The bispectra (data
-files and plots) are dumped into a nested set of subdirectories within
-``output/tutorial`` (for organisational purposes, as many more simulations are
-to come). You can have a look at these, but what we really want is to plot the
-different bispectra together in a single plot, for which we can use the
-plotting script below:
+a simple simulation and measure the matter bispectrum (as well as the power
+spectrum) at three different times along the evolution, as specified in
+``output_times``. The bispectra (data files and plots) are dumped into a
+nested set of subdirectories within ``output/tutorial`` (for organisational
+purposes, as many more bispectrum measurements are to come). You can have a
+look at these, but what we really want is to plot the different bispectra
+together in a single plot, for which we make use of the plotting script below:
 
 .. code-block:: python3
    :caption: output/tutorial/plot.py
@@ -396,7 +401,7 @@ in the :ref:`parameter file above <param-bispec>` is controlled through the
 Running the above does not overwrite the existing results, but dumps the new
 output into a separate subdirectory in accordance with the shift. If you now
 compare the *automatically generated* bispectrum plot at the initial time
-(`output/tutorial/2LPT/seed0_shift0/equilateral/bispec_a=0.02.png`) of the
+(``output/tutorial/1LPT/seed0_shift0/equilateral/bispec_a=0.02.png``) of the
 non-shifted simulation with that of the shifted simulation, you will find that
 the two bispectra almost look like each others negative (dashed pieces of the
 coloured line indicate negative :math:`B`). Averaging them together will thus
@@ -475,9 +480,8 @@ this time with ``_lpt = 2``:
 
 Once again, these new results will not overwrite any of the old. While you can
 in fact update the plot continually while the above simulations are busy being
-carried out, you should suspend any judgement until they are all completed.
-The 2LPT results will be shown as darkened versions of the colours used
-for 1LP.
+carried out, you should suspend any judgement until they are all complete. The
+2LPT results will be shown as darkened versions of the colours used for 1LP.
 
 With the plot updated following the completion of every simulation, we see that
 opting for 2LPT indeed leads to excellent agreement with the tree-level
@@ -486,6 +490,17 @@ the simulation bispectra for 1LPT and 2LPT becomes less pronounced. We also
 see that the simulation bispectrum follows the tree-level prediction closely
 up until rather late times, before outgrowing it at the larger
 :math:`k` values.
+
+Since using 1LPT lands us on the desired linear *power* spectrum at the
+initial time, we might fear that opting for 2LPT ruins this behaviour. We can
+check this by comparing the automatically generated ``powerspec_a=0.02.png``
+plot within any of the subdirectories of ``output/tutorial/1LPT`` with one
+from the subdirectories of ``output/tutorial/2LPT`` (the seed and shift does
+not matter much for the initial power spectrum, due to
+``primordial_amplitude_fixed = True``). They should appear completely
+indistinguishable, demonstrating that the 2LPT corrections leaves the 1LPT
+power spectrum invariant (at least for the large/intermediary scales we are
+working with here).
 
 If you would like to see still better convergence of the bispectrum, feel free
 to run even more paired simulations with different seeds (using 2LPT, 1LPT,
@@ -673,6 +688,6 @@ configurations:
 
 To learn more about the different bispectrum configurations available in
 CO\ *N*\ CEPT --- including completely general, manual configuration
-specification --- consult the ``bispec_options``
+specification --- consult the documentation for the ``bispec_options``
 :ref:`parameter <bispec_options>`.
 
