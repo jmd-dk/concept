@@ -363,8 +363,15 @@ Save it as e.g. <code class="docutils literal notranslate"><span class="pre">par
     <span class="s1">&#39;N&#39;</span>      <span class="p">:</span> <span class="n">_size</span><span class="o">**</span><span class="mi">3</span><span class="p">,</span>
 <span class="p">}</span>
 <span class="n">output_dirs</span> <span class="o">=</span> <span class="p">{</span>
-    <span class="s1">&#39;snapshot&#39;</span><span class="p">:</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">path</span><span class="o">.</span><span class="n">output_dir</span><span class="si">}</span><span class="s1">/</span><span class="si">{</span><span class="n">param</span><span class="si">}</span><span class="s1">/</span><span class="si">{</span><span class="n">_lpt</span><span class="si">}</span><span class="s1">LPT/seed</span><span class="si">{</span><span class="n">_seed</span><span class="si">}</span><span class="s1">_shift</span><span class="si">{</span><span class="n">_shift</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span><span class="hll">    <span class="s1">&#39;bispec&#39;</span>  <span class="p">:</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">path</span><span class="o">.</span><span class="n">output_dir</span><span class="si">}</span><span class="s1">/</span><span class="si">{</span><span class="n">param</span><span class="si">}</span><span class="s1">/</span><span class="si">{</span><span class="n">_lpt</span><span class="si">}</span><span class="s1">LPT/seed</span><span class="si">{</span><span class="n">_seed</span><span class="si">}</span><span class="s1">_shift</span><span class="si">{</span><span class="n">_shift</span><span class="si">}</span><span class="s1">/</span><span class="si">{</span><span class="n">_conf</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span></span><span class="p">}</span>
-<span class="n">output_times</span> <span class="o">=</span> <span class="p">{</span><span class="hll">    <span class="s1">&#39;bispec&#39;</span><span class="p">:</span> <span class="p">[</span><span class="n">a_begin</span><span class="p">,</span> <span class="mf">0.3</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span></span><span class="p">}</span><span class="hll"><span class="k">if</span> <span class="n">_lpt</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span></span><span class="hll">    <span class="n">output_times</span> <span class="o">|=</span> <span class="p">{</span><span class="s1">&#39;snapshot&#39;</span><span class="p">:</span> <span class="o">...</span><span class="p">}</span></span><span class="hll"><span class="n">bispec_select</span> <span class="o">=</span> <span class="p">{</span></span><span class="hll">    <span class="s1">&#39;matter&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;data&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span> <span class="s1">&#39;reduced&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span> <span class="s1">&#39;tree-level&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span> <span class="s1">&#39;plot&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">},</span></span><span class="hll"><span class="p">}</span></span>
+    <span class="s1">&#39;snapshot&#39;</span> <span class="p">:</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">path</span><span class="o">.</span><span class="n">output_dir</span><span class="si">}</span><span class="s1">/</span><span class="si">{</span><span class="n">param</span><span class="si">}</span><span class="s1">/</span><span class="si">{</span><span class="n">_lpt</span><span class="si">}</span><span class="s1">LPT/seed</span><span class="si">{</span><span class="n">_seed</span><span class="si">}</span><span class="s1">_shift</span><span class="si">{</span><span class="n">_shift</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;powerspec&#39;</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span><span class="hll">    <span class="s1">&#39;bispec&#39;</span>   <span class="p">:</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">path</span><span class="o">.</span><span class="n">output_dir</span><span class="si">}</span><span class="s1">/</span><span class="si">{</span><span class="n">param</span><span class="si">}</span><span class="s1">/</span><span class="si">{</span><span class="n">_lpt</span><span class="si">}</span><span class="s1">LPT/seed</span><span class="si">{</span><span class="n">_seed</span><span class="si">}</span><span class="s1">_shift</span><span class="si">{</span><span class="n">_shift</span><span class="si">}</span><span class="s1">/</span><span class="si">{</span><span class="n">_conf</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span></span><span class="p">}</span>
+<span class="n">output_times</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;powerspec&#39;</span><span class="p">:</span> <span class="p">[</span><span class="n">a_begin</span><span class="p">,</span> <span class="mf">0.3</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span><span class="hll">    <span class="s1">&#39;bispec&#39;</span>   <span class="p">:</span> <span class="o">...</span><span class="p">,</span></span><span class="p">}</span>
+<span class="k">if</span> <span class="n">_lpt</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+    <span class="n">output_times</span> <span class="o">|=</span> <span class="p">{</span><span class="s1">&#39;snapshot&#39;</span><span class="p">:</span> <span class="o">...</span><span class="p">}</span>
+<span class="n">powerspec_select</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;matter&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;data&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span> <span class="s1">&#39;linear&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span> <span class="s1">&#39;plot&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">},</span>
+<span class="p">}</span><span class="hll"><span class="n">bispec_select</span> <span class="o">=</span> <span class="p">{</span></span><span class="hll">    <span class="s1">&#39;matter&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;data&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span> <span class="s1">&#39;reduced&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span> <span class="s1">&#39;tree-level&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span> <span class="s1">&#39;plot&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">},</span></span><span class="hll"><span class="p">}</span></span>
 <span class="c1"># Numerics</span>
 <span class="n">boxsize</span> <span class="o">=</span> <span class="mi">512</span><span class="o">*</span><span class="n">Mpc</span>
 <span class="n">potential_options</span> <span class="o">=</span> <span class="mi">2</span><span class="o">*</span><span class="n">_size</span><span class="hll"><span class="n">bispec_options</span> <span class="o">=</span> <span class="p">{</span></span><span class="hll">    <span class="s1">&#39;configuration&#39;</span><span class="p">:</span> <span class="p">{</span></span><span class="hll">        <span class="s1">&#39;matter&#39;</span><span class="p">:</span> <span class="n">_conf</span><span class="p">,</span></span><span class="hll">    <span class="p">},</span></span><span class="hll"><span class="p">}</span></span>
@@ -385,13 +392,13 @@ Save it as e.g. <code class="docutils literal notranslate"><span class="pre">par
 </pre></div>
 </div>
 <p>(feel free to run this in parallel by further supplying <code class="docutils literal notranslate"><span class="pre">-n</span></code>). This will run
-a simple simulation and measure the matter bispectrum at three different times
-along the evolution, as specified in <code class="docutils literal notranslate"><span class="pre">output_times</span></code>. The bispectra (data
-files and plots) are dumped into a nested set of subdirectories within
-<code class="docutils literal notranslate"><span class="pre">output/tutorial</span></code> (for organisational purposes, as many more simulations are
-to come). You can have a look at these, but what we really want is to plot the
-different bispectra together in a single plot, for which we can use the
-plotting script below:</p>
+a simple simulation and measure the matter bispectrum (as well as the power
+spectrum) at three different times along the evolution, as specified in
+<code class="docutils literal notranslate"><span class="pre">output_times</span></code>. The bispectra (data files and plots) are dumped into a
+nested set of subdirectories within <code class="docutils literal notranslate"><span class="pre">output/tutorial</span></code> (for organisational
+purposes, as many more bispectrum measurements are to come). You can have a
+look at these, but what we really want is to plot the different bispectra
+together in a single plot, for which we make use of the plotting script below:</p>
 <div class="literal-block-wrapper docutils container" id="plot-bispec">
 <div class="code-block-caption"><span class="caption-text">output/tutorial/plot.py</span><a class="headerlink" href="#plot-bispec" title="Permalink to this code"></a></div>
 <div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">collections</span><span class="o">,</span> <span class="nn">glob</span><span class="o">,</span> <span class="nn">os</span><span class="o">,</span> <span class="nn">re</span><span class="o">,</span> <span class="nn">sys</span>
@@ -688,7 +695,7 @@ in the <a class="reference internal" href="#param-bispec"><span class="std std-r
 <p>Running the above does not overwrite the existing results, but dumps the new
 output into a separate subdirectory in accordance with the shift. If you now
 compare the <em>automatically generated</em> bispectrum plot at the initial time
-(<cite>output/tutorial/2LPT/seed0_shift0/equilateral/bispec_a=0.02.png</cite>) of the
+(<code class="docutils literal notranslate"><span class="pre">output/tutorial/1LPT/seed0_shift0/equilateral/bispec_a=0.02.png</span></code>) of the
 non-shifted simulation with that of the shifted simulation, you will find that
 the two bispectra almost look like each others negative (dashed pieces of the
 coloured line indicate negative <span class="math notranslate nohighlight">\(B\)</span>). Averaging them together will thus
@@ -754,9 +761,8 @@ this time with <code class="docutils literal notranslate"><span class="pre">_lpt
 </div>
 <p>Once again, these new results will not overwrite any of the old. While you can
 in fact update the plot continually while the above simulations are busy being
-carried out, you should suspend any judgement until they are all completed.
-The 2LPT results will be shown as darkened versions of the colours used
-for 1LP.</p>
+carried out, you should suspend any judgement until they are all complete. The
+2LPT results will be shown as darkened versions of the colours used for 1LP.</p>
 <p>With the plot updated following the completion of every simulation, we see that
 opting for 2LPT indeed leads to excellent agreement with the tree-level
 prediction at the initial time. At later times, the (relative) difference in
@@ -764,6 +770,16 @@ the simulation bispectra for 1LPT and 2LPT becomes less pronounced. We also
 see that the simulation bispectrum follows the tree-level prediction closely
 up until rather late times, before outgrowing it at the larger
 <span class="math notranslate nohighlight">\(k\)</span> values.</p>
+<p>Since using 1LPT lands us on the desired linear <em>power</em> spectrum at the
+initial time, we might fear that opting for 2LPT ruins this behaviour. We can
+check this by comparing the automatically generated <code class="docutils literal notranslate"><span class="pre">powerspec_a=0.02.png</span></code>
+plot within any of the subdirectories of <code class="docutils literal notranslate"><span class="pre">output/tutorial/1LPT</span></code> with one
+from the subdirectories of <code class="docutils literal notranslate"><span class="pre">output/tutorial/2LPT</span></code> (the seed and shift does
+not matter much for the initial power spectrum, due to
+<code class="docutils literal notranslate"><span class="pre">primordial_amplitude_fixed</span> <span class="pre">=</span> <span class="pre">True</span></code>). They should appear completely
+indistinguishable, demonstrating that the 2LPT corrections leaves the 1LPT
+power spectrum invariant (at least for the large/intermediary scales we are
+working with here).</p>
 <p>If you would like to see still better convergence of the bispectrum, feel free
 to run even more paired simulations with different seeds (using 2LPT, 1LPT,
 or both).</p>
@@ -926,7 +942,7 @@ configurations:</p>
 </ul>
 <p>To learn more about the different bispectrum configurations available in
 CO<em>N</em>CEPT — including completely general, manual configuration
-specification — consult the <code class="docutils literal notranslate"><span class="pre">bispec_options</span></code>
+specification — consult the documentation for the <code class="docutils literal notranslate"><span class="pre">bispec_options</span></code>
 <a class="reference internal" href="../parameters/numerics.html#bispec-options"><span class="std std-ref">parameter</span></a>.</p>
 </section>
 
