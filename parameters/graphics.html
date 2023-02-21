@@ -22,6 +22,7 @@
         <script src="../_static/doctools.js"></script>
         <script src="../_static/clipboard.min.js"></script>
         <script src="../_static/copybutton.js"></script>
+        <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <script src="../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
@@ -232,9 +233,7 @@
 <li class="toctree-l3"><a class="reference internal" href="#terminal-width"><code class="docutils literal notranslate"><span class="pre">terminal_width</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#enable-terminal-formatting"><code class="docutils literal notranslate"><span class="pre">enable_terminal_formatting</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#render2d-options"><code class="docutils literal notranslate"><span class="pre">render2D_options</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="#render3d-colors"><code class="docutils literal notranslate"><span class="pre">render3D_colors</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="#render3d-bgcolor"><code class="docutils literal notranslate"><span class="pre">render3D_bgcolor</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="#render3d-resolution"><code class="docutils literal notranslate"><span class="pre">render3D_resolution</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#render3d-options"><code class="docutils literal notranslate"><span class="pre">render3D_options</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="units.html">Units</a><ul>
@@ -350,17 +349,15 @@
 2D and 3D renders, as well as of the general terminal output.</p>
 <div class="contents local topic" id="contents">
 <ul class="simple">
-<li><p><a class="reference internal" href="#terminal-width" id="id4"><code class="docutils literal notranslate"><span class="pre">terminal_width</span></code></a></p></li>
-<li><p><a class="reference internal" href="#enable-terminal-formatting" id="id5"><code class="docutils literal notranslate"><span class="pre">enable_terminal_formatting</span></code></a></p></li>
-<li><p><a class="reference internal" href="#render2d-options" id="id6"><code class="docutils literal notranslate"><span class="pre">render2D_options</span></code></a></p></li>
-<li><p><a class="reference internal" href="#render3d-colors" id="id7"><code class="docutils literal notranslate"><span class="pre">render3D_colors</span></code></a></p></li>
-<li><p><a class="reference internal" href="#render3d-bgcolor" id="id8"><code class="docutils literal notranslate"><span class="pre">render3D_bgcolor</span></code></a></p></li>
-<li><p><a class="reference internal" href="#render3d-resolution" id="id9"><code class="docutils literal notranslate"><span class="pre">render3D_resolution</span></code></a></p></li>
+<li><p><a class="reference internal" href="#terminal-width" id="id5"><code class="docutils literal notranslate"><span class="pre">terminal_width</span></code></a></p></li>
+<li><p><a class="reference internal" href="#enable-terminal-formatting" id="id6"><code class="docutils literal notranslate"><span class="pre">enable_terminal_formatting</span></code></a></p></li>
+<li><p><a class="reference internal" href="#render2d-options" id="id7"><code class="docutils literal notranslate"><span class="pre">render2D_options</span></code></a></p></li>
+<li><p><a class="reference internal" href="#render3d-options" id="id8"><code class="docutils literal notranslate"><span class="pre">render3D_options</span></code></a></p></li>
 </ul>
 </div>
 <hr class="docutils" />
 <section id="terminal-width">
-<span id="id1"></span><h2><a class="toc-backref" href="#id4"><code class="docutils literal notranslate"><span class="pre">terminal_width</span></code></a><a class="headerlink" href="#terminal-width" title="Permalink to this headline"></a></h2>
+<span id="id1"></span><h2><a class="toc-backref" href="#id5"><code class="docutils literal notranslate"><span class="pre">terminal_width</span></code></a><a class="headerlink" href="#terminal-width" title="Permalink to this headline"></a></h2>
 <table>
 <colgroup>
 <col style="width: 4%" />
@@ -408,7 +405,7 @@ should occur.</p></td>
 <hr class="docutils" />
 </section>
 <section id="enable-terminal-formatting">
-<span id="id2"></span><h2><a class="toc-backref" href="#id5"><code class="docutils literal notranslate"><span class="pre">enable_terminal_formatting</span></code></a><a class="headerlink" href="#enable-terminal-formatting" title="Permalink to this headline"></a></h2>
+<span id="id2"></span><h2><a class="toc-backref" href="#id6"><code class="docutils literal notranslate"><span class="pre">enable_terminal_formatting</span></code></a><a class="headerlink" href="#enable-terminal-formatting" title="Permalink to this headline"></a></h2>
 <table>
 <colgroup>
 <col style="width: 4%" />
@@ -460,7 +457,7 @@ formatting, a few bits and pieces remain</p>
 <hr class="docutils" />
 </section>
 <section id="render2d-options">
-<span id="id3"></span><h2><a class="toc-backref" href="#id6"><code class="docutils literal notranslate"><span class="pre">render2D_options</span></code></a><a class="headerlink" href="#render2d-options" title="Permalink to this headline"></a></h2>
+<span id="id3"></span><h2><a class="toc-backref" href="#id7"><code class="docutils literal notranslate"><span class="pre">render2D_options</span></code></a><a class="headerlink" href="#render2d-options" title="Permalink to this headline"></a></h2>
 <table>
 <colgroup>
 <col style="width: 4%" />
@@ -517,16 +514,14 @@ formatting, a few bits and pieces remain</p>
 specifying details of how to compute 2D renders. All
 sub-parameters are themselves
 <a class="reference internal" href="parameters.html#components-and-selections"><span class="std std-ref">component selections</span></a>.</p>
-<p>For constructing a 2D render, one or more components (or
-more precisely their energy densities) are first
-interpolated onto individual <em>upstream</em> grids, possibly
-using deconvolution and interlacing, after which they
-are added together, producing a <em>global</em> grid. This
-scheme is similar to the one used for potentials, except
-here we stay in real space (though with a round-trip to
-Fourier space if upstream grids of different sizes are
-to be added together) and we do not interpolate anything
-back to the particles. See the <code class="docutils literal notranslate"><span class="pre">potential_options</span></code>
+<p>For constructing a 2D render, the energy density of one
+or more components is first interpolated onto individual
+<em>upstream</em> grids, possibly using deconvolution and
+interlacing, after which they are added together,
+producing a <em>global</em> grid. This scheme is similar to the
+one used for potentials, except that here nothing is
+interpolate back to the particles. See the
+<code class="docutils literal notranslate"><span class="pre">potential_options</span></code>
 <a class="reference internal" href="numerics.html#potential-options"><span class="std std-ref">parameter</span></a> for a walk-through
 of the scheme. A slab of a given thickness along a
 particular axis is then projected along this axis,
@@ -602,14 +597,6 @@ to apply to the image.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">'enhance'</span></code>: Specifies whether to apply non-linear
 contrast enhancement to the image.</p></li>
 </ul>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>For all sub-parameters above except
-<code class="docutils literal notranslate"><span class="pre">'upstream</span> <span class="pre">gridsize'</span></code>, the keys used within the
-<a class="reference internal" href="parameters.html#components-and-selections"><span class="std std-ref">component selection</span></a>
-sub-<code class="docutils literal notranslate"><span class="pre">dict</span></code>s may refer to either a single
-component or a combination of components.</p>
-</div>
 </td>
 </tr>
 <tr class="row-even"><td><p></p></td>
@@ -671,10 +658,10 @@ proper colormap will be applied.</p>
 </tr>
 </tbody>
 </table>
-</section>
 <hr class="docutils" />
-<section id="render3d-colors">
-<h2><a class="toc-backref" href="#id7"><code class="docutils literal notranslate"><span class="pre">render3D_colors</span></code></a><a class="headerlink" href="#render3d-colors" title="Permalink to this headline"></a></h2>
+</section>
+<section id="render3d-options">
+<span id="id4"></span><h2><a class="toc-backref" href="#id8"><code class="docutils literal notranslate"><span class="pre">render3D_options</span></code></a><a class="headerlink" href="#render3d-options" title="Permalink to this headline"></a></h2>
 <table>
 <colgroup>
 <col style="width: 4%" />
@@ -686,143 +673,411 @@ proper colormap will be applied.</p>
 <tr class="row-odd"><td><p></p></td>
 <td><p><strong>Description</strong></p></td>
 <td><p></p></td>
-<td><p>Specifies the colour in which to 3D render components</p></td>
+<td><p>Specifications for 3D render computations</p></td>
 </tr>
 <tr class="row-even"><td><p></p></td>
 <td><p><strong>Default</strong></p></td>
 <td><p></p></td>
-<td><div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="p">{}</span>  <span class="c1"># use default Matpotlib colours</span>
-</pre></div>
-</div>
-</td>
-</tr>
-<tr class="row-odd"><td><p></p></td>
-<td><p><strong>Elaboration</strong></p></td>
-<td><p></p></td>
-<td><p>This is a
-<a class="reference internal" href="parameters.html#components-and-selections"><span class="std std-ref">component selection</span></a>
-<code class="docutils literal notranslate"><span class="pre">dict</span></code> for specifying the colour to use for each
-component within 3D renders. The specified colours may
-be
-<a class="reference external" href="https://matplotlib.org/stable/gallery/color/named_colors.html">any of the recognised Matplotlib colours</a>,
-a 3-tuple of RGB values or a single number for
-greyscale (valued 0–1). In all cases, a
-default alpha (opacity) value of <code class="docutils literal notranslate"><span class="pre">0.2</span></code> will
-additionally be assigned. To further set this alpha
-yourself, define this parameter as a tuple with the
-alpha as the last element.</p></td>
-</tr>
-<tr class="row-even"><td><p></p></td>
-<td><p><strong>Example 0</strong></p></td>
-<td><p></p></td>
-<td><p>Set the component with a name/species of <code class="docutils literal notranslate"><span class="pre">'matter'</span></code> to
-be 3D rendered in turquoise and the component with a
-name/species of <code class="docutils literal notranslate"><span class="pre">'neutrino'</span></code> to be 3D rendered in
-violet, with the latter being less transparent than the
-default:</p>
-<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">render3D_colors</span> <span class="o">=</span> <span class="p">{</span>
-    <span class="s1">&#39;matter&#39;</span>  <span class="p">:</span> <span class="s1">&#39;turquoise&#39;</span><span class="p">,</span>
-    <span class="s1">&#39;neutrino&#39;</span><span class="p">:</span> <span class="p">(</span><span class="s1">&#39;violet&#39;</span><span class="p">,</span> <span class="mf">0.3</span><span class="p">),</span>
+<td><div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+    <span class="s1">&#39;upstream gridsize&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;particles&#39;</span><span class="p">:</span> <span class="s1">&#39;cbrt(Ñ)&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;fluid&#39;</span>    <span class="p">:</span> <span class="s1">&#39;gridsize&#39;</span><span class="p">,</span>
+    <span class="p">},</span>
+    <span class="s1">&#39;global gridsize&#39;</span><span class="p">:</span> <span class="p">{},</span>
+    <span class="s1">&#39;interpolation&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="s1">&#39;PCS&#39;</span><span class="p">,</span>
+    <span class="p">},</span>
+    <span class="s1">&#39;deconvolve&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="p">},</span>
+    <span class="s1">&#39;interlace&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="p">},</span>
+    <span class="s1">&#39;elevation&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="n">π</span><span class="o">/</span><span class="mi">6</span><span class="p">,</span>
+    <span class="p">},</span>
+    <span class="s1">&#39;azimuth&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="o">-</span><span class="n">π</span><span class="o">/</span><span class="mi">3</span><span class="p">,</span>
+    <span class="p">},</span>
+    <span class="s1">&#39;roll&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+    <span class="p">},</span>
+    <span class="s1">&#39;zoom&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="mf">1.05</span><span class="p">,</span>
+    <span class="p">},</span>
+    <span class="s1">&#39;projection&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="s1">&#39;perspective&#39;</span><span class="p">,</span>
+    <span class="p">},</span>
+    <span class="s1">&#39;color&#39;</span><span class="p">:</span> <span class="p">{},</span>
+    <span class="s1">&#39;depthshade&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="p">},</span>
+    <span class="s1">&#39;enhancement&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s1">&#39;contrast&#39;</span>  <span class="p">:</span> <span class="mf">0.5</span><span class="p">,</span>
+            <span class="s1">&#39;clip&#39;</span>      <span class="p">:</span> <span class="k">lambda</span> <span class="n">a</span><span class="p">:</span> <span class="p">(</span><span class="mf">0.45</span><span class="p">,</span> <span class="mi">1</span> <span class="o">-</span> <span class="mf">1e-6</span><span class="o">*</span><span class="n">a</span><span class="p">),</span>
+            <span class="s1">&#39;α&#39;</span>         <span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+            <span class="s1">&#39;brightness&#39;</span><span class="p">:</span> <span class="mf">0.35</span><span class="p">,</span>
+        <span class="p">},</span>
+    <span class="p">},</span>
+    <span class="s1">&#39;background&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="s1">&#39;black&#39;</span><span class="p">,</span>
+    <span class="p">},</span>
+    <span class="s1">&#39;fontsize&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="s1">&#39;0.022*resolution&#39;</span><span class="p">,</span>
+    <span class="p">},</span>
+    <span class="s1">&#39;resolution&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="mi">1080</span><span class="p">,</span>
+    <span class="p">},</span>
 <span class="p">}</span>
 </pre></div>
 </div>
 </td>
 </tr>
-</tbody>
-</table>
-</section>
-<hr class="docutils" />
-<section id="render3d-bgcolor">
-<h2><a class="toc-backref" href="#id8"><code class="docutils literal notranslate"><span class="pre">render3D_bgcolor</span></code></a><a class="headerlink" href="#render3d-bgcolor" title="Permalink to this headline"></a></h2>
-<table>
-<colgroup>
-<col style="width: 4%" />
-<col style="width: 10%" />
-<col style="width: 4%" />
-<col style="width: 82%" />
-</colgroup>
-<tbody>
-<tr class="row-odd"><td><p></p></td>
-<td><p><strong>Description</strong></p></td>
-<td><p></p></td>
-<td><p>Specifies the background colour for 3D renders</p></td>
-</tr>
-<tr class="row-even"><td><p></p></td>
-<td><p><strong>Default</strong></p></td>
-<td><p></p></td>
-<td><div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="s1">&#39;black&#39;</span>
-</pre></div>
-</div>
-</td>
-</tr>
 <tr class="row-odd"><td><p></p></td>
 <td><p><strong>Elaboration</strong></p></td>
 <td><p></p></td>
-<td><p>All 3D renders within a simulation will have the
-background colour as specified by this parameter, with
-the particles or fluid cells of the rendered
-component(s) (as well as time stamps) on top. The
-specified colour may be
-<a class="reference external" href="https://matplotlib.org/stable/gallery/color/named_colors.html">any colour recognised by Matplotlib</a>,
-a 3-tuple of RGB values or a single greyscale number
-(valued 0–1).</p></td>
+<td><p>This is a <code class="docutils literal notranslate"><span class="pre">dict</span></code> of several individual sub-parameters,
+specifying details of how to compute 3D renders. All
+sub-parameters are themselves
+<a class="reference internal" href="parameters.html#components-and-selections"><span class="std std-ref">component selections</span></a>.</p>
+<p>For constructing a 3D render, the energy density of one
+or more components is first interpolated onto individual
+<em>upstream</em> grids, possibly using deconvolution and
+interlacing, after which they are added together,
+producing a <em>global</em> grid. This scheme is similar to the
+one used for potentials, except that here nothing is
+interpolate back to the particles. See the
+<code class="docutils literal notranslate"><span class="pre">potential_options</span></code>
+<a class="reference internal" href="numerics.html#potential-options"><span class="std std-ref">parameter</span></a> for a walk-through
+of the scheme. A 3D scatter plot is then constructed
+from the grid positions and values, using a desired
+colormap. Image enhancement is applied to bring out the
+details. Several components can be rendered together,
+in which case single-component renders are first
+constructed and then blended together. Lastly, the 3D
+render is given a solid background as well as labels
+stating the current (cosmic) time <span class="math notranslate nohighlight">\(t\)</span> and scale
+factor <span class="math notranslate nohighlight">\(a\)</span>.</p>
+<p>Most of the sub-parameters dealing with the
+interpolation of particles onto the grid for the
+<code class="docutils literal notranslate"><span class="pre">render3D_options</span></code> parameter are identical to those of
+the <code class="docutils literal notranslate"><span class="pre">render2D_options</span></code>
+<a class="reference internal" href="#render2d-options"><span class="std std-ref">parameter</span></a> and will not be
+reiterated here. The remaining sub-parameters are
+described below:</p>
+<ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">'interpolation'</span></code>: Specifies the interpolation order
+to use when interpolating particles to upstream grids,
+similar to the <code class="docutils literal notranslate"><span class="pre">'interpolation'</span></code> sub-parameter of
+the <code class="docutils literal notranslate"><span class="pre">render2D_options</span></code>
+<a class="reference internal" href="#render2d-options"><span class="std std-ref">parameter</span></a>:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">'NPG'</span></code>: ‘Nearest grid point’, order <code class="docutils literal notranslate"><span class="pre">1</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'CIC'</span></code>: ‘Cloud in cell’, order <code class="docutils literal notranslate"><span class="pre">2</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'TSC'</span></code>: ‘Triangular shaped cloud’, order <code class="docutils literal notranslate"><span class="pre">3</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'PCS'</span></code>: ‘Piecewise cubic spline’, order <code class="docutils literal notranslate"><span class="pre">4</span></code>.</p></li>
+</ul>
+<p>In addition to the usual interpolation orders above,
+one additional option exists:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">0</span></code>: Do not perform interpolation at all. That is,
+instead of using the fixed grid cell positions with
+the scatter plot, use the particle positions as is.
+As no density information now exists, all particles
+of a given component will be assigned the same
+colour, rather than drawing individual colours from
+a colormap. Also, only the <code class="docutils literal notranslate"><span class="pre">'brightness'</span></code> image
+enhancement will be performed (see further down).</p></li>
+</ul>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'elevation'</span></code>, <code class="docutils literal notranslate"><span class="pre">'azimuth'</span></code> and <code class="docutils literal notranslate"><span class="pre">'roll'</span></code>:
+Together, these specify the camera viewing angles and
+rotation. A description can be found
+<a class="reference external" href="https://matplotlib.org/stable/api/toolkits/mplot3d/view_angles.html">here</a>.
+Note however that CO<em>N</em>CEPT uses radians for all
+angles, not degrees.</p>
+<p>These can all be specified as numbers, or as
+functions of <span class="math notranslate nohighlight">\(t\)</span> or <span class="math notranslate nohighlight">\(a\)</span> returning a
+number. The latter case can be used to animate the
+camera.</p>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'zoom'</span></code>: Specifies the camera zoom, either as a
+number or a function of <span class="math notranslate nohighlight">\(t\)</span> or <span class="math notranslate nohighlight">\(a\)</span>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'projection'</span></code>: Specifies the (3D
+<span class="math notranslate nohighlight">\(\rightarrow\)</span> 2D) projection type to use. This
+can be either of <code class="docutils literal notranslate"><span class="pre">'orthographic'</span></code> or
+<code class="docutils literal notranslate"><span class="pre">'perspective'</span></code>. In the case of the latter, a focal
+length may optionally be specified, as in
+<code class="docutils literal notranslate"><span class="pre">('perspective',</span> <span class="pre">1)</span></code> (<code class="docutils literal notranslate"><span class="pre">1</span></code> being the default).
+Furthermore, the focal length may be given as a
+function of <span class="math notranslate nohighlight">\(t\)</span> or <span class="math notranslate nohighlight">\(a\)</span>. A description of
+the projection types can be found
+<a class="reference external" href="https://matplotlib.org/stable/gallery/mplot3d/projections.html">here</a>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'color'</span></code>: The
+<a class="reference external" href="https://matplotlib.org/stable/gallery/color/colormap_reference.html">colormap</a>
+or single
+<a class="reference external" href="https://matplotlib.org/stable/gallery/color/named_colors.html">color</a>
+to use for each component across all renders. In the
+case of the former, the colormap range may further be
+limited by also specifying a range
+<code class="docutils literal notranslate"><span class="pre">(c_lower,</span> <span class="pre">c_upper)</span></code>, with
+<span class="math notranslate nohighlight">\(c_{\text{lower}} \ge 0\)</span>,
+<span class="math notranslate nohighlight">\(c_{\text{upper}} \le 1\)</span>. It is also possible
+to specify the range as a function (or two separate
+functions) of <span class="math notranslate nohighlight">\(t\)</span> or <span class="math notranslate nohighlight">\(a\)</span>.</p>
+<p>Though no defaults are explicitly stated above,
+CO<em>N</em>CEPT in fact automatically assigns colours
+— to components that have not been given a colour
+by the user — using he following prescription:</p>
+<ol class="arabic" start="0">
+<li><p>First component with no colour specified:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="p">(</span><span class="s1">&#39;inferno&#39;</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">a</span><span class="p">:</span> <span class="p">(</span><span class="mf">0.10</span><span class="p">,</span> <span class="mf">0.75</span> <span class="o">+</span> <span class="mf">0.25</span><span class="o">*</span><span class="n">a</span><span class="p">))</span>
+</pre></div>
+</div>
+</li>
+<li><p>Second component with no colour specified:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="p">(</span><span class="s1">&#39;viridis&#39;</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">a</span><span class="p">:</span> <span class="p">(</span><span class="mf">0.15</span><span class="p">,</span> <span class="mf">0.85</span> <span class="o">+</span> <span class="mf">0.15</span><span class="o">*</span><span class="n">a</span><span class="p">))</span>
+</pre></div>
+</div>
+</li>
+<li><p>Any further components with no colour specified
+will be assigned single colours taken from the
+<a class="reference external" href="https://matplotlib.org/stable/gallery/color/color_cycle_default.html">default Matplotlib colour cycle</a>.</p></li>
+</ol>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>In the above, we see examples of how sub-parameters
+of <code class="docutils literal notranslate"><span class="pre">render3D_options</span></code> can be specified as
+functions, here functions of the scale factor
+<span class="math notranslate nohighlight">\(a\)</span>. Such functions may instead be written as
+depending on the (cosmic) time <span class="math notranslate nohighlight">\(t\)</span>.
+CO<em>N</em>CETP will figure out which of these is
+used through introspection and evaluate the given
+function accordingly.</p>
+</div>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'depthshade'</span></code>: Specifies whether to apply “depth
+shading”, meaning lowering the opacity of particles in
+proportion to their distance from the camera, helping
+to construct the illusion of depth within the image.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'enhancement'</span></code>: Specifies the amounts of different
+kinds of image enhancement to perform, specified via
+four sub-sub-parameters:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">'contrast'</span></code>: The interpolated density values are
+first linearly transformed to lie in the interval
+<code class="docutils literal notranslate"><span class="pre">[0,</span> <span class="pre">1]</span></code>, then non-linearly transformed such that
+the most common value is that specified by
+<code class="docutils literal notranslate"><span class="pre">'contrast'</span></code>. A value of <code class="docutils literal notranslate"><span class="pre">'contrast'</span></code> around
+<code class="docutils literal notranslate"><span class="pre">0.5</span></code> serves to normalise the density values,
+enhancing the contrast of the generated image. This
+value should be in the interval <span class="math notranslate nohighlight">\([0, 1]\)</span>, or
+<span class="math notranslate nohighlight">\(-1\)</span> to not apply this enhancement at all.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'clip'</span></code>: Specifies minimum and maximum value for
+the densities (now in the interval <code class="docutils literal notranslate"><span class="pre">[0,</span> <span class="pre">1]</span></code>),
+beyond which they are clipped/saturated. Having a
+lower <code class="docutils literal notranslate"><span class="pre">'clip'</span></code> value significantly above <code class="docutils literal notranslate"><span class="pre">0</span></code>
+helps to remove dull, semi-homogeneous features,
+whereas having an upper <code class="docutils literal notranslate"><span class="pre">'clip'</span></code> value somewhat
+below <code class="docutils literal notranslate"><span class="pre">1</span></code> helps to highlight small, very overdense
+regions (halos).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'α'</span></code>: Each marker in the scatter plot is
+assigned an α (opacity) value based on its density
+value, but many other factors come into play. One
+such factor is this parameter, which acts as a
+scaling applied to all markers. This value should be
+in the interval <span class="math notranslate nohighlight">\([0, \infty)\)</span>, or <span class="math notranslate nohighlight">\(-1\)</span>
+to not apply this enhancement at all.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'brightness'</span></code>: After the 3D <span class="math notranslate nohighlight">\(\rightarrow\)</span>
+2D projection, the image is brightened or dimmed so
+that its brightness matches this specification. This
+value should be in the interval <span class="math notranslate nohighlight">\([0, 1]\)</span>, or
+<span class="math notranslate nohighlight">\(-1\)</span> to not apply this enhancement at all.</p></li>
+</ul>
+<p>All four of the sub-sub-parameters above may be given
+as functions of <span class="math notranslate nohighlight">\(t\)</span> or <span class="math notranslate nohighlight">\(a\)</span>.</p>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'background'</span></code>: Solid background
+<a class="reference external" href="https://matplotlib.org/stable/gallery/color/named_colors.html">color</a>
+to use.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'fontsize'</span></code>: Font size to use for the <span class="math notranslate nohighlight">\(t\)</span> and
+<span class="math notranslate nohighlight">\(a\)</span> labels. Can be given as a number or as a
+<code class="docutils literal notranslate"><span class="pre">str</span></code> expression involving the <code class="docutils literal notranslate"><span class="pre">resolution</span></code>. Set
+to <code class="docutils literal notranslate"><span class="pre">0</span></code> to remove the text labels.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'resolution'</span></code>: The height and width of the square
+render image, in pixels.</p></li>
+</ul>
+<p>The above sub-parameters are
+<a class="reference internal" href="parameters.html#components-and-selections"><span class="std std-ref">component selections</span></a>
+and may be specified for a single or multiple
+components. However, a given component will look the
+same across all 3D renders, meaning that certain options
+apply directly to the components and not the render. To
+illustrate this, consider the below specification of 3D
+renders for a <code class="docutils literal notranslate"><span class="pre">'matter'</span></code> and a <code class="docutils literal notranslate"><span class="pre">'neutrino'</span></code>
+component:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">render3D_select</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;matter&#39;</span>  <span class="p">:</span> <span class="kc">True</span><span class="p">,</span>              <span class="c1"># single-component render</span>
+    <span class="s1">&#39;neutrino&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>              <span class="c1"># single-component render</span>
+    <span class="p">(</span><span class="s1">&#39;matter&#39;</span><span class="p">,</span> <span class="s1">&#39;neutrino&#39;</span><span class="p">):</span> <span class="kc">True</span><span class="p">,</span>  <span class="c1"># multi-component render</span>
+<span class="p">}</span>
+<span class="n">render3D_options</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;color&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;matter&#39;</span>              <span class="p">:</span> <span class="s1">&#39;red&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;neutrino&#39;</span>            <span class="p">:</span> <span class="s1">&#39;green&#39;</span><span class="p">,</span>
+        <span class="p">(</span><span class="s1">&#39;matter&#39;</span><span class="p">,</span> <span class="s1">&#39;neutrino&#39;</span><span class="p">):</span> <span class="s1">&#39;blue&#39;</span><span class="p">,</span>  <span class="c1"># ❌</span>
+    <span class="p">},</span>
+    <span class="s1">&#39;background&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;matter&#39;</span>              <span class="p">:</span> <span class="s1">&#39;black&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;neutrino&#39;</span>            <span class="p">:</span> <span class="s1">&#39;white&#39;</span><span class="p">,</span>
+        <span class="p">(</span><span class="s1">&#39;matter&#39;</span><span class="p">,</span> <span class="s1">&#39;neutrino&#39;</span><span class="p">):</span> <span class="s1">&#39;silver&#39;</span><span class="p">,</span>
+    <span class="p">},</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>The above specifies that we want three renders; one with
+just <code class="docutils literal notranslate"><span class="pre">'matter'</span></code>, one with just <code class="docutils literal notranslate"><span class="pre">'neutrino'</span></code>, and one
+with the two components together. Each component is
+given a colour, but so is the two components together.
+This additional colour specification will be ignored, as
+colours belong to the components, not the renders.
+Separate background colours are similarly given for all
+three renders, but since the background colour is a
+property of the render itself, none of the background
+specifications will be ignored. We can even remove e.g.
+<code class="docutils literal notranslate"><span class="pre">'neutrino'</span></code> from <code class="docutils literal notranslate"><span class="pre">render3D_select</span></code> (setting its
+value to <code class="docutils literal notranslate"><span class="pre">False</span></code>), leaving the <code class="docutils literal notranslate"><span class="pre">'matter'</span></code>-only
+render as well as the multi-component render. In the
+multi-component render, the <code class="docutils literal notranslate"><span class="pre">'neutrino'</span></code> component
+will still be rendered with the <code class="docutils literal notranslate"><span class="pre">'green'</span></code> colour.</p>
+<p>The full list of sub-parameters can thus be split into
+two categories, depending on whether they behave as
+<em>render attributes</em> or <em>component attributes</em>,
+where the latter should only be assigned to single
+components:</p>
+<ul class="simple">
+<li><p>Render attributes: <code class="docutils literal notranslate"><span class="pre">'elevation'</span></code>, <code class="docutils literal notranslate"><span class="pre">'azimuth'</span></code>,
+<code class="docutils literal notranslate"><span class="pre">'roll'</span></code>, <code class="docutils literal notranslate"><span class="pre">'zoom'</span></code>, <code class="docutils literal notranslate"><span class="pre">'projection'</span></code>,
+<code class="docutils literal notranslate"><span class="pre">'depthshade'</span></code>, <code class="docutils literal notranslate"><span class="pre">'background'</span></code>, <code class="docutils literal notranslate"><span class="pre">'fontsize'</span></code>,
+<code class="docutils literal notranslate"><span class="pre">'resolution'</span></code>.</p></li>
+<li><p>Component attributes: <code class="docutils literal notranslate"><span class="pre">'upstream</span> <span class="pre">gridsize'</span></code>,
+<code class="docutils literal notranslate"><span class="pre">'global</span> <span class="pre">gridsize'</span></code>, <code class="docutils literal notranslate"><span class="pre">'interpolation'</span></code>,
+<code class="docutils literal notranslate"><span class="pre">'deconvolve'</span></code>, <code class="docutils literal notranslate"><span class="pre">'interlace'</span></code>, <code class="docutils literal notranslate"><span class="pre">'color'</span></code>,
+<code class="docutils literal notranslate"><span class="pre">'enhancement'</span></code>.</p></li>
+</ul>
+<p>An exception from the above clean categorization is the
+<code class="docutils literal notranslate"><span class="pre">'brightness'</span></code> sub-sub-parameter within the
+<code class="docutils literal notranslate"><span class="pre">'enhancement'</span></code> sub-parameter, which really belongs to
+both categories. That is, though each component has an
+associated (relative) brightness across all renders, the
+total brightness of multi-component renders may be
+specified as well.</p>
+</td>
 </tr>
 <tr class="row-even"><td><p></p></td>
 <td><p><strong>Example 0</strong></p></td>
 <td><p></p></td>
-<td><p>Use a light background colour, though not quite white:</p>
-<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">render3D_bgcolor</span> <span class="o">=</span> <span class="s1">&#39;ivory&#39;</span>
+<td><p>Give the component with a name/species of <code class="docutils literal notranslate"><span class="pre">'matter'</span></code>
+the <code class="docutils literal notranslate"><span class="pre">'lawngreen'</span></code> colour, while using the <code class="docutils literal notranslate"><span class="pre">'cool'</span></code>
+colormap for the component with a name/species of
+<code class="docutils literal notranslate"><span class="pre">'neutrino'</span></code>:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">render3D_options</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;color&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;matter&#39;</span>  <span class="p">:</span> <span class="s1">&#39;lawngreen&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;neutrino&#39;</span><span class="p">:</span> <span class="s1">&#39;cool&#39;</span><span class="p">,</span>
+    <span class="p">},</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>We might instead specify the single colour as an RGB
+value:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">render3D_options</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;color&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;matter&#39;</span>  <span class="p">:</span> <span class="p">(</span><span class="mi">124</span><span class="o">/</span><span class="mi">255</span><span class="p">,</span> <span class="mi">252</span><span class="o">/</span><span class="mi">255</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span>
+        <span class="s1">&#39;neutrino&#39;</span><span class="p">:</span> <span class="s1">&#39;cool&#39;</span><span class="p">,</span>
+    <span class="p">},</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>To quickly convert any Matplotlib colour to the RGB
+representation, you can use</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;import matplotlib; \</span>
+<span class="s2">    print(matplotlib.colors.ColorConverter().to_rgb(&#39;lawngreen&#39;))&quot;</span>
+</pre></div>
+</div>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Example 1</strong></p></td>
+<td><p></p></td>
+<td><p>Use a white background:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">render3D_options</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;background&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;all&#39;</span><span class="p">:</span> <span class="s1">&#39;white&#39;</span><span class="p">,</span>
+    <span class="p">},</span>
+<span class="p">}</span>
 </pre></div>
 </div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>The text (time stamps) on the 3D renders will now be
-in black rather than their usual white, maximizing the
-contrast</p>
+<p>The text labels for the time <span class="math notranslate nohighlight">\(t\)</span> and scale
+factor <span class="math notranslate nohighlight">\(a\)</span> will always be either white or
+black; white for dark backgrounds and black for light
+backgrounds.</p>
 </div>
-</td>
-</tr>
-</tbody>
-</table>
-</section>
-<hr class="docutils" />
-<section id="render3d-resolution">
-<h2><a class="toc-backref" href="#id9"><code class="docutils literal notranslate"><span class="pre">render3D_resolution</span></code></a><a class="headerlink" href="#render3d-resolution" title="Permalink to this headline"></a></h2>
-<table>
-<colgroup>
-<col style="width: 4%" />
-<col style="width: 10%" />
-<col style="width: 4%" />
-<col style="width: 82%" />
-</colgroup>
-<tbody>
-<tr class="row-odd"><td><p></p></td>
-<td><p><strong>Description</strong></p></td>
-<td><p></p></td>
-<td><p>Specifies the size of 3D renders</p></td>
-</tr>
-<tr class="row-even"><td><p></p></td>
-<td><p><strong>Default</strong></p></td>
-<td><p></p></td>
-<td><div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="mi">1080</span>
+<p>The above <code class="docutils literal notranslate"><span class="pre">'all'</span></code> specification only captures
+single-component renders. We can further apply the white
+background to all multi-component renders:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">render3D_options</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;background&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;all&#39;</span>             <span class="p">:</span> <span class="s1">&#39;white&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;all combinations&#39;</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span>
+    <span class="p">},</span>
+<span class="p">}</span>
 </pre></div>
 </div>
 </td>
 </tr>
-<tr class="row-odd"><td><p></p></td>
-<td><p><strong>Elaboration</strong></p></td>
-<td><p></p></td>
-<td><p>The 3D renders are always stored as square images
-(PNG files). This parameter specifies the height and
-width of these images, in pixels.</p></td>
-</tr>
 <tr class="row-even"><td><p></p></td>
-<td><p><strong>Example 0</strong></p></td>
+<td><p><strong>Example 2</strong></p></td>
 <td><p></p></td>
-<td><p>Generate high-resolution ‘4K’ 3D renders:</p>
-<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">render3D_resolution</span> <span class="o">=</span> <span class="mi">4096</span>
+<td><p>For renders of the component with a name/species of
+<code class="docutils literal notranslate"><span class="pre">'matter'</span></code>, let the camera rotate around the box,
+completing one full revolution during the simulation
+time span:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">render3D_options</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;azimuth&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;matter&#39;</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">a</span><span class="p">:</span> <span class="mi">2</span><span class="o">*</span><span class="n">π</span><span class="o">*</span><span class="p">(</span><span class="n">a</span> <span class="o">-</span> <span class="n">a_begin</span><span class="p">)</span><span class="o">/</span><span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="n">a_begin</span><span class="p">),</span>
+    <span class="p">},</span>
+<span class="p">}</span>
 </pre></div>
 </div>
+<p>Combined with frequent renders linearly spaced in
+<span class="math notranslate nohighlight">\(a\)</span>, the resulting renders can be combined into a
+nifty animation.</p>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Example 3</strong></p></td>
+<td><p></p></td>
+<td><p>Do not interpolate particles of the component with a
+name/species of <code class="docutils literal notranslate"><span class="pre">'matter'</span></code> onto a grid for the 3D
+renders:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">render3D_options</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;interpolation&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;matter&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+    <span class="p">},</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>Though this disables the colormap and enhancement
+features, this has the benefit of being able to better
+represent small structures, as the particle resolution
+is not limited to the grid spacing.</p>
 </td>
 </tr>
 </tbody>

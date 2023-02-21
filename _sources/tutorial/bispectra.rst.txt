@@ -121,7 +121,7 @@ together in a single plot, for which we make use of the plotting script below:
                for filename in glob.glob(f'{dirname}/bispec*'):
                    if filename.endswith('.png'):
                        continue
-                   with open(filename, 'r', encoding='utf-8') as f:
+                   with open(filename, mode='r', encoding='utf-8') as f:
                        a = float(re.search(r'a = (.+)', f.readline()).group(1))
                    a_values.add(a)
                    if a in a_files:

@@ -7,7 +7,7 @@ file:
 .. code-block:: python3
    :caption: param/tutorial
    :name: param-output-types
-   :emphasize-lines: 10, 12-14, 17, 19-21, 23-31, 43-59
+   :emphasize-lines: 10, 12-14, 17, 19-21, 23-34, 46-68
 
    # Non-parameter variable used to control the size of the simulation
    _size = 64
@@ -40,6 +40,9 @@ file:
    render2D_select = {
        'matter': {'data': False, 'image': True, 'terminal image': True},
    }
+   render3D_select = {
+       'matter': {'image': True},
+   }
 
    # Numeris
    boxsize = 128*Mpc
@@ -63,11 +66,17 @@ file:
            'matter': 'inferno',
        },
    }
-   render3D_colors = {
-       'matter': 'lime',
+   render3D_options = {
+       'color': {
+           'matter': 'inferno',
+       },
+       'background': {
+           'matter': 'black',
+       },
+       'resolution': {
+           'matter': 640,
+       },
    }
-   render3D_bgcolor    = 'black'
-   render3D_resolution = 640
 
 Run a simulation using the :ref:`above <param-output-types>` parameters, e.g.
 by saving them to ``param/tutorial`` and executing
@@ -136,29 +145,31 @@ dedicated to the bispectrum, including other configurations.
 3D renders
 ..........
 You will find other image files in the output directory with names that begin
-with ``render3D``. These are --- unsurprisingly --- the 3D renders. The
-colours are controlled through the ``render3D_colors`` and
-``render3D_bgcolor`` parameters, while the (linear) size (in pixels) is set by
-``render3D_resolution``. All particles of a given component gets the same
-colour, though different colours may be used for different components when
-running such simulations. The brightness of each pixel indicates the local
-energy density.
+with ``render3D``. These are --- unsurprisingly --- the 3D renders.
 
-The colours used (here ``'lime'`` and ``'black'``) may be any colour recognised
-by `Matplotlib <https://matplotlib.org/>`_. A list of named colours is
-available
-`here <https://matplotlib.org/stable/gallery/color/named_colors.html>`_.
-Alternatively, you may pass a 3-tuple of RGB values (e.g.
-``render3D_bgcolor = (1, 0, 0)`` makes the background red).
+In the ``render3D_select`` parameter we've specified that we want 3D renders
+of the ``'matter'`` component, whereas specifics of the 3D renders are given
+in ``render3D_options``. Here we've set the colour of the matter particles to
+be ``'inferno'``, which Matplotlib recognises as a colormap. This colormap
+will be used to map colours to regions of the box depending on the local
+density.
+
+.. tip::
+   The available colormaps can be viewed
+   `here <https://matplotlib.org/stable/gallery/color/colormap_reference.html>`__
+   A single colour value may also be given, either as an RGB tuple (each value
+   raning from 0 to 1) or as a
+   `<named colour https://matplotlib.org/stable/gallery/color/named_colors.html>`__.
+
+We also specify the background colour, as well as the resolution (height and
+width) of the image, in pixels.
 
 
 
 2D renders
 ..........
 The 2D renders show the particle configuration projected along one of the axes
-of the box. These can often be prettier than their 3D counterparts, as a
-colormap is used to visualise the density field, rather than just a single
-colour combined with alpha compositing.
+of the box.
 
 In the ``render2D_select`` parameter we've specified that we want images as
 well as terminal images, but no data. Here, *images* refer to the 2D render
@@ -178,9 +189,7 @@ will be ``'terminal resolution'`` (80) characters wide. Since the terminal
 render is constructed from the original 2D render, this does not show more
 details even though the resolution is higher (80 vs. 64).
 
-Also available through ``render2D_options`` is the colormap to use. Check out
-`this <https://matplotlib.org/stable/gallery/color/colormap_reference.html>`_
-for a list of available colormaps.
+Also available through ``render2D_options`` is the colormap to use.
 
 
 
@@ -240,8 +249,8 @@ its own snapshot format, which is simply a well-structured HDF5 file.
 
 .. tip::
    For a great graphical tool to explore HDF5 files in general, check out
-   `ViTables <https://vitables.org/>`_. If you encounter problems viewing HDF5
-   files produced by CO\ *N*\ CEPT, check that you are using ViTables 3.
+   `ViTables <https://vitables.org/>`__. If you encounter problems viewing
+   HDF5 files produced by CO\ *N*\ CEPT, check that you are using ViTables 3.
 
    You can install ViTables as part of the CO\ *N*\ CEPT installation via
 
@@ -320,9 +329,9 @@ You may also want to use CO\ *N*\ CEPT purely as an initial condition
 generator, and perform the actual simulation using some other code. If so, the
 default CO\ *N*\ CEPT snapshot format is of little use. To this end,
 CO\ *N*\ CEPT also supports the binary Fortran format of
-`GADGET <https://wwwmpa.mpa-garching.mpg.de/gadget/>`_, which is understood by
-many other simulation codes and tools. To use this snapshot format in place of
-the CO\ *N*\ CEPT format, add ``snapshot_type = 'gadget'`` to your
+`GADGET <https://wwwmpa.mpa-garching.mpg.de/gadget/>`__, which is understood
+by many other simulation codes and tools. To use this snapshot format in place
+of the CO\ *N*\ CEPT format, add ``snapshot_type = 'gadget'`` to your
 parameter file.
 
 
@@ -331,7 +340,7 @@ parameter file.
 
    <h3>The info utility</h3>
 
-We mentioned `ViTables <https://vitables.org/>`_ as a great way to peek inside
+We mentioned `ViTables <https://vitables.org/>`__ as a great way to peek inside
 the default CO\ *N*\ CEPT (HDF5) snapshots. It would be nice to have a general
 tool which worked for the supported GADGET snapshots as well. Luckily,
 CO\ *N*\ CEPT comes with just such a tool: the *info utility*. To try it out,

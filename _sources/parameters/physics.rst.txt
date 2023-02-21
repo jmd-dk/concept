@@ -190,7 +190,7 @@ physical models and schemes to be used.
                       components read from ``'gadget'``
                       :ref:`type <snapshot_type>` snapshots, their GADGET
                       particle type (see table 3 of the
-                      `user guide for GADGET-2 <https://wwwmpa.mpa-garching.mpg.de/gadget/users-guide.pdf>`_)
+                      `user guide for GADGET-2 <https://wwwmpa.mpa-garching.mpg.de/gadget/users-guide.pdf>`__)
                       is known, but this needs to be mapped to a species in
                       CO\ *N*\ CEPT. This is what this parameter is for.
 
@@ -215,7 +215,7 @@ physical models and schemes to be used.
                          The name ``'GADGET halo'`` will automatically be
                          assigned to the component containing the particles of
                          type 1. See table 3 of the
-                         `user guide for GADGET-2 <https://wwwmpa.mpa-garching.mpg.de/gadget/users-guide.pdf>`_
+                         `user guide for GADGET-2 <https://wwwmpa.mpa-garching.mpg.de/gadget/users-guide.pdf>`__
                          for other names.
 
 -- --------------- -- -

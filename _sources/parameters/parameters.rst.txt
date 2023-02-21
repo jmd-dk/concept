@@ -20,7 +20,7 @@ To learn how to *use* parameters and parameter files, see the
 
 Parameters are specified as Python 3 variables. As such, it is helpful to be
 familiar with basic Python syntax and
-`data types <https://docs.python.org/3/library/stdtypes.html>`_, such as
+`data types <https://docs.python.org/3/library/stdtypes.html>`__, such as
 ``str``\ ings, ``list``\ s and ``dict``\ ionaries.
 
 Below you will find the parameter categories, corresponding to the sections
@@ -40,7 +40,7 @@ these categories have no meaning.
    debugging
 
 Besides these sections, you may also look in the
-`provided example parameter files <https://github.com/jmd-dk/concept/tree/master/param>`_.
+`provided example parameter files <https://github.com/jmd-dk/concept/tree/master/param>`__.
 In particular, ``example_explanatory`` defines close to all supported
 parameters. Though this makes it impractically large for actual use, it serves
 to briefly showcase the many possible parameters.
@@ -76,11 +76,11 @@ the value, as no default units are ever assumed by CO\ *N*\ CEPT. For example,
 .. code-block:: python3
 
    # Numerics
-   boxsize = 512      # wrong!
+   boxsize = 512      # ❌
    boxsize = 512*Mpc  # OK
 
    # Cosmology
-   H0 = 67             # wrong!
+   H0 = 67             # ❌
    H0 = 67*km/(s*Mpc)  # OK
 
 A large set of units is understood:
@@ -94,6 +94,8 @@ A large set of units is understood:
 
 with brackets ``[...]`` indicating allowed SI prefixes.
 
+CO\ *N*\ CEPT always expresses angles in terms of radians.
+
 The following physical constants are further available:
 
 * ``c`` or ``light_speed`` (speed of light in vacuum).
@@ -103,10 +105,10 @@ The following physical constants are further available:
 .. note::
    The precise relations between the above units and constants are adopted
    from the
-   `2019 redefinition of the SI base units <https://en.wikipedia.org/wiki/2019_redefinition_of_the_SI_base_units#Redefinition>`_,
-   exact `IAU definitions <https://arxiv.org/abs/1605.09788>`_ and
+   `2019 redefinition of the SI base units <https://en.wikipedia.org/wiki/2019_redefinition_of_the_SI_base_units#Redefinition>`__,
+   exact `IAU definitions <https://arxiv.org/abs/1605.09788>`__ and
    experimental
-   `2020 values from the Particle Data Group <https://doi.org/10.1093/ptep/ptaa104>`_.
+   `2020 values from the Particle Data Group <https://doi.org/10.1093/ptep/ptaa104>`__.
 
 A few mathematical constants are similarly readily available:
 
@@ -630,7 +632,7 @@ a performance penalty.
   * If running CO\ *N*\ CEPT locally or always on a single, specific node of a
     cluster, every simulation should make use of the same FFTW plans, stored
     as
-    `FFTW wisdom <https://www.fftw.org/fftw3_doc/Words-of-Wisdom_002dSaving-Plans.html>`_:
+    `FFTW wisdom <https://www.fftw.org/fftw3_doc/Words-of-Wisdom_002dSaving-Plans.html>`__:
 
     .. code-block:: python3
 

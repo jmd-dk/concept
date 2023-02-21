@@ -233,9 +233,7 @@
 <li class="toctree-l3"><a class="reference internal" href="graphics.html#terminal-width"><code class="docutils literal notranslate"><span class="pre">terminal_width</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="graphics.html#enable-terminal-formatting"><code class="docutils literal notranslate"><span class="pre">enable_terminal_formatting</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="graphics.html#render2d-options"><code class="docutils literal notranslate"><span class="pre">render2D_options</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="graphics.html#render3d-colors"><code class="docutils literal notranslate"><span class="pre">render3D_colors</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="graphics.html#render3d-bgcolor"><code class="docutils literal notranslate"><span class="pre">render3D_bgcolor</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="graphics.html#render3d-resolution"><code class="docutils literal notranslate"><span class="pre">render3D_resolution</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="graphics.html#render3d-options"><code class="docutils literal notranslate"><span class="pre">render3D_options</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="units.html">Units</a><ul>
@@ -352,28 +350,28 @@ initial conditions as well as the wanted results to be outputted from the
 CO<em>N</em>CEPT run.</p>
 <div class="contents local topic" id="contents">
 <ul class="simple">
-<li><p><a class="reference internal" href="#initial-conditions" id="id20"><code class="docutils literal notranslate"><span class="pre">initial_conditions</span></code></a></p></li>
-<li><p><a class="reference internal" href="#output-dirs" id="id21"><code class="docutils literal notranslate"><span class="pre">output_dirs</span></code></a></p></li>
-<li><p><a class="reference internal" href="#output-bases" id="id22"><code class="docutils literal notranslate"><span class="pre">output_bases</span></code></a></p></li>
-<li><p><a class="reference internal" href="#output-times" id="id23"><code class="docutils literal notranslate"><span class="pre">output_times</span></code></a></p></li>
-<li><p><a class="reference internal" href="#autosave-interval" id="id24"><code class="docutils literal notranslate"><span class="pre">autosave_interval</span></code></a></p></li>
-<li><p><a class="reference internal" href="#snapshot-select" id="id25"><code class="docutils literal notranslate"><span class="pre">snapshot_select</span></code></a></p></li>
-<li><p><a class="reference internal" href="#powerspec-select" id="id26"><code class="docutils literal notranslate"><span class="pre">powerspec_select</span></code></a></p></li>
-<li><p><a class="reference internal" href="#bispec-select" id="id27"><code class="docutils literal notranslate"><span class="pre">bispec_select</span></code></a></p></li>
-<li><p><a class="reference internal" href="#render2d-select" id="id28"><code class="docutils literal notranslate"><span class="pre">render2D_select</span></code></a></p></li>
-<li><p><a class="reference internal" href="#render3d-select" id="id29"><code class="docutils literal notranslate"><span class="pre">render3D_select</span></code></a></p></li>
-<li><p><a class="reference internal" href="#snapshot-type" id="id30"><code class="docutils literal notranslate"><span class="pre">snapshot_type</span></code></a></p></li>
-<li><p><a class="reference internal" href="#gadget-snapshot-params" id="id31"><code class="docutils literal notranslate"><span class="pre">gadget_snapshot_params</span></code></a></p></li>
-<li><p><a class="reference internal" href="#snapshot-wrap" id="id32"><code class="docutils literal notranslate"><span class="pre">snapshot_wrap</span></code></a></p></li>
-<li><p><a class="reference internal" href="#select-particle-id" id="id33"><code class="docutils literal notranslate"><span class="pre">select_particle_id</span></code></a></p></li>
-<li><p><a class="reference internal" href="#class-plot-perturbations" id="id34"><code class="docutils literal notranslate"><span class="pre">class_plot_perturbations</span></code></a></p></li>
-<li><p><a class="reference internal" href="#class-extra-background" id="id35"><code class="docutils literal notranslate"><span class="pre">class_extra_background</span></code></a></p></li>
-<li><p><a class="reference internal" href="#class-extra-perturbations" id="id36"><code class="docutils literal notranslate"><span class="pre">class_extra_perturbations</span></code></a></p></li>
+<li><p><a class="reference internal" href="#initial-conditions" id="id13"><code class="docutils literal notranslate"><span class="pre">initial_conditions</span></code></a></p></li>
+<li><p><a class="reference internal" href="#output-dirs" id="id14"><code class="docutils literal notranslate"><span class="pre">output_dirs</span></code></a></p></li>
+<li><p><a class="reference internal" href="#output-bases" id="id15"><code class="docutils literal notranslate"><span class="pre">output_bases</span></code></a></p></li>
+<li><p><a class="reference internal" href="#output-times" id="id16"><code class="docutils literal notranslate"><span class="pre">output_times</span></code></a></p></li>
+<li><p><a class="reference internal" href="#autosave-interval" id="id17"><code class="docutils literal notranslate"><span class="pre">autosave_interval</span></code></a></p></li>
+<li><p><a class="reference internal" href="#snapshot-select" id="id18"><code class="docutils literal notranslate"><span class="pre">snapshot_select</span></code></a></p></li>
+<li><p><a class="reference internal" href="#powerspec-select" id="id19"><code class="docutils literal notranslate"><span class="pre">powerspec_select</span></code></a></p></li>
+<li><p><a class="reference internal" href="#bispec-select" id="id20"><code class="docutils literal notranslate"><span class="pre">bispec_select</span></code></a></p></li>
+<li><p><a class="reference internal" href="#render2d-select" id="id21"><code class="docutils literal notranslate"><span class="pre">render2D_select</span></code></a></p></li>
+<li><p><a class="reference internal" href="#render3d-select" id="id22"><code class="docutils literal notranslate"><span class="pre">render3D_select</span></code></a></p></li>
+<li><p><a class="reference internal" href="#snapshot-type" id="id23"><code class="docutils literal notranslate"><span class="pre">snapshot_type</span></code></a></p></li>
+<li><p><a class="reference internal" href="#gadget-snapshot-params" id="id24"><code class="docutils literal notranslate"><span class="pre">gadget_snapshot_params</span></code></a></p></li>
+<li><p><a class="reference internal" href="#snapshot-wrap" id="id25"><code class="docutils literal notranslate"><span class="pre">snapshot_wrap</span></code></a></p></li>
+<li><p><a class="reference internal" href="#select-particle-id" id="id26"><code class="docutils literal notranslate"><span class="pre">select_particle_id</span></code></a></p></li>
+<li><p><a class="reference internal" href="#class-plot-perturbations" id="id27"><code class="docutils literal notranslate"><span class="pre">class_plot_perturbations</span></code></a></p></li>
+<li><p><a class="reference internal" href="#class-extra-background" id="id28"><code class="docutils literal notranslate"><span class="pre">class_extra_background</span></code></a></p></li>
+<li><p><a class="reference internal" href="#class-extra-perturbations" id="id29"><code class="docutils literal notranslate"><span class="pre">class_extra_perturbations</span></code></a></p></li>
 </ul>
 </div>
 <hr class="docutils" />
 <section id="initial-conditions">
-<span id="id1"></span><h2><a class="toc-backref" href="#id20"><code class="docutils literal notranslate"><span class="pre">initial_conditions</span></code></a><a class="headerlink" href="#initial-conditions" title="Permalink to this headline"></a></h2>
+<span id="id1"></span><h2><a class="toc-backref" href="#id13"><code class="docutils literal notranslate"><span class="pre">initial_conditions</span></code></a><a class="headerlink" href="#initial-conditions" title="Permalink to this headline"></a></h2>
 <table>
 <colgroup>
 <col style="width: 4%" />
@@ -547,7 +545,7 @@ cubic (fcc) lattice.</p>
 <hr class="docutils" />
 </section>
 <section id="output-dirs">
-<span id="id2"></span><h2><a class="toc-backref" href="#id21"><code class="docutils literal notranslate"><span class="pre">output_dirs</span></code></a><a class="headerlink" href="#output-dirs" title="Permalink to this headline"></a></h2>
+<span id="id2"></span><h2><a class="toc-backref" href="#id14"><code class="docutils literal notranslate"><span class="pre">output_dirs</span></code></a><a class="headerlink" href="#output-dirs" title="Permalink to this headline"></a></h2>
 <table>
 <colgroup>
 <col style="width: 4%" />
@@ -647,7 +645,7 @@ simply</p>
 </section>
 <hr class="docutils" />
 <section id="output-bases">
-<h2><a class="toc-backref" href="#id22"><code class="docutils literal notranslate"><span class="pre">output_bases</span></code></a><a class="headerlink" href="#output-bases" title="Permalink to this headline"></a></h2>
+<h2><a class="toc-backref" href="#id15"><code class="docutils literal notranslate"><span class="pre">output_bases</span></code></a><a class="headerlink" href="#output-bases" title="Permalink to this headline"></a></h2>
 <table>
 <colgroup>
 <col style="width: 4%" />
@@ -710,7 +708,7 @@ default values</p>
 </section>
 <hr class="docutils" />
 <section id="output-times">
-<h2><a class="toc-backref" href="#id23"><code class="docutils literal notranslate"><span class="pre">output_times</span></code></a><a class="headerlink" href="#output-times" title="Permalink to this headline"></a></h2>
+<h2><a class="toc-backref" href="#id16"><code class="docutils literal notranslate"><span class="pre">output_times</span></code></a><a class="headerlink" href="#output-times" title="Permalink to this headline"></a></h2>
 <table>
 <colgroup>
 <col style="width: 4%" />
@@ -819,7 +817,7 @@ same values for 2D renders:</p>
 </section>
 <hr class="docutils" />
 <section id="autosave-interval">
-<h2><a class="toc-backref" href="#id24"><code class="docutils literal notranslate"><span class="pre">autosave_interval</span></code></a><a class="headerlink" href="#autosave-interval" title="Permalink to this headline"></a></h2>
+<h2><a class="toc-backref" href="#id17"><code class="docutils literal notranslate"><span class="pre">autosave_interval</span></code></a><a class="headerlink" href="#autosave-interval" title="Permalink to this headline"></a></h2>
 <table>
 <colgroup>
 <col style="width: 4%" />
@@ -901,7 +899,7 @@ autosaves on disk.</p>
 <hr class="docutils" />
 </section>
 <section id="snapshot-select">
-<span id="id3"></span><h2><a class="toc-backref" href="#id25"><code class="docutils literal notranslate"><span class="pre">snapshot_select</span></code></a><a class="headerlink" href="#snapshot-select" title="Permalink to this headline"></a></h2>
+<span id="id3"></span><h2><a class="toc-backref" href="#id18"><code class="docutils literal notranslate"><span class="pre">snapshot_select</span></code></a><a class="headerlink" href="#snapshot-select" title="Permalink to this headline"></a></h2>
 <table>
 <colgroup>
 <col style="width: 4%" />
@@ -1062,8 +1060,8 @@ so the above may be shortened to</p>
 <p class="admonition-title">Caution</p>
 <p>Leaving out certain data when reading in snapshots
 will result in components not being fully
-initialised, e.g. in this example all particles
-loaded from disk will now have any momenta assigned
+initialized, e.g. in this example all particles
+loaded from disk will not have any momenta assigned
 (not even <span class="math notranslate nohighlight">\(0\)</span>). Running a simulation with such
 a partially initialised component will result in a
 crash.</p>
@@ -1078,7 +1076,7 @@ in the momentum information only wastes time and memory.</p>
 <hr class="docutils" />
 </section>
 <section id="powerspec-select">
-<span id="id4"></span><h2><a class="toc-backref" href="#id26"><code class="docutils literal notranslate"><span class="pre">powerspec_select</span></code></a><a class="headerlink" href="#powerspec-select" title="Permalink to this headline"></a></h2>
+<span id="id4"></span><h2><a class="toc-backref" href="#id19"><code class="docutils literal notranslate"><span class="pre">powerspec_select</span></code></a><a class="headerlink" href="#powerspec-select" title="Permalink to this headline"></a></h2>
 <table>
 <colgroup>
 <col style="width: 4%" />
@@ -1201,7 +1199,7 @@ all components, as well as for the combined
 <hr class="docutils" />
 </section>
 <section id="bispec-select">
-<span id="id5"></span><h2><a class="toc-backref" href="#id27"><code class="docutils literal notranslate"><span class="pre">bispec_select</span></code></a><a class="headerlink" href="#bispec-select" title="Permalink to this headline"></a></h2>
+<span id="id5"></span><h2><a class="toc-backref" href="#id20"><code class="docutils literal notranslate"><span class="pre">bispec_select</span></code></a><a class="headerlink" href="#bispec-select" title="Permalink to this headline"></a></h2>
 <table>
 <colgroup>
 <col style="width: 4%" />
@@ -1354,7 +1352,7 @@ components, as well as for the combined
 <hr class="docutils" />
 </section>
 <section id="render2d-select">
-<span id="id6"></span><h2><a class="toc-backref" href="#id28"><code class="docutils literal notranslate"><span class="pre">render2D_select</span></code></a><a class="headerlink" href="#render2d-select" title="Permalink to this headline"></a></h2>
+<span id="id6"></span><h2><a class="toc-backref" href="#id21"><code class="docutils literal notranslate"><span class="pre">render2D_select</span></code></a><a class="headerlink" href="#render2d-select" title="Permalink to this headline"></a></h2>
 <table>
 <colgroup>
 <col style="width: 4%" />
@@ -1460,7 +1458,7 @@ and nothing else:</p>
 </section>
 <hr class="docutils" />
 <section id="render3d-select">
-<h2><a class="toc-backref" href="#id29"><code class="docutils literal notranslate"><span class="pre">render3D_select</span></code></a><a class="headerlink" href="#render3d-select" title="Permalink to this headline"></a></h2>
+<h2><a class="toc-backref" href="#id22"><code class="docutils literal notranslate"><span class="pre">render3D_select</span></code></a><a class="headerlink" href="#render3d-select" title="Permalink to this headline"></a></h2>
 <table>
 <colgroup>
 <col style="width: 4%" />
@@ -1492,10 +1490,9 @@ render outputs</p></td>
 <a class="reference internal" href="parameters.html#components-and-selections"><span class="std std-ref">component selection</span></a>
 determining which components participate in 3D
 render outputs. These are stored as PNG files.</p>
-<p>Note that you cannot use component combinations as keys
-in <code class="docutils literal notranslate"><span class="pre">render3D_select</span></code>. If multiple components are 3D
-rendered (separately), one additional, total 3D render
-will also be produced, combining all into one.</p>
+<p>To tune the specifics of how 3D renders are created,
+see the <code class="docutils literal notranslate"><span class="pre">render3D_options</span></code>
+<a class="reference internal" href="graphics.html#render3d-options"><span class="std std-ref">parameter</span></a>.</p>
 </td>
 </tr>
 <tr class="row-even"><td><p></p></td>
@@ -1508,6 +1505,28 @@ of <code class="docutils literal notranslate"><span class="pre">'matter'</span><
 <span class="p">}</span>
 </pre></div>
 </div>
+<p>In a manner similar to the specifications within e.g.
+the <code class="docutils literal notranslate"><span class="pre">render2D_select</span></code>
+<a class="reference internal" href="#render2d-select"><span class="std std-ref">parameter</span></a>
+we may also specify this as</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">render3D_select</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;matter&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;image&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">},</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Example 1</strong></p></td>
+<td><p></p></td>
+<td><p>Create 3D render outputs for the combined
+<code class="docutils literal notranslate"><span class="pre">'matter'</span></code> and <code class="docutils literal notranslate"><span class="pre">'neutrino'</span></code> components,
+and nothing else:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">render3D_select</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="p">(</span><span class="s1">&#39;matter&#39;</span><span class="p">,</span> <span class="s1">&#39;neutrino&#39;</span><span class="p">):</span> <span class="kc">True</span><span class="p">,</span>
+<span class="p">}</span>
+</pre></div>
+</div>
 </td>
 </tr>
 </tbody>
@@ -1515,7 +1534,7 @@ of <code class="docutils literal notranslate"><span class="pre">'matter'</span><
 <hr class="docutils" />
 </section>
 <section id="snapshot-type">
-<span id="id7"></span><h2><a class="toc-backref" href="#id30"><code class="docutils literal notranslate"><span class="pre">snapshot_type</span></code></a><a class="headerlink" href="#snapshot-type" title="Permalink to this headline"></a></h2>
+<span id="id7"></span><h2><a class="toc-backref" href="#id23"><code class="docutils literal notranslate"><span class="pre">snapshot_type</span></code></a><a class="headerlink" href="#snapshot-type" title="Permalink to this headline"></a></h2>
 <table>
 <colgroup>
 <col style="width: 4%" />
@@ -1598,7 +1617,7 @@ your needs, see the <code class="docutils literal notranslate"><span class="pre"
 <hr class="docutils" />
 </section>
 <section id="gadget-snapshot-params">
-<span id="id8"></span><h2><a class="toc-backref" href="#id31"><code class="docutils literal notranslate"><span class="pre">gadget_snapshot_params</span></code></a><a class="headerlink" href="#gadget-snapshot-params" title="Permalink to this headline"></a></h2>
+<span id="id8"></span><h2><a class="toc-backref" href="#id24"><code class="docutils literal notranslate"><span class="pre">gadget_snapshot_params</span></code></a><a class="headerlink" href="#gadget-snapshot-params" title="Permalink to this headline"></a></h2>
 <table>
 <colgroup>
 <col style="width: 4%" />
@@ -1791,7 +1810,7 @@ snapshots.</p>
 </section>
 <hr class="docutils" />
 <section id="snapshot-wrap">
-<h2><a class="toc-backref" href="#id32"><code class="docutils literal notranslate"><span class="pre">snapshot_wrap</span></code></a><a class="headerlink" href="#snapshot-wrap" title="Permalink to this headline"></a></h2>
+<h2><a class="toc-backref" href="#id25"><code class="docutils literal notranslate"><span class="pre">snapshot_wrap</span></code></a><a class="headerlink" href="#snapshot-wrap" title="Permalink to this headline"></a></h2>
 <table>
 <colgroup>
 <col style="width: 4%" />
@@ -1852,7 +1871,7 @@ snapshots:</p>
 <hr class="docutils" />
 </section>
 <section id="select-particle-id">
-<span id="id14"></span><h2><a class="toc-backref" href="#id33"><code class="docutils literal notranslate"><span class="pre">select_particle_id</span></code></a><a class="headerlink" href="#select-particle-id" title="Permalink to this headline"></a></h2>
+<span id="id9"></span><h2><a class="toc-backref" href="#id26"><code class="docutils literal notranslate"><span class="pre">select_particle_id</span></code></a><a class="headerlink" href="#select-particle-id" title="Permalink to this headline"></a></h2>
 <table>
 <colgroup>
 <col style="width: 4%" />
@@ -1922,7 +1941,7 @@ IDs, new IDs are assigned.</p>
 <hr class="docutils" />
 </section>
 <section id="class-plot-perturbations">
-<span id="id15"></span><h2><a class="toc-backref" href="#id34"><code class="docutils literal notranslate"><span class="pre">class_plot_perturbations</span></code></a><a class="headerlink" href="#class-plot-perturbations" title="Permalink to this headline"></a></h2>
+<span id="id10"></span><h2><a class="toc-backref" href="#id27"><code class="docutils literal notranslate"><span class="pre">class_plot_perturbations</span></code></a><a class="headerlink" href="#class-plot-perturbations" title="Permalink to this headline"></a></h2>
 <table>
 <colgroup>
 <col style="width: 4%" />
@@ -2003,7 +2022,7 @@ CO<em>N</em>CEPT run:</p>
 <hr class="docutils" />
 </section>
 <section id="class-extra-background">
-<span id="id16"></span><h2><a class="toc-backref" href="#id35"><code class="docutils literal notranslate"><span class="pre">class_extra_background</span></code></a><a class="headerlink" href="#class-extra-background" title="Permalink to this headline"></a></h2>
+<span id="id11"></span><h2><a class="toc-backref" href="#id28"><code class="docutils literal notranslate"><span class="pre">class_extra_background</span></code></a><a class="headerlink" href="#class-extra-background" title="Permalink to this headline"></a></h2>
 <table>
 <colgroup>
 <col style="width: 4%" />
@@ -2102,7 +2121,7 @@ these to disk, e.g. when running the CO<em>N</em>CEPT
 <hr class="docutils" />
 </section>
 <section id="class-extra-perturbations">
-<span id="id18"></span><h2><a class="toc-backref" href="#id36"><code class="docutils literal notranslate"><span class="pre">class_extra_perturbations</span></code></a><a class="headerlink" href="#class-extra-perturbations" title="Permalink to this headline"></a></h2>
+<span id="id12"></span><h2><a class="toc-backref" href="#id29"><code class="docutils literal notranslate"><span class="pre">class_extra_perturbations</span></code></a><a class="headerlink" href="#class-extra-perturbations" title="Permalink to this headline"></a></h2>
 <table>
 <colgroup>
 <col style="width: 4%" />
@@ -2129,9 +2148,9 @@ part of the CLASS data</p></td>
 <td><p><strong>Elaboration</strong></p></td>
 <td><p></p></td>
 <td><p>Only a subset of the available
-<a class="reference external" href="http://class-code.net/">CLASS</a> perturbations are used
-by CO<em>N</em>CEPT, and so only these are retrieved from
-CLASS computations. This also means that only these
+<a class="reference external" href="http://class-code.net/">CLASS</a> perturbations are
+used by CO<em>N</em>CEPT, and so only these are retrieved
+from CLASS computations. This also means that only these
 specific perturbations end up in the CLASS data stored
 on disk, be it the automatic CLASS disk cache or the
 data files generated by the

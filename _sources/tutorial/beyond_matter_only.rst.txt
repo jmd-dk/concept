@@ -43,7 +43,7 @@ perturbation theory ahead of time, and then feed the linear gravitational
 field from all species but matter to the *N*-body simulation, applying the
 otherwise missing gravity as an external force.
 
-CO\ *N*\ CEPT uses the `CLASS <http://class-code.net/>`_ code to solve the
+CO\ *N*\ CEPT uses the `CLASS <http://class-code.net/>`__ code to solve the
 equations of linear perturbation theory. For details on how the linear
 perturbations are applied to the *N*-body particles during the simulation, we
 refer to the paper on
@@ -307,7 +307,7 @@ linear components. To represent the photon component as a fluid, we specify
 cells along each dimension, for the cubic fluid grids. Finally, the number of
 fluid quantities --- and corresponding grids --- to take into account is
 implicitly specified by the *Boltzmann order*. As is
-`customary <https://arxiv.org/abs/astro-ph/9506072>`_ in linear perturbation
+`customary <https://arxiv.org/abs/astro-ph/9506072>`__ in linear perturbation
 theory, we transform the Boltzmann equation for a given species into an
 infinite hierarchy of multipole moments :math:`\ell \geq 0`. We then partition
 this hierarchy in two; a non-linear part :math:`\ell \leq \ell_{\text{nl}}`
@@ -380,7 +380,7 @@ photon simulation should appear. The plot will show that --- sadly ---
 including the photons does *not* lead to better large-scale behaviour.
 
 CO\ *N*\ CEPT delegates all linear (and background) computations to the
-`CLASS <http://class-code.net/>`_ code. Though we have specified :math:`H_0`,
+`CLASS <http://class-code.net/>`__ code. Though we have specified :math:`H_0`,
 :math:`\Omega_{\text{b}}` and :math:`\Omega_{\text{cdm}}` in the parameter file,
 many cosmological parameters are still left unspecified. Here the default CLASS
 parameters are used, which in addition to baryons, cold dark matter and photons
@@ -619,7 +619,7 @@ The new elements appearing in the parameter file are:
 
   As with CO\ *N*\ CEPT itself, a vast number of CLASS parameters exist. The
   best source for exploring these is probably the
-  `explanatory.ini <https://github.com/lesgourg/class_public/blob/v2.7.2/explanatory.ini>`_
+  `explanatory.ini <https://github.com/lesgourg/class_public/blob/v2.7.2/explanatory.ini>`__
   example CLASS parameter file, which also lists default values.
 
   .. caution::
@@ -1680,7 +1680,7 @@ simulation and just :math:`96^3` particles (``'total matter'``) in the
 reference simulation. When (pre-)initialising two particle components
 containing the same number of particles, CO\ *N*\ CEPT places the two sets of
 particles on interleaved lattices, corresponding to
-`the two simple lattices constituting a body-centered lattice <https://en.wikipedia.org/wiki/Cubic_crystal_system#Caesium_chloride_structure>`_.
+`the two simple lattices constituting a body-centered lattice <https://en.wikipedia.org/wiki/Cubic_crystal_system#Caesium_chloride_structure>`__.
 The same body-centered cubic lattice arrangement is used for the particles
 within a single component when its number of particles :math:`N = 2n^3` with
 :math:`n\in\mathbb{N}`. For the final run, then, try doubling the number of
@@ -2060,7 +2060,7 @@ different kinds of gravitational interactions at play:
 All of this makes non-linear neutrino simulation slower than simulations with
 linear neutrinos. Even more significant is the fact that non-linear neutrinos
 require a small time step size due to the
-`Courant condition <https://en.wikipedia.org/wiki/Courant-Friedrichs-Lewy_condition>`_.
+`Courant condition <https://en.wikipedia.org/wiki/Courant-Friedrichs-Lewy_condition>`__.
 As no rung-like system exists for fluids in CO\ *N*\ CEPT, the single most
 extreme fluid cell typically dictates the global time step size, slowing down
 the entire simulation.
@@ -2090,7 +2090,7 @@ as well as linear ones are shown.
 .. caution::
 
    The default fluid solver used within CO\ *N*\ CEPT is that of
-   `MacCormack <https://en.wikipedia.org/wiki/MacCormack_method>`_. We have
+   `MacCormack <https://en.wikipedia.org/wiki/MacCormack_method>`__. We have
    found this method to be bad at handling strong clustering, and so our
    implementation includes a crude fix to avoid the generation of cells
    with negative densities. For large neutrino masses and/or high resolution

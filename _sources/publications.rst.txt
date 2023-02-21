@@ -92,7 +92,7 @@ In addition to the above scientific papers, the PhD and master's thesis of the
 author --- both of which focus on the development of CO\ *N*\ CEPT --- are
 also available.
 
-* `PhD thesis <https://pure.au.dk/portal/files/221374977/thesis_phd_b5.pdf>`_
+* `PhD thesis <https://pure.au.dk/portal/files/221374977/thesis_phd_b5.pdf>`__
 
-* `Master's thesis <https://pure.au.dk/portal/files/221375392/thesis_masters.pdf>`_
+* `Master's thesis <https://pure.au.dk/portal/files/221375392/thesis_masters.pdf>`__
 

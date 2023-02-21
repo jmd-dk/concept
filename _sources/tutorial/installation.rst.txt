@@ -11,7 +11,7 @@ installation on your local machine, not on a remote cluster.
 
 .. note::
    Though CO\ *N*\ CEPT may be installed on Windows through the
-   `Windows Subsytem for Linux <https://docs.microsoft.com/en-us/windows/wsl/about>`_,
+   `Windows Subsytem for Linux <https://docs.microsoft.com/en-us/windows/wsl/about>`__,
    installing on a native Linux system is recommended. Don't bother attempting the
    installation on macOS.
 
