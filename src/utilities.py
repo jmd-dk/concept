@@ -407,7 +407,7 @@ def locate_snapshots(
             filenames = [path_snapshot]
         elif os.path.isdir(path_snapshot):
             filenames = []
-            for filename in os.listdir(path_snapshot):
+            for filename in sorted(os.listdir(path_snapshot)):
                 filename = os.path.join(path_snapshot, filename)
                 if os.path.isfile(filename) or os.path.isdir(filename):
                     filenames.append(filename)
@@ -591,11 +591,7 @@ def render3D():
     if output_filename == snapshot_filename:
         output_filename = f'{output_dir}/render3D_{basename}'
     # Render the snapshot
-    graphics.render3D(
-        snapshot.components,
-        output_filename,
-        f'.renders3D_{basename}',
-    )
+    graphics.render3D(snapshot.components, output_filename)
 
 # Function for printing all informations within a snapshot
 @cython.pheader(
@@ -983,7 +979,7 @@ def class_():
         )
         # Get the k values at which to tabulate the perturbations
         gridsize_or_k_magnitudes = modes
-        if isinstance(modes, int):
+        if isinstance(modes, (int, np.integer)):
             gridsize_or_k_magnitudes = gridsize
             if modes == 0:
                 abort(
@@ -1296,7 +1292,7 @@ def class_():
         times = handle_class_arg(special_params['times'], 'times')
         # Get the scale factor values at which
         # to tabulate the perturbations.
-        if isinstance(times, int):
+        if isinstance(times, (int, np.integer)):
             # If too many a values are given, evenly select the
             # requested amount from the available times.
             if all_a_values.shape[0] > times and times != -1:

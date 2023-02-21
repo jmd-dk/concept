@@ -1695,7 +1695,7 @@ lines = [
 for statement in '${command_line_params}'.split(';'):
     lines.append(statement.strip())
 lines.append('')
-with open('${job_dir}/${jobid}/param', mode='a') as f:
+with open('${job_dir}/${jobid}/param', mode='a', encoding='utf-8') as f:
     f.write('\n'.join(lines))
 "
 }
@@ -2053,9 +2053,8 @@ else
             exit 1
         fi
     fi
-    # Construct the next jobid that does not yet exist in the job directory,
-    # using exponential followed by binary search.
-    # of the job dir, using binary search.
+    # Construct the next jobid that does not yet exist in the
+    # job directory, using exponential followed by binary search.
     jobid=0
     while [ -d "${job_dir}/${jobid}" ]; do
         jobid=$((2*jobid + 1))

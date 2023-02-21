@@ -409,7 +409,7 @@ random numbers used for the primordial noise.
                       distributed FFTs knows of a multitude of different
                       methods for computing a given FFT. Which method is the
                       fastest is not obvious, and so FFTW
-                      `plan <https://www.fftw.org/fftw3_doc/Planner-Flags.html>`_
+                      `plan <https://www.fftw.org/fftw3_doc/Planner-Flags.html>`__
                       the FFT ahead of time, deciding on some strategy.
                       The knowledge gathered by this planning step is called
                       *wisdom*. This parameter sets the rigour level to use
@@ -467,7 +467,7 @@ random numbers used for the primordial noise.
 \  **Elaboration** \  The gathered FFTW wisdom (see the ``fftw_wisdom_rigor``
                       :ref:`parameter <fftw_wisdom_rigor>`) can be reused
                       between simulations by
-                      `saving it to disk <https://www.fftw.org/fftw3_doc/Words-of-Wisdom_002dSaving-Plans.html>`_
+                      `saving it to disk <https://www.fftw.org/fftw3_doc/Words-of-Wisdom_002dSaving-Plans.html>`__
                       (specifically to the ``.reusable/fftw`` directory). When
                       ``fftw_wisdom_reuse`` is ``True``, any gathered wisdom
                       will be saved. Any already existing wisdom will be read
@@ -694,7 +694,7 @@ random numbers used for the primordial noise.
                       this, as the discretised Fourier modes now all have
                       amplitudes corresponding to the average amplitude taken
                       over an infinite ensemble. See
-                      `this paper <https://arxiv.org/abs/1603.05253>`_ for
+                      `this paper <https://arxiv.org/abs/1603.05253>`__ for
                       more information about such '*fixed* simulations'.
 
                       .. tip::
@@ -761,7 +761,7 @@ random numbers used for the primordial noise.
                       noise coming about due to the finite simulation size
                       will vanish. This is typically used together with
                       :ref:`fixed amplitudes <primordial_amplitude_fixed>`.
-                      See `this paper <https://arxiv.org/abs/1603.05253>`_ for
+                      See `this paper <https://arxiv.org/abs/1603.05253>`__ for
                       more information about such '*paired*-and-*fixed*
                       simulations'.
 == =============== == =
@@ -858,7 +858,7 @@ random numbers used for the primordial noise.
                          {}
 
 -- --------------- -- -
-\  **Elaboration** \  CO\ *N*\ CEPT uses `CLASS <http://class-code.net/>`_ for
+\  **Elaboration** \  CO\ *N*\ CEPT uses `CLASS <http://class-code.net/>`__ for
                       computing linear perturbations, for use with e.g.
                       initial condition generation. CLASS perturbations at
                       high :math:`k` can be prone to non-physical defects, due
@@ -931,7 +931,7 @@ random numbers used for the primordial noise.
                       quantities (unless the ``enable_class_background``
                       :ref:`parameter <enable_class_background>` is set to
                       ``False``) as well as linear perturbations to the
-                      `CLASS <http://class-code.net/>`_ code. Though
+                      `CLASS <http://class-code.net/>`__ code. Though
                       typically inexpensive, running precision simulations
                       with e.g.
                       :ref:`non-linear massive neutrinos <nonlinear_massive_neutrinos>`

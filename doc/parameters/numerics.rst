@@ -196,7 +196,7 @@ some numerical resolutions and length scales.
                       3. Optionally perform deconvolution and/or shifting of
                          the complex phase (due to interlacing) of upstream
                          grids constructed from particle suppliers (see
-                         "`Computer simulation using particles <https://dx.doi.org/10.1201/9780367806934>`_").
+                         "`Computer simulation using particles <https://dx.doi.org/10.1201/9780367806934>`__").
                       4. Add upstream Fourier grids together, producing a
                          'global' Fourier grid, with the global grid size
                          being a free parameter.
@@ -1557,7 +1557,7 @@ some numerical resolutions and length scales.
 
 -- --------------- -- -
 \  **Example 5**   \  Imitate the way
-                      `Pylians <https://pylians3.readthedocs.io/>`_ computes
+                      `Pylians <https://pylians3.readthedocs.io/>`__ computes
                       bispectra:
 
                       * Specify :math:`k_1 = |\boldsymbol{k}_1|` and
@@ -1595,7 +1595,7 @@ some numerical resolutions and length scales.
                       .. note::
                          In order to fully reduce the bispectrum computation
                          within CO\ *N*\ CEPT to one consistent with that of
-                         `Pylians <https://pylians3.readthedocs.io/>`_, one
+                         `Pylians <https://pylians3.readthedocs.io/>`__, one
                          should further:
 
                          * Disable

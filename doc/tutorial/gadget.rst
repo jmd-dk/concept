@@ -1,7 +1,7 @@
 Comparison with GADGET-2
 ------------------------
 In this section we shall perform equivalent simulations with CO\ *N*\ CEPT and
-the well-known `GADGET-2 <https://wwwmpa.mpa-garching.mpg.de/gadget/>`_ code.
+the well-known `GADGET-2 <https://wwwmpa.mpa-garching.mpg.de/gadget/>`__ code.
 Due to the two codes utilising different numerical schemes, as well as the
 fact that CO\ *N*\ CEPT --- unlike GADGET-2 --- is designed to be consistent
 with general relativistic perturbation theory by default, some subtleties need
@@ -86,7 +86,7 @@ As we have ``snapshot_type = 'gadget'``, the snapshot will be in
 GADGET format. Furthermore, naming the matter component ``'GADGET halo'``
 ensures that this component gets mapped to GADGET particle type 1
 (conventionally used for cold dark matter, see table 3 in the
-`user guide for GADGET-2 <https://wwwmpa.mpa-garching.mpg.de/gadget/users-guide.pdf>`_
+`user guide for GADGET-2 <https://wwwmpa.mpa-garching.mpg.de/gadget/users-guide.pdf>`__
 ).
 
 Starting from this snapshot we can now perform the CO\ *N*\ CEPT simulation by
@@ -220,7 +220,7 @@ script below:
        for filename in sorted(glob.glob(f'{dirname}/powerspec*'), key=os.path.getmtime):
            if filename.endswith('.png'):
                continue
-           with open(filename) as f:
+           with open(filename, mode='r', encoding='utf-8') as f:
                header = f.readline()
            a = float(re.search('a = (.+)', header).group(1).rstrip('.'))
            k, P[float(f'{a:.3f}')] = np.loadtxt(filename, usecols=(0, 2), unpack=True)
@@ -278,9 +278,11 @@ in 3D. For this, let's use the *render3D utility*:
    ./concept \
        -u render3D ic/tutorial_a=0.02 \
        -p param/tutorial \
-       -c "render3D_resolution = 2000" \
-       -c "render3D_colors = ('black', 1.5)" \
-       -c "render3D_bgcolor = 'white'"
+       -c "render3D_options = { \
+           'interpolation': 0, \
+           'color': 'black', \
+           'background': 'white', \
+           'resolution': 2000}"
 
 This produces an image file in the ``ic`` directory. Zooming in on one of the
 corners of the box, it should be clear that while we do have a close to
@@ -348,7 +350,7 @@ A key difference between CO\ *N*\ CEPT and GADGET-2 is that the former
 cosmology, as demonstrated in the
 :doc:`previous section <beyond_matter_only>`. As such, CO\ *N*\ CEPT uses
 a full background evolution obtained from the
-`CLASS <http://class-code.net/>`_ code. By default, this CLASS background
+`CLASS <http://class-code.net/>`__ code. By default, this CLASS background
 includes matter, :math:`\Lambda` and radiation, whereas the background of
 GADGET-2 only consists of matter and :math:`\Lambda`.
 

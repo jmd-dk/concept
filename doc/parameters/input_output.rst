@@ -598,8 +598,8 @@ CO\ *N*\ CEPT run.
                       .. caution::
                          Leaving out certain data when reading in snapshots
                          will result in components not being fully
-                         initialised, e.g. in this example all particles
-                         loaded from disk will now have any momenta assigned
+                         initialized, e.g. in this example all particles
+                         loaded from disk will not have any momenta assigned
                          (not even :math:`0`). Running a simulation with such
                          a partially initialised component will result in a
                          crash.
@@ -763,7 +763,7 @@ CO\ *N*\ CEPT run.
                       .. note::
                          Tree-level predictions are available for matter-like
                          species only, and are
-                         `given by <https://arxiv.org/abs/1602.05933>`_
+                         `given by <https://arxiv.org/abs/1602.05933>`__
 
                          .. math::
 
@@ -967,10 +967,9 @@ CO\ *N*\ CEPT run.
                       determining which components participate in 3D
                       render outputs. These are stored as PNG files.
 
-                      Note that you cannot use component combinations as keys
-                      in ``render3D_select``. If multiple components are 3D
-                      rendered (separately), one additional, total 3D render
-                      will also be produced, combining all into one.
+                      To tune the specifics of how 3D renders are created,
+                      see the ``render3D_options``
+                      :ref:`parameter <render3D_options>`.
 -- --------------- -- -
 \  **Example 0**   \  Only do 3D renders of the component with a name/species
                       of ``'matter'``:
@@ -979,6 +978,28 @@ CO\ *N*\ CEPT run.
 
                          render3D_select = {
                              'matter': True,
+                         }
+
+                      In a manner similar to the specifications within e.g.
+                      the ``render2D_select``
+                      :ref:`parameter <render2D_select>`
+                      we may also specify this as
+
+                      .. code-block:: python3
+
+                         render3D_select = {
+                             'matter': {'image': True},
+                         }
+
+-- --------------- -- -
+\  **Example 1**   \  Create 3D render outputs for the combined
+                      ``'matter'`` and ``'neutrino'`` components,
+                      and nothing else:
+
+                      .. code-block:: python3
+
+                         render3D_select = {
+                             ('matter', 'neutrino'): True,
                          }
 
 == =============== == =
@@ -1005,10 +1026,10 @@ CO\ *N*\ CEPT run.
 \  **Elaboration**  \ CO\ *N*\ CEPT understands two snapshot
                       formats; ``'concept'``, which is its own,
                       well-structured
-                      `HDF5 <https://www.hdfgroup.org/solutions/hdf5/>`_
+                      `HDF5 <https://www.hdfgroup.org/solutions/hdf5/>`__
                       format, and ``'gadget'``, which is the binary, non-HDF5
                       format of
-                      `GADGET <https://wwwmpa.mpa-garching.mpg.de/gadget/>`_.
+                      `GADGET <https://wwwmpa.mpa-garching.mpg.de/gadget/>`__.
                       Note that the value of ``snapshot_type`` does
                       not affect which snapshots may be *read*, e.g. used
                       within the ``initial_conditions``
@@ -1027,7 +1048,7 @@ CO\ *N*\ CEPT run.
                          :ref:`parameter <snapshot_select>`, additional
                          information is needed to map components to/from the
                          *particle types* of GADGET (see table 3 of the
-                         `user guide for GADGET-2 <https://wwwmpa.mpa-garching.mpg.de/gadget/users-guide.pdf>`_).
+                         `user guide for GADGET-2 <https://wwwmpa.mpa-garching.mpg.de/gadget/users-guide.pdf>`__).
                          When loading in a GADGET snapshot, the available
                          particle types will be read into separate components,
                          with names matching the particle type, e.g.
@@ -1098,7 +1119,7 @@ CO\ *N*\ CEPT run.
                         should use a ``SnapFormat`` of ``1`` or ``2``. Note
                         that ``SnapFormat`` ``3`` (the HDF5 format) is not
                         available. See section 5.1 in the
-                        `user guide for GADGET-2 <https://wwwmpa.mpa-garching.mpg.de/gadget/users-guide.pdf>`_
+                        `user guide for GADGET-2 <https://wwwmpa.mpa-garching.mpg.de/gadget/users-guide.pdf>`__
                         for more information.
                       * ``'dataformat'``: This is a ``dict`` specifying the
                         data type sizes to use when writing out particle
@@ -1117,7 +1138,7 @@ CO\ *N*\ CEPT run.
                         be used.
                       * ``'Nall high word'``: The ``Nall`` field of the header
                         (see table 4 of the
-                        `user guide for GADGET-2 <https://wwwmpa.mpa-garching.mpg.de/gadget/users-guide.pdf>`_)
+                        `user guide for GADGET-2 <https://wwwmpa.mpa-garching.mpg.de/gadget/users-guide.pdf>`__)
                         is meant to store the total number :math:`N` of
                         particles (of each type) within the snapshot, summed
                         over all files in case of the snapshot being
@@ -1136,11 +1157,11 @@ CO\ *N*\ CEPT run.
 
                         A separate convention (used by at least some versions
                         of
-                        `NGenIC <https://www.h-its.org/2014/11/05/ngenic-code/>`_)
+                        `NGenIC <https://www.h-its.org/2014/11/05/ngenic-code/>`__)
                         is to only allow for particle type 1 (``halo``
                         particles, corresponding to (cold dark) matter; see
                         table 3 of the
-                        `user guide for GADGET-2 <https://wwwmpa.mpa-garching.mpg.de/gadget/users-guide.pdf>`_)
+                        `user guide for GADGET-2 <https://wwwmpa.mpa-garching.mpg.de/gadget/users-guide.pdf>`__)
                         and store all 64 bits within ``Nall``, overflowing into
                         the (now unused) slot usually designated to particle
                         type 2. This convention can be chosen by specifying
@@ -1152,7 +1173,7 @@ CO\ *N*\ CEPT run.
                       * ``'header'``: The contents of the GADGET header (the
                         ``HEAD`` block) will match the specifications in table
                         4 of the
-                        `user guide for GADGET-2 <https://wwwmpa.mpa-garching.mpg.de/gadget/users-guide.pdf>`_.
+                        `user guide for GADGET-2 <https://wwwmpa.mpa-garching.mpg.de/gadget/users-guide.pdf>`__.
                         You may overwrite the values of the various fields by
                         specifying them in the ``'header'`` sub-\ ``dict``,
                         e.g.
@@ -1189,7 +1210,7 @@ CO\ *N*\ CEPT run.
 
                       * ``'settle'``: If a GADGET snapshot is stored in
                         ``SnapFormat`` ``2`` (see the
-                        `user guide for GADGET-2 <https://wwwmpa.mpa-garching.mpg.de/gadget/users-guide.pdf>`_),
+                        `user guide for GADGET-2 <https://wwwmpa.mpa-garching.mpg.de/gadget/users-guide.pdf>`__),
                         the size of a block is effectively stored twice before
                         its data begins. If these two sizes disagree, we need
                         to settle for one of them. A value of ``0`` for
@@ -1364,7 +1385,7 @@ CO\ *N*\ CEPT run.
                          False
 
 -- --------------- -- -
-\  **Elaboration** \  When enabled, all `CLASS <http://class-code.net/>`_
+\  **Elaboration** \  When enabled, all `CLASS <http://class-code.net/>`__
                       perturbations used within the CO\ *N*\ CEPT run will be
                       plotted and saved to image files. This is primarily
                       intended for visual checks of convergence of CLASS
@@ -1433,7 +1454,7 @@ CO\ *N*\ CEPT run.
 
 -- --------------- -- -
 \  **Elaboration** \  Only a subset of the available
-                      `CLASS <http://class-code.net/>`_ background quantities
+                      `CLASS <http://class-code.net/>`__ background quantities
                       are used by CO\ *N*\ CEPT, and so only these are
                       retrieved from CLASS computations. This also means that
                       only these specific background quantities end up in the
@@ -1519,9 +1540,9 @@ CO\ *N*\ CEPT run.
 
 -- --------------- -- -
 \  **Elaboration** \  Only a subset of the available
-                      `CLASS <http://class-code.net/>`_ perturbations are used
-                      by CO\ *N*\ CEPT, and so only these are retrieved from
-                      CLASS computations. This also means that only these
+                      `CLASS <http://class-code.net/>`__ perturbations are
+                      used by CO\ *N*\ CEPT, and so only these are retrieved
+                      from CLASS computations. This also means that only these
                       specific perturbations end up in the CLASS data stored
                       on disk, be it the automatic CLASS disk cache or the
                       data files generated by the

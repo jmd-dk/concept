@@ -37,15 +37,16 @@ masterprint('Analysing {} data ...'.format(this_test))
 
 # Plot
 fig_file = this_dir + '/result.png'
-plt.text(0.5*max(a), 0.93*boxsize, r'$\uparrow$ End of simulation box $\uparrow$', ha='center')
-plt.plot(a, x       , '.', markersize=15, alpha=0.7, label='CO$N$CEPT')
-plt.plot(a, x_gadget, '.', markersize=10, alpha=0.7, label='GADGET')
-plt.xlabel('$a$')
-plt.ylabel(rf'$x\,\mathrm{{[{unit_length}]}}$')
-plt.ylim(0, boxsize)
-plt.legend(loc='best').get_frame().set_alpha(0.7)
-plt.tight_layout()
-plt.savefig(fig_file)
+fig, ax = plt.subplots()
+ax.text(0.5*max(a), 0.93*boxsize, r'$\uparrow$ End of simulation box $\uparrow$', ha='center')
+ax.plot(a, x       , '.', markersize=15, alpha=0.7, label='CO$N$CEPT')
+ax.plot(a, x_gadget, '.', markersize=10, alpha=0.7, label='GADGET')
+ax.set_xlabel('$a$')
+ax.set_ylabel(rf'$x\,\mathrm{{[{unit_length}]}}$')
+ax.set_ylim(0, boxsize)
+ax.legend()
+fig.tight_layout()
+fig.savefig(fig_file, dpi=150)
 
 # There should be no variance on the x positions
 tol = 1e+2*N_snapshots*machine_ϵ

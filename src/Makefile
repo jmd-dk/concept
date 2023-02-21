@@ -309,10 +309,10 @@ ifneq ($(unsafe_building),True)
     # makes the .pyx files depend on the .py file
     # of the module implementing the iterator.
     gravity.pyx:      interactions.py  # particle_particle()
+    analysis.pyx:     mesh.py          # domain_loop(), fourier_loop()
+    graphics.pyx:     mesh.py          # slab_loop()
     ic.pyx:           mesh.py          # domain_loop(), fourier_loop(), fourier_curve_loop()
-    analysis.pyx:     mesh.py          # fourier_loop()
     interactions.pyx: mesh.py          # fourier_loop()
-    linear.pyx:       mesh.py          # fourier_loop()
     # Because modules cimport stuff from each other, some .c
     # (and therefore also .html) files depend on the .pxd files of
     # other modules.

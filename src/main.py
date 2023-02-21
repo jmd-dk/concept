@@ -2216,11 +2216,11 @@ def prepare_for_output(components=None, ignore_past_times=False):
                 if output_time and np.min(output_time) < at_begin:
                     message = [
                         f'Cannot produce a {output_kind} at {time_param} '
-                        f'= {np.min(output_time):.6g}'
+                        f'= {np.min(output_time)}'
                     ]
                     if time_param == 't':
                         message.append(f' {unit_time}')
-                    message.append(f', as the simulation starts at {time_param} = {at_begin:.6g}')
+                    message.append(f', as the simulation starts at {time_param} = {at_begin}')
                     if time_param == 't':
                         message.append(f' {unit_time}')
                     message.append('.')

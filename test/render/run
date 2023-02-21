@@ -2,7 +2,7 @@
 
 # This script runs a test of the render3D utility,
 # as well as the render2D functionality.
-# It generates a random snapshot and 3D renders it first using 1 CPU and giving
+# It generates a random snapshot and 3D renders first using 1 CPU and giving
 # the render3D script the exact path to the snapshot (with and without
 # specifying a render3D parameter file). Two copies of this snapshot is then
 # placed in a separate directory. Using 2 CPUs, the render3D script is then
@@ -51,18 +51,24 @@ cp "${this_dir}/output/snapshot.hdf5" "${this_dir}/output/subdir/snapshot_1.hdf5
 
 # Generate two different 3D render parameter files
 echo "
-output_bases        = {'render3D': 'render3D'}
-render3D_select     = {'all': True}
-render3D_resolution = 234
-render3D_colors     = {'matter': 'g'}
-render3D_bgcolor    = '0'
+output_bases = {'render3D': 'render3D'}
+render3D_select = {'all': {'image': True}}
+render3D_options = {
+    'color'     : {'matter': (1, 0.2, 0.3)},
+    'background': {'all': '0'},
+    'fontsize'  : {'all': '0.05*resolution'},
+    'resolution': {'all': 234},
+}
 " > "${this_dir}/render3D.param_0"
 echo "
-output_bases        = {'render3D': ''}
-render3D_select     = {'all': True}
-render3D_resolution = 1080
-render3D_colors     = {'matter': (1, 0.2, 0.3)}
-render3D_bgcolor    = 'LightYellow'
+output_bases = {'render3D': ''}
+render3D_select = {'all': {'image': True}}
+render3D_options = {
+    'color'     : {'matter': 'summer'},
+    'background': {'all': 'lightyellow'},
+    'fontsize'  : {'all': '0.05*resolution'},
+    'resolution': {'all': 1080},
+}
 " > "${this_dir}/render3D.param_1"
 
 # 3D render the single snapshot without explicitly specifying a 3D render parameter file

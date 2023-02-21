@@ -946,6 +946,7 @@ class Component:
         public Py_ssize_t powerspec_upstream_gridsize
         public Py_ssize_t bispec_upstream_gridsize
         public Py_ssize_t render2D_upstream_gridsize
+        public Py_ssize_t render3D_upstream_gridsize
         public str preic_lattice
         # Particle data
         double* pos
@@ -1102,7 +1103,7 @@ class Component:
         self.preic_lattice = ''
         if self.representation == 'particles':
             if iscubic(self.N):
-                # Simple cubic lattice
+                # Use simple cubic lattice
                 self.preic_lattice = 'sc'
             elif self.N%2 == 0 and iscubic(self.N//2):
                 # Use body-centered cubic lattice
@@ -1367,6 +1368,7 @@ class Component:
             'powerspec': powerspec_options,
             'bispec'   : bispec_options,
             'render2D' : render2D_options,
+            'render3D' : render3D_options,
         }.items():
             upstream_gridsize = is_selected(
                 self, options['upstream gridsize'],
@@ -1380,6 +1382,7 @@ class Component:
                         'powerspec': '2*cbrt(Ñ)',
                         'bispec'   : '2*cbrt(Ñ)',
                         'render2D' : '1*cbrt(Ñ)',
+                        'render3D' : '1*cbrt(Ñ)',
                     }[output_type]
             upstream_gridsize = int(round(to_float(upstream_gridsize)))
             setattr(self, f'{output_type}_upstream_gridsize', upstream_gridsize)
@@ -1903,7 +1906,7 @@ class Component:
             # Alternatively, var may be a str, in which case it can be
             # the name of a fluid variable or a fluid scalar.
             # For each possibility, find index and multi_index.
-            if isinstance(var, int):
+            if isinstance(var, (int, np.integer)):
                 if not (0 <= var < len(self.fluidvars)):
                     abort(
                         f'{self.name} does not have a fluid variable with index {var}'
@@ -1922,7 +1925,7 @@ class Component:
                 # (index, multi_index) (for a passed fluid scalar name)
                 # or just an index (for a passed fluid name).
                 fluid_indices = self.fluid_names[var]
-                if isinstance(fluid_indices, int):
+                if isinstance(fluid_indices, (int, np.integer)):
                     index = fluid_indices
                 else:  # fluid_indices is a tuple
                     if multi_index != 0:
@@ -3145,7 +3148,7 @@ class Component:
             w = float(w)
         except:
             pass
-        if isinstance(w, float):
+        if isinstance(w, (float, np.floating)):
             # Assign passed constant w
             self.w_type = 'constant'
             self.w_constant = w

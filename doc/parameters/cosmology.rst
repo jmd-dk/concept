@@ -304,7 +304,7 @@ cosmology, as well as the starting time for the simulation.
 
 -- --------------- -- -
 \  **Elaboration** \  CO\ *N*\ CEPT relies on the
-                      `CLASS <http://class-code.net/>`_ code for computing the
+                      `CLASS <http://class-code.net/>`__ code for computing the
                       cosmological background (unless
                       :ref:`enable_class_background` is ``False``) as well as
                       linear perturbations. As such it is vital that CLASS is
@@ -331,7 +331,7 @@ cosmology, as well as the starting time for the simulation.
                       (besides ``'H0'``, ``'Omega_b'`` and ``'Omega_cdm'``)
                       will take on default values as defined by CLASS.
                       To find out what they are, consult e.g. the
-                      `explanatory.ini <https://github.com/lesgourg/class_public/blob/v2.7.2/explanatory.ini>`_
+                      `explanatory.ini <https://github.com/lesgourg/class_public/blob/v2.7.2/explanatory.ini>`__
                       example CLASS parameter file.
 
                       .. note::

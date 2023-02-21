@@ -47,15 +47,22 @@ counts_contrast = counts.flatten()/N_in_cubes_homo - 1
 σ = np.std(counts_contrast)
 
 # Is the distribution Gaussian? If not, the snapshot has not been generated correctly
-plt.figure()
-plt.hist(counts_contrast, 100)
-s = (r'{:g}% within $1\sigma$'
-     .format(round(100*sum(abs(counts_contrast) < σ)/counts_contrast.size)))
-plt.text(sum(plt.xlim())/2, sum(plt.ylim())/2, s, ha='center',
-         bbox={'facecolor': 'white', 'alpha': 0.85, 'edgecolor': 'none'})
-plt.xlabel('Count contrast')
-plt.ylabel('# of occurrences')
-plt.savefig(this_dir + '/histogram.png')
+fig_file = f'{this_dir}/histogram.png'
+fig, ax = plt.subplots()
+ax.hist(counts_contrast, 100)
+s = r'{:g}% within $1\sigma$'.format(
+    round(100*sum(abs(counts_contrast) < σ)/counts_contrast.size)
+)
+ax.text(
+    sum(ax.get_xlim())/2,
+    sum(ax.get_ylim())/2,
+    s,
+    ha='center',
+    bbox={'facecolor': 'white', 'alpha': 0.85, 'edgecolor': 'none'},
+)
+ax.set_xlabel('count contrast')
+ax.set_ylabel('# of occurrences')
+fig.savefig(fig_file, dpi=150)
 if abs(erf(1/sqrt(2)) - sum(abs(counts_contrast) < σ)/counts_contrast.size) > 0.1:
     abort('The particle distribution does not seem to be Gaussian.\n'
           'See "{}".'.format(this_dir + '/histogram.png'))

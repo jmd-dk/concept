@@ -3,7 +3,7 @@ Troubleshooting
 This page contains solutions to and helpful information about possible issues
 encountered when using CO\ *N*\ CEPT. If help from this page is insufficient
 to solve your problem, do not hesitate to
-`open an issue <https://github.com/jmd-dk/concept/issues>`_ or contact the
+`open an issue <https://github.com/jmd-dk/concept/issues>`__ or contact the
 author at
 :raw-html:`<td class="field-body"><a class="reference external" href="mailto:dakin&#37;&#52;&#48;phys&#46;au&#46;dk">dakin<span>&#64;</span>phys<span>&#46;</span>au<span>&#46;</span>dk</a></td>`.
 
@@ -171,7 +171,7 @@ platforms.
 
 * **macOS**: If you are running CO\ *N*\ CEPT from macOS (locally through
   Docker or remotely via SSH) and the terminal formatting appears suboptimal,
-  try using the superior `iTerm2 <https://www.iterm2.com/>`_ terminal emulator.
+  try using the superior `iTerm2 <https://www.iterm2.com/>`__ terminal emulator.
 
 If you want to disable colour and other
 :ref:`formatted output <enable_terminal_formatting>` altogether, set

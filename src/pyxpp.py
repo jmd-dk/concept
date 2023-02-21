@@ -766,9 +766,10 @@ def float_literals(lines, no_optimization):
         return lines
     # Straightforward literals
     literals = {
-        'π'        : commons.π,
-        'τ'        : commons.τ,
-        'machine_ϵ': commons.machine_ϵ,
+        'π'           : str(commons.π),
+        'τ'           : str(commons.τ),
+        'machine_ϵ'   : str(commons.machine_ϵ),
+        'machine_ϵ_32': str(commons.machine_ϵ_32),
     }
     # Add other literals if supported
     legal_literals = check_float_literals()
@@ -1676,7 +1677,7 @@ def constant_expressions(lines, no_optimization, first_call=True):
                         still_inside = False
                 elif statement in ('while', 'for'):
                     if not (   line_lstrip.startswith('else ')
-                            or line_lstrip.startswith('else: ')
+                            or line_lstrip.startswith('else:')
                             ):
                         still_inside = False
                 elif statement == 'with':
@@ -1987,40 +1988,43 @@ def constant_expressions(lines, no_optimization, first_call=True):
         # definitions should occur below this line.
         linenr_unrecognized = -1
         for i, line in enumerate(lines):
-            if 'import ' in line:
-                if '#' in line and line.index('#') < line.index('import '):
-                    continue
-                if line.index('import ') != 0 and line[line.index('import ') - 1] not in 'c ':
-                    continue
-                if i + 1 < len(lines) and ('"""' in lines[i + 1] or "'''" in lines[i + 1]):
-                    linenr_unrecognized = i + 1
-                    continue
-                # Make sure that we are not inside a function or class
-                indentation_level_i = indentation_level(line)
-                if indentation_level_i > 0:
-                    inside_func_or_class = False
-                    for line in reversed(lines[:i]):
-                        if line and line[0] not in ' #':
-                            # Reached indentation level 0
+            if 'import ' not in line:
+                continue
+            if '#' in line and line.index('#') < line.index('import '):
+                continue
+            if line.index('import ') != 0 and line[line.index('import ') - 1] not in 'c ':
+                continue
+            if i + 1 < len(lines) and ('"""' in lines[i + 1] or "'''" in lines[i + 1]):
+                linenr_unrecognized = i + 1
+                continue
+            # Make sure that we are not inside a function or class
+            indentation_level_i = indentation_level(line)
+            if indentation_level_i > 0:
+                inside_func_or_class = False
+                for line in reversed(lines[:i]):
+                    line_lstripped = line.lstrip()
+                    if line_lstripped.startswith('def ') or line_lstripped.startswith('class '):
+                        indentation_level_above = indentation_level(line)
+                        if indentation_level_above < indentation_level_i:
+                            # Import inside function or class
+                            inside_func_or_class = True
                             break
-                        line_lstripped = line.lstrip()
-                        if line_lstripped.startswith('def ') or line_lstripped.startswith('class '):
-                            indentation_level_above = indentation_level(line)
-                            if indentation_level_above < indentation_level_i:
-                                # Import inside function or class
-                                inside_func_or_class = True
-                                break
-                    if inside_func_or_class:
-                        continue
-                # Go down until indentation level 0 is reached
-                for j, line in enumerate(lines[(i + 1):]):
-                    if (len(line) > 0
-                        and line[0] not in '# '
-                        and not line.startswith('"""')
-                        and not line.startswith("'''")
-                    ):
-                        linenr_unrecognized = i + j
+                    line_rstripped = line.rstrip()
+                    if line_rstripped and line_rstripped[0] not in ' #':
+                        # Reached indentation level 0
                         break
+                if inside_func_or_class:
+                    continue
+            # Go down until indentation level 0 is reached
+            for j, line in enumerate(lines[(i + 1):]):
+                line_rstripped = line.rstrip()
+                if (line_rstripped
+                    and line_rstripped[0] not in '# '
+                    and not line_rstripped.startswith('"""')
+                    and not line_rstripped.startswith("'''")
+                ):
+                    linenr_unrecognized = i + j
+                    break
         # Insert Cython declarations of constant expressions
         new_lines = []
         fname = None

@@ -40,14 +40,15 @@ for spectrum in spectra.values():
 # at the beginning and end.
 rel_err_begin = abs(spectra[a_begin]['P_sim']/spectra[a_begin]['P_lin'] - 1)
 rel_err_end   = abs(spectra[1      ]['P_sim']/spectra[1      ]['P_lin'] - 1)
-plt.semilogx(k, 100*rel_err_begin, label=f'$a = {a_begin}$')
-plt.semilogx(k, 100*rel_err_end,   label=f'$a = 1$')
-plt.xlabel(rf'$k\, [\mathrm{{{unit_length}}}^{{-1}}]$')
-plt.ylabel(r'$|P_{\mathrm{sim}}/P_{\mathrm{lin}} - 1|\,[\%]$')
-plt.legend()
-plt.tight_layout()
 fig_file = f'{this_dir}/result.png'
-plt.savefig(fig_file)
+fig, ax = plt.subplots()
+ax.semilogx(k, 100*rel_err_begin, label=f'$a = {a_begin}$')
+ax.semilogx(k, 100*rel_err_end,   label=f'$a = 1$')
+ax.set_xlabel(rf'$k\, [\mathrm{{{unit_length}}}^{{-1}}]$')
+ax.set_ylabel(r'$|P_{\mathrm{sim}}/P_{\mathrm{lin}} - 1|\,[\%]$')
+ax.legend()
+fig.tight_layout()
+fig.savefig(fig_file, dpi=150)
 
 # We declare the test for successful if the non-linear power spectrum
 # at a = 1 agrees with the linear one to within rel_tol,

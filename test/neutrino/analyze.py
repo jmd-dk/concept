@@ -47,7 +47,12 @@ for sim in ('massless', 'massive_linear', 'massive_nonlinear'):
             Ptot[sim, kind, a] = Ptot[sim, kind, a][:len(ktot)]
 
 # Plot absolute neutrino power spectra
-fig, axes = plt.subplots(len(scalefactors), sharex=True, figsize=(6.4, 4.8*0.5*len(scalefactors)))
+fig_file = f'{this_dir}/result_abs.png'
+fig, axes = plt.subplots(
+    len(scalefactors),
+    sharex=True,
+    figsize=(6.4, 4.8*0.5*len(scalefactors)),
+)
 sim = 'massive_nonlinear'
 for a, ax in zip(scalefactors, axes):
     ax.loglog(
@@ -69,12 +74,11 @@ for a, ax in zip(scalefactors, axes):
         fontsize=12,
         transform=ax.transAxes,
     )
-axes[0].legend(loc='best').get_frame().set_alpha(0.7)
+axes[ 0].legend()
 axes[-1].set_xlabel(rf'$k\, [\mathrm{{{unit_length}}}^{{-1}}]$')
-plt.tight_layout(h_pad=0)
+fig.tight_layout(h_pad=0)
 fig.subplots_adjust(hspace=0)
-fig_file = f'{this_dir}/result_abs.png'
-plt.savefig(fig_file)
+fig.savefig(fig_file, dpi=150)
 
 # Check that the linear and non-linear neutrino
 # power spectra are very similar on large scales,
@@ -111,20 +115,21 @@ suppression_nonlinear = np.mean(rel_nonlinear[rel_min_index - 1:rel_min_index + 
 suppression_class     = np.mean(rel_class    [rel_min_index - 1:rel_min_index + 2])
 
 # Plot relative total power spectra
-plt.figure()
-plt.semilogx(
+fig_file = f'{this_dir}/result_rel.png'
+fig, ax = plt.subplots()
+ax.semilogx(
     ktot,
     100*rel_nonlinear,
     '-',
     label=r'CO$N$CEPT (non-linear $\nu$)',
 )
-plt.semilogx(
+ax.semilogx(
     ktot,
     100*rel_linear,
     '--',
     label=r'CO$N$CEPT (linear $\nu$)',
 )
-plt.semilogx(
+ax.semilogx(
     ktot,
     100*rel_class,
     '--k',
@@ -133,15 +138,15 @@ plt.semilogx(
 rel_min_plot_indices = asarray([rel_min_index - 2, rel_min_index + 3])
 rel_min_plot_indices[rel_min_plot_indices < 0] = 0
 rel_min_plot_indices[rel_min_plot_indices >= len(ktot)] = len(ktot) - 1
-plt.semilogx(
+ax.semilogx(
     ktot[rel_min_plot_indices],
     [100*suppression_linear]*2,
     '-k',
     alpha=0.7,
 )
-plt.xlabel(rf'$k\,[\mathrm{{{unit_length}}}^{{-1}}]$')
+ax.set_xlabel(rf'$k\,[\mathrm{{{unit_length}}}^{{-1}}]$')
 Σmν = float(class_params['m_ncdm'])*float(class_params['deg_ncdm'])
-plt.ylabel(
+ax.set_ylabel(
     rf'$'
     rf'P_{{\mathrm{{tot}}}}^{{\Sigma m_{{\nu}} = {Σmν:g}\mathrm{{eV}}}}'
     rf'/'
@@ -150,11 +155,10 @@ plt.ylabel(
     rf'\, [\%]'
     rf'$'
 )
-plt.title(f'$a = 1$')
-plt.legend(loc='best').get_frame().set_alpha(0.7)
-plt.tight_layout()
-fig_file = f'{this_dir}/result_rel.png'
-plt.savefig(fig_file)
+ax.set_title(f'$a = 1$')
+ax.legend()
+fig.tight_layout()
+fig.savefig(fig_file, dpi=150)
 
 # Check whether the CLASS suppression around the non-linear dip
 # is about the theoretically predicted value.

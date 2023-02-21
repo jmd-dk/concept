@@ -33,20 +33,20 @@ masterprint('Analysing {} data ...'.format(this_test))
 
 # Plot
 fig_file = this_dir + '/result.png'
-fig, ax = plt.subplots(N_snapshots, sharex=True, figsize=(8, 3*N_snapshots))
+fig, axes = plt.subplots(N_snapshots, sharex=True, figsize=(8, 3*N_snapshots))
 x = [boxsize*i/gridsize for i in range(gridsize)]
 ϱ = []
 ϱ_snapshot = []
 phases = [-t/(10*units.Gyr)*2*π for t in times]
-for ax_i, fluid, t, phase in zip(ax, fluids, times, phases):
+for ax, fluid, t, phase in zip(axes, fluids, times, phases):
     ϱ_i = asarray([2 + sin(2*π*i/gridsize + phase) for i in range(gridsize)])  # Unitless
     ϱ_i /= sum(ϱ_i)                                                            # Normalize
     ϱ_i *= ρ_mbar*gridsize                                                     # Apply units
     ϱ.append(ϱ_i)
     ϱ_snapshot.append(fluid.ϱ.grid_noghosts[:gridsize, 0, 0])
-    ax_i.plot(x, ϱ[-1], '-', label='Analytical solution')
-    ax_i.plot(x, ϱ_snapshot[-1], '.', markersize=10, alpha=0.7, label='Simulation')
-    ax_i.set_ylabel(
+    ax.plot(x, ϱ[-1], '-', label='Analytical solution')
+    ax.plot(x, ϱ_snapshot[-1], '.', markersize=10, alpha=0.7, label='Simulation')
+    ax.set_ylabel(
         r'$\varrho$ $\mathrm{{[{}\,m_{{\odot}}\,{}^{{-3}}]}}$'
         .format(
             significant_figures(
@@ -58,12 +58,12 @@ for ax_i, fluid, t, phase in zip(ax, fluids, times, phases):
             unit_length,
         )
     )
-    ax_i.set_title(rf'$t={t:.3g}\,\mathrm{{{unit_time}}}$')
-plt.xlim(0, boxsize)
-plt.xlabel(rf'$x\,\mathrm{{[{unit_length}]}}$')
-ax[0].legend(loc='best').get_frame().set_alpha(0.7)
-plt.tight_layout()
-plt.savefig(fig_file)
+    ax.set_title(rf'$t={t:.3g}\,\mathrm{{{unit_time}}}$')
+axes[ 0].set_xlim(0, boxsize)
+axes[-1].set_xlabel(rf'$x\,\mathrm{{[{unit_length}]}}$')
+axes[ 0].legend()
+fig.tight_layout()
+fig.savefig(fig_file, dpi=150)
 
 # Fluid elements in yz-slices should all have the same ϱ
 # and all fluid elements should have the same u = J/ϱ.

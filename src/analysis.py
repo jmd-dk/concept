@@ -2268,6 +2268,8 @@ def compute_bispec_bin_dissimilarity(row0, row1):
     #       (row1[4], row1[5]),
     #   })
     # though this is several times slower than the code below.
+    # Note that this notion of dissimilarity is really equivalent
+    # to the Hamming distance.
     n_unique = 0
     shells_encountered[:] = -1
     for r in range(2):
@@ -3238,7 +3240,7 @@ def save_polyspec(
     file_lines = [line.rstrip() for line in file_lines]
     file_content = '\n'.join(file_lines)
     # Save text file to disk
-    with open_file(filename, 'w', encoding='utf-8') as f:
+    with open_file(filename, mode='w', encoding='utf-8') as f:
         f.write(file_content)
     masterprint('done')
 

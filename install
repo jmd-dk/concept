@@ -7880,7 +7880,7 @@ if [ "${concept_install}" == "True" ] && [ "${concept_installed}" == "False" ]; 
     set_status "Setting up the .env file"
     "${python}" -B -c "
 import os
-with open('${env}', 'r', encoding='utf-8') as file:
+with open('${env}', mode='r', encoding='utf-8') as file:
     lines = file.readlines()
 # Generator for extracting environment variables
 def get_envs():
@@ -7903,7 +7903,7 @@ def get_envs():
             yield var, val
 # Add environment variables
 envs_inserted = False
-with open('${env}', 'w', encoding='utf-8') as file:
+with open('${env}', mode='w', encoding='utf-8') as file:
     for line in lines:
         if not envs_inserted and r'pathenv_name_value_pairs_installtime=()' in line:
             if '${python_install}' == 'True':

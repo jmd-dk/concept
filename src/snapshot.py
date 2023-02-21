@@ -262,7 +262,7 @@ class ConceptSnapshot:
                     for name, indices in component.fluid_names.items():
                         if not isinstance(name, str) or name == 'ordered':
                             continue
-                        if isinstance(indices, int):
+                        if isinstance(indices, (int, np.integer)):
                             # "name" is a fluid variable name (e.g. J,
                             # though not ϱ as this is a fluid scalar).
                             try:
@@ -3344,11 +3344,21 @@ def determine_species(name, representation, only_explicit=False):
 # is to be read in from snapshot or not.
 def should_load(name, species, representation):
     component_mock = ComponentMock(name, species, representation)
-    return is_selected(
+    data_load = is_selected(
         [component_mock],
         snapshot_select['load'],
-        default=False,
+        default={},
     )
+    if not data_load:
+        return False
+    if representation == 'particles':
+        return (data_load.get('pos') or data_load.get('mom'))
+    else:  # representation == 'fluid'
+        return (
+               data_load.get('ϱ') or data_load.get('J')
+            or data_load.get('𝒫') or data_load.get('ς')
+        )
+
 # Simple mock of the Component type used by
 # the determine_species() and should_load() functions.
 ComponentMock = collections.namedtuple(

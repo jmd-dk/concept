@@ -48,17 +48,18 @@ if sum([bool(re.search(rf'^{this_dir}/t_class=(True|False)_compiled=(True|False)
         all_times[key] = np.loadtxt(filename)
     # Plot the data
     fig_file = this_dir + '/result.png'
-    plt.figure(figsize=(16, 12))
+    fig, ax = plt.subplots(figsize=(16, 12))
     markersize = 50
     for key, times in all_times.items():
-        plt.loglog(scale_factors, times, '.',
-                   markersize=markersize,
-                   alpha=1.0,
-                   label=key)
+        ax.loglog(
+            scale_factors, times, '.',
+            markersize=markersize,
+            label=key,
+        )
         markersize -= 10
-    plt.xlim(a_begin, 1)
-    plt.xlabel('$a$')
-    plt.ylabel(rf'$t\,\mathrm{{[{unit_time}]}}$')
+    ax.set_xlim(a_begin, 1)
+    ax.set_xlabel('$a$')
+    ax.set_ylabel(rf'$t\,\mathrm{{[{unit_time}]}}$')
     # Using CLASS or not makes a difference at early times
     # due to the inclusion of e.g. radiation and neutrinos.
     # Find the latest time at which this difference is still important.
@@ -71,21 +72,26 @@ if sum([bool(re.search(rf'^{this_dir}/t_class=(True|False)_compiled=(True|False)
         if not isclose(t1, t2, rel_tol=rel_tol):
             # Time found. Update plot.
             a = scale_factors[i]
-            ylim = plt.gca().get_ylim()
-            plt.loglog([a, a], ylim, 'k:', zorder=-1)
-            plt.text(1.1*a, 0.4*ylim[1], r'$\leftarrow$ $1\%$ disagreement between' + '\n'
-                                         r'$\leftarrow$ CLASS and no CLASS',
-                     fontsize=16,
-                     )
-            plt.ylim(ylim)
+            ylim = ax.get_ylim()
+            ax.loglog([a, a], ylim, 'k:', zorder=-1)
+            ax.text(
+                1.1*a,
+                0.4*ylim[1],
+                (
+                    r'$\leftarrow$ $1\%$ disagreement between' + '\n'
+                    r'$\leftarrow$ CLASS and no CLASS'
+                ),
+                fontsize=16,
+            )
+            ax.set_ylim(ylim)
             # If this time is too late, something is wrong
             a_max_allowed = 0.1
             if a > a_max_allowed:
                 something_wrong = True
             break
-    plt.legend(loc='best', fontsize=16).get_frame().set_alpha(0.7)
-    plt.tight_layout()
-    plt.savefig(fig_file)
+    ax.legend(fontsize=16)
+    fig.tight_layout()
+    fig.savefig(fig_file, dpi=150)
     if something_wrong:
         abort(
             f'A discrepancy in t(a) of 1% between CLASS and the built-in '

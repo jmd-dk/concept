@@ -1672,7 +1672,7 @@ class TransferFunction:
                         perturbations_available[class_species] = False
                     else:
                         perturbation_values_arr += weights*class_units*perturbation
-            if isinstance(perturbation_values_arr, int):
+            if isinstance(perturbation_values_arr, (int, np.integer)):
                 perturbation_values = asarray((), dtype=C2np['double'])
             else:
                 perturbation_values = perturbation_values_arr
@@ -2991,7 +2991,7 @@ def get_linear_powerspec(component_or_components, k_magnitudes, power=None, a=-1
     gridsize_max = -1
     if not class_dedicated_spectra:
         for (gridsize_or_k_magnitudes, gauge_cached), cosmoresults in cosmoresults_cache.items():
-            if not isinstance(gridsize_or_k_magnitudes, int):
+            if not isinstance(gridsize_or_k_magnitudes, (int, np.integer)):
                 if not isinstance(gridsize_or_k_magnitudes, str):
                     continue
                 try:
@@ -3570,9 +3570,10 @@ for (varname,
             pattern = rf'(^|[^0-9a-zA-Z_]){varname}\s*=\s*(.*?)(/\*| |//|;|\n|$)'
         filename_abs = rf'{path.class_dir}/{filename}'
         try:
-            with open_file(filename_abs, mode='r') as class_file:
-                value = type(default_value)(re.search(pattern, class_file.read())
-                                            .group(2).strip('"'))
+            with open_file(filename_abs, mode='r', encoding='utf-8') as class_file:
+                value = type(default_value)(
+                    re.search(pattern, class_file.read()).group(2).strip('"')
+                )
         except:
             masterwarn(f'Failed to read value of {varname} from {filename_abs}')
             value = default_value

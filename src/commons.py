@@ -528,11 +528,24 @@ def get_matplotlib():
         'ytick.direction': 'out',
     })
     # Monkey patch I/O functions so that exceptions trigger abort
-    plt.imread  = tryexcept_wrapper(plt.imread,  'plt.imread() failed')
-    plt.imsave  = tryexcept_wrapper(plt.imsave,  'plt.imsave() failed')
-    plt.savefig = tryexcept_wrapper(plt.savefig, 'plt.savefig() failed')
-    matplotlib.figure.savefig = tryexcept_wrapper(
-        matplotlib.figure.Figure.savefig, 'matplotlib.figure.Figure.savefig() failed',
+    def patch_matplotlib(obj_names, func_names, wrapper, *args, matplotlib=matplotlib, plt=plt):
+        for obj_name in obj_names:
+            obj = eval(obj_name)
+            for func_name in func_names:
+                func = getattr(obj, func_name, None)
+                if func is None:
+                    continue
+                extra_args = [
+                    arg.format(obj_name=obj_name, func_name=func_name)
+                    if isinstance(arg, str) else arg
+                    for arg in args
+                ]
+                setattr(obj, func_name, wrapper(func, *extra_args))
+    patch_matplotlib(
+        ['plt', 'matplotlib.figure.Figure'],
+        ['imread', 'imsave', 'savefig'],
+        tryexcept_wrapper,
+        '{obj_name}.{func_name}() failed',
     )
     # Patch a bug about automatic minor tick labels by monkey patching
     # tight_layout() and savefig().
@@ -557,8 +570,8 @@ def get_matplotlib():
                     for label in getattr(ax, f'get_{xy}minorticklabels')()
                 ]
                 getattr(ax, f'set_{xy}ticklabels')(labels, minor=True)
-    def fix_minor_tick_labels_decorator(f):
-        @functools.wraps(f)
+    def fix_minor_tick_labels_decorator(func):
+        @functools.wraps(func)
         def wrapper(*args, **kwargs):
             fig = None
             if len(args) > 0 and isinstance(args[0], matplotlib.figure.Figure):
@@ -568,11 +581,13 @@ def get_matplotlib():
             with warnings.catch_warnings():
                 warnings.simplefilter('ignore', category=UserWarning)
                 fix_minor_tick_labels(fig)
-                f(*args, **kwargs)
+                func(*args, **kwargs)
         return wrapper
-    for func in ('tight_layout', 'savefig'):
-        for obj in (plt, matplotlib.figure.Figure):
-            setattr(obj, func, fix_minor_tick_labels_decorator(getattr(obj, func)))
+    patch_matplotlib(
+        ['plt', 'matplotlib.figure.Figure'],
+        ['tight_layout', 'savefig'],
+        fix_minor_tick_labels_decorator,
+    )
     # Add the matplotlib module to the global store for future lookups
     matplotlib_cache.append(matplotlib)
     # Return the matplotlib module itself
@@ -585,14 +600,15 @@ matplotlib_cache = []
 # Monkey patch various functions for I/O with explicit exception
 # handling and MPI abort on error.
 def tryexcept_wrapper(func, abort_msg=''):
-    def inner(*args, **kwargs):
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
         try:
             val = func(*args, **kwargs)
         except BaseException:
             traceback.print_exc()
             abort(abort_msg)
         return val
-    return inner
+    return wrapper
 
 
 
@@ -1735,6 +1751,7 @@ param_file_content += '\n'.join([
 ###########################
 cython.declare(
     machine_ϵ='double',
+    machine_ϵ_32='float',
     π='double',
     τ='double',
     ρ_vacuum='double',
@@ -1742,6 +1759,7 @@ cython.declare(
     NaN='double',
 )
 machine_ϵ = float(np.finfo(C2np['double']).eps)
+machine_ϵ_32 = np.finfo(C2np['float']).eps
 π = float(np.pi)
 τ = 2*π
 ρ_vacuum = float(1e+2*machine_ϵ)
@@ -2330,17 +2348,17 @@ def to_int(value):
     return int(round(float(value)))
 def to_rgb(value, *, collective=False):
     # If called with collective=True, only the master process
-    # does the work, the result of which is then broadcast.
+    # does the work, the result of which is then broadcasted.
     # This is just to avoid importing matplotlib on all processes.
     if not collective or master:
         matplotlib = get_matplotlib()
-        if isinstance(value, int) or isinstance(value, float):
+        if isinstance(value, (int, float, np.integer, np.floating)):
             value = str(value)
         try:
             rgb = asarray(matplotlib.colors.ColorConverter().to_rgb(value), dtype=C2np['double'])
         except:
             # Could not convert value to colour
-            rgb = asarray([-1, -1, -1])
+            abort(f'Colour not understood: {value}')
     if collective:
         rgb = bcast(rgb if master else None)
     return rgb
@@ -2437,9 +2455,7 @@ cython.declare(
     enable_terminal_formatting='bint',
     suppress_output=dict,
     render2D_options=dict,
-    render3D_colors=dict,
-    render3D_bgcolor='double[::1]',
-    render3D_resolution='int',
+    render3D_options=dict,
     # Debugging options
     print_load_imbalance=object,
     allow_snapshot_multifile_singleload='bint',
@@ -2499,17 +2515,23 @@ if 'snapshot_select' in user_params:
             else:
                 val[key2] = {'pos': val2, 'mom': val2, 'ϱ': val2, 'J': val2, '𝒫': val2, 'ς': val2}
 for key in ('save', 'load'):
+    key_exists = (key in snapshot_select)
     snapshot_select.setdefault(key, {})
     snapshot_select[key].setdefault(
         'default',
         {
-            'pos': True, 'mom': True, 'ϱ': True, 'J': True, '𝒫': True, 'ς': True,
+            'pos': not key_exists, 'mom': not key_exists,
+            'ϱ': not key_exists, 'J': not key_exists, '𝒫': not key_exists, 'ς': not key_exists,
         },
     )
     if isinstance(snapshot_select[key], dict):
         replace_ellipsis(snapshot_select[key])
     else:
         snapshot_select[key] = {'all': bool(snapshot_select[key])}
+    for d in snapshot_select[key].values():
+        for key2, val2 in d.copy().items():
+            d[unicode(key2)] = val2
+            d[asciify(key2)] = val2
 user_params['snapshot_select'] = snapshot_select
 if 'powerspec_select' in user_params:
     if isinstance(user_params['powerspec_select'], dict):
@@ -2527,6 +2549,12 @@ for key, val in powerspec_select.copy().items():
         val.setdefault('data', False)
         val.setdefault('linear', False)
         val.setdefault('plot', False)
+        unknown = ', '.join([
+            f'"{do}"'
+            for do in set(val.keys()) - {'data', 'linear', 'plot'}
+        ])
+        if unknown:
+            abort(f'Unknown selections in powerspec_select["{key}"]: {unknown}')
     else:
         powerspec_select[key] = {
             'data': bool(val),
@@ -2560,6 +2588,12 @@ for key, val in bispec_select.copy().items():
         val.setdefault('reduced', False)
         val.setdefault('treelevel', False)
         val.setdefault('plot', False)
+        unknown = ', '.join([
+            f'"{do}"'
+            for do in set(val.keys()) - {'data', 'reduced', 'treelevel', 'plot'}
+        ])
+        if unknown:
+            abort(f'Unknown selections in bispec_select["{key}"]: {unknown}')
     else:
         bispec_select[key] = {
             'data': bool(val),
@@ -2573,28 +2607,52 @@ if 'render2D_select' in user_params:
         render2D_select = user_params['render2D_select']
     else:
         render2D_select = {'default': user_params['render2D_select']}
-    render2D_select.setdefault('default', {'data': False, 'image': False, 'terminal image': False})
+    for key, val in render2D_select.copy().items():
+        if not isinstance(val, dict):
+            continue
+        render2D_select[key] = {
+            key2.replace(' ', '').replace('-', '').replace('_', ''): val2
+            for key2, val2 in val.items()
+        }
+    render2D_select.setdefault('default', {'data': False, 'image': False, 'terminalimage': False})
 else:
     render2D_select = {
-        'default': {'data': True, 'image': True, 'terminal image': True},
+        'default': {'data': True, 'image': True, 'terminalimage': True},
     }
 replace_ellipsis(render2D_select)
 for key, val in render2D_select.copy().items():
     if isinstance(val, dict):
         val.setdefault('data', False)
         val.setdefault('image', False)
-        val.setdefault('terminal image', False)
+        val.setdefault('terminalimage', False)
+        unknown = ', '.join([
+            f'"{do}"'
+            for do in set(val.keys()) - {'data', 'image', 'terminalimage'}
+        ])
+        if unknown:
+            abort(f'Unknown selections in render2D_select["{key}"]: {unknown}')
     else:
-        render2D_select[key] = {'data': bool(val), 'image': bool(val), 'terminal image': bool(val)}
+        render2D_select[key] = {'data': bool(val), 'image': bool(val), 'terminalimage': bool(val)}
 user_params['render2D_select'] = render2D_select
-render3D_select = {}
-if user_params.get('render3D_select'):
+if 'render3D_select' in user_params:
     if isinstance(user_params['render3D_select'], dict):
         render3D_select = user_params['render3D_select']
-        replace_ellipsis(render3D_select)
     else:
-        render3D_select = {'all': user_params['render3D_select']}
-render3D_select.setdefault('default', True)
+        render3D_select = {'default': user_params['render3D_select']}
+    render3D_select.setdefault('default', {'image': False})
+else:
+    render3D_select = {
+        'default': {'image': True},
+    }
+replace_ellipsis(render3D_select)
+for key, val in render3D_select.copy().items():
+    if isinstance(val, dict):
+        val.setdefault('image', False)
+        unknown = ', '.join([f'"{do}"' for do in set(val.keys()) - {'image'}])
+        if unknown:
+            abort(f'Unknown selections in render3D_select["{key}"]: {unknown}')
+    else:
+        render3D_select[key] = {'image': bool(val)}
 user_params['render3D_select'] = render3D_select
 snapshot_type = (str(user_params.get('snapshot_type', 'concept'))
     .replace(unicode('𝘕'), 'N').replace(asciify('𝘕'), 'N')
@@ -3923,22 +3981,152 @@ for key in render2D_options:
     if key not in render2D_options_defaults:
         abort(f'render2D_options["{key}"] not implemented')
 user_params['render2D_options'] = render2D_options
-render3D_colors = {}
-if 'render3D_colors' in user_params:
-    if isinstance(user_params['render3D_colors'], dict):
-        render3D_colors = user_params['render3D_colors']
-        replace_ellipsis(render3D_colors)
-    else:
-        render3D_colors = {'all': user_params['render3D_colors']}
-render3D_colors = {
-    key.lower(): to_rgbα(val, 0.2, collective=True)
-    for key, val in render3D_colors.items()
+def generate_enhancement_default():
+    enhancement = {}
+    def _(t, a):  # must not be done with a lambda
+        return 0.5
+    enhancement['contrast'] = _
+    def _(t, a):  # must not be done with a lambda
+        return 0.45, 1 - 1e-6*a
+    enhancement['clip'] = _
+    def _(t, a):  # must not be done with a lambda
+        return 1
+    enhancement['α'] = _
+    def _(t, a):  # must not be done with a lambda
+        return 0.35
+    enhancement['brightness'] = _
+    return enhancement
+render3D_options_defaults = {
+    'upstream gridsize': {
+        'default': -1,
+    },
+    'global gridsize': {
+        'default': -1,
+    },
+    'interpolation': {
+        'default': 'PCS',
+    },
+    'deconvolve': {
+        'default': False,
+    },
+    'interlace': {
+        'default': False,
+    },
+    'elevation': {
+        'default': π/6,
+    },
+    'azimuth': {
+        'default': -π/3,
+    },
+    'roll': {
+        'default': 0,
+    },
+    'zoom': {
+        'default': 1.05,
+    },
+    'projection': {
+        'default': 'perspective',
+    },
+    'color': {
+        'default': None,
+    },
+    'depthshade': {
+        'default': True,
+    },
+    'enhancement': {
+        'default': generate_enhancement_default(),
+    },
+    'background': {
+        'default': 'black',
+    },
+    'fontsize': {
+        'default': '0.022*resolution',
+    },
+    'resolution': {
+        'default': 1080,
+    },
 }
-user_params['render3D_colors'] = render3D_colors
-render3D_bgcolor = to_rgb(user_params.get('render3D_bgcolor', 'black'), collective=True)
-user_params['render3D_bgcolor'] = render3D_bgcolor
-render3D_resolution = to_int(user_params.get('render3D_resolution', 1080))
-user_params['render3D_resolution'] = render3D_resolution
+render3D_options = dict(user_params.get('render3D_options', {}))
+for key, val in render3D_options.items():
+    replace_ellipsis(val)
+if 'gridsize' in render3D_options:
+    d = render3D_options['gridsize']
+    if not isinstance(d, dict):
+        d = {'default': d}
+    render3D_options.setdefault('upstream gridsize', d.copy())
+    render3D_options.setdefault('global gridsize'  , d.copy())
+    render3D_options.pop('gridsize')
+for key, d in render3D_options.copy().items():
+    if not isinstance(d, dict):
+        render3D_options[key] = {'default': d}
+for key, d_defaults in render3D_options_defaults.items():
+    render3D_options.setdefault(key, {})
+    d = render3D_options[key]
+    for key, val in d_defaults.items():
+        d.setdefault(key, val)
+d = render3D_options['global gridsize']
+for key, val in d.copy().items():
+    d[key] = int(round(val))
+d = render3D_options['interpolation']
+for key, val in d.copy().items():
+    if val is None:
+        val = 0
+    d[key] = int(interpolation_orders.get(str(val).upper(), val))
+d = render3D_options['interlace']
+for key, val in d.copy().items():
+    d[key] = interlace2latticekind(val)
+d = render3D_options['projection']
+for key, val in d.copy().items():
+    focal_length = 1
+    if isinstance(val, str):
+        projection = val
+    else:
+        if isinstance(val[1], str):
+            val = (val[1], val[0])
+        projection, focal_length = val
+    projection = projection.lower()
+    if projection.startswith('ortho'):  # orthographic / orthogonal
+        d[key] = ('ortho', None)
+    elif projection.startswith('persp'):  # perspective
+        d[key] = ('persp', focal_length)
+    else:
+        abort(
+            f'Got render3D_options["projection"]["{key}"] = "{projection}" '
+            f'∉ {{"orthographic", "perspective"}}'
+        )
+d = render3D_options['depthshade']
+for key, val in d.copy().items():
+    val = bool(val)
+d = render3D_options['enhancement']
+def make_callable(val):
+    if callable(val):
+        return val
+    val = any2list(val)
+    if len(val) == 1:
+        def _(a, val=val[0]):
+            return val
+        return _
+    return type(val)([make_callable(v) for v in val])
+for key, d2 in d.items():
+    for key2, val2 in d2.copy().items():
+        val2 = make_callable(val2)
+        d2[key2] = val2
+        if key2 in (unicode('α'), asciify('α'), 'alpha'):
+            d2[unicode('α')] = d2[asciify('α')] = val2
+        elif key2 not in ('brightness', 'contrast', 'clip'):
+            abort(f'Unrecognised render3D_options["enhancement"] key = "{key2}"')
+    for key2, val2 in generate_enhancement_default().items():
+        d2.setdefault(key2, val2)
+d = render3D_options['background']
+for key, val in d.copy().items():
+    d[key] = to_rgb(val, collective=True)
+d = render3D_options['resolution']
+for key, val in d.copy().items():
+    val = int(round(val))
+for key in render3D_options:
+    if key not in render3D_options_defaults:
+        abort(f'render3D_options["{key}"] not implemented')
+user_params['render3D_options'] = render3D_options
 # Debugging options
 print_load_imbalance = user_params.get('print_load_imbalance', True)
 if isinstance(print_load_imbalance, str):
@@ -4042,8 +4230,8 @@ if not enable_class_background:
 # full shape of each grid is (nghosts + shape[0] + nghosts,
 # nghosts + shape[1] + nghosts, nghosts + shape[2] + nghosts). This is
 # determined by the interpolation orders of potential, power spectrum,
-# bispectrum and render2D interpolations (order 1 (NGP): 0 ghost layers,
-# 2 (CIC): 1 ghost layer, order 3 (TSC): 1 ghost layer,
+# bispectrum, render2D and render3D interpolations (order 1 (NGP): 0 ghost
+# layers, 2 (CIC): 1 ghost layer, order 3 (TSC): 1 ghost layer,
 # order 4 (PCS): 2 ghost layers), as well as force differentiations
 # (order 1: 1 ghost layer, order 2: 1 ghost layer, order 4: 2 ghost
 # layers, order 6: 3 ghost layers, order 8: 4 ghost layers).
@@ -4052,7 +4240,7 @@ if not enable_class_background:
 # grid cell). Finally, second-order differentiation is used to compute
 # fluid source terms, and so nghosts should always be at least 1.
 nghosts = 0
-for options in (powerspec_options, bispec_options, render2D_options):
+for options in (powerspec_options, bispec_options, render2D_options, render3D_options):
     interpolation_order_option = np.max(list(options['interpolation'].values()))
     interlace_option = any([val != 'sc' for val in options['interlace'].values()])
     nghosts_option = interpolation_order_option//2
@@ -4165,8 +4353,7 @@ units_dict.setdefault(unicode('ρ_crit')  , ρ_crit  )
 units_dict.setdefault(asciify('ρ_mbar')  , ρ_mbar  )
 units_dict.setdefault(unicode('ρ_mbar')  , ρ_mbar  )
 # Add dimensionless sizes
-units_dict.setdefault('ewald_gridsize'     , ewald_gridsize     )
-units_dict.setdefault('render3D_resolution', render3D_resolution)
+units_dict.setdefault('ewald_gridsize', ewald_gridsize)
 # Add numbers
 units_dict.setdefault(asciify('machine_ϵ'), machine_ϵ)
 units_dict.setdefault(unicode('machine_ϵ'), machine_ϵ)
@@ -4611,6 +4798,43 @@ def get_cubenum_strrep(n):
             return '{}×{}³'.format(denom, str(icbrt(r)))
     return str(n)
 
+# Integer binary logarithm
+with copy_on_import:
+    @cython.inline
+    @cython.header(
+        # Arguments
+        x='Py_ssize_t',
+        # Locals
+        y='Py_ssize_t',
+        returns='Py_ssize_t',
+    )
+    def ilog2(x):
+        """This function implements the binary logarithm (log base 2)
+        for integers x such that ilog2(x) = int(log2(x)).
+        For negative (illegal) x, we return x. The same is done for
+        x = 0, as -∞ cannot be expressed as an integer.
+        """
+        if x < 1:
+            # Illegal input
+            return x
+        y = 0
+        while x > 1:
+            x >>= 1
+            y += 1
+        return y
+
+# Check whether integer is a power of two
+with copy_on_import:
+    @cython.inline
+    @cython.header(
+        # Arguments
+        x='Py_ssize_t',
+        # Locals
+        returns='bint',
+    )
+    def ispowerof2(x):
+        return (2**ilog2(x) == x)
+
 # Max function for 1D memory views of numbers
 with copy_on_import:
     if not cython.compiled:
@@ -4651,14 +4875,16 @@ with copy_on_import:
             return m
         """
 
-# Maximum function for pairs of numbers
+# Maximum function for pairs of numbers.
+# Note that this breaks if either of the numbers are infinite.
 with copy_on_import:
     @cython.inline
     @cython.header(a=fused_numeric, b=fused_numeric, returns=fused_numeric)
     def pairmax(a, b):
         return a*(b <= a) + b*(a < b)
 
-# Minimum function for pairs of numbers
+# Minimum function for pairs of numbers.
+# Note that this breaks if either of the numbers are infinite.
 with copy_on_import:
     @cython.inline
     @cython.header(a=fused_numeric, b=fused_numeric, returns=fused_numeric)
@@ -5088,7 +5314,7 @@ def is_selected(component_or_components, d, accumulate=False, default=None):
             for component in components
             for single_species in component.species.split('+')
         ])
-        species = frozenset([component.species.lower()for component in components])
+        species = frozenset([component.species.lower() for component in components])
         keys = (
             'default',
             'all combinations',
@@ -5141,6 +5367,16 @@ def is_selected(component_or_components, d, accumulate=False, default=None):
             return selected[-1]
         else:
             return default
+
+# Function for evaluting a function f(), f(t), f(a), f(t, a) or f(a, t)
+# at the current cosmic time t and/or scale factor a.
+def eval_func_of_t_and_a(f):
+    current_values = {'t': universals.t, 'a': universals.a}
+    return f(*[
+        current_values[param]
+        for param in inspect.signature(f).parameters
+        if param in current_values
+    ])
 
 # Function for generating file names for reusable data
 def get_reusable_filename(kind, *objects, extension='', sha_length=10):
@@ -5397,7 +5633,7 @@ for key, d in shortrange_params.items():
     subtiling = d['subtiling']
     if len(subtiling) == 3:
         for el in subtiling:
-            if not isinstance(el, int):
+            if not isinstance(el, (int, np.integer)):
                 abort(
                     f'Could not understand shortrange_params["{key}"]["subtiling"] == {subtiling}'
                 )
@@ -5407,7 +5643,7 @@ for key, d in shortrange_params.items():
                     f'but must be at least 1 in every direction.'
                 )
     elif len(subtiling) == 2:
-        if not (subtiling[0] == 'automatic' and isinstance(subtiling[1], int)):
+        if not (subtiling[0] == 'automatic' and isinstance(subtiling[1], (int, np.integer))):
             abort(
                 f'shortrange_params["{key}"]["subtiling"] == {subtiling}. '
                 f'When two values are specified, the first should be the str "automatic" '

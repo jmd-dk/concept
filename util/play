@@ -216,7 +216,7 @@ repeats = float('${repeats}')
 # The ANSI ESC character
 ANSI_ESC = '\x1b'
 # Read in the entire log file
-with open(path, mode='r') as fname:
+with open(path, mode='r', encoding='utf-8') as fname:
     text = fname.read()
 # Find all 2D terminal rendered component combinations
 component_combinations = []

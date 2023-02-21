@@ -92,8 +92,9 @@ render2D_select = {  # Toggle 2D rendering for individual and sets of components
     'matter'  : {'data': False, 'image': True,  'terminal image': True},
     'neutrino': {'data': False, 'image': False, 'terminal image': False},
 }
-render3D_select = {  # Toggle rendering for each component
-    'all': True,
+render3D_select = {  # Toggle 3D rendering for individual and sets of components
+    'all'             : {'image': True},
+    'all combinations': {'image': True},
 }
 snapshot_type = 'concept'  # Type of output snapshots
 gadget_snapshot_params = {  # Specifications for output GADGET snapshots
@@ -427,12 +428,63 @@ render2D_options = {  # Specifications of 2D renders for individual and sets of 
         'default': True,
     },
 }
-render3D_colors = {  # Colour to use in 3D renders for each component
-    'matter'  : 'lime',
-    'neutrino': 'r',
+render3D_options = {  # Specifications of 3D renders for individual and sets of components
+    'upstream gridsize': {  # Linear upstream grid sizes
+        'particles': 'cbrt(N)',
+        'fluid'    : 'gridsize',
+    },
+    'global gridsize': {  # Linear global grid sizes
+        'default': -1,
+    },
+    'interpolation': {  # Particle interpolation order
+        'default': 'PCS',
+    },
+    'deconvolve': {  # Perform deconvolution for particles?
+        'default': False,
+    },
+    'interlace': {  # Use interlaced grids for particles?
+        'default': False,
+    },
+    'elevation': {  # Camera elevation viewing angle
+        'default': π/6,
+    },
+    'azimuth': {  # Camera azimuthal viewing angle
+        'default': -π/3,
+    },
+    'roll': {  # Camera roll angle
+        'default': 0,
+    },
+    'zoom': {  # Camera zoom amount
+        'default': 1.05,
+    },
+    'projection': {  # 3D → 2D projection type
+        'default': 'perspective',
+    },
+    'color': {  # Colour
+        'matter'  : ('inferno', lambda a: (0.10, 0.75 + 0.25*a)),
+        'neutrino': ('viridis', lambda a: (0.15, 0.85 + 0.15*a)),
+    },
+    'depthshade': {  # Apply shading according to depth
+        'default': True,
+    },
+    'enhancement': {  # Image enhancement specifications
+        'default': {
+            'contrast'  : 0.5,
+            'clip'      : lambda a: (0.45, 1 - 1e-6*a),
+            'α'         : 1,
+            'brightness': 0.35,
+        },
+    },
+    'background': {  # Colour of the background
+        'default': 'black',
+    },
+    'fontsize': {  # Font size for text elements
+        'default': '0.022*resolution',
+    },
+    'resolution': {  # Height and width of images
+        'default': 1080,
+    },
 }
-render3D_bgcolor = 'black'  # Background colour of 3D renders
-render3D_resolution = 1080  # The height and width of 3D renders
 
 # Units
 unit_length = 'Mpc'    # Physical length corresponding to a numerical value of 1.0

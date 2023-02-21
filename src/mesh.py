@@ -471,6 +471,7 @@ def interpolate_domaingrid_to_particles(
     deconvolve='bint',
     interlace=str,
     output_space=str,
+    output_as_slabs='bint',
     do_ghost_communication='bint',
     # Locals
     component='Component',
@@ -489,8 +490,8 @@ def interpolate_domaingrid_to_particles(
 )
 def interpolate_upstream(
     components, gridsizes_upstream, gridsize_global, quantity, order,
-    ᔑdt=None, deconvolve=True, interlace='sc',
-    output_space='real', do_ghost_communication=True,
+    ᔑdt=None, deconvolve=True, interlace='sc', output_space='real',
+    output_as_slabs=False, do_ghost_communication=True,
 ):
     """Given a list of components, a list of corresponding upstream grid
     sizes and a single global grid size, this function interpolates the
@@ -621,6 +622,9 @@ def interpolate_upstream(
         return slab_global
     # Fourier transform the global slabs to real space
     fft(slab_global, 'backward')
+    # Return real space slabs if requested
+    if output_as_slabs:
+        return slab_global
     # Domain-decompose and return the global real space grid
     grid_global = get_buffer(get_gridshape_local(gridsize_global), 'grid_global')
     domain_decompose(
@@ -656,8 +660,7 @@ def add_upstream_to_global_slabs(
     # the global slabs, rather than performing a copy.
     use_upstream_as_global = (slab_global is None and gridsize_global == gridsize_upstream)
     # Transform upstream slabs to Fourier space,
-    # using the 'slab_global' or 'slab_updownstream' buffer
-    # depending on the passed use_upstream_as_global.
+    # using the 'slab_global' or 'slab_updownstream' buffer.
     slab_upstream = slab_decompose(
         grid_upstream,
         None if use_upstream_as_global else 'slab_updownstream',
@@ -2265,6 +2268,7 @@ def domain_decompose(
     should_send='bint',
     should_recv='bint',
     slab='double[:, :, ::1]',
+    slab_arr=object,
     slab_maybe_trimmed='double[:, :, ::1]',
     slab_sendrecv_j_end='int[::1]',
     slab_sendrecv_j_start='int[::1]',
@@ -2508,6 +2512,75 @@ def domain_loop(
         for j in range(_j_bgn, _j_end):
             _index_ij += ℤ[_shape[2]]
             index = _index_ij + ℤ[_nskip - 1]
+            for k in range(_k_bgn, _k_end):
+                index += 1
+                yield index, i, j, k
+
+# Iterator implementing looping over slabs in real space.
+# For Fourier space slabs, see the fourier_loop() iterator instead.
+# The yielded values are the linear index as well as the
+# 3D indices into the slab.
+# If skip_ghosts is True, only non-ghost points will be yielded.
+@cython.iterator(
+    depends=(
+        # Functions used by slab_loop()
+        'get_slabshape_local',
+   ),
+)
+def slab_loop(
+    gridsize,
+    *,
+    skip_data=False, skip_padding=False,
+):
+    # Cython declarations for variables used for the iteration,
+    # including all arguments and variables to yield.
+    # Do not write these using the decorator syntax above this function.
+    cython.declare(
+        # Arguments
+        gridsize='Py_ssize_t',  # int or array-like
+        skip_data='bint',
+        skip_padding='bint',
+        # Locals
+        _i_end='Py_ssize_t',
+        _index_i='Py_ssize_t',
+        _index_ij='Py_ssize_t',
+        _k_bgn='Py_ssize_t',
+        _k_end='Py_ssize_t',
+        _shape='Py_ssize_t[::1]',
+        _size_i='Py_ssize_t',
+        _size_j='Py_ssize_t',
+        _size_k='Py_ssize_t',
+        _size_padding='Py_ssize_t',
+        # Yielded
+        index='Py_ssize_t',
+        i='Py_ssize_t',
+        j='Py_ssize_t',
+        k='Py_ssize_t',
+    )
+    # Get slab shape
+    _shape = asarray(get_slabshape_local(gridsize), dtype=C2np['Py_ssize_t'])
+    _size_i = _shape[0]
+    _size_j = _shape[1]
+    _size_k = _size_j
+    _size_padding = _shape[2]
+    # Set up iteration limits
+    _i_end = _size_i
+    _k_bgn = 0
+    _k_end = _size_padding
+    if skip_data:
+        if skip_padding:
+            _i_end = 0
+        _k_bgn = _size_k
+    elif skip_padding:
+        _k_end = _size_k
+    # Perform iteration
+    _index_i = _k_bgn - _size_padding*(_size_j + 1) - 1
+    for i in range(_i_end):
+        _index_i += ℤ[_size_j*_size_padding]
+        _index_ij = _index_i
+        for j in range(_size_j):
+            _index_ij += _size_padding
+            index = _index_ij
             for k in range(_k_bgn, _k_end):
                 index += 1
                 yield index, i, j, k
@@ -3225,7 +3298,7 @@ def fourier_operate(slab, deconv_order=0, lattice=None, diff_dim=-1):
 @cython.header(
     # Arguments
     slab='double[:, :, ::1]',
-    nullifications=object,  # bint, str or list of str's
+    nullifications=object,  # None, bint, str or list of str's
     # Locals
     gridsize='Py_ssize_t',
     index='Py_ssize_t',
@@ -3258,7 +3331,7 @@ def nullify_modes(slab, nullifications):
     """The nullifications argument can be a boolean, a str of
     comma-separated words, or alternatively a list of str's, each being
     a single word. The words specify which types of modes to nullify:
-    - False: Do not perform any nullification.
+    - False, None: Do not perform any nullification.
     - True, "all": Nullify the entire slab.
     - "origin": Nullify the origin ki = kj = kk = 0.
     - "Nyquist": Nullify the three Nyquist planes:
@@ -3288,9 +3361,9 @@ def nullify_modes(slab, nullifications):
     nyquist = gridsize//2
     # Perform nullifications
     for nullification in nullifications:
-        if nullification == 'false':
+        if not nullification or nullification in {'false', 'none'}:
             # Do not perform any nullification
-            pass
+            continue
         elif nullification in {'true', 'all'}:
             # Nullify entire slab
             slab[...] = 0
@@ -3432,6 +3505,26 @@ def nullify_ghosts(grid):
             for     j in range(nghosts, ℤ[size_j - nghosts]):
                 for k in range(k_bgn, k_end):
                     grid[i, j, k] = 0
+
+# Function for populating the padding region of slabs with a given value
+@cython.header(
+    # Arguments
+    slab='double[:, :, ::1]',
+    value='double',
+    # Locals
+    gridsize='Py_ssize_t',
+    i='Py_ssize_t',
+    index='Py_ssize_t',
+    j='Py_ssize_t',
+    k='Py_ssize_t',
+    slab_ptr='double*',
+    returns='void',
+)
+def fill_slab_padding(slab, value):
+    gridsize = slab.shape[1]
+    slab_ptr = cython.address(slab[:, :, :])
+    for index, i, j, k in slab_loop(gridsize, skip_data=True):
+        slab_ptr[index] = value
 
 # Function for trimming away the padded elements of slabs
 @cython.header(
@@ -3835,6 +3928,8 @@ def fft(slab, direction, apply_forward_normalization=False):
     else:  # Compiled mode
         # Look up the index of the FFTW plans for the passed slab.
         slab_address = cast(cython.address(slab[:, :, :]), 'Py_ssize_t')
+        if slab_address not in fftw_plans_mapping:
+            abort('slab passed to fft() not obtained through get_fftw_slab()')
         fftw_plans_index = fftw_plans_mapping[slab_address]
         # Look up the plan and let FFTW do the Fourier transformation
         if 𝔹[direction == 'forward']:
