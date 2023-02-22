@@ -95,7 +95,7 @@ We see that besides power spectra, we now have *snapshots*, *bispectra* and
 output to go to the same directory.
 
 For the ``output_times``, different values are given for three of the output
-types, while ``bispec`` and ``'render3D'`` are set to use the same times as
+types, while ``'bispec'`` and ``'render3D'`` are set to use the same times as
 the output just above, i.e. that of ``'powerspec'``. For ``'render2D'``, we've
 specified 15 outputs spaced logarithmically equidistant between
 :math:`a = a_{\text{begin}} = 0.02` and :math:`a = 1`.
@@ -156,10 +156,10 @@ density.
 
 .. tip::
    The available colormaps can be viewed
-   `here <https://matplotlib.org/stable/gallery/color/colormap_reference.html>`__
+   `here <https://matplotlib.org/stable/gallery/color/colormap_reference.html>`__.
    A single colour value may also be given, either as an RGB tuple (each value
    raning from 0 to 1) or as a
-   `<named colour https://matplotlib.org/stable/gallery/color/named_colors.html>`__.
+   `named colour <https://matplotlib.org/stable/gallery/color/named_colors.html>`__.
 
 We also specify the background colour, as well as the resolution (height and
 width) of the image, in pixels.
