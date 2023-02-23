@@ -161,7 +161,7 @@ features as well as additional information on or off.
                          True
 
 -- --------------- -- -
-\  **Elaboration** \  The `CLASS <http://class-code.net/>`__ code is fully
+\  **Elaboration** \  The `CLASS <http://class-code.net/>`_ code is fully
                       integrated within CO\ *N*\ CEPT and provides the
                       cosmological background (e.g. :math:`a(t)`) as well as
                       linear perturbations, the latter used for e.g.

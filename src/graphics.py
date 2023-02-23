@@ -1,5 +1,5 @@
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015–2023 Jeppe Mosgaard Dakin.
+# Copyright © 2015–2021 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -26,67 +26,83 @@ from commons import *
 
 # Cython imports
 cimport(
-    'from mesh import          '
-    '    domain_decompose,     '
-    '    fft,                  '
-    '    fill_slab_padding,    '
-    '    interpolate_upstream, '
-    '    resize_grid,          '
-    '    slab_loop,            '
+    'from communication import        '
+    '    domain_layout_local_indices, '
+    '    domain_start_x,              '
+    '    domain_start_y,              '
+    '    domain_start_z,              '
 )
-
-# Pure Python imports
-from communication import get_domain_info
+cimport(
+    'from mesh import              '
+    '    domain_decompose,         '
+    '    fft,                      '
+    '    interpolate_upstream,     '
+    '    resize_grid,              '
+)
 
 
 
 # Function for plotting an already computed power spectrum
 # and saving an image file to disk.
-def plot_powerspec(declaration, filename):
+@cython.header(
+    # Arguments
+    powerspec_declaration=object,  # PowerspecDeclaration or list
+    filename=str,
+    # Locals
+    a_str=str,
+    component='Component',
+    components=list,
+    components_str=str,
+    k_bin_centers='double[::1]',
+    power='double[::1]',
+    power_linear='double[::1]',
+    powerspec_declarations=list,
+    t_str=str,
+    returns='void',
+)
+def plot_powerspec(powerspec_declaration, filename):
     if not master:
         return
     # Recursive dispatch
-    if isinstance(declaration, list):
-        declarations = declaration
+    if isinstance(powerspec_declaration, list):
+        powerspec_declarations = powerspec_declaration
     else:
-        declarations = [declaration]
-    declarations = [
-        declaration
-        for declaration in declarations
-        if declaration.do_plot
+        powerspec_declarations = [powerspec_declaration]
+    powerspec_declarations = [
+        powerspec_declaration
+        for powerspec_declaration in powerspec_declarations
+        if powerspec_declaration.do_plot
     ]
-    if not declarations:
+    if not powerspec_declarations:
         return
-    if len(declarations) > 1:
-        for declaration in declarations:
+    if len(powerspec_declarations) > 1:
+        for powerspec_declaration in powerspec_declarations:
             # Since we have multiple plots --- one for each
             # set of components --- we augment each filename
             # with this information.
             plot_powerspec(
-                declaration,
+                powerspec_declaration,
                 augment_filename(
                     filename,
                     '_'.join([
                         component.name.replace(' ', '-')
-                        for component in declaration.components
+                        for component in powerspec_declaration.components
                     ]),
                     '.png',
                 )
             )
         return
-    declaration = declarations[0]
+    powerspec_declaration = powerspec_declarations[0]
     # Fetch Matplotlib
     plt = get_matplotlib().pyplot
     # Ensure correct filename extension
     if not filename.endswith('.png'):
         filename += '.png'
     # Extract variables
-    components    = declaration.components
-    k_bin_centers = asarray(declaration.k_bin_centers)
-    power         = asarray(declaration.power)
-    power_linear  = declaration.power_linear
-    if power_linear is not None:
-        power_linear = asarray(power_linear)
+    components    = powerspec_declaration.components
+    k_bin_centers = powerspec_declaration.k_bin_centers
+    power         = powerspec_declaration.power
+    power_linear  = powerspec_declaration.power_linear
     # Begin progress message
     if len(components) == 1:
         components_str = components[0].name
@@ -99,658 +115,42 @@ def plot_powerspec(declaration, filename):
     )
     # Plot power spectrum in new figure
     fig, ax = plt.subplots()
-    label = 'simulation'
     if np.any(power):
-        ax.loglog(k_bin_centers, power, '-', label=label)
+        ax.loglog(k_bin_centers, power, '-', label='simulation')
     else:
         # The odd case of no power at all
-        ax.semilogx(k_bin_centers, power, '-', label=label)
+        ax.semilogx(k_bin_centers, power, '-', label='simulation')
     # Also plot linear CLASS power spectra, if specified
     if power_linear is not None:
-        gauge = collections.Counter(
-            [component.realization_options['gauge'] for component in components]
-        ).most_common(1)[0][0]
-        gauge = {
-            'nbody'      : r'$N$-body',
-            'synchronous': r'synchronous',
-            'newtonian'  : r'Newtonian',
-        }.get(gauge, gauge)
-        backscale = collections.Counter(
-            [component.realization_options['backscale'] for component in components]
-        ).most_common(1)[0][0]
-        backscale_str = ', back-scaled'*backscale
-        label_linear = f'linear ({gauge} gauge{backscale_str})'
         ylim = ax.get_ylim()
         if np.any(power_linear) and np.any(~np.isnan(power_linear)):
-            ax.loglog(k_bin_centers, power_linear, 'k--', label=label_linear)
+            ax.loglog(k_bin_centers, power_linear, 'k--', label='linear')
         else:
             # The odd case of no power at all
-            ax.semilogx(k_bin_centers, power_linear, 'k--', label=label_linear)
+            ax.semilogx(k_bin_centers, power_linear, 'k--', label='linear')
         # Labels are only needed when both the non-linear (simulation)
         # and linear spectrum are plotted.
         ax.legend(fontsize=14)
         ax.set_ylim(ylim)
-    ax.set_xlim(k_bin_centers[0], k_bin_centers[-1])
-    # Finishing touches
     ax.set_xlabel(rf'$k$ $[\mathrm{{{unit_length}}}^{{-1}}]$', fontsize=14)
-    ax.set_ylabel(rf'$P$ $[\mathrm{{{unit_length}}}^3]$',      fontsize=14)
+    ax.set_ylabel(rf'power $[\mathrm{{{unit_length}}}^3]$',    fontsize=14)
     t_str = (
         rf'$t = {{}}\, \mathrm{{{{{unit_time}}}}}$'
-        .format(significant_figures(universals.t, 4, fmt='TeX'))
+        .format(significant_figures(universals.t, 4, fmt='tex'))
     )
     a_str = ''
     if enable_Hubble:
-        a_str = ', $a = {}$'.format(significant_figures(universals.a, 4, fmt='TeX'))
+        a_str = ', $a = {}$'.format(significant_figures(universals.a, 4, fmt='tex'))
     components_str = (
         components_str
         .replace('{', r'$\{$')
         .replace('}', r'$\}$')
     )
-    ax.set_title(f'{components_str}\n{t_str}{a_str}', fontsize=16, horizontalalignment='center')
+    ax.set_title(f'{components_str}\nat {t_str}{a_str}', fontsize=16, horizontalalignment='center')
     ax.tick_params(axis='both', which='major', labelsize=13)
     ax.tick_params(axis='both', which='minor', labelsize=11)
-    fig.tight_layout()
-    fig.savefig(filename, dpi=150)
-    # Done with this plot.
-    # Close the figure, leaving no trace in memory of the plot.
-    plt.close(fig)
-    masterprint('done')
-
-# Function for plotting an already computed bispectrum
-# and saving an image file to disk.
-def plot_bispec(declaration, filename):
-    if not master:
-        return
-    # Recursive dispatch
-    if isinstance(declaration, list):
-        declarations = declaration
-    else:
-        declarations = [declaration]
-    declarations = [
-        declaration
-        for declaration in declarations
-        if declaration.do_plot
-    ]
-    if not declarations:
-        return
-    if len(declarations) > 1:
-        for declaration in declarations:
-            # Since we have multiple plots --- one for each
-            # set of components --- we augment each filename
-            # with this information.
-            plot_bispec(
-                declaration,
-                augment_filename(
-                    filename,
-                    '_'.join([
-                        component.name.replace(' ', '-')
-                        for component in declaration.components
-                    ]),
-                    '.png',
-                )
-            )
-        return
-    declaration = declarations[0]
-    do_treelevel = declaration.do_treelevel
-    do_reduced = declaration.do_reduced
-    # Fetch Matplotlib
-    matplotlib = get_matplotlib()
-    plt = matplotlib.pyplot
-    # Ensure correct filename extension
-    if not filename.endswith('.png'):
-        filename += '.png'
-    # Begin progress message
-    components = declaration.components
-    if len(components) == 1:
-        components_str = components[0].name
-    else:
-        components_str = '{{{}}}'.format(
-            ', '.join([component.name for component in components])
-        )
-    masterprint(
-        f'Plotting bispectrum of {components_str} and saving to "{filename}" ...'
-    )
-    # Extract data and mask out NaN values
-    bpower = asarray(declaration.bpower)
-    bpower[bpower == 0] = NaN
-    mask = ~np.isnan(bpower)
-    bpower = asarray(bpower)[mask]
-    if bpower.shape[0] == 0:
-        masterwarn('No bispectrum data to be plotted')
-        masterprint('done')
-        return
-    k = asarray([bin.k for bin in declaration.bins])[mask]
-    t = asarray([bin.t for bin in declaration.bins])[mask]
-    μ = asarray([bin.μ for bin in declaration.bins])[mask]
-    if do_treelevel:
-        bpower_treelevel = asarray(declaration.bpower_treelevel)
-        mask_treelevel = ~np.isnan(bpower_treelevel)
-        bpower_treelevel = bpower_treelevel[mask_treelevel]
-        if bpower_treelevel.shape[0] == 0:
-            do_treelevel = False
-        else:
-            k_treelevel = asarray([bin.k for bin in declaration.bins])[mask_treelevel]
-            t_treelevel = asarray([bin.t for bin in declaration.bins])[mask_treelevel]
-            μ_treelevel = asarray([bin.μ for bin in declaration.bins])[mask_treelevel]
-    if do_reduced:
-        bpower_reduced = asarray(declaration.bpower_reduced)[mask]
-        if do_treelevel:
-            bpower_reduced_treelevel = asarray(
-                declaration.bpower_reduced_treelevel
-            )[mask_treelevel]
-    # Specifications for each bispectrum parameter
-    bins_data = {
-        'k': k,
-        't': t,
-        'μ': μ,
-    }
-    if do_treelevel:
-        bins_data_treelevel = {
-            'k': k_treelevel,
-            't': t_treelevel,
-            'μ': μ_treelevel,
-        }
-    axis_scales = {
-        'k': 'log',
-        't': 'linear',
-        'μ': 'linear',
-    }
-    axis_labels = {
-        'k': rf'$k$ $[\mathrm{{{unit_length}}}^{{-1}}]$',
-        't': r'$t$',
-        'μ': r'$\mu$',
-        'B': rf'$B$ $[\mathrm{{{unit_length}}}^6]$',
-        'Q': rf'$Q$',
-    }
-    # Labels
-    label = 'simulation'
-    if do_treelevel:
-        gauge = collections.Counter(
-            [component.realization_options['gauge'] for component in components]
-        ).most_common(1)[0][0]
-        gauge = {
-            'nbody'      : r'$N$-body',
-            'synchronous': r'synchronous',
-            'newtonian'  : r'Newtonian',
-        }.get(gauge, gauge)
-        backscale = collections.Counter(
-            [component.realization_options['backscale'] for component in components]
-        ).most_common(1)[0][0]
-        backscale_str = ', back-scaled'*backscale
-        label_treelevel = f'tree-level ({gauge} gauge{backscale_str})'
-    # Helper functions
-    def add_param_text(ax, *param_names):
-        text = []
-        for other_param_name, other_param_vals in bins_data.items():
-            if other_param_name in param_names:
-                continue
-            val_str = significant_figures(np.mean(other_param_vals), 3, fmt='TeX')
-            text.append(
-                re.subn(
-                    r'(\$ )|(\$$)',
-                    rf' = {val_str}$ '.replace('\\', '\\\\'),
-                    axis_labels[other_param_name],
-                    1,
-                )[0]
-            )
-        ax.text(
-            0.05, 0.05, '\n'.join(text),
-            transform=ax.transAxes,
-            horizontalalignment='left',
-            verticalalignment='bottom',
-            fontsize=14,
-        )
-    def get_logc(data, fac=0.85, threshold=1e+2):
-        data_min, data_max = np.min(data), np.max(data)
-        data = data[(data_min/fac < data) & (data < data_max*fac)]
-        if len(data) < 3:
-            return False
-        data_min, data_max = np.min(data), np.max(data)
-        return (data_max/data_min > threshold)
-    def get_logticks(xdata, ydata):
-        fig_tmp, ax_tmp = plt.subplots()
-        if axis_scales[dimensions[0]] == 'log':
-            xdata = 10**xdata
-        if axis_scales[dimensions[1]] == 'log':
-            ydata = 10**ydata
-        ax_tmp.tripcolor(xdata, ydata, bpower)
-        if axis_scales[dimensions[0]] == 'log':
-            ax_tmp.set_xscale('log')
-        if axis_scales[dimensions[1]] == 'log':
-            ax_tmp.set_yscale('log')
-        x_min, x_max = np.min(xdata), np.max(xdata)
-        y_min, y_max = np.min(ydata), np.max(ydata)
-        ticks = {
-            'x': [x for x in ax_tmp.get_xticks() if x_min <= x <= x_max],
-            'y': [y for y in ax_tmp.get_yticks() if y_min <= y <= y_max],
-        }
-        plt.close(fig_tmp)
-        for key, val in ticks.items():
-            ticks[key] = correct_float(np.concatenate(([1e-1*val[0]], val, [1e+1*val[-1]])))
-        return ticks
-    def log_tick_formatter(val, pos=None):
-        """Log scaling does not work for 3D axes nor for the Gouraud
-        shading. In these cases we instead explicitly plot log10(k).
-        To now display the tick labels properly, we need a custom
-        tick formatter function (this function).
-        For the 3D axis issue, see
-          https://github.com/matplotlib/matplotlib/issues/209
-        """
-        ticklabel = significant_figures(10**val, 2, fmt='TeX', incl_zeros=False)
-        return f'${ticklabel}$'
-    # Determine what to plot
-    dimensions = []
-    if bpower.shape[0] > 1:
-        if not np.all(np.isclose(k, k[0], 1e-4, 0)):
-            dimensions.append('k')
-        if not np.all(np.isclose(t, t[0], 1e-4, 0)):
-            dimensions.append('t')
-        if not np.all(np.isclose(μ, μ[0], 1e-4, 0)):
-            dimensions.append('μ')
-    # Plot bispectrum in new figure
-    ticklabelsizefac = 1
-    if len(dimensions) == 0:
-        # Single dot
-        fig, axes = plt.subplots(1 + do_reduced, 1, sharex=True)
-        axes = any2list(axes)
-        param_name = 'k'
-        xdata = bins_data[param_name]
-        if do_treelevel:
-            xdata_treelevel = bins_data_treelevel[param_name]
-        xmin = np.min((np.min(xdata), 2*π/boxsize))
-        xmax = np.max((np.max(xdata), 2*π/boxsize*sqrt(3)*(declaration.gridsize//2)))
-        axes[0].plot(xdata, bpower, '.', label=label)
-        if do_treelevel:
-            axes[0].plot(xdata_treelevel, bpower_treelevel, 'k.', label=label_treelevel)
-        if do_reduced:
-            axes[1].plot(xdata, bpower_reduced, '.', label=label)
-            if do_treelevel:
-                axes[1].plot(xdata_treelevel, bpower_reduced_treelevel, 'k.', label=label_treelevel)
-        axes[ 0].set_xscale(axis_scales[param_name])
-        axes[ 0].set_xlim(xmin, xmax)
-        axes[-1].set_xlabel(axis_labels[param_name], fontsize=14)
-        axes[ 0].set_ylabel(axis_labels['B'], fontsize=14)
-        if do_reduced:
-            axes[1].set_ylabel(axis_labels['Q'], fontsize=14)
-        add_param_text(axes[0], param_name)
-    elif len(dimensions) == 1:
-        # 1D line plot
-        fig, axes = plt.subplots(1 + do_reduced, 1, sharex=True)
-        axes = any2list(axes)
-        param_name = dimensions[0]
-        xdata = bins_data[param_name]
-        sorting = np.argsort(xdata)
-        xdata = xdata[sorting]
-        xmin, xmax = np.min(xdata), np.max(xdata)
-        if do_treelevel:
-            xdata_treelevel = bins_data_treelevel[param_name]
-            sorting_treelevel = np.argsort(xdata_treelevel)
-            xdata_treelevel = xdata_treelevel[sorting_treelevel]
-        bpower_negnan = bpower.copy()
-        bpower_negnan[bpower < 0] = NaN
-        axes[0].semilogy(xdata, np.abs(bpower[sorting]), '--')
-        axes[0].set_prop_cycle(None)
-        axes[0].semilogy(xdata, np.abs(bpower_negnan[sorting]), '-', label=label)
-        if do_treelevel:
-            ylim = axes[0].get_ylim()
-            axes[0].semilogy(
-                xdata_treelevel, bpower_treelevel[sorting_treelevel], 'k--',
-                label=label_treelevel,
-            )
-            axes[0].set_ylim(ylim)
-        if do_reduced:
-            axes[1].plot(xdata, bpower_reduced[sorting], '-', label=label)
-            ylim = axes[1].get_ylim()
-            if do_treelevel:
-                axes[1].plot(
-                    xdata_treelevel, bpower_reduced_treelevel[sorting_treelevel], 'k--',
-                    label=label_treelevel,
-                )
-            axes[1].plot(
-                [xmin, xmax],
-                [0]*2,
-                '-',
-                color='grey',
-                lw=1,
-                zorder=-1,
-            )
-            axes[1].set_ylim(ylim)
-        axes[-1].set_xlabel(axis_labels[param_name], fontsize=14)
-        axes[ 0].set_xscale(axis_scales[param_name])
-        axes[ 0].set_xlim(xmin, xmax)
-        axes[ 0].set_ylabel(axis_labels['B'], fontsize=14)
-        if do_reduced:
-            axes[1].set_ylabel(axis_labels['Q'], fontsize=14)
-        add_param_text(axes[0], param_name)
-    elif len(dimensions) == 2:
-        # 2D contour plot
-        fig, axes = plt.subplots(1 + do_reduced, 1, sharex=True)
-        axes = any2list(axes)
-        def ensuretri(xdata, ydata, bpower, bpower_reduced):
-            if len(xdata) > 2:
-                return xdata, ydata, bpower, bpower_reduced
-            xdata = asarray([
-                xdata[0],
-                np.mean(xdata)*(1 - 1e-3),
-                np.mean(xdata)*(1 + 1e-3),
-                xdata[1],
-            ])
-            ydata = asarray([
-                ydata[0],
-                np.mean(ydata)*(1 - 1e-3),
-                np.mean(ydata)*(1 + 1e-3),
-                ydata[1],
-            ])
-            bpower = asarray([
-                bpower[0],
-                np.mean(bpower),
-                np.mean(bpower),
-                bpower[1],
-            ])
-            if do_reduced:
-                bpower_reduced = asarray([
-                    bpower_reduced[0],
-                    np.mean(bpower_reduced),
-                    np.mean(bpower_reduced),
-                    bpower_reduced[1],
-                ])
-            return xdata, ydata, bpower, bpower_reduced
-        xdata, ydata = bins_data[dimensions[0]], bins_data[dimensions[1]]
-        if axis_scales[dimensions[0]] == 'log':
-            xdata = np.log10(xdata)
-        if axis_scales[dimensions[1]] == 'log':
-            ydata = np.log10(ydata)
-        xdata, ydata, bpower, bpower_reduced = ensuretri(
-            xdata, ydata, bpower,
-            (bpower_reduced if do_reduced else None),
-        )
-        if do_treelevel:
-            xdata_treelevel, ydata_treelevel = (
-                bins_data_treelevel[dimensions[0]], bins_data_treelevel[dimensions[1]],
-            )
-            xdata_treelevel, ydata_treelevel, bpower_treelevel, bpower_reduced_treelevel = ensuretri(
-                xdata_treelevel, ydata_treelevel, bpower_treelevel,
-                (bpower_reduced_treelevel if do_reduced else None),
-            )
-            if axis_scales[dimensions[0]] == 'log':
-                xdata_treelevel = np.log10(xdata_treelevel)
-            if axis_scales[dimensions[1]] == 'log':
-                ydata_treelevel = np.log10(ydata_treelevel)
-        logc = get_logc(np.abs(bpower))
-        tri = matplotlib.tri.Triangulation(xdata, ydata)
-        tri.set_mask((bpower[tri.triangles] < 0).any(axis=1))
-        pc = axes[0].tripcolor(
-            tri, np.abs(bpower),
-            norm=(matplotlib.colors.LogNorm() if logc else None),
-            shading='gouraud',
-        )
-        pcs = [pc]
-        if (bpower < 0).sum() > 2:
-            α = 0.4
-            cmap = getattr(
-                matplotlib.cm, matplotlib.rcParams['image.cmap'],
-            )(linspace(0, 1, 256))
-            cmap = (1 - α) + α*cmap
-            axes[0].tripcolor(
-                xdata, ydata, np.abs(bpower),
-                norm=pc.norm,
-                cmap=matplotlib.colors.ListedColormap(cmap),
-                shading='gouraud',
-                zorder=-1,
-            )
-        def create_legend_marker(ax):
-            markerfacecolors = getattr(
-                matplotlib.cm, matplotlib.rcParams['image.cmap'],
-            )([0.2, 0.8])[:, :3]
-            ylim = ax.get_ylim()
-            ax.plot(
-                np.mean(xdata),
-                np.max((2*np.max(ydata) - np.min(ydata), np.max(ydata)**2/np.min(ydata))),
-                's',
-                markersize=13, markeredgecolor='none', fillstyle='top',
-                markerfacecolor=markerfacecolors[1], markerfacecoloralt=markerfacecolors[0],
-                label=label,
-            )
-            ax.set_ylim(ylim)
-        create_legend_marker(axes[0])
-        if do_treelevel:
-            logc_treelevel = get_logc(bpower_treelevel)
-            axes[0].tricontour(
-                xdata_treelevel, ydata_treelevel, bpower_treelevel,
-                norm=pc.norm,
-                linewidths=1,
-            )
-            tcs = [
-                axes[0].tricontour(
-                    xdata_treelevel, ydata_treelevel, bpower_treelevel,
-                    norm=pc.norm,
-                    colors='k',
-                    linestyles='dashed',
-                    linewidths=1,
-                )
-            ]
-            if logc_treelevel != logc:
-                for α in range(2):
-                    tc = axes[0].tricontour(
-                        xdata_treelevel, ydata_treelevel, bpower_treelevel,
-                        norm=(matplotlib.colors.LogNorm() if logc_treelevel else None),
-                        colors='k',
-                        linestyles='dashed',
-                        linewidths=1,
-                        alpha=α,
-                    )
-                    if α:
-                        break
-                    axes[0].tricontour(
-                        xdata_treelevel, ydata_treelevel, bpower_treelevel,
-                        norm=pc.norm,
-                        linewidths=1,
-                        levels=tc.levels,
-                    )
-                tcs.append(tc)
-            def get_fmt_treelevel(tc):
-                nfigs = 2
-                vmin = np.min(tc.levels)
-                if vmin > 0:
-                    x = np.max(tc.levels)/vmin - 1
-                    if x > 0:
-                        nfigs = np.max((nfigs, int(2 - log10(x))))
-                fmt_treelevel = lambda x: '${}$'.format(
-                    significant_figures(
-                        x, nfigs, fmt='TeX', incl_zeros=False,
-                    )
-                )
-                return fmt_treelevel
-            for tc in tcs:
-                axes[0].clabel(tc, tc.levels, fontsize=10, fmt=get_fmt_treelevel(tc))
-            def create_legend_marker_treelevel(ax):
-                ax.plot(
-                    np.mean(xdata_treelevel), np.mean(ydata_treelevel), 'k--',
-                    lw=1, label=label_treelevel,
-                )
-            create_legend_marker_treelevel(axes[0])
-        if do_reduced:
-            pc = axes[1].tripcolor(xdata, ydata, bpower_reduced, shading='gouraud')
-            pcs.append(pc)
-            create_legend_marker(axes[1])
-            if do_treelevel:
-                axes[1].tricontour(
-                    xdata_treelevel, ydata_treelevel, bpower_reduced_treelevel,
-                    norm=pc.norm,
-                    linewidths=1,
-                )
-                tc = axes[1].tricontour(
-                    xdata_treelevel, ydata_treelevel, bpower_reduced_treelevel,
-                    colors='k',
-                    linestyles='dashed',
-                    linewidths=1,
-                )
-                axes[1].clabel(tc, tc.levels, fontsize=10, fmt=get_fmt_treelevel(tc))
-                create_legend_marker_treelevel(axes[1])
-        axes[-1].set_xlabel(axis_labels[dimensions[0]], fontsize=14)
-        ticks = get_logticks(xdata, ydata)
-        for ax in axes:
-            for i, c in enumerate('xy'):
-                if axis_scales[dimensions[i]] == 'log':
-                    getattr(ax, f'set_{c}ticks')(np.log10(ticks[c]))
-                    getattr(ax, f'{c}axis').set_major_formatter(
-                        matplotlib.ticker.FuncFormatter(log_tick_formatter)
-                    )
-                    getattr(ax, f'{c}axis').set_minor_locator(
-                        matplotlib.ticker.AutoMinorLocator()
-                    )
-        add_param_text(axes[0], *dimensions)
-        for ax in axes:
-            ax.set_xlim(np.min(xdata), np.max(xdata))
-            ax.set_ylim(np.min(ydata), np.max(ydata))
-        for ax, pc, bq in zip(axes, pcs, ['B', 'Q']):
-            ax.set_ylabel(axis_labels[dimensions[1]], fontsize=14)
-            cbar = fig.colorbar(pc, ax=ax)
-            cbar.ax.tick_params(labelsize=ticklabelsizefac*13)
-            cbar.set_label(axis_labels[bq], fontsize=14)
-            if logc and bq == 'B':
-                cbar.ax.set_yscale('log')
-    elif len(dimensions) == 3:
-        # 3D scatter plot
-        fig = plt.figure(figsize=(6.4, 4.8*(1 + 0.9*do_reduced)))
-        axes = [fig.add_subplot(1 + do_reduced, 1, 1, projection='3d')]
-        if do_reduced:
-            axes.append(fig.add_subplot(1 + do_reduced, 1, 2, projection='3d'))
-        ticklabelsizefac *= 0.8
-        marker_size = 1.8e+3*bpower.shape[0]**(-2.0/3.0)
-        marker_size = np.min((500, marker_size))
-        marker_size = np.max(( 10, marker_size))
-        logc = get_logc(np.abs(bpower))
-        logk = np.log10(k)
-        bpower_neg = (bpower < 0)
-        fillstyle = ('top' if do_treelevel else 'full')
-        if bpower_neg.any():
-            axes[0].scatter(
-                logk[bpower_neg], t[bpower_neg], μ[bpower_neg],
-                s=marker_size,
-                c=np.abs(bpower[bpower_neg]),
-                marker=matplotlib.markers.MarkerStyle('X', fillstyle=fillstyle),
-                norm=(matplotlib.colors.LogNorm() if logc else None),
-            )
-        bpower_pos = (bpower > 0)
-        arts = [None]
-        if bpower_pos.any():
-            arts[0] = axes[0].scatter(
-                logk[bpower_pos], t[bpower_pos], μ[bpower_pos],
-                s=marker_size,
-                c=bpower[bpower_pos],
-                marker=matplotlib.markers.MarkerStyle('o', fillstyle=fillstyle),
-                norm=(matplotlib.colors.LogNorm() if logc else None),
-                label=label,
-            )
-        if do_treelevel:
-            logk_treelevel = np.log10(k_treelevel)
-            vmin, vmax = np.min(np.abs(bpower)), np.max(np.abs(bpower))
-            bpower_treelevel_truncated = bpower_treelevel.copy()
-            bpower_treelevel_truncated[bpower_treelevel_truncated < vmin] = vmin
-            bpower_treelevel_truncated[bpower_treelevel_truncated > vmax] = vmax
-            bpower_treelevel_truncated = np.concatenate((
-                bpower_treelevel_truncated, [vmin, vmax],
-            ))
-            logk_treelevel_truncated = np.concatenate((logk_treelevel, [np.mean(logk_treelevel)]*2))
-            t_treelevel_truncated    = np.concatenate((t_treelevel,    [np.mean(t_treelevel)]*2))
-            μ_treelevel_truncated    = np.concatenate((μ_treelevel,    [np.mean(μ_treelevel)]*2))
-            fillstyle_treelevel = 'bottom'
-            linewidth_treelevel = 2*bpower.shape[0]**(-1.0/3.0)
-            hatch_linewidth_ori = matplotlib.rcParams['hatch.linewidth']
-            matplotlib.rcParams['hatch.linewidth'] = linewidth_treelevel
-            axes[0].scatter(
-                logk_treelevel_truncated, t_treelevel_truncated, μ_treelevel_truncated,
-                s=([marker_size]*bpower_treelevel.shape[0] + [0, 0]),
-                c=bpower_treelevel_truncated,
-                marker=matplotlib.markers.MarkerStyle('o', fillstyle=fillstyle_treelevel),
-                norm=(matplotlib.colors.LogNorm() if logc else None),
-                hatch='/'*5,
-                edgecolor='k',
-                linewidth=linewidth_treelevel,
-            )
-            def create_legend_marker_treelevel(ax):
-                ax.scatter(
-                    logk_treelevel[0], t_treelevel[0], μ_treelevel[0],
-                    s=marker_size,
-                    facecolor='none',
-                    marker=matplotlib.markers.MarkerStyle('o', fillstyle=fillstyle_treelevel),
-                    hatch='/'*5,
-                    edgecolor='k',
-                    linewidth=linewidth_treelevel,
-                    label=label_treelevel,
-                )
-            create_legend_marker_treelevel(axes[0])
-        if do_reduced:
-            arts.append(
-                axes[1].scatter(
-                    logk, t, μ,
-                    s=marker_size,
-                    c=bpower_reduced,
-                    marker=matplotlib.markers.MarkerStyle('o', fillstyle=fillstyle),
-                    label=label,
-                )
-            )
-            if do_treelevel:
-                vmin, vmax = np.min(bpower_reduced), np.max(bpower_reduced)
-                bpower_reduced_treelevel_truncated = bpower_reduced_treelevel.copy()
-                bpower_reduced_treelevel_truncated[bpower_reduced_treelevel_truncated < vmin] = vmin
-                bpower_reduced_treelevel_truncated[bpower_reduced_treelevel_truncated > vmax] = vmax
-                bpower_reduced_treelevel_truncated = np.concatenate((
-                    bpower_reduced_treelevel_truncated, [vmin, vmax],
-                ))
-                axes[1].scatter(
-                    logk_treelevel_truncated, t_treelevel_truncated, μ_treelevel_truncated,
-                    s=([marker_size]*bpower_reduced_treelevel.shape[0] + [0, 0]),
-                    c=bpower_reduced_treelevel_truncated,
-                    marker=matplotlib.markers.MarkerStyle('o', fillstyle=fillstyle_treelevel),
-                    norm=(matplotlib.colors.LogNorm() if logc else None),
-                    hatch='/'*5,
-                    edgecolor='k',
-                    linewidth=linewidth_treelevel,
-                )
-                create_legend_marker_treelevel(axes[1])
-        ticks = get_logticks(logk, t)
-        for ax, art, bq in zip(axes, arts, ['B', 'Q']):
-            ax.set_xlabel(axis_labels[dimensions[0]], fontsize=14)
-            ax.set_ylabel(axis_labels[dimensions[1]], fontsize=14)
-            ax.set_zlabel(axis_labels[dimensions[2]], fontsize=14)
-            xlim = ax.get_xlim()
-            ax.set_xticks(np.log10(ticks['x']))
-            ax.xaxis.set_major_formatter(matplotlib.ticker.FuncFormatter(log_tick_formatter))
-            ax.xaxis.set_minor_locator(matplotlib.ticker.AutoMinorLocator())
-            ax.set_xlim(xlim)
-            if art is not None:
-                cbar = fig.colorbar(art, ax=ax, location='left')
-            cbar.ax.tick_params(labelsize=ticklabelsizefac*13)
-            cbar.set_label(axis_labels[bq], fontsize=14)
-            if logc and bq == 'B':
-                cbar.ax.set_yscale('log')
-    # Finishing touches
-    t_str = (
-        rf'$t = {{}}\, \mathrm{{{{{unit_time}}}}}$'
-        .format(significant_figures(universals.t, 4, fmt='TeX'))
-    )
-    a_str = ''
-    if enable_Hubble:
-        a_str = ', $a = {}$'.format(significant_figures(universals.a, 4, fmt='TeX'))
-    components_str = (
-        components_str
-        .replace('{', r'$\{$')
-        .replace('}', r'$\}$')
-    )
-    axes[0].set_title(f'{components_str}\n{t_str}{a_str}', fontsize=16)
-    for ax in axes:
-        ax.tick_params(axis='both', which='major', labelsize=ticklabelsizefac*13)
-        ax.tick_params(axis='both', which='minor', labelsize=ticklabelsizefac*11)
-    if do_treelevel:
-        axes[-1].legend(fontsize=(14 - 2*(do_reduced or len(dimensions) == 3)))
-    fig.tight_layout()
-    if do_reduced and len(dimensions) != 3:
-        fig.subplots_adjust(hspace=(0.1 if len(dimensions) == 3 else 0.15))
-    fig.savefig(filename, dpi=150)
-    if len(dimensions) == 3 and do_treelevel:
-        matplotlib.rcParams['hatch.linewidth'] = hatch_linewidth_ori
+    plt.tight_layout()
+    plt.savefig(filename)
     # Done with this plot.
     # Close the figure, leaving no trace in memory of the plot.
     plt.close(fig)
@@ -801,7 +201,7 @@ def plot_detrended_perturbations(k, k_magnitude, transferfunction_info, class_sp
         n_subplots += 1
     fig, axes = plt.subplots(1, n_subplots, figsize=(6*n_subplots + 0.4, 4.8))
     axes = any2list(axes)
-    k_str = significant_figures(k_magnitude, 3, fmt='TeX', force_scientific=True)
+    k_str = significant_figures(k_magnitude, 3, fmt='tex', scientific=True)
     fig.suptitle(
         ('' if transferfunction_info.total else rf'{class_species}, ')
         + rf'$k = {k_str}\, \mathrm{{{unit_length}}}^{{-1}}$',
@@ -818,15 +218,11 @@ def plot_detrended_perturbations(k, k_magnitude, transferfunction_info, class_sp
         if n != n_subplots - 1:
             index_right -= crossover
         a_values = a_values[index_left:index_right]
-        a_min = significant_figures(
-            a_values[0], 4, fmt='TeX', force_scientific=True,
-        )
-        a_max = significant_figures(
-            a_values[a_values.shape[0] - 1], 4, fmt='TeX', force_scientific=True,
-        )
+        a_min = significant_figures(a_values[0], 4, fmt='tex', scientific=True)
+        a_max = significant_figures(a_values[a_values.shape[0] - 1], 4, fmt='tex', scientific=True)
         perturbations_detrended = perturbations_detrended[index_left:index_right]
         # Plot the detrended CLASS data
-        ax.semilogx(asarray(a_values), asarray(perturbations_detrended), '.', markersize=3)
+        ax.semilogx(a_values, perturbations_detrended, '.', markersize=3)
         # Plot the spline at values midway between the data points
         loga_values = np.log(a_values)
         loga_values_spline             = empty(loga_values.shape[0] - 1, dtype=C2np['double'])
@@ -841,10 +237,8 @@ def plot_detrended_perturbations(k, k_magnitude, transferfunction_info, class_sp
             perturbations_detrended_spline[ℤ[i - skip]] = spline.eval(exp(loga_value))
         loga_values_spline = loga_values_spline[:ℤ[i - skip + 1]]
         perturbations_detrended_spline = perturbations_detrended_spline[:ℤ[i - skip + 1]]
-        ax.semilogx(
-            np.exp(loga_values_spline), asarray(perturbations_detrended_spline), '-',
-            linewidth=1, zorder=0,
-        )
+        ax.semilogx(np.exp(loga_values_spline), perturbations_detrended_spline, '-',
+            linewidth=1, zorder=0)
         ax.set_xlim(a_values[0], a_values[a_values.shape[0] - 1])
         # Decorate plot
         if n == 0:
@@ -856,8 +250,8 @@ def plot_detrended_perturbations(k, k_magnitude, transferfunction_info, class_sp
                 fontsize=14,
             )
         ax.set_xlabel(rf'$a \in [{a_min}, {a_max}]$', fontsize=14)
-        factor_str = significant_figures(factor, 6, fmt='TeX', force_scientific=True)
-        exponent_str = significant_figures(exponent, 6, force_scientific=False)
+        factor_str = significant_figures(factor, 6, fmt='tex', scientific=True)
+        exponent_str = significant_figures(exponent, 6, scientific=False)
         trend_str = (
             rf'$\mathrm{{trend}} = 0$'
             if factor == 0 else
@@ -889,7 +283,7 @@ def plot_detrended_perturbations(k, k_magnitude, transferfunction_info, class_sp
     ])
     os.makedirs(filename, exist_ok=True)
     filename += f'/{k}.png'
-    fig.savefig(filename, bbox_inches='tight', pad_inches=0.1, dpi=150)
+    plt.savefig(filename, bbox_inches='tight', pad_inches=0.1)
     plt.close()
 
 # Function for plotting processed CLASS perturbations
@@ -939,45 +333,43 @@ def plot_processed_perturbations(
     os.makedirs(dirname, exist_ok=True)
     nfigs = int(log10(a_values.shape[0])) + 1
     i_figure = 0
-    fig, ax = plt.subplots()
+    plt.figure()
     for i in range(a_values.shape[0]):
         a = a_values[i]
-        ax.semilogx(
-            asarray(k_magnitudes), asarray(transfer[i, :]),
-            label='$a={}$'.format(significant_figures(a, nfigs, fmt='TeX')),
-        )
+        plt.semilogx(k_magnitudes, transfer[i, :],
+            label='$a={}$'.format(significant_figures(a, nfigs, fmt='tex')))
         if ((i + 1)%n_plots_in_figure == 0) or i == ℤ[a_values.shape[0] - 1]:
-            ax.legend()
-            ax.set_xlabel(rf'$k\,[\mathrm{{{unit_length}}}^{{-1}}]$', fontsize=14)
-            ax.set_ylabel(
+            plt.legend()
+            plt.xlabel(rf'$k\,[\mathrm{{{unit_length}}}^{{-1}}]$', fontsize=14)
+            plt.ylabel(
                 rf'${transferfunction_info.name_latex}\, [{transferfunction_info.units_latex}]$'
                 if transferfunction_info.units_latex else
                 rf'${transferfunction_info.name_latex}$',
                 fontsize=14,
             )
             if not transferfunction_info.total:
-                ax.set_title(
+                plt.title(
                     class_species,
                     fontsize=16,
                     horizontalalignment='center',
                 )
-            ax.tick_params(axis='x', which='major', labelsize=13)
-            fig.tight_layout()
-            fig.savefig(f'{dirname}/{i_figure}.png', dpi=150)
+            plt.gca().tick_params(axis='x', which='major', labelsize=13)
+            plt.tight_layout()
+            plt.savefig(f'{dirname}/{i_figure}.png')
             i_figure += 1
-            ax.cla()
-    plt.close(fig)
+            plt.cla()
+    plt.close()
     masterprint('done')
 
 # Top-level function for computing, rendering and saving 2D renders
-@cython.pheader(
+@cython.header(
     # Arguments
     components=list,
     filename=str,
     # Locals
     component='Component',
     components_str=str,
-    declaration=object,  # Render2DDeclaration
+    declaration=object,  # Declaration
     declarations=list,
     n_dumps='int',
     returns='void',
@@ -1011,7 +403,7 @@ def render2D(components, filename):
         save_render2D_image(declaration, filename, n_dumps)
         # Display terminal render, if specified
         display_terminal_render(declaration)
-        # Done with the entire 2D rendering process for this declaration
+        # Done with the entire rendering process for this declaration
         masterprint('done')
 
 # Function for getting generic output declarations
@@ -1026,23 +418,19 @@ def render2D(components, filename):
     cache_key=tuple,
     component_combination=list,
     component_combinations=list,
-    declaration=object,
+    declaration=object,  # Declaration
     declarations=list,
     do=dict,
     gridsize='Py_ssize_t',
+    i='Py_ssize_t',
     key=str,
     selected=dict,
     specifications=dict,
-    returns=list,
+    terminal_resolution='Py_ssize_t',
 )
 def get_output_declarations(output_type, components, selections, options, Declaration):
-    # Look up declarations in cache.
-    # We would like to include the selections dict in the cache key.
-    # As this is not hashable, we use its str representation instead.
-    # This is not reliable if the dict is mutated between calls to this
-    # function, but the penalty is just that the result is not found in
-    # cache, the correct result will be returned regardless.
-    cache_key = (output_type, tuple(components), str(selections))
+    # Look up declarations in cache
+    cache_key = (output_type, tuple(components))
     declarations = output_declarations_cache.get(cache_key)
     if declarations:
         return declarations
@@ -1070,30 +458,40 @@ def get_output_declarations(output_type, components, selections, options, Declar
         }
         if not any(do.values()):
             continue
-        # Output is to be generated for this component combination
-        specifications = {}
-        # If this declaration type makes use of a 'global gridsize' and
-        # none is set, use the maximum of the individual upstream grid
-        # sizes of the components instead.
-        if 'global gridsize' in options:
-            gridsize = is_selected(component_combination, options['global gridsize'], default=-1)
-            if gridsize == -1:
-                gridsize = np.max([
-                    getattr(component, f'{output_type}_upstream_gridsize')
-                    for component in component_combination
-                ])
-            specifications['gridsize'] = gridsize
+        # Output is to be generated for this component combination.
+        # If the grid size is not set, use the maximum of the individual
+        # upstream grid sizes of the components.
+        gridsize = is_selected(component_combination, options['global gridsize'], default=-1)
+        if gridsize == -1:
+            gridsize = np.max([
+                getattr(component, f'{output_type}_upstream_gridsize')
+                for component in component_combination
+            ])
         # Look up the rest of the specifications
-        specifications |= {
+        specifications = {
             key.replace(' ', '_'): is_selected(component_combination, option)
             for key, option in options.items()
             if key not in {'upstream gridsize', 'global gridsize'}
         }
         # If the terminal resolution is present but not set,
         # assign it a value based on the grid size and terminal width.
+        if specifications.get('terminal_resolution') == -1:
+            # Set the terminal resolution equal to the gridsize,
+            # though no larger than the terminal width.
+            terminal_resolution = pairmin(gridsize, cast(terminal_width, 'Py_ssize_t'))
+            # As the terminal render is obtained through FFT's,
+            # the terminal resolution must be divisible by
+            # the number of processes and be even.
+            terminal_resolution = terminal_resolution//nprocs*nprocs
+            if terminal_resolution == 0:
+                terminal_resolution = nprocs
+            if terminal_resolution%2:
+                terminal_resolution *= 2
+            specifications['terminal_resolution'] = terminal_resolution
         # Instantiate declaration
         declaration = Declaration(
             components=component_combination,
+            gridsize=gridsize,
             **{f'do_{key}'.replace(' ', '_'): val for key, val in do.items()},
             **specifications,
         )
@@ -1113,7 +511,7 @@ output_declarations_cache = {}
     # Locals
     cache_key=tuple,
     chunk=object,  # np.ndarray
-    declaration=object,  # Render2DDeclaration
+    declaration=object,  # PowerspecDeclaration
     declarations=list,
     gridsize='Py_ssize_t',
     index='Py_ssize_t',
@@ -1122,7 +520,6 @@ output_declarations_cache = {}
     projection='double[:, ::1]',
     projections=dict,
     size='Py_ssize_t',
-    terminal_resolution='Py_ssize_t',
     returns=list,
 )
 def get_render2D_declarations(components):
@@ -1145,20 +542,6 @@ def get_render2D_declarations(components):
     # with the first iteration taking care of reallocation only.
     for iteration in ('reallocate', 'wrap'):
         for index, declaration in enumerate(declarations):
-            # Set terminal resolution if unset
-            terminal_resolution = declaration.terminal_resolution
-            if terminal_resolution == -1:
-                # Set the terminal resolution equal to the gridsize,
-                # though no larger than the terminal width.
-                terminal_resolution = np.min((declaration.gridsize, terminal_width))
-                # As the terminal render is obtained through FFT's,
-                # the terminal resolution must be divisible by
-                # the number of processes and be even.
-                terminal_resolution = terminal_resolution//nprocs*nprocs
-                if terminal_resolution == 0:
-                    terminal_resolution = nprocs
-                if terminal_resolution%2:
-                    terminal_resolution *= 2
             # Create needed 2D projection arrays.
             # Here we always make use of the same globally allocated
             # memory, which we reallocate if necessary. We can then
@@ -1168,8 +551,8 @@ def get_render2D_declarations(components):
                 if not getattr(declaration, f'do_{key}'):
                     continue
                 gridsize = declaration.gridsize
-                if key == 'terminalimage':
-                    gridsize = terminal_resolution
+                if key == 'terminal_image':
+                    gridsize = declaration.terminal_resolution
                 size = gridsize**2
                 with unswitch(2):
                     if iteration == 'reallocate':
@@ -1180,26 +563,23 @@ def get_render2D_declarations(components):
                         projection = chunk[:size].reshape([gridsize]*2)
                         projections[key] = projection
             # Replace old declaration with a new, fully populated one
-            with unswitch(1):
-                if iteration == 'wrap':
-                    declaration = declaration._replace(
-                        terminal_resolution=terminal_resolution,
-                        projections=projections,
-                    )
-                    declarations[index] = declaration
+            declaration = declaration._replace(
+                projections=projections,
+            )
+            declarations[index] = declaration
     # Return declarations without caching
     return declarations
 # Global memory chunks for storing projections (2D render data).
 # The 'image' and 'data' projection are not distinct.
 cython.declare(projection_chunks=dict)
 projection_chunks = {
-    'image'        : empty(1, dtype=C2np['double']),
-    'terminalimage': empty(1, dtype=C2np['double']),
+    'image'         : empty(1, dtype=C2np['double']),
+    'terminal_image': empty(1, dtype=C2np['double']),
 }
 projection_chunks['data'] = projection_chunks['image']
 # Create the Render2DDeclaration type
 fields = (
-    'components', 'do_data', 'do_image', 'do_terminalimage', 'gridsize',
+    'components', 'do_data', 'do_image', 'do_terminal_image', 'gridsize',
     'terminal_resolution', 'interpolation', 'deconvolve', 'interlace',
     'axis', 'extent', 'colormap', 'enhance',
     'projections',
@@ -1224,7 +604,7 @@ Render2DDeclaration = collections.namedtuple(
     gridsize='Py_ssize_t',
     gridsizes_upstream=list,
     i='Py_ssize_t',
-    interlace=str,
+    interlace='bint',
     interpolation='int',
     j='Py_ssize_t',
     key=str,
@@ -1260,7 +640,7 @@ def compute_render2D(declaration):
     )
     # If a terminal image is to be produced, construct a copy of the
     # slab, resized appropriately. Obtain the result in real space.
-    if 'terminalimage' in projections:
+    if 'terminal_image' in projections:
         grid_terminal = resize_grid(
             slab, termsize,
             input_space='Fourier', output_space='real',
@@ -1277,7 +657,7 @@ def compute_render2D(declaration):
             project_render2D(grid, projection, axis, extent)
             break
     # Get projected 2D grid for terminal render
-    projection = projections.get('terminalimage')
+    projection = projections.get('terminal_image')
     if projection is not None:
         project_render2D(grid_terminal, projection, axis, extent)
         # Since each monospaced character cell in the terminal is
@@ -1308,7 +688,7 @@ def compute_render2D(declaration):
     dim='int',
     dim_axis='int',
     dims='int[::1]',
-    domain_bgn_indices='Py_ssize_t[::1]',
+    domain_start_indices='Py_ssize_t[::1]',
     float_index_global_bgn='double',
     float_index_global_end='double',
     frac='double',
@@ -1360,11 +740,11 @@ def project_render2D(grid, projection, axis, extent):
     frac_end = 1 - (indices_global_end[dim_axis] - float_index_global_end)
     # Convert the global indices to local indices,
     # disregarding ghost points, for now.
-    domain_bgn_indices = asarray(
+    domain_start_indices = asarray(
         [
-            int(round(domain_bgn_x/cellsize)),
-            int(round(domain_bgn_y/cellsize)),
-            int(round(domain_bgn_z/cellsize)),
+            int(round(domain_start_x/cellsize)),
+            int(round(domain_start_y/cellsize)),
+            int(round(domain_start_z/cellsize)),
         ],
         dtype=C2np['Py_ssize_t'],
     )
@@ -1374,7 +754,7 @@ def project_render2D(grid, projection, axis, extent):
     )
     participate = True
     if participate:
-        indices_local_bgn = asarray(indices_global_bgn) - asarray(domain_bgn_indices)
+        indices_local_bgn = asarray(indices_global_bgn) - asarray(domain_start_indices)
         for dim in range(3):
             if indices_local_bgn[dim] < 0:
                 indices_local_bgn[dim] = 0
@@ -1384,7 +764,7 @@ def project_render2D(grid, projection, axis, extent):
                 participate = False
                 break
     if participate:
-        indices_local_end = asarray(indices_global_end) - asarray(domain_bgn_indices)
+        indices_local_end = asarray(indices_global_end) - asarray(domain_start_indices)
         for dim in range(3):
             if indices_local_end[dim] < 0:
                 participate = False
@@ -1404,8 +784,8 @@ def project_render2D(grid, projection, axis, extent):
     if participate:
         # Redefine the global indices so that they correspond to the
         # local chunk, but indexing into a global grid.
-        indices_global_bgn = asarray(indices_local_bgn) + asarray(domain_bgn_indices)
-        indices_global_end = asarray(indices_local_end) + asarray(domain_bgn_indices)
+        indices_global_bgn = asarray(indices_local_bgn) + asarray(domain_start_indices)
+        indices_global_end = asarray(indices_local_end) + asarray(domain_start_indices)
         # Get indices into the projection
         dims = asarray(
             {
@@ -1538,7 +918,7 @@ def enhance_render2D(declaration):
     value specified by the shifting_factor parameter. A shifting_factor
     of 0.5 implies that the histogram of the pixel values is "centred"
     in the middle of the axis, with the same distance to the first and
-    last bin. For Gaussian data, this requires a value of the exponent
+    last bin. For Gaussian data, this require a value of the exponent
     tending to 0. Thus, the shifting factor should be below 0.5.
     A shifting_factor between 0 and 0.5 shifts the centre of the
     histogram to be at the location of shifting_factor, measured
@@ -1567,13 +947,13 @@ def enhance_render2D(declaration):
     # Enforce all pixel values to be between 0 and 1
     rescale_render2D(declaration)
     # Perform independent enhancements
-    # of the 'image' and 'terminalimage'.
+    # of the 'image' and 'terminal_image'.
     for key, projection in declaration.projections.items():
         if key == 'data':
             continue
         # The terminal image projection only contains data
         # in the upper half of the rows.
-        if key == 'terminalimage':
+        if key == 'terminal_image':
             projection = projection[:projection.shape[0]//2, :]
         # Completely homogeneous projections cannot be enhanced
         vmin = np.min(projection)
@@ -1582,8 +962,7 @@ def enhance_render2D(declaration):
             continue
         # Find a good value for the exponent using a binary search
         size = projection.size
-        n_bins = int(n_bins_fac*size)
-        n_bins = pairmax(n_bins, n_bins_min)
+        n_bins = pairmax(n_bins_min, cast(size*n_bins_fac, 'Py_ssize_t'))
         exponent_lower = exponent_min
         exponent_upper = exponent_max
         exponent = 1
@@ -1698,7 +1077,7 @@ def rescale_render2D(declaration):
             continue
         # The terminal image projection only contains data
         # in the upper half of the rows.
-        if key == 'terminalimage':
+        if key == 'terminal_image':
             projection = projection[:projection.shape[0]//2, :]
         projection_ptr = cython.address(projection[:, :])
         # Rescale values
@@ -1745,7 +1124,7 @@ def save_render2D_data(declaration, filename, n_dumps):
         filename = filename.removesuffix(f'.{ext}')
     filename += '.hdf5'
     # The filename should reflect the components
-    # if multiple renders are to be dumped.
+    # if multiple renders should be dumped.
     if n_dumps > 1:
         filename = augment_filename(
             filename,
@@ -1774,7 +1153,7 @@ def save_render2D_data(declaration, filename, n_dumps):
         dset[...] = projection
     masterprint('done')
 
-# Function for saving an already computed 2D render as a PNG file
+# Function for saving an already computed 2D render as an HDF5 file
 @cython.header(
     # Arguments
     declaration=object,  # Render2DDeclaration
@@ -1790,7 +1169,9 @@ def save_render2D_data(declaration, filename, n_dumps):
     returns='void',
 )
 def save_render2D_image(declaration, filename, n_dumps):
-    if not declaration.do_image or not master:
+    if not master:
+        return
+    if not declaration.do_image:
         return
     # Fetch Matplotlib
     plt = get_matplotlib().pyplot
@@ -1803,7 +1184,7 @@ def save_render2D_image(declaration, filename, n_dumps):
         filename = filename.removesuffix(f'.{ext}')
     filename += '.png'
     # The filename should reflect the components
-    # if multiple renders are to be dumped.
+    # if multiple renders should be dumped.
     if n_dumps > 1:
         filename = augment_filename(
             filename,
@@ -1812,14 +1193,14 @@ def save_render2D_image(declaration, filename, n_dumps):
         )
     # Save colourised image to disk
     masterprint(f'Saving image to "{filename}" ...')
-    plt.imsave(filename, asarray(projection), cmap=colormap, vmin=0, vmax=1)
+    plt.imsave(filename, projection, cmap=colormap, vmin=0, vmax=1)
     masterprint('done')
 
 # Function for augmenting a filename with a given text
 def augment_filename(filename, text, ext=''):
     """Example of use:
     augment_filename('/path/to/powerspec_a=1.0.png', 'matter', 'png')
-      → '/path/to/powerspec_matter_a=1.0.png'
+      -> '/path/to/powerspec_matter_a=1.0.png'
     """
     text = text.lstrip('_')
     ext = '.' + ext.lstrip('.')
@@ -1861,11 +1242,11 @@ def augment_filename(filename, text, ext=''):
 def display_terminal_render(declaration):
     if not master:
         return
-    if not declaration.do_terminalimage:
+    if not declaration.do_terminal_image:
         return
     # Extract some variables from the 2D render declaration
     colormap = declaration.colormap
-    projection = declaration.projections['terminalimage']
+    projection = declaration.projections['terminal_image']
     # The terminal image projection only contains data
     # in the upper half of the rows.
     projection = projection[:projection.shape[0]//2, :]
@@ -1913,1560 +1294,500 @@ def set_terminal_colormap(colormap):
         # bookkeeping inside fancyprint.
         print(statechange, end='')
 
-# Top-level function for rendering and saving 3D renders
-@cython.pheader(
+# Function for 3D renderings of the components
+@cython.header(
     # Arguments
     components=list,
     filename=str,
+    cleanup='bint',
+    tmp_dirname=str,
     # Locals
+    N_local='Py_ssize_t',
+    a_str=str,
+    artists_text=dict,
+    color='double[::1]',
     component='Component',
-    components_str=str,
-    declaration=object,  # Render3DDeclaration
-    declarations=list,
-    img='float[:, :, ::1]',
-    n_dumps='int',
-    returns='void',
-)
-def render3D(components, filename):
-    # Get render3D declarations
-    declarations = get_render3D_declarations(components)
-    # Count up number of 3D renders to be dumped to disk
-    n_dumps = 0
-    for declaration in declarations:
-        n_dumps += declaration.do_image
-    # Construct and save 3D render for each declaration
-    for declaration in declarations:
-        if not declaration.do_image:
-            continue
-        components_str = ', '.join([component.name for component in declaration.components])
-        if len(declaration.components) > 1:
-            components_str = f'{{{components_str}}}'
-        masterprint(f'Rendering {components_str} in 3D ...')
-        # Compute the 3D render
-        img = compute_render3D(declarations, declaration)
-        # Add text and background
-        img = finalize_render3D(declaration, img)
-        # Save 3D render image to a PNG file on disk
-        save_render3D(declaration, img, filename, n_dumps)
-        masterprint('done')
-
-# Function for getting declarations for all needed 3D renders,
-# given a list of components.
-def get_render3D_declarations(components):
-    matplotlib = get_matplotlib()
-    # Look up declarations in cache
-    cache_key = tuple(components)
-    declarations = render3D_declarations_cache.get(cache_key)
-    if declarations:
-        return declarations
-    # If no colour is assigned to a component by the user, a colour will
-    # be automatically assigned. We define a few colormaps. If the
-    # number of components exceeds the number of defined colormaps,
-    # single-valued colours will be used for the rest.
-    def implement_colormaps_default():
-        def colormap_lims(a):
-            return (0.1, 0.75 + 0.25*a)
-        yield 'inferno', colormap_lims
-        def colormap_lims(a):
-            return (0.15, 0.85 + 0.15*a)
-        yield 'viridis', colormap_lims
-    colors_default = itertools.chain(
-        implement_colormaps_default(),
-        itertools.cycle([f'C{i}' for i in range(10)]),
-    )
-    # Dictionary for keeping track of assigned colours
-    components_colors = {}
-    def get_declarations(components, selections):
-        # Get declarations with basic fields populated
-        declarations = get_output_declarations(
-            'render3D',
-            components,
-            selections,
-            render3D_options,
-            Render3DDeclaration,
-        )
-        # Helper functions
-        def construct_func(f):
-            if not callable(f):
-                def f(*, f=f):
-                    return f
-            def f(*, f=f):
-                return float(eval_func_of_t_and_a(f))
-            return f
-        def construct_pairfunc(f):
-            p = any2list(f)
-            if len(p) == 1:
-                def f(*, f=f):
-                    val = tuple([float(x) for x in any2list(eval_func_of_t_and_a(f))])
-                    if len(val) == 1:
-                        val *= 2
-                    return val
-            else:
-                def f(*, f0=construct_func(p[0]), f1=construct_func(p[1])):
-                    return (float(eval_func_of_t_and_a(f0)), float(eval_func_of_t_and_a(f1)))
-            return f
-        # Add missing declaration fields
-        for index, declaration in enumerate(declarations):
-            # Camera settings
-            elevation = construct_func(declaration.elevation)
-            azimuth   = construct_func(declaration.azimuth)
-            roll      = construct_func(declaration.roll)
-            zoom      = construct_func(declaration.zoom)
-            projection, focal_length = declaration.projection
-            focal_length = (
-                (lambda: None) if focal_length is None
-                else construct_func(focal_length)
-            )
-            def projection(
-                *,
-                projection=projection,
-                focal_length=focal_length,
-            ):
-                return projection, focal_length()
-            # The color field should be a list with one element for each
-            # component, each element being a function of scale factor a,
-            # realising a colormap. No α information will be stored.
-            colormaps = declaration.color
-            if not isinstance(colormaps, list):
-                colormaps = [colormaps]
-            colormaps += [None]*(len(declaration.components) - len(colormaps))
-            for i, (c, component) in enumerate(zip(colormaps.copy(), declaration.components)):
-                colormap = None
-                if c is None:
-                    c = is_selected(component, render3D_options['color'])
-                if c is None:
-                    color = components_colors.get(component.name)
-                    if color is None:
-                        # Assign next color(map)
-                        color = next(colors_default)
-                    if isinstance(color, tuple) and len(color) == 2:
-                        colormap, colormap_lims = color
-                    else:
-                        rgb = to_rgb(color)
-                    components_colors[component.name] = color
-                elif isinstance(c, str) and hasattr(matplotlib.cm, c):
-                    # Colormap
-                    colormap, colormap_lims = c, (0, 1)
-                elif (
-                    isinstance(c, tuple) and isinstance(c[0], str) and hasattr(matplotlib.cm, c[0])
-                    and len(c) in (2, 3)
-                ):
-                    # Colormap and limits
-                    if len(c) == 2:
-                        colormap, colormap_lims = c
-                    else:
-                        colormap, colormap_lims = c[0], c[1:]
-                else:
-                    # Colour
-                    rgb = to_rgb(c)
-                # Create function for realising colormap
-                if colormap is None:
-                    # Single colour specified
-                    def colormap(*, rgb=rgb):
-                        return asarray(
-                            np.expand_dims(to_rgb(rgb), 0),
-                            dtype=C2np['float'],
-                        )
-                else:
-                    n_colors = 256
-                    colormap_lims = construct_pairfunc(colormap_lims)
-                    def colormap(
-                        *, colormap=colormap, colormap_lims=colormap_lims, n_colors=n_colors,
-                    ):
-                        return np.ascontiguousarray(
-                            getattr(matplotlib.cm, colormap)(
-                                linspace(
-                                    *colormap_lims(),
-                                    n_colors,
-                                )
-                            )[:, :3],
-                            dtype=C2np['float'],
-                        )
-                colormaps[i] = colormap
-            # Process the 'enhancement' dict into a named tuple
-            # of functions of the scale factor.
-            enhancement = Render3DEnhancement(
-                construct_func    (declaration.enhancement['contrast']),
-                construct_pairfunc(declaration.enhancement['clip']),
-                construct_func    (declaration.enhancement['α']),
-                construct_func    (declaration.enhancement['brightness']),
-            )
-            # Evaluate the fontsize
-            resolution = declaration.resolution
-            fontsize = declaration.fontsize
-            if isinstance(fontsize, str):
-                fontsize = fontsize.lower()
-                for resolution_str in ('resolution', 'res'):
-                    fontsize = fontsize.replace(resolution_str, str(resolution))
-                fontsize = eval_unit(fontsize)
-            fontsize = float(fontsize)
-            # Replace old declaration with a new, fully populated one
-            declaration = declaration._replace(
-                elevation=elevation,
-                azimuth=azimuth,
-                roll=roll,
-                zoom=zoom,
-                projection=projection,
-                color=colormaps,
-                enhancement=enhancement,
-                fontsize=fontsize,
-            )
-            declarations[index] = declaration
-        return declarations
-    # Get main declarations
-    declarations = get_declarations(components, render3D_select)
-    # Some of the declarations may contain multiple components.
-    # Such multi-component renders are constructed from several
-    # single-component renders, which are reused across all declarations
-    # containing a given component. If some components are present in
-    # multi-component declarations but do not occur alone, we add in
-    # extra, single-component declarations for these. This is needed as
-    # various render options (interpolation options, color, etc.) are
-    # inherent to the particular component, and thus will be used within
-    # all renders containing the particular component. Other attributes
-    # (resolution, camera angle, etc.) are determined solely by the
-    # declaration.
-    components_torender = {
-        component
-        for declaration in declarations
-        for component in declaration.components
-    }
-    declarations_extra = []
-    select = {'default': {'image': True}}
-    for component in components_torender:
-        for declaration in declarations:
-            if declaration.components == [component]:
-                break
-        else:
-            declaration_extra = get_declarations([component], select)[0]
-            # This declaration should not produce output of its own
-            declaration_extra = declaration_extra._replace(do_image=False)
-            declarations_extra.append(declaration_extra)
-    declarations += declarations_extra
-    # Store declarations in cache and return
-    render3D_declarations_cache[cache_key] = declarations
-    return declarations
-# Cache used by the get_render3D_declarations() function
-cython.declare(render3D_declarations_cache=dict)
-render3D_declarations_cache = {}
-# Create the Render3DDeclaration type
-fields = (
-    'components', 'do_image', 'gridsize',
-    'interpolation', 'deconvolve', 'interlace',
-    'azimuth', 'elevation', 'roll', 'zoom', 'projection',
-    'color', 'depthshade', 'enhancement', 'background',
-    'fontsize', 'resolution',
-)
-Render3DDeclaration = collections.namedtuple(
-    'Render3DDeclaration', fields, defaults=[None]*len(fields),
-)
-# Create the Render3DEnhancement type
-Render3DEnhancement = collections.namedtuple(
-    'Render3DEnhancement', ('contrast', 'clip', 'α', 'brightness'),
-)
-
-# Function for computing a 3D render
-@cython.header(
-    # Arguments
-    declarations=list,
-    declaration=object,  # Render3DDeclaration
-    # Locals
-    colormap_func=object,
-    component='Component',
-    img='float[:, :, ::1]',
-    img_full='float[:, :, ::1]',
-    singlecomponent_img_key=object,  # Render3DSingleComponentImgKey
-)
-def compute_render3D(declarations, declaration):
-    """The full render will only be returned on the master process"""
-    # Clean up outdated images in the global store
-    for singlecomponent_img_key in render3D_singlecomponent_imgs.copy():
-        if singlecomponent_img_key.time != universals.t:
-            render3D_singlecomponent_imgs.pop(singlecomponent_img_key)
-    # Fetch figure, axis and scatter artist
-    fig, ax, arts = fetch_render3D_fig(declaration, autoscale=True)
-    art = arts.scatter
-    # Handle each component in turn
-    img_full = None
-    for component in declaration.components:
-        img = compute_render3D_single(declarations, declaration, component, fig, art)
-        if not master:
-            continue
-        # Blend component renders together
-        if img_full is None:
-            img_full = img
-        else:
-            blend_render3D(img_full, img, mode='overunder')
-    if not master:
-        return img_full
-    # The master process now stores the full image, possibly made up of
-    # several single-component images. Though each single-component
-    # image has had its brightness enhanced, we still perform brightness
-    # enhancement on the combined image.
-    if len(declaration.components) > 1:
-        enhance_brightness_render3D(declaration, img_full)
-    return img_full
-
-# Function for computing a 3D render of a single component
-@cython.header(
-    # Arguments
-    declarations=list,
-    declaration=object,  # Render3DDeclaration
-    component='Component',
-    fig=object,  # matplotlib.figure.Figure
-    art=object,
-    # Locals
-    singlecomponent_img_key=object,  # Render3DSingleComponentImgKey
-    colormap_func=object,
-    declaration_single=object,  # Render3DDeclaration
-    img='float[:, :, ::1]',
-    already_rendered='bint',
-    x='double[:]',
-    y='double[:]',
-    z='double[:]',
-    slab='double[:, :, ::1]',
-    size='Py_ssize_t',
-    size_local='Py_ssize_t',
-    marker_size='double',
-    rgbα='float[:, ::1]',
-    blend_mode=str,
-    img_buff='float[:, :, ::1]',
-    n_merge_steps='int',
-    step='int',
-    source='int',
-    returns='float[:, :, ::1]',
-)
-def compute_render3D_single(declarations, declaration, component, fig, art):
-    """The passed declarations should contain all declarations.
-    The additional declaration passed by its own is the declaration
-    which governs the current render. This can be of either a single or
-    of multiple components. The render of one of these components are
-    computed by this function, specifically that which is passed.
-    Only the master process returns the image.
-    """
-    # Find the unique single-component declaration for the given
-    # component among all the declarations.
-    for declaration_single in declarations:
-        if declaration_single.components == [component]:
-            break
-    else:
-        abort(
-            f'compute_render3D_single(): No single-component declaration for component '
-            f'"{component.name}" found amongst the passed declarations.'
-        )
-    # Look up single-component 3D render in global store
-    img = None
-    already_rendered = False
-    if master:
-        singlecomponent_img_key = Render3DSingleComponentImgKey(
-            component.name,
-            universals.t,
-            # Use values from the multi-component declaration
-            declaration.elevation(),
-            declaration.azimuth(),
-            declaration.roll(),
-            declaration.zoom(),
-            declaration.projection(),
-            declaration.depthshade,
-            declaration.resolution,
-        )
-        img = render3D_singlecomponent_imgs.get(singlecomponent_img_key)
-        already_rendered = (img is not None)
-        if already_rendered:
-            # Take copy of single-component image,
-            # ensuring that it will not be mutated.
-            img = asarray(img).copy()
-    already_rendered = bcast(already_rendered)
-    if already_rendered:
-        return img
-    # Get scatter positions and density values
-    x, y, z, slab, size, size_local = fetch_render3D_data(
-        component,
-        declaration_single.gridsize, declaration_single.interpolation,
-        declaration_single.deconvolve, declaration_single.interlace,
-    )
-    # Get scatter size
-    marker_size = get_render3D_marker(fig, size, declaration.zoom())
-    # Get colour and α for each scatter marker
-    rgbα = compute_render3D_rgbα(
-        slab, size, size_local,
-        declaration_single.color[0],  # same as declaration.color[i] with i the index for this component
-        declaration.depthshade,       # depthshade defined by multi-component declaration
-        declaration_single.enhancement,
-    )
-    # Update plot
-    art._offsets3d = (x, y, z)  # _offsets also exists but should not be touched
-    facecolors_attr = asarray(rgbα)
-    for attr in ['_facecolors', '_facecolor3d']:
-        if hasattr(art, attr):
-            setattr(art, attr, facecolors_attr)
-    sizes_attr = [marker_size]
-    for attr in ['_sizes', '_sizes3d']:
-        if hasattr(art, attr):
-            setattr(art, attr, sizes_attr)
-    # Save to in-memory image array
-    img = render_render3D(fig)
-    # Determine blending mode for partial images
-    if slab is None:
-        # As the partial renders are not of slabs, no simple ordering of
-        # these exists. We use 'overunder' blending, which amounts to
-        # averaging 'over' and 'under'.
-        blend_mode = 'overunder'
-    else:
-        # The partial renders (of slabs) will be blended together with a
-        # blend mode of either 'over' or 'under', in accordance with the
-        # current azimuthal viewing angle.
-        blend_mode = (
-            'over' if π/2 < np.mod(declaration.azimuth(), 2*π) < 3*π/2
-            else 'under'
-        )
-    # The scheme employed below for merging the partial images requires
-    # a buffer image to be allocated on some processes and takes place
-    # over n_merge_steps steps.
-    img_buff = None
-    n_merge_steps = ilog2(nprocs) + (not ispowerof2(nprocs))
-    for step in range(n_merge_steps):
-        if rank%(2**(1 + step)):
-            # Send image, after which this process is done
-            Send(img, dest=(rank - 2**step))
-            break
-        else:
-            # Receive external image
-            source = rank + 2**step
-            if source >= nprocs:
-                continue
-            if img_buff is None:
-                img_buff = empty(asarray(img).shape, dtype=C2np['float'])
-            Recv(img_buff, source=source)
-            # Blend received and local image together
-            blend_render3D(img, img_buff, blend_mode)
-    # The master process now stores the complete image
-    if not master:
-        img = None  # encourage garbage collection
-        return img
-    # Shrink possibly enlarged image down to the intended resolution
-    img = resize_render3D(img, declaration.resolution)
-    # Enhance the brightness in accordance with
-    # the single-component declaration.
-    enhance_brightness_render3D(declaration_single, img)
-    # Store single-component render in the global store
-    render3D_singlecomponent_imgs[singlecomponent_img_key] = img
-    # Return copy of single-component image,
-    # ensuring that it will not be mutated.
-    img = asarray(img).copy()
-    return img
-# Global store of single-component renders
-cython.declare(render3D_singlecomponent_imgs=dict)
-render3D_singlecomponent_imgs = {}
-# Create the Render3DSingleComponentImgKey type
-Render3DSingleComponentImgKey = collections.namedtuple(
-    'Render3DSingleComponentImgKey',
-    (
-        'name', 'time',
-        'elevation', 'azimuth', 'rolll', 'zoom',
-        'projection', 'depthshade', 'resolution',
-    ),
-)
-
-# Function for setting up the reused figure, axes and artists
-# for 3D renders.
-def fetch_render3D_fig(declaration, autoscale=False):
-    plt = get_matplotlib().pyplot
-    if render3D_fig:
-        # Extract from global store
-        fig, ax, arts = render3D_fig
-        # Update axis and figure in accordance with declaration options
-        # common to all components.
-        ax.view_init(
-            elev=declaration.elevation()*180/π,
-            azim=declaration.azimuth()  *180/π,
-            roll=declaration.roll()     *180/π,
-        )
-        zoom = declaration.zoom()
-        ax.set_box_aspect((1, 1, 1), zoom=zoom)
-        ax.set_proj_type(*declaration.projection())
-        # Set figure size to match requested resolution
-        resolution = declaration.resolution
-        figsize = resolution/fig.get_dpi()
-        fig.set_size_inches(figsize, figsize)
-        # The figure size affects the scatter marker sizes.
-        # Too small a scatter marker size makes the render less bright,
-        # or even completely invisible. Scale up the figure size (and
-        # hence the resolution) to ensure a minimum allowed marker size.
-        if autoscale:
-            size = np.max([
-                get_render3D_size(component, declaration.gridsize, declaration.interpolation)
-                for component in declaration.components
-            ])
-            marker_size = get_render3D_marker(fig, size, zoom)
-            if marker_size < marker_size_threshold:
-                figsize *= sqrt(marker_size_threshold/marker_size)
-                resolution = int(ceil(figsize*fig.get_dpi()))
-                resolution += resolution%2
-                figsize = resolution/fig.get_dpi()
-                fig.set_size_inches(figsize, figsize)
-        # Update scatter artist in accordance with declaration options
-        # common to all components.
-        arts.scatter._depthshade = declaration.depthshade
-        # Update text artists in accordance with declaration options
-        # common to all components. The text colour is either black
-        # or white, depending on the brightness of the background.
-        text_color = 'white'
-        if get_perceived_brightness(declaration.background) > 0.5:
-            text_color = 'black'
-        for art in arts.text:
-            art.set_color(text_color)
-            art.set_fontsize(declaration.fontsize*resolution/declaration.resolution)
-        # Clear out positions of scatter artist
-        arts.scatter._offsets3d = tuple([
-            asarray(offset3d[:0]).copy()
-            for offset3d in arts.scatter._offsets3d
-        ])
-        # Clear out rgbα of scatter artist
-        for attr in ['_facecolors', '_facecolor3d']:
-            facecolors_attr = getattr(arts.scatter, attr, None)
-            if facecolors_attr is not None:
-                setattr(arts.scatter, attr, asarray(facecolors_attr)[:0, :].copy())
-        # Clear out text data of text artists
-        for art in arts.text:
-            art.set_text('')
-        return render3D_fig
-    # Create 3D figure and axis
-    dpi = 100
-    fig = plt.figure(dpi=dpi)  # this figure will never be closed
-    ax = fig.add_subplot(projection='3d')
-    # Create scatter artist.
-    # We place a particle in each corner, for use with tight layout.
-    x, y, z = [], [], []
-    for i in range(2):
-        for j in range(2):
-            for k in range(2):
-                x.append(i*boxsize)
-                y.append(j*boxsize)
-                z.append(k*boxsize)
-    art_scatter = ax.scatter(
-        x, y, z,
-        marker='.',
-        linewidth=0,
-    )
-    # Explicitly set an rgbα array as a scatter artist attribute
-    rgbα = zeros((1, 4), dtype=C2np['float'])
-    for attr in ['_facecolors', '_facecolor3d']:
-        if hasattr(art_scatter, attr):
-            setattr(art_scatter, attr, rgbα)
-    # Create text artists
-    spacing = 0.08
-    arts_text = [
-        ax.text2D(
-            {'left': spacing, 'right': 1 - spacing}[alignment],
-            spacing,
-            '',
-            horizontalalignment=alignment,
-            transform=ax.transAxes,
-        )
-        for alignment in ['left', 'right']
-    ]
-    # Collect all artists
-    arts = Render3DArtists(art_scatter, arts_text)
-    # Basic axis setup, common for all 3D renders
-    ax.set_axis_off()
-    ax.set_xlim(0, boxsize)
-    ax.set_ylim(0, boxsize)
-    ax.set_zlim(0, boxsize)
-    # Set tight layout, using the 8 particles at the simulation box
-    # corners to form the bounding box.
-    fig.tight_layout(pad=0)
-    # Store figure, axis and artist globally
-    render3D_fig.append(fig)
-    render3D_fig.append(ax)
-    render3D_fig.append(arts)
-    # With the figure, axis and artists created, call this function once
-    # more to set their attributes according to the passed declaration.
-    return fetch_render3D_fig(declaration, autoscale)
-# Global store used by the fetch_render3D_fig() function
-cython.declare(render3D_fig=list)
-render3D_fig = []
-# Create the Render3DArtists type
-Render3DArtists = collections.namedtuple('Render3DArtists', ('scatter', 'text'))
-
-# Function for converting RGB to perceived brightness value
-def get_perceived_brightness(rgb):
-    """Converting RGB (really sRGB; https://en.wikipedia.org/wiki/SRGB)
-    to brightness level as perceived by humans is non-trivial.
-    Here we make use of the following particular StackOverflow answer:
-      https://stackoverflow.com/a/56678483/4056181
-    Note that what we refer to as 'perceived brightness' is then really
-    the 'perceived lightness'.
-    """
-    rgb_linear = [
-        (v/12.92 if v <= 0.04045 else ((v + 0.055)/1.055)**2.4)
-        for v in rgb
-    ]
-    luminance = np.dot((0.2126, 0.7152, 0.0722), rgb_linear)
-    lightness_perceived = (
-        luminance*903.3
-        if luminance <= 0.008856
-        else luminance**(1./3.)*116 - 16
-    )/100
-    lightness_perceived = np.max((0, lightness_perceived))
-    lightness_perceived = np.min((1, lightness_perceived))
-    return lightness_perceived
-
-# Function for retrieving the reusable scatter coordinates for
-# 3D renders of interpolated components.
-@cython.header(
-    # Arguments
-    component='Component',
+    component_dict=dict,
+    domain_start_i='Py_ssize_t',
+    domain_start_j='Py_ssize_t',
+    domain_start_k='Py_ssize_t',
+    figname=str,
+    filename_component=str,
+    filename_component_alpha=str,
+    filename_component_alpha_part=str,
+    filenames_component_alpha=list,
+    filenames_component_alpha_part=list,
+    filenames_components=list,
     gridsize='Py_ssize_t',
-    interpolation='int',
-    deconvolve='bint',
-    interlace=str,
-    # Locals
-    dim='int',
     i='Py_ssize_t',
     index='Py_ssize_t',
+    indexᵖ='Py_ssize_t',
     j='Py_ssize_t',
     k='Py_ssize_t',
-    posx='double[:]',
-    posy='double[:]',
-    posz='double[:]',
+    label_props=list,
+    label_spacing='double',
+    name=str,
+    names=tuple,
+    part='int',
+    posx='double*',
+    posx_mv='double[::1]',
+    posy='double*',
+    posy_mv='double[::1]',
+    posz='double*',
+    posz_mv='double[::1]',
+    render3D_dir=str,
+    rgbα='double[:, ::1]',
+    scatter_size='double',
     size='Py_ssize_t',
     size_i='Py_ssize_t',
     size_j='Py_ssize_t',
     size_k='Py_ssize_t',
-    size_local='Py_ssize_t',
-    slab='double[:, :, ::1]',
-    slab_start_i='Py_ssize_t',
-    x='double[::1]',
+    t_str=str,
     xi='double',
-    y='double[::1]',
     yj='double',
-    z='double[::1]',
     zk='double',
-    returns=tuple,
+    α='double',
+    α_factor='double',
+    α_homogeneous='double',
+    ϱ_noghosts='double[:, :, :]',
+    ϱbar_component='double',
 )
-def fetch_render3D_data(component, gridsize, interpolation, deconvolve, interlace):
-    """This functions returns arrays x, y, z, holding coordinate values
-    for the scatter markers. For particle components, the exact particle
-    positions will be used if interpolation == 0. Otherwise, a density
-    grid will be constructed through interpolation, with x, y and z then
-    being the grid coordinates.
-    The density grid is also returned,
-    in slab format. In order for the depthshading to be applied
-    similarly by all processes (with their slabs located at different
-    positions), we add fake scatter markers in the box corners.
-    """
-    size = get_render3D_size(component, gridsize, interpolation)
-    if component.representation == 'particles' and interpolation == 0:
-        # Use raw particle distribution
-        slab = None
-        # Use the (non-contiguous) particle data arrays directly.
-        # Add the fake corner markers to the end.
-        size_local = component.N_local + 8
-        if component.N_allocated < size_local:
-            component.resize(size_local)
-        posx = component.posx[:size_local]
-        posy = component.posy[:size_local]
-        posz = component.posz[:size_local]
-        index = component.N_local
-        for i in range(2):
-            for j in range(2):
-                for k in range(2):
-                    posx[index] = i*boxsize
-                    posy[index] = j*boxsize
-                    posz[index] = k*boxsize
-                    index += 1
-        return posx, posy, posz, slab, size, size_local
-    # Interpolate component onto slab-decomposed grid.
-    # Note that though the returned slab is in real space, it has gone
-    # through Fourier space where it had its Nyquist values nullified.
-    slab = interpolate_upstream(
-        [component], [component.render3D_upstream_gridsize], gridsize, 'ρ', interpolation,
-        deconvolve=deconvolve, interlace=interlace,
-        output_space='real', output_as_slabs=True,
-    )
-    size_i = slab.shape[0]
-    size_j = slab.shape[1]
-    size_k = gridsize  # ignore padding in last dimension
-    size_local = size_i*size_j*size_k + 8
-    if render3D_xyz_prevkey == [gridsize]:
-        # Reuse global x, y and z from previous call
-        x = render3D_xyz[0][:size_local]
-        y = render3D_xyz[1][:size_local]
-        z = render3D_xyz[2][:size_local]
-        return x, y, z, slab, size, size_local
-    render3D_xyz_prevkey[:] = [gridsize]
-    # Resize global arrays
-    if render3D_xyz[0].size < size_local:
-        for dim in range(3):
-            render3D_xyz[dim].resize(size_local, refcheck=False)
-    x = render3D_xyz[0][:size_local]
-    y = render3D_xyz[1][:size_local]
-    z = render3D_xyz[2][:size_local]
-    # Populate arrays with actual positions
-    index = 0
-    slab_start_i = size_i*rank
-    for i in range(size_i):
-        xi = (ℝ[slab_start_i + 0.5*cell_centered] + i)*ℝ[boxsize/gridsize]
-        for j in range(size_j):
-            yj = (ℝ[0.5*cell_centered] + j)*ℝ[boxsize/gridsize]
-            for k in range(size_k):
-                zk = (ℝ[0.5*cell_centered] + k)*ℝ[boxsize/gridsize]
-                x[index] = xi
-                y[index] = yj
-                z[index] = zk
-                index += 1
-    # Add the fake corner markers to the end
-    for i in range(2):
-        for j in range(2):
-            for k in range(2):
-                x[index] = i*boxsize
-                y[index] = j*boxsize
-                z[index] = k*boxsize
-                index += 1
-    return x, y, z, slab, size, size_local
-# Global arrays and shape used by the fetch_render3D_data() function
-cython.declare(
-    render3D_xyz=tuple,
-    render3D_xyz_prevkey=list,
-)
-render3D_xyz = (
-    empty(1, dtype=C2np['double']),
-    empty(1, dtype=C2np['double']),
-    empty(1, dtype=C2np['double']),
-)
-render3D_xyz_prevkey = [-1]
-
-# Function returning the number of scatter markers
-# to use for 3D rendering of a component.
-@cython.header(
-    # Arguments
-    component='Component',
-    gridsize='Py_ssize_t',
-    interpolation='int',
-    # Locals
-    size='Py_ssize_t',
-    returns='Py_ssize_t',
-)
-def get_render3D_size(component, gridsize, interpolation):
-    if component.representation == 'particles' and interpolation == 0:
-        size = component.N
-    else:
-        size = gridsize**3
-    return size
-
-# Function for determining appropriate scatter marker size
-def get_render3D_marker(fig, size, zoom):
-    if size == 0:
-        # Nothing to plot
-        return marker_size_threshold
-    # Set the scatter marker size of the spherical markers such that
-    # the spheres kiss when they are packed in a cubic lattice
-    # (viewed with orthographic projection).
-    figsize = np.mean(fig.get_size_inches())
-    marker_size = (83*zoom*figsize/cbrt(size))**2
-    # Grow the scatter size such that planes of markers have
-    # no holes (viewed with orthographic projection).
-    marker_size *= 2
-    # Shrink the marker size for large sizes (scatter marker counts)
-    marker_size *= 10.5/log(1 + size)
-    return marker_size
-# Using a scatter marker size too low will result in artificial
-# darkening of the render, or even leading to completely invisible
-# markers. This limit depend on the α in some complicated manner.
-# The below threshold is chosen rather conservative.
-cython.declare(marker_size_threshold='double')
-marker_size_threshold = 5
-
-# Function computing the colours and α values
-# of the scatter markers in 3D renders.
-@cython.header(
-    # Arguments
-    slab='double[:, :, ::1]',
-    size='Py_ssize_t',
-    size_local='Py_ssize_t',
-    colormap_func=object,
-    depthshade='bint',
-    enhancement=object,  # Render3DEnhancement
-    # Locals
-    bin_edges='double[::1]',
-    bins='Py_ssize_t[::1]',
-    c='Py_ssize_t',
-    clip_lower='double',
-    clip_upper='double',
-    colormap='float[:, ::1]',
-    exponent='double',
-    gridsize='Py_ssize_t',
-    i='Py_ssize_t',
-    index='Py_ssize_t',
-    index_color='Py_ssize_t',
-    index_rgbα='Py_ssize_t',
-    j='Py_ssize_t',
-    k='Py_ssize_t',
-    logμ='double',
-    logμ_err='double',
-    n_bins='Py_ssize_t',
-    n_counts='Py_ssize_t',
-    rgbα='float[:, ::1]',
-    rgbα_constant='float[::1]',
-    rgbα_constant_ptr='float*',
-    size_local_actual='Py_ssize_t',
-    slab_max='double',
-    slab_min='double',
-    slab_ptr='double*',
-    slab_size='Py_ssize_t',
-    value='double',
-    vmax='double',
-    vmax_index='Py_ssize_t',
-    vmin='double',
-    vmin_index='Py_ssize_t',
-    α='float',
-    α_fac='float',
-    α_fac_min='float',
-    α_value='float',
-    μ_goal='double',
-    σ='double',
-    σ_err='double',
-    returns='float[:, ::1]',
-)
-def compute_render3D_rgbα(slab, size, size_local, colormap_func, depthshade, enhancement):
-    # Set α. Not that for grid rendering, this does not represent the
-    # final α value applied to the markers.
-    if slab is None:
-        α = 0.02
-    else:
-        α = 150
-    # Apply further α tuning unless disabled
-    if enhancement.α() != -1:
-        α *= enhancement.α()
-        # Using depthshade lowers the α of scatter markers according to
-        # their depth/distance, which thus also has the effect of
-        # lowering the overall α. Here we counteract this.
-        if depthshade:
-            α *= 1.4
-    # The passed size_local includes an additional 8 corner markers
-    size_local_actual = size_local - 8
-    # Realise colormap at the current time
-    colormap = colormap_func()
-    # Fetch global rgbα array
-    if render3D_rgbα.size < 4*size_local:
-        render3D_rgbα.resize(4*size_local)
-    rgbα = render3D_rgbα[:4*size_local].reshape((size_local, 4))
-    # Handle the case of a raw particle distribution
-    # not interpolated onto a grid.
-    if slab is None:
-        α = pairmax(α, α_threshold)
-        α = pairmin(α, 1)
-        # Use midpoint of colormap as constant colour
-        rgbα_constant = asarray(
-            list(colormap[colormap.shape[0]//2, :]) + [α],
-            dtype=C2np['float'],
-        )
-        rgbα_constant_ptr = cython.address(rgbα_constant[:])
-        # Populate rgbα with data
-        for index in range(size_local_actual):
-            for c in range(4):
-                rgbα[index, c] = rgbα_constant_ptr[c]
-        # Make the fake corner markers completely transparent
-        for index in range(size_local_actual, size_local):
-            for c in range(4):
-                rgbα[index, c] = 0
-        return rgbα
-    # We are dealing with a slab of the density field.
-    # Extract slab shape and pointer.
-    gridsize = slab.shape[1]
-    slab_size = slab.shape[0]*slab.shape[1]*slab.shape[2]
-    slab_ptr = cython.address(slab[:, :, :])
-    # Find global minimum and maximum value
-    slab_min = slab_max = slab_ptr[0]
-    for index, i, j, k in slab_loop(gridsize, skip_padding=True):
-        value = slab_ptr[index]
-        if value < slab_min:
-            slab_min = value
-        elif value > slab_max:
-            slab_max = value
-    slab_min = allreduce(slab_min, op=MPI.MIN)
-    slab_max = allreduce(slab_max, op=MPI.MAX)
-    # Perform contrast, α and clipping enhancements
-    vmin, vmax = 0, 1
-    if slab_min == slab_max:
-        # Completely homogeneous (possibly empty) grid
-        if slab_max == 0:
-            for i in range(slab_size):
-                slab_ptr[i] = 0
-        else:
-            for i in range(slab_size):
-                slab_ptr[i] = 0.5
-    else:
-        # Shift and scale slab values so that they are between 0 and 1
-        for i in range(slab_size):
-            slab_ptr[i] = (slab_ptr[i] - slab_min)*ℝ[1/(slab_max - slab_min)]
-        # Contrast enhancement
-        μ_goal = enhancement.contrast()
-        if μ_goal != -1:
-            # The log of the slab data is typically close to Gaussian.
-            # Compute histogram of logged slab values.
-            bin_edges, bins = compute_slab_histogram(slab, size, apply_log=True)
-            # Fit histogram to Gaussian with mean μ
-            (_, logμ, _), (_, logμ_err, _) = bcast(
-                fit_histogram_gaussian(bin_edges, bins)
-                if master else None
-            )
-            if logμ_err != -1:
-                # Find exponent required to shift Gaussian
-                # to have mean μ_goal.
-                μ_goal = pairmin(1 - machine_ϵ, μ_goal)
-                μ_goal = pairmax(machine_ϵ, μ_goal)
-                exponent = log(μ_goal)/logμ
-                exponent = pairmax(machine_ϵ, exponent)
-                # Apply exponent to data. Here it is important that the
-                # slab does not contain any negative values, including
-                # in the padding region. Note that this is already
-                # ensured due to the call to compute_slab_histogram().
-                for i in range(slab_size):
-                    slab_ptr[i] **= exponent
-        # Recompute histogram for the shifted distribution
-        bin_edges, bins = compute_slab_histogram(slab, size)
-        # Master determines α and clipping
-        α_fac = 1
-        α_fac_min = 1e-3
-        if master:
-            # Set α enhancement from relative error on the fitted σ
-            if enhancement.α() != -1:
-                (_, _, σ), (_, _, σ_err) = fit_histogram_gaussian(bin_edges, bins)
-                if σ_err != -1:
-                    α_fac = pairmax(α_fac_min, σ_err/σ)
-            # Determine vmin and vmax for clipping
-            n_bins = bins.shape[0]
-            n_counts = np.sum(bins)
-            clip_lower, clip_upper = enhancement.clip()
-            if clip_lower > clip_upper:
-                clip_lower, clip_upper = clip_upper, clip_lower
-            clip_lower = pairmax(0, clip_lower)
-            clip_upper = pairmin(1, clip_upper)
-            vmin_index, vmax_index = trim_histogram(
-                bins,
-                int(round(clip_lower*n_counts)),
-                int(round((1 - clip_upper)*n_counts)),
-            )
-            vmin = bin_edges[vmin_index]
-            vmax = bin_edges[vmax_index]
-        α_fac = bcast(α_fac)
-        vmin, vmax = bcast((vmin, vmax))
-        # Apply α factor
-        α *= α_fac
-        α = pairmax(α, 0)
-        α = pairmin(α, 1)
-        # Clip (saturate) lower and upper values
-        if vmin == vmax:
-            # Completely homogeneous (possibly empty) grid
-            for i in range(slab_size):
-                slab_ptr[i] = vmin
-        else:
-            for i in range(slab_size):
-                value = (slab_ptr[i] - vmin)*ℝ[1/(vmax - vmin)]
-                if value < 0:
-                    value = 0
-                elif value > 1:
-                    value = 1
-                slab_ptr[i] = value
-    # Populate rgbα with data
-    index_rgbα = -1
-    for index, i, j, k in slab_loop(gridsize, skip_padding=True):
-        index_rgbα += 1
-        value = slab_ptr[index]
-        index_color = int(value*ℝ[colormap.shape[0]*(1 - machine_ϵ)])
-        for c in range(3):
-           rgbα[index_rgbα, c] = colormap[index_color, c]
-        α_value = pairmin(α*value, 1)
-        if α_value > 0:
-            rgbα[index_rgbα, 3] = pairmax(α_value, α_threshold)
-        rgbα[index_rgbα, 3] = α_value
-    # Make the fake corner markers completely transparent
-    for index_rgbα in range(size_local_actual, size_local):
-        for c in range(4):
-            rgbα[index_rgbα, c] = 0
-    return rgbα
-# Global array used by the compute_render3D_rgbα() function
-cython.declare(
-    render3D_rgbα=object,  # np.ndarray
-)
-render3D_rgbα = empty(1, dtype=C2np['float'])
-# There exist a lower limit for the α value of individual markers,
-# below which they are rendered completely invisible. Markers with α
-# below this limit but strictly greater than 0 are assigned this
-# limiting value. The α limit is discussed e.g. here, where they
-# find it to be 1/256:
-#   https://github.com/matplotlib/matplotlib/issues/2287
-# At least for the present case of a 3D scatter plot, we find that
-# the actual limit is really 1/170. We choose a conservative 1/160.
-cython.declare(α_threshold='float')
-α_threshold = 1./160.
-
-# Function for computing histogram of slab valuws
-@cython.header(
-    # Arguments
-    slab='double[:, :, ::1]',
-    size='Py_ssize_t',
-    apply_log='bint',
-    # Locals
-    bin_edges='double[::1]',
-    bins='Py_ssize_t[::1]',
-    index='Py_ssize_t',
-    n_bins='Py_ssize_t',
-    n_bins_fac='double',
-    n_bins_max='Py_ssize_t',
-    n_bins_min='Py_ssize_t',
-    size_i='Py_ssize_t',
-    size_j='Py_ssize_t',
-    size_k='Py_ssize_t',
-    slab_2ndmin='double',
-    slab_max='double',
-    slab_ptr='double*',
-    slab_size='Py_ssize_t',
-    value='double',
-    returns=tuple,
-)
-def compute_slab_histogram(slab, size, apply_log=False):
-    """It is assumed that the slab values are normalized to be between
-    0 and 1. The values of the padding region will be ignored.
-    Only the master process will hold the total histogram.
-    If apply_log is True, a transformation slab → log(slab) will be
-    applied prior to computing the histogram. To save memory, this is
-    done in-place. The slab will be transformed back, log(slab) → slab,
-    before the function returns.
-    """
-    # Extract slab shape
-    size_i = slab.shape[0]
-    size_j = slab.shape[1]
-    size_k = size_j  # padded dimension
-    # We first populate the slab padding with values of 0.
-    # The entire contiguous slab may then be passed to np.histogram().
-    fill_slab_padding(slab, 0)
-    # We want to know the smallest and largest data values. These are
-    # probably 0 and 1, though we do not care about the 0. We thus find
-    # the next smallest value, along with the largest. If the data is to
-    # be log transformed, we do so at the same time.
-    slab_ptr = cython.address(slab[:, :, :])
-    slab_size = slab.shape[0]*slab.shape[1]*slab.shape[2]
-    if apply_log:
-        slab_2ndmin = +ထ
-        slab_max    = -ထ
-        for index in range(slab_size):
-            value = slab_ptr[index]
-            if value == 0:
-                slab_ptr[index] = -ထ
-                continue
-            value = log(value)
-            slab_ptr[index] = value
-            if value < slab_2ndmin:
-                slab_2ndmin = value
-            if value > slab_max:
-                slab_max = value
-    else:
-        slab_2ndmin = slab_max = slab_ptr[0]
-        for index in range(slab_size):
-            value = slab_ptr[index]
-            if value == 0:
-                continue
-            if value < slab_2ndmin:
-                slab_2ndmin = value
-            elif value > slab_max:
-                slab_max = value
-    slab_2ndmin = allreduce(slab_2ndmin, op=MPI.MIN)
-    slab_max    = allreduce(slab_max,    op=MPI.MAX)
-    # Compute histogram
-    n_bins_min, n_bins_max = 2**6, 2**20
-    n_bins_fac = 4
-    n_bins = int(n_bins_fac*sqrt(size))
-    n_bins = pairmax(n_bins, n_bins_min)
-    n_bins = pairmin(n_bins, n_bins_max)
-    bins, bin_edges = np.histogram(slab, n_bins, range=(slab_2ndmin, slab_max))
-    Reduce(
-        sendbuf=(MPI.IN_PLACE if master else bins),
-        recvbuf=(bins         if master else None),
-        op=MPI.SUM,
-    )
-    # Undo log transformation
-    if apply_log:
-        for index in range(slab_size):
-            slab_ptr[index] = exp(slab_ptr[index])
-    return bin_edges, bins
-
-# Function for fitting histogram data to Gaussian
-@cython.header(
-    # Arguments
-    bin_edges='double[::1]',
-    bins='Py_ssize_t[::1]',
-    # Locals
-    a='double',
-    a_err='double',
-    count='Py_ssize_t',
-    n_bins='Py_ssize_t',
-    n_counts='Py_ssize_t',
-    oneσ_left='double',
-    oneσ_left_index='Py_ssize_t',
-    oneσ_right='double',
-    oneσ_right_index='Py_ssize_t',
-    μ='double',
-    μ_err='double',
-    σ='double',
-    σ_err='double',
-    returns=tuple,
-)
-def fit_histogram_gaussian(bin_edges, bins):
-    import scipy.optimize
-    # Boundaries for fitting parameters a, μ and σ,
-    # based purely on the size of the input.
-    n_bins = bins.shape[0]
-    n_counts = np.sum(bins)
-    bounds = (
-        [       1, bin_edges[     0], bin_edges[     1] - bin_edges[0]],
-        [n_counts, bin_edges[n_bins], bin_edges[n_bins] - bin_edges[0]],
-    )
-    # Determine initial guess on fitting parameters by iterating over
-    # the historgram from both sides, stopping when the central area
-    # corresponds to 2×1σ.
-    count = int(n_counts*(1 - erf(1/sqrt(2)))/2)
-    oneσ_left_index, oneσ_right_index = trim_histogram(bins, count, count)
-    oneσ_left = bin_edges[oneσ_left_index]
-    oneσ_right = bin_edges[oneσ_right_index]
-    a = np.max(bins[oneσ_left_index:oneσ_right_index+1])
-    μ = 0.5*(oneσ_left + oneσ_right)
-    σ = 0.5*(oneσ_right - oneσ_left)
-    a_err = -1
-    μ_err = -1
-    σ_err = -1
-    # Perform the fitting
-    popt = None
-    try:
-        popt, pcov = scipy.optimize.curve_fit(
-            gaussian,
-            bin_edges[:n_bins],
-            bins,
-            (a, μ, σ),
-            check_finite=False,
-            bounds=bounds,
-            ftol=1e-12,
-            xtol=1e-12,
-            gtol=1e-12,
-            maxfev=1_000,
-        )
-    except Exception:
-        pass
-    if popt is not None:
-        a, μ, σ = popt
-        a_err, μ_err, σ_err = np.sqrt(np.diag(pcov))
-    return (a, μ, σ), (a_err, μ_err, σ_err)
-# Helper function for fit_histogram_gaussian()
-def gaussian(x, a, μ, σ):
-    return a*np.exp(-0.5*((x - μ)/σ)**2)
-
-# Function for finding left and right indices into histogram,
-# given left and right counts.
-@cython.header(
-    # Arguments
-    bins='Py_ssize_t[::1]',
-    count_left='Py_ssize_t',
-    count_right='Py_ssize_t',
-    # Locals
-    bins_ptr='Py_ssize_t*',
-    count='Py_ssize_t',
-    i='Py_ssize_t',
-    index_left='Py_ssize_t',
-    index_right='Py_ssize_t',
-    n_bins='Py_ssize_t',
-    returns=tuple,
-)
-def trim_histogram(bins, count_left, count_right):
-    n_bins = bins.shape[0]
-    bins_ptr = cython.address(bins[:])
-    # Left side
-    index_left = 0
-    count = 0
-    for i in range(n_bins):
-        count += bins_ptr[i]
-        if count >= count_left:
-            index_left = i
-            break
-    # Right side
-    index_right = n_bins
-    count = 0
-    for i in range(n_bins - 1, -1, -1):
-        count += bins_ptr[i]
-        if count >= count_right:
-            index_right = i + 1
-            break
-    # Expand the central region slightly,
-    # ensuring index_left != index_right.
-    if index_left > index_right:
-        index_left, index_right = index_right, index_left
-    index_left = pairmax(0, index_left - 1)
-    index_right = pairmin(n_bins, index_right + 1)
-    return index_left, index_right
-
-# Function for generating an image array
-# from the passed figure.
-def render_render3D(fig):
-    plt = get_matplotlib().pyplot
-    # Save figure to transparent, in-memory image array
-    with io.BytesIO() as f:
-        fig.savefig(f, transparent=True)  # do not set dpi
-        f.seek(0)
-        img = plt.imread(f)
-    # Completely transparent pixels (α = 0) will be assigned colour
-    # values of 1 (white) by Matplotlib, but for image manipulations to
-    # come we want such pixels to have colour values of 0 (black).
-    img[img[:, :, 3] == 0, :3] = 0
-    return img
-
-# Function for adding text and background colour
-# to an already computed 3D render.
-@cython.header(
-    # Arguments
-    declaration=object,  # Render3DDeclaration
-    img='float[:, :, ::1]',
-    # Locals
-    background=object,  # np.ndarray
-    img_text='float[:, :, ::1]',
-    returns='float[:, :, ::1]',
-)
-def finalize_render3D(declaration, img):
-    if not master:
-        return img
-    # Do not alter the passed image in-place, so that it might be used
-    # in combination renders as well.
-    img = asarray(img).copy()
-    # Normalize to max(α) = 1
-    normalize_α_render3D(img)
-    # Ensure pixel values to be in the interval [0, 1]
-    truncate_saturated_render3D(img)
-    # Fetch figure, axis and text artists
-    fig, ax, arts = fetch_render3D_fig(declaration)
-    arts = arts.text
-    # Set text
-    arts[0].set_text(
-        r'$t = {}\, \mathrm{{{}}}$'
-        .format(significant_figures(universals.t, 4, 'TeX'), unit_time)
-    )
-    if enable_Hubble:
-        arts[1].set_text(
-            r'$a = {}$'
-            .format(significant_figures(universals.a, 4, 'TeX'))
-        )
-    # Compute 3D render for the text only
-    img_text = render_render3D(fig)
-    # Blend text render into scatter render
-    blend_render3D(img, img_text, mode='under')
-    # Blend solid background into scatter render
-    background = ones([1, 1, 4], dtype=C2np['float'])
-    background[0, 0, :3] = declaration.background
-    blend_render3D(img, background, mode='over')
-    # Ensure pixel values to be in the interval [0, 1]
-    truncate_saturated_render3D(img)
-    return img
-
-# Function for enhancing the brightness of an image
-# in accorance with enhancement.brightness().
-@cython.header(
-    # Arguments
-    declaration=object,  # Render3DDeclaration
-    img='float[:, :, ::1]',
-    # Locals
-    brightness='float',
-    brightness_target='float',
-    fac_brightness='float',
-    fac_brightness_max='float',
-    fac_brightness_min='float',
-    img_copy='float[:, :, ::1]',
-    large='Py_ssize_t',
-    n='Py_ssize_t',
-    returns='void',
-)
-def enhance_brightness_render3D(declaration, img):
-    # Brighten (or darken) the image
-    brightness_target = declaration.enhancement.brightness()
-    if brightness_target == -1:
+def render3D(components, filename, cleanup=True, tmp_dirname='.renders3D'):
+    global render3D_image
+    # Do not 3D render anything if
+    # render3D_select does not contain any True values.
+    if not any(render3D_select.values()):
         return
-    large = 20
-    brightness_target = pairmax(0, brightness_target)
-    brightness_target = pairmin(2**large, brightness_target)
-    fac_brightness = 1
-    fac_brightness_min = fac_brightness_max = fac_brightness
-    img_copy = asarray(img).copy()
-    brightness = get_perceived_brightness(
-        brighten_render3D(img_copy, fac_brightness, measure_rms=True)
-    )
-    if brightness < brightness_target:
-        fac_brightness_min = fac_brightness
-        for n in range(1, large):
-            brightness = get_perceived_brightness(
-                brighten_render3D(img_copy, 2, measure_rms=True)
-            )
-            if brightness >= brightness_target:
-                break
-        fac_brightness_max = fac_brightness*2**n
-    elif brightness > brightness_target:
-        fac_brightness_max = fac_brightness
-        for n in range(1, large):
-            brightness = get_perceived_brightness(
-                brighten_render3D(img_copy, 0.5, measure_rms=True)
-            )
-            if brightness <= brightness_target:
-                break
-        fac_brightness_min = fac_brightness/2**n
-    brightness = -1
-    while (
-            abs(brightness - brightness_target) > 1e-3
-        and fac_brightness_min != fac_brightness_max
-    ):
-        img_copy[...] = img
-        fac_brightness = 0.5*(fac_brightness_min + fac_brightness_max)
-        brightness = get_perceived_brightness(
-            brighten_render3D(img_copy, fac_brightness, measure_rms=True)
-        )
-        if brightness < brightness_target:
-            if fac_brightness_min == fac_brightness:
-                break
-            fac_brightness_min = fac_brightness
-        elif brightness > brightness_target:
-            if fac_brightness_max == fac_brightness:
-                break
-            fac_brightness_max = fac_brightness
-    brighten_render3D(img, fac_brightness)
-
-# Function for brightening an image by a certain factor
-@cython.pheader(
-    # Arguments
-    img='float[:, :, ::1]',
-    fac='float',
-    measure_rms='bint',
-    # Locals
-    b_rms='float',
-    c='Py_ssize_t',
-    g_rms='float',
-    i='Py_ssize_t',
-    j='Py_ssize_t',
-    n_opaque='Py_ssize_t',
-    r_rms='float',
-    α='float',
-    returns=tuple,
-)
-def brighten_render3D(img, fac, measure_rms=False):
-    """Brightens the passed image in-place by multiplying r, g and b
-    (not α) by the passed factor. When measure_rms is True,
-    the root-mean-square of each colour after the brightening
-    will be computed and returned.
-    """
-    r_rms = 0
-    g_rms = 0
-    b_rms = 0
-    n_opaque = 0
-    for     i in range(ℤ[img.shape[0]]):
-        for j in range(ℤ[img.shape[1]]):
-            for c in range(3):
-                img[i, j, c] *= fac
-            with unswitch:
-                if measure_rms:
-                    α = img[i, j, 4]
-                    if α > 0:
-                        n_opaque += 1
-                        r_rms += img[i, j, 0]**2
-                        g_rms += img[i, j, 1]**2
-                        b_rms += img[i, j, 2]**2
-    if measure_rms:
-        r_rms = sqrt(r_rms/n_opaque)
-        g_rms = sqrt(g_rms/n_opaque)
-        b_rms = sqrt(b_rms/n_opaque)
-    return r_rms, g_rms, b_rms
-
-# Function for normalizing α of an image such that max(α) = 1
-@cython.header(
-    # Arguments
-    img='float[:, :, ::1]',
-    # Locals
-    i='Py_ssize_t',
-    j='Py_ssize_t',
-    α_max='float',
-    α_max_inv='float',
-    returns='void',
-)
-def normalize_α_render3D(img):
-    α_max = np.max(img[:, :, 3])
-    if α_max in (0, 1):
-        return
-    α_max_inv = 1/α_max
-    for     i in range(ℤ[img.shape[0]]):
-        for j in range(ℤ[img.shape[1]]):
-            img[i, j, 3] *= α_max_inv
-
-# Function for blending together two images
-@cython.header(
-    # Arguments
-    img0='float[:, :, ::1]',
-    img1='float[:, :, ::1]',
-    mode=str,
-    # Locals
-    c='Py_ssize_t',
-    i0='Py_ssize_t',
-    i1='Py_ssize_t',
-    j0='Py_ssize_t',
-    j1='Py_ssize_t',
-    α='float',
-    α_inv='float',
-    α0='float',
-    α0_blend='float',
-    α1='float',
-    α1_blend='float',
-    returns='void',
-)
-def blend_render3D(img0, img1, mode):
-    """This function will combine two images using alpha blending.
-    The first of the two passed images will be updated in-place.
-    Note that rgbα overflow (> 1) is ignored.
-    The blending modes implemented are 'screen', 'over', 'under',
-    and 'overunder', where 'under' is just 'over' with the images
-    switched and 'overunder' gives the average of 'over' and 'under'.
-    While 'screen' and 'overunder' are symmetric with respect to the
-    two images, this is not so for 'over'/'under'.
-    For the second image you may pass just a single rgbα value, which is
-    then equivalent to passing an image with the same shape as the
-    first image, with the same rgbα value present throughout.
-    """
-    if mode not in ('screen', 'over', 'under', 'overunder'):
-        abort(f'blend_render3D() got mode = "{mode}" ∉ {{"screen", "over", "under", "overunder"}}')
-    # Indices into img1 in case it is just a single rgbα value
-    i1 = j1 = 0
-    # Blend img1 into img0
-    for     i0 in range(ℤ[img0.shape[0]]):
-        for j0 in range(ℤ[img0.shape[1]]):
-            # Set proper indices into img1
-            with unswitch:
-                if img1.shape[0] > 1:
-                    i1 = i0
-                    j1 = j0
-            # Compute combined α value
-            α0 = img0[i0, j0, 3]
-            α1 = img1[i1, j1, 3]
-            α = α0 + α1 - α0*α1
-            # The individual α values of the two images are used as
-            # colour weights. As set below, the blending
-            # corresponds to 'screen'.
-            α0_blend = α0
-            α1_blend = α1
-            # Alter blending if not 'screen'
-            with unswitch:
-                if mode == 'over':
-                    α1_blend *= 1 - α0
-                elif mode == 'under':
-                    α0_blend *= 1 - α1
-                elif mode == 'overunder':
-                    α0_blend *= 1 - 0.5*α1
-                    α1_blend *= 1 - 0.5*α0
-            # Blend this pixel
-            α_inv = 1/(α + machine_ϵ_32)
-            for c in range(3):
-                img0[i0, j0, c] = α_inv*(
-                    + img0[i0, j0, c]*α0_blend
-                    + img1[i1, j1, c]*α1_blend
-                )
-            img0[i0, j0, 3] = α
-
-# Function ensuring that rgbα values of an image
-# stay within the legal range.
-@cython.header(
-    # Arguments
-    img='float[:, :, ::1]',
-    # Locals
-    img_ptr='float*',
-    index='Py_ssize_t',
-    value='float',
-    returns='void',
-)
-def truncate_saturated_render3D(img):
-    img_ptr = cython.address(img[:, :, :])
-    for index in range(img.shape[0]*img.shape[1]*img.shape[2]):
-        value = img_ptr[index]
-        if value > 1:
-            img_ptr[index] = 1
-        elif value < 0:
-            img_ptr[index] = 0
-
-# Function for rescaling an image
-@cython.header(
-    # Arguments
-    img='float[:, :, ::1]',
-    resolution='Py_ssize_t',
-    # Locals
-    img_ptr='float*',
-    index='Py_ssize_t',
-    returns='float[:, :, ::1]',
-)
-def resize_render3D(img, resolution):
-    if img.shape[0] == resolution:
-        return img
-    # Fetch the PIL.Image module from the pillow library.
-    # We can get this directly off of Matplotlib.
-    Image = get_matplotlib().colors.Image
-    # Transform value interval from [0, 1] to [0, 256)
-    img_ptr = cython.address(img[:, :, :])
-    for index in range(img.shape[0]*img.shape[1]*img.shape[2]):
-        img_ptr[index] *= 256*(1 - machine_ϵ_32)
-    # Use the pillow image library to carry out the rescaling.
-    # Specifially, use the Lanczos method for the resampling,
-    # minimizing Moiré patterns when downsampling.
-    img = asarray(
-        Image.fromarray(
-            asarray(img, dtype=np.uint8)
-        ).resize((resolution, resolution), resample=Image.Resampling.LANCZOS),
-        dtype=C2np['float'],
-    )
-    # Transform value interval back from [0, 255] to [0, 1]
-    img_ptr = cython.address(img[:, :, :])
-    for index in range(img.shape[0]*img.shape[1]*img.shape[2]):
-        img_ptr[index] *= 1.0/255.0
-    return img
-
-# Function for saving an already computed 3D render
-@cython.header(
-    # Arguments
-    declaration=object,  # Render3DDeclaration,
-    img='float[:, :, ::1]',
-    filename=str,
-    n_dumps='int',
-    # Locals
-    returns='void',
-)
-def save_render3D(declaration, img, filename, n_dumps):
-    if not master:
-        return
-    plt = get_matplotlib().pyplot
-    # Set filename extension to png
+    # Fetch Matplotlib
+    matplotlib = get_matplotlib()
+    plt = matplotlib.pyplot
+    # Attach missing extension to filename
     if not filename.endswith('.png'):
         filename += '.png'
-    # The filename should reflect the components
-    # if multiple renders are to be dumped.
-    if n_dumps > 1:
-        filename = augment_filename(
-            filename,
-            '_'.join([component.name.replace(' ', '-') for component in declaration.components]),
-            '.png',
-        )
-    # Make sure that the rgbα values stay within the legal range
-    # Save image to disk
-    masterprint(f'Saving image to "{filename}" ...')
-    plt.imsave(filename, asarray(img))
-    masterprint('done')
-
-# Get local domain information
-domain_info = get_domain_info()
+    # The directory for storing the temporary 3D renders
+    render3D_dir = '{}/{}'.format(os.path.dirname(filename), tmp_dirname)
+    # Initialise figures by building up render3D_dict, if this is the
+    # first time this function is called.
+    if not render3D_dict:
+        masterprint('Initialising 3D renders ...')
+        # Make cyclic default colours as when doing multiple plots in
+        # one figure. Make sure that none of the colours are identical
+        # to the background colour.
+        default_colors = itertools.cycle([
+            to_rgb(prop['color'])
+            for prop in matplotlib.rcParams['axes.prop_cycle']
+            if not all(to_rgb(prop['color']) == render3D_bgcolor)
+        ])
+        for component in components:
+            if not is_selected(component, render3D_select):
+                continue
+            # This component should be 3D rendered.
+            # Prepare a figure for the 3D render of the i'th component.
+            figname = f'render3D_{component.name}'
+            dpi = 100  # This only affects the font size relative to the figure
+            fig = plt.figure(figname, figsize=[render3D_resolution/dpi]*2, dpi=dpi)
+            ax = fig.add_subplot(projection='3d', facecolor=render3D_bgcolor)
+            # The colour and α (of a homogeneous column through the
+            # entire box) of this component.
+            if component.name.lower() in render3D_colors:
+                # This component is given a specific colour by the user
+                color, α_homogeneous = render3D_colors[component.name.lower()]
+            elif 'all' in render3D_colors:
+                # All components are given the same colour by the user
+                color, α_homogeneous = render3D_colors['all']
+            else:
+                # No colour specified for this particular component.
+                # Assign the next colour from the default cyclic colours.
+                color = next(default_colors)
+                α_homogeneous = 0.2
+            # The artist for the component
+            if component.representation == 'particles':
+                # The particle size on the figure
+                scatter_size, α = alpha_blend(component.N, α_homogeneous, fig)
+                # Apply size and alpha
+                artist_component = ax.scatter(
+                    0, 0, 0,
+                    alpha=α,
+                    c=np.expand_dims(color, 0),
+                    s=scatter_size,
+                    depthshade=False,
+                    lw=0,
+                )
+            elif component.representation == 'fluid':
+                # To 3D render fluid elements, their explicit positions
+                # are needed. In the following, these are computed and
+                # stored in the variables posx_mv, posy_mv and posz_mv.
+                size_i = component.shape_noghosts[0]
+                size_j = component.shape_noghosts[1]
+                size_k = component.shape_noghosts[2]
+                # Number of local fluid elements
+                size = size_i*size_j*size_k
+                # Allocate arrays for storing grid positions
+                posx_mv = empty(size, dtype='double')
+                posy_mv = empty(size, dtype='double')
+                posz_mv = empty(size, dtype='double')
+                posx = cython.address(posx_mv[:])
+                posy = cython.address(posy_mv[:])
+                posz = cython.address(posz_mv[:])
+                # Fill the arrays
+                gridsize = component.gridsize
+                domain_start_i = domain_layout_local_indices[0]*size_i
+                domain_start_j = domain_layout_local_indices[1]*size_j
+                domain_start_k = domain_layout_local_indices[2]*size_k
+                indexᵖ = 0
+                for i in range(size_i):
+                    xi = (ℝ[domain_start_i + 0.5*cell_centered] + i)*ℝ[boxsize/gridsize]
+                    for j in range(size_j):
+                        yj = (ℝ[domain_start_j + 0.5*cell_centered] + j)*ℝ[boxsize/gridsize]
+                        for k in range(size_k):
+                            zk = (ℝ[domain_start_k + 0.5*cell_centered] + k)*ℝ[boxsize/gridsize]
+                            posx[indexᵖ] = xi
+                            posy[indexᵖ] = yj
+                            posz[indexᵖ] = zk
+                            indexᵖ += 1
+                # 2D array with rgbα rows, one row for each
+                # fluid element. This is the only array which will be
+                # updated for each new 3D render, and only the α column
+                # will be updated.
+                rgbα = empty((size, 4), dtype=C2np['double'])
+                for i in range(size):
+                    for dim in range(3):
+                        rgbα[i, dim] = color[dim]
+                    rgbα[i, 3] = 1
+                # The particle (fluid element) size on the figure
+                scatter_size, α_factor = alpha_blend(gridsize**3, α_homogeneous, fig)
+                # Plot the fluid elements as a 3D scatter plot
+                artist_component = ax.scatter(
+                    asarray(posx_mv),
+                    asarray(posy_mv),
+                    asarray(posz_mv),
+                    c=asarray(rgbα),
+                    s=scatter_size,
+                    depthshade=False,
+                    lw=0,
+                )
+                # The set_facecolors method on the artist can be used
+                # to update the α values on the plot. This function is
+                # called internally by Matplotlib with wrong arguments,
+                # cancelling the α updates. For this reason, we
+                # replace this method with a dummy method, while
+                # keeping the original as _set_facecolors (though we
+                # do not use this, as we set the _facecolors attribute
+                # manually instead).
+                artist_component._set_facecolors = artist_component.set_facecolors
+                artist_component.set_facecolors = dummy_func
+            # The artists for the cosmic time and scale factor text
+            artists_text = {}
+            label_spacing = 0.07
+            label_props = [(label_spacing,     label_spacing, 'left'),
+                           (1 - label_spacing, label_spacing, 'right')]
+            artists_text['t'] = ax.text2D(
+                label_props[0][0],
+                label_props[0][1],
+                '',
+                fontsize=16,
+                horizontalalignment=label_props[0][2],
+                transform=ax.transAxes,
+            )
+            if enable_Hubble:
+                artists_text['a'] = ax.text2D(
+                    label_props[1][0],
+                    label_props[1][1],
+                    '',
+                    fontsize=16,
+                    horizontalalignment=label_props[1][2],
+                    transform=ax.transAxes,
+                )
+            # Configure axis options
+            ax.set_proj_type('ortho')
+            ax.set_xlim(0, boxsize)
+            ax.set_ylim(0, boxsize)
+            ax.set_zlim(0, boxsize)
+            ax.set_box_aspect((1, 1, 1), zoom=1.1)
+            ax.axis('off')  # Remove panes, gridlines, axes, ticks, etc.
+            plt.tight_layout(pad=-1)  # Extra tight layout, to prevent white frame
+            # Store the figure, axes and the component
+            # and text artists in the render3D_dict.
+            render3D_dict[component.name] = {
+                'fig'             : fig,
+                'ax'              : ax,
+                'artist_component': artist_component,
+                'artists_text'    : artists_text,
+                'α_factor'        : (α_factor if component.representation == 'fluid' else None),
+                'rgbα'            : (rgbα     if component.representation == 'fluid' else None),
+            }
+        masterprint('done')
+        # Return if no component is to be 3D rendered
+        if not render3D_dict:
+            return
+    # Create the temporary 3D render directory if necessary
+    if not (nprocs == 1 == len(render3D_dict)):
+        if master:
+            os.makedirs(render3D_dir, exist_ok=True)
+        Barrier()
+    # Print out progress message
+    names = tuple(render3D_dict.keys())
+    if len(names) == 1:
+        masterprint(f'Rendering {names[0]} in 3D and saving to "{filename}" ...')
+    else:
+        filenames_components = []
+        for name in names:
+            filename_component = augment_filename(filename, name, '.png')
+            filenames_components.append(f'"{filename_component}"')
+        masterprint('3D rendering {} and saving to {} ...'
+                    .format(', '.join(names), ', '.join(filenames_components)))
+    # 3D render each component separately
+    for component in components:
+        if component.name not in render3D_dict:
+            continue
+        # Switch to the render3D figure
+        figname = 'render3D_{}'.format(component.name)
+        plt.figure(figname)
+        # Extract figure elements
+        component_dict   = render3D_dict[component.name]
+        fig              = component_dict['fig']
+        ax               = component_dict['ax']
+        artist_component = component_dict['artist_component']
+        artists_text     = component_dict['artists_text']
+        if component.representation == 'particles':
+            # Update particle positions on the figure
+            N_local = component.N_local
+            artist_component._offsets3d = (
+                component.posx[:N_local],
+                component.posy[:N_local],
+                component.posz[:N_local],
+            )
+        elif component.representation == 'fluid':
+            rgbα     = component_dict['rgbα']
+            α_factor = component_dict['α_factor']
+            # Measure the mean value of the ϱ grid
+            ϱ_noghosts = component.ϱ.grid_noghosts
+            ϱbar_component = allreduce(np.sum(ϱ_noghosts), op=MPI.SUM)/component.gridsize**3
+            # Update the α values in rgbα array based on the values of
+            # ϱ at each grid point. The rgb-values remain the same for
+            # all 3D renders of this component.
+            index = 0
+            for         i in range(ℤ[ϱ_noghosts.shape[0]]):
+                for     j in range(ℤ[ϱ_noghosts.shape[1]]):
+                    for k in range(ℤ[ϱ_noghosts.shape[2]]):
+                        α = ℝ[α_factor/ϱbar_component]*ϱ_noghosts[i, j, k]
+                        if α > 1:
+                            α = 1
+                        rgbα[index, 3] = α
+                        index += 1
+            # Apply the new α values to the artist.
+            # We do this by setting the attribute _facecolors,
+            # which is much faster than using the set_facecolors
+            # method.
+            artist_component._facecolors = asarray(rgbα)
+        # Print the current cosmic time and scale factor on the figure
+        if master:
+            t_str = a_str = ''
+            t_str = (
+                r'$t = {}\, \mathrm{{{}}}$'
+                .format(significant_figures(universals.t, 4, 'tex'), unit_time)
+            )
+            artists_text['t'].set_text(t_str)
+            if enable_Hubble:
+                a_str = '$a = {}$'.format(significant_figures(universals.a, 4, 'tex'))
+                artists_text['a'].set_text(a_str)
+            # Make the text colour black or white,
+            # dependent on the background colour.
+            for artist_text in artists_text.values():
+                if sum(render3D_bgcolor) < 1:
+                    artist_text.set_color('white')
+                else:
+                    artist_text.set_color('black')
+        # Save the 3D render
+        if nprocs == 1:
+            filename_component_alpha_part = (
+                '{}/{}_alpha.png'.format(render3D_dir, component.name.replace(' ', '-'))
+            )
+        else:
+            filename_component_alpha_part = (
+                '{}/{}_alpha_{}.png'.format(render3D_dir, component.name.replace(' ', '-'), rank)
+            )
+        if nprocs == 1 == len(render3D_dict):
+            # As this is the only 3D render which should be done, it can
+            # be saved directly in its final, non-transparent state.
+            plt.savefig(filename, transparent=False)
+            masterprint('done')
+        else:
+            # Save transparent 3D render
+            plt.savefig(filename_component_alpha_part, transparent=True)
+    # All 3D rendering done
+    Barrier()
+    # The partial 3D renders will now be combined into full 3D renders,
+    # stored in the 'render3D_image', variable. Partial 3D renders of
+    # the j'th component will be handled by the process with rank j.
+    if not (nprocs == 1 == len(render3D_dict)):
+        # Loop over components designated to each process
+        for i in range(1 + len(render3D_dict)//nprocs):
+            # Break out when there is no more work for this process
+            j = rank + nprocs*i
+            if j >= len(names):
+                break
+            name = names[j].replace(' ', '-')
+            if nprocs == 1:
+                # Simply load the already fully constructed image
+                filename_component_alpha = f'{render3D_dir}/{name}_alpha.png'
+                render3D_image = plt.imread(filename_component_alpha)
+            else:
+                # Create list of filenames for the partial 3D renders
+                filenames_component_alpha_part = [
+                    f'{render3D_dir}/{name}_alpha_{part}.png'
+                    for part in range(nprocs)
+                ]
+                # Read in the partial 3D renders and blend
+                # them together into the render3D_image variable.
+                blend(filenames_component_alpha_part)
+                # Save combined 3D render of the j'th component
+                # with transparency. These are then later combined into
+                # a 3D render containing all components.
+                if len(names) > 1:
+                    filename_component_alpha = f'{render3D_dir}/{name}_alpha.png'
+                    plt.imsave(filename_component_alpha, asarray(render3D_image))
+            # Add opaque background to render3D_image
+            add_background()
+            # Save combined 3D render of the j'th component
+            # without transparency.
+            filename_component = filename
+            if len(names) > 1:
+                filename_component = augment_filename(filename, name, '.png')
+            plt.imsave(filename_component, asarray(render3D_image))
+        Barrier()
+        masterprint('done')
+        # Finally, combine the full 3D renders of individual components
+        # into a total 3D render containing all components.
+        if master and len(names) > 1:
+            masterprint(f'Combining component 3D renders and saving to "{filename}" ...')
+            filenames_component_alpha = [
+                '{}/{}_alpha.png'.format(render3D_dir, name.replace(' ', '-'))
+                for name in names
+            ]
+            blend(filenames_component_alpha)
+            # Add opaque background to render3D_image and save it
+            add_background()
+            plt.imsave(filename, asarray(render3D_image))
+            masterprint('done')
+    # Remove the temporary directory, if cleanup is requested
+    if master and cleanup and not (nprocs == 1 == len(render3D_dict)):
+        shutil.rmtree(render3D_dir)
+# Declare global variables used in the render3D() function
 cython.declare(
-    domain_layout_local_indices='int[::1]',
-    domain_bgn_x='double',
-    domain_bgn_y='double',
-    domain_bgn_z='double',
+    render3D_dict=dict,
+    render3D_image='float[:, :, ::1]',
 )
-domain_layout_local_indices = domain_info.layout_local_indices
-domain_bgn_x                = domain_info.bgn_x
-domain_bgn_y                = domain_info.bgn_y
-domain_bgn_z                = domain_info.bgn_z
+# (Ordered) dictionary containing the figure, axes, component
+# artist and text artist for each component.
+render3D_dict = {}
+# The array storing the 3D render
+render3D_image = empty((render3D_resolution, render3D_resolution, 4), dtype=C2np['float'])
+# Dummy function
+def dummy_func(*args, **kwargs):
+    return None
+
+# Function which takes in a list of filenames of images and blend them
+# together into the global render3D_image array.
+@cython.header(# Arguments
+               filenames=list,
+               # Locals
+               alpha_A='float',
+               alpha_B='float',
+               alpha_tot='float',
+               i='int',
+               j='int',
+               rgb='int',
+               rgbα='int',
+               tmp_image='float[:, :, ::1]',
+               )
+def blend(filenames):
+    # Fetch Matplotlib
+    plt = get_matplotlib().pyplot
+    # Make render3D_image black and transparent
+    render3D_image[...] = 0
+    for filename in filenames:
+        tmp_image = plt.imread(filename)
+        for     i in range(render3D_resolution):
+            for j in range(render3D_resolution):
+                # Pixels with 0 alpha has (r, g, b) = (1, 1, 1)
+                # (this is a defect of plt.savefig).
+                # These should be disregarded completely.
+                alpha_A = tmp_image[i, j, 3]
+                if alpha_A != 0:
+                    # Combine render3D_image with tmp_image by
+                    # adding them together, using their alpha values
+                    # as weights.
+                    alpha_B = render3D_image[i, j, 3]
+                    alpha_tot = alpha_A + alpha_B - alpha_A*alpha_B
+                    for rgb in range(3):
+                        render3D_image[i, j, rgb] = (
+                            (alpha_A*tmp_image[i, j, rgb] + alpha_B*render3D_image[i, j, rgb])
+                            /alpha_tot
+                        )
+                    render3D_image[i, j, 3] = alpha_tot
+    # Some pixel values in the combined 3D render may have overflown.
+    # Clip at saturation value.
+    for     i in range(render3D_resolution):
+        for j in range(render3D_resolution):
+            for rgbα in range(4):
+                if render3D_image[i, j, rgbα] > 1:
+                    render3D_image[i, j, rgbα] = 1
+
+# Function which determines the scatter size and α value of points in
+# a 3D figure, given the number of dots N and the collective α for a
+# homogeneous column of such points throughout the box.
+@cython.header(
+    # Arguments
+    N='Py_ssize_t',
+    α_homogeneous='double',
+    fig=object,  # matplotlib.figure.Figure
+    # Locals
+    scatter_size='double',
+    α='double',
+    α_min='double',
+    returns=tuple,
+)
+def alpha_blend(N, α_homogeneous, fig=None):
+    if fig is None:
+        plt = get_matplotlib().pyplot
+        fig = plt.gcf()
+    # The particle (fluid element) size on the figure.
+    # The size is chosen such that the particles stand side
+    # by side in a homogeneous universe (more or less).
+    scatter_size = 1550*np.prod(fig.get_size_inches())/N**(2./3.)
+    # Determine the α value which ensures that a homogeneous column
+    # through the entire box will result in a combined α value
+    # of α_homogeneous. Alpha blending is non-linear,
+    # but via the code given in
+    #   https://stackoverflow.com/questions/28946400
+    # I have found that 4/∛N is a good approximation to
+    # the α value needed to make the combined α equal to 1.
+    α = α_homogeneous*4/cbrt(N)
+    # Alpha values below this small value appear completely invisible,
+    # for whatever reason.
+    α_min = 0.0059
+    # Alpha values lower than α_min are not allowed.
+    # Shrink the scatter size to make up for the larger α.
+    if α < α_min:
+        scatter_size *= α/α_min
+        α = α_min
+    return scatter_size, α
+
+# Function for adding background colour to render3D_image
+@cython.header(# Locals
+               alpha='float',
+               i='int',
+               j='int',
+               rgb='int',
+               )
+def add_background():
+    for     i in range(render3D_resolution):
+        for j in range(render3D_resolution):
+            alpha = render3D_image[i, j, 3]
+            # Add background using "A over B" alpha blending
+            for rgb in range(3):
+                render3D_image[i, j, rgb] = (
+                    alpha*render3D_image[i, j, rgb] + (1 - alpha)*render3D_bgcolor[rgb]
+                )
+                render3D_image[i, j, 3] = 1

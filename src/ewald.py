@@ -1,5 +1,5 @@
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015–2023 Jeppe Mosgaard Dakin.
+# Copyright © 2015–2021 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -25,11 +25,7 @@
 from commons import *
 
 # Cython imports
-cimport(
-    'from mesh import               '
-    '    interpolate_in_vectorgrid, '
-    '    tabulate_vectorgrid,       '
-)
+cimport('from mesh import interpolate_in_vectorgrid, tabulate_vectorgrid')
 
 
 
@@ -245,7 +241,7 @@ def tabulate():
 # The global Ewald grid and its path on disk
 cython.declare(grid='double[:, :, :, ::1]', filename=str)
 grid = None
-filename = get_reusable_filename('ewald', ewald_gridsize, extension='hdf5')
+filename = f'{path.reusable_dir}/ewald/{ewald_gridsize}.hdf5'
 
 # Set parameters for the Ewald summation at import time
 cython.declare(
@@ -259,13 +255,12 @@ cython.declare(
 )
 # The values chosen match those listed in the article mentioned in the
 # docstring of the summation function. These are also those used
-# (in effect) in GADGET-2, though GADGET-2 lacks checks for
-# dist > maxdist and h2 > maxh2.
-rs = 0.25  # corresponds to alpha = 2
+# (in effect) in GADGET-2.
+rs = 0.25  # Corresponds to alpha = 2
 maxdist = 3.6
 maxh2 = 10
 # Derived constants
-h_lower = -isqrt(maxh2)
-h_upper = +isqrt(maxh2) + 1
-n_lower = -int(maxdist + 1)
-n_upper = +int(maxdist + 1) + 1
+h_lower = int(-sqrt(maxh2))      # GADGET-2: -4 (same here for maxh2 = 10)
+h_upper = int(+sqrt(maxh2)) + 1  # GADGET-2:  5 (same here for maxh2 = 10)
+n_lower = int(-(maxdist + 1))    # GADGET-2: -4 (same here for maxdist = 3.6)
+n_upper = int(maxdist + 1) + 1   # GADGET-2:  5 (same here for maxdist = 3.6)

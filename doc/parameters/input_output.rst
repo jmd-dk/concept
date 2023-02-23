@@ -81,12 +81,6 @@ CO\ *N*\ CEPT run.
                                  'N'      : 64**3,
                              },
                          ]
-
-                      When realising two particle components with the same
-                      number of particles :math:`N`, the two particle
-                      distributions will be pre-initialised on relatively
-                      shifted lattices, amounting to using a body-centered
-                      cubic (bcc) lattice for the combined particle system.
 -- --------------- -- -
 \  **Example 3**   \  Generate initial conditions consisting of a combined
                       matter component with :math:`64^3` particles, as well as
@@ -134,27 +128,6 @@ CO\ *N*\ CEPT run.
                              },
                          ]
 
--- --------------- -- -
-\  **Example 5**   \  Generate initial conditions consisting of a single
-                      component comprised of :math:`2\times 64^3` matter
-                      particles:
-
-                      .. code-block:: python3
-
-                         initial_conditions = {
-                            'species': 'matter',
-                            'N'      : 2*64**3,
-                         }
-
-                      As the number of particles is of the form
-                      :math:`N = 2n^3` rather than the standard
-                      :math:`N = n^3`, the particles will be pre-initialised
-                      on lattice points of a body-centered (bcc) lattice
-                      rather than a simple cubic (sc) lattice. Similarly,
-                      components with :math:`N = 4n^3` (e.g. ``'N': 4*64**3``)
-                      particles will be pre-initialised on a face-centered
-                      cubic (fcc) lattice.
-
 == =============== == =
 
 
@@ -175,7 +148,6 @@ CO\ *N*\ CEPT run.
                          {
                              'snapshot' : path.output_dir,
                              'powerspec': path.output_dir,
-                             'bispec'   : path.output_dir,
                              'render2D' : path.output_dir,
                              'render3D' : path.output_dir,
                              'autosave' : f'{path.ic_dir}/autosave',
@@ -183,11 +155,10 @@ CO\ *N*\ CEPT run.
 
 -- --------------- -- -
 \  **Elaboration** \  This is a ``dict`` with the keys ``'snapshot'``,
-                      ``'powerspec'``, ``'bispec'``, ``'render2D'``,
-                      ``'render3D'`` and ``'autosave'``, mapping to directory
-                      paths to use for snapshot outputs, power spectrum
-                      outputs, bispectrum outputs, 2D render outputs,
-                      3D render outputs and autosaves, respectively.
+                      ``'powerspec'``, ``'render2D'``, ``'render3D'`` and
+                      ``'autosave'``, mapping to directory paths to use for
+                      snapshot outputs, power spectrum outputs, 2D render
+                      outputs, 3D render outputs and autosaves, respectively.
 -- --------------- -- -
 \  **Example 0**   \  Dump power spectra to a directory with a name that
                       reflects the name of the parameter file:
@@ -211,33 +182,9 @@ CO\ *N*\ CEPT run.
                          output_dirs = {
                              'snapshot' : f'{path.output_dir}/{jobid}',
                              'powerspec': ...,
-                             'bispec'   : ...,
                              'render2D' : ...,
                              'render3D' : ...,
                          }
-
--- --------------- -- -
-\  **Example 2**   \  Dump all output (even autosaves) to the directory
-                      containing the parameter file currently in use:
-
-                      .. code-block:: python3
-
-                         output_dirs = {
-                             'snapshot' : param.dir,
-                             'powerspec': ...,
-                             'bispec'   : ...,
-                             'render2D' : ...,
-                             'render3D' : ...,
-                             'autosave' : ...,
-                         }
-
-                      When all the different outputs should go to the same
-                      directory (like above), we may instead specify this as
-                      simply
-
-                      .. code-block:: python3
-
-                         output_dirs = param.dir
 
 == =============== == =
 
@@ -257,16 +204,15 @@ CO\ *N*\ CEPT run.
                          {
                              'snapshot' : 'snapshot',
                              'powerspec': 'powerspec',
-                             'bispec'   : 'bispec',
                              'render2D' : 'render2D',
                              'render3D' : 'render3D',
                          }
 
 -- --------------- -- -
 \  **Elaboration** \  This is a ``dict`` with the keys ``'snapshot'``,
-                      ``'powerspec'``, ``'bispec'``, ``'render2D'`` and
-                      ``'render3D'``, mapping to file base names of the
-                      respective output types.
+                      ``'powerspec'``, ``'render2D'`` and ``'render3D'``,
+                      mapping to file base names of the respective
+                      output types.
 
                       The file name of e.g. a power spectrum output at scale
                       factor :math:`a = 1.0` will be
@@ -306,10 +252,9 @@ CO\ *N*\ CEPT run.
 
 -- --------------- -- -
 \  **Elaboration** \  In its simplest form this is a ``dict`` with the keys
-                      ``'snapshot'``, ``'powerspec'``, ``'bispec'``,
-                      ``'render2D'`` and ``'render3D'``, mapping to scale
-                      factor values :math:`a` at which to dump the respective
-                      outputs.
+                      ``'snapshot'``, ``'powerspec'``, ``'render2D'`` and
+                      ``'render3D'``, mapping to scale factor values :math:`a`
+                      at which to dump the respective outputs.
 
                       Alternatively, such ``dict``\ s can be used as values
                       within an outer ``dict`` with keys ``'a'`` and ``'t'``,
@@ -337,7 +282,7 @@ CO\ *N*\ CEPT run.
 
 -- --------------- -- -
 \  **Example 2**   \  Specify 8 power spectrum outputs between the initial
-                      :math:`a = a_{\text{begin}}` and final :math:`a = 1`,
+                      :math:`a = a_{\mathrm{begin}}` and final :math:`a = 1`,
                       placed logarithmically equidistant:
 
                       .. code-block:: python3
@@ -359,8 +304,8 @@ CO\ *N*\ CEPT run.
 
 -- --------------- -- -
 \  **Example 4**   \  Specify snapshots at cosmic times
-                      :math:`t = 1729\,\text{Myr}` and
-                      :math:`t = 13\,\text{Gyr}`, as well as at scale factor
+                      :math:`t = 1729\,\mathrm{Myr}` and
+                      :math:`t = 13\,\mathrm{Gyr}`, as well as at scale factor
                       :math:`a = 1`.
 
                       .. code-block:: python3
@@ -451,27 +396,17 @@ CO\ *N*\ CEPT run.
 ``snapshot_select``
 ...................
 == =============== == =
-\  **Description** \  Specifies what data of which components to include when
-                      reading and writing snapshots
+\  **Description** \  Specifies which components to include when reading and
+                      writing snapshots
 -- --------------- -- -
 \  **Default**     \  .. code-block:: python3
 
                          {
                              'save': {
-                                 'default': {
-                                     'pos': True,
-                                     'mom': True,
-                                     'ϱ'  : True,
-                                     'J'  : True,
-                                 },
+                                 'all': True,
                              },
                              'load': {
-                                 'default': {
-                                     'pos': True,
-                                     'mom': True,
-                                     'ϱ'  : True,
-                                     'J'  : True,
-                                 },
+                                 'all': True,
                              },
                          }
 
@@ -479,39 +414,11 @@ CO\ *N*\ CEPT run.
 \  **Elaboration** \  The sub\ ``dict``\ s ``snapshot_select['save']`` and
                       ``snapshot_select['load']`` are
                       :ref:`component selections <components_and_selections>`
-                      determining what data of which components to include
-                      when writing and reading snapshots, respectively.
-                      Here ``'pos'`` and ``'mom'`` are particle positions and
-                      momenta, respectively, while ``'ϱ'`` and ``'J'`` are
-                      fluid energy and momentum densities, respectively.
+                      determining which components to include when writing
+                      and reading snapshots, respectively.
 -- --------------- -- -
 \  **Example 0**   \  Only include the component with a name/species of
-                      ``'matter'``, for both reading and writing.
-                      Include all data, which is generally desirable:
-
-                      .. code-block:: python3
-
-                         snapshot_select = {
-                             'save': {
-                                 'matter': {
-                                     'pos': True,
-                                     'mom': True,
-                                     'ϱ'  : True,
-                                     'J'  : True,
-                                 },
-                             },
-                             'load': {
-                                 'matter': {
-                                     'pos': True,
-                                     'mom': True,
-                                     'ϱ'  : True,
-                                     'J'  : True,
-                                 },
-                             },
-                         }
-
-                      When all data is to be included,
-                      the above can be simplified to
+                      ``'matter'``, for both reading and writing:
 
                       .. code-block:: python3
 
@@ -556,58 +463,6 @@ CO\ *N*\ CEPT run.
                              },
                          }
 
-                      Components not captured by any specification defaults
-                      to ``True``, so the above may be shortened to
-
-                      .. code-block:: python3
-
-                         snapshot_select = {
-                             'save': {
-                                 'fluid': False,
-                             },
-                         }
-
--- --------------- -- -
-\  **Example 2**   \  Only read in positions when loading particles,
-                      i.e. ignore momenta:
-
-                      .. code-block:: python3
-
-                         snapshot_select = {
-                             'load': {
-                                 'particles': {
-                                     'pos': True,
-                                     'mom': False,
-                                 },
-                             },
-                         }
-
-                      Data variables left out defaults to ``False``,
-                      so the above may be shortened to
-
-                      .. code-block:: python3
-
-                         snapshot_select = {
-                             'load': {
-                                 'particles': {
-                                     'pos': True,
-                                 },
-                             },
-                         }
-
-                      .. caution::
-                         Leaving out certain data when reading in snapshots
-                         will result in components not being fully
-                         initialized, e.g. in this example all particles
-                         loaded from disk will not have any momenta assigned
-                         (not even :math:`0`). Running a simulation with such
-                         a partially initialised component will result in a
-                         crash.
-
-                      The usefulness of this example is found when using e.g.
-                      the :doc:`/utilities/powerspec` utility, where reading
-                      in the momentum information only wastes time and memory.
-
 == =============== == =
 
 
@@ -639,15 +494,20 @@ CO\ *N*\ CEPT run.
                       :ref:`component selection <components_and_selections>`
                       determining which components participate in power
                       spectrum output, as well as what kind of power
-                      spectrum output to include.
+                      spectrum outputs to include.
 
                       Here ``'data'`` refers to text files containing
                       tabulated values of the (auto) power spectrum
-                      :math:`P(k)`. A separate column within these files
+                      :math:`P(k)`. A separate data column within these files
                       containing the corresponding linear-theory power
                       spectrum is added if ``'linear'`` is also selected.
-                      Selecting ``'plot'`` results in a plot of the specified
-                      data, stored as a PNG file.
+                      Selecting ``'plot'`` results in a plot of the selected
+                      (non-)linear data, stored as a PNG file.
+
+                      .. note::
+                         As CO\ *N*\ CEPT runs in *N*\ -body gauge, the output
+                         power spectra will also be in this gauge.
+                         This includes the linear power spectra.
 
                       To tune the specifics of how power spectra are computed,
                       see the ``powerspec_options``
@@ -708,146 +568,6 @@ CO\ *N*\ CEPT run.
                       .. code-block:: python3
 
                          powerspec_select = {
-                             'all'                 : True,
-                             ('matter', 'neutrino'): True,
-                         }
-
-== =============== == =
-
-
-
-------------------------------------------------------------------------------
-
-
-
-.. _bispec_select:
-
-``bispec_select``
-.................
-== =============== == =
-\  **Description** \  Specifies the kind of bispectrum output to include
-                      for different components
--- --------------- -- -
-\  **Default**     \  .. code-block:: python3
-
-                         {
-                             'default': {
-                                 'data'      : True,
-                                 'reduced'   : True,
-                                 'tree-level': True,
-                                 'plot'      : True,
-                             },
-                         }
-
--- --------------- -- -
-\  **Elaboration** \  This is a
-                      :ref:`component selection <components_and_selections>`
-                      determining which components participate in bispectrum
-                      output, as well as what kind of bispectrum output
-                      to include.
-
-                      Here ``'data'`` refers to text files containing
-                      tabulated values of the (auto) bispectrum
-                      :math:`B(k, t, \mu) = B(k_1, k_2, k_3)`. If
-                      ``'reduced'`` is also selected, a separate column
-                      containing the reduced bispectrum
-                      :math:`Q(k_1, k_2, k_3) \equiv B(k_1, k_2, k_3)/[P(k_1)P(k_2) + P(k_2)P(k_3) + P(k_3)P(k_1)]`
-                      will be included within the text file. When
-                      ``'tree-level'`` is selected, a separate column
-                      containing the perturbative tree-level prediction of
-                      :math:`B` is added, and likewise for :math:`Q` if
-                      ``'reduced'`` is simultaneously selected. Selecting
-                      ``'plot'`` results in a plot of the specified data,
-                      stored as a PNG file.
-
-                      .. note::
-                         Tree-level predictions are available for matter-like
-                         species only, and are
-                         `given by <https://arxiv.org/abs/1602.05933>`__
-
-                         .. math::
-
-                            B_{\text{tree-level}}(k_1, k_2, k_3) = 2 [ \quad &\mathcal{K}(k_1, k_2, k_3)P_{\text{L}}(k_1)P_{\text{L}}(k_2) \\
-                            + &\mathcal{K}(k_2, k_3, k_1)P_{\text{L}}(k_2)P_{\text{L}}(k_3) \\
-                            + &\mathcal{K}(k_3, k_1, k_2)P_{\text{L}}(k_3)P_{\text{L}}(k_1) ]\,,
-
-                         .. math::
-
-                            \mathcal{K}(k_1, k_2, k_3) = 1 - \frac{1}{2}\biggl(1 + \frac{D^{(2)}}{D^2}\biggr) (1 - \mu^2) - \frac{\mu}{2}\biggl( \frac{k_1}{k_2} + \frac{k_2}{k_1} \biggr)\,,
-
-                         .. math::
-
-                            \mu = -\hat{\boldsymbol{k}}_1\cdot\hat{\boldsymbol{k}}_2 = \frac{k_1^2 + k_2^2 - k_3^2}{2k_1k_2}\,,
-
-                         where :math:`P_{\text{L}}(k)` is the linear power
-                         spectrum while :math:`D` and :math:`D^{(2)}` are the
-                         first- and second-order growth factors.
-
-                      To tune the specifics of how bispectra are computed, see
-                      the ``bispec_options`` :ref:`parameter <bispec_options>`.
--- --------------- -- -
-\  **Example 0**   \  Dump bispectrum data files containing spectra for all
-                      components, including both non-linear and tree-level
-                      data, for both the full and reduced bispectrum. Do not
-                      dump any plots of this data:
-
-                      .. code-block:: python3
-
-                         bispec_select = {
-                             'all': {
-                                 'data'      : True,
-                                 'reduced'   : True,
-                                 'tree-level': True,
-                                 'plot'      : False,
-                             },
-                         }
-
--- --------------- -- -
-\  **Example 1**   \  Leave out the reduced bispectrum for every component
-                      except the one with a name/species of ``'matter'``.
-                      Do not include any tree-level predictions and do not
-                      make any plots:
-
-                      .. code-block:: python3
-
-                         bispec_select = {
-                             'all': {
-                                 'data': True,
-                             },
-                             'matter': {
-                                 'data'   : True,
-                                 'reduced': True,
-                             },
-                         }
-
-                      .. note::
-                         Unspecified values are assigned ``False``
-
--- --------------- -- -
-\  **Example 2**   \  Do not create any bispectrum outputs except plots
-                      of the component with a name/species of ``'matter'``.
-                      Include both the full and reduced bispectrum as well as
-                      their tree-level predictions in the plots:
-
-                      .. code-block:: python3
-
-                         bispec_select = {
-                             'all'   : False,
-                             'matter': {
-                                 'reduced'   : True,
-                                 'tree-level': True,
-                                 'plot'      : True,
-                             },
-                         }
-
--- --------------- -- -
-\  **Example 3**   \  Create full (auto) bispectrum outputs for all
-                      components, as well as for the combined
-                      ``'matter'`` and ``'neutrino'`` components:
-
-                      .. code-block:: python3
-
-                         bispec_select = {
                              'all'                 : True,
                              ('matter', 'neutrino'): True,
                          }
@@ -957,9 +677,7 @@ CO\ *N*\ CEPT run.
 -- --------------- -- -
 \  **Default**     \  .. code-block:: python3
 
-                         {
-                             'default': True,
-                         }
+                         {'all': True}
 
 -- --------------- -- -
 \  **Elaboration** \  This is a
@@ -967,9 +685,10 @@ CO\ *N*\ CEPT run.
                       determining which components participate in 3D
                       render outputs. These are stored as PNG files.
 
-                      To tune the specifics of how 3D renders are created,
-                      see the ``render3D_options``
-                      :ref:`parameter <render3D_options>`.
+                      Note that you cannot use component combinations as keys
+                      in ``render3D_select``. If multiple components are 3D
+                      rendered (separately), one additional, total 3D render
+                      will also be produced, combining all into one.
 -- --------------- -- -
 \  **Example 0**   \  Only do 3D renders of the component with a name/species
                       of ``'matter'``:
@@ -978,28 +697,6 @@ CO\ *N*\ CEPT run.
 
                          render3D_select = {
                              'matter': True,
-                         }
-
-                      In a manner similar to the specifications within e.g.
-                      the ``render2D_select``
-                      :ref:`parameter <render2D_select>`
-                      we may also specify this as
-
-                      .. code-block:: python3
-
-                         render3D_select = {
-                             'matter': {'image': True},
-                         }
-
--- --------------- -- -
-\  **Example 1**   \  Create 3D render outputs for the combined
-                      ``'matter'`` and ``'neutrino'`` components,
-                      and nothing else:
-
-                      .. code-block:: python3
-
-                         render3D_select = {
-                             ('matter', 'neutrino'): True,
                          }
 
 == =============== == =
@@ -1026,10 +723,10 @@ CO\ *N*\ CEPT run.
 \  **Elaboration**  \ CO\ *N*\ CEPT understands two snapshot
                       formats; ``'concept'``, which is its own,
                       well-structured
-                      `HDF5 <https://www.hdfgroup.org/solutions/hdf5/>`__
+                      `HDF5 <https://www.hdfgroup.org/solutions/hdf5/>`_
                       format, and ``'gadget'``, which is the binary, non-HDF5
                       format of
-                      `GADGET <https://wwwmpa.mpa-garching.mpg.de/gadget/>`__.
+                      `GADGET <https://wwwmpa.mpa-garching.mpg.de/gadget/>`_.
                       Note that the value of ``snapshot_type`` does
                       not affect which snapshots may be *read*, e.g. used
                       within the ``initial_conditions``
@@ -1048,7 +745,7 @@ CO\ *N*\ CEPT run.
                          :ref:`parameter <snapshot_select>`, additional
                          information is needed to map components to/from the
                          *particle types* of GADGET (see table 3 of the
-                         `user guide for GADGET-2 <https://wwwmpa.mpa-garching.mpg.de/gadget/users-guide.pdf>`__).
+                         `user guide for GADGET-2 <https://wwwmpa.mpa-garching.mpg.de/gadget/users-guide.pdf>`_).
                          When loading in a GADGET snapshot, the available
                          particle types will be read into separate components,
                          with names matching the particle type, e.g.
@@ -1119,26 +816,25 @@ CO\ *N*\ CEPT run.
                         should use a ``SnapFormat`` of ``1`` or ``2``. Note
                         that ``SnapFormat`` ``3`` (the HDF5 format) is not
                         available. See section 5.1 in the
-                        `user guide for GADGET-2 <https://wwwmpa.mpa-garching.mpg.de/gadget/users-guide.pdf>`__
+                        `user guide for GADGET-2 <https://wwwmpa.mpa-garching.mpg.de/gadget/users-guide.pdf>`_
                         for more information.
                       * ``'dataformat'``: This is a ``dict`` specifying the
                         data type sizes to use when writing out particle
-                        positions, velocities and
-                        :ref:`IDs <select_particle_id>`. The corresponding
-                        keys are ``'POS'``, ``'VEL'`` and ``'ID'``, which may
-                        all have a value of either ``32`` or ``64``,
-                        specifying the size in bits (corresponding to single-
-                        or double-precision for ``'POS'`` and ``'VEL'``, and
-                        4- or 8-byte unsigned integers (typically corresponding
-                        to ``unsigned int`` and ``unsigned long long`` in C)
-                        for ``'ID'``). In addition, the value of ``'ID'`` may
-                        also be set to ``'automatic'``, in which case 32 bits
-                        will be used if this is enough to uniquely label each
+                        positions, velocities and ID's. The corresponding keys
+                        are ``'POS'``, ``'VEL'`` and ``'ID'``, which may all
+                        have a value of either ``32`` or ``64``, specifying
+                        the size in bits (corresponding to single- or double-
+                        precision for ``'POS'`` and ``'VEL'``, and 4- or
+                        8-byte unsigned integers (typically corresponding to
+                        ``unsigned int`` and ``unsigned long long`` in C) for
+                        ``'ID'``). In addition, the value of ``'ID'`` may also
+                        be set to ``'automatic'``, in which case 32 bits will
+                        be used if this is enough to uniquely label each
                         particle (:math:`N \leq 2^{32}`). If not, 64 bits will
                         be used.
                       * ``'Nall high word'``: The ``Nall`` field of the header
                         (see table 4 of the
-                        `user guide for GADGET-2 <https://wwwmpa.mpa-garching.mpg.de/gadget/users-guide.pdf>`__)
+                        `user guide for GADGET-2 <https://wwwmpa.mpa-garching.mpg.de/gadget/users-guide.pdf>`_)
                         is meant to store the total number :math:`N` of
                         particles (of each type) within the snapshot, summed
                         over all files in case of the snapshot being
@@ -1157,11 +853,11 @@ CO\ *N*\ CEPT run.
 
                         A separate convention (used by at least some versions
                         of
-                        `NGenIC <https://www.h-its.org/2014/11/05/ngenic-code/>`__)
+                        `NGenIC <https://www.h-its.org/2014/11/05/ngenic-code/>`_)
                         is to only allow for particle type 1 (``halo``
                         particles, corresponding to (cold dark) matter; see
                         table 3 of the
-                        `user guide for GADGET-2 <https://wwwmpa.mpa-garching.mpg.de/gadget/users-guide.pdf>`__)
+                        `user guide for GADGET-2 <https://wwwmpa.mpa-garching.mpg.de/gadget/users-guide.pdf>`_)
                         and store all 64 bits within ``Nall``, overflowing into
                         the (now unused) slot usually designated to particle
                         type 2. This convention can be chosen by specifying
@@ -1173,7 +869,7 @@ CO\ *N*\ CEPT run.
                       * ``'header'``: The contents of the GADGET header (the
                         ``HEAD`` block) will match the specifications in table
                         4 of the
-                        `user guide for GADGET-2 <https://wwwmpa.mpa-garching.mpg.de/gadget/users-guide.pdf>`__.
+                        `user guide for GADGET-2 <https://wwwmpa.mpa-garching.mpg.de/gadget/users-guide.pdf>`_.
                         You may overwrite the values of the various fields by
                         specifying them in the ``'header'`` sub-\ ``dict``,
                         e.g.
@@ -1210,7 +906,7 @@ CO\ *N*\ CEPT run.
 
                       * ``'settle'``: If a GADGET snapshot is stored in
                         ``SnapFormat`` ``2`` (see the
-                        `user guide for GADGET-2 <https://wwwmpa.mpa-garching.mpg.de/gadget/users-guide.pdf>`__),
+                        `user guide for GADGET-2 <https://wwwmpa.mpa-garching.mpg.de/gadget/users-guide.pdf>`_),
                         the size of a block is effectively stored twice before
                         its data begins. If these two sizes disagree, we need
                         to settle for one of them. A value of ``0`` for
@@ -1255,338 +951,6 @@ CO\ *N*\ CEPT run.
                                  'length': 'Mpc/h',
                              },
                          }
-
-== =============== == =
-
-
-
-------------------------------------------------------------------------------
-
-
-
-``snapshot_wrap``
-.................
-== =============== == =
-\  **Description** \  Specifies whether or not to wrap out-of-bounds particles
-                      around the periodic box when reading snapshots
--- --------------- -- -
-\  **Default**     \  .. code-block:: python3
-
-                         False
-
--- --------------- -- -
-\  **Elaboration** \  All particles should have positions
-                      :math:`0 \leq x, y, z < L_{\text{box}}`, with
-                      :math:`L_{\text{box}}` corresponding to the
-                      ``boxsize`` :ref:`parameter <boxsize>`.
-                      During simulation, particles drifting out of the cubic
-                      box is immediately wrapped around.
-
-                      When reading particles from a snapshot, some particles
-                      may be erroneously located outside of the box. If a
-                      particle is positioned exactly on the upper boundary
-                      :math:`L_{\text{box}}`, this is silently wrapped back
-                      to :math:`0`. Positions beyond this as well as as
-                      negative positions are counted as out-of-bounds.
-
-                      If this parameter is set to ``False`` (the default), any
-                      out-of-bounds particles found within a snapshot will
-                      cause CO\ *N*\ CEPT to terminate with an error message.
-                      Setting this parameter to ``True``, all out-of-bounds
-                      particles read from snapshots will be silently wrapped
-                      around, placing them within the box.
--- --------------- -- -
-\  **Example 0**   \  Allow and correct for out-of-bounds particles read from
-                      snapshots:
-
-                      .. code-block:: python3
-
-                         snapshot_wrap = True
-
-== =============== == =
-
-
-
-------------------------------------------------------------------------------
-
-
-
-.. _select_particle_id:
-
-``select_particle_id``
-......................
-== =============== == =
-\  **Description** \  Specifies components that should keep track of particle
-                      IDs
--- --------------- -- -
-\  **Default**     \  .. code-block:: python3
-
-                         {
-                             'default': False,
-                         }
-
--- --------------- -- -
-\  **Elaboration** \  This is a
-                      :ref:`component selection <components_and_selections>`
-                      specifying particle components that should make use of
-                      particle IDs, i.e. unique integer labels, one for each
-                      particle.
-
-                      When a component using particle IDs are saved to a
-                      snapshot, the IDs are saved as well.
-
-                      .. note::
-
-                         When writing GADGET snapshots, IDs will be written
-                         even for components that do not make use of paticle
-                         IDs. In this case, some IDs are simply made up when
-                         the snapshot is written. Thus, the IDs in GADGET
-                         snapshots should not be relied upon in such cases.
-
-                      When saving a GADGET snapshot, the data type used for
-                      the IDs is determined by the ``gadget_snapshot_params``
-                      :ref:`parameter <gadget_snapshot_params>`.
-
-                      When saving a CO\ *N*\ CEPT snapshot, the data type used
-                      for the IDs is automatically determined to be an
-                      unsigned 8-, 16-, 32- or 64-bit integer.
-
-                      When a component that should use particle IDs are loaded
-                      from a CO\ *N*\ CEPT snapshot that does not contain such
-                      IDs, new IDs are assigned.
-
--- --------------- -- -
-\  **Example 0**   \  Use particle IDs for all particle components:
-
-                      .. code-block:: python3
-
-                         select_particle_id = {
-                             'particles': True,
-                         }
-
-== =============== == =
-
-
-
-------------------------------------------------------------------------------
-
-
-
-.. _class_plot_perturbations:
-
-``class_plot_perturbations``
-............................
-== =============== == =
-\  **Description** \  Specifies whether to plot CLASS perturbations used
-                      within the CO\ *N*\ CEPT run
--- --------------- -- -
-\  **Default**     \  .. code-block:: python3
-
-                         False
-
--- --------------- -- -
-\  **Elaboration** \  When enabled, all `CLASS <http://class-code.net/>`__
-                      perturbations used within the CO\ *N*\ CEPT run will be
-                      plotted and saved to image files. This is primarily
-                      intended for visual checks of convergence of CLASS
-                      computations.
-
-                      Two new directories will be created --- both within the
-                      specified power spectrum
-                      :ref:`output directory <output_dirs>`
-                      ``output_dirs['powerspec']`` --- containing
-                      subdirectories for the various perturbations. The two
-                      directories are:
-
-                      * ``class_perturbations``: The plots within this
-                        directory show the evolution of each of the computed
-                        :math:`k` modes through time :math:`a`, for each type
-                        of perturbation. The time axis is cut into regions,
-                        within each of which the perturbations are
-                        'detrended', meaning that a trend-line in the form of
-                        a power law in :math:`a` has been fitted and
-                        subsequently subtracted. This detrending is done prior
-                        to any spline interpolation, greatly increasing the
-                        accuracy of interpolation.
-
-                        Perturbations used only indirectly (e.g. if they enter
-                        in a used gauge transformation) are plotted here
-                        as well.
-
-                      * ``class_perturbations_processed``: The plots within
-                        this directory are of the final, processed
-                        perturbations, as they are used by CO\ *N*\ CEPT
-                        for e.g. initial condition generation. These are
-                        plotted as functions of :math:`k`, for various
-                        :math:`a`.
-
-                      .. note::
-                         This feature is primarily meant to be used with the
-                         :doc:`class utility </utilities/class>`.
-
--- --------------- -- -
-\  **Example 0**   \  Plot all CLASS perturbations used within the
-                      CO\ *N*\ CEPT run:
-
-                      .. code-block:: python3
-
-                         class_plot_perturbations = True
-
-== =============== == =
-
-
-
-------------------------------------------------------------------------------
-
-
-
-.. _class_extra_background:
-
-``class_extra_background``
-..........................
-== =============== == =
-\  **Description** \  Specifies additional CLASS background quantities to
-                      include as part of the CLASS data
--- --------------- -- -
-\  **Default**     \  .. code-block:: python3
-
-                         set()
-
--- --------------- -- -
-\  **Elaboration** \  Only a subset of the available
-                      `CLASS <http://class-code.net/>`__ background quantities
-                      are used by CO\ *N*\ CEPT, and so only these are
-                      retrieved from CLASS computations. This also means that
-                      only these specific background quantities end up in the
-                      CLASS data stored on disk, be it the automatic CLASS
-                      disk cache or the data files generated by the
-                      :doc:`class utility </utilities/class>`.
-
-                      To include extra CLASS background quantities --- not
-                      used by CO\ *N*\ CEPT --- within these files, specify
-                      them within the ``class_extra_background`` parameter.
-                      You can refer to the extra quantities by their name as
-                      defined by CLASS. In addition, the following easier
-                      names are provided by CO\ *N*\ CEPT:
-
-                      * ``τ`` or ``tau``: The conformal time :math:`\tau` (in
-                        CLASS called ``conf. time [Mpc]``).
-                      * ``D``: The linear growth factor :math:`D` (in CLASS
-                        called ``gr.fac. D``).
-                      * ``f``: The linear growth rate
-                        :math:`f \equiv \mathrm{d}\ln D / \mathrm{d}\ln a`
-                        (in CLASS called ``gr.fac. f``).
-                      * ``D2``: The second-order growth factor :math:`D^{(2)}`
-                        (in CLASS called ``gr.fac. D2``).
-                      * ``f2``: The second-order growth rate
-                        :math:`f^{(2)} \equiv \mathrm{d}\ln D^{(2)} / \mathrm{d}\ln a`
-                        (in CLASS called ``gr.fac. f2``).
-
-                      .. note::
-                         When running the
-                         :doc:`class utility </utilities/class>`, the
-                         ``class_extra_background`` parameter is by default
-                         set to
-
-                         .. code-block:: python3
-
-                            {'tau', 'D', 'f', 'D2', 'f2'}
-
--- --------------- -- -
-\  **Example 0**   \  Include the conformal time :math:`\tau` among the
-                      CLASS background quantities when dumping these to disk,
-                      e.g. when running the CO\ *N*\ CEPT
-                      :doc:`class utility </utilities/class>`:
-
-                      .. code-block:: python3
-
-                         class_extra_background = 'τ'
-
-                      We can also refer to :math:`\tau` using its CLASS name:
-
-                      .. code-block:: python3
-
-                         class_extra_background = 'conf. time [Mpc]'
-
--- --------------- -- -
-\  **Example 1**   \  Include the linear growth factor :math:`D` and rate
-                      :math:`f` among the background quantities when dumping
-                      these to disk, e.g. when running the CO\ *N*\ CEPT
-                      :doc:`class utility </utilities/class>`:
-
-                      .. code-block:: python3
-
-                         class_extra_background = {'D', 'f'}
-
-== =============== == =
-
-
-
-------------------------------------------------------------------------------
-
-
-
-.. _class_extra_perturbations:
-
-``class_extra_perturbations``
-.............................
-== =============== == =
-\  **Description** \  Specifies additional CLASS perturbations to include as
-                      part of the CLASS data
--- --------------- -- -
-\  **Default**     \  .. code-block:: python3
-
-                         set()
-
--- --------------- -- -
-\  **Elaboration** \  Only a subset of the available
-                      `CLASS <http://class-code.net/>`__ perturbations are
-                      used by CO\ *N*\ CEPT, and so only these are retrieved
-                      from CLASS computations. This also means that only these
-                      specific perturbations end up in the CLASS data stored
-                      on disk, be it the automatic CLASS disk cache or the
-                      data files generated by the
-                      :doc:`class utility </utilities/class>`.
-
-                      To include extra CLASS perturbations --- not used by
-                      CO\ *N*\ CEPT --- within these files, specify them
-                      within the ``class_extra_perturbation`` parameter. You
-                      can refer to the extra quantities by their name as
-                      defined by CLASS. In addition, the following fancy
-                      names are provided by CO\ *N*\ CEPT:
-
-                      * ``θ_tot``: The total velocity divergence
-                        :math:`\theta_{\text{tot}}` from all species (in CLASS
-                        called ``theta_tot``).
-                      * ``ϕ``: The spatial metric perturbation :math:`\phi` in
-                        conformal Newtonian gauge (in CLASS called ``phi``).
-                      * ``ψ``: The temporal metric perturbation :math:`\psi`
-                        in conformal Newtonian gauge (in CLASS called ``psi``).
-                      * ``hʹ``: The conformal time derivative of the trace of
-                        the spatial metric perturbation in synchronous gauge,
-                        :math:`\partial_{\tau} h` (in CLASS called
-                        ``h_prime``).
-                      * ``H_Tʹ``: The conformal time derivative of the
-                        trace-free component of the spatial metric in *N*-body
-                        gauge, :math:`\partial_{\tau} H_{\text{T}}` (in CLASS
-                        called ``H_T_prime``).
-
--- --------------- -- -
-\  **Example 0**   \  Include the two conformal Newtonian metric potentials
-                      :math:`\phi` and :math:`\psi` among the CLASS
-                      perturbations when dumping these to disk,
-                      e.g. when running the CO\ *N*\ CEPT
-                      :doc:`class utility </utilities/class>`:
-
-                      .. code-block:: python3
-
-                         class_extra_perturbations = {'ϕ', 'ψ'}
-
-                      We can also refer to these using their CLASS names:
-
-                      .. code-block:: python3
-
-                         class_extra_background = {'phi', 'psi'}
 
 == =============== == =
 

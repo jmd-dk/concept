@@ -54,11 +54,6 @@ jobs:
         steps:
           - name: Pass
             run: exit 0
-    test_bispec:
-        runs-on: [self-hosted, linux]
-        steps:
-          - name: Pass
-            run: exit 0
     test_gadget:
         runs-on: [self-hosted, linux]
         steps:
@@ -134,11 +129,6 @@ jobs:
         steps:
           - name: Pass
             run: exit 0
-    test_ids:
-        runs-on: [self-hosted, linux]
-        steps:
-          - name: Pass
-            run: exit 0
     test_multigrid:
         runs-on: [self-hosted, linux]
         steps:
@@ -185,11 +175,6 @@ jobs:
           - name: Pass
             run: exit 0
     test_optimizations:
-        runs-on: [self-hosted, linux]
-        steps:
-          - name: Pass
-            run: exit 0
-    test_classutil:
         runs-on: [self-hosted, linux]
         steps:
           - name: Pass

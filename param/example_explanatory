@@ -25,7 +25,6 @@ initial_conditions = [  # Initial condition snapshot file or container of compon
 output_dirs = {  # Directories for storing output
     'snapshot' : f'{path.output_dir}/{param}',
     'powerspec': ...,
-    'bispec'   : ...,
     'render2D' : ...,
     'render3D' : ...,
     'autosave' : f'{path.ic_dir}/autosave',
@@ -33,68 +32,42 @@ output_dirs = {  # Directories for storing output
 output_bases = {  # File basenames of output
     'snapshot' : 'snapshot',
     'powerspec': 'powerspec',
-    'bispec'   : 'bispec',
     'render2D' : 'render2D',
     'render3D' : 'render3D',
 }
 output_times = {
     'a': {  # Scale factor values at which to dump output
-        'snapshot' : [1/(1 + z) for z in (1, 0.5, 0)],
-        'powerspec': [a_begin, 0.1, 0.3, 1],
-        'bispec'   : 1,
+        'snapshot' : linspace(a_begin, 1, 4),
+        'powerspec': ...,
         'render2D' : 1,
         'render3D' : [a_begin, 1],
     },
     't': {  # Cosmic times at which to dump output
-        'snapshot' : None,
-        'powerspec': None,
-        'bispec'   : None,
-        'render2D' : None,
-        'render3D' : None,
+        'snapshot' : '',
+        'powerspec': '',
+        'render2D' : '',
+        'render3D' : '',
      },
 }
 autosave_interval = 12*hr  # How often to dump autosave snapshot
 snapshot_select = {  # Select which components to save to and load from snapshots
     'save': {
-        'all': {
-            # Particle variables
-            'pos': True,
-            'mom': True,
-            # Fluid variables
-            'ϱ': True,
-            'J': True,
-            '𝒫': True,
-            'ς': True,
-        },
+        'all': True,
     },
     'load': {
-        'all': {
-            # Particle variables
-            'pos': True,
-            'mom': True,
-            # Fluid variables
-            'ϱ': True,
-            'J': True,
-            '𝒫': True,
-            'ς': True,
-        },
+        'all': True,
     },
 }
 powerspec_select = {  # Toggle power spectra computation for individual and sets of components
     'all'             : {'data': True, 'linear': True, 'plot': True},
     'all combinations': {'data': True, 'linear': True, 'plot': False},
 }
-bispec_select = {  # Toggle bispectra computation for individual and sets of components
-    'all'             : {'data': True, 'reduced': True, 'tree-level': True, 'plot': True},
-    'all combinations': {'data': True, 'reduced': True, 'tree-level': True, 'plot': False},
-}
 render2D_select = {  # Toggle 2D rendering for individual and sets of components
     'matter'  : {'data': False, 'image': True,  'terminal image': True},
     'neutrino': {'data': False, 'image': False, 'terminal image': False},
 }
-render3D_select = {  # Toggle 3D rendering for individual and sets of components
-    'all'             : {'image': True},
-    'all combinations': {'image': True},
+render3D_select = {  # Toggle rendering for each component
+    'all': True,
 }
 snapshot_type = 'concept'  # Type of output snapshots
 gadget_snapshot_params = {  # Specifications for output GADGET snapshots
@@ -117,15 +90,12 @@ snapshot_wrap = False  # Wrap particles around the box upon snapshot read-in, al
 life_output_order = (  # Ordering of component activations/terminations relative to output dumps
     'terminate', 'activate', 'dump',
 )
-select_particle_id = {  # Should particle IDs be used?
-    'particles': False,
-}
 class_plot_perturbations = False  # Plot CLASS perturbations?
 class_extra_background = {}       # Extra CLASS background variables to dump
 class_extra_perturbations = {}    # Extra CLASS perturbations to dump
 
 # Numerics
-boxsize = 4*_size*Mpc/h  # Linear size of the simulation box
+boxsize = 256*Mpc/h  # Linear size of the simulation box
 potential_options = {  # Specifications for potential computations
     'gridsize': {  # Linear potential grid size
         'global': {  # Common, global grid size
@@ -137,12 +107,12 @@ potential_options = {  # Specifications for potential computations
         # Component specific upstream and downstream grid sizes
         'matter': {
             'gravity': {
-                'p3m': ('2*cbrt(N)', '2*cbrt(N)'),
+                'p3m': (2*_size, 2*_size),
             },
         },
         'neutrino': {
             'gravity': {
-                'pm': 'gridsize',
+                'pm': _size,
             },
         },
     },
@@ -160,8 +130,8 @@ potential_options = {  # Specifications for potential computations
     },
     'interlace': {  # Use interlaced grids for particles?
         'gravity': {
-            'pm' : (False, False),
-            'p3m': (False, False),
+            'pm' : False,
+            'p3m': False,
         },
     },
     'differentiation': {  # Finite central difference order
@@ -202,10 +172,10 @@ powerspec_options = {  # Specifications of power spectra for individual and sets
     'k_max': {  # Maximum frequency to include
         'default': 'Nyquist',
     },
-    'bins per decade': {  # Running number of bins per decade
+    'binsize': {  # Linear width of each power spectrum bin
         'default': {
-            '  4*k_min':  4,
-            '100*k_min': 40,
+            '1*k_min': 1*π/boxsize,
+            '5*k_min': 2*π/boxsize,
         },
     },
     'tophat': {  # Radius of tophat used to compute rms density variation
@@ -215,41 +185,7 @@ powerspec_options = {  # Specifications of power spectra for individual and sets
         'default': 8,
     },
 }
-bispec_options = {  # Specifications of bispectra for individual and sets of components
-    'configuration': {  # Parameter space specification
-        'default': ('equilateral', 20),
-    },
-    'shellthickness': {  # Thicknesses of shells
-        'default': [
-            {
-                '1*k_fundamental': '0.25*k_fundamental',
-                '4*k_fundamental': 'max(3*k_fundamental, 1/20*log(10)*k)',
-            }
-        ]*3,
-    },
-    'upstream gridsize': {  # Linear upstream grid sizes
-        'particles': '2*cbrt(N)',
-        'fluid'    : 'gridsize',
-    },
-    'global gridsize': {  # Linear global grid sizes
-        'default': -1,
-    },
-    'interpolation': {  # Particle interpolation order
-        'default': 'PCS',
-    },
-    'deconvolve': {  # Perform deconvolution of particles?
-        'default': True,
-    },
-    'interlace': {  # Use interlaced grids for particles?
-        'default': True,
-    },
-    'significant figures': {  # Number of significant figures in output
-        'default': 8,
-    },
-}
-bispec_antialiasing = True       # Enable anti-aliasing for bispectra?
-class_dedicated_spectra = False  # Carry out dedicated CLASS runs for perturbation theory spectra?
-class_modes_per_decade = {  # Running number of k modes per decade in CLASS computations
+k_modes_per_decade = {  # Number of k modes per decade in CLASS computations
     3e-3/Mpc: 10,
     3e-2/Mpc: 30,
     3e-1/Mpc: 30,
@@ -299,24 +235,42 @@ select_boltzmann_order = {  # Boltzmann order for each component
 select_boltzmann_closure = {  # Closure rule for the Boltzmann hierarchy for each component
     'all': 'class',
 }
-realization_options = {  # Options for realizations of components
-    'gauge': {  # Gauge to use for realizations
-        'default': 'N-body',
-    },
-    'back-scale': {  # Use back-scaled transfer functions?
-        'default': False,
-    },
-    'LPT': {  # Lagrangian perturbation theory order to use
-        'default': 1,
-    },
-    'non-Gaussianity': {  # Amount of local non-Gaussianity (f_NL)
-        'default': 0.0,
-    },
-    'structure': {  # Use primordial noise or non-linearly evolved structure for late realizations
-        'default': 'non-linear',
-    },
-    'compound': {  # Use linear or non-linear products of fields for realizations
-        'default': 'non-linear',
+select_realization_options = {  # Realization options for each component and variable
+    'all': {
+        # Particle variables
+        'pos': {
+            'interpolation': 'CIC',
+            'back-scaling' : False,
+        },
+        'mom': {
+            'interpolation'                : 'CIC',
+            'back-scaling'                 : False,
+            'velocities from displacements': False,
+        },
+        # Fluid variables
+        'ϱ': {
+            'back-scaling': False,
+        },
+        'J': {
+            # Linear realization options
+            'back-scaling': False,
+            # Non-linear realization options
+            'structure'     : 'primordial',
+            'compound-order': 'linear',
+        },
+        '𝒫': {
+            # Linear realization options
+            'back-scaling': False,
+            # Non-linear realization options
+            'structure': 'non-linear',
+        },
+        'ς': {
+            # Linear realization options
+            'back-scaling': False,
+            # Non-linear realization options
+            'structure'     : 'non-linear',
+            'compound-order': 'non-linear',
+        },
     },
 }
 select_lives = {  # Time (scale factor value) of birth and death for each component
@@ -345,11 +299,7 @@ fftw_wisdom_rigor = 'measure'       # Rigour level when acquiring FFTW wisdom
 fftw_wisdom_reuse = True            # Reuse FFTW wisdom from earlier runs?
 fftw_wisdom_share = False           # Share FFTW wisdom across nodes?
 random_generator = 'PCG64DXSM'      # Pseudo-random number generator to use
-random_seeds = {                    # Seeds for pseudo-random numbers
-    'general'              :     0,
-    'primordial amplitudes': 1_000,
-    'primordial phases'    : 2_000,
-}
+random_seed = 0                     # Seed for pseudo-random numbers
 primordial_amplitude_fixed = False  # Replace Gaussian noise with noise of fixed amplitude and uniform random phase?
 primordial_phase_shift = 0          # Phase shift when using fixed amplitude (set to π for paired simulations)
 cell_centered = True                # Use cell centre (as opposed to vertex) locations for grid variables?
@@ -428,63 +378,12 @@ render2D_options = {  # Specifications of 2D renders for individual and sets of 
         'default': True,
     },
 }
-render3D_options = {  # Specifications of 3D renders for individual and sets of components
-    'upstream gridsize': {  # Linear upstream grid sizes
-        'particles': 'cbrt(N)',
-        'fluid'    : 'gridsize',
-    },
-    'global gridsize': {  # Linear global grid sizes
-        'default': -1,
-    },
-    'interpolation': {  # Particle interpolation order
-        'default': 'PCS',
-    },
-    'deconvolve': {  # Perform deconvolution for particles?
-        'default': False,
-    },
-    'interlace': {  # Use interlaced grids for particles?
-        'default': False,
-    },
-    'elevation': {  # Camera elevation viewing angle
-        'default': π/6,
-    },
-    'azimuth': {  # Camera azimuthal viewing angle
-        'default': -π/3,
-    },
-    'roll': {  # Camera roll angle
-        'default': 0,
-    },
-    'zoom': {  # Camera zoom amount
-        'default': 1.05,
-    },
-    'projection': {  # 3D → 2D projection type
-        'default': 'perspective',
-    },
-    'color': {  # Colour
-        'matter'  : ('inferno', lambda a: (0.10, 0.75 + 0.25*a)),
-        'neutrino': ('viridis', lambda a: (0.15, 0.85 + 0.15*a)),
-    },
-    'depthshade': {  # Apply shading according to depth
-        'default': True,
-    },
-    'enhancement': {  # Image enhancement specifications
-        'default': {
-            'contrast'  : 0.5,
-            'clip'      : lambda a: (0.45, 1 - 1e-6*a),
-            'α'         : 1,
-            'brightness': 0.35,
-        },
-    },
-    'background': {  # Colour of the background
-        'default': 'black',
-    },
-    'fontsize': {  # Font size for text elements
-        'default': '0.022*resolution',
-    },
-    'resolution': {  # Height and width of images
-        'default': 1080,
-    },
+render3D_colors = {  # Colour to use in 3D renders for each component
+    'matter'  : 'lime',
+    'neutrino': 'r',
 }
+render3D_bgcolor = 'black'  # Background colour of 3D renders
+render3D_resolution = 1080  # The height and width of 3D renders
 
 # Units
 unit_length = 'Mpc'    # Physical length corresponding to a numerical value of 1.0

@@ -17,7 +17,7 @@ customized installation is available under the
 Though not recommended, you may choose to not make use of the ``install``
 script, in which case you need to install all of the
 :ref:`dependencies <dependencies>` yourself. After
-`downloading <https://github.com/jmd-dk/concept>`__ the CO\ *N*\ CEPT source
+`downloading <https://github.com/jmd-dk/concept>`_ the CO\ *N*\ CEPT source
 code, you then need to
 :ref:`specify environment information <the_path_and_env_files>` by editing
 the ``.path`` and ``.env`` files.
@@ -61,7 +61,7 @@ Supported platforms
 
       Though CO\ *N*\ CEPT does not run natively on Windows, support is
       obtained via the
-      `Windows Subsytem for Linux <https://docs.microsoft.com/en-us/windows/wsl/about>`__.
+      `Windows Subsytem for Linux <https://docs.microsoft.com/en-us/windows/wsl/about>`_.
       If installing CO\ *N*\ CEPT on Windows this way, make sure to install it
       into a proper Linux directory (e.g. your home directory ``~``) and not a
       Windows directory (e.g. ``/mnt/c/...``).
@@ -76,16 +76,16 @@ Supported platforms
       install it within a virtual Linux machine or run it through Docker.
 
       Though much of the POSIX infrastructure needed to install and run
-      CO\ *N*\ CEPT is available to macOS via `Homebrew <https://brew.sh/>`__,
+      CO\ *N*\ CEPT is available to macOS via `Homebrew <https://brew.sh/>`_,
       numerous incompatibilities between the GNU and BSD tools make the
       porting to macOS non-trivial.
 
    .. tab:: |docker| :math:`\,\,` Docker
 
       You may wish to run CO\ *N*\ CEPT through one of the provided
-      `Docker images <https://hub.docker.com/r/jmddk/concept/>`__, freeing you
+      `Docker images <https://hub.docker.com/r/jmddk/concept/>`_, freeing you
       from the installation process entirely (assuming you have
-      `Docker <https://www.docker.com/>`__ already installed).
+      `Docker <https://www.docker.com/>`_ already installed).
 
       To start a Docker container based on the latest CO\ *N*\ CEPT Docker
       image, do e.g.
@@ -98,44 +98,14 @@ Supported platforms
       persist in your current directory after the Docker container is stopped.
 
       .. note::
-         If running Windows, the above command is valid within
-         `PowerShell <https://docs.microsoft.com/powershell/>`__, not
-         `CMD <https://docs.microsoft.com/windows-server/administration/windows-commands/windows-commands>`__
+         If running Windows, the above command is valid within PowerShell,
+         not CMD
 
       .. note::
          While running CO\ *N*\ CEPT via Docker is great for experimental use,
          :ref:`proper installation <standard_installation>` on a Linux host is
          preferable for running large simulations, ensuring maximum
          performance.
-
-      .. tip::
-         All available
-         `Docker images <https://hub.docker.com/r/jmddk/concept/>`__ are based
-         on `Debian <https://hub.docker.com/_/debian>`__. If you want access to
-         additional software (e.g. Git or a text editor) within a Docker
-         container, first run
-
-         .. code-block:: bash
-
-            sudo apt update
-            sudo apt install -y ca-certificates 2>/dev/null || sudo apt install -y ca-certificates
-            sudo apt install -y apt-utils
-            sudo apt install -y gfortran
-
-         after which you may search for software packages to install using
-
-         .. code-block:: bash
-
-            apt search <keyword>
-
-         and install a package using
-
-         .. code-block:: bash
-
-            sudo apt install <package>
-
-         Note that the default user (``concept``) has root access via ``sudo``
-         with no password required.
 
 
 
@@ -146,7 +116,7 @@ Standard installation
 The easiest way to install CO\ *N*\ CEPT along with all of its dependencies is
 to use the CO\ *N*\ CEPT ``install`` Bash script. This script is part of the
 CO\ *N*\ CEPT source code, and so if you have CO\ *N*\ CEPT already
-`downloaded <https://github.com/jmd-dk/concept>`__, you may locate and run
+`downloaded <https://github.com/jmd-dk/concept>`_, you may locate and run
 this script:
 
 .. code-block:: bash
@@ -163,7 +133,7 @@ However, the simplest way to run the script is to just execute
 in a terminal, which will fetch and run the ``install`` script directly from
 the CO\ *N*\ CEPT GitHub repository, specifically version 1.0.1. Check out the
 CO\ *N*\ CEPT
-`releases <https://github.com/jmd-dk/concept/releases>`__ for other available
+`releases <https://github.com/jmd-dk/concept/releases>`_ for other available
 release versions, or use ``concept_version=master`` for the absolute newest
 (and unstable!) version.
 
@@ -182,8 +152,8 @@ release versions, or use ``concept_version=master`` for the absolute newest
    obtain
    :ref:`optimal network performance <optimal_network_performance_on_clusters>`.
    If you are installing via the cluster's front-end over SSH, you may want to
-   make use of a tool such as `tmux <https://github.com/tmux/tmux/wiki>`__ or
-   `Screen <https://www.gnu.org/software/screen/>`__, so that you may close the
+   make use of a tool such as `tmux <https://tmux.github.io/>`_ or
+   `Screen <https://www.gnu.org/software/screen/>`_, so that you may close the
    connection without stopping the installation process.
 
 .. note::
@@ -282,8 +252,8 @@ a copy of the code (without Git history) is downloaded during
 :ref:`installation <standard_installation>`.
 
 If however you wish to work with a full clone of the CO\ *N*\ CEPT
-`code repository <https://github.com/jmd-dk/concept/>`__, the easiest way to
-do so is to first install the master version of CO\ *N*\ CEPT *without* Git,
+`code repository <https://github.com/jmd-dk/concept/>`_, the easiest way to do
+so is to first install the master version of CO\ *N*\ CEPT *without* Git,
 following the
 :ref:`standard installation instructions <standard_installation>`. Once
 CO\ *N*\ CEPT is installed, ``git clone`` the online CO\ *N*\ CEPT repository
@@ -307,34 +277,18 @@ If you now do a
 
 it should detect changes to the ``.path`` and ``.env``
 :ref:`files <the_path_and_env_files>` only. These changes represent
-customizations carried out during installation.
+customizations carried out during installation. You may commit these
+changes:
 
-.. tip::
-   If you do not want Git to show the local changes to the ``.path`` and
-   ``.env`` files, you can tell Git to ignore these. The recommended way of
-   doing so is as follows:
+.. code-block:: bash
 
-   .. code-block:: bash
+   git commit -a -m "customized .path and .env for $(whoami)"
 
-      (source concept \
-          && git stash push "${path}" "${env}" -m path-env \
-          && git stash apply stash^{/path-env} \
-          && git update-index --skip-worktree "${path}" "${env}" \
-          && git status \
-      )
-
-   Should you need to undo this, run
-
-   .. code-block:: bash
-
-      (source concept && git update-index --no-skip-worktree "${path}" "${env}")
-
-   If you need to explicitly (re)insert the ``.path`` and ``.env`` files
-   (e.g. because you changed to a different branch), you can use
-
-   .. code-block:: bash
-
-      git stash apply stash^{/path-env}
+.. note::
+   If you ``git checkout`` to another branch/tag/commit, your ``.path`` and
+   ``.env`` files will be switched out for the ones in the online repository.
+   For CO\ *N*\ CEPT to run, you should then replace these with your own
+   versions (available on the ``master`` branch).
 
 
 
@@ -379,6 +333,7 @@ The complete list of all library dependencies (and their dependency relations)
 installed by the ``install`` script is given below:
 
 * **zlib**
+* **FreeType**
 * **Perl**
 * **BLAS** and **LAPACK**
 * **MPI**
@@ -400,7 +355,7 @@ installed by the ``install`` script is given below:
     - **CythonGSL** (depends on Cython, GSL)
     - **NumPy** (depends on BLAS, LAPACK)
     - **SciPy** (depends on BLAS, LAPACK)
-    - **Matplotlib**
+    - **Matplotlib** (depends on FreeType)
     - **MPI4Py** (depends on MPI, Cython)
     - **H5Py** (depends on HDF5 and MPI)
     - **Sphinx**
@@ -419,14 +374,14 @@ sphinx-tabs.
 Many of the above Python packages have other Python packages as dependencies,
 and so the truly complete list of these is in fact much larger. This is mostly
 a non-issue, as such Python package dependencies are generally auto-installed
-when installing Python packages with `pip <https://pip.pypa.io/>`__.
+when installing Python packages with `pip <https://pip.pypa.io/>`_.
 
 The ``install`` script installs the
-`OpenBLAS <https://github.com/xianyi/OpenBLAS>`__ library (which depends on
+`OpenBLAS <https://github.com/xianyi/OpenBLAS>`_ library (which depends on
 Perl) in order to provide both BLAS and LAPACK. For MPI,
-`MPICH <https://www.mpich.org/>`__
+`MPICH <https://www.mpich.org/>`_
 (:ref:`default <installing_mpich_or_openmpi>`) or
-`OpenMPI <https://www.open-mpi.org/>`__ is installed (both depends on Perl). If
+`OpenMPI <https://www.open-mpi.org/>`_ is installed (both depends on Perl). If
 tests are to be performed during the installation (see the ``--tests``
 :ref:`command-line option <command_line_options>` to ``concept``), the pytest
 and Hypothesis Python packages will additionally be installed (needed for
@@ -633,9 +588,9 @@ Making use of pre-installed libraries
 To make the ``install`` script make use of a pre-installed library rather than
 installing it itself, you must set the corresponding ``*_dir`` variable. The
 complete list of such variables is: ``blas_dir``, ``class_dir``,
-``concept_dir``, ``fftw_dir``, ``fftw_for_gadget_dir``, ``gadget_dir``,
-``gsl_dir``, ``hdf5_dir``, ``libffi_dir``, ``mpi_dir``, ``ncurses_dir``,
-``openssl_dir``, ``perl_dir``, ``python_dir``, ``zlib_dir``.
+``concept_dir``, ``fftw_dir``, ``fftw_for_gadget_dir``, ``freetype_dir``,
+``gadget_dir``, ``gsl_dir``, ``hdf5_dir``, ``libffi_dir``, ``mpi_dir``,
+``ncurses_dir``, ``openssl_dir``, ``perl_dir``, ``python_dir``, ``zlib_dir``.
 
 Note that if using a pre-installed Python distribution ---
 ``python_dir=/path/to/python`` --- OpenSSL, libffi and ncurses are assumed to
@@ -658,14 +613,14 @@ of software versions'). You may direct the ``install`` script to use other
 versions through the ``*_version`` variables. As with the ``*_dir``
 :ref:`variables <making_use_of_preinstalled_libraries>`, these include
 ``blas_version``, ``class_version``, ``concept_version``, ``fftw_version``,
-``fftw_for_gadget_version``, ``gadget_version``, ``gsl_version``,
-``hdf5_version``, ``libffi_version``, ``mpi_version``, ``ncurses_version``,
-``openssl_version``, ``perl_version``, ``python_version``, ``zlib_version``.
-Furthermore, each Python package also has a version, specified by
-``blessings_version``, ``cython_version``, ``cythongsl_version``,
-``h5py_version``, ``matplotlib_version``, ``mpi4py_version``,
-``numpy_version``, ``pip_version``, ``scipy_version``, ``setuptools_version``,
-``sphinx_version``, ``sphinx_copybutton_version``,
+``fftw_for_gadget_version``, ``freetype_version``, ``gadget_version``,
+``gsl_version``, ``hdf5_version``, ``libffi_version``, ``mpi_version``,
+``ncurses_version``, ``openssl_version``, ``perl_version``,
+``python_version``, ``zlib_version``. Furthermore, each Python package also
+has a version, specified by ``blessings_version``, ``cython_version``,
+``cythongsl_version``, ``h5py_version``, ``matplotlib_version``,
+``mpi4py_version``, ``numpy_version``, ``pip_version``, ``scipy_version``,
+``setuptools_version``, ``sphinx_version``, ``sphinx_copybutton_version``,
 ``sphinx_rtd_theme_version``, ``sphinx_tabs_version``, ``wheel_version``.
 
 
@@ -682,9 +637,9 @@ non-standard version of a given dependency, you can provide the corresponding
 ``*_url`` variable yourself. This should point to some downloadable archive
 (``.tar.gz``, ``.zip``, etc.). The complete list of ``*_url`` variables is:
 ``blas_url``, ``class_url``, ``concept_url``, ``fftw_url``,
-``fftw_for_gadget_url``, ``gadget_url``, ``gsl_url``, ``hdf5_url``,
-``libffi_url``, ``mpi_url``, ``ncurses_url``, ``openssl_url``, ``perl_url``,
-``python_url``, ``zlib_url``.
+``fftw_for_gadget_url``, ``freetype_url``, ``gadget_url``, ``gsl_url``,
+``hdf5_url``, ``libffi_url``, ``mpi_url``, ``ncurses_url``, ``openssl_url``,
+``perl_url``, ``python_url``, ``zlib_url``.
 
 
 
@@ -814,7 +769,7 @@ is made to ensure that CO\ *N*\ CEPT functions with recent stable versions of
 each dependency. As many of the CO\ *N*\ CEPT dependencies also depend on
 each other, finding a working set of dependency versions may be non-trivial.
 You may draw inspiration from the current or older versions of the
-`install script <https://github.com/jmd-dk/concept/blob/master/install>`__
+`install script <https://github.com/jmd-dk/concept/blob/master/install>`_
 (look for 'Specification of software versions').
 
 
@@ -822,43 +777,43 @@ You may draw inspiration from the current or older versions of the
 Python dependencies
 ...................
 The CO\ *N*\ CEPT source depends explicitly on
-`Python <https://www.python.org/>`__ version 3.9 or newer, together with the
+`Python <https://www.python.org/>`_ version 3.9 or newer, together with the
 following Python packages (many of which have heavy dependencies of their
 own):
 
-* `Cython <https://cython.org/>`__: Needed for transpilation (*cythonization*)
+* `Cython <https://cython.org/>`_: Needed for transpilation (*cythonization*)
   of the pure Python source code of CO\ *N*\ CEPT into equivalent C code.
 
-* `NumPy <https://www.numpy.org/>`__: Provides the basic array types used for
+* `NumPy <https://www.numpy.org/>`_: Provides the basic array types used for
   representing all primary data, together with various array/math functions.
 
-* `SciPy <https://www.scipy.org/>`__: Provides various numerical methods and
+* `SciPy <https://www.scipy.org/>`_: Provides various numerical methods and
   additional math functions.
 
-* `Matplotlib <https://matplotlib.org/>`__: Provides plotting functionality for
+* `Matplotlib <https://matplotlib.org/>`_: Provides plotting functionality for
   2D and 3D figures, as well as colour transformations used for coloured
   terminal output.
 
-* `MPI4Py <https://mpi4py.readthedocs.io/>`__: Provides Python bindings for
-  `MPI <https://en.wikipedia.org/wiki/Message_Passing_Interface>`__, used for
+* `MPI4Py <https://mpi4py.readthedocs.io/>`_: Provides Python bindings for
+  `MPI <https://en.wikipedia.org/wiki/Message_Passing_Interface>`_, used for
   all inter-process communication.
 
-* `H5Py <https://www.h5py.org/>`__: Provides Python bindings for
-  `HDF5 <https://www.hdfgroup.org/solutions/hdf5/>`__, used for various binary
+* `H5Py <https://www.h5py.org/>`_: Provides Python bindings for
+  `HDF5 <https://www.hdfgroup.org/solutions/hdf5/>`_, used for various binary
   input/output.
 
-* `CythonGSL <https://github.com/twiecki/CythonGSL>`__: Provides Cython
-  bindings for `GSL <https://www.gnu.org/software/gsl/>`__, used for more
+* `CythonGSL <https://github.com/twiecki/CythonGSL>`_: Provides Cython
+  bindings for `GSL <https://www.gnu.org/software/gsl/>`_, used for more
   performant replacements of some NumPy/SciPy functionalities when running
   CO\ *N*\ CEPT in compiled mode.
 
-* `Blessings <https://github.com/erikrose/blessings>`__: Provides terminal
+* `Blessings <https://github.com/erikrose/blessings>`_: Provides terminal
   formatting.
 
-In addition, the `Sphinx <http://www.sphinx-doc.org/>`__,
-`sphinx-copybutton <https://sphinx-copybutton.readthedocs.io/>`__,
-`sphinx-rtd-theme <https://sphinx-rtd-theme.readthedocs.io/>`__ and
-`sphinx-tabs <https://github.com/djungelorm/sphinx-tabs/>`__ Python packages
+In addition, the `Sphinx <http://www.sphinx-doc.org/>`_,
+`sphinx-copybutton <https://sphinx-copybutton.readthedocs.io/>`_,
+`sphinx-rtd-theme <https://sphinx-rtd-theme.readthedocs.io/>`_ and
+`sphinx-tabs <https://github.com/djungelorm/sphinx-tabs/>`_ Python packages
 are needed to build the documentation, but may otherwise be left out.
 
 
@@ -867,11 +822,11 @@ Other primary dependencies
 ..........................
 In addition to Python, the Python packages listed above and their respective
 dependencies, CO\ *N*\ CEPT further depends explicitly on
-`FFTW <http://www.fftw.org/>`__ 3 for its distributed FFT capabilities.
+`FFTW <http://www.fftw.org/>`_ 3 for its distributed FFT capabilities.
 
 .. note::
    CO\ *N*\ CEPT does not make use of any standard Python bindings for FFTW
-   --- such as `pyFFTW <https://github.com/pyFFTW/pyFFTW>`__ --- as these
+   --- such as `pyFFTW <https://github.com/pyFFTW/pyFFTW>`_ --- as these
    (at least traditionally) do not include the distributed (MPI)
    FFTs required. Instead, CO\ *N*\ CEPT provides its own minimal wrapper,
    ``fft.c``. This is the only C file in the CO\ *N*\ CEPT source code.
@@ -881,15 +836,15 @@ goes for building HDF5 and installing MPI4Py and H5Py. Also, the MPI library
 has to conform to the MPI-3 (or MPI-3.1) standard.
 
 For testing, CO\ *N*\ CEPT compares itself against
-`GADGET-2 <https://wwwmpa.mpa-garching.mpg.de/gadget/>`__, specifically
-version 2.0.7. When installing using the ``install`` script, GADGET-2 is
-patched in order to increase the maximum allowed size of path names and
-slightly change the values of various internal physical constants as to
-match the values adopted by CO\ *N*\ CEPT. If you do not care about running
-the CO\ *N*\ CEPT test suite, you do not have to install GADGET-2 at all.
+`GADGET-2 <https://wwwmpa.mpa-garching.mpg.de/gadget/>`_, specifically version
+2.0.7. When installing using the ``install`` script, GADGET-2 is patched in
+order to increase the maximum allowed size of path names and slightly change
+the values of various internal physical constants as to match the values
+adopted by CO\ *N*\ CEPT. If you do not care about running the CO\ *N*\ CEPT
+test suite, you do not have to install GADGET-2 at all.
 
 The last non-standard dependency of CO\ *N*\ CEPT is the
-`CLASS <http://class-code.net/>`__ code, along with its Python wrapper
+`CLASS <http://class-code.net/>`_ code, along with its Python wrapper
 'classy'. When installing using the ``install`` script, CLASS and classy are
 patched in order to enable larger and new kinds of output, fix bugs and
 improve interoperability with CO\ *N*\ CEPT (which includes (slight) changes
@@ -919,30 +874,30 @@ System dependencies
 In addition to the many dependencies above, CO\ *N*\ CEPT further uses a lot
 of *system dependencies*, by which is meant programs that are usually
 installed system-wide. These are
-`Bash <https://www.gnu.org/software/bash/>`__ 3.0 or newer and
-`GNU Core Utilities <https://www.gnu.org/software/coreutils/>`__. In addition,
-the `GNU Find Utilities <https://www.gnu.org/software/findutils/>`__ are
-needed for slimming down the installation, building the documentation and for
+`Bash <https://www.gnu.org/software/bash/>`_ 3.0 or newer and
+`GNU Core Utilities <https://www.gnu.org/software/coreutils/>`_. In addition,
+the `GNU Find Utilities <https://www.gnu.org/software/findutils/>`_ are needed
+for slimming down the installation, building the documentation and for
 automated deployment. For just installing and running the code, the GNU Find
 Utilities are not essential. All three of these system dependencies comes
 pre-installed on the vast majority of Linux distributions. None of them will
 be installed by the ``install`` script.
 
 Other system dependencies needed for the core CO\ *N*\ CEPT functionality are
-`AWK <https://en.wikipedia.org/wiki/AWK>`__,
-`grep <https://www.gnu.org/software/grep/>`__
-and `sed <https://www.gnu.org/software/sed/>`__. Also, the ``install`` script
+`AWK <https://en.wikipedia.org/wiki/AWK>`_,
+`grep <https://www.gnu.org/software/grep/>`_
+and `sed <https://www.gnu.org/software/sed/>`_. Also, the ``install`` script
 and ``update`` utility further makes use of
-`Gzip <https://www.gnu.org/software/gzip/>`__,
-`Tar <https://www.gnu.org/software/tar/>`__
-and `Wget <https://www.gnu.org/software/wget/>`__. That is, you may run
+`Gzip <https://www.gnu.org/software/gzip/>`_,
+`Tar <https://www.gnu.org/software/tar/>`_
+and `Wget <https://www.gnu.org/software/wget/>`_. That is, you may run
 simulations without these last three components installed. If running the
 ``install`` script or ``update`` utility without these, you will be prompted
 for system-wide (root) installation.
 
 Lastly, CO\ *N*\ CEPT needs standard tools for compiling and linking C (C99)
 code. An ``mpicc`` C compiler/linker should be bundled with the MPI library
-used. The `GNU Make <https://www.gnu.org/software/make/>`__ utility is
+used. The `GNU Make <https://www.gnu.org/software/make/>`_ utility is
 also needed.
 
 
@@ -959,9 +914,8 @@ environment variables as they should be set when running CO\ *N*\ CEPT.
 Both of these files are generated by the ``install`` script
 during installation.
 Should you wish to not use the ``install`` script, you should grab ``.path``
-and ``.env`` from the
-`online repository <https://github.com/jmd-dk/concept>`__ and edit
-them manually.
+and ``.env`` from the `online repository <https://github.com/jmd-dk/concept>`_
+and edit them manually.
 
 
 
@@ -1015,7 +969,7 @@ The ``.env`` file
 .................
 This file is meant to set up the required environment variables needed for
 building and running CO\ *N*\ CEPT. It is
-"`sourced <https://en.wikipedia.org/wiki/Dot_(command)#Source>`__" by the
+"`sourced <https://en.wikipedia.org/wiki/Dot_(command)#Source>`_" by the
 ``concept`` script before building and running the code.
 
 .. tip::
@@ -1086,7 +1040,7 @@ Eliminating interference from foreign Python installations
 When using the ``install`` script and Python is installed as part of the
 CO\ *N*\ CEPT installation (the default), the following lines are placed in
 ``.env`` (see the
-`Python documentation <https://docs.python.org/3/using/cmdline.html#environment-variables>`__
+`Python documentation <https://docs.python.org/3/using/cmdline.html#environment-variables>`_
 for details):
 
 .. code-block:: bash

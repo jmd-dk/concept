@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015–2023 Jeppe Mosgaard Dakin.
+# Copyright © 2015–2021 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -106,11 +106,7 @@ sys.stdout = stdout
 # Print out the arguments.
 # These will be captured in the Bash 'args' variable.
 print('argparse_finished=True')
-for arg, val in vars(args).items():
-    if isinstance(val, list):
-        print(f'{arg}=({{}})'.format(' '.join([f'\"{el}\"' for el in val])))
-    else:
-        print(f'{arg}=\"{val}\"')
+print('jobid=\"{}\"'.format(args.jobid))
 " "$@" || echo "argparse_exit_code=$?")
 # Evaluate the handled arguments into this scope
 eval "${args}"
@@ -204,7 +200,7 @@ update_job_info() {
     Njobs=0
     while read -r line; do
         jobid_line="$(echo "${line}" | awk '{print $1}')"
-        jobid_line="${jobid_line%%.*}"
+        jobid_line="${jobid_line%.*}"
         jobname_line="$(echo "${line}" | awk '{print $2}')"
         if [ "${jobid_line}" == "${jobid}" ]; then
             # Submitted job with matching job ID found
@@ -309,7 +305,7 @@ if [ "${jobid}" == "${jobid_unspecified}" ]; then
         # or if it is newer than the previous candidate
         # and none of them are running.
         jobid_i="$(echo "${line}" | awk '{print $1}')"
-        jobid_i="${jobid_i%%.*}"
+        jobid_i="${jobid_i%.*}"
         state_i="$(echo "${line}" | awk '{print $5}')"
         queue_i="$(echo "${line}" | awk '{print $6}')"
         if [ ${Njobs} -eq 1 ] \
@@ -323,7 +319,7 @@ if [ "${jobid}" == "${jobid_unspecified}" ]; then
         fi
     done <<< "${info}"
     # Remove possible suffix on job ID
-    jobid="${jobid%%.*}"
+    jobid="${jobid%.*}"
     # Print out message for Njobs != 1
     if [ ${Njobs} -eq 0 ]; then
         colorprint "Error: Could not find any submitted ${esc_concept} jobs" "red"
@@ -338,7 +334,7 @@ if [ "${jobid}" == "${jobid_unspecified}" ]; then
     fi
 else
     # Parse passed job ID
-    jobid="${jobid%%.*}"  # remove possible suffix
+    jobid="${jobid%.*}"  # remove possible suffix
     if [ "${jobid}" == "${jobname_default}" ]; then
         # Passed job ID is really the job name
         :

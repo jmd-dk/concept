@@ -1,5 +1,5 @@
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015–2023 Jeppe Mosgaard Dakin.
+# Copyright © 2015–2021 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -26,36 +26,21 @@ from commons import *
 
 # Cython imports
 cimport(
-    'from communication import '
-    '    communicate_ghosts,   '
-    '    exchange,             '
-    '    smart_mpi,            '
-    '    rung_indices_arr,     '
+    'from communication import                                         '
+    '    communicate_ghosts, domain_subdivisions, exchange, smart_mpi, '
+    '    domain_size_x, domain_size_y, domain_size_z,                  '
+    '    domain_start_x, domain_start_y, domain_start_z,               '
+    '    rung_indices_arr,                                             '
 )
+cimport('from fluid import maccormack, maccormack_internal_sources, '
+    'kurganov_tadmor, kurganov_tadmor_internal_sources'
+)
+cimport('from integration import Spline, cosmic_time, scale_factor, ȧ')
 cimport(
-    'from fluid import                     '
-    '    kurganov_tadmor,                  '
-    '    kurganov_tadmor_internal_sources, '
-    '    maccormack,                       '
-    '    maccormack_internal_sources,      '
+    'from linear import                            '
+    '    compute_cosmo, compute_transfer, realize, '
+    '    species_canonical, species_registered,    '
 )
-cimport('from ic import realize')
-cimport(
-    'from integration import '
-    '    Spline,             '
-    '    cosmic_time,        '
-    '    scale_factor,       '
-    '    ȧ,                  '
-)
-cimport(
-    'from linear import      '
-    '    compute_cosmo,      '
-    '    species_canonical,  '
-    '    species_registered, '
-)
-
-# Pure Python imports
-from communication import get_domain_info
 
 
 
@@ -179,7 +164,9 @@ class Tensor:
         for multi_index in self.multi_indices:
             with unswitch:
                 if self.iterative_realizations:
-                    self.component.realize_if_linear(self.varnum, multi_index, a_next=a_next)
+                    self.component.realize_if_linear(
+                        self.varnum, specific_multi_index=multi_index, a_next=a_next,
+                    )
             fluidscalar = self.data[multi_index]
             values = []
             for attribute in attributes:
@@ -213,12 +200,11 @@ class Tensor:
 @cython.cclass
 class FluidScalar:
     # Initialisation method
-    @cython.header(
-        # Arguments
-        varnum='int',
-        multi_index=object,  # tuple or int-like
-        is_linear='bint',
-    )
+    @cython.header(# Arguments
+                   varnum='int',
+                   multi_index=object,  # tuple or int-like
+                   is_linear='bint',
+                   )
     def __init__(self, varnum, multi_index=(), is_linear=False):
         # The triple quoted string below serves as the type declaration
         # for the data attributes of the FluidScalar type.
@@ -559,14 +545,14 @@ class Tiling:
         # We furthermore have the contain_particles array, which
         # indicate the content of a given tile:
         # contain_particles[tile_index] == 0
-        #   → No particles at all
+        #   -> No particles at all
         # contain_particles[tile_index] == 1
-        #   → Only inactive particles
+        #   -> Only inactive particles
         # contain_particles[tile_index] == 2
-        #   → At least 1 active particle
+        #   -> At least 1 active particle
         # contain_particles[tile_index] == 3
-        #   → At least 1 active particle,
-        #     at least 1 of which have an upcoming rung jump
+        #   -> At least 1 active particle,
+        #      at least 1 of which have an upcoming rung jump
         self.tiles                  = malloc(self.size        *sizeof('Py_ssize_t**'))
         self.tiles_rungs_sizes_data = malloc(self.size*N_rungs*sizeof('Py_ssize_t'))
         self.tiles_rungs_sizes      = malloc(self.size        *sizeof('Py_ssize_t*'))
@@ -860,7 +846,14 @@ class Component:
         gridsize='Py_ssize_t',
         mass='double',
         boltzmann_order='Py_ssize_t',
+        forces=dict,
+        class_species=object,  # str or container of str's
+        w=object,  # NoneType, float, int, str or dict
         boltzmann_closure=str,
+        approximations=dict,
+        softening_length=object,  # float or str
+        realization_options=dict,
+        life=object,  # container
         # Locals
         tile_index='signed char',
         index='Py_ssize_t',
@@ -871,7 +864,14 @@ class Component:
         gridsize=-1,
         mass=-1,
         boltzmann_order=-2,
+        forces=None,
+        class_species=None,
+        realization_options=None,
+        w=None,
         boltzmann_closure=None,
+        approximations=None,
+        softening_length=None,
+        life=None,
     ):
         # The keyword-only arguments are passed from dicts in the
         # initial_conditions user parameter. If not specified there
@@ -935,7 +935,6 @@ class Component:
         public dict potential_gridsizes
         public dict potential_differentiations
         public str class_species
-        public dict snapshot_vars
         public tuple life
         # Particle attributes
         public Py_ssize_t N
@@ -944,10 +943,7 @@ class Component:
         public double mass
         public double softening_length
         public Py_ssize_t powerspec_upstream_gridsize
-        public Py_ssize_t bispec_upstream_gridsize
         public Py_ssize_t render2D_upstream_gridsize
-        public Py_ssize_t render3D_upstream_gridsize
-        public str preic_lattice
         # Particle data
         double* pos
         public double[::1] pos_mv
@@ -976,12 +972,8 @@ class Component:
         double* Δmomxˣ
         double* Δmomyˣ
         double* Δmomzˣ
-        # Particle IDs
-        public bint use_ids
-        Py_ssize_t* ids
-        public Py_ssize_t[::1] ids_mv
         # Short-range rungs
-        public bint use_rungs
+        bint use_rungs
         signed char lowest_active_rung
         signed char lowest_populated_rung
         signed char highest_populated_rung
@@ -1076,7 +1068,7 @@ class Component:
             self.representation = 'fluid'
             if self.gridsize%2 != 0:
                 masterwarn(
-                    f'Fluid component {self.name} has an odd grid size ({self.gridsize}). '
+                    f'{self.name.capitalize()} has an odd grid size ({self.gridsize}). '
                     f'Some operations may not function correctly.'
                 )
         else:
@@ -1099,20 +1091,9 @@ class Component:
                     sorted(set(species_canonical.values())),
                 )
         self.species = self.species.strip(' +')
-        # Determine pre-initial condition lattice type
-        self.preic_lattice = ''
-        if self.representation == 'particles':
-            if iscubic(self.N):
-                # Use simple cubic lattice
-                self.preic_lattice = 'sc'
-            elif self.N%2 == 0 and iscubic(self.N//2):
-                # Use body-centered cubic lattice
-                self.preic_lattice = 'bcc'
-            elif self.N%4 == 0 and iscubic(self.N//4):
-                # Use face-centered cubic lattice
-                self.preic_lattice = 'fcc'
         # Set forces (and force methods)
-        forces = is_selected(self, select_forces, accumulate=True)
+        if forces is None:
+            forces = is_selected(self, select_forces, accumulate=True)
         if not forces:
             forces = {}
         self.forces = forces
@@ -1130,24 +1111,16 @@ class Component:
         # Function for converting expressions involving
         # 'N' and 'gridsize' to floats.
         def to_float(s):
-            s = unicode(str(s))
+            s = str(s)
             if self.representation == 'particles':
-                # Here Ñ = n³ is a shorthand for one of {N, N/2 or N/4}
-                # depending on whether we are realizing N = n³ = Ñ,
-                # N = 2n³ = 2Ñ or N = 4n³ = 4Ñ particles.
-                Ñ = self.N//{'sc': 1, 'bcc': 2, 'fcc': 4}.get(self.preic_lattice, 1)
-                s = (
-                    s
+                s = (s
                     .replace('N', str(self.N))
-                    .replace('gridsize', str(cbrt(Ñ)))
-                    .replace(unicode('Ñ'), str(Ñ))
+                    .replace('gridsize', str(cbrt(self.N)))
                 )
             else:  # self.representation == 'fluid':
-                s = (
-                    s
+                s = (s
                     .replace('N', str(self.gridsize**3))
                     .replace('gridsize', str(self.gridsize))
-                    .replace(unicode('Ñ'), str(self.gridsize**3))
                 )
             s = s.replace('nprocs', str(nprocs))
             return eval(s, globals(), units_dict)
@@ -1192,15 +1165,10 @@ class Component:
                         # potential grid size to equal cbrt(N) (for both
                         # upstream and downstream), except when using
                         # P³M where having a large grid is very
-                        # important for performance, in which case we
-                        # use 2*cbrt(N). For pre-initial condition
-                        # lattices other than the simple cubic
-                        # (bocy-centered cubic, face-centered cubic),
-                        # we use the same grid size as for the the
-                        # simple cubic.
-                        gridsizes = ('cbrt(Ñ)', )*2
+                        # important for performance.
+                        gridsizes = ('cbrt(N)', 'cbrt(N)')
                         if method_extra == 'p3m':
-                            gridsizes = ('2*cbrt(Ñ)', )*2
+                            gridsizes = ('2*cbrt(N)', '2*cbrt(N)')
                     elif self.representation == 'fluid':
                         # Fluids should have upstream and downstream
                         # grid sizes equal to that of the fluid grids.
@@ -1263,26 +1231,29 @@ class Component:
         # (instantaneous) interactions that have taken place.
         self.n_interactions = collections.defaultdict(int)
         # Set the CLASS species
-        if self.species == 'none':
-            if self.name:
-                abort(
-                    f'Neither "species" nor "class species" '
-                    f'specified for component "{self.name}"'
-                )
-            else:
-                abort(
-                    f'Neither "species" nor "class species" '
-                    f'specified for unnamed component'
-                )
-        class_species = ''
-        for single_species in self.species.split('+'):
-            if single_species in species_registered:
-                class_species += '+' + species_registered[single_species].class_species
-            else:
-                abort(
-                    f'Default CLASS species assignment failed because '
-                    f'the species "{single_species}" does not map to any CLASS species'
-                )
+        if class_species is not None and not isinstance(class_species, str):
+            class_species = '+'.join(class_species)
+        if class_species is None or class_species == '':
+            class_species = ''
+            if self.species == 'none':
+                if self.name:
+                    abort(
+                        f'Neither "species" nor "class species" '
+                        f'specified for component "{self.name}"'
+                    )
+                else:
+                    abort(
+                        f'Neither "species" nor "class species" '
+                        f'specified for unnamed component'
+                    )
+            for single_species in self.species.split('+'):
+                if single_species in species_registered:
+                    class_species += '+' + species_registered[single_species].class_species
+                else:
+                    abort(
+                        f'Default CLASS species assignment failed because '
+                        f'the species "{single_species}" does not map to any CLASS species'
+                    )
         self.class_species = class_species.strip(' +')
         # Set closure rule for the Boltzmann hierarchy
         if boltzmann_closure is None:
@@ -1292,11 +1263,127 @@ class Component:
         self.boltzmann_closure = boltzmann_closure.lower()
         if self.representation == 'fluid' and self.boltzmann_closure not in ('truncate', 'class'):
             abort(
-                f'{self.name} was initialised '
+                f'{self.name.capitalize()} was initialised '
                 f'with an unknown Boltzmann closure of "{self.boltzmann_closure}"'
             )
+        # Set realisation options
+        if realization_options is None:
+            realization_options = {}
+        realization_options_selected = is_selected(
+            self, select_realization_options, accumulate=True)
+        realization_options_selected.update(realization_options)
+        realization_options = realization_options_selected
+        realization_options_all = realization_options.get('all', {})
+        for key, val in realization_options.copy().items():
+            if not isinstance(val, dict):
+                realization_options_all[key] = val
+                del realization_options[key]
+        realization_options_all = {
+            key.lower().replace(' ', '').replace('-', '').replace('_', ''):
+                (val.lower().replace(' ', '').replace('-', '').replace('_', '') if
+                isinstance(val, str) else val)
+            for key, val in realization_options_all.items()}
+        varnames = {
+            'particles': ('pos', 'mom'),
+            'fluid': ('ϱ', 'J', '𝒫', 'ς'),
+        }[self.representation]
+        wrong_varname_sets = {
+            'pos': {'x', 'position', 'positions', 'Position', 'Positions'},
+            'mom': {'momentum', 'momenta', 'Momentum', 'Momenta'},
+            'ϱ': {'r', 'rho', 'ρ'},
+            'J': {'j'},
+            '𝒫': {'P', 'δP', 'δ𝒫', 'p', 'δp'},
+            'ς': {'s', 'sigma', 'Sigma', 'σ', 'Σ'},
+        }
+        for varname in varnames:
+            wrong_varnames = wrong_varname_sets[varname]
+            for wrong_varname in wrong_varnames:
+                realization_options_varname = (
+                       realization_options.get(unicode(wrong_varname))
+                    or realization_options.get(asciify(wrong_varname))
+                )
+                if realization_options_varname:
+                    realization_options[varname] = realization_options_varname
+                    break
+        realization_options_default = {
+            # Linear realisation options
+            'interpolation': realization_options_all.get('interpolation', 'CIC'),
+            'backscaling': realization_options_all.get('backscaling', False),
+            'velocitiesfromdisplacements': realization_options_all.get(
+                'velocitiesfromdisplacements', False,
+            ),
+            # Non-linear realisation options
+            'structure'    : realization_options_all.get('structure', 'nonlinear'),
+            'compoundorder': realization_options_all.get('compoundorder', 'nonlinear'),
+        }
+        for varname in varnames:
+            realization_options_default_copy = realization_options_default.copy()
+            for varname_encoding in (unicode(varname), asciify(varname)):
+                if varname_encoding in realization_options:
+                    realization_options_default_copy.update(realization_options[varname_encoding])
+            realization_options[varname] = realization_options_default_copy
+        for varname, realization_options_varname in realization_options.copy().items():
+            realization_options[unicode(varname)] = realization_options_varname.copy()
+            realization_options[asciify(varname)] = realization_options_varname.copy()
+        realization_options = {
+            varname: {
+                key.lower().replace(' ', '').replace('-', '').replace('_', ''):
+                    (val.lower().replace(' ', '').replace('-', '').replace('_', '') if
+                    isinstance(val, str) else val)
+                for key, val in realization_options[varname].items()}
+            for varname in varnames
+        }
+        for varname, realization_options_varname in realization_options.copy().items():
+            realization_options[unicode(varname)] = realization_options_varname.copy()
+            realization_options[asciify(varname)] = realization_options_varname.copy()
+            for realization_option_varname in realization_options_varname:
+                if realization_option_varname not in {
+                    # Linear realisation options
+                    'interpolation',
+                    'backscaling',
+                    'velocitiesfromdisplacements',
+                    # Non-linear realisation options
+                    'structure',
+                    'compoundorder',
+                }:
+                    abort(
+                        f'Realization option "{realization_option_varname}" '
+                        f'(specified for {self.name}) not recognised.'
+                    )
+        if self.representation == 'particles':
+            # None of the non-linear realisation options
+            # makes sense for particle components.
+            for realization_options_varname in realization_options.values():
+                del realization_options_varname['structure']
+                del realization_options_varname['compoundorder']
+        elif self.representation == 'fluid':
+            # The 'interpolation' option does not make sense
+            # for fluid variables.
+            for realization_options_varname in realization_options.values():
+                del realization_options_varname['interpolation']
+            # None of the non-linear realisation options
+            # makes sense for ϱ.
+            for realization_options_varname in (
+                realization_options[unicode('ϱ')],
+                realization_options[asciify('ϱ')],
+            ):
+                del realization_options_varname['structure']
+                del realization_options_varname['compoundorder']
+        for varname, realization_options_varname in realization_options.items():
+            if varname != 'mom':
+                if realization_options_varname['velocitiesfromdisplacements']:
+                    masterwarn(
+                        f'The "velocities from displacements" realisation option was set to True '
+                        f'for the "{varname}" variable of {self.name}, '
+                        f'but this only makes sense for the "mom" variable'
+                        + ('' if self.representation == 'particles' else
+                            ' (and only for particle components)')
+                    )
+                del realization_options_varname['velocitiesfromdisplacements']
+        self.realization_options = realization_options
         # Set life
-        life = is_selected(self, select_lives)
+        if life is None:
+            life = is_selected(self, select_lives)
         life = tuple([float(el) for el in sorted(any2list(life))])
         if len(life) != 2:
             abort(f'life = {life} of "{self.name}" not understood')
@@ -1306,7 +1393,8 @@ class Component:
         # set for this component, its value defaults to False.
         # Also, specific circumstances may force some approximations to
         # have a specific value.
-        approximations = is_selected(self, select_approximations, accumulate=True)
+        if approximations is None:
+            approximations = is_selected(self, select_approximations, accumulate=True)
         if not approximations:
             approximations = {}
         approximations_transformed = {}
@@ -1333,7 +1421,7 @@ class Component:
         for approximation, value in approximations.copy().items():
             if unicode(approximation) not in approximations_implemented:
                 abort(
-                    f'{self.name} was initialised '
+                    f'{self.name.capitalize()} was initialised '
                     f'with the unknown approximation "{approximation}"'
                 )
             approximations[asciify(approximation)] = value
@@ -1347,7 +1435,8 @@ class Component:
             approximations[asciify('P=wρ')] = True
         self.approximations = approximations
         # Set softening length
-        softening_length = is_selected(self, select_softening_length)
+        if softening_length is None:
+            softening_length = is_selected(self, select_softening_length)
         if isinstance(softening_length, str):
             # Evaluate softening_length if it's a str.
             # Replace 'N' with the number of particles of this component
@@ -1362,13 +1451,10 @@ class Component:
                     masterwarn(f'No softening length set for {self.name}')
             softening_length = 0
         self.softening_length = float(softening_length)
-        # Set upstream grid size for power spectra,
-        # bispectra and 2D renders.
+        # Set upstream grid size for power spectra and 2D renders
         for output_type, options in {
             'powerspec': powerspec_options,
-            'bispec'   : bispec_options,
-            'render2D' : render2D_options,
-            'render3D' : render3D_options,
+            'render2D': render2D_options,
         }.items():
             upstream_gridsize = is_selected(
                 self, options['upstream gridsize'],
@@ -1379,10 +1465,8 @@ class Component:
                     upstream_gridsize = 'gridsize'
                 elif self.representation == 'particles':
                     upstream_gridsize = {
-                        'powerspec': '2*cbrt(Ñ)',
-                        'bispec'   : '2*cbrt(Ñ)',
-                        'render2D' : '1*cbrt(Ñ)',
-                        'render3D' : '1*cbrt(Ñ)',
+                        'powerspec': '2*cbrt(N)',
+                        'render2D' : '1*cbrt(N)',
                     }[output_type]
             upstream_gridsize = int(round(to_float(upstream_gridsize)))
             setattr(self, f'{output_type}_upstream_gridsize', upstream_gridsize)
@@ -1430,10 +1514,6 @@ class Component:
         self.Δmomyˣ = cython.address(self.Δmom_mv[1:])
         self.Δmomzˣ = cython.address(self.Δmom_mv[2:])
         self.Δmom_mv[:3*self.N_allocated] = 0
-        # Particle IDs
-        self.use_ids = bool(is_selected(self, select_particle_id))
-        self.ids = malloc(self.N_allocated*sizeof('Py_ssize_t'))
-        self.ids_mv = cast(self.ids, 'Py_ssize_t[:self.N_allocated]')
         # Short-range rungs
         self.use_rungs = bool(
             N_rungs > 1
@@ -1480,7 +1560,7 @@ class Component:
                 )
             if self.boltzmann_order == 2 and self.boltzmann_closure == 'class':
                 abort(
-                    f'{self.name} wants to close its Boltzmann hierarchy using '
+                    f'{self.name.capitalize()} wants to close its Boltzmann hierarchy using '
                     f'the linear variable after ς from CLASS, which is not implemented. '
                     f'You need to lower its Boltzmann order to '
                     f'1 or use boltzmann_closure = "truncate".'
@@ -1515,86 +1595,13 @@ class Component:
             for force, method in self.forces.items():
                 if method not in {'pm', ''}:
                     abort(
-                        f'{self.name} wants to receive the {force} force '
+                        f'{self.name.capitalize()} wants to receive the {force} force '
                         f'using the {method} method, but only the pm method is allowed '
                         f'for fluid components.'
                     )
-        # Set realisation options
-        self.realization_options = {
-            key: is_selected(self, option)
-            for key, option in realization_options.items()
-        }
-        if (
-            self.representation == 'particles'
-            or self.boltzmann_order == -1
-            or self.boltzmann_closure == 'truncate'
-        ):
-            self.realization_options['structure'] = 'primordial'
-        # Set snapshot variables
-        varnames_all = {
-            'particles': ('pos', 'mom'),
-            'fluid': ('ϱ', 'J', '𝒫', 'ς'),
-        }
-        varnames = varnames_all[self.representation]
-        wrong_varname_sets = {
-            'pos': {'x', 'position', 'positions', 'Position', 'Positions'},
-            'mom': {'momentum', 'momenta', 'Momentum', 'Momenta'},
-            'ϱ': {'r', 'rho', 'ρ'},
-            'J': {'j'},
-            '𝒫': {'P', 'δP', 'δ𝒫', 'p', 'δp'},
-            'ς': {'s', 'sigma', 'Sigma', 'σ', 'Σ'},
-        }
-        snapshot_vars = {}
-        for key in ('save', 'load'):
-            snapshot_vars[key] = {}
-            snapshot_vars_selected = is_selected(self, snapshot_select[key])
-            for varname in varnames:
-                if unicode(varname) in snapshot_vars_selected:
-                    snapshot_vars[key][varname] = snapshot_vars_selected[unicode(varname)]
-                elif asciify(varname) in snapshot_vars_selected:
-                    snapshot_vars[key][varname] = snapshot_vars_selected[asciify(varname)]
-                else:
-                    wrong_varnames = wrong_varname_sets[varname]
-                    for wrong_varname in wrong_varnames:
-                        if unicode(wrong_varname) in snapshot_vars_selected:
-                            snapshot_vars[key][varname] = (
-                                snapshot_vars_selected[unicode(wrong_varname)]
-                            )
-                            break
-                        elif asciify(wrong_varname) in snapshot_vars_selected:
-                            snapshot_vars[key][varname] = (
-                                snapshot_vars_selected[asciify(wrong_varname)]
-                            )
-                            break
-            for varname in varnames:
-                snapshot_vars[key].setdefault(varname, False)
-            for varname, val in snapshot_vars[key].copy().items():
-                snapshot_vars[key][varname] = bool(val)
-            # Add special 'any' flag, signalling wehther any data at all
-            # from this component should be saved/loaded.
-            if self.representation == 'particles':
-                snapshot_vars[key]['any'] = any([
-                    snapshot_vars[key][varname]
-                    for varname in ('pos', 'mom')
-                ])
-            elif self.representation == 'fluid':
-                snapshot_vars[key]['any'] = any([
-                    snapshot_vars[key][varname]
-                    for varname in {
-                        -1: [],  # completely linear component
-                         0: ['ϱ'],
-                         1: ['ϱ', 'J'],
-                         2: ['ϱ', 'J', '𝒫', 'ς'],
-                    }[self.boltzmann_order]
-                ])
-            # Add missing variable names from the other representation,
-            # needed when converting components
-            # between the two representations.
-            for varname in itertools.chain(*varnames_all.values()):
-                snapshot_vars[key].setdefault(varname, True)
-        self.snapshot_vars = snapshot_vars
         # Set the equation of state parameter w
-        w = is_selected(self, select_eos_w)
+        if w is None:
+            w = is_selected(self, select_eos_w)
         self.init_w(w)
         self.init_w_eff()
         # Fluid data.
@@ -1680,15 +1687,13 @@ class Component:
         # features will develop in ϱ. Display a warning if the
         # realisation option for 𝒫 is set so that its structure does not
         # match that of ϱ.
-        if (
-            not self.approximations['P=wρ']
-            and self.realization_options['structure'] == 'primordial'
-        ):
-            masterwarn(
-                f'The 𝒫 fluid variable of {self.name} will be realised using the '
-                f'primordial structure throughout time. This is known to '
-                f'generates spurious features.'
-            )
+        if not self.approximations['P=wρ']:
+            if self.realization_options['𝒫']['structure'] == 'primordial':
+                masterwarn(
+                    f'It is specified that the 𝒫 fluid variable of {self.name} '
+                    f'should be realised using the primordial structure throughout time. '
+                    f'This is known to generates spurious features.'
+                )
         # When the P=wρ approximation is True, the 𝒫 fluid variable is
         # superfluous. Yet, as it is used in the definition of J,
         # J = a⁴(ρ + P)u, P = a**(-3*(1 + w_eff))*𝒫, it is simplest to
@@ -1718,8 +1723,7 @@ class Component:
         # Also include trivial mappings from indices to themselves,
         # and the special "reverse" mapping from indices to names
         # given by the 'ordered' key.
-        self.fluid_names = {
-            'ordered': fluidvar_names[:
+        self.fluid_names = {'ordered': fluidvar_names[:
                 self.boltzmann_order + (1 if self.boltzmann_closure == 'truncate' else 2)
             ]
         }
@@ -1906,10 +1910,10 @@ class Component:
             # Alternatively, var may be a str, in which case it can be
             # the name of a fluid variable or a fluid scalar.
             # For each possibility, find index and multi_index.
-            if isinstance(var, (int, np.integer)):
+            if isinstance(var, int):
                 if not (0 <= var < len(self.fluidvars)):
                     abort(
-                        f'{self.name} does not have a fluid variable with index {var}'
+                        f'{self.name.capitalize()} does not have a fluid variable with index {var}'
                     )
                 # The fluid scalar is given as
                 # self.fluidvars[index][multi_index].
@@ -1917,7 +1921,7 @@ class Component:
             if isinstance(var, str):
                 if var not in self.fluid_names:
                     abort(
-                        f'{self.name} does not contain a fluid variable '
+                        f'{self.name.capitalize()} does not contain a fluid variable '
                         f'with the name "{var}"'
                     )
                 # Lookup the fluid indices corresponding to var.
@@ -1925,7 +1929,7 @@ class Component:
                 # (index, multi_index) (for a passed fluid scalar name)
                 # or just an index (for a passed fluid name).
                 fluid_indices = self.fluid_names[var]
-                if isinstance(fluid_indices, (int, np.integer)):
+                if isinstance(fluid_indices, int):
                     index = fluid_indices
                 else:  # fluid_indices is a tuple
                     if multi_index != 0:
@@ -1935,7 +1939,7 @@ class Component:
                                    )
                     index, multi_index = fluid_indices
             # Type check on the multi_index
-            if not isinstance(multi_index, (int, np.integer, tuple, str)):
+            if not isinstance(multi_index, (int, tuple, str)):
                 abort(
                     f'A multi_index of type "{type(multi_index)}" was supplied. '
                     f'This should be either an int, a tuple or a str.'
@@ -1963,7 +1967,6 @@ class Component:
     @cython.pheader(
         # Arguments
         size_or_shape_noghosts=object,  # Py_ssize_t or tuple
-        only_loadable='bint',
         # Locals
         fluidscalar='FluidScalar',
         i='Py_ssize_t',
@@ -1973,7 +1976,7 @@ class Component:
         size_old='Py_ssize_t',
         s_old='Py_ssize_t',
     )
-    def resize(self, size_or_shape_noghosts, only_loadable=False):
+    def resize(self, size_or_shape_noghosts):
         if self.representation == 'particles':
             size = np.prod(any2list(size_or_shape_noghosts))
             size_old = self.N_allocated
@@ -1982,40 +1985,34 @@ class Component:
                 if self.N_allocated == 0:
                     self.N_allocated = 1
                 # Reallocate particle data
-                if not only_loadable or self.snapshot_vars['load']['pos']:
-                    self.pos = realloc(self.pos, 3*self.N_allocated*sizeof('double'))
-                    self.pos_mv = cast(self.pos, 'double[:3*self.N_allocated]')
-                    self.pos_mv3 = cast(self.pos, 'double[:self.N_allocated, :3]')
-                    self.posx = self.pos_mv3[:, 0]
-                    self.posy = self.pos_mv3[:, 1]
-                    self.posz = self.pos_mv3[:, 2]
-                    self.posxˣ = cython.address(self.pos_mv[0:])
-                    self.posyˣ = cython.address(self.pos_mv[1:])
-                    self.poszˣ = cython.address(self.pos_mv[2:])
-                if not only_loadable or self.snapshot_vars['load']['mom']:
-                    self.mom = realloc(self.mom, 3*self.N_allocated*sizeof('double'))
-                    self.mom_mv = cast(self.mom, 'double[:3*self.N_allocated]')
-                    self.mom_mv3 = cast(self.mom, 'double[:self.N_allocated, :3]')
-                    self.momx = self.mom_mv3[:, 0]
-                    self.momy = self.mom_mv3[:, 1]
-                    self.momz = self.mom_mv3[:, 2]
-                    self.momxˣ = cython.address(self.mom_mv[0:])
-                    self.momyˣ = cython.address(self.mom_mv[1:])
-                    self.momzˣ = cython.address(self.mom_mv[2:])
-                    self.Δmom = realloc(self.Δmom, 3*self.N_allocated*sizeof('double'))
-                    self.Δmom_mv = cast(self.Δmom, 'double[:3*self.N_allocated]')
-                    self.Δmom_mv3 = cast(self.Δmom, 'double[:self.N_allocated, :3]')
-                    self.Δmomx = self.Δmom_mv3[:, 0]
-                    self.Δmomy = self.Δmom_mv3[:, 1]
-                    self.Δmomz = self.Δmom_mv3[:, 2]
-                    self.Δmomxˣ = cython.address(self.Δmom_mv[0:])
-                    self.Δmomyˣ = cython.address(self.Δmom_mv[1:])
-                    self.Δmomzˣ = cython.address(self.Δmom_mv[2:])
-                    self.Δmom_mv[3*size_old:3*self.N_allocated] = 0
-                # Particle IDs
-                if self.use_ids:
-                    self.ids = realloc(self.ids, self.N_allocated*sizeof('Py_ssize_t'))
-                    self.ids_mv = cast(self.ids, 'Py_ssize_t[:self.N_allocated]')
+                self.pos = realloc(self.pos, 3*self.N_allocated*sizeof('double'))
+                self.pos_mv = cast(self.pos, 'double[:3*self.N_allocated]')
+                self.pos_mv3 = cast(self.pos, 'double[:self.N_allocated, :3]')
+                self.posx = self.pos_mv3[:, 0]
+                self.posy = self.pos_mv3[:, 1]
+                self.posz = self.pos_mv3[:, 2]
+                self.posxˣ = cython.address(self.pos_mv[0:])
+                self.posyˣ = cython.address(self.pos_mv[1:])
+                self.poszˣ = cython.address(self.pos_mv[2:])
+                self.mom = realloc(self.mom, 3*self.N_allocated*sizeof('double'))
+                self.mom_mv = cast(self.mom, 'double[:3*self.N_allocated]')
+                self.mom_mv3 = cast(self.mom, 'double[:self.N_allocated, :3]')
+                self.momx = self.mom_mv3[:, 0]
+                self.momy = self.mom_mv3[:, 1]
+                self.momz = self.mom_mv3[:, 2]
+                self.momxˣ = cython.address(self.mom_mv[0:])
+                self.momyˣ = cython.address(self.mom_mv[1:])
+                self.momzˣ = cython.address(self.mom_mv[2:])
+                self.Δmom = realloc(self.Δmom, 3*self.N_allocated*sizeof('double'))
+                self.Δmom_mv = cast(self.Δmom, 'double[:3*self.N_allocated]')
+                self.Δmom_mv3 = cast(self.Δmom, 'double[:self.N_allocated, :3]')
+                self.Δmomx = self.Δmom_mv3[:, 0]
+                self.Δmomy = self.Δmom_mv3[:, 1]
+                self.Δmomz = self.Δmom_mv3[:, 2]
+                self.Δmomxˣ = cython.address(self.Δmom_mv[0:])
+                self.Δmomyˣ = cython.address(self.Δmom_mv[1:])
+                self.Δmomzˣ = cython.address(self.Δmom_mv[2:])
+                self.Δmom_mv[3*size_old:3*self.N_allocated] = 0
                 # Reallocate indices of rungs and jumps
                 if self.use_rungs:
                     self.rung_indices = realloc(
@@ -2057,52 +2054,341 @@ class Component:
             self.size_noghosts  = np.prod(self.shape_noghosts)
             # Reallocate fluid data
             for fluidscalar in self.iterate_fluidscalars():
-                if only_loadable:
-                    if fluidscalar.varnum == 0 and not self.snapshot_vars['load']['ϱ']:
-                        continue
-                    if fluidscalar.varnum == 1 and not self.snapshot_vars['load']['J']:
-                        continue
                 fluidscalar.resize(shape_noghosts)
 
-    # Method for realisation of one or more variables of the component
-    def realize(self, a=-1, a_next=-1, variables=None, multi_indices=None, use_gridˣ=False):
+    # Method for 3D realisation of linear transfer functions.
+    # As all arguments are optional,
+    # this has to be a pure Python method.
+    def realize(
+        self,
+        variables=None,
+        transfer_spline=None,
+        cosmoresults=None,
+        specific_multi_index=None,
+        a=-1,
+        a_next=-1,
+        gauge='N-body',
+        options=None,
+        use_gridˣ=False,
+    ):
+        """This method will realise a given fluid/particle variable from
+        a given transfer function. Any existing data for the variable
+        in question will be lost.
+        The variables argument specifies which variable(s) of the
+        component to realise. Valid formats of this argument can be seen
+        in varnames2indices. If no variables argument is passed,
+        transfer functions for each variable will be computed via CLASS
+        and all of them will be realised.
+        If a specific_multi_index is passed, only the single fluidscalar
+        of the variable(s) with the corresponding multi_index
+        will be realised. If no specific_multi_index is passed,
+        all fluidscalars of the variable(s) will be realised.
+        The transfer_spline is a Spline object of the transfer function
+        of the variable which should be realised.
+        The cosmoresults argument is a linear.CosmoResults object
+        containing all results from the CLASS run which produced the
+        transfer function, from which further information
+        can be obtained.
+        Specify the scale factor a if you want to realise the variables
+        at a time different from the present time.
+        If neither the transfer_spline nor the cosmoresults argument is
+        given, these will be produced by calling CLASS.
+        You can supply multiple variables in one go,
+        but then you have to leave the transfer_spline and cosmoresults
+        arguments unspecified (as you can only pass in a
+        single transfer_spline).
+        The gauge and options arguments are passed on to
+        linear.compute_transfer and linear.realise, respectively.
+        See these functions for further detail.
+        The use_gridˣ argument is passed on to linear.realise and
+        determines whether the unstarred or starred grids should be used
+        when doing the realisation.
+        """
+        if a == -1:
+            a = universals.a
         if not self.is_active(a):
             return
-        # Delegate work to the realize() function
-        realize(self, a, a_next, variables, multi_indices, use_gridˣ)
+        if options is None:
+            options = {}
+        options = {key.lower().replace(' ', '').replace('-', ''):
+            (val.lower().replace(' ', '').replace('-', '') if isinstance(val, str) else val)
+            for key, val in options.items()
+        }
+        # Define the grid size used by the realisation (gridsize for
+        # fluid components and ∛N for particle components) and resize
+        # the data attributes if needed.
+        # Also do some particles-only checks.
+        if self.representation == 'particles':
+            if self.N%nprocs != 0:
+                abort(
+                    f'Cannot perform realisation of {self.name} '
+                    f'with N = {self.N}, as N is not evenly divisible by {nprocs} processes.'
+                )
+            if not isint(ℝ[cbrt(self.N)]):
+                abort(
+                    f'Cannot perform realisation of {self.name} '
+                    f'with N = {self.N}, as N is not a cubic number.'
+                )
+            gridsize = int(round(ℝ[cbrt(self.N)]))
+            self.N_local = self.N//nprocs
+            self.resize(self.N_local)
+        elif self.representation == 'fluid':
+            gridsize = self.gridsize
+            shape = tuple([gridsize//domain_subdivisions[dim] for dim in range(3)])
+            self.resize(shape)
+        # Check that the grid size fulfils the requirements for FFT
+        # and therefore for realisations.
+        if gridsize%nprocs != 0:
+            abort(
+                f'Cannot perform realisation of {self.name} '
+                f'with gridsize = {gridsize}, as gridsize is not '
+                f'evenly divisible by {nprocs} processes.'
+            )
+        for dim in range(3):
+            if gridsize%domain_subdivisions[dim] != 0:
+                abort(
+                    f'Cannot perform realisation of {self.name} '
+                    f'with gridsize = {gridsize}, as the global grid of shape '
+                    f'({gridsize}, {gridsize}, {gridsize}) cannot be divided '
+                    f'according to the domain decomposition ({domain_subdivisions[0]}, '
+                    f'{domain_subdivisions[1]}, {domain_subdivisions[2]}).'
+                )
+        # Argument processing
+        if transfer_spline is None and cosmoresults is not None:
+            abort('The realize() method was called with cosmoresults but no transfer_spline')
+        if variables is None:
+            if transfer_spline is not None:
+                masterwarn('The realize() method was called without specifying a variable, '
+                           'though a transfer_spline is passed. '
+                           'This transfer_spline will be ignored.')
+            if cosmoresults is not None:
+                masterwarn('The realize() method was called without specifying a variable, '
+                           'though a cosmoresults is passed. This cosmoresults will be ignored.')
+            # Realise all variables.
+            # Note that in the case of a completely linear component
+            # (Boltzmann order -1), no variables will be set and hence
+            # no realisation will be performed.
+            variables = list(arange(self.boltzmann_order + 1))
+        else:
+            # Realise one or more variables
+            variables = any2list(self.varnames2indices(variables))
+            N_vars = len(variables)
+            if N_vars > 1:
+                # Realise multiple variables
+                if transfer_spline is not None:
+                    abort(f'The realize() method was called with {N_vars} variables '
+                          'while a transfer_spline was supplied as well')
+                if cosmoresults is not None:
+                    abort(f'The realize() method was called with {N_vars} variables '
+                          'while cosmoresults was supplied as well')
+        # In the case of particles,
+        # momenta should be realised before positions.
+        if self.representation == 'particles' and variables == [0, 1]:
+            variables = [1, 0]
+        # Realise each of the variables in turn
+        options_passed = options.copy()
+        for variable in variables:
+            options = options_passed.copy()
+            # The special "realisation" of 𝒫 when using
+            # the P=wρ approximation.
+            if (   self.representation == 'fluid'
+                and variable == 2
+                and specific_multi_index == 'trace'
+                and transfer_spline is None
+                and self.approximations['P=wρ']
+                ):
+                self.realize_𝒫(a, use_gridˣ)
+                continue
+            # Normal realisation.
+            # The 'interpolation' option.
+            if self.representation == 'particles':
+                interpolation_orders = {'NGP': 1, 'CIC': 2, 'TSC': 3, 'PCS': 4}
+                options.setdefault(
+                    'interpolation',
+                    self.realization_options[('pos', 'mom')[variable]]['interpolation'],
+                )
+                if isinstance(options['interpolation'], str):
+                    options['interpolation'] = interpolation_orders[
+                        options['interpolation'].upper()
+                    ]
+            # The 'velocities from displacements' option.
+            if (self.representation == 'particles'
+                and 'velocitiesfromdisplacements' not in options
+            ):
+                options['velocitiesfromdisplacements'] = self.realization_options['mom'][
+                    'velocitiesfromdisplacements']
+            # For particles, the Boltzmann order is always 1,
+            # corresponding to positions and momenta. However, when
+            # velocities are set to be realised from displacements, the
+            # momenta (proportional to the velocity field uⁱ) are
+            # constructed from the displacement field ψⁱ (using the
+            # linear growth rate f) during the Zel'dovich approximation.
+            # Thus, from a single realisation of ψⁱ, both the positions
+            # and the momenta are constructed. In this case, we need to
+            # pass only the momenta as the variable to be realised (the
+            # realise function will realise both positions and momenta
+            # when velocities are to be realised from displacements),
+            # along with the transfer function for ψⁱ (δ, i.e. 0).
+            variable_transfer = variable
+            if self.representation == 'particles' and options['velocitiesfromdisplacements']:
+                if variable == 0:
+                    continue
+                variable_transfer = 0
+            # The back-scaling option
+            if 'backscaling' not in options:
+                if variable == 0:
+                    options['backscaling'] = self.realization_options[
+                        {'particles': 'pos', 'fluid': 'ϱ'}[self.representation]
+                    ]['backscaling']
+                elif variable == 1:
+                    options['backscaling'] = self.realization_options[
+                        {'particles': 'mom', 'fluid': 'J'}[self.representation]
+                    ]['backscaling']
+                elif variable == 2 and specific_multi_index == 'trace':
+                    options['backscaling'] = self.realization_options['𝒫']['backscaling']
+                elif variable == 2:
+                    options['backscaling'] = self.realization_options['ς']['backscaling']
+            # Get transfer function if not passed
+            if transfer_spline is None:
+                # When realising using the primordial structure (as
+                # opposed to realising non-linearly), the realisation
+                # looks like
+                # ℱₓ⁻¹[T(k) ζ(k) K(k⃗) ℛ(k⃗)],
+                # with ℛ(k⃗) the primordial noise, T(k) = T(a, k) the
+                # transfer function at the specified a, ζ(k) the
+                # primordial curvature perturbations and K(k⃗) containing
+                # any additional tensor structure. The only time
+                # dependent part of the realisation is then the transfer
+                # function T(a, k). In the case of linear realisation,
+                # i.e. a realisation of a field of the same variable
+                # number as the Boltzmann order of the component, we do
+                # not actually care about realising the exact field, but
+                # only about obtaining precise influences from this
+                # field on other, non-linear fields. For each Boltzmann
+                # order, we list below the corresponding linear fluid
+                # variable together with its most important evolution
+                # equation through which it affects the rest
+                # of the system.
+                # Boltzmann order -1:
+                #     ϱ,     ∇²φ = 4πGa²ρ = 4πGa**(-3*w_eff - 1)ϱ
+                # Boltzmann order 0:
+                #     Jᵐ,    ∂ₜϱ = -a**(3*w_eff - 2)∂ᵢJⁱ  + ⋯
+                # Boltzmann order 1:
+                #     𝒫,    ∂ₜJᵐ = -a**(-3*w_eff)∂ᵐ𝒫      + ⋯
+                #     ςᵐₙ,  ∂ₜJᵐ = -a**(-3*w_eff)∂ⁿςᵐₙ    + ⋯
+                # To take Boltzmann order -1 as an example, this means
+                # we should realise a weighted average of ϱ(t, k⃗), with
+                # a weight given by a(t)**(-3*w_eff(t) - 1), i.e.
+                # T(a, k) → 1/(ᔑa(t)**(-3*w_eff(t) - 1) dt)
+                #             *ᔑa(t)**(-3*w_eff(t) - 1)T(a, k) dt,
+                # with the integrals ranging over the time step.
+                # Below these weights are represented as str's.
+                # The actual averaging is carried out by the
+                # TransferFunction.as_function_of_k() method.
+                weight = None
+                if (
+                        options.get('structure') != 'nonlinear'
+                    and self.representation == 'fluid'
+                    and self.boltzmann_closure == 'class'
+                    and self.boltzmann_order + 1 == variable_transfer
+                    and a_next != -1
+                ):
+                    if variable_transfer == 0:
+                        weight = 'a**(-3*w_eff-1)'
+                    elif variable_transfer == 1:
+                        weight = 'a**(3*w_eff-2)'
+                    elif variable_transfer == 2:
+                        weight = 'a**(-3*w_eff)'
+                transfer_spline, cosmoresults = compute_transfer(
+                    self,
+                    variable_transfer,
+                    gridsize,
+                    specific_multi_index,
+                    a,
+                    a_next,
+                    gauge,
+                    weight=weight,
+                )
+            # Do the realisation
+            realize(
+                self,
+                variable,
+                transfer_spline,
+                cosmoresults,
+                specific_multi_index,
+                a,
+                options,
+                use_gridˣ,
+            )
+            # Reset transfer_spline to None so that a transfer
+            # function will be computed for the next variable.
+            transfer_spline = None
 
-    # Method for realising a fluid scalar if it is linear
-    def realize_if_linear(self, variable=0, multi_index=None, a=-1, a_next=-1, use_gridˣ=False):
+    # Method for realising a linear fluid scalar
+    def realize_if_linear(
+        self,
+        variable,
+        transfer_spline=None,
+        cosmoresults=None,
+        specific_multi_index=None,
+        a=-1,
+        a_next=-1,
+        gauge='N-body',
+        options=None,
+        use_gridˣ=False,
+    ):
         """If the fluid scalar is not linear or does not exist at all,
         no realisation will be performed and no exception will
         be raised.
         """
         if self.representation == 'particles':
             return
-        # Check that the fluid variable exists
+        # Check that the fluid variable exist
         try:
             variable = self.varnames2indices(variable, single=True)
         except (IndexError, KeyError):
             return
         # For all variables other than ϱ (variable == 0),
-        # a multi_index has to have been passed.
-        if multi_index is None:
+        # a specific_multi_index has to have been passed.
+        if specific_multi_index is None:
             if variable == 0:
-                multi_index = 0
+                specific_multi_index = 0
             else:
                 abort(
-                    f'The realize_if_linear() method was called with '
-                    f'variable = {variable} ≠ 0 but without any multi_index'
+                    f'The realize_if_linear() metthod was called with variable = {variable} ≠ 0 '
+                    f'but without any specific_multi_index'
                 )
         # Check that the fluid scalar exist
-        if multi_index not in self.fluidvars[variable]:
+        if specific_multi_index not in self.fluidvars[variable]:
             return
-        # Check that the fluid scalar is linear
-        if not self.is_linear(variable, multi_index):
-            return
-        # Do the realisation
-        self.realize(a, a_next, variable, multi_index, use_gridˣ)
-
+        # Get the non-linear realisation options
+        if options is None:
+            if variable == 0:
+                options = self.realization_options['ϱ']
+            elif variable == 1:
+                options = self.realization_options['J']
+            elif variable == 2 and specific_multi_index == 'trace':
+                options = self.realization_options['𝒫']
+            elif variable == 2:
+                options = self.realization_options['ς']
+            else:
+                abort(
+                    f'Do not know how to extract realisation options '
+                    f'for fluid variable {variable}[{specific_multi_index}]'
+                )
+        # Do the realisation if the passed variable really is linear
+        if self.is_linear(variable, specific_multi_index):
+            self.realize(
+                variable,
+                transfer_spline,
+                cosmoresults,
+                specific_multi_index,
+                a,
+                a_next,
+                gauge,
+                options,
+                use_gridˣ,
+            )
     # Method for checking whether a given fluid variable
     # or fluid scalar is linear or non-linear.
     def is_linear(self, variable, specific_multi_index=None):
@@ -2134,6 +2420,42 @@ class Component:
                 specific_multi_index = (0,)*variable
         # Check the linearity
         return self.fluidvars[variable][specific_multi_index].is_linear
+
+    # Method for realising 𝒫 when the P=wρ approximation is enabled
+    @cython.header(
+        # Arguments
+        a='double',
+        use_gridˣ='bint',
+        # Locals
+        index='Py_ssize_t',
+        ϱ_ptr='double*',
+        𝒫_ptr='double*',
+    )
+    def realize_𝒫(self, a=-1, use_gridˣ=False):
+        """This method applies 𝒫 = c²wϱ if the P=wρ approximation
+        is enabled. If not, an exception will be thrown. This method
+        is called from the more general realise method. It is not the
+        intend that this method should be called from anywhere else.
+        """
+        if a == -1:
+            a = universals.a
+        if not self.is_active(a):
+            return
+        if self.approximations['P=wρ']:
+            # Set 𝒫 equal to the current ϱ times the current c²w
+            if use_gridˣ:
+                ϱ_ptr = self.ϱ.gridˣ
+                𝒫_ptr = self.𝒫.gridˣ
+            else:
+                ϱ_ptr = self.ϱ.grid
+                𝒫_ptr = self.𝒫.grid
+            for index in range(self.size):
+                𝒫_ptr[index] = ϱ_ptr[index]*ℝ[light_speed**2*self.w(a=a)]
+        else:
+            abort(
+                f'The realize_𝒫() method was called on the {self.name} component which have P ≠ wρ. '
+                f'You should call the more general realize() method instead.'
+            )
 
     # Method for integrating particle positions/fluid values
     # forward in time.
@@ -2269,7 +2591,7 @@ class Component:
             return
         # By "acceleration" is meant
         #   acc = (∂mom/∂t)/(a**2*mass),
-        #       → Δmom/(a**(-3*w_eff)*mass*ᔑdt['a**2'])
+        #      -> Δmom/(a**(-3*w_eff)*mass*ᔑdt['a**2'])
         #       = Δmom*a**(3*w_eff)/(mass*ᔑdt['a**2']),
         # where the a**(-3*w_eff) takes care of decaying particle mass.
         # As the momentum has the same scaling a**(-3*w_eff), this
@@ -2592,7 +2914,6 @@ class Component:
         dim='int',
         dim_quantity='Py_ssize_t',
         highest_populated_rung='signed char',
-        ids='Py_ssize_t*',
         indexᵖ='Py_ssize_t',
         indexʳ='Py_ssize_t',
         indexˣ='Py_ssize_t',
@@ -2621,8 +2942,6 @@ class Component:
         tiling_location='double[::1]',
         tiling_plural=str,
         tiling_names=object,  # list, collections.Counter, str
-        tmp_ids='Py_ssize_t*',
-        tmp_ids_mv='Py_ssize_t[::1]',
         tmp_rung_indices='signed char*',
         tmp_rung_indices_mv='signed char[::1]',
         tmp_quantity='double*',
@@ -2638,9 +2957,10 @@ class Component:
         # Perform tile sort
         tiling.sort()
         # When a subtiling_name is supplied, this signals an in-memory
-        # sorting of the data arrays of the particles. The final memory
-        # order will match that of the particle visiting order when
-        # iterating over the tiles and subtiles.
+        # sorting of the pos and mom data arrays of the particles,
+        # as well as of the rung indices. The final memory order will
+        # match that of the particle visiting order when iterating over
+        # the tiles and subtiles.
         if not subtiling_name:
             return
         tiling_names = gather(tiling_name)
@@ -2671,35 +2991,35 @@ class Component:
         subtiles_contain_particles = subtiling.contain_particles
         # Iterate over the tiles and subtiles while keeping a counter
         # keeping track of the particle visiting number. We copy the
-        # particle data (positions, momenta, IDs, rung indices) to a
-        # temporary buffer using the visiting order. After the iteration
-        # we then copy this sorted buffer into the original data arrays.
-        # For the 64-bit data (positions, momenta, IDs) we use Δmom as
-        # the temporary buffer, as this should not store any data at the
-        # time of calling this method. For the rungs, we use the
-        # rung_indices_arr buffer from the communication module, which
-        # we enlarge if needed. As the Δmom buffer can only store one
-        # quantity at a time (i.e. not all positions and all momenta
-        # and all IDs), we iterate over the tiles and subtiles several
-        # times: 2 times if not using IDs and 3 times if using IDs,
-        # with the first iteration handling the IDs. Importantly, the
-        # positions and rung indices must be sorted during the last
-        # iteration, as the iteration itself depends on these
-        # through subtiling.sort().
+        # particle positions and momenta to a temporary buffer using the
+        # visiting order. After the iteration we then copy this sorted
+        # buffer into the original data arrays. We use the Δmom buffer
+        # as the temporary buffer, as this should not store any data
+        # at the time of calling this method. Furthermore, if using
+        # rungs, we also need to sort the rung indices, i.e. copy these
+        # to another buffer during the iteration just mentioned, and
+        # then likewise copy the values from this buffer to the
+        # rung_indices array once done. Here we use the rung_indices_arr
+        # buffer from the communication module, which we enlarge
+        # if needed. As the Δmom buffer can only store the positions or
+        # the momenta at a time, not both, we iterate over the tiles and
+        # subtiles twice. Importantly, the momenta should be sorted
+        # during the first iteration and the positions in the second.
+        # This is because the iteration depends on the positions through
+        # subtiling.sort(). Likewise, the rung indices should be sorted
+        # during the second iteration, not the first, as these are
+        # similarly used by subtiling.sort().
         tmp_quantity = self.Δmom
-        tmp_ids_mv = asarray(self.Δmom_mv).view(C2np['Py_ssize_t'])
-        tmp_ids = cython.address(tmp_ids_mv[:])
-        ids = self.ids
         rung_indices        = self.rung_indices
         rung_indices_jumped = self.rung_indices_jumped
         if self.use_rungs and rung_indices_arr.shape[0] < self.N_local:
             rung_indices_arr.resize(self.N_local, refcheck=False)
         tmp_rung_indices_mv = rung_indices_arr
         tmp_rung_indices = cython.address(tmp_rung_indices_mv[:])
-        for quantity in range(int(not self.use_ids), 3):
-            if quantity == 1:
+        for quantity in range(2):
+            if quantity == 0:
                 data_quantity = self.mom
-            elif quantity == 2:
+            else:  # quantity == 1
                 data_quantity = self.pos
             count = 0
             # Loop over all tiles
@@ -2729,34 +3049,20 @@ class Component:
                         for rung_particle_index in range(rung_N):
                             indexᵖ = rung[rung_particle_index]
                             # Copy the data to the temporary buffers
+                            indexˣ = 3*indexᵖ
+                            indexˣ_tmp = 3*count
+                            for dim_quantity in range(3):
+                                tmp_quantity[indexˣ_tmp + dim_quantity] = (
+                                    data_quantity[indexˣ + dim_quantity]
+                                )
                             with unswitch(4):
-                                if quantity == 0:
-                                    # IDs
-                                    tmp_ids[count] = ids[indexᵖ]
-                                else:
-                                    # Momenta and positions
-                                    indexˣ = 3*indexᵖ
-                                    indexˣ_tmp = 3*count
-                                    for dim_quantity in range(3):
-                                        tmp_quantity[indexˣ_tmp + dim_quantity] = (
-                                            data_quantity[indexˣ + dim_quantity]
-                                        )
-                                    # Rungs
-                                    with unswitch(4):
-                                        if quantity == 2 and self.use_rungs:
-                                            tmp_rung_indices[count] = rung_indices[indexᵖ]
+                                if self.use_rungs and quantity == 1:
+                                    tmp_rung_indices[count] = rung_indices[indexᵖ]
                             count += 1
             # Copy the sorted data back into the data arrays
-            if quantity == 0:
-                # IDs
-                for indexᵖ in range(self.N_local):
-                    ids[indexᵖ] = tmp_ids[indexᵖ]
-            else:
-                # Momenta and positions
-                for indexʳ in range(3*self.N_local):
-                    data_quantity[indexʳ] = tmp_quantity[indexʳ]
-            if quantity == 2 and self.use_rungs:
-                # Rungs
+            for indexʳ in range(3*self.N_local):
+                data_quantity[indexʳ] = tmp_quantity[indexʳ]
+            if self.use_rungs and quantity == 1:
                 for indexᵖ in range(self.N_local):
                     rung_index = tmp_rung_indices[indexᵖ]
                     rung_indices       [indexᵖ] = rung_index
@@ -2935,7 +3241,7 @@ class Component:
         # This really should not be a problem, but the current fluid
         # implementation computes J/(ϱ + c⁻²𝒫) while solving the
         # continuity equation. If what is being run is not a simulation
-        # but the class utility, this is not a problem as the system
+        # but the CLASS utility, this is not a problem as the system
         # is not to be evolved.
         if value <= -1 and special_params.get('special') != 'class':
             if (
@@ -2955,7 +3261,7 @@ class Component:
         # For components with a non-linear evolution of J,
         # we cannot handle w < 0, as the sound speed c*sqrt(w) becomes
         # negative. If what is being run is not a simulation
-        # but the class utility, this is not a problem as the system
+        # but the CLASS utility, this is not a problem as the system
         # is not to be evolved.
         if value < 0 and special_params.get('special') != 'class':
             if self.boltzmann_order > 0 and (a > universals.a_begin or t > universals.t_begin):
@@ -3148,7 +3454,7 @@ class Component:
             w = float(w)
         except:
             pass
-        if isinstance(w, (float, np.floating)):
+        if isinstance(w, float):
             # Assign passed constant w
             self.w_type = 'constant'
             self.w_constant = w
@@ -3467,18 +3773,17 @@ class Component:
 
     # Method which convert named fluid/particle
     # variable names to indices.
-    @cython.header(
-        # Arguments
-        varnames=object,  # str, int or container of str's and ints
-        single='bint',
-        # Locals
-        N_vars='Py_ssize_t',
-        i='Py_ssize_t',
-        indices='Py_ssize_t[::1]',
-        varname=object, # str or int
-        varnames_list=list,
-        returns=object,  # Py_ssize_t[::1] or Py_ssize_t
-    )
+    @cython.header(# Arguments
+                   varnames=object,  # str, int or container of str's and ints
+                   single='bint',
+                   # Locals
+                   N_vars='Py_ssize_t',
+                   i='Py_ssize_t',
+                   indices='Py_ssize_t[::1]',
+                   varname=object, # str or int
+                   varnames_list=list,
+                   returns=object,  # Py_ssize_t[::1] or Py_ssize_t
+                   )
     def varnames2indices(self, varnames, single=False):
         """This method conveniently transform any reasonable input
         to an array of variable indices. Some examples:
@@ -3933,7 +4238,7 @@ def init_tiling(component, tiling_name, initial_rung_size=-1):
             f'The {force} domain tiling needs a subdivision of at least 3 in every direction. '
             f'Consider lowering shortrange_params["{force}"]["tilesize"].'
         )
-        if 1 != nprocs and not iscubic(nprocs):
+        if 1 != nprocs != int(round(cbrt(nprocs)))**3:
             msg += ' It may also help to choose a lower and/or cubic number of processes.'
         abort(msg)
     # If not already specified, the rungs within each tile start out
@@ -3947,7 +4252,7 @@ def init_tiling(component, tiling_name, initial_rung_size=-1):
     extent = asarray((domain_size_x, domain_size_y, domain_size_z), dtype=C2np['double'])
     # The position of the beginning of the tiling,
     # i.e. the left, backward, lower corner of this domain.
-    location = asarray((domain_bgn_x, domain_bgn_y, domain_bgn_z), dtype=C2np['double'])
+    location = asarray((domain_start_x, domain_start_y, domain_start_z), dtype=C2np['double'])
     # Instantiate Tiling instance
     tiling = Tiling(tiling_name, component, shape, extent, initial_rung_size, refinement_period=0)
     # Relocate the tiling
@@ -4221,10 +4526,10 @@ def accept_or_reject_subtiling_refinement(
 ):
     """
     All three computation_times_* arrays are indexed as follows:
-    computation_times_sum[rung_index] → new computation times with
+    computation_times_sum[rung_index] -> new computation times with
     lowest_active_rung == rung_index, "new" meaning with the subtiling
     refinement.
-    computation_times_sum[N_rungs + rung_index] → old computation
+    computation_times_sum[N_rungs + rung_index] -> old computation
     times with, "old" meaning with the original subtiling refinement.
     """
     # Compute mean of all computation times
@@ -4362,22 +4667,3 @@ component_names = set()
 # Set of all instantiated components
 cython.declare(components_all=list)
 components_all = []
-
-# Get local domain information
-domain_info = get_domain_info()
-cython.declare(
-    domain_subdivisions='int[::1]',
-    domain_size_x='double',
-    domain_size_y='double',
-    domain_size_z='double',
-    domain_bgn_x='double',
-    domain_bgn_y='double',
-    domain_bgn_z='double',
-)
-domain_subdivisions = domain_info.subdivisions
-domain_size_x       = domain_info.size_x
-domain_size_y       = domain_info.size_y
-domain_size_z       = domain_info.size_z
-domain_bgn_x        = domain_info.bgn_x
-domain_bgn_y        = domain_info.bgn_y
-domain_bgn_z        = domain_info.bgn_z

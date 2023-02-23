@@ -1,5 +1,5 @@
 # Basics
-FROM debian:11.5-slim
+FROM debian:11.1-slim
 SHELL ["/usr/bin/env", "bash", "-c"]
 CMD ["bash"]
 
@@ -8,7 +8,7 @@ ARG concept_version=/source
 ARG install_dir="/concept"
 ARG slim=True
 ARG mpi=mpich
-ARG mpi_configure_options="--with-device=ch3:sock +="
+ARG mpi_configure_options="+= --with-device=ch3:sock"
 ARG cleanup_concept
 ARG make_jobs
 
@@ -49,8 +49,6 @@ RUN : \
     && apt-get autoclean -y \
     && rm -rf /var/lib/{apt/lists,cache,log}/* \
     && rm -rf $(ls /var/lib/dpkg/info/* | grep -v "\.list") \
-    # Allow for APT auto-completion
-    && rm -f /etc/apt/apt.conf.d/docker-clean \
     && :
 
 # Build CO𝘕CEPT as concept user

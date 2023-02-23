@@ -1,6 +1,6 @@
 /*
 This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-Copyright © 2015–2023 Jeppe Mosgaard Dakin.
+Copyright © 2015–2021 Jeppe Mosgaard Dakin.
 
 CO𝘕CEPT is free software: You can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -37,7 +37,7 @@ https://github.com/jmd-dk/concept/
  * provided that we execute this on the correct process, where
  *   gridstart_local_i <= i && i < gridstart_local_i + gridsize_local_i,
  * we have
- *   grid[i, j, k] -> grid[
+ *   grid[i, j, k] --> grid[
  *       ((i - gridstart_local_i)*gridsize_j + j)*gridsize_padding + k
  *   ]
  * That is, each process can access every element in its slab by
@@ -56,7 +56,7 @@ https://github.com/jmd-dk/concept/
  * provided that we execute this on the correct process, where
  *   gridstart_local_j <= j && j < gridstart_local_j + gridsize_local_j,
  * we have
- *   grid[i, j, k] -> grid[
+ *   grid[i, j, k] --> grid[
  *       ((j - gridstart_local_j)*gridsize_i + i)*gridsize_padding + k
  *   ]
  * That is, each process can access every element in its slab by

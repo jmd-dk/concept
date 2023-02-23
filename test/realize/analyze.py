@@ -26,15 +26,11 @@ masterprint(f'Analysing {this_test} data ...')
 
 # Plot power spectra from realised components
 fig_file = this_dir + '/result.png'
-fig, ax = plt.subplots(figsize=(8, 6))
+fig = plt.figure(figsize=(8, 6))
 for kind, powerspecs in powerspecs_all.items():
     for n, (k, power) in powerspecs.items():
-        ax.loglog(
-            k,
-            power,
-            alpha=0.7,
-            label='{}, nprocs = {}'.format(kind, n),
-        )
+        plt.loglog(k, power, alpha=0.7,
+                   label='{}, nprocs = {}'.format(kind, n))
 # Compute and plot power spectrum from CLASS
 a = a_begin
 z = 1/a - 1
@@ -54,12 +50,12 @@ cosmo = Class()
 cosmo.set(class_params_specialized)
 cosmo.compute()
 power_class = asarray([cosmo.pk(k/units.Mpc**(-1), z) for k in k_values])*units.Mpc**3
-ax.loglog(k_values, power_class, 'k--', label='CLASS')
-ax.set_xlabel(rf'$k\, [\mathrm{{{unit_length}}}^{{-1}}]$')
-ax.set_ylabel(rf'matter power $\mathrm{{[{unit_length}^3]}}$')
-ax.legend()
-fig.tight_layout()
-fig.savefig(fig_file, dpi=150)
+plt.loglog(k_values, power_class, 'k--', label='CLASS')
+plt.xlabel(rf'$k\, [\mathrm{{{unit_length}}}^{{-1}}]$')
+plt.ylabel(rf'matter power $\mathrm{{[{unit_length}^3]}}$')
+plt.legend(loc='best').get_frame().set_alpha(0.7)
+plt.tight_layout()
+plt.savefig(fig_file)
 
 # Compare the power spectra of the realisations with
 # the power spectrum from CLASS.
@@ -78,7 +74,7 @@ masks = {
         k_values < k_max,
     ),
 }
-rel_tol = 0.025
+rel_tol = 0.02
 for kind in ('particles', 'fluid'):
     for n in n_values:
         k, power = powerspecs_all[kind][n]

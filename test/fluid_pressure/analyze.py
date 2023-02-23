@@ -26,7 +26,7 @@ order = np.argsort(times)
 times  = [times[o]  for o in order]
 fluids = [fluids[o] for o in order]
 # Use precise times
-times = output_times['t']['snapshot']
+times = snapshot_times['t']
 
 # Begin analysis
 masterprint('Analysing {} data ...'.format(this_test))
@@ -39,36 +39,37 @@ A = user_params['_A']
 
 # Plot
 fig_file = this_dir + '/result.png'
-fig, axes = plt.subplots(N_snapshots, sharex=True, sharey=True, figsize=(8, 3*N_snapshots))
+fig, ax = plt.subplots(N_snapshots, sharex=True, sharey=True, figsize=(8, 3*N_snapshots))
 x_values = [boxsize*i/gridsize for i in range(gridsize)]
 ρ = []
 ρ_snapshot = []
-for ax, fluid, t in zip(axes, fluids, times):
+for ax_i, fluid, t in zip(ax, fluids, times):
     ρ.append(asarray([ρ0 + A*sin(x/boxsize*2*π)*cos(t/T*2*π) for x in x_values]))
     ρ_snapshot.append(fluid.ϱ.grid_noghosts[:gridsize, 0, 0])
-    ax.plot([0, boxsize], [ρ0    ]*2, 'k:' )
-    ax.plot([0, boxsize], [ρ0 + A]*2, 'k--')
-    ax.plot([0, boxsize], [ρ0 - A]*2, 'k--')
-    ax.plot(x_values, ρ[-1]         , '-', label='Analytical solution')
-    ax.plot(x_values, ρ_snapshot[-1], '.', markersize=10, alpha=0.7, label='Simulation')
-    ax.set_ylabel(
+    ax_i.plot([0, boxsize], [ρ0    ]*2, 'k:' )
+    ax_i.plot([0, boxsize], [ρ0 + A]*2, 'k--')
+    ax_i.plot([0, boxsize], [ρ0 - A]*2, 'k--')
+    ax_i.plot(x_values, ρ[-1]         , '-', label='Analytical solution')
+    ax_i.plot(x_values, ρ_snapshot[-1], '.', markersize=10, alpha=0.7, label='Simulation')
+    ax_i.set_ylabel(
         r'$\varrho$ $\mathrm{{[{}\,m_{{\odot}}\,{}^{{-3}}]}}$'
         .format(
             significant_figures(
                 1/units.m_sun,
                 3,
-                fmt='TeX',
+                fmt='tex',
                 incl_zeros=False,
+                scientific=False,
             ),
             unit_length,
         )
     )
-    ax.set_title(rf'$t={t:.3g}\,\mathrm{{{unit_time}}}$')
-axes[ 0].set_xlim(0, boxsize)
-axes[-1].set_xlabel(rf'$x\,\mathrm{{[{unit_length}]}}$')
-axes[ 0].legend()
-fig.tight_layout()
-fig.savefig(fig_file, dpi=150)
+    ax_i.set_title(rf'$t={t:.3g}\,\mathrm{{{unit_time}}}$')
+plt.xlim(0, boxsize)
+plt.xlabel(rf'$x\,\mathrm{{[{unit_length}]}}$')
+ax[0].legend(loc='best').get_frame().set_alpha(0.7)
+plt.tight_layout()
+plt.savefig(fig_file)
 
 # Fluid elements in yz-slices should all have the same values
 for fluid, t in zip(fluids, times):

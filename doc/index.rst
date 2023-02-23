@@ -32,7 +32,7 @@ CO\ *N*\ CEPT is a free and open-source simulation code for cosmological
 structure formation. The code should run on any Linux system, from massively
 parallel computer clusters to laptops. The code is written almost exclusively
 in Python, but achieves C-like performance through code transformation using a
-custom transpiler/optimizer and `Cython <https://cython.org/>`__. While highly
+custom transpiler/optimizer and `Cython <https://cython.org/>`_. While highly
 competitive regarding both performance and accuracy, CO\ *N*\ CEPT further
 strives for ease of use.
 
@@ -46,10 +46,9 @@ relativistic perturbation theory. Various non-standard species --- such as
 decaying cold dark matter --- are fully supported.
 
 CO\ *N*\ CEPT comes with a sophisticated initial condition generator built in,
-and can output snapshots, power spectra, bispectra and several
-kinds of renders.
+and can output snapshots, power spectra and several kinds of renders.
 
-The `CLASS <http://class-code.net/>`__ code is fully integrated into
+The `CLASS <http://class-code.net/>`_ code is fully integrated into
 CO\ *N*\ CEPT, supplying the needed information for e.g. initial condition
 generation and general relativistic corrections.
 

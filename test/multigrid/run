@@ -52,11 +52,11 @@ for powerspec_global in ${powerspec_global_list[@]}; do
         -u powerspec "${this_dir}/output"                               \
         -n 4                                                            \
         -p "${this_dir}/param"                                          \
-        -c "powerspec_options['bins per decade'] = inf"                 \
+        -c "powerspec_options['binsize'] = 0"                           \
         -c "powerspec_options['global gridsize'] = ${powerspec_global}" \
         --local
     mv "${this_dir}/output/powerspec"*.png "${subtest_dir}/powerspec_${powerspec_global}.png"
-    mv "${this_dir}/output/powerspec"*     "${subtest_dir}/powerspec_${powerspec_global}"
+   mv "${this_dir}/output/powerspec"*     "${subtest_dir}/powerspec_${powerspec_global}"
 done
 mv "${this_dir}/output/"* "${subtest_dir}/snapshot.hdf5"
 
@@ -75,11 +75,11 @@ size=24
 render2D_global_list=($((size/3)) ${size} $((size*3)))
 # Generate the sine wave fluid snapshot
 rm -rf "${this_dir}/output"
-"${concept}"                   \
-    -n 1                       \
-    -p "${this_dir}/param"     \
+"${concept}"                        \
+    -n 1                            \
+    -p "${this_dir}/param"          \
     -m "${this_dir}/gen_ic.py" \
-    --pure-python              \
+    --pure-python                   \
     --local
 mkdir -p "${subtest_dir}"
 mv "${this_dir}/output/"* "${subtest_dir}/sine.hdf5"

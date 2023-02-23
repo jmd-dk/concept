@@ -44,7 +44,7 @@ cosmology, as well as the starting time for the simulation.
 
 -- --------------- -- -
 \  **Example 0**   \  Use a value of
-                      :math:`H_0 = 74\,\text{km}\, \text{s}^{-1}\, \text{Mpc}^{-1}`
+                      :math:`H_0 = 74\,\mathrm{km}\, \mathrm{s}^{-1}\, \mathrm{Mpc}^{-1}`
                       for the Hubble constant:
 
                       .. code-block:: python3
@@ -255,7 +255,7 @@ cosmology, as well as the starting time for the simulation.
                       .. math::
 
                          \require{upgreek}
-                         \zeta(k) = \uppi \sqrt{2A_{\text{s}}} k^{-\frac{3}{2}} \biggl(\frac{k}{k_{\text{pivot}}}\biggr)^{\frac{n_{\text{s}} - 1}{2}} \exp\biggl[\frac{\alpha_{\text{s}}}{4} \ln\biggl(\frac{k}{k_{\text{pivot}}}\biggr)^2\biggr]\, ,
+                         \zeta(k) = \uppi \sqrt{2A_{\text{s}}} k^{-3/2} \biggl(\frac{k}{k_{\text{pivot}}}\biggr)^{\frac{n_{\text{s}} - 1}{2}} \exp\biggl[\frac{\alpha_{\text{s}}}{4} \ln\biggl(\frac{k}{k_{\text{pivot}}}\biggr)^2\biggr]\, ,
 
                       where :math:`A_{\text{s}}` (``'A_s'``) is the amplitude,
                       :math:`n_{\text{s}}` (``'n_s'``) is the 'tilt' or
@@ -304,7 +304,7 @@ cosmology, as well as the starting time for the simulation.
 
 -- --------------- -- -
 \  **Elaboration** \  CO\ *N*\ CEPT relies on the
-                      `CLASS <http://class-code.net/>`__ code for computing the
+                      `CLASS <http://class-code.net/>`_ code for computing the
                       cosmological background (unless
                       :ref:`enable_class_background` is ``False``) as well as
                       linear perturbations. As such it is vital that CLASS is
@@ -331,7 +331,7 @@ cosmology, as well as the starting time for the simulation.
                       (besides ``'H0'``, ``'Omega_b'`` and ``'Omega_cdm'``)
                       will take on default values as defined by CLASS.
                       To find out what they are, consult e.g. the
-                      `explanatory.ini <https://github.com/lesgourg/class_public/blob/v2.7.2/explanatory.ini>`__
+                      `explanatory.ini <https://github.com/lesgourg/class_public/blob/v2.7.2/explanatory.ini>`_
                       example CLASS parameter file.
 
                       .. note::
@@ -411,11 +411,11 @@ cosmology, as well as the starting time for the simulation.
                       In the above we additionally specify the neutrino
                       temperature (equal for all neutrino species),
                       parametrised via the effective number of neutrinos
-                      :math:`N_{\text{eff}}`, as
+                      :math:`N_{\mathrm{eff}}`, as
 
                       .. math::
 
-                         T_{\nu} = \biggl(\frac{4}{11}\biggr)^{\frac{1}{3}} \biggl(\frac{N_{\text{eff}}}{N_{\nu}}\biggr)^{\frac{1}{4}} T_{\gamma}\, ,
+                         T_{\nu} = \biggl(\frac{4}{11}\biggr)^{1/3} \biggl(\frac{N_{\mathrm{eff}}}{N_{\nu}}\biggr)^{1/4} T_{\gamma}\, ,
 
                       with :math:`N_{\nu}` the integer number of massive
                       neutrino species and :math:`T_{\gamma}` the photon

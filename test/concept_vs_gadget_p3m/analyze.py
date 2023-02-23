@@ -69,8 +69,6 @@ for i in range(N_snapshots):
     components_gadget[i].momz = components_gadget[i].momz[ID]
 
 # Compute distance between particles in the two snapshots
-fig_file = this_dir + '/result.png'
-fig, ax = plt.subplots()
 dist = []
 for i in range(N_snapshots):
     x = components[i].posx
@@ -91,7 +89,7 @@ for i in range(N_snapshots):
         for j in range(N)
     ])))
     # Plot
-    ax.semilogy(
+    plt.semilogy(
         machine_ϵ + dist[i]/boxsize,
         '.',
         alpha=0.7,
@@ -100,15 +98,16 @@ for i in range(N_snapshots):
     )
 
 # Finalize plot
-ax.set_xlabel('Particle number')
-ax.set_ylabel(
+fig_file = this_dir + '/result.png'
+plt.xlabel('Particle number')
+plt.ylabel(
     r'$|\mathbf{x}_{\mathrm{CO}N\mathrm{CEPT}} - \mathbf{x}_{\mathrm{GADGET}}|'
     r'/\mathrm{boxsize}$'
 )
-ax.set_xlim(0, N - 1)
-ax.legend()
-fig.tight_layout()
-fig.savefig(fig_file, dpi=150)
+plt.xlim(0, N - 1)
+plt.legend(loc='best').get_frame().set_alpha(0.7)
+plt.tight_layout()
+plt.savefig(fig_file)
 
 # Printout error message for unsuccessful test
 tol = 1.2e-2

@@ -1,5 +1,5 @@
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015–2023 Jeppe Mosgaard Dakin.
+# Copyright © 2015–2021 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -222,7 +222,7 @@ all:
 	    fi;                                                                \
 	    cp "$${f_src}" "$${f_build}";                                      \
 	    if [ "$${f_base}" == "Makefile" ]; then                            \
-	        Makefile="$$(readlink -f "$(concept_dir)")/Makefile";          \
+	        Makefile="$$(readlink -f "$${concept_dir}")/Makefile";         \
 	        sed -i "s/\.\.\/Makefile/$${Makefile//\//\\/}/" "$${f_build}"; \
 	    fi;                                                                \
 	done
@@ -242,23 +242,22 @@ print-vars:
 ###################
 # Cleanup targets #
 ###################
-.PHONY:                   \
-    clean                 \
-    clean-autosave        \
-    clean-doc             \
-    clean-ic              \
-    clean-job             \
-    clean-output          \
-    clean-reusable        \
-    clean-bispec-reusable \
-    clean-class-reusable  \
-    clean-ewald-reusable  \
-    clean-fftw-reusable   \
-    clean-test            \
-    clean-tmp             \
-    clean-util            \
-    distclean             \
-    distclean-except-tmp  \
+.PHONY:                  \
+    clean                \
+    clean-autosave       \
+    clean-doc            \
+    clean-ic             \
+    clean-job            \
+    clean-output         \
+    clean-reusable       \
+    clean-class-reusable \
+    clean-ewald-reusable \
+    clean-fftw-reusable  \
+    clean-test           \
+    clean-tmp            \
+    clean-util           \
+    distclean            \
+    distclean-except-tmp \
 
 # Remove build files
 clean:
@@ -281,8 +280,6 @@ clean-output:
 # Remove reusable dumps
 clean-reusable:
 	$(RM) -r "$(reusable_dir)"
-clean-bispec-reusable:
-	$(RM) -r "$(reusable_dir)/bispec"
 clean-class-reusable:
 	$(RM) -r "$(reusable_dir)/class"
 clean-ewald-reusable:

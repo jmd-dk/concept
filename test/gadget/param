@@ -3,7 +3,7 @@ initial_conditions = f'{param.dir}/ic'
 output_times       = {'snapshot': [a_begin, 0.5]}
 snapshot_type      = 'GADGET'
 
-# Numerics
+# Numerical parameters
 boxsize = 32*Mpc/h
 
 # Cosmology
@@ -12,11 +12,6 @@ H0      = 67*km/s/Mpc
 Ωb      = 0.049
 a_begin = 0.1
 
-# Simulation
+# Simulation options
 random_generator = 'PCG64DXSM'
-random_seeds = {
-    'general'              :    0,
-    'primordial amplitudes': 1_000,
-    'primordial phases'    : 2_000,
-}
-
+random_seed      = 0

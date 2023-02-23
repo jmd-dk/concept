@@ -1,16 +1,16 @@
 Comparison with GADGET-2
 ------------------------
 In this section we shall perform equivalent simulations with CO\ *N*\ CEPT and
-the well-known `GADGET-2 <https://wwwmpa.mpa-garching.mpg.de/gadget/>`__ code.
+the well-known `GADGET-2 <https://wwwmpa.mpa-garching.mpg.de/gadget/>`_ code.
 Due to the two codes utilising different numerical schemes, as well as the
 fact that CO\ *N*\ CEPT --- unlike GADGET-2 --- is designed to be consistent
-with general relativistic perturbation theory by default, some subtleties need
-to be taken into account in order to perform simulations with CO\ *N*\ CEPT
-that are truly equivalent to those of GADGET-2.
+with general relativistic perturbation theory, running simulations with
+CO\ *N*\ CEPT that are truly equivalent to those of GADGET-2 requires some
+tricks.
 
 If you are unfamiliar with GADGET-2 or have no interest in running GADGET-2
 equivalent simulations with CO\ *N*\ CEPT, you may skip this section. However,
-many of the tricks to come are not exclusively related to GADGET-2.
+some of the tricks to come are not directly related to GADGET-2.
 
 
 
@@ -24,7 +24,7 @@ as e.g. ``param/tutorial``:
 .. code-block:: python3
    :caption: param/tutorial
    :name: param-gadget
-   :emphasize-lines: 4, 21, 34-38, 41
+   :emphasize-lines: 4, 21, 35
 
    # Input/output
    if _gen:
@@ -58,13 +58,7 @@ as e.g. ``param/tutorial``:
    Ωcdm = 0.27
    a_begin = 0.02
 
-   # Physics
-   realization_options = {
-       'gauge'     : 'synchronous',
-       'back-scale': True,
-   }
-
-   # Non-parameter helper variables
+   # Non-parameter variables
    _size = 64
    _gen = False
 
@@ -86,7 +80,7 @@ As we have ``snapshot_type = 'gadget'``, the snapshot will be in
 GADGET format. Furthermore, naming the matter component ``'GADGET halo'``
 ensures that this component gets mapped to GADGET particle type 1
 (conventionally used for cold dark matter, see table 3 in the
-`user guide for GADGET-2 <https://wwwmpa.mpa-garching.mpg.de/gadget/users-guide.pdf>`__
+`user guide for GADGET-2 <https://wwwmpa.mpa-garching.mpg.de/gadget/users-guide.pdf>`_
 ).
 
 Starting from this snapshot we can now perform the CO\ *N*\ CEPT simulation by
@@ -116,15 +110,15 @@ just for use with this tutorial:
 
 .. code-block:: bash
 
-   (source concept && cp -r "${Gadget2_dir}" "${output_dir}"/tutorial/)
+   (source concept && cp -r "${Gadget2_dir}" output/tutorial/)
 
 You now have the complete GADGET-2 code in ``output/tutorial/Gadget2``.
 
 The ``Makefile`` of GADGET-2 needs to be set up with correct path information
 for its dependencies. Furthermore, various options need to be set in order
 for the GADGET-2 simulation to come to be equivalent to the CO\ *N*\ CEPT
-simulation. Last but not least, we need a GADGET-2 parameter file equivalent
-to the :ref:`CONCEPT parameter file <param-gadget>`. All of this can be
+simulation. Last but not least we need a GADGET-2 parameter file equivalent to
+the :ref:`CONCEPT parameter file <param-gadget>`. All of this can be
 conveniently achieved using the *gadget utility* included with CO\ *N*\ CEPT:
 
 .. code-block:: bash
@@ -151,7 +145,7 @@ The ``output/tutorial/Gadget2`` directory now has a properly set up
    force by grouping particles together.
 
    Lastly, the values of physical constants employed by CO\ *N*\ CEPT and
-   GADGET-2 differ slightly, which will make a small difference for the
+   GADGET-2 differ slightly, which will make a noticeable difference for the
    comparison. If the GADGET-2 source code you are using is the one that goes
    with the CO\ *N*\ CEPT installation, all such constants of the GADGET-2
    source code have been patched to match the values used by CO\ *N*\ CEPT.
@@ -220,7 +214,7 @@ script below:
        for filename in sorted(glob.glob(f'{dirname}/powerspec*'), key=os.path.getmtime):
            if filename.endswith('.png'):
                continue
-           with open(filename, mode='r', encoding='utf-8') as f:
+           with open(filename) as f:
                header = f.readline()
            a = float(re.search('a = (.+)', header).group(1).rstrip('.'))
            k, P[float(f'{a:.3f}')] = np.loadtxt(filename, usecols=(0, 2), unpack=True)
@@ -278,11 +272,9 @@ in 3D. For this, let's use the *render3D utility*:
    ./concept \
        -u render3D ic/tutorial_a=0.02 \
        -p param/tutorial \
-       -c "render3D_options = { \
-           'interpolation': 0, \
-           'color': 'black', \
-           'background': 'white', \
-           'resolution': 2000}"
+       -c "render3D_resolution = 2000" \
+       -c "render3D_colors = ('black', 1.5)" \
+       -c "render3D_bgcolor = 'white'"
 
 This produces an image file in the ``ic`` directory. Zooming in on one of the
 corners of the box, it should be clear that while we do have a close to
@@ -293,14 +285,14 @@ homogeneous system, it is far from isotropic.
    which more clearly shows what we're after. Playing around with the given
    values is encouraged. Their function should quickly become apparent.
 
-The strong anisotropy of the particles is inherited from the grid on which
-they are (pre-)initialised. This grid-like structure of the particle
-distribution makes the system sensitive towards other grids used during the
-simulation, e.g. the potential grid. In CO\ *N*\ CEPT, a default choice of
-using 'cell-centred' grid discretisation is made, whereas GADGET-2 uses
-'cell-vertex' grid discretisation. In effect this means that the potential
-grids of the two codes are shifted by half a grid cell relative to each other,
-in all three dimensions (see the ``cell_centered``
+The strong anisotropy of the particles is inherited from the grid used for
+realisation of the initial conditions. This grid-like structure of the
+particle distribution makes the system sensitive towards other grids used
+during the simulation, e.g. the potential grid. In CO\ *N*\ CEPT, a default
+choice of using 'cell-centred' grid discretisation is made, whereas GADGET-2
+uses 'cell-vertex' grid discretisation. In effect this means that the
+potential grids of the two codes are shifted by half a grid cell relative to
+each other, in all three dimensions (see the ``cell_centered``
 :ref:`parameter <cell_centered>` for more information). This detail oughtn't
 matter much, but the grid structure imprinted on the particle distribution,
 together with the fact that our simulations are rather small
@@ -322,22 +314,29 @@ now much smaller, though still a few percent.
    that cell-vertex discretisation is superior to its cell-centred cousin.
    The improvement came from using the *same* discretisation.
 
-   The observed difference in results for the two discretisation schemes would
-   be smaller had the initial conditions not contained the strong
-   anisotropies. CO\ *N*\ CEPT does allow for the creation of more isotropic
-   initial condition by initially placing the particles on either a
-   body-centered cubic (bcc) lattice or a face-centered cubic (fcc) lattice,
-   rather than the standard simple cubic (sc) lattice. See the
-   ``initial_conditions`` :ref:`parameter <initial_conditions>`
-   for more information.
+   Presumably the observed difference in results for the two discretisation
+   schemes would be much smaller had the initial conditions not contained the
+   strong anisotropies, e.g. if they had been generated from *glass*
+   pre-initial conditions. This feature is not (yet) available
+   in CO\ *N*\ CEPT.
 
    Though undesirable when comparing against GADGET-2, CO\ *N*\ CEPT
    additionally effectively allows for simultaneous usage of both
    discretisation schemes by carrying out both of them followed by an
    *interlacing* step to combine the results. This technique effectively
-   lowers the discretisation scale, reducing the numerical artefacts. For
+   halves the discretisation scale, reducing the numerical artefacts. For
    more information about potential interlacing, see the ``potential_options``
    :ref:`parameter <potential_options>`.
+
+   Another solution is to apply a random spatial shift to the potential grid
+   (or the particle positions) at each time step, an approach built into
+   GADGET-4. While the size of individual force errors remain the same, their
+   directions are now uncorrelated in time.
+
+   The mismatch between results of cell-centred and cell-vertex simulations is
+   reduced for larger simulations, as the details of what's going on at the
+   scale of a grid cell becomes more negligible for the whole. Thus for large
+   (say :math:`N \gtrsim 512^3`) simulations, we may ignore this issue.
 
 
 
@@ -350,7 +349,7 @@ A key difference between CO\ *N*\ CEPT and GADGET-2 is that the former
 cosmology, as demonstrated in the
 :doc:`previous section <beyond_matter_only>`. As such, CO\ *N*\ CEPT uses
 a full background evolution obtained from the
-`CLASS <http://class-code.net/>`__ code. By default, this CLASS background
+`CLASS <http://class-code.net/>`_ code. By default, this CLASS background
 includes matter, :math:`\Lambda` and radiation, whereas the background of
 GADGET-2 only consists of matter and :math:`\Lambda`.
 
@@ -406,15 +405,18 @@ For still better agreement, you may try similarly upgrading
 including the updated ``shortrange_params`` when running the CO\ *N*\ CEPT
 ``gadget`` utility or by manually setting ``RCUT`` in
 ``output/tutorial/Gadget2/Makefile``) and then re-compiling and -running
-GADGET-2 and computing the power spectra from the new snapshots. Improved
-agreement between the two codes is also achieved by increasing the
-simulation size.
+GADGET-2. Improved agreement between the two codes is also achieved by
+increasing the simulation size.
 
 
 
 .. raw:: html
 
    <h4>Final notes</h4>
+
+Though it does not matter for the comparison, the simulations performed in
+this section have been performed in a manner which is slightly inconsistent
+--- not which each other, but with physics.
 
 CO\ *N*\ CEPT strives to be consistent with general relativistic perturbation
 theory. It does so by using the full background from CLASS, and adding in
@@ -427,35 +429,37 @@ not support.
 GADGET-2 only allows for the simulation of matter (though besides the standard
 cold dark matter particles, it further supports (smoothed-particle)
 hydrodynamical baryons), and always uses a background containing just matter
-and :math:`\Lambda`. Sticking to even the simplest ΛCDM cosmologies (which
-*do* include photons), neglecting the gravitational tug from radiation is
-unacceptable for precision simulations. To resolve this problem, the usual
-trick used with Newtonian *N*-body codes is to generate initial conditions at
-:math:`a = a_{\text{begin}}` using the results of general relativistic
-perturbations theory (which also accounts for radiation) at :math:`a = 1`, but
-scaled back in time using the Newtonian growth factor. Thus, only the
-:math:`a = 1` results of such *back-scaled* simulations are really physical.
-The ``realization_options`` :ref:`parameter <realization_options>` in the
-:ref:`parameter file used for this section <param-gadget>` specifies that
-back-scaling should be used when generating the initial conditions, and also
-that this should be done within the synchronous gauge (as opposed to the
-default *N*-body gauge), as is typically used with back-scaling.
+and :math:`\Lambda`. Sticking to even the simplest :math:`\Lambda`\ CDM
+cosmologies (which *do* include photons), neglecting the gravitational tug
+from radiation is unacceptable for precision simulations. To resolve this
+problem, the usual trick used with Newtonian *N*-body codes is to generate
+initial conditions at :math:`a = a_{\text{begin}}` using the results of
+general relativistic perturbations theory (which also accounts for radiation)
+at :math:`a = 1`, but scaled back in time using the Newtonian growth factor.
+Thus, only the :math:`a = 1` results of such *back-scaled* simulations are
+really physical.
 
-When using back-scaling, the particle velocities are obtained from the same
-(:math:`\delta`) transfer function as the positions, using a Newtonian
-approximation. The velocities are thus not the actual synchronous gauge
-velocities, but are in fact closer to the velocities within the *N*-body
-gauge, as obtained from the :math:`\theta` transfer function and no
-back-scaling. As the synchronous and *N*-body gauge :math:`\delta` transfer
-functions are quite similar, the back-scaled synchronous gauge initial
-conditions --- used within this section --- are then in fact very similar to
-the non-back-scaled *N*-body gauge initial conditions used within
-CO\ *N*\ CEPT by default. The specifications within ``realization_options`` in
-the :ref:`parameter file <param-gadget>` are thus not very crucial for the
-results, but mostly put there to comply with the spirit of Newtonian
-*N*-body simulations and GADGET-2. We note again that the real difference
-between the *N*-body gauge approach and the back-scaled, synchronous gauge
-approach is to be found outside basic ΛCDM cosmologies and matter-only
-simulations, where the Newtonian approximations used for the back-scaling
-break down.
+As CO\ *N*\ CEPT works in *N*-body gauge, the initial conditions generated for
+this section are in this gauge. As the corresponding *N*-body gauge
+perturbations have not been continually applied to the particles during their
+evolution, these have drifted away from this gauge. As we further did not
+use back-scaling for the initial conditions (CO\ *N*\ CEPT simply realises
+the :math:`a = a_{\text{begin}}` *N*-body gauge perturbations directly), the
+:math:`a = 1` results deviate slightly from what we would have got,
+starting from back-scaled initial conditions. The simulations ran during this
+section is then not quite compatible with either of these two standards.
+
+Note that with ``enable_class_background = False`` and without adding in
+linear species, CO\ *N*\ CEPT *does* evolve the system just like GADGET-2,
+i.e. with the exact same physics. The *N*-body gauge vs. back-scaling issue
+then only concerns the initial conditions. To run CO\ *N*\ CEPT with
+back-scaled initial conditions, simply provide such an initial snapshot
+yourself (as back-scaling is not available as an option when generating
+initial conditions with CO\ *N*\ CEPT).
+
+With the above note of warning about the perils of insufficient rigour taken
+towards the two techniques of the *N*-body gauge and back-scaling, let it be
+said that the results from the two techniques (and indeed the "mixed"
+technique used by the simulations in this section) differ only slightly
+--- assuming simple :math:`\Lambda`\ CDM cosmologies.
 

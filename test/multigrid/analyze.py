@@ -85,28 +85,28 @@ for gridsize, render2D in render2Ds.items():
 # Plot the 1D cross sections of the 2D renders
 # along the x direction, revealing the sines.
 plot_file = f'{subtest_dir}/plot.png'
-fig, ax = plt.subplots()
 sines = {}
 for (gridsize, render2D), linestyle in zip(render2Ds.items(), ('-', '--', ':')):
     x = (0.5 + arange(gridsize))*boxsize/gridsize
     y = render2D[:, 0]
     sines[gridsize] = (x, y)
-    ax.plot(x, y, linestyle, label=f'gridsize {gridsize}')
-ax.set_xlabel(rf'$x\, [\mathrm{{{unit_length}}}]$')
-ax.set_ylabel(
+    plt.plot(x, y, linestyle, label=f'gridsize {gridsize}')
+plt.xlabel(rf'$x\, [\mathrm{{{unit_length}}}]$')
+plt.ylabel(
     r'$\rho$ $\mathrm{{[{}\, m_{{\odot}}\, {}^{{-3}}]}}$'
     .format(
         significant_figures(
             1/units.m_sun,
             3,
-            fmt='TeX',
+            fmt='tex',
             incl_zeros=False,
+            scientific=False,
         ),
         unit_length,
     )
 )
-ax.legend()
-fig.savefig(plot_file, dpi=150)
+plt.legend()
+plt.savefig(plot_file)
 # Check whether the sines are in phase
 rel_tol = 1e-9
 extrema = {}

@@ -43,7 +43,7 @@ perturbation theory ahead of time, and then feed the linear gravitational
 field from all species but matter to the *N*-body simulation, applying the
 otherwise missing gravity as an external force.
 
-CO\ *N*\ CEPT uses the `CLASS <http://class-code.net/>`__ code to solve the
+CO\ *N*\ CEPT uses the `CLASS <http://class-code.net/>`_ code to solve the
 equations of linear perturbation theory. For details on how the linear
 perturbations are applied to the *N*-body particles during the simulation, we
 refer to the paper on
@@ -239,20 +239,20 @@ This will produce ``output/tutorial/plot.png``, where the bottom panel shows
 the relative error between the simulated power spectrum and that computed
 using purely linear theory. They should agree to within a percent at the
 lowest :math:`k`. At higher :math:`k` the agreement is worse. Though this can
-be remedied by increasing the resolution of the simulation (e.g. by increasing
+be remedied by increasing the resolution of the simulation (i.e. by increasing
 ``_size``), we shall not do so here, as we focus on the lower :math:`k` only.
 
-The power spectra outputted by the simulation are binned logarithmically in
-:math:`k`. This is usually desirable, though higher precision at the lowest
-:math:`k` can be achieved by leaving out this binning. The number of bins per
-decade --- among many other specifics --- is controlled through the
-``powerspec_options`` parameter. Disabling the binning can be achieved by
-requesting an infinite number of bins per decade. Add
+The power spectra outputted by the simulation are binned using a linear bin
+size in :math:`k`. This is usually desirable, though higher precision at the
+lowest :math:`k` can be achieved by leaving out this binning. The bin size
+--- among many other specifics --- is controlled by the ``powerspec_options``
+parameter. Disabling the binning can be achieved by setting the bin size
+to ``0``. Add
 
 .. code-block:: python3
 
    powerspec_options = {
-       'bins per decade': inf,
+       'binsize': 0,
    }
 
 to the parameter file, then rerun the simulation and the plotting script.
@@ -307,7 +307,7 @@ linear components. To represent the photon component as a fluid, we specify
 cells along each dimension, for the cubic fluid grids. Finally, the number of
 fluid quantities --- and corresponding grids --- to take into account is
 implicitly specified by the *Boltzmann order*. As is
-`customary <https://arxiv.org/abs/astro-ph/9506072>`__ in linear perturbation
+`customary <https://arxiv.org/abs/astro-ph/9506072>`_ in linear perturbation
 theory, we transform the Boltzmann equation for a given species into an
 infinite hierarchy of multipole moments :math:`\ell \geq 0`. We then partition
 this hierarchy in two; a non-linear part :math:`\ell \leq \ell_{\text{nl}}`
@@ -315,10 +315,10 @@ and a linear part :math:`\ell > \ell_{\text{nl}}`, where
 :math:`\ell_{\text{nl}}` is precisely the Boltzmann order. A few examples
 shall illuminate this concept:
 
-- **Boltzmann order 0**: The evolution equation for the lowest moment (i.e.
-  the continuity equation for the energy density) is solved non-linearly
-  during the simulation, while higher moments like momentum density (on which
-  the energy density depends) are solved in pure linear theory.
+- **Bolzmann order 0**: The evolution equation for the lowest moment (i.e. the
+  continuity equation for the energy density) is solved non-linearly during
+  the simulation, while higher moments like momentum density (on which the
+  energy density depends) are solved in pure linear theory.
 - **Boltzmann order 1**: The evolution equations for the two lowest moments
   (i.e. the continuity equation for the energy density and the Euler equation
   for the momentum density) are solved non-linearly during the simulation,
@@ -344,9 +344,10 @@ we see that a grid size of ``_size`` is specified for ``'pm'``. This *must*
 match the *fluid grid size*, i.e. the value specified for ``'gridsize'`` for
 the fluid component in ``initial_conditions``, so that the geometry of the
 grid(s) internal to the fluid component matches that of the potential grid.
-Now the simulation has *two* potential grids; one for P³M self-gravity of
-the matter particles (of grid size ``2*_size``) and one for PM one-way gravity
-from the linear photon fluid to the matter particles (of grid size ``_size``).
+Now the simulation then have *two* potential grids; one for P³M self-gravity
+of the matter particles (of grid size ``2*_size``) and one for PM one-way
+gravity from the linear photon fluid to the matter particles (of grid
+size ``_size``).
 
 .. note::
    As the PM grid size has to match the fluid grid size, you do in fact not
@@ -380,7 +381,7 @@ photon simulation should appear. The plot will show that --- sadly ---
 including the photons does *not* lead to better large-scale behaviour.
 
 CO\ *N*\ CEPT delegates all linear (and background) computations to the
-`CLASS <http://class-code.net/>`__ code. Though we have specified :math:`H_0`,
+`CLASS <http://class-code.net/>`_ code. Though we have specified :math:`H_0`,
 :math:`\Omega_{\text{b}}` and :math:`\Omega_{\text{cdm}}` in the parameter file,
 many cosmological parameters are still left unspecified. Here the default CLASS
 parameters are used, which in addition to baryons, cold dark matter and photons
@@ -415,14 +416,12 @@ the missing general relativistic corrections.
    For the metric species to be able to supply the correct force, the entire
    simulation must be performed in a particular gauge; the *N*-body gauge.
    That is, initial conditions for non-linear species as well as linear input
-   during the simulation must all be in this gauge. This is the default gauge
-   employed by CO\ *N*\ CEPT, though
-   :ref:`other gauges are available as well <realization_options>`. Note that
-   all outputs are similarly in this gauge, including non-linear
-   (CO\ *N*\ CEPT) and linear (CLASS) power spectra. Direct comparison to
-   output from other *N*-body codes (which often do not define a gauge at all)
-   is generally perfectly doable, as the choice of gauge only becomes aparrent
-   at very large scales.
+   during the simulation must all be in this gauge. This is the default (and
+   only) mode of CO\ *N*\ CEPT. Note that all outputs are similarly in this
+   gauge, including non-linear (CO\ *N*\ CEPT) and linear (CLASS) power
+   spectra. Direct comparison to output from other *N*-body codes (which
+   usually do not define a gauge at all) is perfectly doable, as the choice of
+   gauge only becomes aparrent at very large scales.
 
 To finally run a simulation which includes the gravitational effects from
 photons and neutrinos in their entirety, run
@@ -481,10 +480,10 @@ simply as ``'radiation'``. Thus,
 
    ./concept -p param/tutorial -c "_lin = 'radiation + metric'"
 
-works just as well. You are encouraged to run at least one of the above and
-check that you obtain the same result as before.
+works just as well. You should run at least one of the above and check that
+you obtain the same result as before.
 
-You are in fact already familiar with the idea of combining species, as
+You are in fact already very familiar with the idea of combining species, as
 ``'matter'`` really means ``'baryon + cold dark matter'``.
 
 .. tip::
@@ -611,15 +610,15 @@ going --- of course using
 
 The new elements appearing in the parameter file are:
 
-- The ``class_params`` :ref:`parameter <class_params>` has been added. Items
-  defined within ``class_params`` are passed onto CLASS and are thus used for
-  the background and linear computations. That is, ``class_params`` is used to
-  change the cosmology deployed within the CO\ *N*\ CEPT simulation away from
-  the default cosmology as defined by CLASS.
+- The ``class_params`` parameter has been added. Items defined within
+  ``class_params`` are passed onto CLASS and are thus used for the background
+  and linear computations. That is, ``class_params`` is used to change the
+  cosmology used within the CO\ *N*\ CEPT simulation away from the default
+  cosmology as defined by CLASS.
 
   As with CO\ *N*\ CEPT itself, a vast number of CLASS parameters exist. The
   best source for exploring these is probably the
-  `explanatory.ini <https://github.com/lesgourg/class_public/blob/v2.7.2/explanatory.ini>`__
+  `explanatory.ini <https://github.com/lesgourg/class_public/blob/v2.7.2/explanatory.ini>`_
   example CLASS parameter file, which also lists default values.
 
   .. caution::
@@ -1225,7 +1224,7 @@ you should save as e.g. ``param/tutorial``:
    # Non-parameter helper variable used to control the size of the simulation
    _size = 96
 
-   # Non-parameter helper variables used to control the dcdm cosmology
+   # Non-parameter variables used to control the dcdm cosmology
    _Ω_cdm_plus_dcdm = 0.27  # total amount of stable and decaying cold dark matter
    _Γ = 80*km/(s*Mpc)       # decay rate
 
@@ -1385,7 +1384,6 @@ and without decaying cold dark matter, make use of the below script:
 
    # Read in data
    this_dir = os.path.dirname(os.path.realpath(__file__))
-   boxsizes = set()
    ks, P_sims, P_lins = {}, {}, {}
    for filename in sorted(glob.glob(f'{this_dir}/powerspec*'), key=os.path.getmtime):
        matches = re.findall(r'(?=_(.*?)=(.*?)_)', os.path.basename(filename))
@@ -1396,7 +1394,6 @@ and without decaying cold dark matter, make use of the below script:
                exec(f'{var} = {val}')
            except:
                exec(f'{var} = "{val}"')
-       boxsizes.add(boxsize)
        k, P_sim, P_lin = np.loadtxt(filename, usecols=(0, 2, 3), unpack=True)
        mask = ~np.isnan(P_lin)
        ks[boxsize] = k[mask]
@@ -1405,18 +1402,6 @@ and without decaying cold dark matter, make use of the below script:
 
    # Plot
    fig, ax = plt.subplots()
-   label = 'linear'
-   for (boxsize, frac), P_lin in P_lins.items():
-       if frac == 0:
-           continue
-       P_lin_ref = P_lins.get((boxsize, 0))
-       if P_lin_ref is None:
-           continue
-       k = ks[boxsize]
-       ax.semilogx(k, (P_lin/P_lin_ref - 1)*100, 'k--',
-           zorder=np.inf, label=label, linewidth=1,
-       )
-       label = None
    linestyles = ['-', '--', ':', '-.']
    colours = {}
    for (boxsize, frac, lin, combine), P_sim in P_sims.items():
@@ -1443,11 +1428,23 @@ and without decaying cold dark matter, make use of the below script:
            sum(np.allclose(line.get_ydata(), P_rel, 1e-2) for line in ax.lines)
            %len(linestyles)
        ]
-       if boxsize > min(boxsizes):
+       if not combine:
            ylim = ax.get_ylim()
        ax.semilogx(k, P_rel, f'{colour}{linestyle}', label=label)
-       if boxsize > min(boxsizes):
+       if not combine:
            ax.set_ylim(ylim)
+   label = 'linear'
+   for (boxsize, frac), P_lin in P_lins.items():
+       if frac == 0:
+           continue
+       P_lin_ref = P_lins.get((boxsize, 0))
+       if P_lin_ref is None:
+           continue
+       k = ks[boxsize]
+       ax.semilogx(k, (P_lin/P_lin_ref - 1)*100, 'k--',
+           label=label, linewidth=1,
+       )
+       label = None
    xdata = np.concatenate([line.get_xdata() for line in ax.lines])
    ax.set_xlim(min(xdata), max(xdata))
    ax.set_xlabel(r'$k\, [\mathrm{Mpc}^{-1}]$')
@@ -1584,9 +1581,9 @@ affecting *all* non-linear components, decaying or not (and with a force not
 satisfying the required proportionality of the decay rate). Instead, what we
 need is to let lapse be its own separate linear fluid component. As we've seen
 before, :ref:`the parameter file <param-decaying-cold-dark-matter>` has been
-set up to allow separating linear components using '``,``'. That is, to
-properly include the lapse component, we should use
-``_lin = 'radiation + metric, lapse'``.
+set up to allow separating linear components using '``,``', i.e. to properly
+include the lapse component we should
+use ``_lin = 'radiation + metric, lapse'``.
 
 We further need to assign the new lapse force to the decaying matter
 component. Studying the specification of ``select_forces`` in
@@ -1670,40 +1667,26 @@ two-particle-component simulation is then as simple as
 
 This of course increases the computation time drastically, as we now have
 twice the number of particles and several times the number of force
-evaluations. Once completed, update the plot once again. You should now see
+evaluations. Once completed, update the plot one last time. You should now see
 better agreement with linear theory on very large scales, but at the cost of
 noise at "small" (relative to the enormous box) scales.
 
-The noise in the relative spectrum arise from having :math:`96^3 + 96^3`
-particles (``'stable matter'`` plus ``'decaying matter'``) in the dcdm
-simulation and just :math:`96^3` particles (``'total matter'``) in the
-reference simulation. When (pre-)initialising two particle components
-containing the same number of particles, CO\ *N*\ CEPT places the two sets of
-particles on interleaved lattices, corresponding to
-`the two simple lattices constituting a body-centered lattice <https://en.wikipedia.org/wiki/Cubic_crystal_system#Caesium_chloride_structure>`__.
-The same body-centered cubic lattice arrangement is used for the particles
-within a single component when its number of particles :math:`N = 2n^3` with
-:math:`n\in\mathbb{N}`. For the final run, then, try doubling the number of
-particles for the ``'total matter'`` component within the parameter file from
-``_size**3`` to ``2*_size**3``, then rerun the large-box reference simulation:
-
-.. code-block:: bash
-
-   ./concept \
-       -p param/tutorial \
-       -c "boxsize = 30*Gpc" \
-       -c "_lin = 'radiation + metric'"
-
-After updating the plot, the noise previously seen in the relative spectrum
-using separate stable and decaying components should now be gone, leaving a
-spectrum that has great agreement with linear theory all the way down to where
-the smaller-box spectra begins.
-
 .. note::
-   As the large-box reference simulation now contains :math:`N = 2\times 96^3`
-   particles while the large-box "combined" dcdm simulations contain
-   :math:`N = 96^3` particles, the corresponding relative spectra now perform
-   worse than previously.
+   The noise is believed to stem from the use of grid (pre-)initial
+   conditions, i.e. the initialization of the particle positions at Cartesian
+   grid points (followed by a displacement according to the Zel'dovich
+   approximation, using the full general relativistic transfer functions).
+   When having multiple particle components, sticking to bare grid
+   (pre-)initial conditions is far from optimal. In fact, CO\ *N*\ CEPT
+   currently makes use of *interleaved* (pre-)initial condition grids
+   (relatively shifted by half a grid cell) when running with two particle
+   components, without which the results would be a lot worse.
+
+   As a future enhancement of CO\ *N*\ CEPT, we hope to build in the option of
+   using so-called *glass* (pre-)initial conditions, which should allow for
+   seamless mixing of any number of particle components, even with an
+   individual (and not even necessarily cubic) number of particles :math:`N`
+   for each component.
 
 
 
@@ -1730,7 +1713,7 @@ you should save as e.g. ``param/tutorial``:
 .. code-block:: python3
    :caption: param/tutorial :math:`\,` (non-linear massive neutrinos)
    :name: param-nonlinear-massive-neutrinos
-   :emphasize-lines: 19-35, 75-79, 83-88, 96-97
+   :emphasize-lines: 19-35, 75-79, 83-88, 94-95
 
    # Non-parameter helper variable used to control the size of the simulation
    _size = 80
@@ -1820,8 +1803,6 @@ you should save as e.g. ``param/tutorial``:
            'linear (no neutrino)': (_nutrans, inf),
            'non-linear neutrino' : (_nutrans, inf),
        }
-
-   # Simulation
    primordial_amplitude_fixed = True
 
    # Non-parameter helper variables which should
@@ -1839,8 +1820,8 @@ Start by running this parameter file as is,
 which will perform a simulation with three mass\ *less* neutrinos, with these
 as well as photons and the metric included in a combined, linear component.
 
-Once done, also perform a simulation with three massive (but still linear)
-neutrinos, say with :math:`\sum m_\nu = 0.5\, \text{eV}`.
+Once done, also perform a simulation with three massive neutrinos, say with
+:math:`\sum m_\nu = 0.5\, \text{eV}`.
 :ref:`The parameter file <param-nonlinear-massive-neutrinos>` has been set up
 so that this can be achieved by supplying ``_mass`` as a command-line
 parameter:
@@ -2060,10 +2041,21 @@ different kinds of gravitational interactions at play:
 All of this makes non-linear neutrino simulation slower than simulations with
 linear neutrinos. Even more significant is the fact that non-linear neutrinos
 require a small time step size due to the
-`Courant condition <https://en.wikipedia.org/wiki/Courant-Friedrichs-Lewy_condition>`__.
+`Courant condition <https://en.wikipedia.org/wiki/Courant-Friedrichs-Lewy_condition>`_.
 As no rung-like system exists for fluids in CO\ *N*\ CEPT, the single most
-extreme fluid cell typically dictates the global time step size, slowing down
+extreme fluid cell typically dictate the global time step size, slowing down
 the entire simulation.
+
+.. note::
+
+   As stated above, in these simulations with non-linear neutrinos, the
+   neutrinos receive gravitational kicks from themselves, matter, photons and
+   what we call the "metric". This works fine in practice, but as the general
+   relativistic corrections collected into the "metric" is constructed for the
+   purpose of application to pressureless matter, it might be the case that
+   the corresponding general relativistic corrections felt by neutrinos are
+   different, and so really requires a separately constructed "neutrino
+   metric". Whether this is or isn't the case is currently unknown.
 
 Once the non-linear neutrino simulation has completed, update the plot by
 rerunning the plotting script. A new line will appear in the left panel, which
@@ -2075,9 +2067,9 @@ substituting linear neutrinos for non-linear neutrinos is shown in the upper
 right panel. For :math:`\sum m_\nu = 0.5\, \text{eV}` it should amount to a
 few per mille around the :math:`k`'s of the non-linear suppression dip. The
 lower right panel shows the power spectrum of the neutrino component, where
-:math:`k^3P_{\nu}` rather than just :math:`P_{\nu}` is plotted, as this
-results in a better view of the data. Both the non-linearly evolved neutrinos
-as well as linear ones are shown.
+:math:`k^3P_{\nu}` rather than just :math:`P_{\nu}` is plotted as this results
+in a better view of the data. Both the non-linearly evolved neutrinos as well
+as linear ones are shown.
 
 .. note::
 
@@ -2090,7 +2082,7 @@ as well as linear ones are shown.
 .. caution::
 
    The default fluid solver used within CO\ *N*\ CEPT is that of
-   `MacCormack <https://en.wikipedia.org/wiki/MacCormack_method>`__. We have
+   `MacCormack <https://en.wikipedia.org/wiki/MacCormack_method>`_. We have
    found this method to be bad at handling strong clustering, and so our
    implementation includes a crude fix to avoid the generation of cells
    with negative densities. For large neutrino masses and/or high resolution
@@ -2107,9 +2099,9 @@ as well as linear ones are shown.
    <h3>Transitioning from linear to non-linear neutrinos</h3>
 
 As you've now experienced first-hand, non-linear neutrino simulations can take
-a long time to complete. As written above, a major reason for this is the
-small global time step size required by the non-linear neutrino fluid, leading
-to many more time steps than usual. This is especially true at early times and
+a long time to run. As written above, a major reason for this is the small
+global time step size required by the non-linear neutrino fluid, leading to
+many more time steps than usual. This is especially true at early times and
 for light neutrinos, as here the neutrino fluid has a high pressure and thus a
 high speed of sound.
 
@@ -2157,49 +2149,11 @@ You should find that this simulation completes significantly faster than the
 previous one. Once completed and with the plot updated, you should find that
 running with linear neutrinos at early times doesn't change the results much.
 In fact, the non-linear neutrino power spectra at :math:`a = 1` looks very
-close to identical. It does make a noticeable difference at high :math:`k` for
-the matter spectrum, as seen from the top right panel of the plot. However,
-these (sub per mille) changes come about mostly due to the difference in
-global time-stepping between the simulations, and so should not be ascribed to
-early non-linearity of the neutrinos.
-
-
-
-.. raw:: html
-
-   <h3>Static time-stepping</h3>
-
-To confirm that the excess matter power at high :math:`k` observed for the
-simulation where the neutrino fluid is treated non-linear right from the
-beginning is caused by the finer time-stepping (and as such is not directly
-related to the neutrinos), let's now rerun the non-linear neutrino simulations
-where we force them to use identical time-stepping. To do this, we make use of
-the ``static_timestepping`` :ref:`parameter <static_timestepping>` to record
-the fine time-stepping of the simulation using non-linear neutrinos from the
-beginning, and to apply this time-stepping to the simulation using the linear
-:math:`\rightarrow` non-linear transition:
-
-.. code-block:: python3
-
-   for nutrans in 0 0.1; do
-       ./concept \
-           -p param/tutorial \
-           -c "_mass = 0.5" \
-           -c "_nunonlin = True" \
-           -c "_nutrans = $nutrans" \
-           -c "static_timestepping = f'{path.output_dir}/{param}/timestepping'"
-   done
-
-After updating the plot, the upper right panel indeed confirms that the two
-non-linear neutrino simulations lead to a very similar increase in matter
-power, when compared to the simulation using linear neutrinos. Note however
-that a significant fraction of the speed-up gained by employing the linear
-:math:`\rightarrow` non-linear transition precisely arose due to the coarser
-time-stepping, which has now been reverted back to the finer time-stepping.
-
-To completely eliminate any effects caused by different time-stepping from the
-upper right panel, we further need to run the *linear* neutrino simulation
-using the same time-stepping as the non-linear ones. Feel free to do so.
+close to identical. It does make a small difference at high :math:`k` for the
+matter spectrum, as seen from the top right panel of the plot. However, these
+sub per mille changes are likely to come about simply due to the difference in
+global time-stepping between the simulations, and so should not be confidently
+ascribed to early non-linearity of the neutrinos.
 
 .. tip::
 
@@ -2207,7 +2161,7 @@ using the same time-stepping as the non-linear ones. Feel free to do so.
    realisation of the linear pressure and shear. For the non-linear neutrino
    evolution within CO\ *N*\ CEPT to turn out correct, the linear inputs from
    CLASS then need to be nicely converged. For this to be the case, CLASS must
-   be run with much higher precision in the neutrino sector than is used by
+   be run with a much higher precision in the neutrino sector than is used by
    default, hence the neutrino precision parameters specified in
    ``class_params`` in
    :ref:`the parameter file <param-nonlinear-massive-neutrinos>`. Stated
@@ -2229,8 +2183,7 @@ using the same time-stepping as the non-linear ones. Feel free to do so.
    expensive CLASS computations do not have to be redone repeatedly.
 
 You may play around with different neutrino masses ``_mass`` and/or transition
-times ``_nutrans`` --- with or without ``static_timestepping`` --- while
-continuing to use
+times ``_nutrans`` while continuing to use
 :ref:`the plotting script <plot-nonlinear-massive-neutrinos>`, as it can
 handle output of multiple masses and transition times at the same time.
 

@@ -174,7 +174,7 @@ script below:
    for sim, P_sim in P_sims.items():
        linestyle = linestyles[
            sum(
-               np.allclose(line.get_ydata(), P_sim, 0.1)
+               np.allclose(line.get_ydata(), P_sim, 5e-2)
                for line in ax.lines
                if len(line.get_ydata()) == len(P_sim)
            )
@@ -263,11 +263,11 @@ the smaller potential cell size means that there is less work to be done for
 the short-range part.
 
 Updating the comparison plot with the latest result, we see some long-awaited
-stability: The two P³M simulations give very similar results, and as such
-these are the ones in which we should put our trust.
+stability: The two P³M simulations give very nearly identical results, and
+as such these are the ones we should put our trust in.
 
-As changing the size of the potential grid under P³M doesn't much affect the
-output, we are free to optimize it for performance. Generally, using a P³M
+As changing the size of the potential grid under P³M doesn't really affect
+the output, we are free to optimize it for performance. Generally, using a P³M
 grid twice that of the "particle grid"
 (``potential_options``\ :math:`= 2 \sqrt[3]{N}`) is recommended;
 

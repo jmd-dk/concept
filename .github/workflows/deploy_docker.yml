@@ -11,7 +11,7 @@ on:
 
 jobs:
     check_deploy:
-        runs-on: ubuntu-22.04
+        runs-on: ubuntu-20.04
         outputs:
             deploy: ${{ steps.check_deploy.outputs.deploy }}
         steps:
@@ -22,17 +22,17 @@ jobs:
             run: |
                 if [ -n "${docker_password}" ]; then
                     echo "Will be deployed"
-                    echo "deploy=1" >> "${GITHUB_OUTPUT}"
+                    echo "::set-output name=deploy::1"
                 else
                     echo "Will not be deployed"
                 fi
     deploy_docker:
-        runs-on: ubuntu-22.04
+        runs-on: ubuntu-20.04
         needs: check_deploy
         if: needs.check_deploy.outputs.deploy
         steps:
           - name: 🛎️ Checkout
-            uses: actions/checkout@v3
+            uses: actions/checkout@v2
           - name: 🐋 Clean dangling Docker containers
             uses: ./.github/actions/docker-clean
           - name: 📝 Set temporary Docker container name

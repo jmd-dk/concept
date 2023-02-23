@@ -33,10 +33,10 @@ random numbers used for the primordial noise.
                       This parameter acts as a scaling factor on all
                       *background limiters*.
 -- --------------- -- -
-\  **Example 0**   \  Scale the background limiters by a factor
-                      :math:`\frac{1}{2}`, typically cutting the time step
-                      size :math:`\Delta t` roughly in half at early times
-                      compared to its usual size:
+\  **Example 0**   \  Scale the background limiters by a factor :math:`1/2`,
+                      typically cutting the time step size :math:`\Delta t`
+                      roughly in half at early times compared to its normal
+                      size:
 
                       .. code-block:: python3
 
@@ -69,10 +69,9 @@ random numbers used for the primordial noise.
                       This parameter acts as a scaling factor on all
                       *non-linear limiters*.
 -- --------------- -- -
-\  **Example 0**   \  Scale the non-linear limiters by a factor
-                      :math:`\frac{1}{3}`, typically reducing the time step
-                      size :math:`\Delta t` to about a third of its usual
-                      value at late times:
+\  **Example 0**   \  Scale the non-linear limiters by a factor :math:`1/3`,
+                      typically reducing the time step size :math:`\Delta t`
+                      to about a third of its normal value at late times:
 
                       .. code-block:: python3
 
@@ -282,62 +281,6 @@ random numbers used for the primordial noise.
 
 
 
-.. _static_timestepping:
-
-``static_timestepping``
-.......................
-== =============== == =
-\  **Description** \  Specifies whether to use (or record) static
-                      time-stepping
--- --------------- -- -
-\  **Default**     \  .. code-block:: python3
-
-                         None
-
--- --------------- -- -
-\  **Elaboration** \  This parameter is used to overrule the default global
-                      time-stepping within CO\ *N*\ CEPT. It can be specified
-                      as a function :math:`\Delta a(a)`, defining the global
-                      time step size :math:`\Delta a` as a function of
-                      :math:`a`, :math:`a` being the cosmic scale factor.
-                      Alternatively, it can be specified as a file path
-                      (``str``). If the file does not already exist, the
-                      (standard) time-stepping used throughout the simulation
-                      will be recorded within this file. If the file already
-                      exists (and thus contain recorded time-stepping
-                      information from a previous run), the content within the
-                      file is read and used to set the time-stepping within
-                      the current run. If ``None``, the standard
-                      (limiter-based) time-stepping is used and will not
-                      be recorded.
--- --------------- -- -
-\  **Example 0**   \  Force the simulation to use the simple global
-                      time-stepping :math:`\Delta \ln a = 0.025 \Rightarrow \Delta a = 0.025a`:
-
-                      .. code-block:: python3
-
-                         static_timestepping = lambda a: 0.025*a
-
--- --------------- -- -
-\  **Example 1**   \  Write/read global time-stepping information
-                      to/from file:
-
-                      .. code-block:: python3
-
-                         static_timestepping = f'{path.output_dir}/timestepping'
-
-                      On the first run, the time-stepping is not altered, but
-                      recorded to the given path (plain text file with
-                      :math:`a` and :math:`\Delta a` as columns). Future runs
-                      will read in and reuse the recorded time-stepping.
-== =============== == =
-
-
-
-------------------------------------------------------------------------------
-
-
-
 ``N_rungs``
 ...........
 == =============== == =
@@ -409,7 +352,7 @@ random numbers used for the primordial noise.
                       distributed FFTs knows of a multitude of different
                       methods for computing a given FFT. Which method is the
                       fastest is not obvious, and so FFTW
-                      `plan <https://www.fftw.org/fftw3_doc/Planner-Flags.html>`__
+                      `plan <https://www.fftw.org/fftw3_doc/Planner-Flags.html>`_
                       the FFT ahead of time, deciding on some strategy.
                       The knowledge gathered by this planning step is called
                       *wisdom*. This parameter sets the rigour level to use
@@ -467,7 +410,7 @@ random numbers used for the primordial noise.
 \  **Elaboration** \  The gathered FFTW wisdom (see the ``fftw_wisdom_rigor``
                       :ref:`parameter <fftw_wisdom_rigor>`) can be reused
                       between simulations by
-                      `saving it to disk <https://www.fftw.org/fftw3_doc/Words-of-Wisdom_002dSaving-Plans.html>`__
+                      `saving it to disk <https://www.fftw.org/fftw3_doc/Words-of-Wisdom_002dSaving-Plans.html>`_
                       (specifically to the ``.reusable/fftw`` directory). When
                       ``fftw_wisdom_reuse`` is ``True``, any gathered wisdom
                       will be saved. Any already existing wisdom will be read
@@ -560,38 +503,21 @@ random numbers used for the primordial noise.
 
 
 
-.. _random_seeds:
+.. _random_seed:
 
-``random_seeds``
-................
+``random_seed``
+...............
 == =============== == =
-\  **Description** \  Numbers with which to seed pseudo-random number
-                      generators, used for various purposes
+\  **Description** \  Number with which to seed the pseudo-random number
+                      generator, used for generating noise for initial
+                      conditions
 -- --------------- -- -
 \  **Default**     \  .. code-block:: python3
 
-                         {
-                             'general'              :     0,
-                             'primordial amplitudes': 1_000,
-                             'primordial phases'    : 2_000,
-                         }
+                         0
 
 -- --------------- -- -
-\  **Elaboration** \  Several aspects of CO\ *N*\ CEPT requires the use of
-                      (pseudo-)random numbers, with each such aspect having
-                      its own dedicated stream of random numbers and thus an
-                      individual seed.
-
-                      The ``'general'`` seed is currently only used for
-                      various tasks within the CO\ *N*\ CEPT test suite,
-                      but is meant for any usage not covered by the other
-                      seeds. The result of a simulation is always completely
-                      independent of the ``'general'`` seed.
-
-                      The ``'primordial amplitudes'`` and
-                      ``'primordial phases'`` seeds govern the creation of the
-                      primordial random noise used for initial conditions.
-                      The initial, linear density field (from which e.g. particle
+\  **Elaboration** \  The initial, linear density field (from which e.g. particle
                       positions are constructed) is given as
 
                       .. math::
@@ -599,10 +525,9 @@ random numbers used for the primordial noise.
                          \delta(a_{\text{begin}}, \boldsymbol{x}) \propto \underset{\hspace{-0.5em}\boldsymbol{x}\leftarrow\boldsymbol{k}}{\mathcal{F}^{-1}}\bigl[\mathcal{R}(\boldsymbol{k}) \zeta(|\boldsymbol{k}|) T_\delta(a_{\text{begin}}, |\boldsymbol{k}|)\bigr]\, ,
 
                       with :math:`\zeta(k)` and :math:`T_{\delta}(a, k)` the
-                      primordial curvature perturbation and (density) transfer
-                      function (see the ``primordial_spectrum``
-                      :ref:`parameter <primordial_spectrum>`), respectively,
-                      and
+                      primordial curvature perturbation and :math:`\delta`
+                      (density) transfer function (see the ``class_params``
+                      :ref:`parameter <class_params>`), respectively, and
                       :math:`\underset{\hspace{-0.5em}\boldsymbol{x}\leftarrow\boldsymbol{k}}{\mathcal{F}^{-1}}`
                       being the (inverse) Fourier transform from Fourier
                       :math:`\boldsymbol{k}` space to real
@@ -610,26 +535,23 @@ random numbers used for the primordial noise.
                       :math:`\mathcal{R}(\boldsymbol{k})` is the primordial
                       noise, which is a field of uncorrelated random complex
                       numbers drawn from a Gaussian (normal) distribution with
-                      mean :math:`0` and standard deviation :math:`1`
+                      mean 0 and standard deviation :math:`1`
                       (i.e. :math:`1/\sqrt{2}` for the real and imaginary
-                      components separately). The distribution of Gaussian
-                      complex numbers can be viewed as a Rayleigh distribution
-                      (with mean :math:`1`) of amplitudes together with a
-                      uniform distribution (e.g. from
-                      :math:`\require{upgreek} -\uppi` to
-                      :math:`\require{upgreek} \uppi`) of phases. The
-                      ``'primordial amplitudes'`` seed and the
-                      ``'primordial phases'`` seed govern these amplitudes and
-                      phases, respectively.
+                      components separately). The sequence of pseudo-random
+                      numbers with which to populate
+                      :math:`\mathcal{R}(\boldsymbol{k})` is generated by a
+                      pseudo-random number generator, seeded with a
+                      non-negative integer value of ``random_seed``. To change
+                      the underlying primordial random noise, change the value
+                      for ``random_seed``. For running multiple simulations
+                      with the same noise, use the same ``random_seed``.
 
                       .. tip::
-                         To change the primordial noise, you generally want to
-                         change both ``'primordial amplitudes'`` and
-                         ``'primordial phases'``.
-
-                      .. tip::
-                         The primorial noise is generated in such a way as to
-                         be independent on the number of processes.
+                         The random seed is common for all processes in the
+                         simulation, implemented in such a way as to ensure
+                         the same random noise regardless of the number of
+                         processes used to run the simulation and thus for
+                         generating the initial conditions.
 
                       .. tip::
                          When running successive simulations with different
@@ -642,16 +564,12 @@ random numbers used for the primordial noise.
                          changes to the random realisation.
 
 -- --------------- -- -
-\  **Example 0**   \  Use some particular random sequences for the initial
+\  **Example 0**   \  Use some particular random sequence for the initial
                       conditions:
 
                       .. code-block:: python3
 
-                         random_seeds = {
-                             'primordial amplitudes': 123,
-                             'primordial phases'    : 456,
-                         }
-
+                         random_seed = 42
 
 -- --------------- -- -
 \  **Example 1**   \  Have each successive simulation use a unique
@@ -659,10 +577,7 @@ random numbers used for the primordial noise.
 
                       .. code-block:: python3
 
-                         random_seeds = {
-                             'primordial amplitudes': 1_000 + jobid,
-                             'primordial phases'    : 2_000 + jobid,
-                         }
+                         random_seed = jobid
 
 == =============== == =
 
@@ -684,18 +599,21 @@ random numbers used for the primordial noise.
                          False
 
 -- --------------- -- -
-\  **Elaboration** \  See the ``random_seeds`` :ref:`parameter <random_seeds>`
-                      for how the primordial noise is usually defined. For
-                      each mode :math:`\boldsymbol{k}`, instead of drawing
-                      a random amplitude we may fix it to its mean value
-                      (:math:`1`) and only draw the random phase.
-                      While not physically sound, some statistics such as the
-                      power spectrum and bispectrum are improved by doing
-                      this, as the discretised Fourier modes now all have
-                      amplitudes corresponding to the average amplitude taken
+\  **Elaboration** \  See the ``random_seed`` :ref:`parameter <random_seed>`
+                      for how the primordial complex Gaussian random noise is
+                      normally defined. For each mode :math:`\boldsymbol{k}`,
+                      instead of drawing the real and imaginary components of
+                      :math:`\mathcal{R}(\boldsymbol{k})` from a Gaussian
+                      distribution separately, we may fix the amplitude of the
+                      complex number to its mean value (:math:`1`), and draw
+                      a random complex phase from a uniform distribution.
+                      While not physically sound, statistic such as the
+                      power spectrum become much smoother by doing this, as
+                      the discretised Fourier modes now all have amplitudes
+                      corresponding to the average amplitude taken
                       over an infinite ensemble. See
-                      `this paper <https://arxiv.org/abs/1603.05253>`__ for
-                      more information about such '*fixed* simulations'.
+                      `this paper <https://academic.oup.com/mnrasl/article/462/1/L1/2589516>`_
+                      for more information about such '*fixed* simulations'.
 
                       .. tip::
                          The random complex numbers generated when using fixed
@@ -704,13 +622,12 @@ random numbers used for the primordial noise.
                          random noise of two sets of initial conditions,
                          one generated with fixed amplitudes and the other
                          without, will then be similar (provided they use the
-                         same value for the
-                         ``random_seeds['primordial amplitudes']``
-                         :ref:`parameter <random_seeds>`).
+                         same value for the ``random_seed`` :ref:`parameter
+                         <random_seed>`).
 
 -- --------------- -- -
-\  **Example 0**   \  Use fixed primordial amplitudes, leading to improved
-                      (e.g. smoother) power spectra and bispectra:
+\  **Example 0**   \  Use fixed primordial amplitudes, leading to smoother
+                      power spectra:
 
                       .. code-block:: python3
 
@@ -737,10 +654,10 @@ random numbers used for the primordial noise.
                          0
 
 -- --------------- -- -
-\  **Elaboration** \  See the ``random_seeds`` :ref:`parameter <random_seeds>`
-                      for how the primordial noise is usually defined. The
-                      phase of each random complex number will be shifted by
-                      the value of this parameter.
+\  **Elaboration** \  See the ``random_seed`` :ref:`parameter <random_seed>`
+                      for how the primordial complex Gaussian random noise is
+                      normally defined. The phase of each random complex
+                      number will be shifted by the value of this parameter.
 
                       .. note::
                          This is typically used together with
@@ -755,14 +672,15 @@ random numbers used for the primordial noise.
 
                          primordial_phase_shift = π
 
-                      By taking the average of e.g. power spectra or bispectra
-                      from this simulation and a simulation with
+                      By taking the average of e.g. power spectra from this
+                      simulation and a simulation with
                       ``primordial_phase_shift = 0``, much of the statistical
                       noise coming about due to the finite simulation size
                       will vanish. This is typically used together with
                       :ref:`fixed amplitudes <primordial_amplitude_fixed>`.
-                      See `this paper <https://arxiv.org/abs/1603.05253>`__ for
-                      more information about such '*paired*-and-*fixed*
+                      See
+                      `this paper <https://academic.oup.com/mnrasl/article/462/1/L1/2589516>`_
+                      for more information about such '*paired*-and-*fixed*
                       simulations'.
 == =============== == =
 
@@ -787,10 +705,10 @@ random numbers used for the primordial noise.
 -- --------------- -- -
 \  **Elaboration** \  The geometry of a CO\ *N*\ CEPT simulation is that of a
                       fixed (in comoving coordinates), periodic, cubic box of
-                      size length :math:`L_{\text{box}}` (corresponding to
+                      size length :math:`L_{\mathrm{box}}` (corresponding to
                       the ``boxsize`` :ref:`parameter <boxsize>`), with one
                       corner at :math:`(0, 0, 0)` and another at
-                      :math:`(L_{\text{box}}, L_{\text{box}}, L_{\text{box}})`.
+                      :math:`(L_{\mathrm{box}}, L_{\mathrm{box}}, L_{\mathrm{box}})`.
                       This allows us to talk about e.g. the absolute position
                       of individual particles. Various global, Cartesian,
                       periodic grids --- such as
@@ -844,78 +762,6 @@ random numbers used for the primordial noise.
 
 
 
-.. _class_k_max:
-
-``class_k_max``
-...............
-== =============== == =
-\  **Description** \  Specifies maximum trusted :math:`k` modes for CLASS
-                      perturbations, with higher modes being constructed
-                      through extrapolation.
--- --------------- -- -
-\  **Default**     \  .. code-block:: python3
-
-                         {}
-
--- --------------- -- -
-\  **Elaboration** \  CO\ *N*\ CEPT uses `CLASS <http://class-code.net/>`__ for
-                      computing linear perturbations, for use with e.g.
-                      initial condition generation. CLASS perturbations at
-                      high :math:`k` can be prone to non-physical defects, due
-                      to the larger degree of precision required here for
-                      convergence. This parameter allows for specification of
-                      a maximum :math:`k` at which to make use of CLASS
-                      perturbations, beyond which required perturbation data
-                      is obtained from that at lower :math:`k` using
-                      interpolation.
-
-                      The ``class_k_max`` parameter should be specified as a
-                      mapping from CLASS perturbation names (exact match or
-                      regular expression) to maximum :math:`k` values. In
-                      addition to CLASS perturbation names, the key ``'all'``
-                      may be used to apply the same maximum :math:`k` to all
-                      perturbations.
-
--- --------------- -- -
-\  **Example 0**   \  Do not trust any CLASS perturbations above
-                      :math:`k = 10\, \text{Mpc}^{-1}`:
-
-                      .. code-block:: python3
-
-                         class_k_max = {'all': 10/Mpc}
-
--- --------------- -- -
-\  **Example 1**   \  Do not trust the velocity divergence :math:`\theta`
-                      perturbations for baryons beyond
-                      :math:`k = 10\, h\, \text{Mpc}^{-1}`, nor the
-                      :math:`\partial_{\tau}h` perturbations beyond
-                      :math:`k = 5\, h\, \text{Mpc}^{-1}`:
-
-                      .. code-block:: python3
-
-                         class_k_max = {
-                             'theta_b': 10*h/Mpc,
-                             'h_prime':  5*h/Mpc,
-                         }
-
--- --------------- -- -
-\  **Example 2**   \  Do not trust any perturbations in any ``ncdm`` species
-                      above :math:`k = 8\, \text{Mpc}^{-1}`:
-
-                      .. code-block:: python3
-
-                         class_k_max = {r'.*ncdm.*': 8/Mpc}
-
-== =============== == =
-
-
-
-------------------------------------------------------------------------------
-
-
-
-.. _class_reuse:
-
 ``class_reuse``
 ...............
 == =============== == =
@@ -927,22 +773,22 @@ random numbers used for the primordial noise.
                          True
 
 -- --------------- -- -
-\  **Elaboration** \  CO\ *N*\ CEPT delegates the computation of background
-                      quantities (unless the ``enable_class_background``
-                      :ref:`parameter <enable_class_background>` is set to
-                      ``False``) as well as linear perturbations to the
-                      `CLASS <http://class-code.net/>`__ code. Though
-                      typically inexpensive, running precision simulations
-                      with e.g.
-                      :ref:`non-linear massive neutrinos <nonlinear_massive_neutrinos>`
-                      tend to increase the CLASS computation time
-                      substantially. All CLASS results are always cached to
-                      disk (specifically to the ``.reusable/class``
-                      directory). If a CLASS computation is about to be run
-                      for which the results are already cached, these will be
-                      reused if this parameter is ``True``.
+\  **Elaboration** \   CO\ *N*\ CEPT delegates the computation of background
+                       quantities (unless the ``enable_class_background``
+                       :ref:`parameter <enable_class_background>` is set to
+                       ``False``) as well as linear perturbations to the
+                       `CLASS <http://class-code.net/>`_ code. Though
+                       typically inexpensive, running precision simulations
+                       with e.g.
+                       :ref:`non-linear massive neutrinos <nonlinear_massive_neutrinos>`
+                       tend to increase the CLASS computation time
+                       substantially. All CLASS results are always cached to
+                       disk (specifically to the ``.reusable/class``
+                       directory). If a CLASS computation is about to be run
+                       for which the results are already cached, these will be
+                       reused if this parameter is ``True``.
 -- --------------- -- -
-\  **Example 0**   \  Do not make use of any pre-existing CLASS results:
+\  **Example 0**   \  Do not make use any pre-existing CLASS results:
 
                       .. code-block:: python3
 
@@ -950,9 +796,7 @@ random numbers used for the primordial noise.
 
                       .. note::
                          Even when not making use of cached CLASS results,
-                         new CLASS runs will still be cached to disk. Existing
-                         cache content will not be overwritten by results from
-                         a new CLASS computation.
+                         new CLASS runs will still be cached to disk
 
 == =============== == =
 

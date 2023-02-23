@@ -13,32 +13,25 @@ initial_conditions = [
 ]
 output_dirs  = {
     'powerspec': f'{param.dir}/output',
-    'bispec'   : ...,
     'render2D' : ...,
 }
 output_bases = {
     'powerspec': 'powerspec',
-    'bispec'   : 'bispec',
     'render2D' : 'render2D',
 }
 output_times = {
     'powerspec': 0.1,
-    'bispec'   : ...,
     'render2D' : ...,
 }
 powerspec_select = {
     'all'             : {'data': True, 'linear': True, 'plot': False},
     'all combinations': ...,
 }
-bispec_select = {
-    'all'             : {'data': True, 'reduced': True, 'tree-level': True, 'plot': False},
-    'all combinations': ...,
-}
 render2D_select = {
     ('matter', 'neutrino'): {'data': True},
 }
 
-# Numerics
+# Numerical parameters
 boxsize = 5000*Mpc
 potential_options = {
     'gridsize': {
@@ -53,12 +46,6 @@ shortrange_params = {
         'scale'    : '1.25*boxsize/gridsize',
         'range'    : '2*scale',
         'subtiling': 2,
-    },
-}
-bispec_options = {
-    'configuration': {
-        'all'             : 'all',
-        'all combinations': ...,
     },
 }
 
@@ -77,6 +64,5 @@ select_forces = {
     'fluid':     {'gravity': 'pm'},
 }
 
-# Simulation
+# Simulation options
 class_reuse = False
-

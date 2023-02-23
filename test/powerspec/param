@@ -4,7 +4,7 @@ output_bases       = {'powerspec': 'powerspec'}
 powerspec_select   = {'all': {'data': True, 'plot': True}}
 snapshot_type      = 'concept'
 
-# Numerics
+# Numerical parameters
 boxsize = 512*Mpc
 _gridsize = 256
 powerspec_options = {
@@ -16,6 +16,5 @@ powerspec_options = {
     'significant figures': 8,
 }
 
-# Debugging
+# Debugging options
 enable_Hubble = False
-

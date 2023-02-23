@@ -62,47 +62,39 @@ for fluid, particles in zip(fluid_components, particle_components):
 
 # Plot
 fig_file = this_dir + '/result.png'
-fig, axes = plt.subplots(N_snapshots, sharex=True, figsize=(8, 3*N_snapshots))
-for ax, particles, ϱ_i, y_i, y_interp_i, a_i in zip(
-    axes, particle_components, ϱ, y, y_interp, a,
-):
+fig, ax = plt.subplots(N_snapshots, sharex=True, figsize=(8, 3*N_snapshots))
+for ax_i, particles, ϱ_i, y_i, y_interp_i, a_i in zip(ax, particle_components, ϱ, y, y_interp, a):
     indices_sorted = np.argsort(particles.posx)
     index_min = np.argmin(particles.posx)
     index_max = np.argmax(particles.posx)
-    ax.plot(
-        np.concatenate((
-            [max(particles.posx) - boxsize],
-            particles.posx[indices_sorted],
-            [min(particles.posx) + boxsize],
-        )),
-        np.concatenate((
-            [y_i[index_max]],
-            y_i[indices_sorted],
-            [y_i[index_min]],
-        )),
-        '-',
-        label='Particle simulation',
-    )
-    ax.plot(x_fluid, ϱ_i, '.', markersize=10, alpha=0.7, label='Fluid simulation')
-    ax.set_ylabel(
+    ax_i.plot(np.concatenate(([max(particles.posx) - boxsize],
+                              particles.posx[indices_sorted],
+                              [min(particles.posx) + boxsize])),
+              np.concatenate(([y_i[index_max]],
+                              y_i[indices_sorted],
+                              [y_i[index_min]])),
+              '-', label='Particle simulation')
+    ax_i.plot(x_fluid, ϱ_i, '.', markersize=10, alpha=0.7, label='Fluid simulation')
+    ax_i.set_ylabel(
         'scaled and shifted $y$,\n'
         r'$\varrho$ $\mathrm{{[{}\,m_{{\odot}}\,{}^{{-3}}]}}$'
         .format(
             significant_figures(
                 1/units.m_sun,
                 3,
-                fmt='TeX',
+                fmt='tex',
                 incl_zeros=False,
+                scientific=False,
             ),
             unit_length,
         )
     )
-    ax.set_title(rf'$a={a_i:.3g}$')
-axes[ 0].set_xlim(0, boxsize)
-axes[-1].set_xlabel(rf'$x\,\mathrm{{[{unit_length}]}}$')
-axes[ 0].legend()
-fig.tight_layout()
-fig.savefig(fig_file, dpi=150)
+    ax_i.set_title(rf'$a={a_i:.3g}$')
+plt.xlim(0, boxsize)
+plt.xlabel(rf'$x\,\mathrm{{[{unit_length}]}}$')
+ax[0].legend(loc='best').get_frame().set_alpha(0.7)
+plt.tight_layout()
+plt.savefig(fig_file)
 
 # Fluid elements in yz-slices should all have the same ϱ
 # and all fluid elements should have the same u = J/ϱ.

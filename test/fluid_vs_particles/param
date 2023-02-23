@@ -23,7 +23,7 @@ powerspec_select = {
     'all': {'data': True, 'linear': False, 'plot': True},
 }
 
-# Numerics
+# Numerical parameters
 boxsize = 128*Mpc
 potential_options = {
     'gridsize': {
@@ -54,6 +54,5 @@ select_forces            = {'all': {'gravity': 'pm'}}
 select_boltzmann_closure = {'all': 'truncate'}
 select_approximations    = {'all': {'P = wρ': True}}
 
-# Simulation
+# Simulation options
 class_reuse = False
-

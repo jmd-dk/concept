@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015–2023 Jeppe Mosgaard Dakin.
+# Copyright © 2015–2021 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -80,17 +80,15 @@ parser.add_argument(
     nargs='?',
     help=(
         'comma-separated string of CLASS species to produce perturbations/transfer '
-        'functions for, e.g. \"b, cdm\" for baryons and cold dark matter. '
-        'By default, only the δ (energy density) perturbations are produced, corresponding '
-        'to a Boltzmann order of 0. To also get perturbations for variables '
+        'functions for, e.g. \"b,cdm\" for baryons and cold dark matter. '
+        'By default, only the δ transfer functions will be produced, corresponding '
+        'to a Boltzmann order of 0. To also get transfer functions for variables '
         'further down the Boltzmann hierarchy, you may specify the Boltzmann order '
-        'using a colon. For example, \"b, cdm:1\" will produce δ perturbations for '
-        'baryons as well as δ and θ (velocity) perturbations for cold dark matter.'
-        'The highest implemented Boltzmann order is 2, which besides δ and θ also '
-        'yields δP (pressure) and σ (shear) perturbations. '
+        'using a colon. For example, \"b:1,cdm:1\" will produce both δ and θ transfer '
+        'functions for both baryons and cold dark matter. '
         'Finally, CLASS species can be combined using a plus symbol, so that e.g. '
-        '\"b+cdm:1, g:0\" will result in \"total matter\" δ and θ perturbations, '
-        'along with δ perturbations for photons.'
+        '\"b+cdm:1,g:0\" will result in \"total matter\" δ and θ transfer functions, '
+        'along with δ transfer functions for photons.'
     ),
 )
 parser.add_argument(
@@ -100,32 +98,9 @@ parser.add_argument(
     help='gauge of perturbations. Should be one of N-body (default), synchronous or Newtonian.',
 )
 parser.add_argument(
-    '--times',
-    default='1024',
-    help=(
-        'maximum number of scale factor values for the tabulated perturbations, '
-        'explicit scale factor values, '
-        'or path to file containing such values'
-    ),
-)
-parser.add_argument(
-    '--kmin',
-    default=-1,
-    help='minimum k mode',
-)
-parser.add_argument(
-    '--kmax',
-    default=-1,
-    help='maximum k mode',
-)
-parser.add_argument(
-    '--modes',
-    default=-1,
-    help=(
-        'number of k modes, '
-        'explicit k values for the modes, '
-        'or path to file containing such values'
-    ),
+    '--ntimes',
+    default='inf',
+    help='maximum number of scale factor values for the tabulated perturbations',
 )
 # Enables Python to write directly to screen (stderr)
 # in case of help request.
@@ -145,11 +120,9 @@ sys.stdout = stdout
 # Print out the arguments.
 # These will be captured in the Bash 'args' variable.
 print('argparse_finished=True')
-for arg, val in vars(args).items():
-    if isinstance(val, list):
-        print(f'{arg}=({{}})'.format(' '.join([f'\"{el}\"' for el in val])))
-    else:
-        print(f'{arg}=\"{val}\"')
+print(f'perturbations=\"{args.perturbations}\"')
+print(f'gauge={args.gauge}')
+print(f'ntimes={args.ntimes}')
 " "$@" || echo "argparse_exit_code=$?")
 # Evaluate the handled arguments into this scope
 eval "${args}"
@@ -192,14 +165,6 @@ fi
 param_filename="${tmp_dir}/param/${start_time_human_nosep}/$(basename "${this_file}")/0"
 mkdir -p "$(dirname "${param_filename}")"
 echo "
-# Default utility parameter values that are always present.
-# The boxsize and global power spectrum grid size
-# implicitly sets the minimum and maximum k.
-_kmin = 1e-3/Mpc
-_kmax = 1e+0/Mpc
-boxsize = 2*π/_kmin
-_gridsize = int(2/sqrt(3)*_kmax/_kmin + 1)
-powerspec_options = {'global gridsize': _gridsize + _gridsize%2}
 # Specifications of fake components corresponding to the
 # perturbations argument of the CLASS utility.
 _initial_conditions = [
@@ -233,14 +198,11 @@ _approximations = {
 # The special_params dict, specifying details of the utility run
 special_params = {
     'special': '$(basename "${this_file}")',
-    'gauge'  : '${gauge}',
-    'times'  : '${times}',
-    'kmin'   :  ${kmin},
-    'kmax'   :  ${kmax},
-    'modes'  : '${modes}',
+    'ntimes':'${ntimes}',
+    'gauge' : '${gauge}',
 }
 # Parameter values which should always be used when running this utility
-class_extra_background = {'tau', 'D', 'f', 'D2', 'f2'}
+...
 # Set the path to the parameter file to be the path to the actual
 # parameter file specified by the user, not this auto-generated
 # parameter file.
@@ -252,18 +214,6 @@ $(cat "${param}")
 ##########################
 # End of user parameters #
 ##########################
-# Apply minimum and maximum k, if given
-if ${kmin} != -1:
-    _kmin = ${kmin}
-if ${kmax} != -1:
-    _kmax = ${kmax}
-if _kmin > _kmax:
-    _kmin, _kmax = _kmax, _kmin
-if ${kmin} != -1:
-    boxsize = 2*π/_kmin
-if ${kmax} != -1:
-    _gridsize = int(2/sqrt(3)*_kmax/_kmin + 1)
-    powerspec_options = {'global gridsize': _gridsize + _gridsize%2}
 # Use the fake initial conditions corresponding to the
 # perturbations argument of the CLASS utility.
 initial_conditions = _initial_conditions

@@ -10,9 +10,8 @@
 
 Publications
 ============
-This is a (non-exhaustive) list of scientific papers associated with the
-CO\ *N*\ CEPT code. If you make use of CO\ *N*\ CEPT for a publication,
-please cite the paper
+This is a list of scientific papers produced using CO\ *N*\ CEPT.
+If you make use of CO\ *N*\ CEPT for a publication, please cite the paper
 ':ref:`The cosmological simulation code CO𝘕CEPT 1.0 <the_cosmological_simulation_code_concept_10>`'.
 
 
@@ -28,8 +27,7 @@ please cite the paper
    - Introduced short-range dynamics via proper P³M gravity and adaptive
      time-stepping, as well as a vast number of other improvements
      (available as of release 1.0.0).
-   - arXiv: `2112.01508 <https://arxiv.org/abs/2112.01508>`_ :math:`\quad`
-     DOI: `10.1093/mnras/stac568 <https://academic.oup.com/mnras/article/513/1/991/6541867>`_
+   - arXiv: `2112.01508 <https://arxiv.org/abs/2112.01508>`_
 
 
 
@@ -92,7 +90,7 @@ In addition to the above scientific papers, the PhD and master's thesis of the
 author --- both of which focus on the development of CO\ *N*\ CEPT --- are
 also available.
 
-* `PhD thesis <https://pure.au.dk/portal/files/221374977/thesis_phd_b5.pdf>`__
+* `PhD thesis <https://pure.au.dk/portal/files/221374977/thesis_phd_b5.pdf>`_
 
-* `Master's thesis <https://pure.au.dk/portal/files/221375392/thesis_masters.pdf>`__
+* `Master's thesis <https://pure.au.dk/portal/files/221375392/thesis_masters.pdf>`_
 

@@ -31,14 +31,11 @@ for r, p, param_i in zip(
     (f'{this_dir}/render3D.param_0', f'{this_dir}/render3D.param_1'),
 ):
     module_dict = load_source('param', param_i).__dict__
-    render3D_resolution = module_dict['render3D_options']['resolution']['all']
     shape = r.shape[:2]
-    if shape[0] != shape[1] or shape[0] != render3D_resolution:
+    if shape[0] != shape[1] or shape[0] != module_dict['render3D_resolution']:
         masterprint('done')
-        abort(
-            f'The 3D render "{p}" is not of size '
-            f'{render3D_resolution}x{render3D_resolution}!'
-        )
+        abort('The 3D render "{}" is not of size {}x{}!'
+              .format(p, module_dict['render3D_resolution'], module_dict['render3D_resolution']))
 
 # There should be some completely black pixels in the first 3D render
 # and some completely white pixels in the second (and third) 3D render

@@ -1,5 +1,5 @@
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015–2023 Jeppe Mosgaard Dakin.
+# Copyright © 2015–2021 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -25,17 +25,9 @@
 from commons import *
 
 # Cython imports
-cimport(
-    'from analysis import '
-    '    bispec,          '
-    '    measure,         '
-    '    powerspec,       '
-)
-cimport(
-    'from graphics import '
-    '    render2D,        '
-    '    render3D,        '
-)
+cimport('from analysis import measure, powerspec')
+cimport('from communication import domain_subdivisions')
+cimport('from graphics import render2D, render3D')
 cimport(
     'from integration import   '
     '    cosmic_time,          '
@@ -44,15 +36,10 @@ cimport(
     '    scale_factor,         '
     '    scalefactor_integral, '
 )
-cimport(
-    'from snapshot import        '
-    '    get_initial_conditions, '
-    '    save,                   '
-)
+cimport('from snapshot import get_initial_conditions, save')
 cimport('from utilities import delegate')
 
 # Pure Python imports
-from communication import get_domain_info
 from integration import init_time
 import interactions
 
@@ -89,6 +76,7 @@ import interactions
     time_step_last_sync='Py_ssize_t',
     time_step_previous='Py_ssize_t',
     time_step_type=str,
+    timespan='double',
     Δt='double',
     Δt_autosave='double',
     Δt_backup='double',
@@ -159,10 +147,10 @@ def timeloop():
     components = [component for component in components if component not in passive_components]
     # Realise all linear fluid variables of all components
     for component in components:
-        component.realize_if_linear(0,        )  # ϱ
-        component.realize_if_linear(1,       0)  # J
-        component.realize_if_linear(2, 'trace')  # 𝒫
-        component.realize_if_linear(2,  (0, 0))  # ς
+        component.realize_if_linear(0, specific_multi_index=0)        # ϱ
+        component.realize_if_linear(1, specific_multi_index=0)        # J
+        component.realize_if_linear(2, specific_multi_index='trace')  # 𝒫
+        component.realize_if_linear(2, specific_multi_index=(0, 0))   # ς
     masterprint('done')
     # Possibly output at the beginning of simulation
     if dump_times[0].t == universals.t or dump_times[0].a == universals.a:
@@ -179,6 +167,11 @@ def timeloop():
     initial_fac_times.add(universals.t)
     Δt_max, bottleneck = get_base_timestep_size(components, static_timestepping_func)
     Δt_begin = Δt_max
+    # We always want the simulation time span to be at least
+    # one whole Δt_period long.
+    timespan = dump_times[len(dump_times) - 1].t - universals.t
+    if Δt_begin > timespan/Δt_period:
+        Δt_begin = timespan/Δt_period
     # We need at least a whole base time step before the first dump
     if Δt_begin > dump_times[0].t - universals.t:
         Δt_begin = dump_times[0].t - universals.t
@@ -466,8 +459,8 @@ def timeloop():
     if master and os.path.isdir(autosave_subdir):
         masterprint('Removing autosave ...')
         shutil.rmtree(autosave_subdir)
-        if not os.listdir(output_dirs['autosave']):
-            shutil.rmtree(output_dirs['autosave'])
+        if not os.listdir(autosave_dir):
+            shutil.rmtree(autosave_dir)
         masterprint('done')
 
 # Set of (cosmic) times at which the maximum time step size Δt_max
@@ -1130,8 +1123,12 @@ def kick_long(components, Δt, sync_time, step_type):
     a_start = universals.a
     a_end = scale_factor(t_end)
     for component in components:
-        component.realize_if_linear(0,       0, a_start, a_end)  # ϱ
-        component.realize_if_linear(2, 'trace', a_start, a_end)  # 𝒫
+        component.realize_if_linear(0,  # ϱ
+            specific_multi_index=0, a=a_start, a_next=a_end,
+        )
+        component.realize_if_linear(2,  # 𝒫
+            specific_multi_index='trace', a=a_start, a_next=a_end,
+        )
     # Apply the effect of all internal source terms
     for component in components:
         component.apply_internal_sources(ᔑdt, a_end)
@@ -1682,21 +1679,30 @@ def dump(components, output_filenames, dump_time, Δt=0):
             any_activations |= (
                 activate_terminate(components, time_value, Δt, act) and act == 'activate'
             )
-    # Dump output
-    output_funcs = {
-        'snapshot' : save,
-        'powerspec': powerspec,
-        'bispec'   : bispec,
-        'render3D' : render3D,
-        'render2D' : render2D,
-    }
-    for output_kind, output_func in output_funcs.items():
-        if time_value not in output_times[time_param][output_kind]:
-            continue
-        filename = output_filenames[output_kind].format(time_param, time_value)
+    # Dump snapshot
+    if time_value in snapshot_times[time_param]:
+        filename = output_filenames['snapshot'].format(time_param, time_value)
         if time_param == 't':
             filename += unit_time
-        output_func(components, filename)
+        save(components, filename)
+    # Dump power spectrum
+    if time_value in powerspec_times[time_param]:
+        filename = output_filenames['powerspec'].format(time_param, time_value)
+        if time_param == 't':
+            filename += unit_time
+        powerspec(components, filename)
+    # Dump render3D
+    if time_value in render3D_times[time_param]:
+        filename = output_filenames['render3D'].format(time_param, time_value)
+        if time_param == 't':
+            filename += unit_time
+        render3D(components, filename)
+    # Dump render2D
+    if time_value in render2D_times[time_param]:
+        filename = output_filenames['render2D'].format(time_param, time_value)
+        if time_param == 't':
+            filename += unit_time
+        render2D(components, filename)
     # Activate or terminate components after dumps
     for act in 𝕆[life_output_order[life_output_order.index('dump')+1:]]:
         if time_value in activation_termination_times[time_param]:
@@ -1768,10 +1774,10 @@ def activate_terminate(components, a, Δt, act='activate terminate'):
             for component in activated_components:
                 masterprint(f'Activating "{component.name}" ...')
                 component.realize()
-                component.realize_if_linear(0,        )  # ϱ
-                component.realize_if_linear(1,       0)  # J
-                component.realize_if_linear(2, 'trace')  # 𝒫
-                component.realize_if_linear(2,  (0, 0))  # ς
+                component.realize_if_linear(0, specific_multi_index=0)        # ϱ
+                component.realize_if_linear(1, specific_multi_index=0)        # J
+                component.realize_if_linear(2, specific_multi_index='trace')  # 𝒫
+                component.realize_if_linear(2, specific_multi_index=(0, 0))   # ς
                 masterprint('done')
             universals.a = universal_a_backup
             # Remove newly activated components from the list
@@ -1825,7 +1831,7 @@ def autosave(components, time_step, Δt_begin, Δt, output_filenames):
     autosave_auxiliary_filename_old = f'{autosave_auxiliary_filename}_old'
     autosave_auxiliary_filename_new = f'{autosave_auxiliary_filename}_new'
     # Save auxiliary file containing information
-    # about the current time-stepping.
+    # about the current time stepping.
     if master:
         os.makedirs(autosave_subdir, exist_ok=True)
     if master:
@@ -1877,7 +1883,7 @@ def autosave(components, time_step, Δt_begin, Δt, output_filenames):
     Barrier()
     # Save CO𝘕CEPT snapshot. Include all components regardless
     # of the snapshot_select['save'] user parameter.
-    save(components, autosave_filename_new, snapshot_type='concept', save_all=True)
+    save(components, autosave_filename_new, snapshot_type='concept', save_all_components=True)
     # Cleanup, always keeping a set of autosave files intact
     if master:
         # Rename old versions of the autosave files
@@ -2216,11 +2222,11 @@ def prepare_for_output(components=None, ignore_past_times=False):
                 if output_time and np.min(output_time) < at_begin:
                     message = [
                         f'Cannot produce a {output_kind} at {time_param} '
-                        f'= {np.min(output_time)}'
+                        f'= {np.min(output_time):.6g}'
                     ]
                     if time_param == 't':
                         message.append(f' {unit_time}')
-                    message.append(f', as the simulation starts at {time_param} = {at_begin}')
+                    message.append(f', as the simulation starts at {time_param} = {at_begin:.6g}')
                     if time_param == 't':
                         message.append(f' {unit_time}')
                     message.append('.')
@@ -2310,11 +2316,6 @@ DumpTime = collections.namedtuple(
 )
 
 
-
-# Get local domain information
-domain_info = get_domain_info()
-cython.declare(domain_subdivisions='int[::1]')
-domain_subdivisions = domain_info.subdivisions
 
 # Here we set various values used for the time integration. These are
 # purely numerical in character. For factors used to control the time
@@ -2445,28 +2446,19 @@ if jobid != -1:
         delegate()
     else:
         # Set paths to autosaved snapshot and auxiliary file
-        autosave_subdir = '{}/{}'.format(output_dirs['autosave'], os.path.basename(param))
+        autosave_subdir = f'{autosave_dir}/{os.path.basename(param)}'
         autosave_filename = f'{autosave_subdir}/snapshot.hdf5'
         autosave_auxiliary_filename = f'{autosave_subdir}/auxiliary'
         # Run the time loop
         timeloop()
         # Simulation done
         universals.any_warnings = allreduce(universals.any_warnings, op=MPI.LOR)
-        success = (not universals.any_warnings)
-        if success:
-            sys.stderr.flush()
-            Barrier()
-            success = bcast(
-                not os.path.isfile(f'{path.job_dir}/{jobid}/log_err')
-                or os.path.getsize(f'{path.job_dir}/{jobid}/log_err') == 0
-                if master else None
-            )
-        if success:
+        if universals.any_warnings:
+            masterprint(f'{esc_concept} run {jobid} finished')
+        else:
             masterprint(
                 f'{esc_concept} run {jobid} finished successfully',
                 fun=terminal.bold_green,
             )
-        else:
-            masterprint(f'{esc_concept} run {jobid} finished')
     # Shutdown CO𝘕CEPT properly
     abort(exit_code=0)

@@ -1,5 +1,5 @@
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015–2023 Jeppe Mosgaard Dakin.
+# Copyright © 2015–2021 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -29,7 +29,7 @@
 #######################
 # The CO𝘕CEPT version #
 #######################
-__version__ = 'master'
+__version__ = '1.0.1'
 
 
 
@@ -39,20 +39,17 @@ __version__ = 'master'
 # Miscellaneous
 import ast, collections, contextlib, ctypes, cython, functools, hashlib
 import importlib, inspect, itertools, keyword, logging, operator, os, re
-import shutil, struct, sys, textwrap, traceback, types
-import unicodedata, warnings
+import shutil, sys, textwrap, traceback, types, unicodedata, warnings
 from copy import deepcopy
 # Numerics
 # (note that numpy.array is purposely not imported directly into the
 # global namespace, as this does not play well with Cython).
-import decimal
 import numpy as np
 from numpy import arange, asarray, empty, linspace, logspace, ones, zeros
 # MPI
 import mpi4py.rc; mpi4py.rc.threads = False  # Do not use threads
 from mpi4py import MPI
 # I/O
-import io
 from glob import glob
 # For fancy terminal output
 import blessings
@@ -98,12 +95,12 @@ def pxd(s):
     pass
 # Import the signed integer type ptrdiff_t
 pxd('from libc.stddef cimport ptrdiff_t')
-# C data type names to NumPy dtype names
+# C type names to NumPy dtype names
 cython.declare(C2np=dict)
 C2np = {
     # Booleans
     'bint': np.bool_,
-    # Signed integers
+    # Integers
     'signed char'  : np.byte,
     'short'        : np.short,
     'int'          : np.intc,
@@ -119,35 +116,18 @@ C2np = {
     'unsigned long long int': np.ulonglong,
     'size_t'                : np.uintp,
     # Floating-point numbers
-    'float'     : np.float32,
-    'double'    : np.float64,
-    'long float': np.float128,
+    'float'     : np.single,
+    'double'    : np.double,
+    'long float': np.longfloat,
 }
-# Format characters to C data type names
-cython.declare(fmt2C=dict)
-fmt2C = {
-    # Booleans
-    '?': 'bint',
-    # Signed integers
-    's': 'signed char',
-    'h': 'short',
-    'i': 'int',
-    'l': 'long int',
-    'q': 'long long int',
-    # Unsigned integers
-    'B': 'unsigned char',
-    'H': 'unsigned short',
-    'I': 'unsigned int',
-    'L': 'unsigned long int',
-    'Q': 'unsigned long long int',
-    'N': 'size_t',
-    # Floating-point numbers
-    'f': 'float',
-    'd': 'double',
-}
-# Sizes (in bytes) of C data types
-cython.declare(sizesC=dict)
-sizesC = {fmt: struct.calcsize(fmt) for fmt in fmt2C}
+# In NumPy, binary operations between some unsigned int types (unsigned
+# long int, unsigned long long int, size_t) and signed int types results
+# in a double, rather than a signed int.
+# Get around this bug by never using these particular unsigned ints.
+if not cython.compiled:
+    C2np['unsigned long int'] = C2np['long int']
+    C2np['unsigned long long int'] = C2np['long long int']
+    C2np['size_t'] = C2np['ptrdiff_t']
 
 
 
@@ -215,7 +195,7 @@ Sendrecv = (lambda sendbuf, dest, sendtag=0, recvbuf=None, source=MPI.ANY_SOURCE
 )
 allgather  = comm.allgather
 allreduce  = comm.allreduce
-bcast      = lambda obj=None, root=master_rank: comm.bcast(obj, root)
+bcast      = lambda obj=None, root=master_rank: comm.bcast (obj, root)
 gather     = lambda obj, root=master_rank: comm.gather(obj, root)
 iprobe     = comm.iprobe
 isend      = comm.isend
@@ -504,7 +484,6 @@ np.lib   .npyio.asunicode = asstr
 # the function additionally:
 #   - Ensures that we use the agg back-end.
 #   - Sets some custom preferences.
-#   - Ensure that I/O exceptions trigger abort
 #   - Patches a bug.
 def get_matplotlib():
     if matplotlib_cache:
@@ -528,27 +507,11 @@ def get_matplotlib():
         'ytick.direction': 'out',
     })
     # Monkey patch I/O functions so that exceptions trigger abort
-    def patch_matplotlib(obj_names, func_names, wrapper, *args, matplotlib=matplotlib, plt=plt):
-        for obj_name in obj_names:
-            obj = eval(obj_name)
-            for func_name in func_names:
-                func = getattr(obj, func_name, None)
-                if func is None:
-                    continue
-                extra_args = [
-                    arg.format(obj_name=obj_name, func_name=func_name)
-                    if isinstance(arg, str) else arg
-                    for arg in args
-                ]
-                setattr(obj, func_name, wrapper(func, *extra_args))
-    patch_matplotlib(
-        ['plt', 'matplotlib.figure.Figure'],
-        ['imread', 'imsave', 'savefig'],
-        tryexcept_wrapper,
-        '{obj_name}.{func_name}() failed',
-    )
+    plt.imread  = tryexcept_wrapper(plt.imread,  'plt.imread() failed')
+    plt.imsave  = tryexcept_wrapper(plt.imsave,  'plt.imsave() failed')
+    plt.savefig = tryexcept_wrapper(plt.savefig, 'plt.savefig() failed')
     # Patch a bug about automatic minor tick labels by monkey patching
-    # tight_layout() and savefig().
+    # plt.tight_layout() and plt.savefig().
     # The bug is reported here:
     #   https://github.com/matplotlib/matplotlib/issues/10029
     import matplotlib.mathtext
@@ -556,11 +519,15 @@ def get_matplotlib():
         if fig is None:
             fig = plt.gcf()
         # Force the figure to be drawn, ignoring the warning about
-        # \times not being recognised.
+        # \times not being recognised. Prior to Matplotlib 3.1.0,
+        # the warning is emitted through the warnings module,
+        # whereas later versions uses the logging module.
         logger = logging.getLogger('matplotlib.mathtext')
         original_level = logger.getEffectiveLevel()
         logger.setLevel(logging.ERROR)
-        fig.canvas.draw()
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore', category=matplotlib.mathtext.MathTextWarning)
+            fig.canvas.draw()
         logger.setLevel(original_level)
         # Remove \mathdefault from all minor tick labels
         for ax in fig.axes:
@@ -569,25 +536,20 @@ def get_matplotlib():
                     label.get_text().replace(r'\mathdefault', '')
                     for label in getattr(ax, f'get_{xy}minorticklabels')()
                 ]
-                getattr(ax, f'set_{xy}ticklabels')(labels, minor=True)
-    def fix_minor_tick_labels_decorator(func):
-        @functools.wraps(func)
+                # In at least Matplotlib 3.3, setting the tick labels
+                # can throw an erroneous UserWarning:
+                #   FixedFormatter should only be used together with FixedLocator
+                with warnings.catch_warnings():
+                    warnings.simplefilter('ignore', category=UserWarning)
+                    getattr(ax, f'set_{xy}ticklabels')(labels, minor=True)
+    def fix_minor_tick_labels_decorator(f):
+        @functools.wraps(f)
         def wrapper(*args, **kwargs):
-            fig = None
-            if len(args) > 0 and isinstance(args[0], matplotlib.figure.Figure):
-                fig = args[0]
-            # Matplotlib might emit several differet UserWarning's,
-            # which we do not want to display.
-            with warnings.catch_warnings():
-                warnings.simplefilter('ignore', category=UserWarning)
-                fix_minor_tick_labels(fig)
-                func(*args, **kwargs)
+            fix_minor_tick_labels()
+            f(*args, **kwargs)
         return wrapper
-    patch_matplotlib(
-        ['plt', 'matplotlib.figure.Figure'],
-        ['tight_layout', 'savefig'],
-        fix_minor_tick_labels_decorator,
-    )
+    for func in ('tight_layout', 'savefig'):
+        setattr(plt, func, fix_minor_tick_labels_decorator(getattr(plt, func)))
     # Add the matplotlib module to the global store for future lookups
     matplotlib_cache.append(matplotlib)
     # Return the matplotlib module itself
@@ -600,15 +562,14 @@ matplotlib_cache = []
 # Monkey patch various functions for I/O with explicit exception
 # handling and MPI abort on error.
 def tryexcept_wrapper(func, abort_msg=''):
-    @functools.wraps(func)
-    def wrapper(*args, **kwargs):
+    def inner(*args, **kwargs):
         try:
             val = func(*args, **kwargs)
         except BaseException:
             traceback.print_exc()
             abort(abort_msg)
         return val
-    return wrapper
+    return inner
 
 
 
@@ -1322,10 +1283,10 @@ def build_struct(**kwargs):
             pass
     if not cython.compiled:
         # In pure Python, emulate a struct by a simple namespace
-        structure = types.SimpleNamespace(**kwargs)
+        struct = types.SimpleNamespace(**kwargs)
     else:
-        structure = ...  # To be added by pyxpp
-    return structure, kwargs
+        struct = ...  # To be added by pyxpp
+    return struct, kwargs
 
 
 
@@ -1477,6 +1438,7 @@ def unicode_repl(match):
 
 # This function takes in a number (string) and
 # returns it written in Unicode subscript.
+@cython.header(s=str, returns=str)
 def unicode_subscript(s):
     return ''.join([unicode_subscripts.get(c, c) for c in s])
 cython.declare(unicode_subscripts=dict)
@@ -1502,7 +1464,6 @@ unicode_superscripts = dict(zip('0123456789-+e.', [unicode(c) for c in (
     before=str,
     c=str,
     i='Py_ssize_t',
-    kword=str,
     mapping=dict,
     operators=str,
     pat=str,
@@ -1513,7 +1474,7 @@ unicode_superscripts = dict(zip('0123456789-+e.', [unicode(c) for c in (
 )
 def unformat_unit(unit_str):
     """Example of effect:
-    '10¹⁰ m☉' → '10**(10)*m_sun'
+    '10¹⁰ m☉' -> '10**(10)*m_sun'
     """
     # Ensure Unicode
     unit_str = unicode(unit_str)
@@ -1521,40 +1482,15 @@ def unformat_unit(unit_str):
     unit_str = re.sub(r'\s+', ' ', unit_str).strip()
     # Replace spaces with an asterisk
     # if no operator is to be find on either side.
-    parse_ok = True
-    try:
-        ast.parse(unit_str)
-    except SyntaxError:
-        parse_ok = False
     operators = '+-*/^&|@%<>='
     unit_list = list(unit_str)
-    for i, c in enumerate(unit_str):
-        if c != ' ' or i == 0 or i == len(unit_list) - 1:
+    for i, c in enumerate(unit_list):
+        if c != ' ' or (i == 0 or i == len(unit_list) - 1):
             continue
         before = unit_list[i - 1]
         after  = unit_list[i + 1]
-        if before in operators or after in operators:
-            continue
-        # Also check for keywords
-        for kword in keyword.kwlist:
-            if i - len(kword) >= 0:
-                before = ''.join(unit_list[i-len(kword):i])
-                if before == kword:
-                    break
-            if i + len(kword) + 1 <= len(unit_list):
-                after = ''.join(unit_list[i+1:i+len(kword)+1])
-                if after == kword:
-                    break
-        else:
-            # Do replacement
+        if before not in operators and after not in operators:
             unit_list[i] = '*'
-            try:
-                ast.parse(''.join(unit_list))
-                parse_ok = True
-            except SyntaxError:
-                if parse_ok:
-                    # Undo replacement
-                    unit_list[i] = c
     unit_str = ''.join(unit_list)
     # Various replacements
     mapping = {
@@ -1584,15 +1520,14 @@ def unformat_unit(unit_str):
 # to the corresponding numerical value.
 @cython.pheader(
     # Arguments
-    unit_str_in=object,  # str or bytes
+    unit_str=str,
     namespace=dict,
     fail_on_error='bint',
     # Locals
     unit=object,  # double or NoneType
-    unit_str=str,
     returns=object,  # double or NoneType
 )
-def eval_unit(unit_str_in, namespace=None, fail_on_error=True):
+def eval_unit(unit_str, namespace=None, fail_on_error=True):
     """This function is roughly equivalent to
     eval(unit_str, units_dict). Here however more stylized versions
     of unit_str are legal, e.g. 'm☉ Mpc Gyr⁻¹'.
@@ -1603,10 +1538,6 @@ def eval_unit(unit_str_in, namespace=None, fail_on_error=True):
     to False. A failure will now not raise an exception,
     but merely return None.
     """
-    if isinstance(unit_str_in, bytes):
-        unit_str = unit_str_in.decode()
-    else:
-        unit_str = unit_str_in
     # Remove any formatting on the unit string
     unit_str = unformat_unit(unit_str)
     # Evaluate the transformed unit string
@@ -1751,7 +1682,6 @@ param_file_content += '\n'.join([
 ###########################
 cython.declare(
     machine_ϵ='double',
-    machine_ϵ_32='float',
     π='double',
     τ='double',
     ρ_vacuum='double',
@@ -1759,7 +1689,6 @@ cython.declare(
     NaN='double',
 )
 machine_ϵ = float(np.finfo(C2np['double']).eps)
-machine_ϵ_32 = np.finfo(C2np['float']).eps
 π = float(np.pi)
 τ = 2*π
 ρ_vacuum = float(1e+2*machine_ϵ)
@@ -2129,13 +2058,13 @@ def stringify_dict(d):
     for key, val in d.items():
         try:
             f = ast.literal_eval(key)
-            if isinstance(f, (float, np.floating)):
+            if isinstance(f, float):
                 key = f'{f:.12g}'
         except:
             pass
         try:
             f = ast.literal_eval(val)
-            if isinstance(f, (float, np.floating)):
+            if isinstance(f, float):
                 val = f'{f:.12g}'
         except:
             pass
@@ -2348,17 +2277,17 @@ def to_int(value):
     return int(round(float(value)))
 def to_rgb(value, *, collective=False):
     # If called with collective=True, only the master process
-    # does the work, the result of which is then broadcasted.
+    # does the work, the result of which is then broadcast.
     # This is just to avoid importing matplotlib on all processes.
     if not collective or master:
         matplotlib = get_matplotlib()
-        if isinstance(value, (int, float, np.integer, np.floating)):
+        if isinstance(value, int) or isinstance(value, float):
             value = str(value)
         try:
             rgb = asarray(matplotlib.colors.ColorConverter().to_rgb(value), dtype=C2np['double'])
         except:
             # Could not convert value to colour
-            abort(f'Colour not understood: {value}')
+            rgb = asarray([-1, -1, -1])
     if collective:
         rgb = bcast(rgb if master else None)
     return rgb
@@ -2388,14 +2317,12 @@ cython.declare(
     autosave_interval='double',
     snapshot_select=dict,
     powerspec_select=dict,
-    bispec_select=dict,
     render2D_select=dict,
     render3D_select=dict,
     snapshot_type=str,
     gadget_snapshot_params=dict,
     snapshot_wrap='bint',
     life_output_order=tuple,
-    select_particle_id=dict,
     class_plot_perturbations='bint',
     class_extra_background=set,
     class_extra_perturbations=set,
@@ -2405,10 +2332,7 @@ cython.declare(
     ewald_gridsize='Py_ssize_t',
     shortrange_params=dict,
     powerspec_options=dict,
-    bispec_options=dict,
-    bispec_antialiasing='bint',
-    class_dedicated_spectra='bint',
-    class_modes_per_decade=dict,
+    k_modes_per_decade=dict,
     # Cosmology
     H0='double',
     Ωb='double',
@@ -2423,7 +2347,7 @@ cython.declare(
     select_eos_w=dict,
     select_boltzmann_order=dict,
     select_boltzmann_closure=dict,
-    realization_options=dict,
+    select_realization_options=dict,
     select_lives=dict,
     select_approximations=dict,
     softening_kernel=str,
@@ -2441,7 +2365,7 @@ cython.declare(
     fftw_wisdom_reuse='bint',
     fftw_wisdom_share='bint',
     random_generator=str,
-    random_seeds=dict,
+    random_seed=object,  # Python int
     primordial_amplitude_fixed='bint',
     primordial_phase_shift='double',
     cell_centered='bint',
@@ -2455,7 +2379,9 @@ cython.declare(
     enable_terminal_formatting='bint',
     suppress_output=dict,
     render2D_options=dict,
-    render3D_options=dict,
+    render3D_colors=dict,
+    render3D_bgcolor='double[::1]',
+    render3D_resolution='int',
     # Debugging options
     print_load_imbalance=object,
     allow_snapshot_multifile_singleload='bint',
@@ -2468,7 +2394,7 @@ cython.declare(
 # Input/output
 initial_conditions = user_params.get('initial_conditions', '')
 user_params['initial_conditions'] = initial_conditions
-output_kinds = ('snapshot', 'powerspec', 'bispec', 'render2D', 'render3D')
+output_kinds = ('snapshot', 'powerspec', 'render2D', 'render3D')
 if isinstance(user_params.get('output_dirs'), str):
     output_dirs = {
         kind: user_params['output_dirs']
@@ -2508,30 +2434,15 @@ if 'snapshot_select' in user_params:
             'save': {'all': user_params['snapshot_select']},
             'load': {'all': user_params['snapshot_select']},
         }
-    for key, val in snapshot_select.items():
-        for key2, val2 in val.copy().items():
-            if isinstance(val2, dict):
-                replace_ellipsis(val2)
-            else:
-                val[key2] = {'pos': val2, 'mom': val2, 'ϱ': val2, 'J': val2, '𝒫': val2, 'ς': val2}
+snapshot_select.setdefault('save', {'all': True})
+snapshot_select.setdefault('load', {'all': True})
 for key in ('save', 'load'):
-    key_exists = (key in snapshot_select)
-    snapshot_select.setdefault(key, {})
-    snapshot_select[key].setdefault(
-        'default',
-        {
-            'pos': not key_exists, 'mom': not key_exists,
-            'ϱ': not key_exists, 'J': not key_exists, '𝒫': not key_exists, 'ς': not key_exists,
-        },
-    )
     if isinstance(snapshot_select[key], dict):
         replace_ellipsis(snapshot_select[key])
     else:
         snapshot_select[key] = {'all': bool(snapshot_select[key])}
-    for d in snapshot_select[key].values():
-        for key2, val2 in d.copy().items():
-            d[unicode(key2)] = val2
-            d[asciify(key2)] = val2
+    for key2, val2 in snapshot_select[key].items():
+        snapshot_select[key][key2] = bool(val2)
 user_params['snapshot_select'] = snapshot_select
 if 'powerspec_select' in user_params:
     if isinstance(user_params['powerspec_select'], dict):
@@ -2549,110 +2460,35 @@ for key, val in powerspec_select.copy().items():
         val.setdefault('data', False)
         val.setdefault('linear', False)
         val.setdefault('plot', False)
-        unknown = ', '.join([
-            f'"{do}"'
-            for do in set(val.keys()) - {'data', 'linear', 'plot'}
-        ])
-        if unknown:
-            abort(f'Unknown selections in powerspec_select["{key}"]: {unknown}')
     else:
-        powerspec_select[key] = {
-            'data': bool(val),
-            'linear': bool(val),
-            'plot': bool(val),
-        }
+        powerspec_select[key] = {'data': bool(val), 'linear': bool(val), 'plot': bool(val)}
 user_params['powerspec_select'] = powerspec_select
-if 'bispec_select' in user_params:
-    if isinstance(user_params['bispec_select'], dict):
-        bispec_select = user_params['bispec_select']
-    else:
-        bispec_select = {'default': user_params['bispec_select']}
-    for key, val in bispec_select.copy().items():
-        if not isinstance(val, dict):
-            continue
-        bispec_select[key] = {
-            key2.replace(' ', '').replace('-', '').replace('_', ''): val2
-            for key2, val2 in val.items()
-        }
-    bispec_select.setdefault(
-        'default', {'data': False, 'reduced': False, 'treelevel': False, 'plot': False},
-    )
-else:
-    bispec_select = {
-        'default': {'data': True, 'reduced': True, 'treelevel': True, 'plot': True},
-    }
-replace_ellipsis(bispec_select)
-for key, val in bispec_select.copy().items():
-    if isinstance(val, dict):
-        val.setdefault('data', False)
-        val.setdefault('reduced', False)
-        val.setdefault('treelevel', False)
-        val.setdefault('plot', False)
-        unknown = ', '.join([
-            f'"{do}"'
-            for do in set(val.keys()) - {'data', 'reduced', 'treelevel', 'plot'}
-        ])
-        if unknown:
-            abort(f'Unknown selections in bispec_select["{key}"]: {unknown}')
-    else:
-        bispec_select[key] = {
-            'data': bool(val),
-            'reduced': bool(val),
-            'treelevel': bool(val),
-            'plot': bool(val),
-        }
-user_params['bispec_select'] = bispec_select
 if 'render2D_select' in user_params:
     if isinstance(user_params['render2D_select'], dict):
         render2D_select = user_params['render2D_select']
     else:
         render2D_select = {'default': user_params['render2D_select']}
-    for key, val in render2D_select.copy().items():
-        if not isinstance(val, dict):
-            continue
-        render2D_select[key] = {
-            key2.replace(' ', '').replace('-', '').replace('_', ''): val2
-            for key2, val2 in val.items()
-        }
-    render2D_select.setdefault('default', {'data': False, 'image': False, 'terminalimage': False})
+    render2D_select.setdefault('default', {'data': False, 'image': False, 'terminal image': False})
 else:
     render2D_select = {
-        'default': {'data': True, 'image': True, 'terminalimage': True},
+        'default': {'data': True, 'image': True, 'terminal image': True},
     }
 replace_ellipsis(render2D_select)
 for key, val in render2D_select.copy().items():
     if isinstance(val, dict):
         val.setdefault('data', False)
         val.setdefault('image', False)
-        val.setdefault('terminalimage', False)
-        unknown = ', '.join([
-            f'"{do}"'
-            for do in set(val.keys()) - {'data', 'image', 'terminalimage'}
-        ])
-        if unknown:
-            abort(f'Unknown selections in render2D_select["{key}"]: {unknown}')
+        val.setdefault('terminal image', False)
     else:
-        render2D_select[key] = {'data': bool(val), 'image': bool(val), 'terminalimage': bool(val)}
+        render2D_select[key] = {'data': bool(val), 'image': bool(val), 'terminal image': bool(val)}
 user_params['render2D_select'] = render2D_select
-if 'render3D_select' in user_params:
+render3D_select = {'all': True}
+if user_params.get('render3D_select'):
     if isinstance(user_params['render3D_select'], dict):
         render3D_select = user_params['render3D_select']
+        replace_ellipsis(render3D_select)
     else:
-        render3D_select = {'default': user_params['render3D_select']}
-    render3D_select.setdefault('default', {'image': False})
-else:
-    render3D_select = {
-        'default': {'image': True},
-    }
-replace_ellipsis(render3D_select)
-for key, val in render3D_select.copy().items():
-    if isinstance(val, dict):
-        val.setdefault('image', False)
-        unknown = ', '.join([f'"{do}"' for do in set(val.keys()) - {'image'}])
-        if unknown:
-            abort(f'Unknown selections in render3D_select["{key}"]: {unknown}')
-    else:
-        render3D_select[key] = {'image': bool(val)}
+        render3D_select = {'all': user_params['render3D_select']}
 user_params['render3D_select'] = render3D_select
 snapshot_type = (str(user_params.get('snapshot_type', 'concept'))
     .replace(unicode('𝘕'), 'N').replace(asciify('𝘕'), 'N')
@@ -2792,15 +2628,6 @@ for act in acts:
 if set(life_output_order) != set(acts):
     abort(f'life_output_order = {life_output_order} not understood')
 user_params['life_output_order'] = life_output_order
-select_particle_id = {}
-if user_params.get('select_particle_id'):
-    if isinstance(user_params['select_particle_id'], dict):
-        select_particle_id = user_params['select_particle_id']
-        replace_ellipsis(select_particle_id)
-    else:
-        select_particle_id = {'all': user_params['select_particle_id']}
-select_particle_id.setdefault('default', False)
-user_params['select_particle_id'] = select_particle_id
 class_plot_perturbations = bool(user_params.get('class_plot_perturbations', False))
 user_params['class_plot_perturbations'] = class_plot_perturbations
 class_extra_background = set(
@@ -2814,7 +2641,7 @@ user_params['class_extra_perturbations'] = class_extra_perturbations
 # Numerical parameters
 boxsize = float(user_params.get('boxsize', 512*units.Mpc))
 user_params['boxsize'] = boxsize
-if isinstance(user_params.get('potential_options', {}), (int, float, np.integer, np.floating)):
+if isinstance(user_params.get('potential_options', {}), (int, float)):
     potential_options = {
         'gridsize': int(round(user_params['potential_options'])),
     }
@@ -2952,19 +2779,17 @@ for key, val in force_interpolations.copy().items():
         subd[subd_key] = subd_val
     force_interpolations[key] = subd
 potential_options['interpolation'] = force_interpolations
-
-
-PotentialUpstreamDownstreamPair = collections.namedtuple(
-    'PotentialUpstreamDownstreamPair',
+PotentialDeconvolutions = collections.namedtuple(
+    'PotentialDeconvolutions',
     ('upstream', 'downstream'),
 )
 force_deconvolutions = {
     'gravity': {
-        'pm' : PotentialUpstreamDownstreamPair(True, True),
-        'p3m': PotentialUpstreamDownstreamPair(True, True),
+        'pm' : PotentialDeconvolutions(True, True),
+        'p3m': PotentialDeconvolutions(True, True),
     },
     'lapse': {
-        'pm' : PotentialUpstreamDownstreamPair(True, True),
+        'pm' : PotentialDeconvolutions(True, True),
     },
 }
 for key, val in replace_ellipsis(dict(potential_options.get('deconvolve', {}))).items():
@@ -2980,7 +2805,7 @@ for key, val in replace_ellipsis(dict(potential_options.get('deconvolve', {}))).
         if len(val2) == 1:
             val2 *= 2
         if len(val2) == 2:
-            val2 = PotentialUpstreamDownstreamPair(bool(val2[0]), bool(val2[1]))
+            val2 = PotentialDeconvolutions(bool(val2[0]), bool(val2[1]))
         else:
             abort(
                 f'potential_options["deconvolve"]["{key}"]["{key2}"] = {val2} '
@@ -2999,21 +2824,13 @@ for key, val in force_deconvolutions.copy().items():
 potential_options['deconvolve'] = force_deconvolutions
 force_interlacings = {
     'gravity': {
-        'pm' : PotentialUpstreamDownstreamPair('sc', 'sc'),
-        'p3m': PotentialUpstreamDownstreamPair('sc', 'sc'),
+        'pm' : False,
+        'p3m': False,
     },
     'lapse': {
-        'pm' : PotentialUpstreamDownstreamPair('sc', 'sc'),
+        'pm' : False,
     },
 }
-def interlace2latticekind(interlace):
-    if isinstance(interlace, (tuple, list)):
-        return (interlace2latticekind(interlace[0]), interlace2latticekind(interlace[1]))
-    if isinstance(interlace, str):
-        return interlace
-    if interlace:
-        return 'bcc'  # body-centered lattice (2 primitive sc lattices, standard interlacing)
-    return 'sc'  # simple cubic lattice (no interlacing)
 for key, val in replace_ellipsis(dict(potential_options.get('interlace', {}))).items():
     key = key.lower()
     if isinstance(val, dict):
@@ -3021,29 +2838,14 @@ for key, val in replace_ellipsis(dict(potential_options.get('interlace', {}))).i
             subd_key.lower(): subd_val for subd_key, subd_val in replace_ellipsis(val).items()
         })
     else:
-        force_interlacings[key] = {
-            'pm' : interlace2latticekind(val),
-            'p3m': interlace2latticekind(val),
-        }
-    for key2, val2 in force_interlacings[key].copy().items():
-        val2 = any2list(val2)
-        if len(val2) == 1:
-            val2 *= 2
-        if len(val2) == 2:
-            val2 = PotentialUpstreamDownstreamPair(*interlace2latticekind(val2))
-        else:
-            abort(
-                f'potential_options["interlace"]["{key}"]["{key2}"] = {val2} '
-                f'but should to be a tuple of two booleans or strs, corresponding to the upstream '
-                f'and downstream interlacing'
-            )
-        force_interlacings[key][key2] = val2
+        force_interlacings[key] = {'pm': bool(val), 'p3m': bool(val)}
 for key, val in force_interlacings.copy().items():
     subd = {}
     for subd_key, subd_val in val.items():
         subd_key = re.sub(r'[ _\-^()]', '', subd_key.lower())
         for n in range(10):
             subd_key = subd_key.replace(unicode_superscript(str(n)), str(n))
+        subd_val = bool(subd_val)
         subd[subd_key] = subd_val
     force_interlacings[key] = subd
 potential_options['interlace'] = force_interlacings
@@ -3070,7 +2872,7 @@ for name, d in potential_differentiations_input.items():
             })
         elif isinstance(val, (tuple, list)):
             potential_differentiations[name][key][val[0].lower()] = val[1]
-        elif isinstance(val, (int, float, np.integer, np.floating)):
+        elif isinstance(val, (int, float)):
             potential_differentiations[name][key] = {'pm': int(round(val)), 'p3m': int(round(val))}
         elif isinstance(val, str):
             potential_differentiations[name][key] = {'pm': val, 'p3m': val}
@@ -3082,7 +2884,7 @@ for name, d in potential_differentiations_input.items():
             subd_key = re.sub(r'[ _\-^()]', '', subd_key.lower())
             for n in range(10):
                 subd_key = subd_key.replace(unicode_superscript(str(n)), str(n))
-            if isinstance(subd_val, (int, float, np.integer, np.floating)):
+            if isinstance(subd_val, (int, float)):
                 subd_val = int(round(subd_val))
             elif isinstance(subd_val, str):
                 subd_val = subd_val.lower()
@@ -3162,7 +2964,7 @@ for force, d in shortrange_params.items():
             val = val.replace('gridsize', str(gridsize))
         if 'scale' in val:
             scale = d.get('scale')
-            if not isinstance(scale, (int, float, np.integer, np.floating)):
+            if not isinstance(scale, (float, int)):
                 abort(
                     f'Could not detect scale needed for '
                     f'shortrange_params["{force}"]["{key}"]. '
@@ -3176,7 +2978,7 @@ for force, d in shortrange_params.items():
                 val = val.replace('scale', str(scale))
         if 'range' in val:
             forcerange = d.get('range')
-            if not isinstance(forcerange, (int, float, np.integer, np.floating)):
+            if not isinstance(forcerange, (float, int)):
                 abort(
                     f'Could not detect range needed for '
                     f'shortrange_params["{force}"]["{key}"]. '
@@ -3229,10 +3031,10 @@ powerspec_options_defaults = {
     'k_max': {
         'default': 'Nyquist',
     },
-    'bins per decade': {
+    'binsize': {
         'default': {
-            '  4*k_min':  4,
-            '100*k_min': 40,
+            '1*k_min': 1*π/boxsize,
+            '5*k_min': 2*π/boxsize,
         },
     },
     'tophat': {
@@ -3266,14 +3068,11 @@ for key, val in d.copy().items():
 d = powerspec_options['interpolation']
 for key, val in d.copy().items():
     d[key] = int(interpolation_orders.get(str(val).upper(), val))
-d = powerspec_options['interlace']
-for key, val in d.copy().items():
-    d[key] = interlace2latticekind(val)
 d = powerspec_options['k_max']
 for key, val in d.copy().items():
     if isinstance(val, str):
         d[key] = val.replace('Nyquist', 'nyquist')
-d = powerspec_options['bins per decade']
+d = powerspec_options['binsize']
 for key, val in d.copy().items():
     if not isinstance(val, dict):
         val = {1: val}
@@ -3288,196 +3087,20 @@ for key in powerspec_options:
     if key not in powerspec_options_defaults:
         abort(f'powerspec_options["{key}"] not implemented')
 user_params['powerspec_options'] = powerspec_options
-bispec_options_defaults = {
-    'configuration': {
-        'default': ('equilateral', 20),
-    },
-    'shellthickness': {
-        'default': [
-            {
-                '1*k_fundamental': '0.25*k_fundamental',
-                '4*k_fundamental': 'max(3*k_fundamental, 1/20*log(10)*k)',
-            },
-        ]*3,
-    },
-    'upstream gridsize': {
-        'default': -1,
-    },
-    'global gridsize': {
-        'default': -1,
-    },
-    'interpolation': {
-        'default': 'PCS',
-    },
-    'deconvolve': {
-        'default': True,
-    },
-    'interlace': {
-        'default': True,
-    },
-    'significant figures': {
-        'default': 8,
-    },
-}
-bispec_options = dict(user_params.get('bispec_options', {}))
-for key, val in bispec_options.items():
-    replace_ellipsis(val)
-if 'gridsize' in bispec_options:
-    d = bispec_options['gridsize']
-    if not isinstance(d, dict):
-        d = {'default': d}
-    bispec_options.setdefault('upstream gridsize', d.copy())
-    bispec_options.setdefault('global gridsize'  , d.copy())
-    bispec_options.pop('gridsize')
-for key, d in bispec_options.copy().items():
-    if not isinstance(d, dict):
-        bispec_options[key] = {'default': d}
-for key, d_defaults in bispec_options_defaults.items():
-    bispec_options.setdefault(key, {})
-    d = bispec_options[key]
-    for key, val in d_defaults.items():
-        d.setdefault(key, val)
-d = bispec_options['global gridsize']
-for key, val in d.copy().items():
-    d[key] = int(round(val))
-d = bispec_options['configuration']
-replace_ellipsis(d)
-def transform(key, val):
-    n = 20
-    if isinstance(val, (tuple, list)) and len(val) == 2:
-        if not isinstance(val[0], str) and not isinstance(val[1], str):
-            abort(
-                f'bispec_options["configuration"]["{key}"] contains '
-                f'{val} with 2 elements, none of which is a str'
-            )
-        if isinstance(val[1], str):
-            val = (val[1], val[0])
-        val, n = val
-    if isinstance(val, str):
-        # Format: str, together with n
-        val = (val, n)
-    elif isinstance(val, dict):
-        # Format: {'k': ..., 't': ..., 'μ': ...}
-        replace_ellipsis(val)
-        d = {}
-        for key2, val2 in val.copy().items():
-            key2 = key2.replace('k_', 'k')
-            key2 = key2.replace('1', '')
-            key2 = key2.replace(unicode('₁'), '').replace(asciify('₁'), '')
-            key2 = key2.replace(unicode('¹'), '').replace(asciify('¹'), '')
-            key2 = key2.replace(unicode('μ'), 'μ').replace(asciify('μ'), 'μ').replace('mu', 'μ')
-            if key2 not in ('k', 't', 'μ'):
-                abort(f'Key "{key2}" in bispec_options["configuration"]["{key}"] not understood')
-            d[key2] = val2
-        for key2 in ('k', 't', 'μ'):
-            if key2 not in d:
-                abort(
-                    f'Mapping {val} in bispec_options["configuration"]["{key}"] '
-                    f'is missing required key "{key2}"'
-                )
-        val = d
-    elif isinstance(val, (tuple, list)):
-        if len(val) == 3:
-            # Format: (k, t, μ)
-            if not all(
-                [isinstance(el, (int, float, np.integer, np.floating, str)) for el in val]
-            ):
-                abort(
-                    f'bispec_options["configuration"]["{key}"] contains '
-                    f'{val} which has an element which is not a number or a str'
-                )
-        else:
-            abort(
-                f'bispec_options["configuration"]["{key}"] contains '
-                f'{val} which has {len(val)} ≠ 3 elements'
-            )
-        val = tuple(val)
-    else:
-        abort(
-            f'Failed to parse bispec_options["configuration"]["{key}"] = '
-            f'{val} of type {type(val)}'
-        )
-    return val
-for key, val in d.copy().items():
-    if isinstance(val, (tuple, list)):
-        if isinstance(val, tuple) and len(val) in {2, 3} and all(
-            [isinstance(el, (int, float, np.integer, np.floating, str)) for el in val]
-        ):
-            val = [transform(key, tuple(val))]
-        else:
-            val = list(val)
-            for i, el in enumerate(val):
-                val[i] = transform(key, el)
-    else:
-        val = [transform(key, val)]
-    d[key] = val
-d = bispec_options['shellthickness']
-replace_ellipsis(d)
-for key, val in d.copy().items():
-    if isinstance(val, (int, float, np.integer, np.floating)):
-        val = {1: val}
-    elif isinstance(val, str):
-        val = {0: val, ထ: val}  # signals that this should be applied from k_min to k_max
-    if isinstance(val, dict):
-        val = [val]
-    if isinstance(val, (tuple, list)):
-        if len(val) == 1:
-            val *= 3
-        if len(val) != 3:
-            abort(
-                f'You have specified {len(val)} shell thicknesses in '
-                f'bispec_options["shellthickness"]["{key}"]. Please specify 3.'
-            )
-    val = list(val)
-    for i, d2 in enumerate(val):
-        if isinstance(d2, (int, float, np.integer, np.floating, str)):
-            d2 = {1: d2}  # modified below
-        replace_ellipsis(d2)
-        if len(d2) == 1:
-            key2 = tuple(d2.keys())[0]
-            val2 = tuple(d2.values())[0]
-            if isinstance(val2, str):
-                d2.clear()
-                d2 |= {0: val2, ထ: val2}
-            else:
-                if isinstance(key2, str):
-                    d2[f'{key2} + 1'] = val2
-                else:
-                    d2[key2 + 1] = val2
-        val[i] = d2
-    d[key] = tuple(val)
-d = bispec_options['interpolation']
-for key, val in d.copy().items():
-    d[key] = int(interpolation_orders.get(str(val).upper(), val))
-d = bispec_options['interlace']
-for key, val in d.copy().items():
-    d[key] = interlace2latticekind(val)
-for key in bispec_options:
-    if key not in bispec_options_defaults:
-        abort(f'bispec_options["{key}"] not implemented')
-user_params['bispec_options'] = bispec_options
-bispec_antialiasing = bool(user_params.get('bispec_antialiasing', True))
-user_params['bispec_antialiasing'] = bispec_antialiasing
-class_dedicated_spectra = bool(user_params.get('class_dedicated_spectra', False))
-user_params['class_dedicated_spectra'] = class_dedicated_spectra
-if isinstance(
-    user_params.get('class_modes_per_decade', {}),
-    (int, float, np.integer, np.floating),
-):
-    class_modes_per_decade = {1: user_params['class_modes_per_decade']}
+if isinstance(user_params.get('k_modes_per_decade', {}), (int, float)):
+    k_modes_per_decade = {1: user_params['k_modes_per_decade']}
 else:
-    class_modes_per_decade = dict(user_params.get('class_modes_per_decade', {}))
-    replace_ellipsis(class_modes_per_decade)
-    if not class_modes_per_decade:
-        class_modes_per_decade = {
+    k_modes_per_decade = dict(user_params.get('k_modes_per_decade', {}))
+    if not k_modes_per_decade:
+        k_modes_per_decade = {
             3e-3*units.Mpc**(-1): 10,
             3e-2*units.Mpc**(-1): 30,
             3e-1*units.Mpc**(-1): 30,
             1e+0*units.Mpc**(-1): 10,
         }
-if len(class_modes_per_decade) == 1:
-    class_modes_per_decade.update({(key + 1): val for key, val in class_modes_per_decade.items()})
-user_params['class_modes_per_decade'] = class_modes_per_decade
+if len(k_modes_per_decade) == 1:
+    k_modes_per_decade.update({(key + 1): val for key, val in k_modes_per_decade.items()})
+user_params['k_modes_per_decade'] = k_modes_per_decade
 # Cosmology
 H0 = float(user_params.get('H0', 67*units.km/(units.s*units.Mpc)))
 user_params['H0'] = H0
@@ -3590,91 +3213,16 @@ if user_params.get('select_boltzmann_closure'):
         select_boltzmann_closure = {'all': str(user_params['select_boltzmann_closure'])}
 select_boltzmann_closure['default'] = 'class'
 user_params['select_boltzmann_closure'] = select_boltzmann_closure
-realization_options_defaults = {
-    'gauge': {
-        'default': 'N-body',
-    },
-    'backscale': {
-        'default': False,
-    },
-    'lpt': {
-        'default': 1,
-    },
-    'nongaussianity': {
-        'default': 0,
-    },
-    'structure': {
-        'default': 'non-linear',
-    },
-    'compound': {
-        'default': 'linear',
-    },
-}
-realization_options = dict(user_params.get('realization_options', {}))
-for key, val in realization_options.items():
-    replace_ellipsis(val)
-for key, d in realization_options.copy().items():
-    if not isinstance(d, dict):
-        realization_options[key] = {'default': d}
-def simplify_str(s):
-    if isinstance(s, str):
-        return s.lower().replace('-', '').replace('_', '').replace(' ', '')
-    return s
-for key, d in realization_options.copy().items():
-    realization_options.pop(key)
-    realization_options[simplify_str(key)] = {
-        key2: simplify_str(val2)
-        for key2, val2 in d.items()
-    }
-for key, d_defaults in realization_options_defaults.items():
-    realization_options.setdefault(simplify_str(key), {})
-    d = realization_options[simplify_str(key)]
-    for key, val in d_defaults.items():
-        d.setdefault(simplify_str(key), simplify_str(val))
-d = realization_options['gauge']
-for key, val in d.copy().items():
-    val = str(val)
-    if val.startswith('nb'):
-        val = 'nbody'
-    elif val.startswith('syn'):
-        val = 'synchronous'
-    elif val.startswith('newt'):
-        val = 'newtonian'
-    d[key] = val
-d = realization_options['backscale']
-for key, val in d.copy().items():
-    d[key] = bool(val)
-d = realization_options['lpt']
-for key, val in d.copy().items():
-    d[key] = int(round(val))
-    if d[key] not in {1, 2}:
-        abort(f'{d[key]}LPT not implemented')
-for s in ('nongauss', 'nongaussian', 'nongaussianity'):
-    if s not in realization_options:
-        continue
-    d = realization_options.pop(s)
-    for key, val in d.copy().items():
-        d[key] = float(val)
-    realization_options['nongaussianity'] = d
-    break
-d = realization_options['structure']
-for key, val in d.copy().items():
-    if val not in {'primordial', 'nonlinear'}:
-        abort(
-            f'Unrecognised value "{val}" ∉ {{"primordial", "non-linear"}} '
-            f'for realization_options["structure"]["{key}"]'
-        )
-d = realization_options['compound']
-for key, val in d.copy().items():
-    if val not in {'linear', 'nonlinear'}:
-        abort(
-            f'Unrecognised value "{val}" ∉ {{"linear", "non-linear"}} '
-            f'for realization_options["compound"]["{key}"]'
-        )
-for key in realization_options:
-    if key not in realization_options_defaults:
-        abort(f'realization_options["{key}"] not implemented')
-user_params['realization_options'] = realization_options
+select_realization_options = {}
+if user_params.get('select_realization_options'):
+    select_realization_options = dict(
+        user_params['select_realization_options']
+    )
+    replace_ellipsis(select_realization_options)
+    if select_realization_options:
+        for d in select_realization_options.values():
+            replace_ellipsis(d)
+user_params['select_realization_options'] = select_realization_options
 select_lives = {}
 if user_params.get('select_lives'):
     if isinstance(user_params['select_lives'], dict):
@@ -3714,7 +3262,8 @@ if user_params.get('select_softening_length'):
         replace_ellipsis(select_softening_length)
     else:
         select_softening_length = {'all': user_params['select_softening_length']}
-select_softening_length.setdefault('default', '0.03*boxsize/cbrt(N)')
+select_softening_length.setdefault('particles', '0.03*boxsize/cbrt(N)')
+select_softening_length.setdefault('fluid', 0)
 user_params['select_softening_length'] = select_softening_length
 # Simulation options
 Δt_base_background_factor = float(user_params.get('Δt_base_background_factor', 1))
@@ -3743,18 +3292,8 @@ fftw_wisdom_share = bool(user_params.get('fftw_wisdom_share', False))
 user_params['fftw_wisdom_share'] = fftw_wisdom_share
 random_generator = user_params.get('random_generator', 'PCG64DXSM')
 user_params['random_generator'] = random_generator
-random_seeds_default = {
-    'general'              :     0,
-    'primordial amplitudes': 1_000,
-    'primordial phases'    : 2_000,
-}
-random_seeds = user_params.get('random_seeds', {})
-for key, val in random_seeds_default.items():
-    random_seeds.setdefault(key, val)
-    random_seeds[key] = to_int(random_seeds[key])
-for key in random_seeds.keys():
-    if key not in random_seeds_default:
-        abort(f'Key {key} in random_seeds not understood')
+random_seed = to_int(user_params.get('random_seed', 0))
+user_params['random_seed'] = random_seed
 primordial_amplitude_fixed = bool(user_params.get('primordial_amplitude_fixed', False))
 user_params['primordial_amplitude_fixed'] = primordial_amplitude_fixed
 primordial_phase_shift = np.mod(float(user_params.get('primordial_phase_shift', 0)), τ)
@@ -3762,14 +3301,14 @@ user_params['primordial_phase_shift'] = primordial_phase_shift
 cell_centered = bool(user_params.get('cell_centered', True))
 user_params['cell_centered'] = cell_centered
 fourier_structure_caching = {'primordial': True, 'all': True}
-if 'fourier_structure_caching' in user_params:
+if user_params.get('fourier_structure_caching'):
     if isinstance(user_params['fourier_structure_caching'], dict):
         fourier_structure_caching = user_params['fourier_structure_caching']
         replace_ellipsis(fourier_structure_caching)
     else:
         fourier_structure_caching = {
-            'primordial': bool(user_params['fourier_structure_caching']),
-            'all'       : bool(user_params['fourier_structure_caching']),
+            'primordial': user_params['fourier_structure_caching'],
+            'all'       : user_params['fourier_structure_caching'],
         }
 fourier_structure_caching['default'] = True
 user_params['fourier_structure_caching'] = fourier_structure_caching
@@ -3965,9 +3504,6 @@ for key, val in d.copy().items():
 d = render2D_options['interpolation']
 for key, val in d.copy().items():
     d[key] = int(interpolation_orders.get(str(val).upper(), val))
-d = render2D_options['interlace']
-for key, val in d.copy().items():
-    d[key] = interlace2latticekind(val)
 d = render2D_options['axis']
 for key, val in d.copy().items():
     d[key] = val.lower()
@@ -3981,152 +3517,22 @@ for key in render2D_options:
     if key not in render2D_options_defaults:
         abort(f'render2D_options["{key}"] not implemented')
 user_params['render2D_options'] = render2D_options
-def generate_enhancement_default():
-    enhancement = {}
-    def _(t, a):  # must not be done with a lambda
-        return 0.5
-    enhancement['contrast'] = _
-    def _(t, a):  # must not be done with a lambda
-        return 0.45, 1 - 1e-6*a
-    enhancement['clip'] = _
-    def _(t, a):  # must not be done with a lambda
-        return 1
-    enhancement['α'] = _
-    def _(t, a):  # must not be done with a lambda
-        return 0.35
-    enhancement['brightness'] = _
-    return enhancement
-render3D_options_defaults = {
-    'upstream gridsize': {
-        'default': -1,
-    },
-    'global gridsize': {
-        'default': -1,
-    },
-    'interpolation': {
-        'default': 'PCS',
-    },
-    'deconvolve': {
-        'default': False,
-    },
-    'interlace': {
-        'default': False,
-    },
-    'elevation': {
-        'default': π/6,
-    },
-    'azimuth': {
-        'default': -π/3,
-    },
-    'roll': {
-        'default': 0,
-    },
-    'zoom': {
-        'default': 1.05,
-    },
-    'projection': {
-        'default': 'perspective',
-    },
-    'color': {
-        'default': None,
-    },
-    'depthshade': {
-        'default': True,
-    },
-    'enhancement': {
-        'default': generate_enhancement_default(),
-    },
-    'background': {
-        'default': 'black',
-    },
-    'fontsize': {
-        'default': '0.022*resolution',
-    },
-    'resolution': {
-        'default': 1080,
-    },
+render3D_colors = {}
+if 'render3D_colors' in user_params:
+    if isinstance(user_params['render3D_colors'], dict):
+        render3D_colors = user_params['render3D_colors']
+        replace_ellipsis(render3D_colors)
+    else:
+        render3D_colors = {'all': user_params['render3D_colors']}
+render3D_colors = {
+    key.lower(): to_rgbα(val, 0.2, collective=True)
+    for key, val in render3D_colors.items()
 }
-render3D_options = dict(user_params.get('render3D_options', {}))
-for key, val in render3D_options.items():
-    replace_ellipsis(val)
-if 'gridsize' in render3D_options:
-    d = render3D_options['gridsize']
-    if not isinstance(d, dict):
-        d = {'default': d}
-    render3D_options.setdefault('upstream gridsize', d.copy())
-    render3D_options.setdefault('global gridsize'  , d.copy())
-    render3D_options.pop('gridsize')
-for key, d in render3D_options.copy().items():
-    if not isinstance(d, dict):
-        render3D_options[key] = {'default': d}
-for key, d_defaults in render3D_options_defaults.items():
-    render3D_options.setdefault(key, {})
-    d = render3D_options[key]
-    for key, val in d_defaults.items():
-        d.setdefault(key, val)
-d = render3D_options['global gridsize']
-for key, val in d.copy().items():
-    d[key] = int(round(val))
-d = render3D_options['interpolation']
-for key, val in d.copy().items():
-    if val is None:
-        val = 0
-    d[key] = int(interpolation_orders.get(str(val).upper(), val))
-d = render3D_options['interlace']
-for key, val in d.copy().items():
-    d[key] = interlace2latticekind(val)
-d = render3D_options['projection']
-for key, val in d.copy().items():
-    focal_length = 1
-    if isinstance(val, str):
-        projection = val
-    else:
-        if isinstance(val[1], str):
-            val = (val[1], val[0])
-        projection, focal_length = val
-    projection = projection.lower()
-    if projection.startswith('ortho'):  # orthographic / orthogonal
-        d[key] = ('ortho', None)
-    elif projection.startswith('persp'):  # perspective
-        d[key] = ('persp', focal_length)
-    else:
-        abort(
-            f'Got render3D_options["projection"]["{key}"] = "{projection}" '
-            f'∉ {{"orthographic", "perspective"}}'
-        )
-d = render3D_options['depthshade']
-for key, val in d.copy().items():
-    val = bool(val)
-d = render3D_options['enhancement']
-def make_callable(val):
-    if callable(val):
-        return val
-    val = any2list(val)
-    if len(val) == 1:
-        def _(a, val=val[0]):
-            return val
-        return _
-    return type(val)([make_callable(v) for v in val])
-for key, d2 in d.items():
-    for key2, val2 in d2.copy().items():
-        val2 = make_callable(val2)
-        d2[key2] = val2
-        if key2 in (unicode('α'), asciify('α'), 'alpha'):
-            d2[unicode('α')] = d2[asciify('α')] = val2
-        elif key2 not in ('brightness', 'contrast', 'clip'):
-            abort(f'Unrecognised render3D_options["enhancement"] key = "{key2}"')
-    for key2, val2 in generate_enhancement_default().items():
-        d2.setdefault(key2, val2)
-d = render3D_options['background']
-for key, val in d.copy().items():
-    d[key] = to_rgb(val, collective=True)
-d = render3D_options['resolution']
-for key, val in d.copy().items():
-    val = int(round(val))
-for key in render3D_options:
-    if key not in render3D_options_defaults:
-        abort(f'render3D_options["{key}"] not implemented')
-user_params['render3D_options'] = render3D_options
+user_params['render3D_colors'] = render3D_colors
+render3D_bgcolor = to_rgb(user_params.get('render3D_bgcolor', 'black'), collective=True)
+user_params['render3D_bgcolor'] = render3D_bgcolor
+render3D_resolution = to_int(user_params.get('render3D_resolution', 1080))
+user_params['render3D_resolution'] = render3D_resolution
 # Debugging options
 print_load_imbalance = user_params.get('print_load_imbalance', True)
 if isinstance(print_load_imbalance, str):
@@ -4182,6 +3588,19 @@ universals, universals_dict = build_struct(
 # Derived and internally defined constants #
 ############################################
 cython.declare(
+    snapshot_dir=str,
+    snapshot_base=str,
+    snapshot_times=dict,
+    powerspec_dir=str,
+    powerspec_base=str,
+    powerspec_times=dict,
+    render2D_dir=str,
+    render2D_base=str,
+    render2D_times=dict,
+    render3D_dir=str,
+    render3D_base=str,
+    render3D_times=dict,
+    autosave_dir=str,
     nghosts='int',
     ρ_crit='double',
     Ωdcdm='double',
@@ -4218,20 +3637,39 @@ output_times = {
     }
     for time_param in ('a', 't')
 }
+# Extract output variables from output dicts
+snapshot_dir = output_dirs['snapshot']
+snapshot_base = output_bases['snapshot']
+snapshot_times = {
+    time_param: output_times[time_param]['snapshot'] for time_param in ('a', 't')
+}
+powerspec_dir = output_dirs['powerspec']
+powerspec_base = output_bases['powerspec']
+powerspec_times = {
+    time_param: output_times[time_param]['powerspec'] for time_param in ('a', 't')
+}
+render2D_dir = output_dirs['render2D']
+render2D_base = output_bases['render2D']
+render2D_times = {
+    time_param: output_times[time_param]['render2D'] for time_param in ('a', 't')
+}
+render3D_dir = output_dirs['render3D']
+render3D_base = output_bases['render3D']
+render3D_times = {
+    time_param: output_times[time_param]['render3D'] for time_param in ('a', 't')
+}
+autosave_dir = output_dirs['autosave']
 # We never include linear power spectra in power spectrum output
-# nor tree-level bispectra in bispectrum output if the
-# CLASS background is disabled.
+# if the CLASS background is disabled.
 if not enable_class_background:
     for d in powerspec_select.values():
         d['linear'] = False
-    for d in bispec_select.values():
-        d['treelevel'] = False
 # The number of ghost point layers around the domain grids (so that the
 # full shape of each grid is (nghosts + shape[0] + nghosts,
 # nghosts + shape[1] + nghosts, nghosts + shape[2] + nghosts). This is
-# determined by the interpolation orders of potential, power spectrum,
-# bispectrum, render2D and render3D interpolations (order 1 (NGP): 0 ghost
-# layers, 2 (CIC): 1 ghost layer, order 3 (TSC): 1 ghost layer,
+# determined by the interpolation orders of potential, power spectrum
+# and render2D interpolations (order 1 (NGP): 0 ghost layers,
+# 2 (CIC): 1 ghost layer, order 3 (TSC): 1 ghost layer,
 # order 4 (PCS): 2 ghost layers), as well as force differentiations
 # (order 1: 1 ghost layer, order 2: 1 ghost layer, order 4: 2 ghost
 # layers, order 6: 3 ghost layers, order 8: 4 ghost layers).
@@ -4240,9 +3678,9 @@ if not enable_class_background:
 # grid cell). Finally, second-order differentiation is used to compute
 # fluid source terms, and so nghosts should always be at least 1.
 nghosts = 0
-for options in (powerspec_options, bispec_options, render2D_options, render3D_options):
+for options in (powerspec_options, render2D_options):
     interpolation_order_option = np.max(list(options['interpolation'].values()))
-    interlace_option = any([val != 'sc' for val in options['interlace'].values()])
+    interlace_option = any(list(options['interlace'].values()))
     nghosts_option = interpolation_order_option//2
     if interlace_option and interpolation_order_option%2 != 0:
         nghosts_option += 1
@@ -4252,8 +3690,7 @@ for force, d in potential_options['interpolation'].items():
         nghosts = np.max([
             nghosts,
             force_interpolation//2 + (
-                potential_options['interlace'][force][method] != ('sc', 'sc')
-                and force_interpolation%2 != 0
+                potential_options['interlace'][force][method] and force_interpolation%2 != 0
             )
         ])
 for name, d0 in potential_options['differentiation'].items():
@@ -4323,6 +3760,20 @@ if Ωdcdm > 1e-9 and class_params.get('Gamma_dcdm', 0) > 0:
 radiation_class_species = radiation_class_species.strip('+')
 neutrino_class_species = neutrino_class_species.strip('+')
 massive_neutrino_class_species = massive_neutrino_class_species.strip('+')
+# Handle optional values in special_params
+if 'ntimes' in special_params:
+    ntimes = str(special_params['ntimes'])
+    if ntimes in {'inf', 'np.inf', 'numpy.inf'}:
+        ntimes = ထ
+    else:
+        try:
+            ntimes = float(ntimes)
+        except:
+            try:
+                ntimes = float(eval(ntimes))
+            except:
+                abort(f'Could not interpret ntimes = {ntimes}')
+    special_params['ntimes'] = ntimes
 
 
 
@@ -4353,7 +3804,8 @@ units_dict.setdefault(unicode('ρ_crit')  , ρ_crit  )
 units_dict.setdefault(asciify('ρ_mbar')  , ρ_mbar  )
 units_dict.setdefault(unicode('ρ_mbar')  , ρ_mbar  )
 # Add dimensionless sizes
-units_dict.setdefault('ewald_gridsize', ewald_gridsize)
+units_dict.setdefault('ewald_gridsize'     , ewald_gridsize     )
+units_dict.setdefault('render3D_resolution', render3D_resolution)
 # Add numbers
 units_dict.setdefault(asciify('machine_ϵ'), machine_ϵ)
 units_dict.setdefault(unicode('machine_ϵ'), machine_ϵ)
@@ -4682,15 +4134,8 @@ FakeClass = collections.namedtuple(
 # Absolute function for numbers
 with copy_on_import:
     if not cython.compiled:
-        # Use NumPy's abs function in pure Python.
-        # If the argument is a Python int, let the result by a
-        # Python int as well (instead of a NumPy int).
-        def abs(x):
-            ispyint = isinstance(x, int)
-            x = np.abs(x)
-            if ispyint:
-                x = int(x)
-            return x
+        # Use NumPy's abs function in pure Python
+        abs = np.abs
     else:
         @cython.inline
         @cython.header(
@@ -4702,138 +4147,6 @@ with copy_on_import:
                 return fabs(x)
             else:
                 return llabs(x)
-
-# Integer square root
-with copy_on_import:
-    @cython.inline
-    @cython.header(
-        # Arguments
-        x='Py_ssize_t',
-        # Locals
-        returns='Py_ssize_t',
-    )
-    def isqrt(x):
-        """This function implements the square root for integers x such
-        that isqrt(x) = int(sqrt(x)). Though proper integer-only code
-        for this purpose (similar to the code for icbrt() below)
-        is available, I have found that using the floating-point sqrt()
-        function is in fact the fastest option. Note that unlike
-        int(cbrt(x)), int(sqrt(x)) always returns the correct answer.
-        """
-        return cast(sqrt(x), 'Py_ssize_t')
-
-# Check whether integer is quadratic
-with copy_on_import:
-    @cython.inline
-    @cython.header(
-        # Arguments
-        x='Py_ssize_t',
-        # Locals
-        returns='bint',
-    )
-    def isquadratic(x):
-        return (isqrt(x)**2 == x)
-
-# Integer cube root
-with copy_on_import:
-    @cython.inline
-    @cython.header(
-        # Arguments
-        x='Py_ssize_t',
-        # Locals
-        b='Py_ssize_t',
-        bits='Py_ssize_t',
-        s='Py_ssize_t',
-        y='Py_ssize_t',
-        returns='Py_ssize_t',
-    )
-    def icbrt(x):
-        """This function implements the cube root for integers x such
-        that icbrt(x) = int(cbrt(x)), though this function is about
-        twice as fast as using the floating-point cbrt(). Unlike the
-        floating-point cbrt(), this function is exact
-        (e.g. int(cbrt(15**3)) == 14). A defining relation for this
-        function more appropriate than icbrt(x) = int(cbrt(x)) is then
-        that y = icbrt(x) such that y**3 == x or (y + 1)**3 > x.
-        The code below works for integers with at most the first 'bits'
-        bits set, where 'bits' must be a multiple of 3. Lowering 'bits'
-        results in faster execution.
-        """
-        bits = 3*14  # largest x: 2**(3*14) - 1 = (2**14)**3 - 1 = 16384**3 - 1
-        for s in range(bits - 3, -3, -3):
-            if (x >> s) == 0:
-                continue
-            x -= 1 << s
-            y = 1
-            for s in range(s - 3, -3, -3):
-                y += y
-                b = 1 + 3*y*(y + 1)
-                if (x >> s) >= b:
-                    x -= b << s
-                    y += 1
-            return y
-        return 0
-
-# Check whether integer is cubic
-with copy_on_import:
-    @cython.inline
-    @cython.header(
-        # Arguments
-        x='Py_ssize_t',
-        # Locals
-        returns='bint',
-    )
-    def iscubic(x):
-        return (icbrt(x)**3 == x)
-
-# Function returning a nice str representation of cubic-ish integers
-def get_cubenum_strrep(n):
-    if n < 8:
-        return str(n)
-    if iscubic(n):
-        return '{}³'.format(icbrt(n))
-    for denom in range(2, 5):
-        r = n//denom
-        if r*denom == n and iscubic(r):
-            return '{}×{}³'.format(denom, str(icbrt(r)))
-    return str(n)
-
-# Integer binary logarithm
-with copy_on_import:
-    @cython.inline
-    @cython.header(
-        # Arguments
-        x='Py_ssize_t',
-        # Locals
-        y='Py_ssize_t',
-        returns='Py_ssize_t',
-    )
-    def ilog2(x):
-        """This function implements the binary logarithm (log base 2)
-        for integers x such that ilog2(x) = int(log2(x)).
-        For negative (illegal) x, we return x. The same is done for
-        x = 0, as -∞ cannot be expressed as an integer.
-        """
-        if x < 1:
-            # Illegal input
-            return x
-        y = 0
-        while x > 1:
-            x >>= 1
-            y += 1
-        return y
-
-# Check whether integer is a power of two
-with copy_on_import:
-    @cython.inline
-    @cython.header(
-        # Arguments
-        x='Py_ssize_t',
-        # Locals
-        returns='bint',
-    )
-    def ispowerof2(x):
-        return (2**ilog2(x) == x)
 
 # Max function for 1D memory views of numbers
 with copy_on_import:
@@ -4875,21 +4188,23 @@ with copy_on_import:
             return m
         """
 
-# Maximum function for pairs of numbers.
-# Note that this breaks if either of the numbers are infinite.
+# Max function for pairs of numbers
 with copy_on_import:
     @cython.inline
     @cython.header(a=fused_numeric, b=fused_numeric, returns=fused_numeric)
     def pairmax(a, b):
-        return a*(b <= a) + b*(a < b)
+        if a > b:
+            return a
+        return b
 
-# Minimum function for pairs of numbers.
-# Note that this breaks if either of the numbers are infinite.
+# Min function for pairs of numbers
 with copy_on_import:
     @cython.inline
     @cython.header(a=fused_numeric, b=fused_numeric, returns=fused_numeric)
     def pairmin(a, b):
-        return a*(a <= b) + b*(b < a)
+        if a < b:
+            return a
+        return b
 
 # Proper modulo function mod(x, length) for scalars,
 # with x ∈ [0, length) for length > 0.
@@ -5040,53 +4355,32 @@ with copy_on_import:
     fmt=str,
     # Locals
     coefficient=str,
-    coefficient_int='Py_ssize_t',
-    coefficient_float='double',
     exponent=str,
-    fmt_str=str,
-    fmt_str_scientific=str,
-    is_small='bint',
     n_missing_zeros='int',
     number=object,  # Single number of any type
     number_str=str,
     return_list=list,
     returns=object,  # String or list of strings
 )
-def significant_figures(
-    numbers, nfigs, fmt='', incl_zeros=True, force_scientific=False,
-    base_call=True,
-):
+def significant_figures(numbers, nfigs, fmt='', incl_zeros=True, scientific=False):
     """This function formats a floating-point number to have nfigs
     significant figures.
     Set fmt to 'TeX' to format to TeX math code
     (e.g. '1.234\times 10^{-5}') or 'Unicode' to format to superscript
     Unicode (e.g. 1.234×10⁻⁵).
     Set incl_zeros to False to avoid zero-padding.
-    Set force_scientific to True to force full scientific notation.
+    Set scientific to True to force scientific notation.
     """
     fmt = fmt.lower()
     if fmt not in ('', 'tex', 'unicode'):
         abort('Formatting mode "{}" not understood'.format(fmt))
     return_list = []
     for number in any2list(numbers):
-        is_small = (np.abs(number) < 1)
         # Format the number using nfigs
-        fmt_str_scientific = f'{{:.{nfigs - 1}e}}'
-        if force_scientific:
-            fmt_str = fmt_str_scientific
-        else:
-            fmt_str = f'{{:.{nfigs}g}}'
-            if 'e' in fmt_str.format(number) or (number != 0 and 'e' in fmt_str.format(1/number)):
-                fmt_str = fmt_str_scientific
-        number_str = fmt_str.format(number)
-        if is_small and base_call:
-            # For consistent formatting for numbers with absolute values
-            # below unity, we need to call this function once more,
-            # with the rounded number.
-            return significant_figures(
-                float(number_str), nfigs, fmt, incl_zeros, force_scientific,
-                base_call=False,
-            )
+        number_str = ('{{:.{}{}}}'
+                      .format((nfigs - 1) if scientific else nfigs, 'e' if scientific else 'g')
+                      .format(number)
+                      )
         # Handle the exponent
         if 'e' in number_str:
             e_index = number_str.index('e')
@@ -5106,16 +4400,12 @@ def significant_figures(
         else:
             coefficient = number_str
             exponent = ''
-        coefficient_float = float(coefficient)
-        coefficient_int = int(coefficient_float)
-        if coefficient_int == coefficient_float:
-            coefficient = str(coefficient_int)
-        # Remove coefficient if it is just 1 (as in 1×10¹⁰ → 10¹⁰)
-        if coefficient == '1' and exponent and fmt in ('tex', 'unicode') and not force_scientific:
+        # Remove coefficient if it is just 1 (as in 1×10¹⁰ --> 10¹⁰)
+        if coefficient == '1' and exponent and fmt in ('tex', 'unicode') and not scientific:
             coefficient = ''
             exponent = exponent.replace(r'\times ', '').replace(unicode('×'), '')
-        elif incl_zeros:
-            # Pad with zeros in case of too few significant digits
+        # Pad with zeros in case of too few significant digits
+        if incl_zeros:
             digits = coefficient.replace('.', '').replace('-', '')
             for i, d in enumerate(digits):
                 if d != '0':
@@ -5144,7 +4434,7 @@ def significant_figures(
 
 # Function for correcting floating-point numbers
 def correct_float(val_raw):
-    """Example: correct_float(1.234499999999998) → 1.2345
+    """Example: correct_float(1.234499999999998) -> 1.2345
     """
     isnumber = False
     try:
@@ -5176,83 +4466,6 @@ def correct_float(val_raw):
             val_correct = val_new
         val_new = np.nextafter(val_new, ထ)
     return (val_correct if len(str(val_correct)) < len(str(val_raw)) - 2 else val_raw)
-
-# Function for finding unique elements of a floating-point array,
-# using fuzzy comparison.
-@cython.pheader(
-    # Arguments
-    arr='double[::1]',
-    rel_tol='double',
-    abs_tol='double',
-    # Locals
-    mask='unsigned char[::1]',  # really boolean np.ndarray
-    a='double',
-    b='double',
-    i='Py_ssize_t',
-    i_accept='Py_ssize_t',
-    returns='double[::1]',
-)
-def unique(arr, rel_tol=1e-9, abs_tol=0):
-    # Find truly unique elements. This also sorts the elements.
-    arr = np.unique(arr)
-    # Build mask
-    mask = ones(arr.shape[0], dtype=C2np['bint'])
-    i_accept = 0  # Always include first element
-    a = arr[i_accept]
-    i = -1
-    for i in range(i_accept + 1, arr.shape[0]):
-        b = arr[i]
-        if isclose(a, b, rel_tol, abs_tol):
-            mask[i] = False
-        else:
-            a = b
-            i_accept = i
-    # Always include the last element
-    if i_accept != i != -1:
-        mask[i_accept] = False
-        mask[i       ] = True
-    # Apply mask
-    return asarray(arr)[mask]
-
-# Generalized getattr() function accepting dotted (nested) arguments
-def getattr_nested(obj, attr):
-    if '[:].' in attr:
-        attr_0, attr_1 = attr.split('[:].')
-        return [getattr(el, attr_1) for el in getattr(obj, attr_0)]
-    return eval(f'obj.{attr}')
-
-# Function creating and returning a spline
-# from a dictionary of control points.
-def get_controlpoint_spline(
-    d,
-    transform_x=(lambda x: x), transform_x_onlookup=False, kind='linear',
-):
-    import scipy.interpolate
-    x = np.fromiter(d.keys(), dtype=C2np['double'])
-    y = np.fromiter(d.values(), dtype=C2np['double'])
-    fill_min = d[np.min(x)]
-    fill_max = d[np.max(x)]
-    if transform_x is np.log10:
-        _transform_x = transform_x
-        def transform_x_scalar(x):
-            return _transform_x(x) if x > 0 else -ထ
-        def transform_x(x):
-            if isinstance(x, (int, float, np.integer, np.floating)):
-                return transform_x_scalar(x)
-            return asarray([transform_x_scalar(x_i) for x_i in x])
-    x_transformed = transform_x(x)
-    if transform_x_onlookup:
-        transform_x_lookup = transform_x
-    else:
-        transform_x_lookup = (lambda x: x)
-    interp = lambda x_new, *, f=scipy.interpolate.interp1d(
-        x_transformed,
-        y,
-        kind=kind,
-        bounds_error=False,
-        fill_value=(fill_min, fill_max),
-    ): float(f(transform_x_lookup(x_new)))
-    return interp
 
 # Function which searches a dictionary for a component
 # or a set of components.
@@ -5314,7 +4527,7 @@ def is_selected(component_or_components, d, accumulate=False, default=None):
             for component in components
             for single_species in component.species.split('+')
         ])
-        species = frozenset([component.species.lower() for component in components])
+        species = frozenset([component.species.lower()for component in components])
         keys = (
             'default',
             'all combinations',
@@ -5367,36 +4580,6 @@ def is_selected(component_or_components, d, accumulate=False, default=None):
             return selected[-1]
         else:
             return default
-
-# Function for evaluting a function f(), f(t), f(a), f(t, a) or f(a, t)
-# at the current cosmic time t and/or scale factor a.
-def eval_func_of_t_and_a(f):
-    current_values = {'t': universals.t, 'a': universals.a}
-    return f(*[
-        current_values[param]
-        for param in inspect.signature(f).parameters
-        if param in current_values
-    ])
-
-# Function for generating file names for reusable data
-def get_reusable_filename(kind, *objects, extension='', sha_length=10):
-    """This function will generate a file name based on the hash of the
-    passed objects. The number of characters of the sha to include in
-    the file name is set through sha_length. With a sha_length of 10
-    there is a 50% chance of a single hash collision after ~10⁶ hashes.
-    """
-    objects = list(objects)
-    for i, obj in enumerate(objects):
-        if isinstance(obj, set):
-            objects[i] = sorted(obj)
-        elif isinstance(obj, dict):
-            objects[i] = sorted(obj.items())
-    sha = hashlib.sha1(str(objects).encode('utf-8')).hexdigest()
-    sha = sha[:sha_length]
-    if extension:
-        extension = f'.{extension}'
-    filename = f'{path.reusable_dir}/{kind}/{sha}{extension}'
-    return filename
 
 # Function for doing lookup into shortrange_params which depend on the
 # component(s) in question, i.e. if the values involves the number of
@@ -5558,7 +4741,7 @@ def open_hdf5(filename, raise_exception=False, **kwargs):
         if collective:
             for kwarg in ('driver', 'comm'):
                 if kwarg in kwargs_noncollective:
-                    kwargs_noncollective.pop(kwarg)
+                    del kwargs_noncollective[kwarg]
         sleep_time = sleep_time_min
         while True:
             try:
@@ -5593,13 +4776,15 @@ def open_hdf5(filename, raise_exception=False, **kwargs):
 
 
 
+
+
+
 ##############################################################
 # Sanity checks and corrections/additions to user parameters #
 ##############################################################
 # Abort on unrecognised snapshot_type
-snapshot_types = ['concept', 'gadget', 'tipsy']
-if snapshot_type not in snapshot_types:
-    abort(f'Unrecognised snapshot type "{snapshot_type}" ∉ {snapshot_types}')
+if snapshot_type not in ('concept', 'gadget'):
+    abort(f'Unrecognised snapshot type "{snapshot_type}" ∉ {{"concept", "gadget"}}')
 # Abort on unrecognised output kinds
 for key in output_dirs:
     if key not in (output_kinds + ('autosave',)):
@@ -5633,7 +4818,7 @@ for key, d in shortrange_params.items():
     subtiling = d['subtiling']
     if len(subtiling) == 3:
         for el in subtiling:
-            if not isinstance(el, (int, np.integer)):
+            if not isinstance(el, int):
                 abort(
                     f'Could not understand shortrange_params["{key}"]["subtiling"] == {subtiling}'
                 )
@@ -5643,7 +4828,7 @@ for key, d in shortrange_params.items():
                     f'but must be at least 1 in every direction.'
                 )
     elif len(subtiling) == 2:
-        if not (subtiling[0] == 'automatic' and isinstance(subtiling[1], (int, np.integer))):
+        if not (subtiling[0] == 'automatic' and isinstance(subtiling[1], int)):
             abort(
                 f'shortrange_params["{key}"]["subtiling"] == {subtiling}. '
                 f'When two values are specified, the first should be the str "automatic" '
@@ -5695,10 +4880,9 @@ if N_rungs == 1 and Δt_rung_factor != 1:
 # Abort on illegal FFTW rigour
 if fftw_wisdom_rigor not in ('estimate', 'measure', 'patient', 'exhaustive'):
     abort('Does not recognise FFTW rigour "{}"'.format(user_params['fftw_wisdom_rigor']))
-# Abort on negative random seed
-for random_seed in random_seeds.values():
-    if random_seed < 0:
-        abort(f'A random seed of {random_seed} < 0 was specified')
+# Abort on negative random_seed
+if random_seed < 0:
+    abort(f'A random_seed of {random_seed} < 0 was specified')
 # Sanity check on the primordial phase shift
 if primordial_phase_shift == 1:
     masterwarn(
@@ -5736,6 +4920,19 @@ for output_kind, times in output_times['a'].items():
         masterwarn('{} output is requested at a = {}, '
                    'but the simulation will not continue after a = 1.'
                    .format(output_kind.capitalize(), np.max(times)))
+# Reassign output times of the individual types
+snapshot_times = {
+    time_param: output_times[time_param]['snapshot'] for time_param in ('a', 't')
+}
+powerspec_times = {
+    time_param: output_times[time_param]['powerspec'] for time_param in ('a', 't')
+}
+render2D_times = {
+    time_param: output_times[time_param]['render2D'] for time_param in ('a', 't')
+}
+render3D_times = {
+    time_param: output_times[time_param]['render3D'] for time_param in ('a', 't')
+}
 # Warn about cosmological autosave interval
 if autosave_interval > 1*units.yr and autosave_interval != ထ:
     masterwarn(
@@ -5807,11 +5004,9 @@ if not enable_Hubble and enable_class_background:
     masterwarn('Hubble expansion is deactivated, but enable_class_background is True')
 # Allow for easier names in class_extra_background
 for val, keys in {
-    'gr.fac. D'       : {'D', 'D1'},
-    'gr.fac. f'       : {'f', 'f1'},
-    'gr.fac. D2'      : {'D2'},
-    'gr.fac. f2'      : {'f2'},
-    'conf. time [Mpc]': {unicode('τ'), asciify('τ'), 'tau'},
+    'gr.fac. D' : {'D', 'D1'},
+    'gr.fac. f' : {'f', 'f1'},
+    'conf. time': {unicode('τ'), asciify('τ'), 'tau'},
 }.items():
     if keys & class_extra_background:
         class_extra_background.difference_update(keys)

@@ -1,5 +1,5 @@
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015–2023 Jeppe Mosgaard Dakin.
+# Copyright © 2015–2021 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -25,11 +25,7 @@
 from commons import *
 
 # Cython imports
-cimport(
-    'from communication import '
-    '    get_buffer,           '
-    '    smart_mpi,            '
-)
+cimport('from communication import get_buffer, smart_mpi')
 
 
 
@@ -48,11 +44,10 @@ class Spline:
         name=str,
         logx='bint',
         logy='bint',
-        negativey='bint',
         # Locals
         i='Py_ssize_t',
     )
-    def __init__(self, x, y, name='', *, logx=False, logy=False, negativey=False):
+    def __init__(self, x, y, name='', *, logx=False, logy=False):
         # Here x and y = y(x) are the tabulated data.
         # The values in x must be in increasing order.
         # If logx (logy) is True, the log will be taken of the x (y)
@@ -68,7 +63,6 @@ class Spline:
         str name
         bint logx
         bint logy
-        bint negativey
         double xmin
         double xmax
         double abs_tol_min
@@ -96,33 +90,26 @@ class Spline:
         # Note that a copy of the input data is used,
         # we do not mutate the input data.
         self.logx, self.logy = logx, logy
-        self.negativey = negativey
         if self.logx:
             for i in range(x.shape[0]):
                 if x[i] <= 0:
                     self.logx = False
                     warn(
                         f'Spline "{self.name}": '
-                        f'Could not take log of spline x data '
-                        f'as it contains non-positive values'
+                        f'Could not take log of spline x data as it contains non-positive values'
                     )
                     break
         if self.logx:
             x = np.log(x)
-        if self.logy and not self.negativey:
+        if self.logy:
             for i in range(y.shape[0]):
                 if y[i] <= 0:
                     self.logy = False
                     warn(
                         f'Spline "{self.name}": '
-                        f'Could not take log of spline y data '
-                        f'as it contains non-positive values'
+                        'Could not take log of spline y data as it contains non-positive values'
                     )
                     break
-        if self.negativey:
-            if not self.logy:
-                abort('Spline instances with negativey but not logy not supported')
-            y = -asarray(y)
         if self.logy:
             y = np.log(y)
         # Check that the passed x values are strictly increasing and
@@ -130,10 +117,9 @@ class Spline:
         # passed x and y arrays, and so the new x and y refer to
         # different underlying data.
         x, y = remove_doppelgängers(x, y)
-        # Store a copy of the non-logged, non-negated,
-        # doppelgänger free data.
-        self.x =                        np.exp(x) if self.logx else asarray(x).copy()
-        self.y = (1 - 2*self.negativey)*np.exp(y) if self.logy else asarray(y).copy()
+        # Store a copy of the non-logged, doppelgänger free data
+        self.x = np.exp(x) if self.logx else asarray(x).copy()
+        self.y = np.exp(y) if self.logy else asarray(y).copy()
         # Store meta data
         self.xmin = x[0]
         self.xmax = x[x.shape[0] - 1]
@@ -181,9 +167,6 @@ class Spline:
         # Undo the log
         if self.logy:
             y = exp(y)
-            # Undo the negation
-            if self.negativey:
-                y *= -1
         return y
 
     # Method for doing spline derivative evaluation
@@ -214,9 +197,6 @@ class Spline:
         elif self.logy:
             # ∂ₓy(x) = y(x)*∂ₓln(y(x))
             ẏ *= self.eval(x_in)
-        # Undo the negation
-        if self.negativey:
-            ẏ *= -1
         return ẏ
 
     # Method for computing the definite integral over some
@@ -250,22 +230,16 @@ class Spline:
         else:
             ᔑ = gsl_spline_eval_integ(self.spline, a, b, self.acc)
         # Remember the sign change for a > b
-        if sign_flip:
-            ᔑ *= -1
-        # Undo the negation
-        if self.negativey:
-            ᔑ *= -1
-        return ᔑ
+        return -ᔑ if sign_flip else ᔑ
 
     # Method for checking whether a given number
     # is within the tabulated interval.
-    @cython.header(
-        # Arguments
-        x='double',
-        action=str,
-        # Locals
-        returns='double',
-    )
+    @cython.header(# Arguments
+                   x='double',
+                   action=str,
+                   # Locals
+                   returns='double',
+                   )
     def in_interval(self, x, action='interpolate to'):
         # Check that the supplied x is within the
         # interpolation interval. If it is just barely outside of it,
@@ -933,10 +907,8 @@ def init_time(reinitialize=False):
             # a_begin specified
             if 't_begin' in user_params_keys_raw:
                 # t_begin also specified
-                masterwarn(
-                    f'Ignoring t_begin = {t_begin}*{unit_time} because '
-                    f'enable_Hubble is True and a_begin is specified'
-                )
+                masterwarn('Ignoring t_begin = {}*{} because enable_Hubble is True '
+                           'and a_begin is specified'.format(t_begin, unit_time))
             a_begin_correct = a_begin
             t_begin_correct = cosmic_time(a_begin_correct)
         elif 't_begin' in user_params_keys_raw:
@@ -960,7 +932,7 @@ def init_time(reinitialize=False):
         # are meaningless. Set a_begin to unity,
         # effectively ignoring its existence.
         a_begin_correct = 1.0
-        if 'a_begin' in user_params_keys_raw and a_begin != 1:
+        if 'a_begin' in user_params_keys_raw:
             masterwarn(f'Ignoring a_begin = {a_begin} because enable_Hubble is False')
     # Now t_begin_correct and a_begin_correct are defined and store
     # the actual values of the initial time and scale factor.
@@ -972,13 +944,13 @@ def init_time(reinitialize=False):
     # Initiate the current universal time and scale factor
     universals.t = t_begin_correct
     universals.a = a_begin_correct
-cython.declare(
-    time_initialized='bint',
-    spline_a_t='Spline',
-    spline_t_a='Spline',
-    spline_a_H='Spline',
-)
+cython.declare(time_initialized='bint')
 time_initialized = False
+
+
+
+# Global Spline objects defined by init_time
+cython.declare(spline_a_t='Spline', spline_t_a='Spline', spline_a_H='Spline')
 spline_a_t = None
 spline_t_a = None
 spline_a_H = None

@@ -50,27 +50,24 @@ masterprint('Analysing {} data ...'.format(this_test))
 
 # Plot
 fig_file = this_dir + '/result.png'
-fig, ax = plt.subplots()
-ax.plot(
-    np.concatenate((a, a)), np.concatenate((x0, x1)),
-    '.',
-    markersize=15,
-    alpha=0.7,
-    label='CO$N$CEPT',
-)
-ax.plot(
-    np.concatenate((a, a)), np.concatenate((x0_gadget, x1_gadget)),
-    '.',
-    markersize=10,
-    alpha=0.7,
-    label='GADGET',
-)
-ax.set_xlabel('$a$')
-ax.set_ylabel(rf'$x\,\mathrm{{[{unit_length}]}}$')
-ax.set_ylim(0, boxsize)
-ax.legend()
-fig.tight_layout()
-fig.savefig(fig_file, dpi=150)
+plt.plot(np.concatenate((a, a)), np.concatenate((x0, x1)),
+         '.',
+         markersize=15,
+         alpha=0.7,
+         label='CO$N$CEPT',
+         )
+plt.plot(np.concatenate((a, a)), np.concatenate((x0_gadget, x1_gadget)),
+         '.',
+         markersize=10,
+         alpha=0.7,
+         label='GADGET',
+         )
+plt.xlabel('$a$')
+plt.ylabel(rf'$x\,\mathrm{{[{unit_length}]}}$')
+plt.ylim(0, boxsize)
+plt.legend(loc='best').get_frame().set_alpha(0.7)
+plt.tight_layout()
+plt.savefig(fig_file)
 
 # There should be no variance on the x positions
 reltol = 1e-9

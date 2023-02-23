@@ -1,5 +1,5 @@
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015–2023 Jeppe Mosgaard Dakin.
+# Copyright © 2015–2021 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -25,26 +25,17 @@
 from commons import *
 
 # Cython imports
-cimport(
-    'from communication import '
-    '    exchange,             '
-    '    partition,            '
-    '    smart_mpi,            '
-)
-cimport(
-    'from mesh import      '
-    '    domain_decompose, '
-    '    get_fftw_slab,    '
-    '    slab_decompose,   '
-)
-cimport(
-    'from species import         '
-    '    Component,              '
-    '    update_species_present, '
-)
+cimport('from communication import partition,                   '
+        '                          domain_layout_local_indices, '
+        '                          domain_subdivisions,         '
+        '                          exchange,                    '
+        '                          smart_mpi,                   '
+        )
+cimport('from mesh import domain_decompose, get_fftw_slab, slab_decompose')
+cimport('from species import Component, FluidScalar, update_species_present')
 
 # Pure Python imports
-from communication import get_domain_info
+import struct
 
 
 
@@ -105,29 +96,27 @@ class ConceptSnapshot:
     @cython.pheader(
         # Argument
         filename=str,
-        save_all='bint',
         # Locals
         N='Py_ssize_t',
+        N_lin='double',
         N_local='Py_ssize_t',
         N_str=str,
         component='Component',
         end_local='Py_ssize_t',
         fluidscalar='FluidScalar',
-        id_max='Py_ssize_t',
-        ids_mv_unsigned=object,  # np.ndarray
         indices=object,  # int or tuple
         index='Py_ssize_t',
         multi_index=object,  # tuple or str
         name=object,  # str or int
         plural=str,
         shape=tuple,
+        slab='double[:, :, ::1]',
         slab_end='Py_ssize_t',
         slab_start='Py_ssize_t',
-        slab_trimmed='double[:, :, ::1]',
         start_local='Py_ssize_t',
         returns=str,
     )
-    def save(self, filename, save_all=False):
+    def save(self, filename):
         # Attach missing extension to filename
         if not filename.endswith('.hdf5'):
             filename += '.hdf5'
@@ -151,7 +140,11 @@ class ConceptSnapshot:
                 component_h5.attrs['species'] = component.species
                 if component.representation == 'particles':
                     N, N_local = component.N, component.N_local
-                    N_str = get_cubenum_strrep(N)
+                    N_lin = cbrt(N)
+                    if N > 1 and isint(N_lin):
+                        N_str = str(int(round(N_lin))) + '³'
+                    else:
+                        N_str = str(N)
                     plural = ('s' if N > 1 else '')
                     masterprint(
                         f'Writing out {component.name} '
@@ -164,32 +157,10 @@ class ConceptSnapshot:
                     start_local = int(np.sum(smart_mpi(N_local, mpifun='allgather')[:rank]))
                     end_local = start_local + component.N_local
                     # Save particle data
-                    if save_all or component.snapshot_vars['save']['pos']:
-                        pos_h5 = component_h5.create_dataset('pos', (N, 3), dtype=C2np['double'])
-                        pos_h5[start_local:end_local, :] = component.pos_mv3[:N_local, :]
-                    if save_all or component.snapshot_vars['save']['mom']:
-                        mom_h5 = component_h5.create_dataset('mom', (N, 3), dtype=C2np['double'])
-                        mom_h5[start_local:end_local, :] = component.mom_mv3[:N_local, :]
-                    if component.use_ids:
-                        # Store IDs as unsigned integers using as few
-                        # bits as possible. We explicitly reinterpret
-                        # the IDs as unsigned (still 64-bit) prior to
-                        # writing to th efile. The convertion from
-                        # unsigned 64-bit to unsigned {32, 16, 8}-bit
-                        # appears to be handled by H5Py in a chunkified
-                        # manner, so this operation is safe.
-                        id_max = allreduce(max(component.ids_mv), op=MPI.MAX)
-                        if id_max >= 2**32:
-                            dtype = np.uint64
-                        elif id_max >= 2**16:
-                            dtype = np.uint32
-                        elif id_max >= 2**8:
-                            dtype = np.uint16
-                        else:
-                            dtype = np.uint8
-                        ids_h5 = component_h5.create_dataset('ids', (N, ), dtype=dtype)
-                        ids_mv_unsigned = asarray(component.ids_mv).view(np.uint64)
-                        ids_h5[start_local:end_local] = ids_mv_unsigned[:N_local]
+                    pos_h5 = component_h5.create_dataset('pos', (N, 3), dtype=C2np['double'])
+                    mom_h5 = component_h5.create_dataset('mom', (N, 3), dtype=C2np['double'])
+                    pos_h5[start_local:end_local, :] = component.pos_mv3[:N_local, :]
+                    mom_h5[start_local:end_local, :] = component.mom_mv3[:N_local, :]
                 elif component.representation == 'fluid':
                     # Write out progress message
                     masterprint(
@@ -209,28 +180,8 @@ class ConceptSnapshot:
                     for index, fluidvar in enumerate(
                         component.fluidvars[:component.boltzmann_order + 1]
                     ):
-                        if not save_all:
-                            if index == 0 and not component.snapshot_vars['save']['ϱ']:
-                                continue
-                            if index == 1 and not component.snapshot_vars['save']['J']:
-                                continue
-                            if index == 2 and not (
-                                   component.snapshot_vars['save']['𝒫']
-                                or component.snapshot_vars['save']['ς']
-                            ):
-                                continue
-                        fluidvar_h5 = component_h5.create_group(f'fluidvar_{index}')
-                        multi_index_trace = ()
-                        if 'trace' in fluidvar and fluidvar['trace'] is not None:
-                            multi_index_trace = ('trace', )
-                        for multi_index in fluidvar.multi_indices + multi_index_trace:
-                            if not save_all and index == 2:
-                                if multi_index == 'trace':
-                                    if not component.snapshot_vars['save']['𝒫']:
-                                        continue
-                                else:
-                                    if not component.snapshot_vars['save']['ς']:
-                                        continue
+                        fluidvar_h5 = component_h5.create_group('fluidvar_{}'.format(index))
+                        for multi_index in fluidvar.multi_indices:
                             fluidscalar = fluidvar[multi_index]
                             fluidscalar_h5 = fluidvar_h5.create_dataset(
                                 f'fluidscalar_{multi_index}',
@@ -245,14 +196,14 @@ class ConceptSnapshot:
                             # slab decomposed. Here we communicate the
                             # fluid scalar to slabs before saving to
                             # disk, improving performance enormously.
-                            slab_trimmed = slab_decompose(fluidscalar.grid_mv, trim=True)
-                            slab_start = ℤ[slab_trimmed.shape[0]]*rank
-                            slab_end = slab_start + ℤ[slab_trimmed.shape[0]]
+                            slab = slab_decompose(fluidscalar.grid_mv)
+                            slab_start = slab.shape[0]*rank
+                            slab_end = slab_start + slab.shape[0]
                             fluidscalar_h5[
                                 slab_start:slab_end,
                                 :,
                                 :,
-                            ] = slab_trimmed[:, :, :]
+                            ] = slab[:, :, :component.gridsize]
                     # Create additional names (hard links) for the fluid
                     # groups and data sets. The names from
                     # component.fluid_names will be used, except for
@@ -262,11 +213,11 @@ class ConceptSnapshot:
                     for name, indices in component.fluid_names.items():
                         if not isinstance(name, str) or name == 'ordered':
                             continue
-                        if isinstance(indices, (int, np.integer)):
+                        if isinstance(indices, int):
                             # "name" is a fluid variable name (e.g. J,
                             # though not ϱ as this is a fluid scalar).
                             try:
-                                fluidvar_h5 = component_h5[f'fluidvar_{indices}']
+                                fluidvar_h5 = component_h5['fluidvar_{}'.format(indices)]
                                 component_h5[name] = fluidvar_h5
                             except:
                                 pass
@@ -274,8 +225,8 @@ class ConceptSnapshot:
                             # "name" is a fluid scalar name (e.g. ϱ, Jx)
                             index, multi_index = indices
                             try:
-                                fluidvar_h5 = component_h5[f'fluidvar_{index}']
-                                fluidscalar_h5 = fluidvar_h5[f'fluidscalar_{multi_index}']
+                                fluidvar_h5 = component_h5['fluidvar_{}'.format(index)]
+                                fluidscalar_h5 = fluidvar_h5['fluidscalar_{}'.format(multi_index)]
                                 component_h5[name] = fluidscalar_h5
                             except:
                                 pass
@@ -300,6 +251,7 @@ class ConceptSnapshot:
         only_params='bint',
         # Locals
         N='Py_ssize_t',
+        N_lin='double',
         N_local='Py_ssize_t',
         N_str=str,
         arr=object,  # np.ndarray
@@ -312,8 +264,6 @@ class ConceptSnapshot:
         fluidscalar='FluidScalar',
         grid='double*',
         gridsize='Py_ssize_t',
-        id_counter='Py_ssize_t',
-        ids='Py_ssize_t*',
         index='Py_ssize_t',
         index_i='Py_ssize_t',
         index_i_file='Py_ssize_t',
@@ -328,8 +278,8 @@ class ConceptSnapshot:
         pos='double*',
         representation=str,
         size='Py_ssize_t',
+        slab='double[:, :, ::1]',
         slab_start='Py_ssize_t',
-        slab_trimmed='double[:, :, ::1]',
         snapshot_unit_length='double',
         snapshot_unit_mass='double',
         snapshot_unit_time='double',
@@ -345,7 +295,7 @@ class ConceptSnapshot:
             masterprint(f'Loading parameters of snapshot "{filename}" ...')
         else:
             masterprint(f'Loading snapshot "{filename}" ...')
-        # Load components
+        # Load all components
         with open_hdf5(filename, mode='r', driver='mpio', comm=comm) as hdf5_file:
             # Load used base units
             self.units['time']   = hdf5_file.attrs['unit time']
@@ -360,12 +310,6 @@ class ConceptSnapshot:
             self.params['boxsize'] = hdf5_file.attrs['boxsize']*snapshot_unit_length
             self.params['Ωb']      = hdf5_file.attrs[unicode('Ωb')]
             self.params['Ωcdm']    = hdf5_file.attrs[unicode('Ωcdm')]
-            # If a component should use IDs but none are stored in the
-            # snapshot, IDs will be assigned based on the storage order.
-            # In an effort to make the IDs unique even across
-            # components, this counter will keep track of the largest ID
-            # assigned to the previous component.
-            id_counter = 0
             # Load component data
             for name, component_h5 in hdf5_file['components'].items():
                 # Determine representation from the snapshot
@@ -393,7 +337,7 @@ class ConceptSnapshot:
                 if not should_load(name, species, representation):
                     masterprint(f'Skipping {name}')
                     continue
-                # Load the component
+                #  Load the component
                 if representation == 'particles':
                     # Construct a Component instance and append it
                     # to this snapshot's list of components.
@@ -404,60 +348,41 @@ class ConceptSnapshot:
                     # Done loading component attributes
                     if only_params:
                         continue
-                    N_str = get_cubenum_strrep(N)
+                    N_lin = cbrt(N)
+                    if N > 1 and isint(N_lin):
+                        N_str = str(int(round(N_lin))) + '³'
+                    else:
+                        N_str = str(N)
                     plural = ('s' if N > 1 else '')
                     masterprint(f'Reading in {name} ({N_str} {species}) particle{plural} ...')
                     # Extract HDF5 datasets
-                    pos_h5 = None
-                    if component.snapshot_vars['load']['pos']:
-                        if 'pos' not in component_h5:
-                            abort(f'No positions ("pos") found for component {component.name}')
-                        pos_h5 = component_h5['pos']
-                    mom_h5 = None
-                    if component.snapshot_vars['load']['mom']:
-                        if 'mom' not in component_h5:
-                            abort(f'No momenta ("mom") found for component {component.name}')
-                        mom_h5 = component_h5['mom']
-                    ids_h5 = None
-                    if component.use_ids and 'ids' in component_h5:
-                        ids_h5 = component_h5['ids']
+                    pos_h5 = component_h5['pos']
+                    mom_h5 = component_h5['mom']
                     # Compute a fair distribution of
                     # particle data to the processes.
                     start_local, N_local = partition(N)
                     # Make sure that the particle data arrays
                     # have the correct size.
                     component.N_local = N_local
-                    component.resize(N_local, only_loadable=True)
-                    # Read particle data into the particle data arrays
-                    dsets_arrs = []
-                    if pos_h5 is not None:
-                        dsets_arrs.append((pos_h5, asarray(component.pos_mv3)))
-                    if mom_h5 is not None:
-                        dsets_arrs.append((mom_h5, asarray(component.mom_mv3)))
-                    if ids_h5 is not None:
-                        # The particle IDs are stored as unsigned
-                        # {64, 32, 16, 8}-bit ints in the snapshot,
-                        # while they are stored as signed 64-bit ints in
-                        # the code. Reinterpret the code array as
-                        # unsigned 64-bit. The convertion from
-                        # {32, 16, 8}-bit to 64-bit will be done on the
-                        # fly by HDF5.
-                        dsets_arrs.append((ids_h5, asarray(component.ids_mv).view(np.uint64)))
+                    component.resize(N_local)
+                    # Read particle data directly into
+                    # the particle data arrays.
                     if N_local > 0:
-                        for dset, arr in dsets_arrs:
+                        for dset, arr in [
+                            (pos_h5, asarray(component.pos_mv3)),
+                            (mom_h5, asarray(component.mom_mv3)),
+                        ]:
                             # Load in using chunks
                             chunk_size = np.min((N_local, ℤ[self.chunk_size_max//8//3]))
                             for indexᵖ in range(0, N_local, chunk_size):
                                 if indexᵖ + chunk_size > N_local:
                                     chunk_size = N_local - indexᵖ
                                 indexᵖ_file = start_local + indexᵖ
-                                source_sel = slice(indexᵖ_file, indexᵖ_file + chunk_size)
-                                dest_sel   = slice(indexᵖ,      indexᵖ      + chunk_size)
-                                if arr.ndim == 2:
-                                    # Positions, momenta
-                                    source_sel = (source_sel, slice(None))
-                                    dest_sel   = (dest_sel,   slice(None))
-                                dset.read_direct(arr, source_sel=source_sel, dest_sel=dest_sel)
+                                dset.read_direct(
+                                    arr,
+                                    source_sel=np.s_[indexᵖ_file:(indexᵖ_file + chunk_size), :],
+                                    dest_sel=np.s_[indexᵖ:(indexᵖ + chunk_size), :],
+                                )
                         # If the snapshot and the current run uses
                         # different systems of units, multiply the
                         # positions and momenta by the snapshot units.
@@ -470,18 +395,6 @@ class ConceptSnapshot:
                         if unit != 1:
                             for indexʳ in range(3*N_local):
                                 mom[indexʳ] *= unit
-                        # If this component should make use of particle
-                        # IDs but none are stored in the snapshot,
-                        # assign IDs according to the order in which
-                        # they are stored in the file.
-                        if component.use_ids and ids_h5 is None:
-                            masterprint('Assigning particle IDs ...')
-                            ids = component.ids
-                            for indexᵖ in range(N_local):
-                                ids[indexᵖ] = ℤ[id_counter + start_local] + indexᵖ
-                            masterprint('done')
-                    # Update particle ID counter
-                    id_counter += N
                     # Done reading in particle component
                     masterprint('done')
                 elif representation == 'fluid':
@@ -514,77 +427,41 @@ class ConceptSnapshot:
                         )
                     # Make sure that the fluid grids
                     # have the correct size.
-                    component.resize(
-                        (domain_size_i, domain_size_j, domain_size_k),
-                        only_loadable=True,
-                    )
+                    component.resize((domain_size_i, domain_size_j, domain_size_k))
                     # Fluid scalars are already instantiated.
                     # Now populate them.
                     for index, fluidvar in enumerate(
                         component.fluidvars[:component.boltzmann_order + 1]
                     ):
-                        if index == 0:
-                            if component.snapshot_vars['load']['ϱ']:
-                                if f'fluidvar_{index}' not in component_h5:
-                                    abort(
-                                        f'No energy density ("ϱ") found '
-                                        f'for component {component.name}'
-                                    )
-                            else:
-                                continue
-                        elif index == 1:
-                            if component.snapshot_vars['load']['J']:
-                                if f'fluidvar_{index}' not in component_h5:
-                                    abort(
-                                        f'No energy density ("J") found '
-                                        f'for component {component.name}'
-                                    )
-                            else:
-                                continue
                         fluidvar_h5 = component_h5[f'fluidvar_{index}']
                         for multi_index in fluidvar.multi_indices:
                             fluidscalar_h5 = fluidvar_h5[f'fluidscalar_{multi_index}']
-                            slab_trimmed = get_fftw_slab(gridsize, trim=True)
-                            slab_start = ℤ[slab_trimmed.shape[0]]*rank
+                            slab = get_fftw_slab(gridsize)
+                            slab_start = slab.shape[0]*rank
                             # Load in using chunks. Large chunks are
                             # fine as no temporary buffer is used. The
                             # maximum possible chunk size is limited
                             # by MPI, though.
                             chunk_size = np.min((
-                                ℤ[slab_trimmed.shape[0]],
+                                ℤ[slab.shape[0]],
                                 ℤ[self.chunk_size_max//8//gridsize**2],
                             ))
                             if chunk_size == 0:
-                                masterwarn(
-                                    'The input seems surprisingly large '
-                                    'and may not be read in correctly'
-                                )
+                                masterwarn('The input seems surprisingly large and may not be read in correctly')
                                 chunk_size = 1
-                            arr = asarray(slab_trimmed)
-                            for index_i in range(0, ℤ[slab_trimmed.shape[0]], chunk_size):
-                                if index_i + chunk_size > ℤ[slab_trimmed.shape[0]]:
-                                    chunk_size = ℤ[slab_trimmed.shape[0]] - index_i
+                            arr = asarray(slab)
+                            for index_i in range(0, ℤ[slab.shape[0]], chunk_size):
+                                if index_i + chunk_size > ℤ[slab.shape[0]]:
+                                    chunk_size = ℤ[slab.shape[0]] - index_i
                                 index_i_file = slab_start + index_i
-                                source_sel = (
-                                    slice(index_i_file, index_i_file + chunk_size),
-                                    slice(None),
-                                    slice(None),
-                                )
-                                dest_sel = (
-                                    slice(index_i, index_i + chunk_size),
-                                    slice(None),
-                                    slice(None),
-                                )
                                 fluidscalar_h5.read_direct(
-                                    arr, source_sel=source_sel, dest_sel=dest_sel,
+                                    arr,
+                                    source_sel=np.s_[index_i_file:(index_i_file + chunk_size), :, :],
+                                    dest_sel=np.s_[index_i:(index_i + chunk_size), :, :gridsize],
                                 )
                             # Communicate the slabs directly to the
                             # domain decomposed fluid grids.
-                            domain_decompose(
-                                slab_trimmed,
-                                component.fluidvars[index][multi_index].grid_mv,
-                                do_ghost_communication=True,
-                            )
+                            domain_decompose(slab, component.fluidvars[index][multi_index].grid_mv)
                     # If the snapshot and the current run uses different
                     # systems of units, multiply the fluid data
                     # by the snapshot units.
@@ -700,10 +577,20 @@ class GadgetSnapshot:
             fmt=f'{num_particle_types}{val.fmt}',
             default=[val.default]*num_particle_types,
         )
+    # Low level types and their sizes
+    fmts = {
+        's': 'signed char',
+        'i': 'int',
+        'I': 'unsigned int',
+        'Q': 'unsigned long long int',
+        'f': 'float',
+        'd': 'double',
+    }
+    sizes = {fmt: struct.calcsize(fmt) for fmt in fmts}
     # Block name format, head block name and size
     block_name_fmt = '4s'
     block_name_header = 'HEAD'
-    headersize = 2**8
+    sizes['header'] = 2**8
     # The maximum number of particles within a single GADGET
     # snapshot file is limited by the largest number representable
     # by an int. As we never deal with negative particle numbers, we use
@@ -712,7 +599,7 @@ class GadgetSnapshot:
     # the calculation below, cutting the maximum number of particles per
     # snapshot roughly in half, compared to what is really needed.
     num_particles_file_max = (
-        ((2**(sizesC['i']*8 - 1) - 1) - 2*sizesC['I'])
+        ((2**(sizes['i']*8 - 1) - 1) - 2*sizes['I'])
         //(
             3*(
                 np.max((
@@ -754,7 +641,7 @@ class GadgetSnapshot:
         # of the 'HEAD' identifier.
         try:
             with open_file(filename, mode='rb') as f:
-                f.seek(sizesC['I'])
+                f.seek(cls.sizes['I'])
                 if cls.block_name_header == struct.unpack(
                     cls.block_name_fmt,
                     f.read(struct.calcsize(cls.block_name_fmt)),
@@ -766,7 +653,7 @@ class GadgetSnapshot:
         # of the header block.
         try:
             with open_file(filename, mode='rb') as f:
-                if cls.headersize == struct.unpack('I', f.read(sizesC['I']))[0]:
+                if cls.sizes['header'] == struct.unpack('I', f.read(cls.sizes['I']))[0]:
                     return 1
         except:
             pass
@@ -852,13 +739,12 @@ class GadgetSnapshot:
         # Size of the current block in bytes, when writing
         self.current_block_size = -1
         # Check on low level type sizes
-        sizes_expected = {'s': 1, 'i': 4, 'I': 4, 'Q': 8, 'f': 4, 'd': 8}
-        for fmt, size_expected in sizes_expected.items():
-            size = sizesC[fmt]
-            if size_expected != size:
+        for fmt, size in self.sizes.items():
+            size_expected = {'s': 1, 'i': 4, 'I': 4, 'Q': 8, 'f': 4, 'd': 8}.get(fmt)
+            if size_expected is not None and size != size_expected:
                 masterwarn(
-                    f'Expected C type \'{fmt2C[fmt]}\' to have a size '
-                    f'of {size_expected} bytes, but its size is {size}'
+                    f'Expected C type \'{fmt}\' to be {size_expected} bytes large, '
+                    f'but it is {size}'
                 )
 
     # Property for the dimensionless Hubble parameter
@@ -911,9 +797,9 @@ class GadgetSnapshot:
     @cython.pheader(
         # Arguments
         filename=str,
-        save_all='bint',
         # Locals
         N='Py_ssize_t',
+        N_lin='double',
         N_str=str,
         block=dict,
         block_fmt=str,
@@ -941,10 +827,9 @@ class GadgetSnapshot:
         i='Py_ssize_t',
         id_counter='Py_ssize_t',
         id_counters='Py_ssize_t[::1]',
-        id_max='Py_ssize_t',
-        ids_chunk='Py_ssize_t[::1]',
-        ids_mv='Py_ssize_t[::1]',
         indexᵖ='Py_ssize_t',
+        indexᵖ_bgn='Py_ssize_t',
+        indexᵖ_end='Py_ssize_t',
         indexʳ='Py_ssize_t',
         j='Py_ssize_t',
         msg=str,
@@ -958,15 +843,13 @@ class GadgetSnapshot:
         num_write='Py_ssize_t',
         plural=str,
         rank_writer='int',
-        save_pos=object,  # bool or None
-        save_vel=object,  # bool or None
         singleprec_needed='bint',
         size_write='Py_ssize_t',
         unit='double',
         unit_components=list,
         returns=str,
     )
-    def save(self, filename, save_all=False):
+    def save(self, filename):
         # Set the GADGET SnapFormat based on user parameters
         self.snapformat = gadget_snapshot_params['snapformat']
         # Divvy up the particles between the files and processes
@@ -994,7 +877,11 @@ class GadgetSnapshot:
         msg_list = []
         for component in self.components:
             N = component.N
-            N_str = get_cubenum_strrep(N)
+            N_lin = cbrt(N)
+            if N > 1 and isint(N_lin):
+                N_str = str(int(round(N_lin))) + '³'
+            else:
+                N_str = str(N)
             plural = ('s' if N > 1 else '')
             msg_list.append(f'{component.name} ({N_str} {component.species}) particle{plural}')
         msg = ', '.join(msg_list)
@@ -1019,51 +906,15 @@ class GadgetSnapshot:
         if doubleprec_needed:
             chunk_doubleprec = empty(chunk_size_max_needed, dtype=C2np['double'])
             chunk_doubleprec_ptr = cython.address(chunk_doubleprec[:])
-        # We store particle IDs for all components within the snapshot,
-        # regardless of whether the components actually use particle IDs
-        # or not. In case they do not, some IDs will simply be made up.
-        # This is done in such a manner that all particles (even across
-        # components / particle type) receive a unique ID, though
-        # clashes may happen if some other component in fact do make use
-        # of particle IDs, as such overlaps are not detected.
-        # The counters below are for keeping track of the unique
-        # particles IDs of each particle type. The particle IDs are
-        # generated consecutively, with all particles of a given type
-        # receiving IDs following each other with no gaps.
+        # Counters keeping track of the unique particles ID's of each
+        # particle type. The particle ID's are generated consecutively,
+        # with all particles of a given type receiving ID's following
+        # each other with no gaps.
         id_counters = zeros(len(self.components), dtype=C2np['Py_ssize_t'])
         id_counter = 0
         for j in range(1, len(self.components)):
             id_counter += self.components[j - 1].N
             id_counters[j] = id_counter
-        # Determine whether to save positions and/or velocities
-        if save_all:
-            save_pos = True
-            save_vel = True
-        else:
-            save_pos = save_vel = None
-            for component in self.components:
-                if component is None:
-                    continue
-                if not save_pos and component.snapshot_vars['save']['pos']:
-                    if save_pos is False:
-                        masterwarn(
-                            f'It is specified that particle positions of some component(s) '
-                            f'should not be stored in snapshots, while particle positions '
-                            f'of other component(s) should. For {self.name} snapshots all '
-                            f'components must be treated the same. All components will be '
-                            f'saved with particle positions.'
-                        )
-                    save_pos = True
-                if component.snapshot_vars['save']['mom']:
-                    if save_vel is False:
-                        masterwarn(
-                            f'It is specified that particle momenta/velocities of some '
-                            f'component(s) should not be stored in snapshots, while particle '
-                            f'velocities of other component(s) should. For {self.name} snapshots '
-                            f'all components must be treated the same. All components will be '
-                            f'saved with particle velocities.'
-                        )
-                    save_vel = True
         # Write out each file in turn
         for i, num_write_file in enumerate(num_write_files):
             if num_files == 1:
@@ -1081,15 +932,10 @@ class GadgetSnapshot:
             )
             # Write out the data blocks
             for block_name, block in blocks.items():
-                if block_name == 'POS' and not save_pos:
-                    continue
-                if block_name == 'VEL' and not save_vel:
-                    continue
                 data_components = block.get('data')
                 unit_components = block.get('unit')
                 block_type = block['type']
                 block_fmt = block_type[len(block_type) - 1]
-                dtype = C2np[fmt2C[block_fmt]]
                 # Begin block
                 if master:
                     block_size = np.sum(num_particles_file_tot)*struct.calcsize(block_type)
@@ -1149,76 +995,29 @@ class GadgetSnapshot:
                             # away from the memory view.
                             data_components[j] = data[size_write:]
                 elif block_name == 'ID':
-                    # Iterate over each component
-                    for j, (num_write, component, ids_mv) in enumerate(
-                        zip(num_write_file, self.components, data_components)
-                    ):
-                        if component.use_ids:
-                            # Warn about storing particle IDs using an
-                            # integer type too small.
-                            if i == 0:
-                                id_max = allreduce(max(ids_mv[:component.N_local]), op=MPI.MAX)
-                                if id_max >= 2**(8*dtype().itemsize):
-                                    masterwarn(
-                                        f'Component "{component.name}" contains particle IDs '
-                                        f'larger than what can be stored using '
-                                        f'{8*dtype().itemsize}-bit unsigned integers'
-                                    )
-                            chunk_size = np.min((num_write, ℤ[self.chunk_size_max//8]))
-                            # Write the block in serial,
-                            # one process at a time.
-                            for rank_writer in range(nprocs):
-                                Barrier()
-                                if rank != rank_writer:
-                                    continue
-                                if num_write == 0:
-                                    continue
-                                # Write out data in chunks
-                                with open_file(filename_i, mode='ab') as f:
-                                    for indexᵖ in range(0, num_write, chunk_size):
-                                        if indexᵖ + chunk_size > num_write:
-                                            chunk_size = num_write - indexᵖ
-                                        ids_chunk = ids_mv[indexᵖ:(indexᵖ + chunk_size)]
-                                        asarray(ids_chunk, dtype=dtype).tofile(f)
-                                # Crop the now written data
-                                # away from the memory view.
-                                data_components[j] = ids_mv[num_write:]
-                        else:
-                            # This component does not have particle IDs,
-                            # yet these are needed for the snapshot.
-                            # We generate some particles IDs on the fly.
-                            # As these do not correspond to actual data,
-                            # they can be handled by a single process.
-                            if master:
-                                if i == 0:
-                                    masterprint('Assigning particle IDs')
-                                num_particle_file_tot = num_particles_file_tot[j]
-                                if num_particle_file_tot == 0:
-                                    continue
-                                # Get and update ID counters
-                                id_counter = id_counters[j]
-                                id_counters[j] += num_particle_file_tot
-                                # Warn about storing particle IDs using
-                                # an integer type too small.
-                                if i == 0:
-                                    id_max = id_counter + component.N - 1
-                                    if id_max >= 2**(8*dtype().itemsize):
-                                        masterwarn(
-                                            f'Component "{component.name}" will be assigned '
-                                            f'particle IDs larger than what can be stored using '
-                                            f'{8*dtype().itemsize}-bit unsigned integers'
-                                        )
-                                # Generate and write the IDs
-                                chunk_size = np.min(
-                                    (num_particle_file_tot, ℤ[self.chunk_size_max//8])
-                                )
-                                indexᵖ_bgn = id_counter
-                                indexᵖ_end = id_counter + num_particle_file_tot
-                                with open_file(filename_i, mode='ab') as f:
-                                    for indexᵖ in range(indexᵖ_bgn, indexᵖ_end, chunk_size):
-                                        if indexᵖ + chunk_size > indexᵖ_end:
-                                            chunk_size = indexᵖ_end - indexᵖ
-                                        arange(indexᵖ, indexᵖ + chunk_size, dtype=dtype).tofile(f)
+                    # We generate the particles ID's on the fly.
+                    # As these do not correspond to actual data,
+                    # they can be handled by a single process.
+                    if master:
+                        for j, num_particle_file_tot in enumerate(num_particles_file_tot):
+                            if num_particle_file_tot == 0:
+                                continue
+                            # Get and update ID counters
+                            id_counter = id_counters[j]
+                            id_counters[j] += num_particle_file_tot
+                            # Generate and write the ID's
+                            chunk_size = np.min((num_particle_file_tot, ℤ[self.chunk_size_max//8]))
+                            indexᵖ_bgn = id_counter
+                            indexᵖ_end = id_counter + num_particle_file_tot
+                            with open_file(filename_i, mode='ab') as f:
+                                for indexᵖ in range(indexᵖ_bgn, indexᵖ_end, chunk_size):
+                                    if indexᵖ + chunk_size > indexᵖ_end:
+                                        chunk_size = indexᵖ_end - indexᵖ
+                                    arange(
+                                        indexᵖ,
+                                        indexᵖ + chunk_size,
+                                        dtype=𝕆[C2np[self.fmts[block_fmt]]],
+                                    ).tofile(f)
                 else:
                     abort(f'Does not know how to write {self.name} block "{block_name}"')
                 # End block
@@ -1368,10 +1167,6 @@ class GadgetSnapshot:
                 ],
             },
             'ID': {
-                'data': [
-                    (None if component is None else component.ids_mv)
-                    for component in self.components
-                ],
                 # Scalar. Data type will be added below.
                 'type': '1',
             },
@@ -1385,8 +1180,8 @@ class GadgetSnapshot:
                         f'Got gadget_snapshot_params["dataformat"][{block_name}] = "{num_bits}", '
                         f'but this can not be determined automatically'
                     )
-                # Determine whether to use 32- or 64-bit unsigned
-                # integers for the IDs.
+                # Determine whether to use 32 or 64 bit unsigned
+                # integers for the ID's.
                 num_bits = 32
                 num_particles_tot = np.sum([
                     component.N
@@ -1408,7 +1203,7 @@ class GadgetSnapshot:
             else:
                 abort(f'Block "{block_name}" not given a data type in get_blocks_info()')
             for fmt in fmts:
-                if sizesC[fmt] == num_bytes:
+                if self.sizes[fmt] == num_bytes:
                     block['type'] += fmt
                     break
             else:
@@ -1422,10 +1217,6 @@ class GadgetSnapshot:
             block_names = ['POS', 'VEL', 'ID']
         elif io == 'load':
             block_names = ['POS', 'VEL']
-            # We only need to load the ID block if some of the
-            # components make use of IDs.
-            if any([component.use_ids for component in self.components]):
-                block_names.append('ID')
         else:
             abort(f'get_blocks_info() got io = "{io}" ∉ {{"save", "load"}}')
         blocks = {block_name: blocks[block_name] for block_name in block_names}
@@ -1479,7 +1270,7 @@ class GadgetSnapshot:
         # Initialize file with HEAD block
         with open_file(filename, mode='wb') as f:
             # Start the HEAD block
-            self.write_block_bgn(f, self.headersize, self.block_name_header)
+            self.write_block_bgn(f, self.sizes['header'], self.block_name_header)
             # Write out header, tallying up its size
             size = 0
             for key, val in self.header_fields.items():
@@ -1510,10 +1301,10 @@ class GadgetSnapshot:
         def writeout(f):
             # The initial block meta data
             if self.snapformat == 2:
-                self.write(f, 'I', block_name_length*sizesC['s'] + sizesC['I'])
+                self.write(f, 'I', block_name_length*self.sizes['s'] + self.sizes['I'])
                 self.write(f, 's', block_name.ljust(block_name_length).encode('ascii'))
-                self.write(f, 'I', sizesC['I'] + block_size + sizesC['I'])
-                self.write(f, 'I', sizesC['I'] + block_name_length*sizesC['s'])
+                self.write(f, 'I', self.sizes['I'] + block_size + self.sizes['I'])
+                self.write(f, 'I', self.sizes['I'] + block_name_length*self.sizes['s'])
             self.write(f, 'I', block_size)
         # Call writeout() in accordance with the supplied f
         if isinstance(f, str):
@@ -1584,6 +1375,7 @@ class GadgetSnapshot:
         only_params='bint',
         # Locals
         N='Py_ssize_t',
+        N_lin='double',
         N_local='Py_ssize_t',
         N_str=str,
         block=dict,
@@ -1618,17 +1410,11 @@ class GadgetSnapshot:
         header_backup=dict,
         header_i=dict,
         index_chunk='Py_ssize_t',
-        indexᵖ='Py_ssize_t',
         indexʳ='Py_ssize_t',
         i='Py_ssize_t',
-        id_counters='Py_ssize_t[::1]',
-        ids_arr=object,  # np.ndarray
-        ids_mv='Py_ssize_t[::1]',
         j='Py_ssize_t',
         j_populated=list,
         key=str,
-        load_pos='bint',
-        load_vel='bint',
         mass='double',
         msg=str,
         msg_list=list,
@@ -1642,11 +1428,9 @@ class GadgetSnapshot:
         num_particles_file='Py_ssize_t',
         num_particles_files=list,
         num_particles_proc='Py_ssize_t',
-        num_particles_tot=list,
         num_particle_files=list,
         num_read='Py_ssize_t',
         num_read_file=list,
-        num_read_file_locals=list,
         num_read_files=list,
         offset='Py_ssize_t',
         offset_header='Py_ssize_t',
@@ -1655,7 +1439,6 @@ class GadgetSnapshot:
         representation=str,
         size_read='Py_ssize_t',
         species=object,  # str or None
-        start_local='Py_ssize_t',
         unit='double',
         unit_components=list,
     )
@@ -1848,7 +1631,7 @@ class GadgetSnapshot:
             return
         # If no components are to be read, return now
         if len(self.components) == len(components_skipped_names):
-            msg = ', '.join(components_skipped_names)
+            msg = ', '.join([name for name in components_skipped_names])
             masterprint(f'Skipping {msg}')
             self.components = [
                 component
@@ -1874,7 +1657,11 @@ class GadgetSnapshot:
             if component is None:
                 continue
             N = component.N
-            N_str = get_cubenum_strrep(N)
+            N_lin = cbrt(N)
+            if N > 1 and isint(N_lin):
+                N_str = str(int(round(N_lin))) + '³'
+            else:
+                N_str = str(N)
             plural = ('s' if N > 1 else '')
             msg_list.append(f'{component.name} ({N_str} {component.species}) particle{plural}')
         msg = ', '.join(msg_list)
@@ -1884,38 +1671,15 @@ class GadgetSnapshot:
             msg_list.append(f'(skipping {msg})')
             msg = ' '.join(msg_list)
         masterprint(f'Reading in {msg} ...')
-        # Determine whether to load any positions and/or velocities
-        load_pos = load_vel = False
-        for component in self.components:
-            if component is None:
-                continue
-            if component.snapshot_vars['load']['pos']:
-                load_pos = True
-            if component.snapshot_vars['load']['mom']:
-                load_vel = True
-        # Construct ID counters for each components.
-        # Only used in case the snapshot does not include IDs.
-        num_particles_tot = [
-            (0 if component is None else component.N)
-            for component in self.components
-        ]
-        id_counters = np.concatenate((
-            [0],
-            np.cumsum(num_particles_tot, dtype=C2np['Py_ssize_t']),
-        ))[:len(num_particles_tot)]
         # Enlarge components in order to accommodate particles
         for component, N_local in zip(self.components, num_local):
             if component is None:
                 continue
             component.N_local = N_local
             if component.N_allocated < N_local:
-                component.resize(N_local, only_loadable=True)
+                component.resize(N_local)
         # Get information about the blocks to be read in
         blocks = self.get_blocks_info('load')
-        if not load_pos:
-            blocks.pop('POS', None)
-        if not load_vel:
-            blocks.pop('VEL', None)
         # Read in each file in turn
         for i, filename_i in enumerate(filenames):
             if num_files > 1:
@@ -1963,11 +1727,7 @@ class GadgetSnapshot:
                             break
                     bcast(end_of_file)
                     if end_of_file:
-                        if blocks_required == {'ID'}:
-                            # IDs are required but not found within the
-                            # file. We shall generate these ourselves.
-                            break
-                        elif blocks_required:
+                        if blocks_required:
                             plural = ('s' if len(blocks_required) > 1 else '')
                             abort(
                                 f'Could not find required block{plural}',
@@ -2066,65 +1826,11 @@ class GadgetSnapshot:
                                                 if data_value >= boxsize:
                                                     data_value -= boxsize
                                         chunk_ptr[index_chunk] = data_value
-                            # Crop the populated part of the data away
-                            # from the memory view. Note that this
-                            # changes the content of the block object
-                            # returned by get_blocks_info().
+                            # Crop the populated part of the data
+                            # away from the memory view.
                             data_components[j] = data[size_read:]
                         # Update offset, to be used by the next process
                         offset += size_read*dtype().itemsize
-                        # Inform the next process about the file offset
-                        if rank < nprocs - 1 or (nprocs > 1 and j < len(self.components) - 1):
-                            send(offset, dest=mod(rank + 1, nprocs))
-                elif block_name == 'ID':
-                    # The particle IDs are stored as 32- or 64-bit
-                    # unsigned ints. We read them in as signed ints,
-                    # as they are stored in the code as signed.
-                    if bytes_per_particle_dim == 4:
-                        dtype = np.int32
-                    elif bytes_per_particle_dim == 8:
-                        dtype = np.int64
-                    else:
-                        abort(
-                            f'No data format with a size of {bytes_per_particle_dim} bytes '
-                            f'implemented for block "{block_name}"'
-                        )
-                    for j, (num_read, component, ids_mv) in enumerate(
-                        zip(num_read_file, self.components, data_components)
-                    ):
-                        # Get file offset from previous process
-                        if rank > 0 or (nprocs > 1 and j > 0):
-                            offset = recv(source=mod(rank - 1, nprocs))
-                        # Read in block data
-                        if component is not None and component.use_ids and num_read > 0:
-                            with open_file(filename_i, mode='rb') as f:
-                                # Seek to where the previous
-                                # process left off.
-                                f.seek(offset)
-                                # Read in using chunks
-                                chunk_size = np.min((num_read, ℤ[self.chunk_size_max//8]))
-                                for indexᵖ in range(0, num_read, chunk_size):
-                                    if indexᵖ + chunk_size > num_read:
-                                        chunk_size = num_read - indexᵖ
-                                    # Read in chunk and copy it into the
-                                    # component data array, implicitly
-                                    # converting to 64-bit as necessary.
-                                    chunk_arr = np.fromfile(
-                                        f,
-                                        dtype=dtype,
-                                        count=chunk_size,
-                                    )
-                                    if chunk_arr.shape[0] < chunk_size:
-                                        abort(f'Ran out of bytes in block "{block_name}"')
-                                    ids_arr = asarray(ids_mv[indexᵖ:(indexᵖ + chunk_size)])
-                                    ids_arr[:] = chunk_arr
-                            # Crop the populated part of the data away
-                            # from the memory view. Note that this
-                            # changes the content of the block object
-                            # returned by get_blocks_info().
-                            data_components[j] = ids_mv[num_read:]
-                        # Update offset, to be used by the next process
-                        offset += num_read*dtype().itemsize
                         # Inform the next process about the file offset
                         if rank < nprocs - 1 or (nprocs > 1 and j < len(self.components) - 1):
                             send(offset, dest=mod(rank + 1, nprocs))
@@ -2133,47 +1839,6 @@ class GadgetSnapshot:
                 # Let all the processes catch up,
                 # ensuring that the file is closed.
                 Barrier()
-            # If any of the components should make use of particle IDs
-            # but none are stored in the snapshot file, assign IDs
-            # according to the order in which the particles
-            # are stored within the file.
-            if blocks_required == {'ID'}:
-                masterprint('Assigning particle IDs ...')
-                block = blocks['ID']
-                data_components = block.get('data')
-                # Get number of particles of each type
-                # which should have been read by each process.
-                num_read_file_locals = allgather(num_read_file)
-                # Loop as when reading in, but do so in parallel
-                for j, (num_read, component, ids_mv) in enumerate(
-                    zip(num_read_file, self.components, data_components)
-                ):
-                    if component is None or not component.use_ids:
-                        continue
-                    # Get local starting index
-                    start_local = np.sum(
-                        [
-                            num_read_file_local[j]
-                            for num_read_file_local in num_read_file_locals[:rank]
-                        ],
-                        dtype=C2np['Py_ssize_t'],
-                    )
-                    # Assign consecutive IDs to num_read particles
-                    for indexᵖ in range(num_read):
-                        ids_mv[indexᵖ] = ℤ[id_counters[j] + start_local] + indexᵖ
-                    # Crop the populated part of the data away from the
-                    # memory view. Note that this changes the content of
-                    # the block object returned by get_blocks_info().
-                    data_components[j] = ids_mv[num_read:]
-                    # Update ID counter, accounting for all processes
-                    id_counters[j] += np.sum(
-                        [
-                            num_read_file_local[j]
-                            for num_read_file_local in num_read_file_locals
-                        ],
-                        dtype=C2np['Py_ssize_t'],
-                    )
-                masterprint('done')
             # Done loading this snapshot file
             if len(filenames) > 1:
                 masterprint('done')
@@ -2210,7 +1875,7 @@ class GadgetSnapshot:
                     f'Expected block "{self.block_name_header}" at the '
                     f'beginning of the file but found "{block_name}"'
                 )
-            size_expected = self.headersize
+            size_expected = self.sizes['header']
             if size != size_expected:
                 warn(
                     f'Block "{self.block_name_header}" has size {size} '
@@ -2239,7 +1904,7 @@ class GadgetSnapshot:
             if size is None:
                 offset = size = -1
             else:
-                offset += sizesC['I'] + size + sizesC['I']
+                offset += self.sizes['I'] + size + self.sizes['I']
             return offset, size
         offset, size = read_size(f, offset)
         if self.snapformat == 1:
@@ -2258,14 +1923,14 @@ class GadgetSnapshot:
             block_name = self.read(f, self.block_name_fmt).decode('utf8').rstrip()
             size = self.read(f, 'I')
             offset, size_bare = read_size(f, offset)
-            size_bare_2 = size - 2*sizesC['I']
+            size_bare_2 = size - 2*self.sizes['I']
             if size_bare != size_bare_2:
                 # The two sizes do not agree.
                 # Pick one according to the 'settle'
                 # gadget_snapshot_params parameter.
                 msg = (
                     f'Size of block "{block_name}" not consistent: '
-                    f'{size} - {2*sizesC["I"]} = {size_bare_2} ≠ {size_bare}. '
+                    f'{size} - {2*self.sizes["I"]} = {size_bare_2} ≠ {size_bare}. '
                 )
                 if gadget_snapshot_params['settle'] == 0:
                     msg += (
@@ -2479,391 +2144,6 @@ class GadgetSnapshot:
             num_files = self.divvy(return_num_files=True)
         return num_files
 
-# Class storing a TIPSY snapshot. Besides holding methods for
-# saving/loading, it stores particle data and the TIPSY header.
-@cython.cclass
-class TipsySnapshot:
-    """This class represents snapshots of the "TIPSY" type.
-    As is the case for the CO𝘕CEPT snapshot class, this class contains
-    a list components (the components attribute) and dict of parameters
-    (the params attribute).
-    """
-    # The properly written name of this snapshot type
-    # (only used for printing).
-    name = 'TIPSY'
-    # The filename extension for this type of snapshot
-    extension = ''
-    # Maximum allowed chunk size in bytes
-    chunk_size_max = 2**23  # 8 MB
-    # Names of components contained in snapshots, in order
-    component_names = [
-        f'TIPSY {particle_type}'
-        for particle_type in ['sph', 'dark', 'star']
-    ]
-    num_particle_types = len(component_names)
-    # Ordered fields in the TIPSY header,
-    # mapped to their type and default value.
-    TipsyField = collections.namedtuple(
-        'TipsyHeaderField',
-        ['fmt', 'default'],
-        defaults=['', 0],
-    )
-    header_fields = {
-        'time'   : TipsyField('d'),
-        'nbodies': TipsyField('I'),
-        'ndim'   : TipsyField('I'),
-        'nsph'   : TipsyField('I'),
-        'ndark'  : TipsyField('I'),
-        'nstar'  : TipsyField('I'),
-    }
-    headersize = 0
-    for val in header_fields.values():
-        headersize += struct.calcsize(val.fmt)
-    # Ensure floating-point defaults where appropriate
-    for key, val in header_fields.items():
-        if val.fmt in {'f', 'd'}:
-            header_fields[key] = val._replace(default=float(val.default))
-    # Ordered fields in the TIPSY particle structures,
-    # mapped to their type and default value.
-    particle_fields = {
-        'sph': {
-            'mass'   : TipsyField('f'),
-            'pos'    : TipsyField('{ndim}f'),
-            'vel'    : TipsyField('{ndim}f'),
-            'rho'    : TipsyField('f'),
-            'temp'   : TipsyField('f'),
-            'hsmooth': TipsyField('f'),
-            'metals' : TipsyField('f'),
-            'phi'    : TipsyField('f'),
-        },
-        'dark': {
-            'mass': TipsyField('f'),
-            'pos' : TipsyField('{ndim}f'),
-            'vel' : TipsyField('{ndim}f'),
-            'eps' : TipsyField('f'),
-            'phi' : TipsyField('f'),
-        },
-        'star': {
-            'mass'  : TipsyField('f'),
-            'pos'   : TipsyField('{ndim}f'),
-            'vel'   : TipsyField('{ndim}f'),
-            'metals': TipsyField('f'),
-            'tform' : TipsyField('f'),
-            'eps'   : TipsyField('f'),
-            'phi'   : TipsyField('f'),
-        },
-    }
-    # Ensure floating-point defaults where appropriate
-    for fields in particle_fields.values():
-        for key, val in fields.items():
-            for c in {'f', 'd'}:
-                if val.fmt.endswith(c):
-                    fields[key] = val._replace(default=float(val.default))
-                    break
-
-    # Class method for identifying a file to be a snapshot of this type
-    @classmethod
-    def is_this_type(cls, filename):
-        if not os.path.isfile(filename):
-            return False
-        # Test for TIPSY by checking the 'ndim' field of the header
-        try:
-            header, endianness = cls.read_header(filename)
-            if header.get('ndim') in {1, 2, 3}:
-                return True
-        except Exception:
-           pass
-        return False
-
-    # Initialisation method
-    @cython.header
-    def __init__(self):
-        # The triple quoted string below serves as the type declaration
-        # for the data attributes of the TipsySnapshot type.
-        # It will get picked up by the pyxpp script
-        # and included in the .pxd file.
-        """
-        public dict params
-        public list components
-        public dict header
-        public str endianness
-        """
-        # Dict containing all the parameters of the snapshot
-        self.params = {}
-        # List of Component instances
-        self.components = []
-        # Header
-        self.header = {}
-        # The endianness of the binary data
-        self.endianness = '@'  # '@' → native, '<' → little, '>' → big
-        # Check on low level type sizes
-        sizes_expected = {'I': 4, 'f': 4, 'd': 8}
-        for fmt, size_expected in sizes_expected.items():
-            size = sizesC[fmt]
-            if size_expected != size:
-                masterwarn(
-                    f'Expected C type \'{fmt2C[fmt]}\' to have a size '
-                    f'of {size_expected} bytes, but its size is {size}'
-                )
-
-    # Method for reading in the header of a TIPSY snapshot file
-    @classmethod
-    def read_header(cls, f):
-        def _read_header(f):
-            for endianness in '<>':
-                f.seek(0)
-                header = {
-                    field: struct.unpack(
-                        f'{endianness}{val.fmt}',
-                        f.read(struct.calcsize(val.fmt)),
-                    )[0]
-                    for field, val in cls.header_fields.items()
-                }
-                if header.get('ndim') in {1, 2, 3}:
-                    break
-            else:
-                endianness = '?'
-            return header, endianness
-        if isinstance(f, str):
-            with open_file(f, mode='rb') as f:
-                return _read_header(f)
-        else:
-            return _read_header(f)
-
-    # Method that saves the snapshot to a TIPSY file
-    @cython.pheader(
-        # Argument
-        filename=str,
-        save_all='bint',
-        # Locals
-        returns=str,
-    )
-    def save(self, filename, save_all=False):
-        abort('Saving snapshots in TIPSY format is not implemented')
-        return filename
-
-    # Method for loading in a TIPSY snapshot from disk
-    @cython.pheader(
-        # Argument
-        filename=str,
-        only_params='bint',
-        # Locals
-        N='Py_ssize_t',
-        indexʳ='Py_ssize_t',
-        mom='double*',
-        pos='double*',
-        unit='double',
-    )
-    def load(self, filename, only_params=False):
-        if only_params:
-            masterprint(f'Loading parameters of snapshot "{filename}" ...')
-        else:
-            masterprint(f'Loading snapshot "{filename}" ...')
-        # Read in the header
-        self.header, self.endianness = self.read_header(filename)
-        num_particles = {
-            particle_type: self.header[f'n{particle_type}']
-            for particle_type in self.particle_fields.keys()
-        }
-        if self.header['nbodies'] != np.sum(list(num_particles.values())):
-            masterwarn(
-                f'The total number of particles ({self.header["nbodies"]}) does not match '
-                f'the individual particle counts: {num_particles}'
-            )
-        # Populate params dict.
-        # Only the time is actually stored in the file.
-        self.params['H0'     ] = H0
-        self.params['a'      ] = self.header['time']
-        self.params['boxsize'] = boxsize
-        self.params['Ωm'     ] = Ωm
-        self.params['ΩΛ'     ] = 1 - Ωm
-        # Get file size
-        with open_file(filename, mode='rb') as f:
-            f.seek(0, os.SEEK_END)
-            filesize = f.tell()
-        # Create particle data types
-        ndim_max = 3
-        paddings = {0, 4}
-        for ndim in (self.header['ndim'], ndim_max):
-            particle_dtypes = {
-                particle_type: np.dtype([
-                    (field, f'{self.endianness}{val.fmt}'.format(ndim=ndim))
-                    for field, val in fields.items()
-                ])
-                for particle_type, fields in self.particle_fields.items()
-            }
-            datasize = np.sum([
-                dtype.itemsize*self.header[f'n{particle_type}']
-                for particle_type, dtype in particle_dtypes.items()
-            ])
-            padding = filesize - (self.headersize + datasize)
-            if padding in paddings:
-                break
-        else:
-            abort('Could not determine data layout of TIPSY file')
-        if ndim != 3:
-            abort(
-                f'The file contains {ndim}-dimensional data, '
-                f'but only 3-dimensional data is allowed'
-            )
-        # Create component informations
-        components_info = []
-        components_skipped_names = []
-        for name, particle_type in zip(self.component_names, self.particle_fields.keys()):
-            N = self.header[f'n{particle_type}']
-            if N == 0:
-                continue
-            # Basic component information
-            representation = 'particles'
-            species = determine_species(name, representation)
-            # Skip this component if it should not be loaded
-            if not should_load(name, species, representation):
-                components_skipped_names.append(name)
-                continue
-            components_info.append({
-                'name': name,
-                'species': species,
-                'N': N,
-                'mass': -1,  # still unknown
-            })
-        # If no components are to be read, return now
-        if only_params or not components_info:
-            if not components_info:
-                msg = ', '.join(components_skipped_names)
-                masterprint(f'Skipping {msg}')
-            self.components = [
-                Component(
-                    component_info['name'],
-                    component_info['species'],
-                    N=component_info['N'],
-                    mass=component_info['mass'],
-                )
-                for component_info in components_info
-            ]
-            masterprint('done')
-            return
-        # Progress message
-        msg_list = []
-        for component_info in components_info:
-            N = component_info['N']
-            N_str = get_cubenum_strrep(N)
-            plural = ('s' if N > 1 else '')
-            msg_list.append(
-                f'{component_info["name"]} ({N_str} {component_info["species"]}) particle{plural}'
-            )
-        msg = ', '.join(msg_list)
-        if components_skipped_names:
-            msg_list = [msg]
-            msg = ', '.join(components_skipped_names)
-            msg_list.append(f'(skipping {msg})')
-            msg = ' '.join(msg_list)
-        masterprint(f'Reading in {msg} ...')
-        # Load components
-        self.components.clear()
-        components_info_iter = iter(components_info)
-        with open_file(filename, mode='rb') as f:
-            f.seek(-datasize, os.SEEK_END)
-            for name, (particle_type, dtype) in zip(self.component_names, particle_dtypes.items()):
-                count = self.header[f'n{particle_type}']
-                if count == 0:
-                    continue
-                species = determine_species(name, representation)
-                if not should_load(name, species, representation):
-                    f.seek(count*dtype.itemsize)
-                    continue
-                # Only the master is used for reading in the data
-                mass = -1
-                if master:
-                    # Read in data
-                    data = np.fromfile(f, dtype=dtype, count=count)
-                    # Get mass
-                    masses = data['mass']
-                    mass = masses[0]
-                    if np.unique(masses).size > 1:
-                        mass = np.mean(masses)
-                        masterwarn(
-                            f'Particles of component {component_info["name"]} have '
-                            f'independent masses. Will use the mean particle mass.'
-                        )
-                    unit = 3*self.params['H0']**2/(8*π*G_Newton)*self.params['boxsize']**3
-                    mass *= unit
-                mass = bcast(mass)
-                # Instantiate component
-                component_info = next(components_info_iter)
-                component_info['mass'] = mass
-                component = Component(
-                    component_info['name'],
-                    component_info['species'],
-                    N=component_info['N'],
-                    mass=component_info['mass'],
-                )
-                self.components.append(component)
-                # Only the master has read in the data
-                if not master:
-                    component.N_local = 0
-                    continue
-                # Populate data attributes
-                N = component_info['N']
-                component.N_local = N
-                component.resize(N, only_loadable=True)
-                if component.snapshot_vars['load']['pos']:
-                    asarray(component.pos_mv)[:] = data['pos'].flatten()
-                    pos = component.pos
-                    unit = boxsize
-                    for indexʳ in range(3*N):
-                        pos[indexʳ] = (0.5 + pos[indexʳ])*unit
-                if component.snapshot_vars['load']['mom']:
-                    asarray(component.mom_mv)[:] = data['vel'].flatten()
-                    mom = component.mom
-                    unit = (
-                        self.params['boxsize']*self.params['H0']
-                        *sqrt(3/(8*π))*self.params['a']**2*mass
-                    )
-                    for indexʳ in range(3*N):
-                        mom[indexʳ] *= unit
-                # Assign particle IDs corresponding to their order
-                # within the snapshot.
-                if component.use_ids:
-                    component.ids_mv[:] = arange(N, dtype=C2np['double'])
-        # Done loading snapshot
-        masterprint('done')
-        masterprint('done')
-
-    # This method populate the snapshot with component data
-    # and additional parameters.
-    def populate(self, components, params=None):
-        if not components:
-            abort(f'Cannot save a {self.name} snapshot with no components')
-        if params is None:
-            params = {}
-        # Populated snapshot with the components
-        self.components = components
-        # Populate snapshot with the passed scale factor
-        # and global parameters. If a params dict is passed,
-        # use values from this instead.
-        self.params['H0'] = params.get('H0', H0)
-        if enable_Hubble:
-            self.params['a'] = params.get('a', universals.a)
-        else:
-            self.params['a'] = universals.a
-        self.params['boxsize'] = params.get('boxsize', boxsize)
-        self.params['Ωm'] = params.get('Ωm', Ωm)
-        ΩΛ = 1 - self.params['Ωm']  # Flat universe with only matter and cosmological constant
-        self.params['ΩΛ'] = params.get('ΩΛ', ΩΛ)
-        # Build the TIPSY header
-        # (assign all particles to the "dark" particle type).
-        self.header.clear()
-        for key, val in self.header_fields.items():
-            self.header[key] = deepcopy(val.default)
-        self.header['time'] = self.params['a']
-        self.header['nbodies'] = self.header['ndark'] = np.sum(
-            [
-                component.N for component in components
-                if component.representation == 'particles'
-            ],
-            dtype=C2np['Py_ssize_t']
-        )
-
 # Function that saves the current state of the simulation
 # (consisting of global parameters as well as the list
 # of components) to a snapshot file.
@@ -2875,7 +2155,7 @@ class TipsySnapshot:
     filename=str,
     params=dict,
     snapshot_type=str,
-    save_all='bint',
+    save_all_components='bint',
     # Locals
     component='Component',
     components=list,
@@ -2885,7 +2165,7 @@ class TipsySnapshot:
 )
 def save(
     one_or_more_components, filename,
-    params=None, snapshot_type=snapshot_type, save_all=False,
+    params=None, snapshot_type=snapshot_type, save_all_components=False,
 ):
     """The type of snapshot to be saved may be given as the
     snapshot_type argument. If not given, it defaults to the value
@@ -2893,9 +2173,9 @@ def save(
     Should you wish to replace the global parameters with
     something else, you may pass new parameters as the params argument.
     The components to include in the snapshot files are determined by
-    the snapshot_vars component attribute. If you wish to overrule this
-    and force every component to be included fully,
-    set save_all to True.
+    the snapshot_select user parameter. If you wish to overrule this
+    and force every component to be included,
+    set save_all_components to True.
     """
     if not filename:
         abort('An empty filename was passed to snapshot.save()')
@@ -2908,13 +2188,13 @@ def save(
         components = list(one_or_more_components)
     if not components:
         abort('snapshot.save() called with no components')
-    if save_all:
+    if save_all_components:
         components_selected = components
     else:
         components_selected = [
             component
             for component in components
-            if component.snapshot_vars['save']['any']
+            if is_selected(component, snapshot_select['save'])
         ]
         if not components_selected:
             msg = f't = {universals.t} {unit_time}'
@@ -2936,7 +2216,7 @@ def save(
     # Save the snapshot to disk.
     # The (maybe altered) filename is returned,
     # which should also be the return value of this function.
-    return snapshot.save(filename, save_all)
+    return snapshot.save(filename)
 
 # Function that loads a snapshot file.
 # The type of snapshot can be any of the implemented.
@@ -2949,7 +2229,6 @@ def save(
     only_params='bint',
     only_components='bint',
     do_exchange='bint',
-    compare_boxsize_on_exchange='bint',
     as_if=str,
     # Locals
     component='Component',
@@ -2961,7 +2240,7 @@ def save(
 def load(
     filename,
     compare_params=True, only_params=False, only_components=False,
-    do_exchange=True, compare_boxsize_on_exchange=True, as_if='',
+    do_exchange=True, as_if='',
 ):
     """When only_params is False and only_components is False,
     the return type is simply a snapshot object containing all the
@@ -3000,29 +2279,16 @@ def load(
     if not only_params:
         for component in snapshot.components:
             out_of_bounds_check(component, snapshot.params['boxsize'])
-    # Scatter particles within particle components to the correct
-    # domain-specific process. Note that ghost points of fluid variables
-    # within fluid components are already properly communicated.
+    # Scatter particles to the correct domain-specific process.
+    # Also communicate ghost points of fluid variables.
     if not only_params and do_exchange:
         # Do exchanges for all components
         for component in snapshot.components:
-            if not component.snapshot_vars['load']['pos']:
-                # Only components with loaded positions can be exchanged
-                continue
-            if not compare_params and compare_boxsize_on_exchange:
-                # The exchange() function may crash if the snapshot uses
-                # a boxsize different (larger) than the one currently
-                # set within the program. This mismatching boxsize is
-                # almost certainly not what the user wants.
-                # A proper warning is already printed in the case
-                # where compare_params is True. If not,
-                # we print the warning now.
-                compare_parameters(snapshot, filename, only_boxsize=True)
-            exchange(
-                component,
-                component.snapshot_vars['load']['mom'],
-                progress_msg=True,
-            )
+            exchange(component, progress_msg=True)
+        # Communicate the ghost points of all fluid variables
+        # in fluid components.
+        for component in snapshot.components:
+            component.communicate_fluid_grids('=')
     # If the caller is interested in the components only,
     # return the list of components.
     if only_components:
@@ -3037,14 +2303,8 @@ def load(
     return snapshot
 
 # Function for determining the snapshot type of a file
-@cython.header(
-    # Arguments
-    filename=str,
-    collective='bint',
-    # Locals
-    returns=str,
-)
-def get_snapshot_type(filename, collective=True):
+@cython.header(filename=str, returns=str)
+def get_snapshot_type(filename):
     """Call the 'is_this_type' class method of each snapshot class until
     the file is recognised as a specific snapshot type.
     The returned name of the snapshot type is in the same format as the
@@ -3052,10 +2312,6 @@ def get_snapshot_type(filename, collective=True):
     removed and all characters are converted to lower-case.
     If the file is not recognised as any snapshot type at all,
     do not throw an error but simply return None.
-    Only the master process will do the work. When collective is True,
-    the result will be broadcasted, and so this function should be
-    called by all processes. If called only by the master,
-    set collective to False, which will leave out the broadcast.
     """
     # Return None if the file is not a valid snapshot
     determined_type = None
@@ -3069,9 +2325,7 @@ def get_snapshot_type(filename, collective=True):
                 break
         if determined_type is None and not os.path.exists(filename):
             abort(f'The snapshot file "{filename}" does not exist')
-    if collective:
-        determined_type = bcast(determined_type)
-    return determined_type
+    return bcast(determined_type)
 
 # Function which takes in a dict of parameters and compares their
 # values to those of the current run. If any disagreement is found,
@@ -3080,7 +2334,6 @@ def get_snapshot_type(filename, collective=True):
     # Arguments
     snapshot=object,
     filename=str,
-    only_boxsize='bint',
     # Locals
     a='double',
     component='Component',
@@ -3098,7 +2351,7 @@ def get_snapshot_type(filename, collective=True):
     ρ_bar_backgrounds=list,
     ρ_bar_component='double',
 )
-def compare_parameters(snapshot, filename, only_boxsize=False):
+def compare_parameters(snapshot, filename):
     params = snapshot.params
     components = snapshot.components
     # The relative tolerance by which the parameters are compared
@@ -3107,75 +2360,70 @@ def compare_parameters(snapshot, filename, only_boxsize=False):
     line_fmt = '    {{}}: {{:.{num}g}} vs {{:.{num}g}}'.format(num=int(1 - log10(rel_tol)))
     msg_list = [f'Mismatch between current parameters and those in the snapshot "{filename}":']
     # Compare parameters one by one
+    if enable_Hubble and not isclose(universals.a, float(params['a']), rel_tol):
+        msg_list.append(line_fmt.format('a', universals.a, params['a']))
     if not isclose(boxsize, float(params['boxsize']), rel_tol):
-        msg_list.append(
-            line_fmt.format('boxsize', boxsize, params['boxsize']) + f' [{unit_length}]'
-        )
-    if not only_boxsize:
-        if enable_Hubble and not isclose(universals.a, float(params['a']), rel_tol):
-            msg_list.append(line_fmt.format('a', universals.a, params['a']))
-        if not isclose(H0, float(params['H0']), rel_tol):
-            unit = units.km/(units.s*units.Mpc)
-            msg_list.append(
-                line_fmt.format('H0', H0/unit, params['H0']/unit) + ' [km s⁻¹ Mpc⁻¹]'
-            )
-        if not isclose(Ωb, float(params.get('Ωb', Ωb)), rel_tol):
-            msg_list.append(line_fmt.format('Ωb', Ωb, params['Ωb']))
-        if not isclose(Ωcdm, float(params.get('Ωcdm', Ωcdm)), rel_tol):
-            msg_list.append(line_fmt.format('Ωcdm', Ωcdm, params['Ωcdm']))
-        if not isclose(Ωm, float(params.get('Ωm', Ωm)), rel_tol):
-            msg_list.append(line_fmt.format('Ωm', Ωm, params['Ωm']))
-        # Check if the total mass of each species within components
-        # adds up to the correct value as set by the CLASS background.
-        if enable_class_background:
-            # One species may be distributed over several components.
-            # Group components together according to their species.
-            species_components = collections.defaultdict(list)
-            for component in components:
-                species_components[component.species].append(component)
-            # Do the check for each species
-            a = correct_float(params['a'])
-            for component_group in species_components.values():
-                factors = [a**(-3*(1 + component.w_eff(a=a))) for component in component_group]
-                if len(set(factors)) > 1:
-                    # Different w_eff despite same species.
-                    # This is presumably caused by the user having some
-                    # weird specifications. Skip check for this species.
-                    continue
-                ρ_bar_backgrounds = [
-                    factor*component.ϱ_bar
-                    for component, factor in zip(component_group, factors)
-                ]
-                if len(set(ρ_bar_backgrounds)) > 1:
-                    # Different ρ_bar_background despite same species.
-                    # This is presumably caused by the user having some
-                    # weird specifications. Skip check for this species.
-                    continue
-                factor = factors[0]
-                ρ_bar_background = ρ_bar_backgrounds[0]
-                ϱ_bar_component = 0
-                for component in component_group:
-                    if component.representation == 'particles':
-                        ϱ_bar_component += component.N*component.mass/boxsize**3
-                    elif component.representation == 'fluid':
-                        ϱ_bar_component += (
-                            allreduce(np.sum(component.ϱ.grid_noghosts), op=MPI.SUM)
-                            /component.gridsize**3
-                        )
-                    else:
-                        continue
-                ρ_bar_component = factor*ϱ_bar_component
-                if not isclose(ρ_bar_background, ρ_bar_component, rel_tol):
-                    msg = ', '.join([f'"{component.name}"' for component in component_group])
-                    if len(component_group) > 1:
-                        msg = f'{{{msg}}}'
-                    msg_list.append(
-                        line_fmt.format(
-                            f'̅ρ(a = {a}) of {msg} (species: {component.species})',
-                            ρ_bar_background,
-                            ρ_bar_component,
-                        ) + f' [{unit_mass} {unit_length}⁻³]'
+        msg_list.append(line_fmt.format('boxsize', boxsize, params['boxsize']) + f' [{unit_length}]')
+    if not isclose(H0, float(params['H0']), rel_tol):
+        unit = units.km/(units.s*units.Mpc)
+        msg_list.append(line_fmt.format('H0', H0/unit, params['H0']/unit) + ' [km s⁻¹ Mpc⁻¹]')
+    if not isclose(Ωb, float(params.get('Ωb', Ωb)), rel_tol):
+        msg_list.append(line_fmt.format('Ωb', Ωb, params['Ωb']))
+    if not isclose(Ωcdm, float(params.get('Ωcdm', Ωcdm)), rel_tol):
+        msg_list.append(line_fmt.format('Ωcdm', Ωcdm, params['Ωcdm']))
+    if not isclose(Ωm, float(params.get('Ωm', Ωm)), rel_tol):
+        msg_list.append(line_fmt.format('Ωm', Ωm, params['Ωm']))
+    # Check if the total mass of each species within components
+    # adds up to the correct value as set by the CLASS background.
+    if enable_class_background:
+        # One species may be distributed over several components.
+        # Group components together according to their species.
+        species_components = collections.defaultdict(list)
+        for component in components:
+            species_components[component.species].append(component)
+        # Do the check for each species
+        a = correct_float(params['a'])
+        for component_group in species_components.values():
+            factors = [a**(-3*(1 + component.w_eff(a=a))) for component in component_group]
+            if len(set(factors)) > 1:
+                # Different w_eff despite same species.
+                # This is presumably caused by the user having some
+                # weird specifications. Skip check for this species.
+                continue
+            ρ_bar_backgrounds = [
+                factor*component.ϱ_bar
+                for component, factor in zip(component_group, factors)
+            ]
+            if len(set(ρ_bar_backgrounds)) > 1:
+                # Different ρ_bar_background despite same species.
+                # This is presumably caused by the user having some
+                # weird specifications. Skip check for this species.
+                continue
+            factor = factors[0]
+            ρ_bar_background = ρ_bar_backgrounds[0]
+            ϱ_bar_component = 0
+            for component in component_group:
+                if component.representation == 'particles':
+                    ϱ_bar_component += component.N*component.mass/boxsize**3
+                elif component.representation == 'fluid':
+                    ϱ_bar_component += (
+                        allreduce(np.sum(component.ϱ.grid_noghosts), op=MPI.SUM)
+                        /component.gridsize**3
                     )
+                else:
+                    continue
+            ρ_bar_component = factor*ϱ_bar_component
+            if not isclose(ρ_bar_background, ρ_bar_component, rel_tol):
+                msg = ', '.join([f'"{component.name}"' for component in component_group])
+                if len(component_group) > 1:
+                    msg = f'{{{msg}}}'
+                msg_list.append(
+                    line_fmt.format(
+                        f'̅ρ(a = {a}) of {msg} (species: {component.species})',
+                        ρ_bar_background,
+                        ρ_bar_component,
+                    ) + f' [{unit_mass} {unit_length}⁻³]'
+                )
     # Print out accumulated warning messages
     if len(msg_list) > 1:
         masterwarn('\n'.join(msg_list))
@@ -3344,25 +2592,15 @@ def determine_species(name, representation, only_explicit=False):
 # is to be read in from snapshot or not.
 def should_load(name, species, representation):
     component_mock = ComponentMock(name, species, representation)
-    data_load = is_selected(
+    return is_selected(
         [component_mock],
         snapshot_select['load'],
-        default={},
+        default=False,
     )
-    if not data_load:
-        return False
-    if representation == 'particles':
-        return (data_load.get('pos') or data_load.get('mom'))
-    else:  # representation == 'fluid'
-        return (
-               data_load.get('ϱ') or data_load.get('J')
-            or data_load.get('𝒫') or data_load.get('ς')
-        )
-
 # Simple mock of the Component type used by
 # the determine_species() and should_load() functions.
 ComponentMock = collections.namedtuple(
-    'ComponentMock',
+    'CompnentMock',
     ['name', 'species', 'representation'],
 )
 
@@ -3371,30 +2609,15 @@ ComponentMock = collections.namedtuple(
 # Construct tuple of possible filename extensions for snapshots
 # by simply grabbing the 'extension' class variable off of all
 # classes defined in this module with the name '...Snapshot'.
-cython.declare(
-    snapshot_classes=tuple,
-    snapshot_extensions=tuple,
-)
-snapshot_classes = tuple([
-    var for name, var in globals().items()
-    if (
-            hasattr(var, '__module__')
-        and var.__module__ == 'snapshot'
-        and inspect.isclass(var)
-        and name.endswith('Snapshot')
-    )
-])
-snapshot_extensions = tuple(set([
-    snapshot_class.extension
-    for snapshot_class in snapshot_classes
-    if snapshot_class.extension
-]))
-
-# Get local domain information
-domain_info = get_domain_info()
-cython.declare(
-    domain_subdivisions='int[::1]',
-    domain_layout_local_indices='int[::1]',
-)
-domain_subdivisions         = domain_info.subdivisions
-domain_layout_local_indices = domain_info.layout_local_indices
+cython.declare(snapshot_classes=tuple,
+               snapshot_extensions=tuple,
+               )
+snapshot_classes = tuple([var for name, var in globals().items()
+                          if (    hasattr(var, '__module__')
+                              and var.__module__ == 'snapshot'
+                              and inspect.isclass(var)
+                              and name.endswith('Snapshot')
+                              )
+                          ])
+snapshot_extensions = tuple(set([snapshot_class.extension for snapshot_class in snapshot_classes
+                                 if snapshot_class.extension]))

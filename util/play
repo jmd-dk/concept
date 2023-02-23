@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015–2023 Jeppe Mosgaard Dakin.
+# Copyright © 2015–2021 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -143,11 +143,10 @@ sys.stdout = stdout
 # Print out the arguments.
 # These will be captured in the Bash 'args' variable.
 print('argparse_finished=True')
-for arg, val in vars(args).items():
-    if isinstance(val, list):
-        print(f'{arg}=({{}})'.format(' '.join([f'\"{el}\"' for el in val])))
-    else:
-        print(f'{arg}=\"{val}\"')
+print('path=\"{}\"'.format(args.path))
+print('fps={}'.format(args.fps))
+print('component_combination=\"{}\"'.format(args.component))
+print('repeats={}'.format(args.repeats))
 " "$@" || echo "argparse_exit_code=$?")
 # Evaluate the handled arguments into this scope
 eval "${args}"
@@ -211,12 +210,12 @@ inf = float('inf')
 # Variables from Bash
 path = '${path}'
 fps = ${fps}
-selected_component_combination = '${component}'
+selected_component_combination = '${component_combination}'
 repeats = float('${repeats}')
 # The ANSI ESC character
 ANSI_ESC = '\x1b'
 # Read in the entire log file
-with open(path, mode='r', encoding='utf-8') as fname:
+with open(path, mode='r') as fname:
     text = fname.read()
 # Find all 2D terminal rendered component combinations
 component_combinations = []

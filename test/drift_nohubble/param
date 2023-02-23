@@ -4,9 +4,8 @@ output_dirs        = {'snapshot': f'{param.dir}/output'}
 output_bases       = {'snapshot': 'snapshot'}
 output_times       = {'t': {'snapshot': 5*Gyr}}
 
-# Numerics
+# Numerical parameters
 boxsize = 16*Mpc
 
-# Debugging
+# Debugging options
 enable_Hubble = False
-

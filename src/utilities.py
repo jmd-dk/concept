@@ -1,5 +1,5 @@
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015–2023 Jeppe Mosgaard Dakin.
+# Copyright © 2015–2021 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -24,38 +24,26 @@
 # In the .pyx file, Cython declared variables will also get cimported.
 from commons import *
 
-# Cython imports
+# Cython imports.
+# Functions from the 'analysis' and 'graphics' modules are not dumped
+# directly into the global namespace of this module, as functions with
+# identical names are defined here.
 cimport('import analysis')
 cimport('from analysis import measure')
-cimport('from communication import exchange')
+cimport('from communication import domain_subdivisions, exchange, partition, smart_mpi')
 cimport('import graphics')
-cimport(
-    'from integration import   '
-    '    cosmic_time,          '
-    '    remove_doppelgängers, '
-)
+cimport('from integration import cosmic_time, remove_doppelgängers')
 cimport(
     'from linear import                   '
     '    class_extra_perturbations_class, '
     '    compute_cosmo,                   '
     '    compute_transfer,                '
-    '    get_k_magnitudes,                '
     '    transferfunctions_registered,    '
 )
 cimport('from mesh import convert_particles_to_fluid')
-cimport(
-    'from snapshot import     '
-    '    compare_parameters,  '
-    '    get_snapshot_type,   '
-    '    snapshot_extensions, '
-)
+cimport('from snapshot import compare_parameters, get_snapshot_type, snapshot_extensions')
 cimport('import species')
-cimport(
-    'from snapshot import        '
-    '    get_initial_conditions, '
-    '    load,                   '
-    '    save,                   '
-)
+cimport('from snapshot import get_initial_conditions, load, save')
 
 # Pure Python imports
 from integration import init_time
@@ -92,38 +80,37 @@ def allow_similarly_named_components():
 # Function which convert all snapshots in the
 # special_params['snapshot_filenames'] parameter to the snapshot type
 # given in the snapshot_type parameter.
-@cython.pheader(
-    # Locals
-    N_vacuum='Py_ssize_t',
-    a='double',
-    component='Component',
-    dim='int',
-    ext=str,
-    index='int',
-    snapshot=object,
-    snapshot_filename=str,
-    converted_snapshot_filename=str,
-    params=dict,
-    attribute_str=str,
-    attributes=object,  # collections.defaultdict
-    attribute=str,
-    key=str,
-    value=object,  # double, str or NoneType
-    mass='double',
-    name=str,
-    names=list,
-    names_lower=list,
-    original_mass='double',
-    original_representation=str,
-    rel_tol='double',
-    unit_str=str,
-    σmom_fluid='double[::1]',
-    σmom_particles='double[::1]',
-    Σmass_fluid='double',
-    Σmass_particles='double',
-    Σmom_fluid='double[::1]',
-    Σmom_particles='double[::1]',
-)
+@cython.pheader(# Locals
+                N_vacuum='Py_ssize_t',
+                a='double',
+                component='Component',
+                dim='int',
+                ext=str,
+                index='int',
+                snapshot=object,
+                snapshot_filename=str,
+                converted_snapshot_filename=str,
+                params=dict,
+                attribute_str=str,
+                attributes=object,  # collections.defaultdict
+                attribute=str,
+                key=str,
+                value=object,  # double, str or NoneType
+                mass='double',
+                name=str,
+                names=list,
+                names_lower=list,
+                original_mass='double',
+                original_representation=str,
+                rel_tol='double',
+                unit_str=str,
+                σmom_fluid='double[::1]',
+                σmom_particles='double[::1]',
+                Σmass_fluid='double',
+                Σmass_particles='double',
+                Σmom_fluid='double[::1]',
+                Σmom_particles='double[::1]',
+                )
 def convert():
     """This function will convert the snapshot given in the
     special_params['snapshot_filename'] parameter to the type
@@ -189,7 +176,7 @@ def convert():
                 # written name and delete the wrongly written name key
                 # from the attributes.
                 attributes[names[names_lower.index(name.lower())]].update(attributes[name])
-                attributes.pop(name)
+                del attributes[name]
             else:
                 masterwarn(
                     f'The following attributes are specified for {name}, '
@@ -229,7 +216,7 @@ def convert():
         # way around is not supported).
         if component.N > 1 and component.gridsize > 1:
             component.representation = 'fluid'
-        # Apply particles → fluid conversion, if necessary
+        # Apply particles --> fluid conversion, if necessary
         if original_representation == 'particles' and component.representation == 'fluid':
             # To do the conversion, the particles need to be
             # distributed according to which domain they are in.
@@ -368,7 +355,7 @@ def convert():
     filenames=list,
     msg=str,
     snapshot_filenames=list,
-    returns=object,  # list or str; always list when called externally
+    returns=list,
 )
 def locate_snapshots(
     path_or_paths_snapshot,
@@ -403,22 +390,18 @@ def locate_snapshots(
         # Handle single string (pointing to file or directory)
         path_snapshot = path_or_paths_snapshot
         # Get all files and directories from the path
-        if get_snapshot_type(path_snapshot, collective=False):
+        if get_snapshot_type(path_snapshot):
             filenames = [path_snapshot]
         elif os.path.isdir(path_snapshot):
             filenames = []
-            for filename in sorted(os.listdir(path_snapshot)):
+            for filename in os.listdir(path_snapshot):
                 filename = os.path.join(path_snapshot, filename)
                 if os.path.isfile(filename) or os.path.isdir(filename):
                     filenames.append(filename)
         else:
             filenames = [path_snapshot]
         # Only use snapshots
-        snapshot_filenames = [
-            filename
-            for filename in filenames
-            if get_snapshot_type(filename, collective=False)
-        ]
+        snapshot_filenames = [filename for filename in filenames if get_snapshot_type(filename)]
         if not snapshot_filenames:
             if os.path.isdir(path_snapshot):
                 msg = f'The directory "{path_snapshot}" does not contain any snapshots'
@@ -485,77 +468,28 @@ def powerspec():
             index = len(basename) - len(ext)
             basename = basename[:index]
             break
-    output_filename = '{}/{}{}{}'.format(
-        output_dir,
-        output_bases['powerspec'],
-        '_' if output_bases['powerspec'] else '',
-        basename,
-    )
+    output_filename = '{}/{}{}{}'.format(output_dir,
+                                         output_bases['powerspec'],
+                                         '_' if output_bases['powerspec'] else '',
+                                         basename)
     # Prepend 'powerspec_' to filename if it
     # is identical to the snapshot filename.
     if output_filename == snapshot_filename:
-        output_filename = f'{output_dir}/powerspec_{basename}'
+        output_filename = '{}/powerspec_{}'.format(output_dir, basename)
     # Produce power spectrum of the snapshot
     analysis.powerspec(snapshot.components, output_filename)
 
-# Function that produces a bispectrum of the file
-# specified by the special_params['snapshot_filename'] parameter.
-@cython.pheader(
-    # Locals
-    basename=str,
-    index='int',
-    ext=str,
-    output_dir=str,
-    output_filename=str,
-    snapshot=object,
-    snapshot_filename=str,
-)
-def bispec():
-    init_time()
-    # Extract the snapshot filename
-    snapshot_filename = special_params['snapshot_filename']
-    # Read in the snapshot, postponing the parameter comparison
-    snapshot = load(snapshot_filename, compare_params=False)
-    # Set universal scale factor and cosmic time and to match
-    # that of the snapshot.
-    universals.a = snapshot.params['a']
-    if enable_Hubble:
-        universals.t = cosmic_time(universals.a)
-    # Now do the parameter comparison
-    compare_parameters(snapshot, snapshot_filename)
-    # Construct output filename based on the snapshot filename.
-    # Importantly, remove any file extension signalling a snapshot.
-    output_dir, basename = os.path.split(snapshot_filename)
-    for ext in snapshot_extensions:
-        if basename.endswith(ext):
-            index = len(basename) - len(ext)
-            basename = basename[:index]
-            break
-    output_filename = '{}/{}{}{}'.format(
-        output_dir,
-        output_bases['bispec'],
-        '_' if output_bases['bispec'] else '',
-        basename,
-    )
-    # Prepend 'bispec_' to filename if it
-    # is identical to the snapshot filename.
-    if output_filename == snapshot_filename:
-        output_filename = f'{output_dir}/bispec_{basename}'
-    # Produce bispectrum of the snapshot
-    analysis.bispec(snapshot.components, output_filename)
-
 # Function which produces a 3D render of the file
 # specified by the special_params['snapshot_filename'] parameter.
-@cython.pheader(
-    # Locals
-    basename=str,
-    index='int',
-    ext=str,
-    output_dir=str,
-    output_filename=str,
-    snapshot=object,
-    snapshot_filename=str,
-)
+@cython.pheader(# Locals
+                basename=str,
+                index='int',
+                ext=str,
+                output_dir=str,
+                output_filename=str,
+                snapshot=object,
+                snapshot_filename=str,
+                )
 def render3D():
     init_time()
     # Extract the snapshot filename
@@ -577,21 +511,20 @@ def render3D():
             index = len(basename) - len(ext)
             basename = basename[:index]
             break
-    output_filename = '{}/{}{}{}'.format(
-        output_dir,
-        output_bases['render3D'],
-        '_' if output_bases['render3D'] else '',
-        basename,
-    )
+    output_filename = '{}/{}{}{}'.format(output_dir,
+                                         output_bases['render3D'],
+                                         '_' if output_bases['render3D'] else '',
+                                         basename)
     # Attach missing extension to filename
     if not output_filename.endswith('.png'):
         output_filename += '.png'
     # Prepend 'render3D_' to filename if it
     # is identical to the snapshot filename.
     if output_filename == snapshot_filename:
-        output_filename = f'{output_dir}/render3D_{basename}'
+        output_filename = '{}/render3D_{}'.format(output_dir, basename)
     # Render the snapshot
-    graphics.render3D(snapshot.components, output_filename)
+    graphics.render3D(snapshot.components, output_filename,
+                    True, '.renders3D_{}'.format(basename))
 
 # Function for printing all informations within a snapshot
 @cython.pheader(
@@ -674,32 +607,22 @@ def info():
             # as it is grepped for by several of the Bash utilities.
             heading = '\nParameters of "{}"'.format(sensible_path(snapshot_filename))
             masterprint(terminal.bold(heading), wrap=False)
-            with open_file(parameter_filename, mode='w', encoding='utf-8') as pfile:
-                masterprint(
-                    f'# Auto-generated parameter file for the snapshot\n# "{snapshot_filename}"\n',
-                    file=pfile, wrap=False,
-                )
+            with open_file(parameter_filename, mode='w') as pfile:
+                masterprint('# Auto-generated parameter file for the snapshot\n# "{}"\n'
+                            .format(snapshot_filename), file=pfile, wrap=False)
                 # Loop over stdout and the new parameter file
                 for file in (sys.stdout, pfile):
                     masterprint('# Input/output', file=file, wrap=False)
-                    masterprint(
-                        "initial_conditions = '{}'".format(sensible_path(snapshot_filename)),
-                        file=file, wrap=False,
-                    )
+                    masterprint("initial_conditions = '{}'".format(sensible_path(snapshot_filename)),
+                                file=file, wrap=False)
                     if hasattr(snapshot, 'units'):
                         masterprint('# System of units', file=file, wrap=False)
-                        masterprint(
-                            "unit_length = '{}'".format(snapshot.units['length']),
-                            file=file, wrap=False,
-                        )
-                        masterprint(
-                            "unit_time = '{}'".format(snapshot.units['time']),
-                            file=file, wrap=False,
-                        )
-                        masterprint(
-                            "unit_mass = '{}'".format(snapshot.units['mass']),
-                            file=file, wrap=False,
-                        )
+                        masterprint("unit_length = '{}'".format(snapshot.units['length']),
+                                    file=file, wrap=False)
+                        masterprint("unit_time = '{}'".format(snapshot.units['time']),
+                                    file=file, wrap=False)
+                        masterprint("unit_mass = '{}'".format(snapshot.units['mass']),
+                                    file=file, wrap=False)
                     masterprint('# Numerical parameters', file=file, wrap=False)
                     unit = 100*units.km/(units.s*units.Mpc)
                     h = params['H0']/unit
@@ -804,34 +727,31 @@ def info():
         # Note that the header structure of GADGET-2
         # specifically is assumed.
         if snapshot_type == 'gadget':
-            masterprint('GADGET header:')
-            for key, val in snapshot.header.items():
-                masterprint(f'{key:<16} {val}', indent=4)
-        # Print out TIPSY header for TIPSY snapshots
-        if snapshot_type == 'tipsy':
-            masterprint('TIPSY header:')
+            masterprint('GADGET-2 header:')
             for key, val in snapshot.header.items():
                 masterprint(f'{key:<16} {val}', indent=4)
         # Print out component information
         for component in snapshot.components:
-            masterprint(f'{component.name}:')
+            masterprint('{}:'.format(component.name))
             masterprint('{:<16} {}'.format('species', component.species), indent=4)
             # Representation-specific attributes
             if component.representation == 'particles':
                 # Print the particle number N
-                masterprint(
-                    '{:<16} {} = {}'.format('N', component.N, get_cubenum_strrep(component.N)),
-                    indent=4,
-                )
-                masterprint(
-                    '{:<16} {} m☉'.format(
-                        'mass',
-                        significant_figures(
-                            component.mass/units.m_sun, 6, fmt='unicode', incl_zeros=False,
-                        )
-                    ) if component.mass != -1 else '{:<16} ?'.format('mass'),
-                    indent=4,
-                )
+                if isint(ℝ[cbrt(component.N)]):
+                    # When N is cube number, print also the cube root
+                    masterprint('{:<16} {} = {:.0f}³'.format('N',
+                                                             component.N,
+                                                             ℝ[cbrt(component.N)]),
+                                indent=4)
+                else:
+                    masterprint('{:<16} {}'.format('N', component.N), indent=4)
+                masterprint('{:<16} {} m☉'.format('mass',
+                                                  significant_figures(component.mass/units.m_sun,
+                                                                      6,
+                                                                      fmt='unicode',
+                                                                      incl_zeros=False)
+                                                  ),
+                            indent=4)
             elif component.representation == 'fluid':
                 masterprint('{:<16} {}'.format('gridsize', component.gridsize), indent=4)
                 masterprint(
@@ -839,9 +759,9 @@ def info():
                     indent=4,
                 )
                 if component.w_type == 'constant':
-                    eos_info = significant_figures(
-                        component.w_constant, 6, fmt='unicode', incl_zeros=False,
-                    )
+                    eos_info = significant_figures(component.w_constant, 6,
+                                                   fmt='unicode', incl_zeros=False,
+                                                   )
                 elif component.w_type == 'tabulated (t)':
                     eos_info = 'tabulated w(t)'
                 elif component.w_type == 'tabulated (a)':
@@ -854,26 +774,20 @@ def info():
             # Component statistics
             if special_params['stats']:
                 Σmom, σmom = measure(component, 'momentum')
-                masterprint(
-                    '{:<16} [{}, {}, {}] {}'.format(
-                        'momentum sum',
-                        *significant_figures(
-                            asarray(Σmom)/units.m_sun, 6, fmt='unicode', force_scientific=True,
-                        ),
-                        f'm☉ {unit_length} {unit_time}⁻¹',
-                    ),
-                    indent=4,
-                )
-                masterprint(
-                    '{:<16} [{}, {}, {}] {}'.format(
-                        'momentum spread',
-                        *significant_figures(
-                            asarray(σmom)/units.m_sun, 6, fmt='unicode', force_scientific=True,
-                        ),
-                        f'm☉ {unit_length} {unit_time}⁻¹',
-                    ),
-                    indent=4,
-                )
+                masterprint('{:<16} [{}, {}, {}] {}'.format('momentum sum',
+                                                            *significant_figures(asarray(Σmom)/units.m_sun,
+                                                                                 6,
+                                                                                 fmt='unicode',
+                                                                                 scientific=True),
+                                                            'm☉ {} {}⁻¹'.format(unit_length, unit_time)),
+                            indent=4)
+                masterprint('{:<16} [{}, {}, {}] {}'.format('momentum spread',
+                                                            *significant_figures(asarray(σmom)/units.m_sun,
+                                                                                 6,
+                                                                                 fmt='unicode',
+                                                                                 scientific=True),
+                                                            'm☉ {} {}⁻¹'.format(unit_length, unit_time)),
+                            indent=4)
         # End of information
         masterprint('')
 
@@ -887,53 +801,33 @@ def info():
     a_values='double[::1]',
     all_a_values='double[::1]',
     arr='double[::1]',
-    boltzmann_order='Py_ssize_t',
-    class_modes_per_decade_ori=dict,
     class_species=str,
     component='Component',
     component_variables=dict,
     components=list,
     compute_perturbations='bint',
     convenience_attributes=dict,
-    fac='double',
-    fac_max='double',
-    fac_min='double',
     filename=str,
     gauge=str,
     gauge_str=str,
     gridsize='Py_ssize_t',
-    gridsize_i='Py_ssize_t',
-    gridsize_or_k_magnitudes=object,  # Py_ssize_t or np.ndarray
     i='Py_ssize_t',
     index='Py_ssize_t',
+    k_gridsize='Py_ssize_t',
     k_magnitudes='double[::1]',
-    k_max='double',
-    k_min='double',
-    key=str,
-    modes=object,  # int or np.ndarray
+    ntimes='Py_ssize_t',
     perturbations=object,  # PerturbationDict
+    powerspec_gridsize='Py_ssize_t',
     rank_other='int',
     size='Py_ssize_t',
-    times=object,  # int or np.ndarray
     transfer='double[:, ::1]',
-    transfer_of_k='double[::1]',
     transferfunction_info=object,  # TransferFunctionInfo
+    transfer_of_k='double[::1]',
     var_name=str,
     variable_specifications=list,
     ρ_bars=dict,
 )
 def class_():
-    # Error out if any species has a Boltzmann order
-    # outside the implemented range.
-    for d in initial_conditions:
-        if not isinstance(d, dict):
-            continue
-        boltzmann_order = int(d.get('boltzmann_order', 0)) + 1
-        class_species = d.get('species', d.get('name', ''))
-        if boltzmann_order < 0:
-            abort(f'Species {class_species} has Boltzmann order {boltzmann_order} < 0')
-        if boltzmann_order > 2:
-            abort(f'Species {class_species} has Boltzmann order {boltzmann_order} > 2')
     # Suppress warning about the total energy density of the components
     # being too high, as the components are not used to perform a
     # simulation anyway.
@@ -944,147 +838,39 @@ def class_():
     # Should we compute and store perturbations (or only background)?
     compute_perturbations = bool(components or class_extra_perturbations)
     if compute_perturbations:
-        # Get the grid size corresponding to the maximum k.
-        # Note that the minimum k is implicitly set by the boxsize.
-        gridsize = -1
-        if compute_perturbations:
-            for gridsize_i in powerspec_options.get('global gridsize', {'default': -1}).values():
-                gridsize_i = int(round(float(gridsize_i)))
-                if gridsize_i > gridsize:
-                    gridsize = gridsize_i
-            if gridsize <= 2:
-                abort(
-                    'You should specify the maximum k mode to compute, either explicitly '
-                    'via the --kmax command-line option to the class utility, or implicitly '
-                    'by specifying the powerspec_options["global gridsize"] parameter, e.g.\n'
-                    'powerspec_options = {"global gridsize": 512}'
-                )
-        # If a maximum k is explicitly given, make sure that this is in
-        # fact included in the k range.
-        k_min = float(special_params['kmin'])
-        k_max = float(special_params['kmax'])
-        while k_max != -1:
-            k_magnitudes, _ = get_k_magnitudes(gridsize, use_cache=False)
-            if k_magnitudes[k_magnitudes.shape[0] - 1] >= k_max:
-                break
-            gridsize += 2
-        # Get either the number of modes at which to tabulate
-        # the perturbations, or the exact k values of these modes.
-        # A value of -1 means that no specific number of modes has been
-        # requested, in which case we should use the number obtained
-        # from class_modes_per_decade as is.
-        modes = bcast(
-            handle_class_arg(special_params['modes'], 'modes', k_min, k_max)
-            if master else None
-        )
-        # Get the k values at which to tabulate the perturbations
-        gridsize_or_k_magnitudes = modes
-        if isinstance(modes, (int, np.integer)):
-            gridsize_or_k_magnitudes = gridsize
-            if modes == 0:
-                abort(
-                    'You have specified 0 modes. If you do not want any perturbation output, '
-                    'omit the perturbation argument to the class utility'
-                )
-            elif modes < -1:
-                abort(f'Invalid number of modes: {modes}')
-            elif modes == 1:
-                # Set a specific mode
-                if 0 < k_min < ထ and 0 < k_max < ထ:
-                    gridsize_or_k_magnitudes = asarray(
-                        [sqrt(k_min*k_max)],
-                        dtype=C2np['double'],
-                    )
-                else:
-                    k_magnitudes, _ = get_k_magnitudes(gridsize)
-                    gridsize_or_k_magnitudes = asarray(
-                        [np.prod(k_magnitudes)**(1/k_magnitudes.size)],
-                        dtype=C2np['double'],
-                    )
-            elif modes != -1:
-                # Adjust the global user parameter
-                # class_modes_per_decade so that the exact requested
-                # number of k modes is obtained.
-                class_modes_per_decade_ori = class_modes_per_decade.copy()
-                k_magnitudes, _ = get_k_magnitudes(gridsize, use_cache=False)
-                fac = 1
-                while k_magnitudes.shape[0] < modes:
-                    fac *= 1.1
-                    for k_magnitude, val in class_modes_per_decade_ori.items():
-                        class_modes_per_decade[k_magnitude] = fac*val
-                    k_magnitudes, _ = get_k_magnitudes(gridsize, use_cache=False)
-                fac_max = fac
-                while k_magnitudes.shape[0] > modes:
-                    fac *= 0.9
-                    for k_magnitude, val in class_modes_per_decade_ori.items():
-                        class_modes_per_decade[k_magnitude] = fac*val
-                    k_magnitudes, _ = get_k_magnitudes(gridsize, use_cache=False)
-                fac_min = fac
-                while True:
-                    fac = sqrt(fac_min*fac_max)
-                    for k_magnitude, val in class_modes_per_decade_ori.items():
-                        class_modes_per_decade[k_magnitude] = fac*val
-                    k_magnitudes, _ = get_k_magnitudes(gridsize, use_cache=False)
-                    if isclose(fac_min, fac_max):
-                        break
-                    if k_magnitudes.shape[0] < modes:
-                        fac_min = fac
-                    elif k_magnitudes.shape[0] > modes:
-                        fac_max = fac
-                    else:
-                        break
+        # Get power spectrum gridsize
+        powerspec_gridsize = -1
+        for component in components:
+            gridsize_tmp = is_selected(component, powerspec_options['global gridsize'])
+            if gridsize_tmp is None or isinstance(gridsize_tmp, str) or gridsize_tmp <= 2:
+                continue
+            gridsize = int(gridsize_tmp)
+            if gridsize and gridsize > powerspec_gridsize:
+                powerspec_gridsize = gridsize
+        if powerspec_gridsize == -1:
+            for gridsize_tmp in powerspec_options['global gridsize'].values():
+                if not (
+                    gridsize_tmp is None or isinstance(gridsize_tmp, str) or gridsize_tmp <= 2
+                ):
+                    powerspec_gridsize = int(gridsize_tmp)
+                    break
+        if powerspec_gridsize <= 2:
+            abort(
+                'You should (further) specify a power spectrum grid size, e.g.\n'
+                'powerspec_options = {"global gridsize": 64}'
+            )
     # Do CLASS computation
     if compute_perturbations:
         gauge = special_params['gauge'].replace('-', '').lower()
         cosmoresults = compute_cosmo(
-            gridsize_or_k_magnitudes,
+            powerspec_gridsize,
             'synchronous' if gauge == 'nbody' else gauge,
-            class_call_reason=(
-                'in order to get {} gauge perturbations'
-                .format(
-                    {
-                        'nbody'      : '𝘕-body',
-                        'synchronous': 'synchronous',
-                        'newtonian'  : 'Newtonian',
-                    }.get(gauge)
-                )
-            ),
+            class_call_reason='in order to get perturbations',
         )
         k_magnitudes = cosmoresults.k_magnitudes
     else:
         cosmoresults = compute_cosmo(class_call_reason='in order to get background')
     cosmoresults.load_everything()
-    # If perturbations should be plotted, we want to include all
-    # perturbations used as an intermediate step as well (e.g. for gauge
-    # transformation) in the detrended plots. We ensure this by simply
-    # retrieving all used perturbations as TransferFunction instances,
-    # which triggers calls to graphics.plot_detrended_perturbations().
-    if (
-            compute_perturbations
-        and class_plot_perturbations
-    ):
-        # If the number of processes exceeds the number of k modes,
-        # not all processes know about the perturbations in use, and so
-        # we need to broadcast this information.
-        bcast_root = allreduce(
-            rank + nprocs*(len(getattr(cosmoresults, '_perturbations', [])) == 0),
-            op=MPI.MIN,
-        )
-        if bcast_root < nprocs:
-            names_class = bcast(
-                (
-                    list(cosmoresults._perturbations[0].keys())
-                    if rank == bcast_root else None
-                ),
-                bcast_root,
-            )
-            for name_class in names_class:
-                for transferfunction_info in transferfunctions_registered.values():
-                    if transferfunction_info.name_class == name_class:
-                        getattr(
-                            cosmoresults,
-                            transferfunction_info.name.removesuffix('_tot'),
-                        )(get='object')
     # Store all CLASS parameters, the unit system in use,
     # the processed background and a few convenience attributes
     # in a new hdf5 file.
@@ -1105,9 +891,9 @@ def class_():
             # variables stored below will be stored in these units.
             units_h5 = hdf5_file.require_group('units')
             for unit_name, unit_val in {
-                'unit time'  : unit_time,
+                'unit time': unit_time,
                 'unit length': unit_length,
-                'unit mass'  : unit_mass,
+                'unit mass': unit_mass,
             }.items():
                 try:
                     units_h5.attrs[unit_name] = bytes(unit_val, encoding='ascii')
@@ -1155,16 +941,10 @@ def class_():
                     key = 'H'
                 elif key == 'gr.fac. D':
                     # Unitless
-                    key = 'D'
+                    key = 'D1'
                 elif key == 'gr.fac. f':
                     # Unitless
-                    key = 'f'
-                elif key == 'gr.fac. D2':
-                    # Unitless
-                    key = 'D2'
-                elif key == 'gr.fac. f2':
-                    # Unitless
-                    key = 'f2'
+                    key = 'f1'
                 elif key == '(.)w_fld':
                     # Unitless
                     key = 'w_fld'
@@ -1222,7 +1002,7 @@ def class_():
         # Create list of (variable, specific_multi_index, var_name)
         variable_specifications = [(0, None, 'δ')]
         if component.representation == 'particles':
-            if not component.realization_options['backscale']:
+            if not component.realization_options['mom'].get('velocitiesfromdisplacements', False):
                 variable_specifications.append((1, None, 'θ'))
         elif component.representation == 'fluid':
             if component.boltzmann_order > 0 or (
@@ -1286,46 +1066,16 @@ def class_():
                 break
         all_a_values, _ = remove_doppelgängers(all_a_values, all_a_values, rel_tol=0.5)
         all_a_values = asarray(all_a_values).copy()
-        # Get either the number of times at which to tabulate
-        # the perturbations, or the exact scale factor values at which
-        # to do so. A value of -1 means include all values from CLASS.
-        times = handle_class_arg(special_params['times'], 'times')
-        # Get the scale factor values at which
-        # to tabulate the perturbations.
-        if isinstance(times, (int, np.integer)):
-            # If too many a values are given, evenly select the
-            # requested amount from the available times.
-            if all_a_values.shape[0] > times and times != -1:
-                step = float(all_a_values.shape[0])/(times - 1)
-                all_a_values_selected = empty(times, dtype=C2np['double'])
-                for i in range(times - 1):
-                    all_a_values_selected[i] = all_a_values[cast(int(i*step), 'Py_ssize_t')]
-                all_a_values_selected[times - 1] = all_a_values[all_a_values.shape[0] - 1]
-                all_a_values = all_a_values_selected
-        else:
-            # Use explicit values given
-            if times[0] < all_a_values[0]:
-                if isclose(cast(times[0], 'double'), cast(all_a_values[0], 'double')):
-                    times[0] = all_a_values[0]
-                else:
-                    abort(
-                        f'Cannot tabulate perturbations at a = {times[0]} as the '
-                        f'earliest scale factor value tabulated from the CLASS computation '
-                        f'is {all_a_values[0]}. Try lowering the a_begin parameter.'
-                    )
-            if times[times.shape[0] - 1] > all_a_values[all_a_values.shape[0] - 1]:
-                if isclose(
-                    cast(times[times.shape[0] - 1], 'double'),
-                    cast(all_a_values[all_a_values.shape[0] - 1], 'double'),
-                ):
-                    times[times.shape[0] - 1] = all_a_values[all_a_values.shape[0] - 1]
-                else:
-                    abort(
-                        f'Cannot tabulate perturbations at a = {times[times.shape[0] - 1]} as the '
-                        f'last scale factor value tabulated by CLASS '
-                        f'is {all_a_values[all_a_values.shape[0] - 1]}'
-                    )
-            all_a_values = times
+        # If too many a values are given, evenly select the amount
+        # given by the "ntimes" utility argument.
+        if all_a_values.shape[0] > special_params['ntimes']:
+            ntimes = int(round(special_params['ntimes']))
+            step = float(all_a_values.shape[0])/(ntimes - 1)
+            all_a_values_selected = empty(ntimes, dtype=C2np['double'])
+            for i in range(ntimes - 1):
+                all_a_values_selected[i] = all_a_values[cast(int(i*step), 'Py_ssize_t')]
+            all_a_values_selected[ntimes - 1] = all_a_values[all_a_values.shape[0] - 1]
+            all_a_values = all_a_values_selected
         # Broadcast the a values to the slave processes
         bcast(all_a_values.shape[0])
         Bcast(all_a_values)
@@ -1364,9 +1114,8 @@ def class_():
     # For the next transfer function, we reuse the same 2D arrays,
     # as all transfer functions are tabulated at the same a and k.
     gauge_str = {
-        'nbody'      : '𝘕-body',
-        'synchronous': 'synchronous',
-        'newtonian'  : 'Newtonian',
+        'newtonian': 'Newtonian',
+        'nbody'    : 'N-body',
     }.get(gauge, gauge)
     if master:
         transfer = empty((all_a_values.shape[0], k_magnitudes.shape[0]), dtype=C2np['double'])
@@ -1378,11 +1127,11 @@ def class_():
         for variable, specific_multi_index, var_name in variable_specifications:
             transferfunction_info = transferfunctions_registered[var_name]
             if transferfunction_info.total:
-                masterprint(f'Working on {var_name} perturbations ...')
+                masterprint(f'Working on {var_name} transfer functions ...')
             else:
                 masterprint(
                     f'Working on {var_name} {class_species} '
-                    f'{gauge_str} gauge perturbations ...'
+                    f'{gauge_str} gauge transfer functions ...'
                 )
             for i in range(all_a_values.shape[0]):
                 a = all_a_values[i]
@@ -1390,19 +1139,19 @@ def class_():
                     transfer_of_k = getattr(cosmoresults, var_name)(a)
                 else:
                     transfer_of_k, _ = compute_transfer(
-                        component, variable, gridsize_or_k_magnitudes, specific_multi_index, a,
-                        -1,  # the a_next argument
+                        component, variable, powerspec_gridsize, specific_multi_index, a,
+                        -1, # The a_next argument
                         gauge, get='array',
                     )
                 if master:
                     transfer[i, :] = transfer_of_k
             if not master:
                 continue
-            # Save perturbations to disk
+            # Save transfer function to disk
             if transferfunction_info.total:
-                masterprint(f'Saving processed {var_name} perturbations ...')
+                masterprint(f'Saving processed {var_name} transfer functions ...')
             else:
-                masterprint(f'Saving processed {var_name} {class_species} perturbations ...')
+                masterprint(f'Saving processed {var_name} {class_species} transfer functions ...')
             with open_hdf5(filename, mode='a') as hdf5_file:
                 perturbations_h5 = hdf5_file.require_group('perturbations')
                 dset_name = transferfunction_info.name_ascii.format(class_species)
@@ -1413,7 +1162,7 @@ def class_():
                 )
                 dset[...] = transfer
             masterprint('done')
-            # Plot perturbations
+            # Plot transfer functions
             if class_plot_perturbations:
                 graphics.plot_processed_perturbations(
                     all_a_values,
@@ -1426,40 +1175,3 @@ def class_():
             masterprint('done')
     # Done writing processed CLASS output
     masterprint(f'All processed CLASS output has been saved to "{filename}"')
-
-# Helper function for the class_() function
-def handle_class_arg(arg, kind, vmin=0, vmax=ထ):
-    if not isinstance(arg, str):
-        abort(f'handle_class_arg() called with type {type(arg)}')
-    if vmin == -1:
-        vmin = 0
-    if vmax == -1:
-        vmax = ထ
-    kind = {'times': 'a', 'modes': 'k'}.get(kind, kind)
-    if os.path.isfile(arg):
-        if arg.endswith('.hdf5'):
-            with open_hdf5(arg, mode='r') as hdf5_file:
-                values = hdf5_file[f'perturbations/{kind}'][:]
-                # Apply units of inverse length in the case of k modes
-                if kind == 'k':
-                    unit_length_hdf5 = hdf5_file['units'].attrs['unit length']
-                    unit = 1/eval_unit(unit_length_hdf5)
-                    values *= unit
-        else:
-            values = np.loadtxt(arg)
-            if values.ndim > 1:
-                abort(f'Got several arrays of data from file {arg}')
-    else:
-        values = eval_unit(arg, units_dict)
-    if isinstance(values, (int, float, np.integer, np.floating)):
-        if values == ထ:
-            values = -1
-        else:
-            values = int(round(values))
-    else:
-        values = asarray(values, dtype=C2np['double'])
-        if values.shape == ():
-            values = asarray([values[()]])
-        values = asarray(sorted(set(values)), dtype=C2np['double'])
-        values = values[(vmin <= values) & (values <= vmax)]
-    return values

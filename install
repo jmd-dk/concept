@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015–2023 Jeppe Mosgaard Dakin.
+# Copyright © 2015–2021 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -96,6 +96,7 @@ directory consist of the following and will be installed in order:
   - MPICH/OpenMPI
   - HDF5
   - FFTW
+  - FreeType (needed by Matplotlib)
   - ncurses  (needed by _curses (needed by Blessings))
   - OpenSSL  (needed by pip)
   - libffi   (needed by _ctypes (needed by pip))
@@ -221,6 +222,7 @@ if [ "${install_explicit_only}" == "True" ]; then
         "class"             \
         "fftw"              \
         "fftw_for_gadget"   \
+        "freetype"          \
         "gadget"            \
         "gsl"               \
         "hdf5"              \
@@ -252,6 +254,7 @@ fi
 set_dir "concept"         "__concept_dir__"
 set_dir "class"           "__concept_dir__/dep/class"
 set_dir "fftw"            "__concept_dir__/dep/fftw"
+set_dir "freetype"        "__concept_dir__/dep/freetype"
 set_dir "gadget"          "__concept_dir__/dep/gadget"
 set_dir "fftw_for_gadget" "${gadget_dir}/fftw"
 set_dir "gsl"             "__concept_dir__/dep/gsl"
@@ -296,41 +299,42 @@ concept_version_specified="False"
 if [ -n "${concept_version}" ]; then
     concept_version_specified="True"
 fi
-set_version "concept"           "master"
-set_version "blas"              "0.3.20"  "0.3.20"
+set_version "concept"           "1.0.1"
+set_version "blas"              "0.3.18"  "0.3.18"
 set_version "class"             "2.7.2"
 set_version "fftw"              "3.3.10"  "3.3.10"
 set_version "fftw_for_gadget"   "2.1.5"   "2.1.5"   # Do not change
+set_version "freetype"          "2.11.1"  "2.11.1"
 set_version "gadget"            "2.0.7"             # Do not change
 set_version "gsl"               "2.7"     "2.7"
 set_version "hdf5"              "1.12.1"
 set_version "libffi"            "3.4.2"   "3.3"
 if [ "${mpi}" == "mpich" ]; then
-    set_version "mpi"           "3.4.3"   "3.4.3"
+    set_version "mpi"           "3.4.2"   "3.4.2"
 elif [ "${mpi}" == "openmpi" ]; then
     set_version "mpi"           "4.1.2"
 fi
 set_version "ncurses"           "6.3"     "6.3"
-set_version "openssl"           "3.0.1"   "3.0.0"
+set_version "openssl"           "3.0.0"   "1.1.1k"
 set_version "perl"              "5.34.0"
-set_version "python"            "3.9.10"
+set_version "python"            "3.9.9"
 set_version "zlib"              "1.2.11"  "1.2.11"
 # Python packages
 set_version "blessings"         "1.7"
-set_version "cython"            "0.29.28"
+set_version "cython"            "0.29.24"
 set_version "cythongsl"         "0.2.2"
 set_version "h5py"              "3.6.0"
-set_version "matplotlib"        "3.6.3"
+set_version "matplotlib"        "3.5.0"
 set_version "mpi4py"            "3.1.3"
-set_version "numpy"             "1.22.3"
-set_version "pip"               "22.0.4"
-set_version "scipy"             "1.8.0"
-set_version "setuptools"        "61.2.0"
-set_version "sphinx"            "4.5.0"
-set_version "sphinx_copybutton" "0.5.0"
+set_version "numpy"             "1.21.4"
+set_version "pip"               "21.3.1"
+set_version "scipy"             "1.7.3"
+set_version "setuptools"        "59.5.0"
+set_version "sphinx"            "4.3.1"
+set_version "sphinx_copybutton" "0.4.0"
 set_version "sphinx_rtd_theme"  "1.0.0"
-set_version "sphinx_tabs"       "3.3.1"
-set_version "wheel"             "0.37.1"
+set_version "sphinx_tabs"       "3.2.0"
+set_version "wheel"             "0.37.0"
 # Note that the versions may be changed further down due to known
 # compatibility issues between specific versions of the above programs
 # and specific versions of system dependencies.
@@ -457,6 +461,7 @@ class_test_success="True"
 concept_test_success="True"
 fftw_test_success="True"
 fftw_for_gadget_test_success="True"
+freetype_test_success="True"
 gadget_test_success="True"
 gsl_test_success="True"
 hdf5_test_success="True"
@@ -558,37 +563,35 @@ if [ "${slim}" == "True" ]; then
 fi
 
 # Backup of initial environment variables
-env_var_names=(       \
-    BLAS              \
-    CC                \
-    CFLAGS            \
-    CPPFLAGS          \
-    CXX               \
-    CXXFLAGS          \
-    F77               \
-    F90               \
-    F9X               \
-    FC                \
-    FCFLAGS           \
-    FFLAGS            \
-    HDF5_DIR          \
-    HDF5_MPI          \
-    LAPACK            \
-    LD_LIBRARY_PATH   \
-    LD_PRELOAD        \
-    LDFLAGS           \
-    LIBS              \
-    MPICC             \
-    MPILIBS           \
-    MPLSETUPCFG       \
-    OPT               \
-    PATH              \
-    PERL              \
-    PKG_CONFIG_PATH   \
-    SCIPY_USE_PYTHRAN \
-    TEMP              \
-    TMP               \
-    TMPDIR            \
+env_var_names=(     \
+    BLAS            \
+    CC              \
+    CFLAGS          \
+    CPPFLAGS        \
+    CXX             \
+    CXXFLAGS        \
+    F77             \
+    F90             \
+    F9X             \
+    FC              \
+    FCFLAGS         \
+    FFLAGS          \
+    HDF5_DIR        \
+    HDF5_MPI        \
+    LAPACK          \
+    LD_LIBRARY_PATH \
+    LD_PRELOAD      \
+    LDFLAGS         \
+    LIBS            \
+    MPICC           \
+    MPILIBS         \
+    MPLSETUPCFG     \
+    PATH            \
+    PERL            \
+    PKG_CONFIG_PATH \
+    TEMP            \
+    TMP             \
+    TMPDIR          \
 )
 for env_var_name in "${env_var_names[@]}"; do
     # Save initial state (set/unset) of the environment variable
@@ -616,21 +619,18 @@ reset_environment() {
 }
 
 # Function for converting a path to its absolute form
-initial_dir="$(pwd)"  # it is crucial that this line is before any cd
+initial_dir="$(pwd)"  # It is crucial that this line is before any cd
 convert_to_abs_path() {
     # Arguments: path
     current_dir="$(pwd)"
     cd "${initial_dir}"
-    # Place backslashes before spaces, dollar signs and parentheses.
+    # Places backslashes before spaces.
     # These are needed when expanding tilde, but they will not persist.
-    local abs_path="${1// /\\ }"
-    abs_path="${abs_path//$/\\$}"
-    abs_path="${abs_path//\(/\\(}"
-    abs_path="${abs_path//\)/\\)}"
+    abs_path="${1// /\\ }"
     # Expand tilde
     eval abs_path="${abs_path}"
     # Convert to absolute path
-    abs_path="$(readlink -m "${abs_path}")"
+    abs_path=$(readlink -m "${abs_path}")
     cd "${current_dir}"
     echo "${abs_path}"
 }
@@ -765,25 +765,13 @@ if [ "${concept_dir_specified}" == "False" ]; then
             if [ -z "$(ls -A "${concept_dir}")" ]; then
                 concept_dir_reasonable="True"
             else
-                for n in 0 1; do
-                    if [ "${concept_dir_reasonable}" == "True" ]; then
+                set_concept_files
+                for f in "${files[@]}"; do
+                    f="${concept_dir}/${f}"
+                    if [ -f "${f}" ] || [ -d "${f}" ]; then
+                        concept_dir_reasonable="True"
                         break
                     fi
-                    if [ ${n} -eq 0 ]; then
-                        set_concept_files
-                    else
-                        files=(                \
-                            "dep"              \
-                            ".tmp/install_log" \
-                        )
-                    fi
-                    for f in "${files[@]}"; do
-                        f="${concept_dir}/${f}"
-                        if [ -f "${f}" ] || [ -d "${f}" ]; then
-                            concept_dir_reasonable="True"
-                            break
-                        fi
-                    done
                 done
             fi
         else
@@ -1689,6 +1677,16 @@ for ${1/CONCEPT/$esc_concept} does not exist!"
             fi
         fi
     fi
+    if [ "${progname}" == 'freetype' ] && [ "${freetype_preinstalled}" == "True" ]; then
+        if [ ! -f "${progname_dir}/lib/libfreetype.so" ]; then
+            if [ -f "${progname_dir}/../lib/libfreetype.so" ]; then
+                freetype_dir="$(dirname ${progname_dir})"
+            elif [ "${check_preinstalled}" != "False" ]; then
+                error "Could not locate FreeType at \"${freetype_dir}\""
+                exit 1
+            fi
+        fi
+    fi
     if [ "${progname}" == 'gadget' ] && [ "${gadget_preinstalled}" == "True" ]; then
         if [ ! -d "${progname_dir}/Gadget2" ]; then
             if [ -d "${progname_dir}/../Gadget2" ]; then
@@ -1756,16 +1754,13 @@ for ${1/CONCEPT/$esc_concept} does not exist!"
         n_mpi_libdirs=$(echo "${mpi_libdirs}" | wc -l)
         if [ ${n_mpi_libdirs} -eq 1 ]; then
             mpi_libdir="${mpi_libdirs:2}"
-            mpi_libdirs_parsed=("${mpi_libdir}")
         else
             # Several lib directories exist. Merge them via symlinking.
             mpi_libdir_merged="${mpi_symlinkdir}/merged_lib_specified"
             mkdir -p "${mpi_libdir_merged}"
-            mpi_libdirs_parsed=()
             while read mpi_libdir; do
                 mpi_libdir="${mpi_libdir:2}"
                 if [ -d "${mpi_libdir}" ]; then
-                    mpi_libdirs_parsed=("${mpi_libdirs_parsed[@]}" "${mpi_libdir}")
                     for f in "${mpi_libdir}/"*; do
                         f_base="$(basename "${f}")"
                         mpi_symlink_name="${mpi_libdir_merged}/${f_base}"
@@ -1786,17 +1781,14 @@ for ${1/CONCEPT/$esc_concept} does not exist!"
         n_mpi_includedirs=$(echo "${mpi_includedirs}" | wc -l)
         if [ ${n_mpi_includedirs} -eq 1 ]; then
             mpi_includedir="${mpi_includedirs:2}"
-            mpi_includedirs_parsed=("${mpi_includedir}")
         else
             # Several include directories exist.
             # Merge them via symlinking.
             mpi_includedir_merged="${mpi_symlinkdir}/merged_include_specified"
             mkdir -p "${mpi_includedir_merged}"
-            mpi_includedirs_parsed=()
             while read mpi_includedir; do
                 mpi_includedir="${mpi_includedir:2}"
                 if [ -d "${mpi_includedir}" ]; then
-                    mpi_includedirs_parsed=("${mpi_includedirs_parsed[@]}" "${mpi_includedir}")
                     for f in "${mpi_includedir}/"*; do
                         f_base="$(basename "${f}")"
                         mpi_symlink_name="${mpi_includedir_merged}/${f_base}"
@@ -1828,8 +1820,8 @@ for ${1/CONCEPT/$esc_concept} does not exist!"
             mpi_bindir="$(dirname "${mpi_bindir}")"
         else
             # Check for mpiexec in PATH
-            mpiexec="$(get_command "mpiexec")" || :
-            if [ -n "${mpiexec}" ] && [ -f "${mpiexec}" ]; then
+            mpiexec="$(which mpiexec 2>/dev/null || :)"
+            if [ -n "${mpiexec}" ]; then
                 mpi_bindir="$(dirname "${mpiexec}")"
                 printf "\nMPI binary directory set to \"${mpi_bindir}\" (from PATH)\n\n"
             else
@@ -1842,39 +1834,11 @@ nor anywhere in the PATH"
             fi
         fi
         # Set mpi_dir
-        mpi_dir_cancidates=("$(readlink -f "${mpi_bindir}")")
-        N=${#mpi_includedirs_parsed[@]}
-        for ((i = 0; i < ${N}; i += 1)); do
-            mpi_includedir_parsed="${mpi_includedirs_parsed[$i]}"
-            mpi_includedir_parsed="$(readlink -f "${mpi_includedir_parsed}")"
-            M=${#mpi_dir_cancidates[@]}
-            new_candidate="True"
-            for ((j = 0; j < ${M}; j += 1)); do
-                if [ "${mpi_dir_cancidates[$j]}" == "${mpi_includedir_parsed}" ]; then
-                    new_candidate="False"
-                    break
-                fi
-            done
-            if [ "${new_candidate}" == "True" ]; then
-                mpi_dir_cancidates=("${mpi_dir_cancidates[@]}" "${mpi_includedir_parsed}")
-            fi
-        done
-        N=${#mpi_libdirs_parsed[@]}
-        for ((i = 0; i < ${N}; i += 1)); do
-            mpi_libdir_parsed="${mpi_libdirs_parsed[$i]}"
-            mpi_libdir_parsed="$(readlink -f "${mpi_libdir_parsed}")"
-            M=${#mpi_dir_cancidates[@]}
-            new_candidate="True"
-            for ((j = 0; j < ${M}; j += 1)); do
-                if [ "${mpi_dir_cancidates[$j]}" == "${mpi_libdir_parsed}" ]; then
-                    new_candidate="False"
-                    break
-                fi
-            done
-            if [ "${new_candidate}" == "True" ]; then
-                mpi_dir_cancidates=("${mpi_dir_cancidates[@]}" "${mpi_libdir_parsed}")
-            fi
-        done
+        mpi_dir_cancidates=(                     \
+            "$(readlink -f "${mpi_bindir}"    )" \
+            "$(readlink -f "${mpi_libdir}"    )" \
+            "$(readlink -f "${mpi_includedir}")" \
+        )
         N=${#mpi_dir_cancidates[@]}
         length="${#mpi_dir_cancidates[0]}"
         different="False"
@@ -1908,9 +1872,6 @@ nor anywhere in the PATH"
             mpi_dir="$(dirname "${mpi_dir}")"
         fi
         mpi_dir="${mpi_dir%/}"
-        if [ -z "${mpi_dir}" ]; then
-            mpi_dir="/"
-        fi
         # If MPI_ROOT is set and it agrees with the mpi_*dir variables,
         # use this path name explicitly (it may differ
         # due to symbolic links).
@@ -2017,6 +1978,7 @@ nor anywhere in the PATH"
 }
 fix_path "CLASS"
 fix_path "CONCEPT"
+fix_path "FreeType"
 fix_path "zlib"
 fix_path "ncurses"
 fix_path "BLAS"
@@ -2057,6 +2019,7 @@ class_test_log="${class_dir}/test_log"
 concept_test_log="${concept_dir}/test_log"
 fftw_test_log="${fftw_dir}/test_log"
 fftw_for_gadget_test_log="${fftw_for_gadget_dir}/test_log"
+freetype_test_log="${freetype_dir}/test_log"
 gadget_test_log="${gadget_dir}/test_log"
 gsl_test_log="${gsl_dir}/test_log"
 hdf5_test_log="${hdf5_dir}/test_log"
@@ -2343,11 +2306,6 @@ for pypackage in \
         fi
     fi
 done
-if [ "${cython_preinstalled}" == "False" ] && \
-    (   [ "${numpy_install}"  == "True" ]     \
-     || [ "${scipy_install}"  == "True" ]); then
-    cython_install="True"
-fi
 # FFTW (needed by CO𝘕CEPT)
 if [ -z "${fftw_install}" ]; then
     fftw_install="False"
@@ -2388,6 +2346,13 @@ if [ -z "${zlib_install}" ]; then
          || [ "${python_install}"     == "True" ] \
          || [ "${matplotlib_install}" == "True" ]); then
         zlib_install="True"
+    fi
+fi
+# FreeType (needed by Matplotlib)
+if [ -z "${freetype_install}" ]; then
+    freetype_install="False"
+    if [ "${freetype_preinstalled}" == "False" ] && [ "${matplotlib_install}" == "True" ]; then
+        freetype_install="True"
     fi
 fi
 # ncurses (needed by Python, if Python is needed by CO𝘕CEPT)
@@ -2446,6 +2411,7 @@ if     [ "${concept_install}"           == "True" ] \
     || [ "${mpi_install}"               == "True" ] \
     || [ "${gsl_install}"               == "True" ] \
     || [ "${zlib_install}"              == "True" ] \
+    || [ "${freetype_install}"          == "True" ] \
     || [ "${ncurses_install}"           == "True" ] \
     || [ "${openssl_install}"           == "True" ] \
     || [ "${libffi_install}"            == "True" ] \
@@ -3013,6 +2979,33 @@ fftw-${fftw_for_gadget_version}.tar.gz"
     fi
 fi
 
+# FreeType
+if [ "${freetype_install}" == "True" ]; then
+    if [ -z "${freetype_url}" ]; then
+        freetype_url="https://download.savannah.gnu.org/releases/freetype/\
+freetype-${freetype_version}.tar.gz"
+    fi
+    # Check if already installed and/or downloaded
+    check_progress "FreeType"
+    # If not yet downloaded, validate the URL
+    if [ "${freetype_downloaded}" != "True" ]; then
+        validate_url "FreeType" "False"
+        if [ "${validate_url_status}" != "success" ]; then
+            echo "Primary FreeType link broken: ${freetype_url}"
+            fallback "freetype"
+            freetype_url="https://sourceforge.net/projects/freetype/files/freetype2/\
+${freetype_version}/freetype-${freetype_version}.tar.gz"
+            echo "Using secondary FreeType link: ${freetype_url}"
+            # Check if already installed and/or downloaded
+            check_progress "FreeType"
+            # If not yet downloaded, validate the URL
+            if [ "${freetype_downloaded}" != "True" ]; then
+                validate_url "FreeType"
+            fi
+        fi
+    fi
+fi
+
 # GADGET
 if [ "${gadget_install}" == "True" ]; then
     if [ -z "${gadget_url}" ]; then
@@ -3188,11 +3181,7 @@ openssl-${openssl_version}.tar.gz"
         if [ "${validate_url_status}" != "success" ]; then
             echo "Primary OpenSSL link broken: ${openssl_url}"
             fallback "openssl"
-            openssl_version_short="${openssl_version/[a-z]*/}"
-            if [[ "${openssl_version_short}" == "3"* ]]; then
-                openssl_version_short="${openssl_version_short%.*}"
-            fi
-            openssl_url="https://www.openssl.org/source/old/${openssl_version_short}/\
+            openssl_url="https://www.openssl.org/source/old/${openssl_version/[a-z]*/}/\
 openssl-${openssl_version}.tar.gz"
             echo "Using secondary OpenSSL link: ${openssl_url}"
             # Check if already installed and/or downloaded
@@ -3428,6 +3417,7 @@ print_table() {
 # CLASS          ...      "/..."
 # FFTW           ...      "/..."
 # FFTW           ...      "/..."
+# FreeType       ...      "/..."
 # GADGET         ...      "/..."
 # GSL            ...      "/..."
 # HDF5           ...      "/..."
@@ -3458,6 +3448,7 @@ class_patch="True"
 concept_patch="False"
 fftw_patch="False"
 fftw_for_gadget_patch="False"
+freetype_patch="False"
 gadget_patch="True"
 gsl_patch="False"
 hdf5_patch="False"
@@ -3547,6 +3538,13 @@ if [ "${install_any_software}" == "True" ]; then
             "FFTW$(insert_footnote_installed 'fftw_for_gadget')"                   \
             "${fftw_for_gadget_version}$(insert_footnote_patch 'fftw_for_gadget')" \
             "\"${fftw_for_gadget_dir}\"")
+    fi
+    # FreeType
+    if [ "${freetype_install}" == "True" ]; then
+        table=("${table[@]}"                                         \
+            "FreeType$(insert_footnote_installed 'freetype')"        \
+            "${freetype_version}$(insert_footnote_patch 'freetype')" \
+            "\"${freetype_dir}\"")
     fi
     # GADGET
     if [ "${gadget_install}" == "True" ]; then
@@ -4045,11 +4043,6 @@ use_specified_mpi_compilers() {
                 fi
             fi
         done
-        if [ -n "${LD_PRELOAD+x}" ]; then
-            LD_PRELOAD_ori="${LD_PRELOAD}"
-        else
-            LD_PRELOAD_ori="unset"
-        fi
         if [ "${any_mpi_symlinks}" == "True" ]; then
             export LDFLAGS="${LDFLAGS} -L${mpi_symlinkdir}"
             export LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:${mpi_symlinkdir}"
@@ -4085,11 +4078,7 @@ use_specified_mpi_compilers() {
                 fi
             fi
             if [ -f "${mpi_symlinkdir}/ld_preload.so" ]; then
-                if [ -n "${LD_PRELOAD}" ]; then
-                    export LD_PRELOAD="${LD_PRELOAD} ${mpi_symlinkdir}/ld_preload.so"
-                else
-                    export LD_PRELOAD="${mpi_symlinkdir}/ld_preload.so"
-                fi
+                export LD_PRELOAD="${LD_PRELOAD} ${mpi_symlinkdir}/ld_preload.so"
             fi
         else
             rm -rf "${mpi_symlinkdir}"
@@ -4156,39 +4145,17 @@ int main(int argc, char *argv[]) {
 ' > "test.c"
         mpicc ${CFLAGS} -c -o "test.o" "test.c" >/dev/null 2>&1 || :
         mpicc "test.o" -o "test" ${LDFLAGS} ${MPI_LIBS} >/dev/null 2>&1 || :
+        # When running locally on a cluster, it may be necessary to
+        # supply an additional argument to mpiexec. This additional
+        # argument is captured by mpiexec_extra_args_local.
         mpi_environment_test_success="False"
-        # Setting LD_PRELOAD as done above can cause breakage on
-        # some systems. If a problem is detected below, we try without
-        # setting LD_PRELOAD.
-        for keep_preload in "True" "False"; do
-            if [ "${keep_preload}" == "False" ]; then
-                if [ ! -f "${mpi_symlinkdir}/ld_preload.so" ]; then
-                    continue
-                fi
-                if [ "${LD_PRELOAD_ori}" == "unset" ]; then
-                    unset LD_PRELOAD
-                else
-                    export LD_PRELOAD="${LD_PRELOAD_ori}"
-                fi
-                # Also remove the preloaded file
-                rm -f "${mpi_symlinkdir}/ld_preload.so" || :
-            fi
-            # When running locally on a cluster, it may be necessary to
-            # supply an additional argument to mpiexec. This additional
-            # argument is captured by mpiexec_extra_args_local.
-            for mpiexec_extra_args_local in "" "-pami_noib"; do
-                mpi_environment_result="$(                                                        \
-                    "${mpi_bindir}/mpiexec" ${mpiexec_extra_args_local} -n 4 "./test" 2>/dev/null \
-                    | grep 'MPI test result ='                                        2>/dev/null \
-                    | awk '{print $NF}'                                               2>/dev/null \
-                    || :                                                                          \
-                )"
-                if [ "${mpi_environment_result}" == "42" ]; then
-                    mpi_environment_test_success="True"
-                    break
-                fi
-            done
-            if [ "${mpi_environment_test_success}" == "True" ]; then
+        for mpiexec_extra_args_local in "" "-pami_noib"; do
+            mpi_environment_result="$(                                                        \
+                "${mpi_bindir}/mpiexec" ${mpiexec_extra_args_local} -n 4 "./test" 2>/dev/null \
+                | grep 'MPI test result =' | awk '{print $NF}' || : \
+            )"
+            if [ "${mpi_environment_result}" == "42" ]; then
+                mpi_environment_test_success="True"
                 break
             fi
         done
@@ -4738,18 +4705,14 @@ use_unset_compilers() {
 #################################
 # Function for downloading compressed archives
 download() {
-    # Arguments: Program name, [print heading], [URL], [exit_on_error]
+    # Arguments: Program name, [print heading], [URL]
     progname_formatted="$1"
     progname="${progname_formatted// /_}"
     progname="$(echo "${progname}" | tr '[:upper:]' '[:lower:]')"
     print_heading="$2"
+    url="$3"
     if [ -z "${print_heading}" ]; then
         print_heading="True"
-    fi
-    url="$3"
-    exit_on_error="True"
-    if [ -n "$4" ]; then
-        exit_on_error="$4"
     fi
     # Do not download if already fully downloaded
     eval "prog_downloaded=\"\${${progname}_downloaded}\""
@@ -4820,12 +4783,8 @@ download() {
     }
     _download
     if [ "${wget_status}" == "error" ]; then
-        if [ "${exit_on_error}" == "True" ]; then
-            error "Error downloading \"${url}\""
-            exit 1
-        else
-            return 1
-        fi
+        error "Error downloading \"${url}\""
+        exit 1
     fi
     # Write out success notice
     echo "The following has been fully downloaded:
@@ -4857,6 +4816,9 @@ fi
 if [ "${fftw_for_gadget_install}" == "True" ] \
     && [ "${fftw_for_gadget_downloaded}" == "False" ]; then
     download "FFTW for GADGET"
+fi
+if [ "${freetype_install}" == "True" ] && [ "${freetype_downloaded}" == "False" ]; then
+    download "FreeType"
 fi
 if [ "${gadget_install}" == "True" ] && [ "${gadget_downloaded}" == "False" ]; then
     download "GADGET"
@@ -5262,7 +5224,7 @@ install() {
     else
         eval "program_dir=\"\${${progname}_dir}\""
     fi
-    mkdir -p "${program_dir}"  2>/dev/null || :
+    mkdir -p "${program_dir}" || :
     for copy_dir in "." "doc" "docs"; do
         if [ "${copy_dir}" != "." ]; then
             if [ -d "${copy_dir}" ]; then
@@ -5291,7 +5253,7 @@ install() {
     rm -rf "${tmp_dir}/${progname}" || :
     eval "program_dir=\"\${${progname}_dir}\""
     if [ -n "${program_dir}" ]; then
-        mkdir -p "${program_dir}" 2>/dev/null || :
+        mkdir -p "${program_dir}" || :
         install_notice "${progname_formatted}" "${program_dir}"
     fi
     if [ "${no_init_install}" == "True" ]; then
@@ -5334,8 +5296,6 @@ install_loop() {
                 printf "\nAttempting to install ${progname_formatted} \
 with ${attempting_to_install_text}\n\n"
             fi
-            # Needed for correct message on failure
-            progname_formatted_fancy="${progname_formatted}"
         else
             init_install "${progname_formatted}" "${attempting_to_install_text}"
         fi
@@ -5504,21 +5464,6 @@ set_optimizations() {
     export LDFLAGS="${LDFLAGS}"
 }
 
-# Function for concatenating two lists of options
-get_options() {
-    # Arguments: User-supplied options, additional options
-    local options
-    options="$1"
-    if [ -z "${options}" ]; then
-        options="$2"
-    elif [[ "${options} " == "+= "* ]]; then
-        options="$2 ${options/+=/}"
-    elif [[ " ${options}" == *" +=" ]]; then
-        options="${options/+=/} $2"
-    fi
-    echo "${options}"
-}
-
 
 
 # zlib
@@ -5662,48 +5607,35 @@ install "Perl"                                  \
 
 # MPI
 mpi_install_func() {
-    if [ "${mpi}" == "mpich" ]; then
-        mpi_configure_options_default="--disable-cxx --disable-fortran"
-    elif [ "${mpi}" == "openmpi" ]; then
-        mpi_configure_options_default="--enable-mpi-cxx=none --enable-mpi-fortran=none"
-    fi
-    mpi_configure_options="$(get_options \
-        "${mpi_configure_options_supplied}" \
-        "${mpi_configure_options_default}" \
-    )"
-    mpi_configure_options="${mpi_configure_options} ${mpi_configure_options_extra}"
-    mpi_configure_options_trimmed=""
-    mpi_device_set="False"
-    for mpi_configure_option in ${mpi_configure_options}; do
-        include_mpi_configure_option="True"
-        if [[ "${mpi_configure_option}" == "--with-device"* ]]; then
-            include_mpi_configure_option="False"
-            if [ "${mpi_device_set}" == "False" ]; then
-                include_mpi_configure_option="True"
-            fi
-            mpi_device_set="True"
+    mpi_configure_options="${mpi_configure_options_supplied}"
+    if [ -z "${mpi_configure_options}"] || [[ "${mpi_configure_options}" == "+="* ]]; then
+        mpi_configure_options="${mpi_configure_options/+=/}"
+        if [ "${mpi}" == "mpich" ]; then
+            mpi_configure_options="--disable-cxx --disable-fortran \
+${mpi_configure_options}"
+        elif [ "${mpi}" == "openmpi" ]; then
+            mpi_configure_options="--enable-mpi-cxx=none --enable-mpi-fortran=none \
+${mpi_configure_options}"
         fi
-        if [ "${include_mpi_configure_option}" == "True" ]; then
-            if [ -z "${mpi_configure_options_trimmed}" ]; then
-                mpi_configure_options_trimmed="${mpi_configure_option}"
-            else
+        mpi_configure_options="${mpi_configure_options} ${mpi_configure_options_extra}"
+        mpi_configure_options_trimmed=""
+        mpi_device_set="False"
+        for mpi_configure_option in ${mpi_configure_options}; do
+            include_mpi_configure_option="True"
+            if [[ "${mpi_configure_option}" == "--with-device"* ]]; then
+                include_mpi_configure_option="False"
+                if [ "${mpi_device_set}" == "False" ]; then
+                    include_mpi_configure_option="True"
+                fi
+                mpi_device_set="True"
+            fi
+            if [ "${include_mpi_configure_option}" == "True" ]; then
                 mpi_configure_options_trimmed="${mpi_configure_options_trimmed} \
 ${mpi_configure_option}"
             fi
-        fi
-    done
-    mpi_configure_options="${mpi_configure_options_trimmed}"
-    mpi_install_options="${compiler} ${mpi_configure_options}"
-    already_tried=False
-    for mpi_install_options_prev in ${mpi_install_options_prev_list[@]}; do
-        if [ "${mpi_install_options_prev}" == "${mpi_install_options}" ]; then
-            already_tried=True
-        fi
-    done
-    if [ "${already_tried}" == "True" ]; then
-        continue
+        done
+        mpi_configure_options="${mpi_configure_options_trimmed}"
     fi
-    mpi_install_options_prev_list=("${mpi_install_options_prev_list[@]}" "${mpi_install_options}")
     # The below works for both MPICH and OpenMPI
     if [ -d "${perl_dir}" ]; then
         export PATH="${perl_dir}/bin:${PATH}"
@@ -5731,7 +5663,6 @@ ${mpi_configure_option}"
     fi
 }
 mpi_configure_options_supplied="${mpi_configure_options}"
-mpi_install_options_prev_list=()
 if [ "${mpi}" == "mpich" ]; then
     mpi_configure_options_extras="\
 --with-device=ch4 --with-device=ch3 \
@@ -5893,19 +5824,9 @@ install "HDF5"                                             \
 
 # FFTW
 fftw_install_func() {
+    also_single_precision="False"  # Install both double and single precision?
     if [ -z "${enable_shared}" ] && [ -n "${shared}" ]; then
         return 1
-    fi
-    fftw_configure_options_default="--disable-fortran"
-    fftw_configure_options="$(get_options \
-        "${fftw_configure_options_supplied}" \
-        "${fftw_configure_options_default}" \
-    )"
-    # Install both double and single precision?
-    if [ -n "${fftw_also_single_precision}" ]; then
-        also_single_precision="${fftw_also_single_precision}"
-    else
-        also_single_precision="False"
     fi
     enable_mpi=""
     if [ -n "${mpi_dir}" ] && [ -d "${mpi_dir}" ]; then
@@ -5935,7 +5856,7 @@ fftw_install_func() {
         simd_instructions="${simd_instructions} ${simd}"
     done
     ./configure ${enable_shared} ${enable_mpi} \
-        ${fftw_configure_options} ${with_pic} ${simd_instructions} \
+        --disable-fortran ${with_pic} ${simd_instructions} \
         --prefix="${fftw_dir}" 2>&1 || return 1
     make 2>&1 || return 1  # Parallel builds fail on some systems
     if     [ "${extra_optimizations}" == "True" ] || [ -n "${simd_instructions}" ] \
@@ -5980,7 +5901,7 @@ fftw_install_func() {
             simd_instructions="${simd_instructions} ${simd_instructions_all[${i_simd}]}"
         done
         ./configure ${enable_shared} ${enable_mpi} ${precision_flags} \
-            ${fftw_configure_options} ${with_pic} ${simd_instructions} \
+            --disable-fortran ${with_pic} ${simd_instructions} \
             --prefix="${fftw_dir}" 2>&1 || return 1
         make         2>&1 || return 1  # Parallel builds fail on some systems
         make install 2>&1 || return 1  # Parallel builds fail on some systems
@@ -5989,7 +5910,6 @@ fftw_install_func() {
         rm -rf "${fftw_dir}/share" || :
     fi
 }
-fftw_configure_options_supplied="${fftw_configure_options}"
 compiler_possibilities_fftw=("${compiler_possibilities[@]}")
 if [ -n "${mpi_dir}" ] && [ -d "${mpi_dir}" ]; then
     compiler_possibilities_fftw=("specified_mpi")
@@ -6009,6 +5929,22 @@ install "FFTW"                                       \
     shared "" "-shared"                          ";" \
     with_pic "" "--with-pic"                     ";" \
     PIC "-fPIC" ""                               ";" \
+
+# FreeType
+freetype_install_func() {
+    ./configure --prefix="${freetype_dir}" \
+                --with-zlib=no             \
+                --with-bzip2=no            \
+                --with-png=no              \
+                --with-harfbuzz=no 2>&1 || return 1
+    make ${make_jobs} 2>&1 || return 1
+    # FreeType does not come with a test suite
+    make ${make_jobs} install 2>&1 || return 1
+    if [ "${slim}" == "True" ]; then
+        rm -rf "${freetype_dir}/share" || :
+    fi
+}
+install "FreeType" compiler "${compiler_possibilities[@]}"
 
 # ncurses
 ncurses_install_func() {
@@ -6355,13 +6291,10 @@ pip_download() {
     # up hanging. If no third argument is given, or if the third
     # argument is 0, no time limit is set.
     local command_end=""
-    local current_dir
-    local pypackage_version="99.9"  # arbitrary
     if [ -n "${2}" ] && [ "${2}" != "upgrade" ]; then
         if [[ "${2}" == [0-9]* ]]; then
             # Second argument is a specific version
             command_end="==${2}"
-            pypackage_version="${2}"
         else
             # Second argument is a version string that pip understands
             command_end="${2}"
@@ -6381,92 +6314,38 @@ pip_download() {
         pip_download_time=${3}
     fi
     # Download the Python package
-    for n in {1..3}; do
-        for dig_through_trash in "False" "True"; do
-            pip_args="download --no-cache-dir --no-binary=:all:"
-            if [ "${dig_through_trash}" == "True" ]; then
-                pip_args="${pip_args} --no-clean"
-            fi
-            pip_args="${pip_args} --dest=${tmp_pip_dir} ${pip_name}${command_end}"
-            pip_status="error"
-            for extra_pip_arg in                                 \
-                "--no-build-isolation --no-deps --no-use-pep517" \
-                "--no-build-isolation           --no-use-pep517" \
-                "                     --no-deps --no-use-pep517" \
-                "                               --no-use-pep517" \
-                "                                              " \
-                "--no-build-isolation --no-deps                " \
-                "--no-build-isolation                          " \
-                "                     --no-deps                " \
-            ; do
-                extra_pip_arg="$(echo ${extra_pip_arg} | awk '{$1=$1};1')"
-                all_pip_args="${pip_args} ${extra_pip_arg}"
-                printf "
+    pip_args="download --no-cache-dir --no-binary=:all: --dest=${tmp_pip_dir} \
+${pip_name}${command_end}"
+    for n in {1..10}; do
+        pip_status="error"
+        for extra_pip_arg in                                 \
+            "--no-build-isolation --no-deps --no-use-pep517" \
+            "--no-build-isolation           --no-use-pep517" \
+            "                     --no-deps --no-use-pep517" \
+            "                               --no-use-pep517" \
+            "                                              " \
+            "--no-build-isolation --no-deps                " \
+            "--no-build-isolation                          " \
+            "                     --no-deps                " \
+        ; do
+            extra_pip_arg="$(echo ${extra_pip_arg} | awk '{$1=$1};1')"
+            all_pip_args="${pip_args} ${extra_pip_arg}"
+            printf "
 Attempting to download ${1} using pip ${all_pip_args}\n\n"
-                # Download Python package
-                "${python}" -m pip ${all_pip_args} & pip_download_pid=$!
-                # The above command may succeed in retrieving the
-                # package, but then hang indefinitely.
-                # Kill the process after ${pip_download_time} seconds.
-                soothe ${pip_download_pid} ${pip_download_time}
-                # Check whether the archive exists
-                if ls "${tmp_pip_dir}"                                \
-                    | sed 's/-//g; s/_//g'                            \
-                    | grep -i "${pip_name_nodashes}" > /dev/null 2>&1 \
-                ; then
-                    # The archive exists in the ${tmp_pip_dir} directory
-                    pip_status="success"
-                elif [ "${dig_through_trash}" == "True" ] && [ -d "${TMPDIR}" ]; then
-                    for pip_tmp_download_dir in "${TMPDIR}/"*; do
-                        if [ -d "${pip_tmp_download_dir}" ]; then
-                            count=0
-                            for pip_tmp_download_subdir in "${pip_tmp_download_dir}"/*; do
-                                if [ -d "${pip_tmp_download_subdir}" ]; then
-                                    ((count += 1))
-                                    pip_tmp_download_subdir_candidate="${pip_tmp_download_subdir}"
-                                fi
-                            done
-                            if [ ${count} -eq 1 ]; then
-                                pypackage_download_dir="${pip_tmp_download_subdir_candidate}"
-                                subdir_nodashes="$(                      \
-                                    basename "${pypackage_download_dir}" \
-                                    | tr '[:upper:]' '[:lower:]'         \
-                                )"
-                                subdir_nodashes="${subdir_nodashes//-/}"
-                                subdir_nodashes="${subdir_nodashes//_/}"
-                                if [[ "${subdir_nodashes}" == "${pip_name_nodashes}"* ]]; then
-                                    # The unpacked archive exists in
-                                    # ${TMPDIR}/*. Pack it into a tar.gz
-                                    # file placed in "${tmp_pip_dir}".
-                                    pypackage_dir="${pip_tmp_download_dir}/${pip_name_nodashes}-${pypackage_version}"
-                                    if [ "${pypackage_download_dir}" != "${pypackage_dir}" ]; then
-                                        mv "${pypackage_download_dir}" "${pypackage_dir}"
-                                    fi
-                                    current_dir="$(pwd)"
-                                    cd "${pip_tmp_download_dir}"
-                                    pypackage_archive="${pip_name_nodashes}-${pypackage_version}.tar.gz"
-                                    rm -rf "${tmp_pip_dir}/${pypackage_archive}" || :
-                                    tar -cvf - "${pip_name_nodashes}-${pypackage_version}" \
-                                        | gzip > "${tmp_pip_dir}/${pypackage_archive}"
-                                    cd "${current_dir}"
-                                    pip_status="success"
-                                    break
-                                fi
-                            fi
-                        fi
-                    done
-                fi
-                # Clean up trash
-                if     [ "${dig_through_trash}" == "True"    ] \
-                    && [ -d "${TMPDIR}"                      ] \
-                    && [ "${TMPDIR}" == "${tmp_pip_dir}_tmp" ] \
-                ; then
-                    rm -rf "${TMPDIR}" || :
-                fi
-                if [ "${pip_status}" == "success" ]; then
-                    break
-                fi
-            done
+            # Download Python package
+            "${python}" -m pip ${all_pip_args} & pip_download_pid=$!
+            # The above command may succeed in retrieving the
+            # package, but then hang indefinitely.
+            # Kill the process after ${pip_download_time} seconds.
+            soothe ${pip_download_pid} ${pip_download_time}
+            # If the archive exists in the tmp/pip dir,
+            # the download completed successfully.
+            if ls "${tmp_dir}/pip"                                \
+                | sed 's/-//g; s/_//g'                            \
+                | grep -i "${pip_name_nodashes}" > /dev/null 2>&1 \
+            ; then
+                pip_status="success"
+            fi
             if [ "${pip_status}" == "success" ]; then
                 break
             fi
@@ -7006,8 +6885,7 @@ if [ "${numpy_install}" == "True" ] && [ "${numpy_installed}" == "False" ] \
         fi
     done
     if [ "${numpy_extract_success}" == "False" ]; then
-        numpy_url="https://github.com/numpy/numpy/releases/download/\
-v${numpy_version}/numpy-${numpy_version}.tar.gz"
+        numpy_url="https://github.com/numpy/numpy/archive/v${numpy_version}.tar.gz"
         download "NumPy"
         current_step="installation of NumPy ${numpy_version}"
         heading "Installing NumPy ${numpy_version}"
@@ -7053,12 +6931,7 @@ runtime_library_dirs = ${blas_dir}/lib
             export F90="gfortran"
             export F9X="gfortran"
         fi
-        if [ -n "${cstd}" ]; then
-            export OPT="${OPT} ${cstd}"
-        fi
-        if [ -n "${cxxstd}" ]; then
-            export OPT="${OPT} ${cxxstd}"
-        fi
+        export CFLAGS="${CFLAGS} ${cstd}"
         export TMPDIR="${tmp_pip_dir}_tmp"
         export TEMP="${TMPDIR}"
         export TMP="${TMPDIR}"
@@ -7070,7 +6943,6 @@ runtime_library_dirs = ${blas_dir}/lib
         export FCFLAGS="${extra_FCFLAGS} ${FCFLAGS}"
         export FFLAGS="${extra_FCFLAGS} ${FFLAGS}"
         export LDFLAGS="${extra_LDFLAGS} ${LDFLAGS}"
-        export PATH="${python_dir}/bin:${PATH}"
         cd "${concept_dir}"
         rm -rf "${numpy_build_dir}" || :
         "${python}" -m pip uninstall "numpy" -y >/dev/null 2>&1 || :
@@ -7088,33 +6960,23 @@ runtime_library_dirs = ${blas_dir}/lib
         sleep 1
         setuppy_success="$(cat '.setuppy_success')"
         if [ "${setuppy_success}" != "True" ]; then
-            # Cleanup before retrying
-            cd "${concept_dir}"
-            while [ -d "${numpy_build_dir}" ]; do
-                rm -rf "${numpy_build_dir}" || :
-                sleep 1
-            done
             return 1
         fi
         if [ "${setuppy_mode}" == "wheel" ]; then
             rm -rf concept_wheel || :
-            ("${python}" setup.py bdist_wheel -d concept_wheel   \
-                && cd "${concept_dir}"                           \
-                && "${python}" -m pip install                    \
-                    ${numpy_pyuser} --no-deps --ignore-installed \
-                    "${numpy_build_dir}/concept_wheel/"*.whl     \
+            ("${python}" setup.py bdist_wheel -d concept_wheel \
+                && cd "${concept_dir}"                         \
+                && "${python}" -m pip install                  \
+                    --no-deps --ignore-installed               \
+                    "${numpy_build_dir}/concept_wheel/"*.whl   \
             ) & setuppy_pid=$!
         elif [ "${setuppy_mode}" == "install" ]; then
-            "${python}" setup.py install ${numpy_pyuser} & setuppy_pid=$!
+            "${python}" setup.py install & setuppy_pid=$!
+        elif [ "${setuppy_mode}" == "--user" ]; then
+            "${python}" setup.py install --user & setuppy_pid=$!
         fi
         soothe ${setuppy_pid}
         if [ "$(check_pypackage_installed numpy)" == "False" ]; then
-            # Cleanup before retrying
-            cd "${concept_dir}"
-            while [ -d "${numpy_build_dir}" ]; do
-                rm -rf "${numpy_build_dir}" || :
-                sleep 1
-            done
             return 1
         fi
         # Clean up
@@ -7150,12 +7012,10 @@ extra_argv=['-q', '--color=yes'])" 2>&1 | tee "test_log"; \
         fi
     }
     install "NumPy" "no_init_install"                                  \
-        numpy_pyuser "" "--user"                                   ";" \
+        setuppy_mode "wheel" "install" "--user"                    ";" \
         numpy_gfortran "True" "False"                              ";" \
         compiler "${compiler_possibilities_specified_mpi_last[@]}" ";" \
-        setuppy_mode "wheel" "install"                             ";" \
         cstd "-std=c99" ""                                         ";" \
-        cxxstd "-std=c++11" ""                                     ";" \
         fcompiler "gnu95" ""                                       ";" \
         extra_FCFLAGS "" "-fPIC"                                   ";" \
         extra_LDFLAGS "" "-shared"                                 ";" \
@@ -7166,35 +7026,15 @@ fi
 # as we need to link to OpenBLAS).
 if [ "${scipy_install}" == "True" ] && [ "${scipy_installed}" == "False" ] \
     && [ "$(check_pypackage_installed scipy)" == "False" ]; then
-    # As of SciPy 1.4, pybind11 is a required build dependency.
-    # This may not be automatically installed by pip.
-    # If not already installed, we install this Python packages now.
-    # If not pre-installed, we shall remove this again once we are done
-    # building SciPy.
+    # As of SciPy 1.4, pybind11 is a required dependency.
+    # As of SciPy 1.7, Pythran is a required dependency.
+    # These are not automatically installed by pip.
+    # If not already installed, we install these Python packages now.
     dependencies=( \
         "pybind11" \
-    )
-    for dependency in ${dependencies[@]}; do
-        dependency_installed=$(check_pypackage_installed ${dependency})
-        eval "${dependency}_installed=\"${dependency_installed}\""
-    done
-    pip_install_pypackage_dependencies "SciPy" "False"
-    # As of SciPy 1.7, Pythran is a required build dependency.
-    # Pythran itself depends on Beniget and PLY, and Beniget further
-    # depends on GAST.
-    # If not pre-installed, we shall remove these again once we are done
-    # building SciPy.
-    dependencies=( \
-        "gast"     \
-        "beniget"  \
-        "ply"      \
         "pythran"  \
     )
-    for dependency in "${dependencies[@]}"; do
-        dependency_installed=$(check_pypackage_installed ${dependency})
-        eval "${dependency}_installed=\"${dependency_installed}\""
-    done
-    pip_install_pypackage_dependencies "SciPy" "False"
+    pip_install_pypackage_dependencies "SciPy"
     # The testing of SciPy depends on other Python packages
     # not directly used by CO𝘕CEPT.
     # If missing, we install these now.
@@ -7255,9 +7095,6 @@ runtime_library_dirs = ${blas_dir}/lib
             export F90="gfortran"
             export F9X="gfortran"
         fi
-        if [ -n "${scipy_pythran}" ]; then
-            export SCIPY_USE_PYTHRAN="${scipy_pythran}"
-        fi
         export CFLAGS="${CFLAGS} ${cstd}"
         export TMPDIR="${tmp_pip_dir}_tmp"
         export TEMP="${TMPDIR}"
@@ -7270,7 +7107,6 @@ runtime_library_dirs = ${blas_dir}/lib
         export FCFLAGS="${extra_FCFLAGS} ${FCFLAGS}"
         export FFLAGS="${extra_FCFLAGS} ${FFLAGS}"
         export LDFLAGS="${extra_LDFLAGS} ${LDFLAGS}"
-        export PATH="${python_dir}/bin:${PATH}"
         cd "${concept_dir}"
         rm -rf "${scipy_build_dir}" || :
         "${python}" -m pip uninstall "scipy" -y >/dev/null 2>&1 || :
@@ -7292,33 +7128,23 @@ runtime_library_dirs = ${blas_dir}/lib
         sleep 1
         setuppy_success="$(cat '.setuppy_success')"
         if [ "${setuppy_success}" != "True" ]; then
-            # Cleanup before retrying
-            cd "${concept_dir}"
-            while [ -d "${scipy_build_dir}" ]; do
-                rm -rf "${scipy_build_dir}" || :
-                sleep 1
-            done
             return 1
         fi
         if [ "${setuppy_mode}" == "wheel" ]; then
             rm -rf concept_wheel || :
-            ("${python}" setup.py bdist_wheel -d concept_wheel   \
-                && cd "${concept_dir}"                           \
-                && "${python}" -m pip install                    \
-                    ${scipy_pyuser} --no-deps --ignore-installed \
-                    "${scipy_build_dir}/concept_wheel/"*.whl     \
+            ("${python}" setup.py bdist_wheel -d concept_wheel \
+                && cd "${concept_dir}"                         \
+                && "${python}" -m pip install                  \
+                    --no-deps --ignore-installed               \
+                    "${scipy_build_dir}/concept_wheel/"*.whl   \
             ) & setuppy_pid=$!
         elif [ "${setuppy_mode}" == "install" ]; then
-            "${python}" setup.py install ${scipy_pyuser} & setuppy_pid=$!
+            "${python}" setup.py install & setuppy_pid=$!
+        elif [ "${setuppy_mode}" == "--user" ]; then
+            "${python}" setup.py install --user & setuppy_pid=$!
         fi
         soothe ${setuppy_pid}
         if [ "$(check_pypackage_installed scipy)" == "False" ]; then
-            # Cleanup before retrying
-            cd "${concept_dir}"
-            while [ -d "${scipy_build_dir}" ]; do
-                rm -rf "${scipy_build_dir}" || :
-                sleep 1
-            done
             return 1
         fi
         # Clean up
@@ -7354,52 +7180,40 @@ extra_argv=['-q', '--color=yes', '-k not test_face'])" 2>&1 | tee "test_log"; \
             fi
             rm -f "${exit_code_filename}" || :
         fi
-        # If installing in slim mode, remove build dependencies
-        # that are no longer needed.
         if [ "${slim}" == "True" ]; then
             removable_dependencies=( \
-                "beniget"            \
-                "gast"               \
-                "ply"                \
                 "pybind11"           \
                 "pythran"            \
             )
             for dependency in "${removable_dependencies[@]}"; do
-                eval "dependency_installed=\"\${${dependency}_installed}\""
-                if [ "${dependency_installed}" == "False" ]; then
-                    "${python}" -m pip uninstall "${dependency}" -y 2>&1 || :
-                fi
+                "${python}" -m pip uninstall "${dependency}" -y 2>&1 || :
             done
         fi
     }
     install "SciPy" "no_init_install"                                  \
-        scipy_pyuser "" "--user"                                   ";" \
+        setuppy_mode "wheel" "install" "--user"                    ";" \
         scipy_gfortran "True" "False"                              ";" \
         compiler "${compiler_possibilities_specified_mpi_last[@]}" ";" \
-        setuppy_mode "wheel" "install"                             ";" \
         zip_safe "False" ""                                        ";" \
         cstd "-std=c99" ""                                         ";" \
         fcompiler "gnu95" ""                                       ";" \
         extra_FCFLAGS "" "-fPIC"                                   ";" \
         extra_LDFLAGS "" "-shared"                                 ";" \
-        scipy_pythran "" "0"                                       ";" \
 
 fi
 
-# Matplotlib
+# Matplotlib (as Matplotlib has a hard time finding FreeType,
+# some hacks are needed).
 if [ "${matplotlib_install}" == "True" ] && [ "${matplotlib_installed}" == "False" ] \
     && [ "$(check_pypackage_installed matplotlib)" == "False" ]; then
     # Matplotlib depends on other Python packages not directly used by
     # CO𝘕CEPT. If missing, these will automatically be installed when
     # installing Matplotlib. However, as we install Matplotlib from
-    # source, these dependencies may not be successfully installed
-    # during the Matplotlib installation. We thus install the hard
-    # dependencies of Matplotlib now, not including packages which
-    # should already have been installed by this script.
-    # This list of mandatory dependencies are taken from
-    #   https://matplotlib.org/stable/devel/dependencies.html#mandatory-dependencies
+    # source, these dependencies will only be attempted install from
+    # source as well, which may fail without further hacking. We thus
+    # install the hard dependencies of Matplotlib now, not including
+    # packages which should already have been installed by this script.
     dependencies=(        \
-        "contourpy"       \
         "cycler"          \
         "fonttools"       \
         "python-dateutil" \
@@ -7408,26 +7222,6 @@ if [ "${matplotlib_install}" == "True" ] && [ "${matplotlib_installed}" == "Fals
         "pyparsing"       \
     )
     pip_install_pypackage_dependencies "Matplotlib"
-    # Note that python-dateutil is simply called dateutil in the
-    # Matplotlib documentation. Also, pillow is missing from the above
-    # list, as we shall install this manually below.
-    # Matplotlib additionally has "setup dependencies", which may not be
-    # crucial to over manual installation of Matplotlib. We attempt to
-    # install these as well, but allow the overall installation to
-    # continue in case of failure.
-    # If not pre-installed, we shall remove these again once we are done
-    # building Matplotlib.
-    # This list of setup dependencies are taken from
-    #   https://matplotlib.org/stable/devel/dependencies.html#setup-dependencies
-    dependencies=(       \
-        "certifi"        \
-        "setuptools_scm" \
-    )
-    for dependency in "${dependencies[@]}"; do
-        dependency_installed=$(check_pypackage_installed ${dependency})
-        eval "${dependency}_installed=\"${dependency_installed}\""
-    done
-    pip_install_pypackage_dependencies "Matplotlib" "False"
     # The pillow packages is missing from the above list of Matplotlib
     # dependencies, as it may require more work to install. The pillow
     # package itself depends on zlib and libjpeg, the latter of which
@@ -7437,11 +7231,10 @@ if [ "${matplotlib_install}" == "True" ] && [ "${matplotlib_installed}" == "Fals
     dependencies=( \
         "pillow"   \
     )
-    if [ -d "${zlib_dir}" ]; then
+    if [ -n "${zlib_dir}" ] && [ -d "${zlib_dir}" ]; then
         export CPPFLAGS="-I${zlib_dir}/include ${CPPFLAGS}"
-        export LDFLAGS="-L${zlib_dir}/lib -Wl,-rpath=${zlib_dir}/lib ${LDFLAGS}"
         export LD_LIBRARY_PATH="${zlib_dir}/lib:${LD_LIBRARY_PATH}"
-        export PKG_CONFIG_PATH="${zlib_dir}/lib/pkgconfig:${PKG_CONFIG_PATH}"
+        export LDFLAGS="-L${zlib_dir}/lib -Wl,-rpath=${zlib_dir}/lib ${LDFLAGS}"
     fi
     pip_install_pypackage_dependencies "Matplotlib" "False"
     reset_environment
@@ -7475,16 +7268,14 @@ if [ "${matplotlib_install}" == "True" ] && [ "${matplotlib_installed}" == "Fals
         cd "${concept_dir}"
         cp -r "${pillow_build_dir}" "${pillow_build_dir}_cp"
         pillow_install_func() {
-            if [ -d "${zlib_dir}" ]; then
+            if [ -n "${zlib_dir}" ] && [ -d "${zlib_dir}" ]; then
                 export CPPFLAGS="-I${zlib_dir}/include ${CPPFLAGS}"
-                export LDFLAGS="-L${zlib_dir}/lib -Wl,-rpath=${zlib_dir}/lib ${LDFLAGS}"
                 export LD_LIBRARY_PATH="${zlib_dir}/lib:${LD_LIBRARY_PATH}"
-                export PKG_CONFIG_PATH="${zlib_dir}/lib/pkgconfig:${PKG_CONFIG_PATH}"
+                export LDFLAGS="-L${zlib_dir}/lib -Wl,-rpath=${zlib_dir}/lib ${LDFLAGS}"
             fi
             export TMPDIR="${tmp_pip_dir}_tmp"
             export TEMP="${TMPDIR}"
             export TMP="${TMPDIR}"
-            export PATH="${python_dir}/bin:${PATH}"
             cd "${concept_dir}"
             rm -rf "${pillow_build_dir}" || :
             cp -r "${pillow_build_dir}_cp" "${pillow_build_dir}"
@@ -7522,195 +7313,146 @@ print(inspect.getfile(bdist_egg))
             zip_1980_fix "False" "True" ";" \
 
     fi
-    # Download Matplotlib
-    tmp_pip_dir="${tmp_dir}/pip"
-    rm -rf "${tmp_pip_dir}" "${tmp_pip_dir}_tmp" || :
-    mkdir -p "${tmp_pip_dir}_tmp"
-    export TMPDIR="${tmp_pip_dir}_tmp"
-    export TEMP="${TMPDIR}"
-    export TMP="${TMPDIR}"
-    if [ -n "${zlib_dir}" ] && [ -d "${zlib_dir}/lib" ]; then
-        export LD_LIBRARY_PATH="${zlib_dir}/lib:${LD_LIBRARY_PATH}"
-    fi
-    if [ -n "${blas_dir}" ] && [ -d "${blas_dir}/lib" ]; then
-        export LD_LIBRARY_PATH="${blas_dir}/lib:${LD_LIBRARY_PATH}"
-    fi
-    pip_download "Matplotlib" "${matplotlib_version}"
-    cd "${tmp_pip_dir}"
-    extract "matplotlib"* "True"
-    for f in *; do
-        f_lower="$(echo "${f}" | tr '[:upper:]' '[:lower:]')"
-        if [ -d "${f}" ] && [[ "${f_lower}" == "matplotlib"* ]]; then
-            matplotlib_build_dir="${tmp_pip_dir}/${f}"
-            break
-        fi
-    done
-    cp -r "${matplotlib_build_dir}" "${matplotlib_build_dir}_cp"
     # Install Matplotlib
     current_step="installation of Matplotlib ${matplotlib_version}"
     heading "Installing Matplotlib ${matplotlib_version}"
     set_status "Installing Matplotlib ${matplotlib_version}"
-    matplotlib_install_func() {
-        cd "${concept_dir}"
-        rm -rf "${matplotlib_build_dir}" || :
-        "${python}" -m pip uninstall "matplotlib" -y >/dev/null 2>&1 || :
-        cp -r "${matplotlib_build_dir}_cp" "${matplotlib_build_dir}"
-        cd "${matplotlib_build_dir}"
-        unset MPLSETUPCFG
-        for cfg in mplsetup setup; do
-            cfg="${cfg}.cfg"
-            if [ -f "${cfg}.template" ]; then
-                cp "${cfg}.template" "${cfg}"
-                export MPLSETUPCFG="$(pwd)/${cfg}"
+    install_success="False"
+    for compiler in "${compiler_possibilities_specified_mpi_last[@]}"; do
+        for pyuser in "" "--user"; do
+            reset_environment
+            "use_${compiler}_compilers" || continue
+            printf "
+Attempting to install Matplotlib with compiler=${compiler}, pyuser=${pyuser}\n\n"
+            # Download Matplotlib
+            cd "${concept_dir}"
+            tmp_pip_dir="${tmp_dir}/pip"
+            rm -rf "${tmp_pip_dir}" "${tmp_pip_dir}_tmp" || :
+            mkdir -p "${tmp_pip_dir}_tmp"
+            export TMPDIR="${tmp_pip_dir}_tmp"
+            export TEMP="${TMPDIR}"
+            export TMP="${TMPDIR}"
+            if [ -n "${libpng_dir}" ] && [ -d "${libpng_dir}/lib" ]; then
+                # For compatibility with Matplotlib < 3.3
+                export LD_LIBRARY_PATH="${libpng_dir}/lib:${LD_LIBRARY_PATH}"
+            fi
+            if [ -n "${zlib_dir}" ] && [ -d "${zlib_dir}/lib" ]; then
+                export LD_LIBRARY_PATH="${zlib_dir}/lib:${LD_LIBRARY_PATH}"
+            fi
+            if [ -n "${blas_dir}" ] && [ -d "${blas_dir}/lib" ]; then
+                export LD_LIBRARY_PATH="${blas_dir}/lib:${LD_LIBRARY_PATH}"
+            fi
+            pip_download "Matplotlib" "${matplotlib_version}"
+            # Install Matplotlib
+            cd "${tmp_pip_dir}"
+            extract "matplotlib"* "True"
+            for f in *; do
+                f_lower="$(echo "${f}" | tr '[:upper:]' '[:lower:]')"
+                if [ -d "${f}" ] && [[ "${f_lower}" == "matplotlib"* ]]; then
+                    cd "${f}"
+                    break
+                fi
+            done
+            unset MPLSETUPCFG
+            for cfg in mplsetup setup; do
+                cfg="${cfg}.cfg"
+                if [ -f "${cfg}.template" ]; then
+                    cp "${cfg}.template" "${cfg}"
+                    export MPLSETUPCFG="$(pwd)/${cfg}"
+                    break
+                fi
+            done
+            if [ -z "${MPLSETUPCFG}" ]; then
+                error "Could not locate *.cfg.template file"
+                exit 1
+            fi
+            freetype_include2="$(echo "${freetype_dir}/include/freetype"* | awk '{print $NF}')"
+            basedirlist="${freetype_dir},${freetype_dir}/include,\
+${freetype_include2},${freetype_dir}/lib"
+            CPPFLAGS_libpng=""
+            LDFLAGS_libpng=""
+            PATH_libpng=""
+            PKG_CONFIG_PATH_libpng=""
+            if [ -n "${libpng_dir}" ] && [ -d "${libpng_dir}" ]; then
+                # For compatibility with Matplotlib < 3.3
+                basedirlist="${basedirlist},${libpng_dir},${libpng_dir}/include,${libpng_dir}/lib"
+                CPPFLAGS_libpng="-I${libpng_dir}/include"
+                for d in "${libpng_dir}/include/"*; do
+                    if [ -d "${d}" ]; then
+                        basedirlist="${basedirlist},${d}"
+                        CPPFLAGS_libpng="${CPPFLAGS_libpng} -I${d}"
+                    fi
+                done
+                if [ -d "${libpng_dir}/lib" ]; then
+                    LDFLAGS_libpng="-L${libpng_dir}/lib -Wl,-rpath=${libpng_dir}/lib"
+                fi
+                PATH_libpng="${libpng_dir}/bin:"
+                PKG_CONFIG_PATH_libpng="${libpng_dir}/lib/pkgconfig:"
+            fi
+            basedirlist="${basedirlist},${zlib_dir},${zlib_dir}/include,${zlib_dir}/lib"
+            sed -i "/basedirlist/c\basedirlist = ${basedirlist}" "${cfg}"
+            cp -r "${freetype_include2}/"* "${freetype_dir}/include/"
+            export CPPFLAGS="-I${freetype_dir}/include \
+                             -I${freetype_include2}    \
+                             ${CPPFLAGS_libpng}        \
+                             -I${zlib_dir}/include ${CPPFLAGS}"
+            export LDFLAGS="-L${freetype_dir}/lib          \
+                            -Wl,-rpath=${freetype_dir}/lib \
+                            ${LDFLAGS_libpng}              \
+                            -L${zlib_dir}/lib              \
+                            -Wl,-rpath=${zlib_dir}/lib ${LDFLAGS}"
+            export PATH="${freetype_dir}/bin:${PATH_libpng}${PATH}"
+            export PKG_CONFIG_PATH="${PKG_CONFIG_PATH_libpng}\
+${zlib_dir}/lib/pkgconfig:${PKG_CONFIG_PATH}"
+            matplotlib_build_dir="$(pwd)"
+            cd "${concept_dir}"
+            # As usual, various extra pip arguments may be needed
+            for extra_pip_arg in                                      \
+                "--no-cache-dir                                     " \
+                "--no-cache-dir --no-build-isolation                " \
+                "               --no-build-isolation                " \
+                "--no-cache-dir                      --no-use-pep517" \
+                "--no-cache-dir --no-build-isolation --no-use-pep517" \
+                "               --no-build-isolation --no-use-pep517" \
+                "                                    --no-use-pep517" \
+                "                                                   " \
+            ; do
+                extra_pip_arg="$(echo ${extra_pip_arg} | awk '{$1=$1};1')"
+                # Install Matplotlib
+                "${python}" -m pip uninstall "matplotlib" -y >/dev/null 2>&1 || :
+                printf "
+Attempting to install Matplotlib using pip with extra_pip_arg=${extra_pip_arg}\n\n"
+                "${python}" -m pip install        \
+                    ${pyuser}                     \
+                    -v                            \
+                    ${extra_pip_arg}              \
+                    --no-index                    \
+                    --find-links="${tmp_dir}/pip" \
+                    "${matplotlib_build_dir}" 2>&1 & pip_install_pid=$!
+                soothe ${pip_install_pid}
+                pypackage_installed=$(check_pypackage_installed matplotlib)
+                if [ "${pypackage_installed}" == "True" ]; then
+                    break
+                fi
+            done
+            if [ "${pypackage_installed}" == "True" ]; then
+                install_success="True"
                 break
             fi
         done
-        if [ -d "${zlib_dir}" ]; then
-            export CPPFLAGS="-I${zlib_dir}/include ${CPPFLAGS}"
-            export LDFLAGS="-L${zlib_dir}/lib -Wl,-rpath=${zlib_dir}/lib ${LDFLAGS}"
-            export LD_LIBRARY_PATH="${zlib_dir}/lib:${LD_LIBRARY_PATH}"
-            export PKG_CONFIG_PATH="${zlib_dir}/lib/pkgconfig:${PKG_CONFIG_PATH}"
+        if [ "${pypackage_installed}" == "True" ]; then
+            install_success="True"
+            break
         fi
-        if [ "${use_predownloaded_clibs}" == "True" ]; then
-            download_matplotlib_clibs
-            mkdir -p "${matplotlib_build_dir}/build"
-            set_matplotlib_clibs
-            for matplotlib_clib in ${matplotlib_clibs}; do
-                matplotlib_clib_lowercase="$( \
-                    echo "${matplotlib_clib}" | tr '[:upper:]' '[:lower:]')"
-                if [ ! -d "${tmp_dir}/${matplotlib_clib_lowercase}" ]; then
-                    continue
-                fi
-                cd "${tmp_dir}/${matplotlib_clib_lowercase}"
-                for f in *; do
-                    if [ -d "${f}" ]; then
-                        rm -rf "${f}" || :
-                    fi
-                done
-                for f in *; do
-                    if [ -f "${f}" ]; then
-                        break
-                    fi
-                done
-                if [ ! -f "${f}" ]; then
-                    continue
-                fi
-                extract "${f}" "True"
-                for f in *; do
-                    rm -rf "${matplotlib_build_dir}/build/${f}" || :
-                    cp -r "${f}" "${matplotlib_build_dir}/build/"
-                done
-            done
-        fi
-        cd "${concept_dir}"
-        extra_pip_arg="$(echo ${extra_pip_arg} | awk '{$1=$1};1')"
-        "${python}" -m pip uninstall "matplotlib" -y >/dev/null 2>&1 || :
-        "${python}" -m pip install        \
-            ${pyuser}                     \
-            -v                            \
-            ${extra_pip_arg}              \
-            --no-index                    \
-            --find-links="${tmp_dir}/pip" \
-            "${matplotlib_build_dir}" 2>&1 & pip_install_pid=$!
-        soothe ${pip_install_pid}
-        if [ "$(check_pypackage_installed matplotlib)" == "False" ]; then
-            return 1
-        fi
-        # Clean up
-        cd "${concept_dir}"
-        rm -rf "${tmp_pip_dir}" "${tmp_pip_dir}_tmp" "${tmp_dir}/matplotlib" || :
-        set_matplotlib_clibs
-        for matplotlib_clib in ${matplotlib_clibs}; do
-            matplotlib_clib_lowercase="$(echo "${matplotlib_clib}" | tr '[:upper:]' '[:lower:]')"
-            rm -rf "${tmp_dir}/${matplotlib_clib_lowercase}" || :
-        done
-        reset_environment
-        # If installing in slim mode, remove build dependencies
-        # that are no longer needed.
-        if [ "${slim}" == "True" ]; then
-            removable_dependencies=( \
-                "certifi"            \
-                "setuptools_scm"     \
-            )
-            for dependency in "${removable_dependencies[@]}"; do
-                eval "dependency_installed=\"\${${dependency}_installed}\""
-                if [ "${dependency_installed}" == "False" ]; then
-                    "${python}" -m pip uninstall "${dependency}" -y 2>&1 || :
-                fi
-            done
-        fi
-    }
-    set_matplotlib_clibs() {
-        # Written like the class names in setupext.py
-        matplotlib_clibs="FreeType Qhull"
-    }
-    download_matplotlib_clibs() {
-        # Matplotlib depends on FreeType and QHull:
-        #   https://matplotlib.org/stable/devel/dependencies.html
-        # These are supposed to be automatically downloaded, but this
-        # may fail. Here we download them using the robust
-        # download() function.
-        set_matplotlib_clibs
-        cd "${matplotlib_build_dir}"
-        content="$("${python}" -B -c "
-import setupext
-def get_and_extract_tarball(urls, *args, **kwargs):
-    print('\n'.join(urls))
-    raise Exception
-setupext.get_and_extract_tarball = get_and_extract_tarball
-for clib in '${matplotlib_clibs}'.split():
-    print('# ' + clib)
-    try:
-        getattr(setupext, clib)().do_custom_build({})
-    except Exception:
-        pass
-")"
-        while read -r line; do
-            if [[ "${line}" == "# "* ]]; then
-                matplotlib_clib="$(echo "${line}" | awk '{print $NF}')"
-                eval "matplotlib_${matplotlib_clib}_urls=()"
-            else
-                urls="matplotlib_${matplotlib_clib}_urls"
-                eval "${urls}=(\"\${${urls}[@]}\" \"${line}\")"
-            fi
-        done <<< "${content}"
-        for matplotlib_clib in ${matplotlib_clibs}; do
-            matplotlib_clib_lowercase="$( \
-                echo "${matplotlib_clib}" | tr '[:upper:]' '[:lower:]')"
-            if [ -d "${tmp_dir}/${matplotlib_clib_lowercase}" ] \
-                && [ -n "$(ls "${tmp_dir}/${matplotlib_clib_lowercase}")" ]; then
-                # Already downloaded
-                continue
-            fi
-            urls="matplotlib_${matplotlib_clib}_urls"
-            eval "n=\"\${#${urls}[@]}\"" || continue
-            i=0
-            while [ ${i} -lt ${n} ]; do
-                eval "${matplotlib_clib}_url=\"\${${urls}[${i}]}\""
-                ((i += 1))
-                eval "url=\"\${${matplotlib_clib}_url}\""
-                echo "Attempting to download ${matplotlib_clib} from ${url}"
-                download "${matplotlib_clib_lowercase}" "False" "${url}" "False" \
-                    || continue
-                break
-            done
-        done
-    }
-    install "Matplotlib" "no_init_install"                             \
-        compiler "${compiler_possibilities_specified_mpi_last[@]}" ";" \
-        pyuser "" "--user"                                         ";" \
-        use_predownloaded_clibs "True" "False"                     ";" \
-        extra_pip_arg                                                  \
-            "--no-cache-dir                                     "      \
-            "--no-cache-dir --no-build-isolation                "      \
-            "               --no-build-isolation                "      \
-            "--no-cache-dir                      --no-use-pep517"      \
-            "--no-cache-dir --no-build-isolation --no-use-pep517"      \
-            "               --no-build-isolation --no-use-pep517"      \
-            "                                    --no-use-pep517"      \
-            "                                                   "      \
-                                                                   ";" \
-
+    done
+    reset_environment
+    cd "${concept_dir}"
+    # Exit if installation failed
+    if [ "${install_success}" == "False" ]; then
+        error "Could not install Matplotlib"
+        exit 1
+    fi
+    rm -rf "${tmp_pip_dir}" "${tmp_pip_dir}_tmp" || :
 fi
 
 # MPI4Py
@@ -7880,7 +7622,7 @@ if [ "${concept_install}" == "True" ] && [ "${concept_installed}" == "False" ]; 
     set_status "Setting up the .env file"
     "${python}" -B -c "
 import os
-with open('${env}', mode='r', encoding='utf-8') as file:
+with open('${env}', 'r', encoding='utf-8') as file:
     lines = file.readlines()
 # Generator for extracting environment variables
 def get_envs():
@@ -7903,7 +7645,7 @@ def get_envs():
             yield var, val
 # Add environment variables
 envs_inserted = False
-with open('${env}', mode='w', encoding='utf-8') as file:
+with open('${env}', 'w', encoding='utf-8') as file:
     for line in lines:
         if not envs_inserted and r'pathenv_name_value_pairs_installtime=()' in line:
             if '${python_install}' == 'True':
@@ -8093,9 +7835,9 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
     mv ./* "${class_dir}/"
     cd "${class_dir}"
     # Below we will do a lot of patching on the CLASS source code.
-    # To aid us, we define the following functions.
+    # To aid us, we define the following function.
     patch_class() {
-        local filename="$1"
+        filename="$1"
         local linenr="$2"
         action="$3"
         belonging="$4"
@@ -8191,16 +7933,15 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
             sed -i "${linenr}i${new_lines_str}" "${filename}"
         fi
     }
+    # Change the values of some preprocessing directives
+    # in header files, allowing larger inputs and outputs.
+    # Careful though, as values too large will not fit on the stack.
     redefine_class() {
-        local filename="$1"
+        filename="$1"
         name="$2"
         value="$3"
         sed -i "s/^\(\s*#define\s\+${name}\s\+\)\(\S*\)\(.*\)$/\1${value}\3/" "${filename}"
     }
-    echo "Patching CLASS"
-    # Change the values of some preprocessing directives
-    # in header files, allowing larger inputs and outputs.
-    # Careful though, as values too large will not fit on the stack.
     redefine_class "${class_dir}/include/common.h"        _MAXTITLESTRINGLENGTH_   100000  # 10⁵
     redefine_class "${class_dir}/include/parser.h"        _LINE_LENGTH_MAX_         10000  # 10⁴
     redefine_class "${class_dir}/include/parser.h"        _ARGUMENT_LENGTH_MAX_     10000  # 10⁴
@@ -8277,8 +8018,8 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
         )
         patch_class "${class_dir}/source/perturbations.c" ${linenr} \
             "insert" "below" "${new_lines[@]}"
-        pattern='class_store_double *\\( *dataptr *, \
-*delta_p_over_delta_rho_ncdm *\\[ *n_ncdm *\\] *,'
+        pattern="class_store_double *\\\\( *dataptr *, \
+*delta_p_over_delta_rho_ncdm *\\\\[ *n_ncdm *\\\\] *,"
         linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
             "${class_dir}/source/perturbations.c" | head -n 1)
         ((linenr += 1))
@@ -8569,8 +8310,8 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
                 "${class_dir}/source/perturbations.c" | head -n 1)
             ((linenr -= 1))
         elif [ "${1}" == "perturb_print_variables" ]; then
-            pattern='class_store_double *\\( *dataptr *, *theta_scf *, *pba *-> *has_scf *, \
-*storeidx *\\)*;'
+            pattern="class_store_double *\\\\( *dataptr *, *theta_scf *, *pba *-> *has_scf *, \
+*storeidx *\\\\)*;"
             linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
                 "${class_dir}/source/perturbations.c" | head -n 1)
             n_lines_total=$(wc -l "${class_dir}/source/perturbations.c" | awk '{print $1}')
@@ -8625,144 +8366,18 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
         "}"                                                                                 \
     )
     patch_class "${class_dir}/source/perturbations.c" ${linenr} "insert" "below" "${new_lines[@]}"
-    # Use proper initial conditions for the growth factor D(a) and rate
-    # f(a), implement second-order versions D2(a) and f2(a), and take
-    # dcdm into account.
-    filename="${class_dir}/python/cclassy.pxd"
-    pattern='int +index_bg_f'
-    new_lines=(                                 \
-        "# Second-order growth factor and rate" \
-        "int index_bg_D2"                       \
-        "int index_bg_f2"                       \
+    # Include dcdm in the growth factor D(a)
+    pattern='rho_M * \\+='
+    linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
+        "${class_dir}/source/background.c" | head -n 1)
+    ((linenr += 1))
+    new_lines=(                                        \
+        "/* Include dcdm in growth factor */"          \
+        "if (pba->has_dcdm == _TRUE_)"                 \
+        "  rho_M += pvecback[pba->index_bg_rho_dcdm];" \
     )
-    linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" "${filename}" | head -n 1)
-    patch_class "${filename}" $((linenr + 1)) "insert" "below" "${new_lines[@]}"
-    filename="${class_dir}/include/background.h"
-    pattern='int +index_bg_f *;'
-    new_lines=(                                                                     \
-        "int index_bg_D2;  /**< second-order growth factor D2(a) */"                \
-        "int index_bg_f2;  /**< second-order growth rate f2(a) = [dlnD2]/[dlna] */" \
-    )
-    linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" "${filename}" | head -n 1)
-    patch_class "${filename}" $((linenr + 1)) "insert" "below" "${new_lines[@]}"
-    pattern='int +index_bi_D_prime *;'
-    new_lines=(                                                                                \
-        "int index_bi_D2;        /**< {C} second-order growth factor D(a) */"                  \
-        "int index_bi_D2_prime;  /**< {C} D2 satisfies \\\\f$ D2''(\\\\tau) = -aHD'(\\\\tau) + \
-3/2 a^2 \\\\rho_M (D2(\\\\tau) - D^2(tau)) \\\\f$ */"                                          \
-    )
-    linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" "${filename}" | head -n 1)
-    patch_class "${filename}" $((linenr + 1)) "insert" "below" "${new_lines[@]}"
-    filename="${class_dir}/source/background.c"
-    pattern='class_define_index *\\( *pba *-> *index_bg_f *,'
-    new_lines=(                                                      \
-        "/* Second-order growth factor and rate */"                  \
-        "class_define_index(pba->index_bg_D2, _TRUE_, index_bg, 1);" \
-        "class_define_index(pba->index_bg_f2, _TRUE_, index_bg, 1);" \
-    )
-    linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" "${filename}" | head -n 1)
-    patch_class "${filename}" $((linenr + 1)) "insert" "below" "${new_lines[@]}"
-    pattern='class_define_index *\\( *pba *-> *index_bi_D_prime *,'
-    new_lines=(                                                            \
-        "/* -> Second order equation for second-order growth factor */"    \
-        "class_define_index(pba->index_bi_D2, _TRUE_, index_bi, 1);"       \
-        "class_define_index(pba->index_bi_D2_prime, _TRUE_, index_bi, 1);" \
-    )
-    linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" "${filename}" | head -n 1)
-    patch_class "${filename}" $((linenr + 1)) "insert" "below" "${new_lines[@]}"
-    pattern='memcopy_result *= *memcpy *\\( *pba *-> *background_table'
-    new_lines=(                                                                                             \
-        "/* Normalise D2 by the squared factor used for D and construct f2 = D2_prime/(aHD) */"             \
-        "pvecback[pba->index_bg_D2] = pData[i*pba->bi_size + pba->index_bi_D2]/"                            \
-        "  pow(pData[(pba->bt_size - 1)*pba->bi_size + pba->index_bi_D], 2);"                               \
-        "pvecback[pba->index_bg_f2] = pData[i*pba->bi_size + pba->index_bi_D2_prime]/"                      \
-        "  (pData[i*pba->bi_size + pba->index_bi_D2]*pvecback[pba->index_bg_a]*pvecback[pba->index_bg_H]);" \
-    )
-    linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" "${filename}" | head -n 1)
-    patch_class "${filename}" $((linenr - 1)) "insert" "above" "${new_lines[@]}"
-    pattern='pvecback_integration *\\[ *pba *-> *index_bi_D_prime *\\] *='
-    new_lines=(                                                                                                  \
-        "/* Use proper initial conditions for the growth factors */"                                             \
-        "double Omega0_M = pba->Omega0_b;"                                                                       \
-        "if (pba->has_cdm == _TRUE_)"                                                                            \
-        "  Omega0_M += pba->Omega0_cdm;"                                                                         \
-        "if (pba->has_dcdm == _TRUE_)"                                                                           \
-        "  Omega0_M += pba->Omega_ini_dcdm;  /* take dcdm into account */"                                       \
-        "double Omega0_R_eff = pow(a/pba->a_today, 4)*pow(pvecback[pba->index_bg_H]/pba->H0, 2);  \
-/* take all relativistic species into account */"                                                                \
-        "double eps = 3./2.*Omega0_M/Omega0_R_eff*a;"                                                            \
-        "double C = 1.0;  /* arbitrary */"                                                                       \
-        "pvecback_integration[pba->index_bi_D] = C*(1. + eps + 1./4.*eps*eps);"                                  \
-        "pvecback_integration[pba->index_bi_D_prime] = C*a*pvecback[pba->index_bg_H]*(eps + 1./2.*eps*eps);"     \
-        "pvecback_integration[pba->index_bi_D2] = -C*C*(eps + 3./4.*eps*eps);"                                   \
-        "pvecback_integration[pba->index_bi_D2_prime] = -C*C*a*pvecback[pba->index_bg_H]*(eps + 3./2.*eps*eps);" \
-    )
-    linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" "${filename}" | head -n 1)
-    patch_class "${filename}" $((linenr + 1)) "insert" "below" "${new_lines[@]}"
-    pattern='class_store_columntitle *\\( *titles *, *\"gr\\.fac\\. f\"'
-    new_lines=(                                                    \
-        "class_store_columntitle(titles, \"gr.fac. D2\", _TRUE_);" \
-        "class_store_columntitle(titles, \"gr.fac. f2\", _TRUE_);" \
-    )
-    linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" "${filename}" | head -n 1)
-    patch_class "${filename}" $((linenr + 1)) "insert" "below" "${new_lines[@]}"
-    pattern='class_store_double *\\( *dataptr *, *pvecback *\\[ *pba *-> *index_bg_f *\\]'
-    new_lines=(                                                                      \
-        "class_store_double(dataptr, pvecback[pba->index_bg_D2], _TRUE_, storeidx);" \
-        "class_store_double(dataptr, pvecback[pba->index_bg_f2], _TRUE_, storeidx);" \
-    )
-    linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" "${filename}" | head -n 1)
-    patch_class "${filename}" $((linenr + 1)) "insert" "below" "${new_lines[@]}"
-    pattern='rho_M *\\+='
-    new_lines=(                                                                \
-        "/* Include dcdm in growth factors */"                                 \
-        "if (pba->has_dcdm == _TRUE_)"                                         \
-        "  rho_M += pvecback[pba->index_bg_rho_dcdm];"                         \
-        "/**"                                                                  \
-        " * Code for including the non-relativistic contribution from ncdm in" \
-        " * growth factors. For small (realistic for neutrinos) ncdm masses,"  \
-        " * ncdm will only cluster on large, linear scales. Including ncdm"    \
-        " * when computing the scale-independent growth factors will then add" \
-        " * a correction to all scales, which should really only be applied"   \
-        " * to large scales, greater than the free-streaming scale,"           \
-        " * see (96) in https://arxiv.org/abs/astro-ph/0603494"                \
-        " */"                                                                  \
-        "int ncdm_in_growthfac = 0;  /* turn ncdm correction on/off */"        \
-        "double rho_ncdm, p_ncdm;"                                             \
-        "int n_ncdm;"                                                          \
-        "if (ncdm_in_growthfac) {"                                             \
-        "  if (pba->has_ncdm == _TRUE_) {"                                     \
-        "    for (n_ncdm = 0; n_ncdm < pba->N_ncdm; n_ncdm++) {"               \
-        "      class_call(background_ncdm_momenta("                            \
-        "        pba->q_ncdm_bg[n_ncdm],"                                      \
-        "        pba->w_ncdm_bg[n_ncdm],"                                      \
-        "        pba->q_size_ncdm_bg[n_ncdm],"                                 \
-        "        pba->M_ncdm[n_ncdm],"                                         \
-        "        pba->factor_ncdm[n_ncdm],"                                    \
-        "        1./a - 1.,"                                                   \
-        "        NULL,"                                                        \
-        "        &rho_ncdm,"                                                   \
-        "        &p_ncdm,"                                                     \
-        "        NULL,"                                                        \
-        "        NULL),"                                                       \
-        "        pba->error_message,"                                          \
-        "        pba->error_message);"                                         \
-        "      rho_M += rho_ncdm - 3.*p_ncdm;"                                 \
-        "    }"                                                                \
-        "  }"                                                                  \
-        "}"                                                                    \
-    )
-    linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" "${filename}" | head -n 1)
-    patch_class "${filename}" $((linenr + 1)) "insert" "below" "${new_lines[@]}"
-    pattern='dy *\\[ *pba *-> *index_bi_D_prime *\\] *='
-    new_lines=(                                                                 \
-        "/* Second-order growth factor */"                                      \
-        "dy[pba->index_bi_D2] = y[pba->index_bi_D2_prime];"                     \
-        "dy[pba->index_bi_D2_prime] = -a*H*y[pba->index_bi_D2_prime]"           \
-        "  + 1.5*a*a*rho_M*(y[pba->index_bi_D2] - pow(y[pba->index_bi_D], 2));" \
-    )
-    linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" "${filename}" | head -n 1)
-    patch_class "${filename}" $((linenr + 1)) "insert" "below" "${new_lines[@]}"
+    patch_class "${class_dir}/source/background.c" ${linenr} \
+        "insert" "below" "${new_lines[@]}"
     # Include theta_tot in perturbation output
     linenr=$(new_class_perturbation_linenr "perturb_prepare_output")
     new_lines=(                                                               \
@@ -9010,7 +8625,6 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
         if [ -d "${blas_dir}" ]; then
             export LD_LIBRARY_PATH="${blas_dir}/lib:${LD_LIBRARY_PATH}"
         fi
-        export PATH="${python_dir}/bin:${PATH}"
         cp "Makefile_ori" "Makefile"
         cp "python/setup.py_ori" "python/setup.py"
         make clean || :
@@ -9097,19 +8711,9 @@ fi
 #####################################################
 # FFTW 2.x (GADGET-2 is incompatible with FFTW 3.x)
 fftw_for_gadget_install_func() {
+    also_single_precision="False"  # Install both double and single precision?
     if [ -z "${enable_shared}" ] && [ -n "${shared}" ]; then
         return 1
-    fi
-    fftw_configure_options_default="--disable-fortran"
-    fftw_configure_options="$(get_options \
-        "${fftw_configure_options_supplied}" \
-        "${fftw_configure_options_default}" \
-    )"
-    # Install both double and single precision?
-    if [ -n "${fftw_also_single_precision}" ]; then
-        also_single_precision="${fftw_also_single_precision}"
-    else
-        also_single_precision="False"
     fi
     enable_mpi=""
     if [ -n "${mpi_dir}" ] && [ -d "${mpi_dir}" ]; then
@@ -9167,8 +8771,7 @@ fftw_for_gadget_install_func() {
         cd "${fftw_for_gadget_builddir}"
     fi
     ./configure ${enable_shared} ${enable_mpi} ${precision_flags} \
-        ${fftw_configure_options} ${with_pic} \
-        --prefix="${fftw_for_gadget_dir}" 2>&1 || return 1
+        --disable-fortran ${with_pic} --prefix="${fftw_for_gadget_dir}" 2>&1 || return 1
     make 2>&1 || return 1  # Parallel builds fail on some systems
     if [ "${extra_optimizations}" == "True" ] || [ "${do_tests}" == "True" ]; then
         fftw_for_gadget_test_max_time=3600
@@ -9203,8 +8806,7 @@ fftw_for_gadget_install_func() {
         precision_flags="--enable-float --enable-type-prefix"
         make clean || :
         ./configure ${enable_shared} ${enable_mpi} ${precision_flags} \
-            ${fftw_configure_options} ${with_pic} \
-            --prefix="${fftw_for_gadget_dir}" 2>&1 || return 1
+            --disable-fortran ${with_pic} --prefix="${fftw_for_gadget_dir}" 2>&1 || return 1
         make         2>&1 || return 1  # Parallel builds fail on some systems
         make install 2>&1 || return 1  # Parallel builds fail on some systems
     fi
@@ -9515,6 +9117,10 @@ site-packages/scipy/misc/face.dat" || :
     if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
         slimdown_python "CLASS" "${class_dir}"
     fi
+    # Slim down FreeType
+    if [ "${freetype_install}" == "True" ] && [ "${freetype_installed}" == "False" ]; then
+        rm -f "${freetype_dir}/lib/"libfreetype*.so* || :
+    fi
     # Remove all static libraries (archive files) in the dependency directory
     if get_command "find" >/dev/null; then
         rm -f $(find "${dep_dir}" -name "*.a") || :
@@ -9524,7 +9130,9 @@ site-packages/scipy/misc/face.dat" || :
         # Python packages to remove
         removable_dependencies=( \
             "hypothesis"         \
+            "pybind11"           \
             "pytest"             \
+            "pythran"            \
         )
         for dependency in "${removable_dependencies[@]}"; do
             dependency_installed="$(check_pypackage_installed "${dependency}")"
@@ -9579,6 +9187,7 @@ if [ "${install_anything}" == "True" ] && [ "${say_copyright}" != "False" ]; the
     copyright_notice "class"             "CLASS"
     copyright_notice "fftw"              "FFTW 3"
     copyright_notice "fftw_for_gadget"   "FFTW 2"
+    copyright_notice "freetype"          "FreeType"
     copyright_notice "gadget"            "GADGET"
     copyright_notice "gsl"               "GSL"
     copyright_notice "hdf5"              "HDF5"
@@ -9655,6 +9264,7 @@ erroneous_test_notice() {
 erroneous_test_notice "CLASS"
 erroneous_test_notice "FFTW"
 erroneous_test_notice "FFTW for GADGET"
+erroneous_test_notice "FreeType"
 erroneous_test_notice "GADGET"
 erroneous_test_notice "GSL"
 erroneous_test_notice "HDF5"

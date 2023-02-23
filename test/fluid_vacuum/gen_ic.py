@@ -2,7 +2,7 @@
 
 # Imports from the CO𝘕CEPT code
 from commons import *
-from ic import random_uniform
+from linear import random_uniform
 from species import Component
 from snapshot import save
 

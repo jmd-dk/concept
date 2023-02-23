@@ -2,7 +2,7 @@
 # This Python file uses the following encoding: utf-8
 
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015–2023 Jeppe Mosgaard Dakin.
+# Copyright © 2015–2021 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -617,11 +617,7 @@ def cimport_commons(lines, no_optimization):
 
 
 def cimport_function(lines, no_optimization):
-    def construct_cimport(module, function=None, record=set()):
-        # Only import each module/function once
-        if (module, function) in record:
-            return []
-        record.add((module, function))
+    def construct_cimport(module, function=None):
         # Add normal import enclosed in try/except,
         # followed by the cimport.
         module = module.strip()
@@ -687,11 +683,6 @@ def cimport_function(lines, no_optimization):
                         tmp_dict = {}
                         exec(iterator_arg, tmp_dict)
                         depends = tmp_dict['depends']
-                    if isinstance(depends, str):
-                        depends = [depends]
-                    depends = list(depends)
-                    if isinstance(depends[0], (tuple, list)):
-                        depends = depends[0]
                     if isinstance(depends, str):
                         depends = [depends]
                     depends = list(depends)
@@ -766,10 +757,9 @@ def float_literals(lines, no_optimization):
         return lines
     # Straightforward literals
     literals = {
-        'π'           : str(commons.π),
-        'τ'           : str(commons.τ),
-        'machine_ϵ'   : str(commons.machine_ϵ),
-        'machine_ϵ_32': str(commons.machine_ϵ_32),
+        'π'        : commons.π,
+        'τ'        : commons.τ,
+        'machine_ϵ': commons.machine_ϵ,
     }
     # Add other literals if supported
     legal_literals = check_float_literals()
@@ -791,13 +781,7 @@ def float_literals(lines, no_optimization):
             for name, value in literals.items():
                 while True:
                     for match in re.finditer(name, line):
-                        line_modified = (
-                            line
-                            .replace('==', ' +')
-                            .replace('!=', ' +')
-                            .replace('>=', ' +')
-                            .replace('<=', ' +')
-                        )
+                        line_modified = line.replace('==', ' +')
                         index_equal = -1
                         if '=' in line_modified:
                             index_equal = len(line_modified) - 1 - line_modified[::-1].index('=')
@@ -1322,7 +1306,7 @@ def constant_expressions(lines, no_optimization, first_call=True):
     # Edit all nested occurrences of constant expressions so that only
     # the inner most expression survived, while the outer ones will
     # be assigned a nesting number, e.g.
-    # ℝ[2 + ℝ[3*4]] → ℝ0[2 + ℝ1[3*4]].
+    # ℝ[2 + ℝ[3*4]] -> ℝ0[2 + ℝ1[3*4]].
     if first_call:
         find_nested = True
         while find_nested:
@@ -1677,7 +1661,7 @@ def constant_expressions(lines, no_optimization, first_call=True):
                         still_inside = False
                 elif statement in ('while', 'for'):
                     if not (   line_lstrip.startswith('else ')
-                            or line_lstrip.startswith('else:')
+                            or line_lstrip.startswith('else: ')
                             ):
                         still_inside = False
                 elif statement == 'with':
@@ -1839,19 +1823,16 @@ def constant_expressions(lines, no_optimization, first_call=True):
                              if var and var[0] not in '.0123456789']
                 # Remove non-variables
                 nonvariables = {
-                    'bool', 'bint', 'Py_ssize_t', 'int', 'float', 'complex', 'double',
-                    'tuple', 'list', 'dict', 'set', 'frozenset',
+                    'bint', 'int', 'float', 'double', 'Py_ssize_t',
+                    'tuple', 'list', 'set', 'dict',
                     'sin', 'cos', 'tan',
                     'arcsin', 'arccos', 'arctan', 'arctan2',
                     'sinh', 'cosh', 'tanh', 'arcsinh', 'arccosh', 'arctanh',
                     'exp', 'log', 'log2', 'log10',
-                    'sqrt', 'cbrt', 'icbrt',
+                    'sqrt', 'cbrt',
                     'erf', 'erfc',
                     'floor', 'ceil', 'round',
                     'abs', 'mod',
-                    'min', 'max', 'pairmin', 'pairmax',
-                    'sum', 'prod', 'mean',
-                    'isclose', 'iscubic', 'isint',
                 }
                 variables = list(set(variables) - nonvariables)
                 linenr_where_defined = [-1]*len(variables)
@@ -1865,7 +1846,7 @@ def constant_expressions(lines, no_optimization, first_call=True):
                             continue
                         in_docstring = {'"""': False, "'''": False}
                         for j, line2 in enumerate(reversed(lines[:end])):
-                            # Skip docstrings
+                            # Skip doc strings
                             line2_lstripped = line2.lstrip()
                             for triple_quote in ('"""', "'''"):
                                 if line2_lstripped.startswith(triple_quote):
@@ -1988,43 +1969,40 @@ def constant_expressions(lines, no_optimization, first_call=True):
         # definitions should occur below this line.
         linenr_unrecognized = -1
         for i, line in enumerate(lines):
-            if 'import ' not in line:
-                continue
-            if '#' in line and line.index('#') < line.index('import '):
-                continue
-            if line.index('import ') != 0 and line[line.index('import ') - 1] not in 'c ':
-                continue
-            if i + 1 < len(lines) and ('"""' in lines[i + 1] or "'''" in lines[i + 1]):
-                linenr_unrecognized = i + 1
-                continue
-            # Make sure that we are not inside a function or class
-            indentation_level_i = indentation_level(line)
-            if indentation_level_i > 0:
-                inside_func_or_class = False
-                for line in reversed(lines[:i]):
-                    line_lstripped = line.lstrip()
-                    if line_lstripped.startswith('def ') or line_lstripped.startswith('class '):
-                        indentation_level_above = indentation_level(line)
-                        if indentation_level_above < indentation_level_i:
-                            # Import inside function or class
-                            inside_func_or_class = True
-                            break
-                    line_rstripped = line.rstrip()
-                    if line_rstripped and line_rstripped[0] not in ' #':
-                        # Reached indentation level 0
-                        break
-                if inside_func_or_class:
+            if 'import ' in line:
+                if '#' in line and line.index('#') < line.index('import '):
                     continue
-            # Go down until indentation level 0 is reached
-            for j, line in enumerate(lines[(i + 1):]):
-                line_rstripped = line.rstrip()
-                if (line_rstripped
-                    and line_rstripped[0] not in '# '
-                    and not line_rstripped.startswith('"""')
-                    and not line_rstripped.startswith("'''")
-                ):
-                    linenr_unrecognized = i + j
-                    break
+                if line.index('import ') != 0 and line[line.index('import ') - 1] not in 'c ':
+                    continue
+                if i + 1 < len(lines) and ('"""' in lines[i + 1] or "'''" in lines[i + 1]):
+                    linenr_unrecognized = i + 1
+                    continue
+                # Make sure that we are not inside a function or class
+                indentation_level_i = indentation_level(line)
+                if indentation_level_i > 0:
+                    inside_func_or_class = False
+                    for line in reversed(lines[:i]):
+                        if line and line[0] not in ' #':
+                            # Reached indentation level 0
+                            break
+                        line_lstripped = line.lstrip()
+                        if line_lstripped.startswith('def ') or line_lstripped.startswith('class '):
+                            indentation_level_above = indentation_level(line)
+                            if indentation_level_above < indentation_level_i:
+                                # Import inside function or class
+                                inside_func_or_class = True
+                                break
+                    if inside_func_or_class:
+                        continue
+                # Go down until indentation level 0 is reached
+                for j, line in enumerate(lines[(i + 1):]):
+                    if (len(line) > 0
+                        and line[0] not in '# '
+                        and not line.startswith('"""')
+                        and not line.startswith("'''")
+                    ):
+                        linenr_unrecognized = i + j
+                        break
         # Insert Cython declarations of constant expressions
         new_lines = []
         fname = None
@@ -2110,7 +2088,7 @@ def constant_expressions(lines, no_optimization, first_call=True):
         if dummy_declaration_value not in line:
             new_lines.append(line)
     # Call recursively until all nested constant expressions has been
-    # taken care of.
+    # taken care off.
     if not all_lvls or all_lvls == {0}:
         return new_lines
     return constant_expressions(new_lines, no_optimization, first_call=False)
@@ -2945,7 +2923,7 @@ def cython_decorators(lines, no_optimization):
                         header[j] = hline.replace('returns=' + returntype,
                                                   ' '*len('returns=' + returntype))
                         if not header[j].replace(',', '').strip():
-                            header.pop(j)
+                            del header[j]
                         else:
                             # Looks for lonely comma
                             # due to removal of "returns=".
@@ -2995,7 +2973,7 @@ def cython_decorators(lines, no_optimization):
                 if returntype:
                     header += [' '*n_spaces + '@cython.returns(' + returntype + ')\n']
                 # Place the new header among the lines
-                lines[:] = lines[:headstart] + lines[(headstart + headlen):]
+                del lines[headstart:(headstart + headlen)]
                 for hline in reversed(header):
                     lines.insert(headstart, hline)
     return lines

@@ -89,27 +89,27 @@ for i in range(N_snapshots):
 
 # Plot
 fig_file = this_dir + '/result.png'
-fig, axes = plt.subplots(len(nprocs_list) - 1, sharex=True, sharey=True)
-for n, d, ax in zip(dist.keys(), dist.values(), axes):
+fig, ax = plt.subplots(len(nprocs_list) - 1, sharex=True, sharey=True)
+for n, d, ax_i in zip(dist.keys(), dist.values(), ax):
     for i in range(N_snapshots):
-        ax.semilogy(
+        ax_i.semilogy(
             machine_ϵ + asarray(d[i])/boxsize,
             '.',
             alpha=0.7,
             label=f'$a={a[i]}$',
             zorder=-i,
         )
-    ax.set_ylabel(
+    ax_i.set_ylabel(
         rf'$|\mathbf{{x}}_{{{n}}} - \mathbf{{x}}_1|'
         rf'/\mathrm{{boxsize}}$'
     )
-axes[ 0].set_xlim(0, N - 1)
-axes[-1].set_xlabel('Particle number')
+ax[-1].set_xlabel('Particle number')
+plt.xlim(0, N - 1)
 fig.subplots_adjust(hspace=0)
-plt.setp([ax.get_xticklabels() for ax in axes[:-1]], visible=False)
-axes[0].legend()
-fig.tight_layout()
-fig.savefig(fig_file, dpi=150)
+plt.setp([ax_i.get_xticklabels() for ax_i in ax[:-1]], visible=False)
+ax[0].legend(loc='best').get_frame().set_alpha(0.7)
+plt.tight_layout()
+plt.savefig(fig_file)
 
 # Printout error message for unsuccessful test
 tol = 1e-9

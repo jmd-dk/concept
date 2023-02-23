@@ -1,7 +1,7 @@
 # GitHub action for removing dangling Docker containers and images.
 # The containers must use the naming convention
-#   <repo>__<workflow>__<job>__<timestamp>
-# The images must use the naming convention
+#   <repo>__<workflow>__<job>__<timestamp>.
+# For images should be named
 #   <imgpat>__<timestamp>
 # with <imgpat> given as an input.
 # Containers and images matching the naming convention will be

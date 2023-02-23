@@ -2,11 +2,11 @@
 output_times     = {'a': {'powerspec': a_begin}}
 powerspec_select = {'all': {'data': True}}
 
-# Numerics
+# Numerical parameters
 _size = 128
 boxsize            = 8*Gpc
 powerspec_options  = {'gridsize': _size}
-class_modes_per_decade = 30
+k_modes_per_decade = 30
 
 # Cosmology
 H0      = 70*km/(s*Mpc)
@@ -21,12 +21,8 @@ primordial_spectrum = {
     'pivot': 1e-5/kpc,
 }
 
-# Physics
-select_approximations = {'all': {'P = wρ': True}}
-
-# Simulation
+# Simulation options
 class_reuse = False
 
-# Units
+# System of units
 unit_length = 'kpc'  # Use a base unit different from Mpc which is used by CLASS
-

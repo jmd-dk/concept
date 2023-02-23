@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015–2023 Jeppe Mosgaard Dakin.
+# Copyright © 2015–2021 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -166,6 +166,8 @@ fi
 # Get filenames of snapshots and create matching (temporary) parameter files
 info="$(                                                                        \
     "${concept}"                                                                \
+        -c="${command_line_params}"                                             \
+        -p="${param}"                                                           \
         -u=info                                                                 \
             "$(bash_array2python_list "${paths[@]}")"                           \
             --generate-params="${tmp_dir}/param/${start_time_human_nosep}/info" \
@@ -242,6 +244,8 @@ special_params = {
     'attributes':        $(bash_array2python_list "${attributes[@]}"),
     'snapshot_filename': ${snapshot_filename},
 }
+# Parameter values which should always be used when running this utility
+...
 # Set the path to the parameter file to be the path to the actual
 # parameter file specified by the user, not this auto-generated
 # parameter file.
@@ -304,16 +308,7 @@ param = _param_ori
         2>/dev/null)" || :
     jobids=("${jobids[@]}" "${jobid}")
     # Cleanup
-    if [ "${remote}" == "False" ] || [ -n "${jobid}" ]; then
-        rm -f "${param_filename}"
-    fi
-done
-any_jobs="False"
-for jobid in "${jobids[@]}"; do
-    if [ -n "${jobid}" ]; then
-        any_jobs="True"
-        break
-    fi
+    rm -f "${param_filename}"
 done
 
 # Cleanup
@@ -328,22 +323,26 @@ plural=""
 if [ ${N_snapshots} -gt 1 ]; then
     plural="s"
 fi
-if [ "${remote}" == "True" ] && [ "${no_watching}" == "False" ] && [ "${any_jobs}" == "True" ]; then
+if [ "${remote}" == "True" ] && [ "${no_watching}" == "False" ]; then
     printf "\nYou can now kill (Ctrl+C) this script without cancelling the job${plural}\n"
-    printf "\nWill now watch the submitted job${plural}\n"
+    printf "\nWill now watch the submitted job${plural}\n\n"
     for jobid in "${jobids[@]}"; do
-        if [ -n "${jobid}" ]; then
-            "${concept}" -u=watch "${jobid}"
-        fi
+        "${concept}" -u=watch ${jobid}
+        echo
     done
+else
+    echo
 fi
-echo
 
 # Exit gracefully
 if [ "${remote}" == "False" ] || [ "${no_watching}" == "False" ]; then
     completely_successful="True"
     for jobid in "${jobids[@]}"; do
-        if [ -z "${jobid}" ] || [ -f "${job_dir}/${jobid}/log_err" ]; then
+        if [ -z "${jobid}" ]; then
+            colorprint "Error capturing jobid from output" "red"
+            exit 1
+        fi
+        if [ -f "${job_dir}/${jobid}/log_err" ]; then
             completely_successful="False"
         fi
     done

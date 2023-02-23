@@ -1,5 +1,5 @@
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015–2023 Jeppe Mosgaard Dakin.
+# Copyright © 2015–2021 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -26,27 +26,207 @@ from commons import *
 
 # Cython imports
 cimport(
-    'from communication import '
-    '    exchange,             '
-    '    get_buffer,           '
-    '    smart_mpi,            '
+    'from communication import        '
+    '    domain_layout_local_indices, '
+    '    exchange,                    '
+    '    get_buffer,                  '
+    '    partition,                   '
+    '    smart_mpi,                   '
 )
 cimport('from graphics import plot_detrended_perturbations')
+cimport('from integration import Spline, cosmic_time, remove_doppelgängers, hubble, Ḣ, ȧ, ä')
 cimport(
-    'from integration import   '
-    '    Spline,               '
-    '    cosmic_time,          '
-    '    hubble,               '
-    '    remove_doppelgängers, '
-    '    Ḣ,                    '
-    '    ȧ,                    '
-    '    ä,                    '
+    'from mesh import                         '
+    '    domain_decompose,                    '
+    '    fft,                                 '
+    '    fourier_loop,                        '
+    '    get_fftw_slab,                       '
+    '    interpolate_domaingrid_to_particles, '
+    '    nullify_modes,                       '
+    '    slab_decompose,                      '
 )
 
-# Pure Python imports
-from communication import get_domain_info
 
 
+# Class storing the internal state for generation of pseudo-random
+# numbers and implementing probability distributions.
+# NumPy is used in both compiled and pure Python mode.
+@cython.cclass
+class PseudoRandomNumberGenerator:
+    # Find all bit stream generators available in NumPy,
+    # e.g. 'PCG64DXSM' (Permuted Congruential Generator)
+    # and 'MT19937' (Mersenne Twister).
+    streams = {}
+    for name, attr in vars(np.random).items():
+        if attr is np.random.BitGenerator:
+            continue
+        try:
+            if not issubclass(attr, np.random.BitGenerator):
+                continue
+        except:
+            continue
+        streams[name] = attr
+
+    # Initialisation method
+    @cython.pheader(
+        # Arguments
+        seed=object,  # Python int or None
+        stream=str,
+    )
+    def __init__(self, seed=None, stream=random_generator):
+        # The triple quoted string below serves as the type declaration
+        # for the data attributes of the RandomNumberGenerator type.
+        # It will get picked up by the pyxpp script
+        # and included in the .pxd file.
+        """
+        public object seed  # Python int or None
+        public str stream
+        object generator  # np.random.Generator
+        Py_ssize_t cache_size
+        double[::1] cache_uniform
+        double[::1] cache_gaussian
+        double[::1] cache_rayleigh
+        Py_ssize_t index_uniform
+        Py_ssize_t index_gaussian
+        Py_ssize_t index_rayleigh
+        """
+        self.seed = seed
+        self.stream = stream
+        # Fixed size of internal distribution caches
+        self.cache_size = 2**12
+        # Look up requested bit stream generator
+        generator = self.streams.get(stream)
+        if generator is None and stream == 'PCG64DXSM':
+            # Older versions of NumPy do not have the DXSM version
+            # of PCG64. Allow falling back to the older PCG64 version.
+            masterwarn(
+                f'Pseudo-random bit generator "{stream}" not available in NumPy. '
+                f'Falling back to "PCG64".'
+            )
+            stream = 'PCG64'
+            generator = self.streams.get(stream)
+        if generator is None:
+            streams_str = ', '.join([f'"{stream}"' for stream in self.streams])
+            abort(
+                f'Pseudo-random bit generator "{stream}" not available in NumPy. '
+                f'The available ones are {streams_str}.'
+            )
+        # Instantiate a seeded pseudo-random number generator
+        self.generator = np.random.Generator(generator(self.seed))
+        # Initialise caches
+        self.cache_uniform  = None
+        self.cache_gaussian = None
+        self.cache_rayleigh = None
+        self.index_uniform  = self.cache_size - 1
+        self.index_gaussian = self.cache_size - 1
+        self.index_rayleigh = self.cache_size - 1
+
+    # Uniform distribution over the half-open interval [low, high)
+    @cython.header(
+        # Arguments
+        low='double',
+        high='double',
+        # Locals
+        x='double',
+        returns='double',
+    )
+    def uniform(self, low=0, high=1):
+        self.index_uniform += 1
+        if self.index_uniform == self.cache_size:
+            self.index_uniform = 0
+            # Draw new batch of uniform pseudo-random numbers
+            # in the half-open interval [0, 1).
+            self.cache_uniform = self.generator.uniform(0, 1, size=self.cache_size)
+        # Look up in cache
+        x = self.cache_uniform[self.index_uniform]
+        # Transform
+        x = low + x*(high - low)
+        return x
+
+    # Gaussian distribution with standard deviation
+    # given by scale and mean 0.
+    @cython.header(
+        # Arguments
+        scale='double',
+        # Locals
+        x='double',
+        returns='double',
+    )
+    def gaussian(self, scale=1):
+        self.index_gaussian += 1
+        if self.index_gaussian == self.cache_size:
+            self.index_gaussian = 0
+            # Draw new batch of Gaussian pseudo-random numbers
+            # with unit standard deviation and mean 0.
+            self.cache_gaussian = self.generator.normal(0, 1, size=self.cache_size)
+        # Look up in cache
+        x = self.cache_gaussian[self.index_gaussian]
+        # Transform
+        x *= scale
+        return x
+
+    # Rayleigh distribution
+    @cython.header(
+        # Arguments
+        scale='double',
+        # Locals
+        x='double',
+        returns='double',
+    )
+    def rayleigh(self, scale=1):
+        self.index_rayleigh += 1
+        if self.index_rayleigh == self.cache_size:
+            self.index_rayleigh = 0
+            # Draw new batch of Rayleigh pseudo-random numbers
+            # with unit scale.
+            self.cache_rayleigh = self.generator.rayleigh(1, size=self.cache_size)
+        # Look up in cache
+        x = self.cache_rayleigh[self.index_rayleigh]
+        # Transform
+        x *= scale
+        return x
+
+# Instantiate pseudo-random number generator with a unique
+# seed on each process, meant for general-purpose use.
+# Also wrap its methods in easy to use but badly performing functions.
+cython.declare(prng_general='PseudoRandomNumberGenerator')
+prng_general = PseudoRandomNumberGenerator(1 + random_seed + rank)
+@cython.header(
+    # Arguments
+    distribution=str,
+    size=object,  # int or tuple of ints
+    a='double',
+    b='double',
+    # Locals
+    data='double[::1]',
+    i='Py_ssize_t',
+    shape=tuple,
+    returns=object,  # double or np.ndarray
+)
+def random_general(distribution, size, a=0, b=0):
+    shape = tuple(any2list(size))
+    size = np.prod(shape)
+    data = empty(size, dtype=C2np['double'])
+    for i in range(size):
+        with unswitch:
+            if distribution == 'uniform':
+                data[i] = prng_general.uniform(a, b)
+            elif distribution == 'gaussian':
+                data[i] = prng_general.gaussian(a)
+            elif distribution == 'rayleigh':
+                data[i] = prng_general.rayleigh(a)
+            else:
+                abort(f'random_general() got unknown distribution = "{distribution}"')
+    if size == 1:
+        return data[0]
+    else:
+        return asarray(data).reshape(shape)
+def random_uniform(low=0, high=1, size=1):
+    return random_general('uniform', size, low, high)
+def random_gaussian(scale=1, size=1):
+    return random_general('gaussian', size, scale)
+def random_rayleigh(scale=1, size=1):
+    return random_general('rayleigh', size, scale)
 
 # Class storing a classy.Class instance
 # together with the corresponding |k| values
@@ -54,7 +234,7 @@ from communication import get_domain_info
 class CosmoResults:
     # Names of scalar attributes
     attribute_names = ('h', )
-    # Class used instead of a regular dict to store the CLASS
+    # Class used instead of regular dict to store the CLASS
     # perturbations. The only difference is that the class below will
     # instantiate implicit perturbations missing from the CLASS output,
     # such as the squared photon sound speed perturbation "cs2_g" which
@@ -129,18 +309,9 @@ class CosmoResults:
         # Only part of the computed CLASS data is needed.
         # Below, the keys corresponding to the needed fields of CLASS
         # data is written as regular expressions.
+        # This dict need to be an instance variable, as it may be
+        # mutated by the methods.
         gauge = (params if params else {}).get('gauge', 'synchronous').lower()
-        # Background data that is only sometimes needed.
-        # For simplicity, we always include these.
-        background_other = {
-            r'^gr\.fac\. D$',
-            r'^gr\.fac\. f$',
-            r'^gr\.fac\. D2$',
-            r'^gr\.fac\. f2$',
-        }
-        # The needed background and perturbation keys.
-        # This dict needs to be an instance variable,
-        # as it may be mutated by the methods.
         self.needed_keys = {
             # Background data as function of time
             'background': {
@@ -156,7 +327,7 @@ class CosmoResults:
                 # Equation of state
                 r'^\(\.\)w_',
                 # Other
-                *background_other,
+                r'^gr.fac. f$',
             },
             # Perturbations at different k as function of time.
             # Species specific perturbations will be added later.
@@ -187,18 +358,16 @@ class CosmoResults:
             # the user specified extra CLASS background quantities and
             # perturbations (if any), as well as the CLASS variables
             # _VERSION, _ARGUMENT_LENGTH_MAX_ and a_min.
-            self.filename = get_reusable_filename(
-                'class',
-                {
-                    str(key).replace(' ', ''): str(val).replace(' ', '').lower()
-                    for key, val in self.params.items()
-                },
-                class__VERSION_,
-                class__ARGUMENT_LENGTH_MAX_,
-                class_a_min,
-                extension='hdf5',
-            )
-            self.id = os.path.basename(self.filename).removesuffix('.hdf5')
+            # We use a sha1 hash, which is 40 characters (hexadecimals)
+            # long. For the sake of short filenames, we only use the
+            # first sha_length characters.
+            sha_length = 10  # 10 -> 50% chance of 1 hash collision after ~10⁶ hashes
+            self.id = hashlib.sha1(str(
+                tuple(sorted({str(key).replace(' ', ''): str(val).replace(' ', '').lower()
+                    for key, val in self.params.items()}.items()))
+                + (class__VERSION_, class__ARGUMENT_LENGTH_MAX_, class_a_min)
+            ).encode('utf-8')).hexdigest()[:sha_length]
+            self.filename = f'{path.reusable_dir}/class/{self.id}.hdf5'
         # Message that gets printed if and when CLASS is called
         self.class_call_reason = class_call_reason
         # Add methods which return transfer function splines for a
@@ -456,12 +625,12 @@ class CosmoResults:
                 if class_species_present == 'metric':
                     # For the special "metric" species, what we need is
                     # the metric potentials ϕ and ψ along with the
-                    # conformal time derivative of H_T in 𝘕-body gauge.
+                    # conformal time derivative of H_T in N-body gauge.
                     self.needed_keys['perturbations'] |= {r'^phi$', r'^psi$', r'^H_T_prime$'}
                 elif class_species_present == 'lapse':
                     # For the special "lapse" species, what we need is
                     # the conformal time derivative of H_T
-                    # in 𝘕-body gauge.
+                    # in N-body gauge.
                     self.needed_keys['perturbations'] |= {r'^H_T_prime$'}
                 else:
                     self.needed_keys['perturbations'] |= {
@@ -476,7 +645,7 @@ class CosmoResults:
                     }
                     # For decaying cold dark matter we perform a
                     # transformation of θ, for which the conformal time
-                    # derivative of H_T in 𝘕-body gauge is required.
+                    # derivative of H_T in N-body gauge is required.
                     if class_species_present == 'dcdm':
                         self.needed_keys['perturbations'] |= {r'^H_T_prime$'}
             if not self.load('perturbations'):
@@ -508,15 +677,7 @@ class CosmoResults:
                          }
                          for perturbation in self._perturbations
                     ]
-                    if master:
-                        gather_into_master = len(self.k_magnitudes) > len(self.k_node_indices)
-                        for rank_send in node_master_ranks:
-                            if rank_send == rank:
-                                continue
-                            send(gather_into_master, dest=rank_send)
-                    else:
-                        gather_into_master = recv(source=master_rank)
-                    if gather_into_master:
+                    if len(self.k_magnitudes) > len(self.k_node_indices):
                         # The master process needs to know which
                         # process store which k modes.
                         if master:
@@ -599,7 +760,7 @@ class CosmoResults:
                 self.load_everything('perturbations')
                 self.cosmo.struct_cleanup()
                 # Now remove the extra CLASS perturbations not used by
-                # this simulation. If we are running the class utility
+                # this simulation. If we are running the CLASS utility
                 # and not a simulation, keep the
                 # extra perturbations around.
                 if master and special_params.get('special') != 'class':
@@ -802,7 +963,7 @@ class CosmoResults:
     def construct_delta_metric(self):
         """This method adds the "delta_metric" perturbation
         to self._perturbations, assuming that the ϕ and ψ potentials and
-        H_Tʹ in 𝘕-body gauge already exist as perturbations.
+        H_Tʹ in N-body gauge already exist as perturbations.
         The strategy is as follows: For each k, we can compute the GR
         correction potential γ(a) using
         γ(a) = -(H_Tʹʹ(a) + a*H(a)*H_Tʹ(a))/k² + (ϕ(a) - ψ(a)),
@@ -830,20 +991,20 @@ class CosmoResults:
         Finally, since we want δ(a), we divide by the arbitrary but
         pre-defined background density ρ_metric:
         δ(a) = k²γ(a)/(4πGa²ρ_metric).
-        The δ perturbations will be in 𝘕-body gauge, the only gauge in
+        The δ perturbations will be in N-body gauge, the only gauge in
         which these will contain all linear GR corrections,
         and therefore the only gauge of interest when it comes to the
         "metric" species. Also, the H_T_prime from CLASS is in
-        𝘕-body gauge. Whenever a transfer function in 𝘕-body gauge
+        N-body gauge. Whenever a transfer function in N-body gauge
         is needed, the compute_transfer function will carry out
         this conversion, assuming that the stored transfer function
         is in synchronous gauge. With the "metric" perturbations already
-        in 𝘕-body gauge, this transformation should not be carried out.
+        in N-body gauge, this transformation should not be carried out.
         We cannot simply add a condition inside compute_transfer,
         as this cannot work for combined species which the "metric" is
         part of. We instead need to keep all transfer functions in
         synchronous gauge, meaning that we have to transform δ from
-        𝘕-body gauge to synchronous gauge. This transformation will then
+        N-body gauge to synchronous gauge. This transformation will then
         be exactly cancelled out in the compute_transfer function.
         """
         # Check that the delta_metric perturbations
@@ -874,9 +1035,9 @@ class CosmoResults:
             aH = a*H
             k_magnitude2 = k_magnitude**2
             k2γ = -aH*(a*dda_H_Tʹ + H_Tʹ) + k_magnitude2*(ϕ - ψ)
-            # Construct the δ perturbation (in N-𝘕ody gauge)
+            # Construct the δ perturbation (in N-body gauge)
             δ = k2γ/(ℝ[4*π*G_Newton]*a**2*ρ_metric)
-            # Transform from 𝘕-body gauge to synchronous gauge
+            # Transform from N-body gauge to synchronous gauge
             w_metric = asarray([self.w(a_i, 'metric') for a_i in a])
             δ -= ℝ[3/light_speed**2]*aH*(1 + w_metric)*θ_tot/k_magnitude2
             # Store the "metric" δ perturbations,
@@ -886,7 +1047,7 @@ class CosmoResults:
     # Method which computes and adds "delta_lapse" to the perturbations
     def construct_delta_lapse(self):
         """This method adds the "delta_lapse" perturbation
-        to self._perturbations, assuming that H_Tʹ in 𝘕-body gauge
+        to self._perturbations, assuming that H_Tʹ in N-body gauge
         already exist as a perturbation.
         The strategy is as follows: For each k, we can compute the GR
         correction potential γ_lapse(a) using
@@ -908,17 +1069,17 @@ class CosmoResults:
         where the factor 3/(8πG) = 1 in CLASS units.
         Note that the same convention is used here as for the metric
         (not lapse) γ.
-        The H_T_prime from CLASS is in 𝘕-body gauge, and so the δ
-        perturbations will likewise be in 𝘕-body gauge. Whenever a
-        transfer function in 𝘕-body gauge is needed,
+        The H_T_prime from CLASS is in N-body gauge, and so the δ
+        perturbations will likewise be in N-body gauge. Whenever a
+        transfer function in N-body gauge is needed,
         the compute_transfer function will carry out this conversion,
         assuming that the stored transfer function is in synchronous
-        gauge. With the "lapse" perturbations already in 𝘕-body gauge,
+        gauge. With the "lapse" perturbations already in N-body gauge,
         this transformation should not be carried out. We cannot simply
         add a condition inside compute_transfer, as this cannot work for
         combined species which the "lapse" is part of. We instead need
         to keep all transfer functions in synchronous gauge, meaning
-        that we have to transform δ from 𝘕-body gauge to synchronous
+        that we have to transform δ from N-body gauge to synchronous
         gauge. This transformation will then be exactly cancelled out in
         the compute_transfer function.
         """
@@ -950,9 +1111,9 @@ class CosmoResults:
             aH = a*H
             k_magnitude2 = k_magnitude**2
             k2γ_lapse = -1./3.*a*(aH*dda_H_Tʹ + (H - ddt_H/H)*H_Tʹ)
-            # Construct the δ perturbation (in 𝘕-body gauge)
+            # Construct the δ perturbation (in N-body gauge)
             δ = k2γ_lapse/(ℝ[4*π*G_Newton]*a**2*ρ_lapse)
-            # Transform from 𝘕-body gauge to synchronous gauge
+            # Transform from N-body gauge to synchronous gauge
             w_lapse = asarray([self.w(a_i, 'lapse') for a_i in a])
             δ -= ℝ[3/light_speed**2]*aH*(1 + w_lapse)*θ_tot/k_magnitude2
             # Store the "lapse" δ perturbations,
@@ -1004,7 +1165,6 @@ class CosmoResults:
             self._splines = {}
         spline = self._splines.get(y)
         if spline is None:
-            logx = logy = None
             # By far the most background variables are power laws in a.
             # A few exceptions are the constant pressure of the cdm, b
             # and lambda CLASS species, as well as the density, pressure
@@ -1018,25 +1178,25 @@ class CosmoResults:
                 'conf. time [Mpc]',
                 'gr.fac. D',
                 'gr.fac. f',
-                'gr.fac. D2',
-                'gr.fac. f2',
-                '(.)rho_crit',
-                '(.)rho_tot',
-                '(.)p_tot',
             }:
                 logx, logy = True, True
             elif y in {
-                # currently empty
+                '(.)p_tot',
             }:
-                logx, logy = True, False
+                logx = True
+                logy = (not np.any(asarray(self.background[y]) <= 0))
             elif match:
                 quantity = match.group(1)
                 class_species = match.group(2)
                 species_info = species_registered.get(
                     species_canonical.get(class_species, class_species)
                 )
-                if species_info is not None:
-                    # Look up registered species
+                if species_info is None:
+                    # ρ, p or w from some non-registered species.
+                    # Assume power law.
+                    logx, logy = True, True
+                else:
+                    # ρ, p or w from registered species. Look up.
                     if quantity == 'w':
                         logx_ρ, logy_ρ = species_info.logs['rho']
                         logx_p, logy_p = species_info.logs['p']
@@ -1044,33 +1204,22 @@ class CosmoResults:
                         logy = (logy_ρ or logy_p)
                     else:
                         logx, logy = species_info.logs[quantity]
-            # If not specified, assume power law
-            unspecified = (logx is None or logy is None)
-            if logx is None:
-                logx = True
-            if logy is None:
-                logy = True
-            negativey = False  # only relevant if logy
-            if logy:
-                if (asarray(self.background[y]) <= 0).any():
-                    # Do not use logy for non-positive y data
-                    logy = False
-                    if (asarray(self.background[y]) < 0).all():
-                        # Accept logy for purely negative y data,
-                        # but note that y is negative.
+                    # If not specified, assume power law
+                    if logx is None:
+                        logx = True
+                    if logy is None:
                         logy = True
-                        negativey = True
-            if unspecified:
+            if logx is None or logy is None:
+                logx = True
+                logy = (not np.any(asarray(self.background[y]) <= 0))
                 masterwarn(
                     f'A spline over the unknown CLASS background variable "{y}"(a) '
                     f'has been made with logx = {logx}, logy = {logy}. '
                     f'You should add the correct linear/log behaviour of this variable '
                     f'to the splines() method of the CosmoResults class.'
                 )
-            spline = Spline(
-                self.background['a'], self.background[y], f'{y}(a)',
-                logx=logx, logy=logy, negativey=negativey,
-            )
+            spline = Spline(self.background['a'], self.background[y], f'{y}(a)',
+                logx=logx, logy=logy)
             self._splines[y] = spline
         return spline
     # Method for looking up the background density of a given
@@ -1086,7 +1235,7 @@ class CosmoResults:
             spline = self.splines(f'(.)rho_{class_species}')
             # The input a may be either a scalar or an array
             with unswitch:
-                if isinstance(a, (int, float, np.integer, np.floating)):
+                if isinstance(a, (int, float)):
                     values += spline.eval(a)
                 else:
                     values += asarray([spline.eval(a_i) for a_i in a])
@@ -1107,7 +1256,7 @@ class CosmoResults:
             spline = self.splines(f'(.)p_{class_species}')
             # The input a may be either a scalar or an array
             with unswitch:
-                if isinstance(a, (int, float, np.integer, np.floating)):
+                if isinstance(a, (int, float)):
                     values += spline.eval(a)
                 else:
                     values += asarray([spline.eval(a_i) for a_i in a])
@@ -1129,7 +1278,7 @@ class CosmoResults:
             P_bar_spline = self.splines(f'(.)p_{class_species}')
             # The input a may be either a scalar or an array
             with unswitch:
-                if isinstance(a, (int, float, np.integer, np.floating)):
+                if isinstance(a, (int, float)):
                     ρ_bar += ρ_bar_spline.eval(a)
                     P_bar += P_bar_spline.eval(a)
                 else:
@@ -1138,23 +1287,11 @@ class CosmoResults:
         # As we have done no unit conversion, the ratio P_bar/ρ_bar
         # gives us the unitless w.
         return P_bar/ρ_bar
-    # Methods for looking up the growth factors D⁽¹⁾, D⁽²⁾, and
-    # corresponding growth rates f⁽¹⁾, f⁽²⁾, with f⁽ⁱ⁾= H⁻¹Ḋ⁽ⁱ⁾/D⁽ⁱ⁾.
-    @lru_cache()
-    def growth_fac_D(self, a):
-        spline = self.splines('gr.fac. D')
-        return spline.eval(a)
+    # Method for looking up the linear growth rate f_growth = H⁻¹Ḋ/D
+    # (with D the linear growth factor) at some a.
     @lru_cache()
     def growth_fac_f(self, a):
         spline = self.splines('gr.fac. f')
-        return spline.eval(a)
-    @lru_cache()
-    def growth_fac_D2(self, a):
-        spline = self.splines('gr.fac. D2')
-        return spline.eval(a)
-    @lru_cache()
-    def growth_fac_f2(self, a):
-        spline = self.splines('gr.fac. f2')
         return spline.eval(a)
     # Method for appending a piece of raw CLASS data to the dump file
     def save(self, element):
@@ -1448,7 +1585,7 @@ class TransferFunction:
         self.component = component
         self.var_name = var_name
         if self.var_name not in transferfunctions_registered:
-            abort(f'Perturbation "{self.var_name}" not implemented')
+            abort(f'Transfer function "{self.var_name}" not implemented')
         # The species (CLASS convention) of which to compute
         # transfer functions. If component is None, set the CLASS
         # species to 'tot', as this "species" do not correspond
@@ -1554,12 +1691,12 @@ class TransferFunction:
         # Display progress message
         if self.component is None:
             if transferfunction_info.total:
-                masterprint(f'Processing {self.var_name} perturbations ...')
+                masterprint(f'Processing {self.var_name} transfer functions ...')
             else:
-                masterprint(f'Processing total {self.var_name} perturbations ...')
+                masterprint(f'Processing total {self.var_name} transfer functions ...')
         else:
             masterprint(
-                f'Processing {self.var_name} perturbations '
+                f'Processing {self.var_name} transfer functions '
                 f'for {self.component.name} ...'
             )
         missing_perturbations_warning = ''.join([
@@ -1586,7 +1723,7 @@ class TransferFunction:
                 if k_max_candidate < self.k_max:
                     if perturbation_key == key:
                         self.k_max = k_max_candidate
-                    elif re.search(key, perturbation_key):
+                    elif re.search(perturbation_key, key):
                         self.k_max = k_max_candidate
         # Number of additional points on each side of the interval
         # to include when doing the detrending and splining.
@@ -1645,8 +1782,8 @@ class TransferFunction:
                     }
                 else:
                     abort(
-                        f'Perturbation weighting "{transferfunction_info.weighting}" '
-                        f'not implemented'
+                        f'Transfer function weighting "{transferfunction_info.weighting}" '
+                        f'not implemented.'
                     )
                     weights_species = {}  # To satisfy the compiler
             # Construct the perturbation_values array from the CLASS
@@ -1672,7 +1809,7 @@ class TransferFunction:
                         perturbations_available[class_species] = False
                     else:
                         perturbation_values_arr += weights*class_units*perturbation
-            if isinstance(perturbation_values_arr, (int, np.integer)):
+            if isinstance(perturbation_values_arr, int):
                 perturbation_values = asarray((), dtype=C2np['double'])
             else:
                 perturbation_values = perturbation_values_arr
@@ -1890,7 +2027,7 @@ class TransferFunction:
         # Now construct splines for untrusted perturbations,
         # if any exist on any process.
         if any_contain_untrusted_perturbations:
-            masterprint('Processing untrusted perturbations ...')
+            masterprint('Processing untrusted transfer functions ...')
             # Untrusted perturbations exist. Communicate the data of the
             # largest trusted perturbations to all processes which
             # contain untrusted perturbations.
@@ -1981,7 +2118,7 @@ class TransferFunction:
         # this is done by the master process, which must then receive
         # the detrended perturbations from the other processes.
         if class_plot_perturbations:
-            masterprint(f'Plotting detrended perturbations ...')
+            masterprint(f'Plotting detrended transfer functions ...')
             if master:
                 for rank_other in range(nprocs):
                     if rank_other == rank:
@@ -2051,99 +2188,86 @@ class TransferFunction:
     # Helper functions for the process method
     @cython.header(
         # Arguments
-        x=object,  # double[::1] or np.ndarray,
-        y=object,  # double[::1] or np.ndarray,
+        x='double[::1]',
+        y='double[::1]',
         k='Py_ssize_t',
         k_local='Py_ssize_t',
         i='Py_ssize_t',
         # Locals
-        exponent='double',
-        factor='double',
         fitted_trends=list,
         returns='double[::1]',
     )
     def detrend(self, x, y, k, k_local, i):
         import scipy.optimize
-        x = asarray(x)
-        y = asarray(y)
-        # We seek to fit (x, y) to the trend line factor*a**exponent.
-        # If all y data has the same sign, we can do this without using
-        # non-linear curve fitting.
-        if (y < 0).all():
-            exponent, factor = np.polyfit(np.log(x), np.log(-y), 1)
-            factor = -exp(factor)
-        elif (y > 0).all():
-            exponent, factor = np.polyfit(np.log(x), np.log(y), 1)
-            factor = exp(factor)
-        else:
-            # Non-linear curve fitting necessary
-            exponent_max = 15
-            fitted_trends = []
-            with warnings.catch_warnings():
-                warnings.simplefilter('ignore', category=RuntimeWarning)
-                for initial_guess in (
-                    (-1, 0),
-                    (+1, 0),
+        # Maximum (absolute) allowed exponent in the trend.
+        # If an exponent greater than this is found,
+        # the program will terminate.
+        exponent_max = 15
+        # The data to be splined is in the form
+        # {a, perturbation_values - trend},
+        # with trend = factor*a**exponent. Here we find this
+        # trend through curve fitting of perturbation_values.
+        fitted_trends = []
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore', category=RuntimeWarning)
+            for initial_guess in (
+                (-1, 0),
+                (+1, 0),
+            ):
+                for bounds in (
+                    ([-ထ, -exponent_max], [+ထ,  0           ]),
+                    ([-ထ,  0           ], [+ထ, +exponent_max]),
                 ):
-                    for bounds in (
-                        ([-ထ, -exponent_max], [+ထ,  0           ]),
-                        ([-ထ,  0           ], [+ထ, +exponent_max]),
-                    ):
-                        try:
-                            fitted_trends.append(
-                                scipy.optimize.curve_fit(
-                                    self.power_law,
-                                    x,
-                                    y,
-                                    initial_guess,
-                                    check_finite=False,
-                                    bounds=bounds,
-                                    ftol=1e-12,
-                                    xtol=1e-12,
-                                    gtol=1e-12,
-                                    maxfev=1_000,
-                                )
+                    try:
+                        fitted_trends.append(
+                            scipy.optimize.curve_fit(
+                                self.power_law,
+                                asarray(x),
+                                asarray(y),
+                                initial_guess,
+                                bounds=bounds,
+                                ftol=1e-12,
+                                xtol=1e-12,
+                                gtol=1e-12,
+                                maxfev=1_000,
                             )
-                        except Exception:
-                            pass
-            # The best fit is determined from the variance of
-            # the exponent. Some times, bad fits gets assigned a
-            # variance of exactly zero. Bump such occurrences to
-            # infinity before locating the best fit.
-            for fitted_trend in fitted_trends:
-                if fitted_trend[1][1, 1] == 0:
-                    fitted_trend[1][1, 1] = ထ
-            if fitted_trends:
-                factor, exponent = fitted_trends[np.argmin([
-                    fitted_trend[1][1, 1]
-                    for fitted_trend in fitted_trends
-                ])][0]
-            else:
-                warn(
-                    f'Failed to detrend {self.var_name} perturbations '
-                    + ('' if self.component is None else f'for {self.component.name} ')
-                    + f'at k = {self.k_magnitudes[k]} {unit_length}⁻¹. '
-                    f'The simulation will carry on without this detrending.'
-                )
-                factor, exponent = 0, 1
-        # Check for unsuccessful detrending
-        if abs(factor) == ထ:
+                        )
+                    except:
+                        pass
+        # The best fit is determined from the variance of
+        # the exponent. Some times, bad fits gets assigned a
+        # variance of exactly zero. Bump such occurrences to
+        # infinity before locating the best fit.
+        for fitted_trend in fitted_trends:
+            if fitted_trend[1][1,1] == 0:
+                fitted_trend[1][1,1] = ထ
+        if fitted_trends:
+            self.factors[k_local, i], self.exponents[k_local, i] = fitted_trends[
+                np.argmin([fitted_trend[1][1,1] for fitted_trend in fitted_trends])
+            ][0]
+        else:
+            warn(
+                f'Failed to detrend {self.var_name} perturbations '
+                + ('' if self.component is None else f'for {self.component.name} ')
+                + f'at k = {self.k_magnitudes[k]} {unit_length}⁻¹. '
+                f'The simulation will carry on without this detrending.'
+            )
+            self.factors[k_local, i], self.exponents[k_local, i] = 0, 1
+        if abs(self.factors[k_local, i]) == ထ:
             abort(
                 f'Error processing {self.var_name} perturbations '
                 + ('' if self.component is None else f'for {self.component.name} ')
                 + f'at k = {self.k_magnitudes[k]} {unit_length}⁻¹: '
-                f'Detrending resulted in factor = {factor}.'
+                f'Detrending resulted in factor = {self.factors[k_local, i]}.'
             )
         # When the exponent is found to be 0, there is no reason
         # to keep a non-zero factor as the detrending is then
         # just a constant offset.
-        if isclose(exponent, 0, rel_tol=1e-9, abs_tol=1e-6):
-            factor, exponent = 0, 1
+        if isclose(self.exponents[k_local, i], 0, rel_tol=1e-9, abs_tol=1e-6):
+            self.factors[k_local, i], self.exponents[k_local, i] = 0, 1
         # Construct the trend and the detrended perturbations
-        self.factors  [k_local, i] = factor
-        self.exponents[k_local, i] = exponent
-        trend = factor*x**exponent
-        interval_perturbations_detrended = y - trend
+        trend = self.factors[k_local, i]*asarray(x)**self.exponents[k_local, i]
+        interval_perturbations_detrended = asarray(y) - trend
         return interval_perturbations_detrended
     @staticmethod
     def power_law(x, factor, exponent):
@@ -2385,7 +2509,7 @@ class TransferFunction:
         # Arguments
         a='double',
         # Locals
-        k_local='Py_ssize_t',
+        k='Py_ssize_t',
         returns='double[::1]',
     )
     def deriv_as_function_of_k(self, a):
@@ -2472,39 +2596,34 @@ def find_critical_times():
 # from before the initial simulation time and until the present.
 @cython.pheader(
     # Arguments
-    gridsize_or_k_magnitudes=object,  # Py_ssize_t or np.ndarray
+    gridsize='Py_ssize_t',
     gauge=str,
     filename=str,
     class_call_reason=str,
     # Locals
-    cache_key=tuple,
     cosmoresults=object, # CosmoResults
     extra_params=dict,
-    gridsize='Py_ssize_t',
     k_magnitudes='double[::1]',
     k_magnitudes_str=str,
     params_specialized=dict,
     returns=object,  # CosmoResults
 )
-def compute_cosmo(
-    gridsize_or_k_magnitudes=-1, gauge='synchronous', filename='', class_call_reason='',
-):
+def compute_cosmo(gridsize=-1, gauge='synchronous', filename='', class_call_reason=''):
     """All calls to CLASS should be done through this function.
     If no arguments are supplied, CLASS will be run with the parameters
     stored in class_params. The return type is CosmoResults, which
     stores the result of the CLASS computation.
-    If either a grid size or some k magnitudes are given as the first
-    argument, a more in-depth computation will be carried out by CLASS,
-    where perturbations are also computed.
+    If gridsize is given, a more in-depth computation will be carried
+    out by CLASS, where perturbations are also computed.
     All results from calls to this function are cached (using the
     global variable cosmoresults_cache), so you can safely call this
     function multiple times with the same arguments without it having
     to do the same CLASS computation over and over again.
-    If a grid size is passed, this specifies the |k| distribution on
-    which the perturbations should be tabulated, as defined
-    by get_k_magnitudes(). The gauge of the transfer functions can be
-    specified by the gauge argument, which can be any valid CLASS gauge.
-    Note that 𝘕-body gauge is not implemented in CLASS.
+    The gridsize argument specify the |k| distribution on which the
+    perturbations should be tabulated, as defined by get_k_magnitudes().
+    The gauge of the transfer functions can be specified by
+    the gauge argument, which can be any valid CLASS gauge. Note that
+    N-body gauge is not implemented in CLASS.
     If a filename is given, CLASS results are loaded from this file.
     """
     # If a gauge is given explicitly as a CLASS parameter in the
@@ -2515,7 +2634,7 @@ def compute_cosmo(
         masterwarn(
             f'The "nbody" gauge was specified in the call to compute_cosmo. '
             f'For this gauge, you should really pass in "synchronous" '
-            f'and then let compute_transfer transform to 𝘕-body gauge.'
+            f'and then let compute_transfer transform to N-body gauge.'
         )
     if gauge not in ('synchronous', 'newtonian'):
         abort(
@@ -2524,39 +2643,21 @@ def compute_cosmo(
         )
     # If this exact CLASS computation has already been carried out,
     # return the stored results.
-    cache_key = (str(gridsize_or_k_magnitudes), gauge)
-    cosmoresults = cosmoresults_cache.get(cache_key)
+    cosmoresults = cosmoresults_cache.get((gridsize, gauge))
     if cosmoresults is not None:
         return cosmoresults
-    # Extract grid size or explicit k magnitudes from combined argument
-    if isinstance(gridsize_or_k_magnitudes, (int, float, np.integer, np.floating)):
-        gridsize = int(round(gridsize_or_k_magnitudes))
-        k_magnitudes = None
-    else:
-        gridsize = -1
-        k_magnitudes = gridsize_or_k_magnitudes
     # Determine whether to run CLASS "quickly" or "fully",
     # where only the latter computes the perturbations.
-    if gridsize == -1 and k_magnitudes is None:
+    if gridsize == -1:
         # A quick CLASS computation should be carried out,
         # using only the minimal set of parameters.
         extra_params = {}
+        k_magnitudes = None
     else:
         # A full CLASS computation should be carried out.
-        # Get array of k values at which to tabulate the perturbations,
+        # Array of |k| values at which to tabulate the perturbations,
         # in both float and str representation.
-        if k_magnitudes is None:
-            k_magnitudes, k_magnitudes_str = get_k_magnitudes(gridsize)
-        else:
-            # Explicit k values has been requested. Allow for a few more
-            # digits than what prepare_class_k() would prescribe by
-            # default if we then retain these k values exactly.
-            for n_extra in range(3):
-                k_magnitudes_prepared, k_magnitudes_str = prepare_class_k(k_magnitudes, n_extra)
-                if np.all(asarray(k_magnitudes_prepared) == asarray(k_magnitudes)):
-                    break
-            else:
-                k_magnitudes_prepared, k_magnitudes_str = prepare_class_k(k_magnitudes)
+        k_magnitudes, k_magnitudes_str = get_k_magnitudes(gridsize)
         # Specify the extra parameters with which CLASS should be run
         extra_params = {
             'k_output_values': k_magnitudes_str,
@@ -2585,7 +2686,7 @@ def compute_cosmo(
         class_call_reason=class_call_reason,
     )
     # Add the CosmoResults object to the cache
-    cosmoresults_cache[cache_key] = cosmoresults
+    cosmoresults_cache[gridsize, gauge] = cosmoresults
     return cosmoresults
 # Dict with keys of the form (gridsize, gauge), storing the results
 # of calls to the above function as CosmoResults instances.
@@ -2597,18 +2698,16 @@ cosmoresults_cache = {}
     # Arguments
     component='Component',
     variable=object,  # str or int
-    gridsize_or_k_magnitudes=object,  # Py_ssize_t or np.ndarray
+    gridsize='Py_ssize_t',
     specific_multi_index=object,  # tuple, int-like or str
     a='double',
     a_next='double',
     gauge=str,
     get=str,
     weight=str,
-    backscale='bint',
     # Locals
     H='double',
     aH_transfer_θ_totʹ='double[::1]',
-    backscale_factor='double',
     class_species=str,
     cosmoresults=object,  # CosmoResults
     k='Py_ssize_t',
@@ -2629,9 +2728,8 @@ cosmoresults_cache = {}
     returns=tuple,  # (Spline, CosmoResults)
 )
 def compute_transfer(
-    component, variable, gridsize_or_k_magnitudes,
-    specific_multi_index=None, a=-1, a_next=-1, gauge='N-body', get='spline',
-    weight=None, backscale=False,
+    component, variable, gridsize,
+    specific_multi_index=None, a=-1, a_next=-1, gauge='N-body', get='spline', weight=None,
 ):
     """This function calls compute_cosmo which produces a CosmoResults
     instance which can talk to CLASS. Using the δ, θ, etc. methods on
@@ -2657,42 +2755,23 @@ def compute_transfer(
             f'The get argument of compute_transfer was "{get}", '
             f'but must be one of "spline" or "array"'
         )
-    if backscale and var_index != 0:
-        abort('Can only perform back-scaling on δ transfer functions')
-    # Compute the cosmology via CLASS. As the 𝘕-body gauge is not
+    # Compute the cosmology via CLASS. As the N-body gauge is not
     # implemented in CLASS, the synchronous gauge is used in its place.
-    # We do the transformation from synchronous to 𝘕-body gauge later.
+    # We do the transformation from synchronous to N-body gauge later.
     cosmoresults = compute_cosmo(
-        gridsize_or_k_magnitudes,
+        gridsize,
         'synchronous' if gauge == 'nbody' else gauge,
-        class_call_reason=(
-            f'in order to get {{}} gauge perturbations of {component.name}'
-            .format(
-                {
-                    'nbody'      : '𝘕-body',
-                    'synchronous': 'synchronous',
-                    'newtonian'  : 'Newtonian',
-                }.get(gauge, gauge)
-            )
-        ),
+        class_call_reason=f'in order to get perturbations of {component.name}',
     )
     k_magnitudes = cosmoresults.k_magnitudes
     k_gridsize = k_magnitudes.shape[0]
     # Get the requested transfer function
-    # and transform to 𝘕-body gauge if requested.
+    # and transform to N-body gauge if requested.
     if var_index == 0:
         # Get the δ transfer function
-        if backscale:
-            if weight is not None:
-                masterwarn(f'Ignoring weight {weight} for back-scaled δ transfer function')
-            transfer = cosmoresults.δ(1, component=component)
-            backscale_factor = cosmoresults.growth_fac_D(a)/cosmoresults.growth_fac_D(1)
-            for k in range(k_gridsize):
-                transfer[k] *= backscale_factor
-        else:
-            transfer = cosmoresults.δ(a, a_next, component=component, weight=weight)
+        transfer = cosmoresults.δ(a, a_next, component=component, weight=weight)
         # Transform the δ transfer function from synchronous
-        # to 𝘕-body gauge, if requested.
+        # to N-body gauge, if requested.
         if gauge == 'nbody':
             # The gauge transformation looks like
             # δᴺᵇ = δˢ + c⁻²(3aH(1 + w) - a*source/ρ_bar)θˢₜₒₜ/k²,
@@ -2718,7 +2797,7 @@ def compute_transfer(
         # Get the θ transfer function
         transfer = cosmoresults.θ(a, a_next, component=component, weight=weight)
         # Transform the θ transfer function from synchronous
-        # to 𝘕-body gauge, if requested.
+        # to N-body gauge, if requested.
         if gauge == 'nbody':
             # The gauge transformation looks like
             # θᴺᵇ = θˢ + hʹ/2 - 3c⁻²(aHθˢₜₒₜ)ʹ/k²,
@@ -2761,7 +2840,7 @@ def compute_transfer(
         # Get the δP transfer function
         transfer = cosmoresults.δP(a, a_next, component=component, weight=weight)
         # Transform the δP transfer function from synchronous
-        # to 𝘕-body gauge, if requested.
+        # to N-body gauge, if requested.
         if gauge == 'nbody':
             # The gauge transformation looks like
             # δPᴺᵇ = δPˢ + aρ_bar(3Hw(1 + w) - ẇ)θˢₜₒₜ/k²,
@@ -2782,10 +2861,9 @@ def compute_transfer(
         # Get the σ transfer function
         transfer = cosmoresults.σ(a, a_next, component=component, weight=weight)
     else:
-        abort(
-            f'I do not know how to get transfer function of multi_index {specific_multi_index} '
-            f'of variable number {var_index}'
-        )
+        abort(f'I do not know how to get transfer function of multi_index {specific_multi_index} '
+              f'of variable number {var_index}'
+              )
     # Construct a spline object over the tabulated transfer function
     if get == 'spline':
         transfer_spline = Spline(k_magnitudes, transfer,
@@ -2799,32 +2877,30 @@ def compute_transfer(
         return transfer, cosmoresults
 
 # Function which given a grid size computes an array of k values
-# based on the boxsize and the class_modes_per_decade parameter.
+# based on the boxsize and the k_modes_per_decade parameter.
 @cython.header(
     # Arguments
     gridsize='Py_ssize_t',
-    use_cache='bint',
     # Locals
+    cached=object,  # tuple
     k_magnitudes_str=str,
     k_gridsize='Py_ssize_t',
     k_magnitudes='double[::1]',
     k_max='double',
     k_min='double',
-    k_safety_factor='double',
     logk='double',
     logk_magnitudes=object,  # list, np.ndarray
     logk_modes_per_decade_interp=object,  # scipy.interpolate.interp1d
     logk_max='double',
     logk_min='double',
     nyquist='Py_ssize_t',
-    returns=tuple,
+    returns=object,  # tuple
 )
-def get_k_magnitudes(gridsize, use_cache=True):
+def get_k_magnitudes(gridsize):
     # Cache lookup
-    if use_cache:
-        cached = k_magnitudes_cache.get(gridsize)
-        if cached is not None:
-            return cached
+    cached = k_magnitudes_cache.get(gridsize)
+    if cached is not None:
+        return cached
     # As we ignore the Nyquist points, (nyquist - 1) needs to be
     # positive, requiring gridsize >= 4.
     if gridsize < 4:
@@ -2833,7 +2909,6 @@ def get_k_magnitudes(gridsize, use_cache=True):
     k_min = ℝ[2*π/boxsize]
     nyquist = gridsize//2
     k_max = k_min*sqrt(3*(nyquist - 1)**2)
-    k_safety_factor = 2*10**float(-np.max([get_k_str_n_decimals(), 1]))
     k_min *= ℝ[1 - k_safety_factor]
     k_max *= ℝ[1 + k_safety_factor]
     logk_min = log10(k_min)
@@ -2842,7 +2917,7 @@ def get_k_magnitudes(gridsize, use_cache=True):
     # using a running number of modes/decade.
     logk = logk_min
     logk_magnitudes = [logk]
-    logk_modes_per_decade_interp = get_controlpoint_spline(class_modes_per_decade, np.log10)
+    logk_modes_per_decade_interp = get_logk_modes_per_decade_interp()
     while logk <= logk_max:
         logk += 1/logk_modes_per_decade_interp(logk)
         logk_magnitudes.append(logk)
@@ -2860,78 +2935,1028 @@ def get_k_magnitudes(gridsize, use_cache=True):
     logk_magnitudes -= logk_min
     logk_magnitudes *= (logk_max - logk_min)/logk_magnitudes[k_gridsize - 1]
     logk_magnitudes += logk_min
-    # Construct the k array
+    # Construct the |k| array
     k_magnitudes = 10**logk_magnitudes
-    # Make the exact k values suitable for CLASS
-    # and produce a str representation.
-    k_magnitudes, k_magnitudes_str = prepare_class_k(k_magnitudes)
-    # Cache and return both the float and str representation
-    if use_cache:
-        k_magnitudes_cache[gridsize] = (k_magnitudes, k_magnitudes_str)
-    return k_magnitudes, k_magnitudes_str
-# Cache and helper functions used by the get_k_magnitudes() function
-cython.declare(k_magnitudes_cache=dict)
-k_magnitudes_cache = {}
-def prepare_class_k(k_magnitudes, n_extra=0):
     # Convert to CLASS units, i.e. Mpc⁻¹, which shall be the unit
     # used for the str representation of k_magnitudes.
     k_magnitudes = asarray(k_magnitudes)/units.Mpc**(-1)
-    # Limit the number of decimals on each k, also producing the
-    # str representation. Increase the number of decimals until each
-    # mode has a unique str representation.
-    n = get_k_str_n_decimals() + n_extra
-    while True:
-        with disable_numpy_summarization():
-            k_magnitudes_str = np.array2string(
-                k_magnitudes,
-                max_line_width=ထ,
-                formatter={'float': functools.partial(k_float2str, n=n)},
-                separator=',',
-            ).strip('[]')
-        k_magnitudes = np.fromstring(k_magnitudes_str, sep=',')
-        if len(set(k_magnitudes)) == len(k_magnitudes):
-            break
-        if n > 18:
-            abort(
-                'The requested k sampling is too dense, '
-                'leading to modes that are exactly equal'
-            )
-        n += 1
+    # Limit the number of decimals on each |k|,
+    # also producing the str representation.
+    with disable_numpy_summarization():
+        k_magnitudes_str = np.array2string(
+            k_magnitudes,
+            max_line_width=ထ,
+            formatter={'float': k_float2str},
+            separator=',',
+        ).strip('[]')
+    k_magnitudes = np.fromstring(k_magnitudes_str, sep=',')
+    if len(set(k_magnitudes)) != k_gridsize:
+        abort(
+            'The requested k sampling is too dense, leading to modes that are exactly equal '
+            'after limiting the number of decimal places. Though this ought not to ever happen, '
+            'it should help to lower the k_modes_per_decade parameter. '
+            'Alternatively, you can try lowering the linear.k_safety_factor variable.'
+        )
     # Convert back to the current CO𝘕CEPT unit system
     k_magnitudes = asarray(k_magnitudes)*units.Mpc**(-1)
-    return k_magnitudes, k_magnitudes_str
-def k_float2str(k_float, n=-1):
-    if n == -1:
-        n = get_k_str_n_decimals()
-    k_str = (
-        f'{{:.{n}e}}'.format(k_float)
-        .replace('+0', '+')
-        .replace('-0', '-')
-        .replace('e+0', '')
-    )
+    # Cache and return both the float and str representation
+    k_magnitudes_cache[gridsize] = (k_magnitudes, k_magnitudes_str)
+    return k_magnitudes_cache[gridsize]
+# Cache and helper objects used by the get_k_magnitudes() function
+cython.declare(
+    k_magnitudes_cache=dict,
+    k_str_n_decimals='int',
+    k_safety_factor='double',
+)
+k_magnitudes_cache = {}
+def get_logk_modes_per_decade_interp():
+    import scipy.interpolate
+    logk_modes_per_decade_interp = lambda logk, *, f=scipy.interpolate.interp1d(
+        np.log10(tuple(k_modes_per_decade.keys())),
+        tuple(k_modes_per_decade.values()),
+        kind='linear',
+        bounds_error=False,
+        fill_value=(
+            k_modes_per_decade[np.min(tuple(k_modes_per_decade.keys()))],
+            k_modes_per_decade[np.max(tuple(k_modes_per_decade.keys()))],
+        ),
+    ): float(f(logk))
+    return logk_modes_per_decade_interp
+def k_float2str(k_float):
+    k_str = 𝕊['{{:.{}e}}'.format(k_str_n_decimals)].format(k_float)
+    k_str = k_str.replace('+0', '+').replace('-0', '-').replace('e+0', '')
     return k_str
-def get_k_str_n_decimals():
-    return np.max([1, int(ceil(log10(1 + np.max(tuple(class_modes_per_decade.values())))))])
+k_str_n_decimals = int(ceil(log10(1 + np.max(tuple(k_modes_per_decade.values())))))
+k_safety_factor = 2*10**float(-k_str_n_decimals)
+
+# Function which realises a given variable on a component
+# from a supplied transfer function.
+@cython.pheader(
+    # Arguments
+    component='Component',
+    variable=object,  # str or int
+    transfer_spline='Spline',
+    cosmoresults=object,  # CosmoResults
+    specific_multi_index=object,  # tuple, int-like or str
+    a='double',
+    options=dict,
+    use_gridˣ='bint',
+    # Locals
+    H='double',
+    Jⁱ_ptr='double*',
+    N_str=str,
+    compound_variable='bint',
+    cosmoresults_δ=object,  # CosmoResults
+    deconv_order='int',
+    dim='int',
+    domain_start_i='Py_ssize_t',
+    domain_start_j='Py_ssize_t',
+    domain_start_k='Py_ssize_t',
+    f_growth='double',
+    factor='double',
+    fluid_index='Py_ssize_t',
+    fluidscalar='FluidScalar',
+    fluidvar=object,  # Tensor
+    fluidvar_name=str,
+    gridsize='Py_ssize_t',
+    i='Py_ssize_t',
+    index='Py_ssize_t',
+    indexʳ='Py_ssize_t',
+    indexˣ='Py_ssize_t',
+    indexˣʸᶻ='Py_ssize_t',
+    index0='Py_ssize_t',
+    index1='Py_ssize_t',
+    interpolation_order='int',
+    j='Py_ssize_t',
+    k='Py_ssize_t',
+    k_factor='double',
+    k_index0='Py_ssize_t',
+    k_index1='Py_ssize_t',
+    k_magnitude='double',
+    k2='Py_ssize_t',
+    k2_max='Py_ssize_t',
+    ki='Py_ssize_t',
+    kj='Py_ssize_t',
+    kk='Py_ssize_t',
+    mass='double',
+    mom='double*',
+    multi_index=object,  # tuple or str
+    nyquist='Py_ssize_t',
+    option_key=str,
+    option_val=object,  # str or bool
+    options_linear=dict,
+    particle_components=list,
+    particle_index='int',
+    particle_shift='double',
+    particle_shifts='double[::1]',
+    particle_var_name=str,
+    pos='double*',
+    posxˣ='double*',
+    posyˣ='double*',
+    poszˣ='double*',
+    processed_specific_multi_index=object,  # tuple or str
+    reuse_slab_structure='bint',
+    slab='double[:, :, ::1]',
+    slab_ptr='double*',
+    sqrt_power='double',
+    sqrt_power_common='double[::1]',
+    slab_structure='double[:, :, ::1]',
+    slab_structure_info=dict,
+    slab_structure_name=str,
+    structure_ptr='double*',
+    tensor_rank='int',
+    transfer='double',
+    transfer_spline_δ='Spline',
+    uⁱ='double[:, :, ::1]',
+    w='double',
+    w_eff='double',
+    x_gridpoint='double',
+    y_gridpoint='double',
+    z_gridpoint='double',
+    Δmom='double*',
+    δ_min='double',
+    θ='double',
+    ςⁱⱼ_ptr='double*',
+    ψⁱ='double[:, :, ::1]',
+    ϱ_bar='double',
+    ϱ_ptr='double*',
+    𝒫_ptr='double*',
+)
+def realize(
+    component, variable, transfer_spline, cosmoresults,
+    specific_multi_index=None, a=-1, options=None, use_gridˣ=False,
+):
+    """This function realises a single variable of a component,
+    given the transfer function as a Spline (using |k⃗| in physical units
+    as the independent variable) and the corresponding CosmoResults
+    object, which carry additional information from the CLASS run that
+    produced the transfer function. If only a single fluidscalar of the
+    fluid variable should be realised, the multi_index of this
+    fluidscalar may be specified. If you want a realisation at a time
+    different from the present you may specify an a.
+    If a particle component is given, the Zel'dovich approximation is
+    used to distribute the particles and assign momenta.
+
+    Several options has to be specified to define how the realisation is
+    to be carried out. These options are contained in the "options"
+    argument. By default, the options are
+    options = {
+        # Linear realisation options
+        'velocities from displacements': False,
+        # Non-linear realisation options
+        'structure'     : 'primordial',
+        'compound-order': 'linear',
+    }
+    which corresponds to linear realisation. For particle components
+    (which can not be realised continually) only linear realisation is
+    possible, and thus only the linear option matters. When
+    'velocities from displacements' is True, the particle momenta will
+    be set from the same displacement field ψⁱ as is used for the
+    positions, using the linear growth rate f to convert between
+    displacement and velocity. Otherwise, momenta will be constructed
+    from their own velocity field uⁱ, using their own transfer function
+    but the same (primordial) noise. Note that for particle components
+    you must realise the momenta prior to the positions. If
+    'velocities from displacements' is True, you should call this
+    function once with variable = 1 (momenta), but with a
+    transfer_spline for ψⁱ (corresponding to variable 0).
+    Another linear option 'back-scaling' might be specified, but it is
+    not used by this function.
+    Taking Jⁱ as an example of a fluid variable realisation,
+    linear realisation looks like
+        Jⁱ(x⃗) = a**(1 - 3w_eff)ϱ_bar(1 + w)ℱₓ⁻¹[T_θ(k)ζ(k)K(k⃗)ℛ(k⃗)],
+    where ζ(k) is the primordial curvature perturbation, T_θ(k) is the
+    passed transfer function for θ, ℛ(k⃗) is a field of primordial noise,
+    and K(k⃗) is the tensor structure (often referred to as the k factor)
+    needed to convert from θ to uⁱ. For uⁱ, K(k⃗) = -ikⁱ/k². The factors
+    outside the Fourier transform then converts from uⁱ to Jⁱ.
+    We can instead choose to use the non-linearly evolved structure
+    of ϱ, by using options['structure'] == 'non-linear'. Then the
+    realisation looks like
+        Jⁱ(x⃗) = a**(1 - 3w_eff)ϱ_bar(1 + w)ℱₓ⁻¹[T_θ(k)/T_δϱ(k)K(k⃗)δϱ(k⃗)],
+    where δϱ(k⃗) = ℱₓ[δϱ(x⃗)] is computed from the present ϱ(x⃗) grid,
+    and T_δϱ(k) is the (not passed) transfer function of δϱ.
+    An orthogonal option is 'compound-order'. Setting this to
+    'non-linear' signals that the multiplication which takes uⁱ to Jⁱ
+    should be done using non-linear variables rather than background
+    quantities. That is,
+        Jⁱ(x⃗) = a**(1 - 3w_eff)(ϱ(x⃗) + c⁻²𝒫(x⃗))ℱₓ⁻¹[...].
+
+    For both particle and fluid components it is assumed that the
+    passed component is of the correct size beforehand. No resizing
+    will take place in this function.
+    """
+    if a == -1:
+        a = universals.a
+    if options is None:
+        options = {}
+    options = {key.lower().replace(' ', '').replace('-', ''):
+        (val.lower().replace(' ', '').replace('-', '') if isinstance(val, str) else val)
+        for key, val in options.items()
+    }
+    # By default, use linear realisation options and do not construct
+    # the velocities directly from the displacements.
+    options_linear = {
+        # Linear options
+        'interpolation': 2,  # CIC
+        'velocitiesfromdisplacements': False,
+        # Non-linear options
+        'structure'    : 'primordial',
+        'compoundorder': 'linear',
+    }
+    for option_key, option_val in options_linear.items():
+        if option_key not in options:
+            options[option_key] = option_val
+    for option_key in options:
+        if option_key not in {
+            'interpolation',
+            'velocitiesfromdisplacements',
+            'backscaling',
+            'structure',
+            'compoundorder',
+        }:
+            abort(f'realize() did not understand realisation option "{option_key}"')
+    if options['structure'] not in {'primordial', 'nonlinear'}:
+        abort(f'Unrecognised value "{options["structure"]}" for options["structure"]')
+    if options['compoundorder'] not in {'linear', 'nonlinear'}:
+        abort(f'Unrecognised value "{options["compoundorder"]}" for options["compound-order"]')
+    options['velocitiesfromdisplacements'] = bool(options['velocitiesfromdisplacements'])
+    # Get the index of the fluid variable to be realised
+    # and print out progress message.
+    processed_specific_multi_index = ()
+    particle_var_name = 'pos'
+    fluid_index = component.varnames2indices(variable, single=True)
+    if component.representation == 'particles':
+        if use_gridˣ:
+            masterwarn(
+                f'realize() was called with use_gridˣ=True '
+                f'for the particle component {component.name}. '
+                f'This will be ignored.'
+            )
+        # For particles, the only variables that exist are the positions
+        # and the momenta, corresponding to a fluid_index of 0 and 1,
+        # respectively.
+        particle_var_name = {0: 'pos', 1: 'mom'}[fluid_index]
+        # When the 'velocities from displacements' option is enabled,
+        # both the positions and the momenta are constructed from the
+        # displacement field ψⁱ. It is then illegal to request a position
+        # realisation directly.
+        if particle_var_name == 'pos' and options['velocitiesfromdisplacements']:
+            abort(
+                f'A realisation of particle positions for {component.name} was requested. '
+                f'As this component is supposed to get its velocities from the displacements, '
+                f'you should only call realize() for the momenta/velocities, which will then '
+                f'realise both positions and momenta.'
+            )
+        if component.N > 1 and isint(ℝ[cbrt(component.N)]):
+            N_str = str(int(round(ℝ[cbrt(component.N)]))) + '³'
+        else:
+            N_str = str(component.N)
+        if specific_multi_index is None:
+            masterprint(
+                f'Realising {N_str} particle',
+                'momenta and positions' if options['velocitiesfromdisplacements']
+                    else {'pos': 'positions', 'mom': 'momenta'}[particle_var_name],
+                f'of {component.name} ...'
+            )
+        else:
+            processed_specific_multi_index = (
+                component.fluidvars[fluid_index].process_multi_index(specific_multi_index)
+            )
+            if options['velocitiesfromdisplacements']:
+                masterprint(
+                    f'Realising {N_str} particle momenta[{processed_specific_multi_index[0]}] '
+                    f'and positions[{processed_specific_multi_index[0]}] of {component.name} ...'
+                )
+            else:
+                masterprint(
+                    f'Realising {N_str} particle',
+                    {'pos': 'positions', 'mom': 'momenta'}[particle_var_name]
+                        + f'[{processed_specific_multi_index[0]}] '
+                    f'of {component.name} ...'
+                )
+        # For particles, the Zel'dovich approximation is used for the
+        # realisation. For the positions, the displacement field ψⁱ is
+        # really what is realised, while for the momenta, the velocity
+        # field uⁱ is what is really realised. Both of these are vector
+        # fields, and so we have to set fluid_index to 1 so that
+        # multi_index takes on vector values ((0, ), (1, ), (2, )).
+        fluid_index = 1
+    elif component.representation == 'fluid':
+        fluidvar_name = component.fluid_names['ordered'][fluid_index]
+        if specific_multi_index is None:
+            masterprint(
+                f'Realising {fluidvar_name} of {component.name} '
+                f'with grid size {component.gridsize} ...'
+            )
+        else:
+            processed_specific_multi_index = (
+                component.fluidvars[fluid_index].process_multi_index(specific_multi_index)
+            )
+            masterprint(
+                f'Realising {fluidvar_name}{{}} of {component.name} '
+                f'with grid size {component.gridsize} ...'
+                .format(
+                    '' if fluid_index == 0 else (
+                        f"['{processed_specific_multi_index}']"
+                        if isinstance(processed_specific_multi_index, str) else (
+                            '[{}]'.format(
+                                str(processed_specific_multi_index).strip('()')
+                                if len(processed_specific_multi_index) > 1
+                                else processed_specific_multi_index[0]
+                            )
+                        )
+                    )
+                )
+            )
+    # Determine the grid size of the grid used to do the realisation
+    if component.representation == 'particles':
+        if not isint(ℝ[cbrt(component.N)]):
+            abort(
+                f'Cannot perform realisation of {component.name} '
+                f'with N = {component.N}, as N is not a cubic number.'
+            )
+        gridsize = int(round(ℝ[cbrt(component.N)]))
+    elif component.representation == 'fluid':
+        gridsize = component.gridsize
+    if gridsize%nprocs != 0:
+        abort(
+            f'The realisation uses a gridsize of {gridsize}, '
+            f'which is not evenly divisible by {nprocs} processes.'
+        )
+    # A compound order of 'nonlinear' only makes a difference for
+    # compound variables; that is, Jⁱ and ςⁱⱼ. If what we are realising
+    # is another variable, switch this back to 'linear'.
+    if fluid_index == 1:
+        # We are realising Jⁱ
+        compound_variable = True
+    elif fluid_index == 2 and processed_specific_multi_index != 'trace':
+        # We are realising ςⁱⱼ
+        compound_variable = True
+    else:
+        compound_variable = False
+    if not compound_variable:
+        if options['compoundorder'] == 'nonlinear':
+            options['compoundorder'] = 'linear'
+    # Abort if the non-linear structure option was passed
+    # for a particle component, as these can only be realised
+    # from primordial noise.
+    if (component.representation == 'particles'
+        and options['structure'] != options_linear['structure']
+    ):
+        abort('Can only do particle realisation using primordial noise/structure')
+    # When realising δ, it only makes sense to realise it linearly
+    if fluid_index == 0 and options['structure'] != options_linear['structure']:
+        abort('Can only do linear realisation of δ')
+    # Extract various variables
+    H = hubble(a)
+    w = component.w(a=a)
+    w_eff = component.w_eff(a=a)
+    ϱ_bar = component.ϱ_bar
+    # Fill 1D array with values used for the realisation.
+    # These values are the k (but not k⃗) dependent values inside the
+    # inverse Fourier transform, not including any additional tensor
+    # structure (the k factors K(k⃗)).
+    nyquist = gridsize//2
+    k2_max = 3*(nyquist - 1)**2  # Max |k⃗|² in grid units
+    sqrt_power_common = get_buffer(k2_max + 1,
+        # Must use some buffer different from the one used to do the
+        # domain decomposition of ψⁱ below.
+        0,
+    )
+    if options['structure'] == 'nonlinear':
+        # When using the non-linear structure of δϱ to do
+        # the realisations, we need the transfer function of δϱ,
+        # which is just ϱ_bar times the transfer function of δ.
+        transfer_spline_δ, cosmoresults_δ = compute_transfer(component, 0, gridsize, a=a)
+    for k2 in range(1, k2_max + 1):
+        k_magnitude = ℝ[2*π/boxsize]*sqrt(k2)
+        transfer = transfer_spline.eval(k_magnitude)
+        with unswitch:
+            if options['structure'] == 'primordial':
+                # Realise using ℱₓ⁻¹[T(k) ζ(k) K(k⃗) ℛ(k⃗)],
+                # with K(k⃗) capturing any tensor structure.
+                # The k⃗-independent part needed here is T(k)ζ(k),
+                # with T(k) the supplied transfer function and ζ(k) the
+                # primordial curvature perturbations.
+                # The remaining ℛ(k⃗) is the primordial noise.
+                sqrt_power_common[k2] = (
+                    # T(k)
+                    transfer
+                    # ζ(k)
+                    *ζ(k_magnitude)
+                    # Fourier normalization
+                    *ℝ[boxsize**(-1.5)]
+                )
+            else:  # options['structure'] == 'nonlinear':
+                # Realise using ℱₓ⁻¹[T(k)/T_δϱ(k) K(k⃗) ℱₓ[δϱ(x⃗)]],
+                # with K(k⃗) capturing any tensor structure.
+                # The k⃗-independent part needed here is T(k)/T_δϱ(k),
+                # with T(k) the supplied transfer function and T_δϱ(k)
+                # the transfer function of δϱ.
+                sqrt_power_common[k2] = (
+                    # T(k)
+                    transfer
+                    # 1/T_δϱ(k)
+                    /transfer_spline_δ.eval(k_magnitude)*ℝ[1/ϱ_bar
+                        # Normalization due to FFT + IFFT
+                        *float(gridsize)**(-3)
+                    ]
+                )
+    # At |k⃗| = 0, the power should be zero, corresponding to a
+    # real-space mean value of zero of the realised variable.
+    sqrt_power_common[0] = 0
+    # Fetch a slab decomposed grid for storing the entirety of what is
+    # to be inverse Fourier transformed.
+    slab = get_fftw_slab(gridsize)
+    # Fetch a slab decomposed grid for storing the structure
+    slab_structure_name = 'slab_structure'
+    if options['structure'] == 'primordial':
+        if fourier_structure_caching.get('primordial'):
+            slab_structure_name += '_primordial'
+        slab_structure_info = {'structure': 'primordial'}
+    elif options['structure'] == 'nonlinear':
+        if is_selected(component, fourier_structure_caching):
+            slab_structure_name += f'_nonlinear_{component.name}'
+        slab_structure_info = {
+            'structure': 'nonlinear',
+            'component': component.name,
+            'a'        : a,
+            'use_gridˣ': use_gridˣ,
+        }
+    reuse_slab_structure = (
+        slab_structure_infos.get((gridsize, slab_structure_name)) == slab_structure_info
+    )
+    slab_structure_infos[gridsize, slab_structure_name] = slab_structure_info
+    slab_structure = get_fftw_slab(gridsize, slab_structure_name)
+    # Repopulate the slab structure if we cannot reuse it
+    if not reuse_slab_structure:
+        if options['structure'] == 'primordial':
+            # Populate slab_structure with primordial noise ℛ(k⃗)
+            generate_primordial_noise(slab_structure)
+        elif options['structure'] == 'nonlinear':
+            # Populate slab_structure with ℱₓ[ϱ(x⃗)]
+            masterprint(
+                f'Extracting structure from ϱ{"ˣ" if use_gridˣ else ""} of {component.name} ...'
+            )
+            slab_decompose(
+                component.ϱ.gridˣ_mv if use_gridˣ else component.ϱ.grid_mv,
+                slab_structure,
+            )
+            fft(slab_structure, 'forward')
+            masterprint('done')
+    # Initialise index0 and index1.
+    # The actual values are not important.
+    index0 = index1 = 0
+    # When multiple particle components are to be realised, it is
+    # preferable to not do so "on top of each other", as this leads to
+    # large early forces. Below we define particle_shift to be the
+    # fraction of a grid cell the current particle component should be
+    # shifted relative to the default realisation grid, in all
+    # directions. For a total of 1 particle components, this will be 0.
+    # For a total of 2 particle components, this will be -1/4 and +1/4,
+    # for the first and second particle component, respectively. For 3
+    # particle components, this will be -1/3, 0, 1/3, and so on.
+    # Note that this shifting trick leads to anisotropies for 3 particle
+    # components and above.
+    particle_shift = 0
+    if component.representation == 'particles':
+        particle_components = [
+            other_component for other_component in component.components_all
+            if other_component.representation == 'particles'
+        ]
+        particle_shift = 1.0/len(particle_components)
+        particle_shifts = (
+            linspace(particle_shift/2, 1 - particle_shift/2, len(particle_components)) -  0.5
+        )
+        particle_index = particle_components.index(component)
+        particle_shift = particle_shifts[particle_index]
+        if particle_index > 1:
+            masterwarn(
+                'You are realising more than 2 particle components. '
+                'Note that this will lead to anisotropies in the initial conditions.'
+            )
+    # The realised field will be interpolated onto the shifted particle
+    # positions, using the interpolation order specified in the options.
+    interpolation_order = options['interpolation']
+    # Preparations for the Fourier slab loop.
+    # The deconvolution order is special, as we only deconvolve if the
+    # particles are shifted (i.e. not on top of the grid points) or if
+    # the interpolation order is more than 2 (i.e. TSC and beyond). We
+    # do it like this because interpolation orders beyond NGP and CIC
+    # samples more than a single grid point even in the case where the
+    # particles sit on top of the grid points.
+    slab_ptr      = cython.address(slab          [:, :, :])
+    structure_ptr = cython.address(slab_structure[:, :, :])
+    deconv_order = interpolation_order*𝔹[particle_shift or interpolation_order > 2]
+    # Loop over all fluid scalars of the fluid variable
+    fluidvar = component.fluidvars[fluid_index]
+    for multi_index in (
+        fluidvar.multi_indices if specific_multi_index is None
+        else [processed_specific_multi_index]
+    ):
+        # Determine rank of the tensor being realised (0 for scalar
+        # (i.e. ϱ), 1 for vector (i.e. J), 2 for tensor (i.e. ς)).
+        if fluid_index == 0 or isinstance(multi_index, str):
+            # If multi_index is a str it is 'trace', which means that
+            # 𝒫 is being realised.
+            # If fluid_index is 0, ϱ is being realised.
+            tensor_rank = 0
+        else:
+            # The multi_index is a tuple of indices
+            tensor_rank = len(multi_index)
+        # Extract individual indices from multi_index
+        if tensor_rank > 0:
+            index0 = multi_index[0]
+        if tensor_rank > 1:
+            index1 = multi_index[1]
+        # Loop over the slab
+        for index, ki, kj, kk, factor, θ in fourier_loop(
+            gridsize, skip_origin=True, deconv_order=deconv_order,
+        ):
+            k2 = ℤ[ℤ[ℤ[kj**2] + ki**2] + kk**2]
+            # The square root of the power at this |k⃗|, disregarding all
+            # k⃗-dependent contributions (from the k factor and the
+            # non-linear structure).
+            sqrt_power = sqrt_power_common[k2]
+            # Apply deconvolution
+            sqrt_power *= factor
+            # Populate slab according to the component
+            # representation and tensor_rank.
+            with unswitch(5):
+                if 𝔹[component.representation == 'particles']:
+                    # We are realising either the displacement field ψⁱ
+                    # (for the positions) or the velocity field uⁱ (for
+                    # the momenta). These are constructed from the δ and
+                    # θ fields, respectively, with the vector k factor
+                    # K(k⃗) = ±ikⁱ/k².
+                    # For fluids, fluid_index distinguish between the
+                    # different variables. For particle positions and
+                    # momenta, the corresponding ψⁱ and uⁱ fields are
+                    # both vector variables, and so we had to set
+                    # fluid_index = 1 in both cases. To distinguish
+                    # between particles and momenta (and hence get the
+                    # sign in the k factor correct) we instead make use
+                    # of the particle_var_name variable. Also, when
+                    # realising momenta with
+                    # 'velocities from displacements' True, we really
+                    # want to realise ψⁱ, and so we need to use the k
+                    # factor for positions.
+                    k_index0 = (
+                          (-𝔹[index0 == 0] & ki)
+                        | (-𝔹[index0 == 1] & kj)
+                        | (-𝔹[index0 == 2] & kk)
+                    )
+                    k_factor = ℝ[
+                        {
+                            ('pos', True ): +1,
+                            ('pos', False): +1,
+                            ('mom', True ): +1,  # use 'pos' k factor
+                            ('mom', False): -1,
+                        }[particle_var_name, options['velocitiesfromdisplacements']]
+                        *boxsize/(2*π)
+                    ]*k_index0/k2
+                    slab_ptr[index    ] = ℝ[sqrt_power*k_factor]*(-structure_ptr[index + 1])
+                    slab_ptr[index + 1] = ℝ[sqrt_power*k_factor]*(+structure_ptr[index    ])
+                elif tensor_rank == 0:  # and component.representation == 'fluid'
+                    # Realise δ or δ𝒫
+                    slab_ptr[index    ] = sqrt_power*structure_ptr[index    ]
+                    slab_ptr[index + 1] = sqrt_power*structure_ptr[index + 1]
+                elif tensor_rank == 1:  # and component.representation == 'fluid'
+                    # Realise uⁱ.
+                    # For vectors we have a k factor of
+                    # K(k⃗) = -ikⁱ/k².
+                    k_index0 = (
+                          (-𝔹[index0 == 0] & ki)
+                        | (-𝔹[index0 == 1] & kj)
+                        | (-𝔹[index0 == 2] & kk)
+                    )
+                    k_factor = -(ℝ[boxsize/(2*π)]*k_index0)/k2
+                    slab_ptr[index    ] = ℝ[sqrt_power*k_factor]*(-structure_ptr[index + 1])
+                    slab_ptr[index + 1] = ℝ[sqrt_power*k_factor]*(+structure_ptr[index    ])
+                else:  # tensor_rank == 2 and component.representation == 'fluid'
+                    # Realise ςⁱⱼ.
+                    # For rank 2 tensors we
+                    # have a k factor of
+                    # K(k⃗) = 3/2(δⁱⱼ/3 - kⁱkⱼ/k²).
+                    k_index0 = (
+                          (-𝔹[index0 == 0] & ki)
+                        | (-𝔹[index0 == 1] & kj)
+                        | (-𝔹[index0 == 2] & kk)
+                    )
+                    k_index1 = (
+                          (-𝔹[index1 == 0] & ki)
+                        | (-𝔹[index1 == 1] & kj)
+                        | (-𝔹[index1 == 2] & kk)
+                    )
+                    k_factor = ℝ[0.5*(index0 == index1)] - (1.5*k_index0*k_index1)/k2
+                    slab_ptr[index    ] = ℝ[sqrt_power*k_factor]*structure_ptr[index    ]
+                    slab_ptr[index + 1] = ℝ[sqrt_power*k_factor]*structure_ptr[index + 1]
+        # Ensure nullified Nyquist planes and origin
+        nullify_modes(slab, 'nyquist, origin')
+        # Fourier transform the slabs to coordinate space.
+        # Now the slabs store the realised grid.
+        fft(slab, 'backward')
+        # Populate the fluid grids for fluid components,
+        # or create the particles via the Zel'dovich approximation
+        # for particles.
+        if component.representation == 'fluid':
+            # Communicate the fluid realisation stored in the slabs to
+            # the designated fluid scalar grid. This also populates the
+            # ghost points.
+            fluidscalar = fluidvar[multi_index]
+            domain_decompose(slab, fluidscalar.gridˣ_mv if use_gridˣ else fluidscalar.grid_mv)
+            # Transform the realised fluid variable to the actual
+            # quantity used in the non-linear fluid equations.
+            if fluid_index == 0:
+                # δ → ϱ = ϱ_bar(1 + δ).
+                # Print a warning if min(δ) < -1.
+                δ_min = ထ
+                ϱ_ptr = fluidscalar.gridˣ if use_gridˣ else fluidscalar.grid
+                for index in range(component.size):
+                    if ℝ[ϱ_ptr[index]] < δ_min:
+                        δ_min = ℝ[ϱ_ptr[index]]
+                    ϱ_ptr[index] = ϱ_bar*(1 + ℝ[ϱ_ptr[index]])
+                δ_min = allreduce(δ_min, op=MPI.MIN)
+                if δ_min < -1:
+                    masterwarn(f'The realised ϱ of {component.name} has min(δ) = {δ_min:.4g} < -1')
+            elif fluid_index == 1:
+                Jⁱ_ptr = fluidscalar.gridˣ if use_gridˣ else fluidscalar.grid
+                if options['compoundorder'] == 'nonlinear':
+                    # uⁱ → Jⁱ = a**4(ρ + c⁻²P)uⁱ
+                    #         = a**(1 - 3w_eff)(ϱ + c⁻²𝒫) * uⁱ
+                    ϱ_ptr  = component.ϱ.gridˣ if use_gridˣ else component.ϱ.grid
+                    𝒫_ptr  = component.𝒫.gridˣ if use_gridˣ else component.𝒫.grid
+                    for index in range(component.size):
+                        Jⁱ_ptr[index] *= ℝ[a**(1 - 3*w_eff)]*(
+                            ϱ_ptr[index] + ℝ[light_speed**(-2)]*𝒫_ptr[index]
+                        )
+                else:
+                    # uⁱ → Jⁱ = a**4(ρ + c⁻²P)uⁱ
+                    #         = a**(1 - 3w_eff)(ϱ + c⁻²𝒫) * uⁱ
+                    #         ≈ a**(1 - 3w_eff)ϱ_bar(1 + w) * uⁱ
+                    for index in range(component.size):
+                        Jⁱ_ptr[index] *= ℝ[a**(1 - 3*w_eff)*ϱ_bar*(1 + w)]
+            elif fluid_index == 2 and multi_index == 'trace':
+                # δP → 𝒫 = 𝒫_bar + a**(3*(1 + w_eff)) * δP
+                #        = c²*w*ϱ_bar + a**(3*(1 + w_eff)) * δP
+                𝒫_ptr = fluidscalar.gridˣ if use_gridˣ else fluidscalar.grid
+                for index in range(component.size):
+                    𝒫_ptr[index] = ℝ[light_speed**2*w*ϱ_bar] + ℝ[a**(3*(1 + w_eff))]*𝒫_ptr[index]
+            elif fluid_index == 2:
+                ςⁱⱼ_ptr = fluidscalar.gridˣ if use_gridˣ else fluidscalar.grid
+                if options['compoundorder'] == 'nonlinear':
+                    # σⁱⱼ → ςⁱⱼ = (ϱ + c⁻²𝒫) * σⁱⱼ
+                    ϱ_ptr  = component.ϱ.gridˣ if use_gridˣ else component.ϱ.grid
+                    𝒫_ptr  = component.𝒫.gridˣ if use_gridˣ else component.𝒫.grid
+                    for index in range(component.size):
+                       ςⁱⱼ_ptr[index] *= ϱ_ptr[index] + ℝ[light_speed**(-2)]*𝒫_ptr[index]
+                else:
+                    # σⁱⱼ → ςⁱⱼ = (ϱ + c⁻²𝒫) * σⁱⱼ
+                    #           ≈ ϱ_bar(1 + w) * σⁱⱼ
+                    for index in range(component.size):
+                        ςⁱⱼ_ptr[index] *= ℝ[ϱ_bar*(1 + w)]
+            # Continue with the next fluidscalar
+            continue
+        # Domain-decompose the realised field stored in the slabs.
+        # This is either the displacement field ψⁱ or the velocity
+        # field uⁱ. Importantly, here we have to use a different
+        # buffer from the one already used by sqrt_power_common.
+        ψⁱ = uⁱ = domain_decompose(slab, 1)
+        # Determine and set the mass of the particles
+        # if this is still unset.
+        if component.mass == -1:
+            # For species with varying mass, this is the mass at a = 1
+            component.mass = ϱ_bar*boxsize**3/component.N
+        # The current mass is the set mass at a = 1,
+        # scaled according to w_eff(a).
+        mass = a**(-3*w_eff)*component.mass
+        # Below follows the Zel'dovich approximation
+        # for particle components.
+        dim = multi_index[0]
+        pos   = component.pos
+        posxˣ = component.posxˣ
+        posyˣ = component.posyˣ
+        poszˣ = component.poszˣ
+        mom   = component.mom
+        Δmom  = component.Δmom
+        if particle_var_name == 'mom':
+            if dim == 0:
+                # This is the realisation of the x momenta, which should
+                # be the first variable to be realised out of
+                # {x momenta, y momenta, z momenta, x positions,
+                # y positions, z positions}.
+                # Position the particles at the grid points,
+                # possibly shifted in accordance with particle_shift.
+                domain_start_i = domain_layout_local_indices[0]*(uⁱ.shape[0] - ℤ[2*nghosts])
+                domain_start_j = domain_layout_local_indices[1]*(uⁱ.shape[1] - ℤ[2*nghosts])
+                domain_start_k = domain_layout_local_indices[2]*(uⁱ.shape[2] - ℤ[2*nghosts])
+                indexˣ = 0
+                for i in range(ℤ[uⁱ.shape[0] - ℤ[2*nghosts]]):
+                    x_gridpoint = (
+                        ℝ[domain_start_i + 0.5*cell_centered + particle_shift] + i
+                    )*ℝ[boxsize/gridsize]
+                    for j in range(ℤ[uⁱ.shape[1] - ℤ[2*nghosts]]):
+                        y_gridpoint = (
+                            ℝ[domain_start_j + 0.5*cell_centered + particle_shift] + j
+                        )*ℝ[boxsize/gridsize]
+                        for k in range(ℤ[uⁱ.shape[2] - ℤ[2*nghosts]]):
+                            z_gridpoint = (
+                                ℝ[domain_start_k + 0.5*cell_centered + particle_shift] + k
+                            )*ℝ[boxsize/gridsize]
+                            posxˣ[indexˣ] = x_gridpoint
+                            posyˣ[indexˣ] = y_gridpoint
+                            poszˣ[indexˣ] = z_gridpoint
+                            indexˣ += 3
+            # Assign dim'th momenta.
+            # First we nullify it.
+            for indexˣʸᶻ in range(dim, 3*component.N_local, 3):
+                mom[indexˣʸᶻ] = 0
+            if options['velocitiesfromdisplacements']:
+                # Interpolate the displacement field ψⁱ onto the particle
+                # (grid) positions and assign the displacements as
+                # momenta using
+                #   momⁱ = a*m*uⁱ,
+                #     uⁱ = a*H*f*ψⁱ,
+                # with f = H⁻¹Ḋ/D being the linear growth rate.
+                f_growth = cosmoresults.growth_fac_f(a)
+                interpolate_domaingrid_to_particles(ψⁱ, component, 'mom', dim, interpolation_order,
+                    factor=a**2*H*f_growth*mass,
+                )
+            else:
+                # Interpolate the velocity field uⁱ onto the particle
+                # (grid) positions and assign the velocities as momenta
+                # using
+                #   momⁱ = a*m*uⁱ
+                interpolate_domaingrid_to_particles(uⁱ, component, 'mom', dim, interpolation_order,
+                    factor=a*mass,
+                )
+        else:  # particle_var_name == 'pos'
+            # Copy pos (currently containing the grid positions)
+            #  into Δmom.
+            for indexˣʸᶻ in range(dim, 3*component.N_local, 3):
+                Δmom[indexˣʸᶻ] = pos[indexˣʸᶻ]
+            # Apply displacement of dim'th positions by interpolating
+            # the displacement field ψⁱ onto the particle (grid)
+            # positions. The update is carried out on Δmom,
+            # not pos, as this is needed for further interpolation.
+            interpolate_domaingrid_to_particles(ψⁱ, component, 'Δmom', dim, interpolation_order)
+            # After the z positions (dim == 2), the Δmom array contain
+            # the fully displaced positions.
+            # Copy these back to the pos array.
+            if dim == 2:
+                for indexʳ in range(3*component.N_local):
+                    # Ensure toroidal boundaries
+                    pos[indexʳ] = mod(Δmom[indexʳ], boxsize)
+    # Done realising this variable
+    masterprint('done')
+    # After realising particles, most of them will be on the correct
+    # process in charge of the domain in which they are located. Those
+    # near the domain boundaries might however get displaced outside of
+    # their original domain, and so we do need to do an exchange.
+    # We can only do this exchange once both the momenta and the
+    # positions have been assigned.
+    if component.representation == 'particles' and (
+            particle_var_name == 'pos'
+        or (particle_var_name == 'mom' and options['velocitiesfromdisplacements'])
+    ):
+        exchange(component)
+# Module level variable used by the realize() function
+cython.declare(slab_structure_infos=dict)
+slab_structure_infos = {}
+
+# Function that populates the passed slab decomposed grid
+# with primordial noise ℛ(k⃗).
+@cython.header(
+    # Arguments
+    slab='double[:, :, ::1]',
+    # Locals
+    dcplane='double[:, :, ::1]',
+    dcplane_ptr='double*',
+    face='int',
+    gridsize='Py_ssize_t',
+    i='Py_ssize_t',
+    i_conj='Py_ssize_t',
+    index='Py_ssize_t',
+    index_dcplane='Py_ssize_t',
+    index_dcplane_conj='Py_ssize_t',
+    iterate='Py_ssize_t',
+    j='Py_ssize_t',
+    j_global='Py_ssize_t',
+    j_global_conj='Py_ssize_t',
+    k='Py_ssize_t',
+    ki='Py_ssize_t',
+    ki_start='Py_ssize_t',
+    ki_step='Py_ssize_t',
+    ki_stop='Py_ssize_t',
+    kj='Py_ssize_t',
+    kj_start='Py_ssize_t',
+    kj_step='Py_ssize_t',
+    kj_stop='Py_ssize_t',
+    kk='Py_ssize_t',
+    kk_start='Py_ssize_t',
+    kk_step='Py_ssize_t',
+    kk_stop='Py_ssize_t',
+    noise_im='double',
+    noise_re='double',
+    nyquist='Py_ssize_t',
+    prng='PseudoRandomNumberGenerator',
+    r='double',
+    shell='Py_ssize_t',
+    slab_ptr='double*',
+    slab_size_i='Py_ssize_t',
+    slab_size_j='Py_ssize_t',
+    slab_size_k='Py_ssize_t',
+    text=list,
+    θ='double',
+    θ_str=str,
+    returns='void',
+)
+def generate_primordial_noise(slab):
+    """Given the already allocated slab, this function will populate
+    it with Gaussian pseudo-random numbers, the stream of which is
+    controlled by the random_seed parameter. The slab grid is thought of
+    as being in Fourier space, and so these are complex numbers. We wish
+    the variance of these complex numbers to equal unity, and so their
+    real and imaginary parts are drawn from a distribution
+    with variance 1/√2, corresponding to
+      noise_re = gaussian(1/√2)
+      noise_im = gaussian(1/√2)
+    As we furhter want to allow for fixing of the amplitude and shifting
+    of the phase, we instead draw the numbers in the following
+    equivalent manner:
+      r = rayleigh(1/√2]
+      θ = uniform(0, 2π)
+      noise_re = r*cos(θ)
+      noise_im = r*sin(θ)
+    The 3D sequence of random numbers should be independent on the size
+    of the grid, in the sense that increasing the grid size should
+    amount to just populating the additional "shell" with new random
+    numbers, but keeping the random numbers inside of the inner cuboid
+    the same. This has the effect that enlarging the grid leaves the
+    large-scale structure invariant; one merely adds information at
+    smaller scales. Additionally, the sequence of random numbers should
+    be independent on the number of processes. To achieve all of this,
+    we draw the random numbers using the following scheme:
+    All processes loop over the entire 3D grid in shells, starting from
+    the inner most (shell = 1) and moving outwards (shell 2, 3, ...).
+    Each shell consists of 5 faces:
+      The kk = const face : kk =  shell, -shell ≤ ki ≤ shell, -shell ≤ kj ≤ shell
+      The ki = const faces: ki = ±shell, -shell ≤ kj ≤ shell, 0 ≤ kk < shell
+      The kj = const faces: kj = ±shell,  shell < ki < shell, 0 ≤ kk < shell
+    In principle a shell = 0 also exists, containing just the origin
+    ki = kj = kk = 0. With only a single point, the division into the 5
+    faces cannot be done. We skip this shell, meaning that the origin
+    will not be populated (nor will it be set to 0). The largest shell
+    populated will be nyquist - 1, meaning that the three Nyquist planes
+    will not be populated (nor will they be set to 0).
+    At each point, all processes draw the same two random numbers
+    (amounting to the real and imaginary part of the complex number),
+    but only the process which owns the given point (determined by the j
+    index that goes with kj) assigns the random numbers to its local
+    slab.
+    The z DC plane (kk = 0) needs to satisfy the complex conjugacy
+    symmetry of a Fourier transformed real field, here
+        plane[+kj, +ki, kk=0] = plane[-kj, -ki, kk=0]*,
+    where * means complex conjugation. We enfore this symmetry by
+    letting all processes tabulate this plane with random numbers in its
+    entirety. After the whole 3D grid and the DC plane is filled with
+    random numbers, we enforce the symmetry by looping over half of the
+    DC plane and setting the inverted points in the slab equal to their
+    complex conjucate partners.
+    """
+    slab_size_j, slab_size_i, slab_size_k = asarray(slab).shape
+    gridsize = slab_size_i
+    # Progress message
+    text = ['Generating primordial']
+    if not primordial_amplitude_fixed:
+        text.append(' Gaussian')
+    text.append(f' noise of grid size {gridsize}')
+    if primordial_amplitude_fixed:
+        text.append(', fixed amplitude')
+    if primordial_phase_shift != 0:
+        if isclose(primordial_phase_shift, π):
+            θ_str = 'π'
+        else:
+            θ_str = str(primordial_phase_shift)
+        text.append(f', phase shift {θ_str}')
+    text.append(' ...')
+    masterprint(''.join(text))
+    # Allocate the entire z DC plane on all processes
+    dcplane = empty((gridsize, gridsize, 2), dtype=C2np['double'])
+    # Instantiate pseudo-random number generator
+    # using the same seed on all processes.
+    prng = PseudoRandomNumberGenerator(random_seed)
+    # Extract pointers to the 3D slab and the (complex) 2D plane
+    slab_ptr = cython.address(slab[:, :, :])
+    dcplane_ptr = cython.address(dcplane[:, :, :])
+    # Loop through all shells
+    nyquist = gridsize//2
+    for shell in range(1, nyquist):
+        # Loop over the three types of faces
+        for face in range(3):
+            if face == 0:
+                # The kk = const face
+                ki_start, ki_stop, ki_step = ℤ[-shell], ℤ[shell + 1], 1  # -shell ≤ ki ≤ shell
+                kj_start, kj_stop, kj_step = ℤ[-shell], ℤ[shell + 1], 1  # -shell ≤ kj ≤ shell
+                kk_start, kk_stop, kk_step =    shell , ℤ[shell + 1], 1  #          kk = shell
+            elif face == 1:
+                # The two ki = const faces
+                ki_start, ki_stop, ki_step = ℤ[-shell], ℤ[shell + 1], ℤ[2*shell]  #          ki = ±shell
+                kj_start, kj_stop, kj_step = ℤ[-shell], ℤ[shell + 1],         1   # -shell ≤ kj ≤ shell
+                kk_start, kk_stop, kk_step =        0 ,   shell     ,         1   #      0 ≤ kk < shell
+            else:  # face == 2:
+                # The two kj = const faces
+                ki_start, ki_stop, ki_step = ℤ[-shell + 1],   shell     ,         1   # shell < ki < shell
+                kj_start, kj_stop, kj_step = ℤ[-shell    ], ℤ[shell + 1], ℤ[2*shell]  #         kj = ±shell
+                kk_start, kk_stop, kk_step =            0 ,   shell     ,         1   #     0 ≤ kk < shell
+            # Loop over the face.
+            # We want to loop like
+            #   for kj in range(kj_start, kj_stop, kj_step)
+            # but at least in Cython 0.29 such a loop transpiles to
+            # unoptimized code (the step value needs to be known at
+            # cythonisation time for proper transpilation). Below we
+            # write out this loop by manually initialising and
+            # incrementing the loop variable.
+            kj = kj_start - kj_step
+            for iterate in range(ℤ[((kj_stop - kj_start) + (kj_step - 1))//kj_step]):
+                kj += kj_step
+                j_global = kj + gridsize*(kj < 0)
+                j = j_global - ℤ[slab_size_j*rank]
+                ki = ℤ[ki_start - ki_step]
+                for iterate in range(ℤ[((ki_stop - ki_start) + (ki_step - 1))//ki_step]):
+                    ki += ki_step
+                    i = ki + gridsize*(ki < 0)
+                    kk = ℤ[kk_start - kk_step]
+                    for iterate in range(ℤ[((kk_stop - kk_start) + (kk_step - 1))//kk_step]):
+                        kk += kk_step
+                        # Generate Gaussian random noise.
+                        # In order to ensure the same random stream
+                        # for both r and θ across simulations,
+                        # we draw r even in the case
+                        # of fixed amplitude.
+                        r = prng.rayleigh(1/sqrt(2))
+                        with unswitch:
+                            if primordial_amplitude_fixed:
+                                r = 1
+                        θ = prng.uniform(0, 2*π)
+                        with unswitch:
+                            if primordial_phase_shift:
+                                θ += primordial_phase_shift
+                        noise_re = r*cos(θ)
+                        noise_im = r*sin(θ)
+                        # Populate the local slab
+                        with unswitch(2):
+                            if 0 <= j < slab_size_j:
+                                k = 2*kk
+                                index = ℤ[(ℤ[j*slab_size_i] + i)*slab_size_k] + k
+                                slab_ptr[index    ] = noise_re
+                                slab_ptr[index + 1] = noise_im
+                        # Populate the z DC plane
+                        if kk == 0:
+                            index_dcplane = ℤ[(ℤ[j_global*gridsize] + i)*2]  # k = 0
+                            dcplane_ptr[index_dcplane    ] = noise_re
+                            dcplane_ptr[index_dcplane + 1] = noise_im
+    # Enforce the complex conjugacy symmetry on the z DC plane of the
+    # slabs. We do this by looping over half of the DC plane,
+    # specifically -nyquist < ki ≤ 0, -nyquist < kj < nyquist, with
+    # points ki = 0, 0 ≤ kj skipped. The inverted points at (-ki, -kj)
+    # from the DC plane are conjugated and copied onto the slab.
+    ki_start          = -nyquist + 1
+    kj_start, kj_stop = -nyquist + 1, nyquist
+    for kj in range(kj_start, kj_stop):
+        j_global = kj + gridsize*(kj < 0)
+        j = j_global - ℤ[slab_size_j*rank]
+        # Each process can only change their local slab
+        if not (0 <= j < slab_size_j):
+            continue
+        j_global_conj = -kj + gridsize*(-kj < 0)
+        ki_stop = 1 - (kj >= 0)
+        for ki in range(ki_start, ki_stop):
+            i      =  ki + gridsize*( ki < 0)
+            i_conj = -ki + gridsize*(-ki < 0)
+            # Enforce conjugate symmetry for the slab
+            index = (ℤ[j*slab_size_i] + i)*slab_size_k  # k = 0
+            index_dcplane_conj = (ℤ[j_global_conj*gridsize] + i_conj)*2  # k = 0
+            slab_ptr[index    ] = +dcplane_ptr[index_dcplane_conj    ]
+            slab_ptr[index + 1] = -dcplane_ptr[index_dcplane_conj + 1]
+    masterprint('done')
 
 # Function returning the linear power spectrum of a given component
 @cython.pheader(
     # Arguments
     component_or_components=object, # Component or list of Components
     k_magnitudes='double[::1]',
-    power='double[::1]',
     a='double',
+    gauge=str,
+    power='double[::1]',
     # Locals
-    backscale='bint',
-    backscales=object,  # collections.Counter
     component='Component',
     components=list,
     cosmoresults=object,  # CosmoResults
-    gauge=str,
     gauge_cached=str,
-    gauges=object,  # collections.Counter
     gridsize='Py_ssize_t',
     gridsize_max='Py_ssize_t',
-    gridsize_or_k_magnitudes=object,  # Py_ssize_t or np.ndarray
     i='Py_ssize_t',
     k_magnitude='double',
     k_max='double',
@@ -2940,75 +3965,44 @@ def get_k_str_n_decimals():
     δ_spline='Spline',
     returns='double[::1]',
 )
-def get_linear_powerspec(component_or_components, k_magnitudes, power=None, a=-1):
-    """The linear power spectrum is only returned by the master process"""
+def get_linear_powerspec(component_or_components, k_magnitudes, a=-1, gauge='N-body', power=None):
+    """The linear power spectrum is only returned to the master process.
+    """
     if isinstance(component_or_components, list):
         components = component_or_components
     else:
         components = [component_or_components]
     if a == -1:
         a = universals.a
-    # Determine gauge
-    gauges = collections.Counter(
-        [component.realization_options['gauge'] for component in components]
-    )
-    gauge = gauges.most_common(1)[0][0]
-    if len(gauges) > 1:
-        masterwarn(
-            f'get_linear_powerspec() called with components {{'
-            + ', '.join([component.name for component in components])
-            + f'}} with gauges {set(gauges.keys())}. The {gauge} gauge will be used.'
-        )
-    # Determine whether to use back-scaling
-    backscales = collections.Counter(
-        [component.realization_options['backscale'] for component in components]
-    )
-    backscale = backscales.most_common(1)[0][0]
-    if len(backscales) > 1:
-        backscale = False
-        masterwarn(
-            f'get_linear_powerspec() called with components {{'
-            + ', '.join([component.name for component in components])
-            + f'}}, some of which makes use of back-scaling and some of which do not. '
-            + f'Here back-scaling will not be used.'
-        )
-    # Instantiate fake component with the species defined
-    # as the sum of all species of the passed components.
+    gauge = gauge.replace('-', '').lower()
+    # Instantiate fake component with the CLASS species defined
+    # as the sum of all CLASS species of the passed components.
     component = components[0]
     linear_component = type(component)(
         '',
-        '+'.join([component.species for component in components]),
+        None,
         gridsize=2,
         boltzmann_order=-1,
+        class_species='+'.join([component.class_species for component in components]),
         boltzmann_closure='class',
     )
     linear_component.name = 'linear power spectrum'
-    # Get grid size for linear perturbation computation.
-    # If class_dedicated_spectra is False, we will try to reuse any
-    # existing CosmoResults object in an attempt to not rerun CLASS,
+    # Get grid size for linear perturbation computation. In an attempt
+    # to not rerun CLASS, we reuse any existing CosmoResults object,
     # even if this has too small a grid size, in which case the largest
     # k modes will be filled with NaN values.
     gridsize_max = -1
-    if not class_dedicated_spectra:
-        for (gridsize_or_k_magnitudes, gauge_cached), cosmoresults in cosmoresults_cache.items():
-            if not isinstance(gridsize_or_k_magnitudes, (int, np.integer)):
-                if not isinstance(gridsize_or_k_magnitudes, str):
-                    continue
-                try:
-                    int(gridsize_or_k_magnitudes)
-                except Exception:
-                    continue
-            if gauge_cached != 𝕊['synchronous' if gauge == 'nbody' else gauge]:
-                continue
-            gridsize = int(gridsize_or_k_magnitudes)
-            if gridsize > gridsize_max:
-                gridsize_max = gridsize
+    for (gridsize, gauge_cached), cosmoresults in cosmoresults_cache.items():
+        if gauge_cached != 𝕊['synchronous' if gauge == 'nbody' else gauge]:
+            continue
+        if gridsize > gridsize_max:
+            gridsize_max = gridsize
     gridsize = gridsize_max
     if gridsize == -1:
         gridsize = np.max([component.powerspec_upstream_gridsize for component in components])
     # Get spline of δ transfer function for the fake component
     δ_spline, cosmoresults = compute_transfer(
-        linear_component, 0, gridsize, a=a, gauge=gauge, backscale=backscale,
+        linear_component, 0, gridsize, a=a, gauge=gauge,
     )
     # Only the master process will return the linear power spectrum
     if not master:
@@ -3016,174 +4010,25 @@ def get_linear_powerspec(component_or_components, k_magnitudes, power=None, a=-1
     # Compute linear power (ζ*δ)**2
     if power is None:
         power = empty(k_magnitudes.shape[0], dtype=C2np['double'])
-    k_min = δ_spline.x[0]
     k_max = δ_spline.x[len(δ_spline.x) - 1]
     for i in range(k_magnitudes.shape[0]):
         k_magnitude = k_magnitudes[i]
-        if not (k_min <= k_magnitude <= k_max):
-            power[i] = NaN
-            continue
+        if k_magnitude > k_max:
+            power[i:] = NaN
+            break
         δ = δ_spline.eval(k_magnitude)
-        power[i] = (get_primordial_curvature_perturbation(k_magnitude)*δ)**2
+        power[i] = (ζ(k_magnitude)*δ)**2
     return power
 
-# Function returning the tree-level bispectrum of a given component
-@cython.pheader(
-    # Arguments
-    component_or_components=object, # Component or list of Components
-    k_magnitudes_0='double[::1]',
-    k_magnitudes_1='double[::1]',
-    k_magnitudes_2='double[::1]',
-    bpower='double[::1]',
-    bpower_reduced='double[::1]',
-    eds_limit='bint',
-    a='double',
-    # Locals
-    bpower_ptr='double*',
-    bpower_reduced_ptr='double*',
-    cosmoresults=object,  # CosmoResults
-    growth_fac_D='double',
-    growth_fac_D2='double',
-    index='Py_ssize_t',
-    index_0='Py_ssize_t',
-    index_1='Py_ssize_t',
-    index_2='Py_ssize_t',
-    indices_0='Py_ssize_t[::1]',
-    indices_0_ptr='Py_ssize_t*',
-    indices_1='Py_ssize_t[::1]',
-    indices_1_ptr='Py_ssize_t*',
-    indices_2='Py_ssize_t[::1]',
-    indices_2_ptr='Py_ssize_t*',
-    k_magnitude_0='double',
-    k_magnitude_1='double',
-    k_magnitude_2='double',
-    k_magnitudes='double[::1]',
-    k_magnitudes_arr=object,  # np.ndarray
-    k_magnitudes_ptr='double*',
-    power='double[::1]',
-    power_ptr='double*',
-    size='Py_ssize_t',
-    value='double',
-    α='double',
-    returns='double[::1]',
-)
-def get_treelevel_bispec(
-    component_or_components, k_magnitudes_0, k_magnitudes_1, k_magnitudes_2,
-    bpower=None, bpower_reduced=None, eds_limit=False, a=-1,
-):
-    """The tree-level bispectrum is only returned by the master process.
-    If the reduced tree-level bispectrum should be returned as well,
-    a pre-allocated array must be passed as bpower_reduced.
-    The bispectrum kernel for matter will be used for all species.
-    If eds_limit (Einstein-de Sitter limit; matter domination) is True,
-    the value α = 2/7 will be used for the kernel. Otherwise,
-    α = (1 + D⁽²⁾(a)/D²(a))/2 in accordance with (2.25) in
-    https://arxiv.org/abs/1602.05933
-    """
-    if a == -1:
-        a = universals.a
-    # Assemble all k into single, sorted array,
-    # keeping track of where each element go.
-    # Only the master process needs to know the k values.
-    k_magnitudes = None
-    if master:
-        k_magnitudes_arr = np.unique(np.concatenate((
-            asarray(k_magnitudes_0), asarray(k_magnitudes_1), asarray(k_magnitudes_2),
-        )))
-        k_magnitudes_arr.sort()
-        k_magnitudes = k_magnitudes_arr
-        k_magnitudes_ptr = cython.address(k_magnitudes[:])
-        size = k_magnitudes_0.shape[0]
-        indices_0 = empty(size, dtype=C2np['Py_ssize_t'])
-        indices_1 = empty(size, dtype=C2np['Py_ssize_t'])
-        indices_2 = empty(size, dtype=C2np['Py_ssize_t'])
-        indices_0_ptr = cython.address(indices_0[:])
-        indices_1_ptr = cython.address(indices_1[:])
-        indices_2_ptr = cython.address(indices_2[:])
-        for index in range(size):
-            indices_0_ptr[index] = np.searchsorted(k_magnitudes, k_magnitudes_0[index])
-        for index in range(size):
-            indices_1_ptr[index] = np.searchsorted(k_magnitudes, k_magnitudes_1[index])
-        for index in range(size):
-            indices_2_ptr[index] = np.searchsorted(k_magnitudes, k_magnitudes_2[index])
-    # Compute linear power spectrum at all k
-    power = get_linear_powerspec(component_or_components, k_magnitudes, None, a)
-    # Get α used in bispectrum kernel
-    if eds_limit:
-        α = 2./7.
-    else:
-        cosmoresults = compute_cosmo(class_call_reason='in order to get growth factor')
-        growth_fac_D  = cosmoresults.growth_fac_D (a)
-        growth_fac_D2 = cosmoresults.growth_fac_D2(a)
-        α = 0.5*(1 + growth_fac_D2/growth_fac_D**2)
-    # Only the master process will return the tree-level bispectrum
-    if not master:
-        return bpower
-    # Compute tree-level matter bispectrum
-    if bpower is None:
-        bpower = empty(size, dtype=C2np['double'])
-        if bpower_reduced is not None:
-            abort('get_treelevel_bispec() called with bpower_reduced but not bpower')
-    power_ptr = cython.address(power[:])
-    bpower_ptr = cython.address(bpower[:])
-    if bpower_reduced is not None:
-        bpower_reduced_ptr = cython.address(bpower_reduced[:])
-    for index in range(size):
-        index_0 = indices_0_ptr[index]
-        index_1 = indices_1_ptr[index]
-        index_2 = indices_2_ptr[index]
-        k_magnitude_0 = k_magnitudes_ptr[index_0]
-        k_magnitude_1 = k_magnitudes_ptr[index_1]
-        k_magnitude_2 = k_magnitudes_ptr[index_2]
-        power_0 = power_ptr[index_0]
-        power_1 = power_ptr[index_1]
-        power_2 = power_ptr[index_2]
-        value = 2*(
-            + get_matter_bispec_kernel(
-                k_magnitude_0, k_magnitude_1, k_magnitude_2, α,
-            )*power_0*power_1
-            + get_matter_bispec_kernel(
-                k_magnitude_1, k_magnitude_2, k_magnitude_0, α,
-            )*power_1*power_2
-            + get_matter_bispec_kernel(
-                k_magnitude_2, k_magnitude_0, k_magnitude_1, α,
-            )*power_2*power_0
-        )
-        bpower_ptr[index] = value
-        with unswitch:
-            if bpower_reduced is not None:
-                # Also compute the reduced tree-level bispectrum
-                bpower_reduced_ptr[index] = value/(
-                    + power_0*power_1
-                    + power_1*power_2
-                    + power_2*power_0
-                )
-    return bpower
-
-# Second-order perturbation theory kernel for the matter bispectrum
-@cython.header(
-    # Arguments
-    k0='double',
-    k1='double',
-    k2='double',
-    α='double',
-    # Locals
-    x='double',
-    returns='double',
-)
-def get_matter_bispec_kernel(k0, k1, k2, α=2./7.):
-    x = (k2**2 - k1**2 - k0**2)/(k0*k1)
-    return (1 - α) + 0.25*x*((k0/k1 + k1/k0) + α*x)
-
-# The primordial curvature perturbation ζ(k),
-# parametrised by parameters in the primordial_spectrum dict.
+# The primordial curvature perturbation, parametrised by parameters
+# in the primordial_spectrum dict.
 @cython.header(
     # Arguments
     k='double',
     # Locals
     returns='double',
 )
-def get_primordial_curvature_perturbation(k):
+def ζ(k):
     # The parametrisation looks like
     # ζ(k) = π*sqrt(2*A_s)*k**(-3/2)*(k/pivot)**((n_s - 1)/2)
     #        *exp(α_s/4*log(k/pivot)**2).
@@ -3192,7 +4037,7 @@ def get_primordial_curvature_perturbation(k):
     return (
         ℝ[
             π*sqrt(2*primordial_spectrum['A_s'])
-            /primordial_spectrum['pivot']**((primordial_spectrum['n_s'] - 1)/2)
+            *(1/primordial_spectrum['pivot'])**((primordial_spectrum['n_s'] - 1)/2)
         ]
         *k**ℝ[primordial_spectrum['n_s']/2 - 2]
         *exp(ℝ[primordial_spectrum['α_s']/4]*(log(k) - ℝ[log(primordial_spectrum['pivot'])])**2)
@@ -3244,7 +4089,7 @@ def register_species(
         nickname for nickname in dict.fromkeys(nicknames) if nickname
     ]
     # Transform Γ to function
-    if isinstance(Γ, (int, float, np.integer, np.floating)):
+    if isinstance(Γ, (int, float)):
         Γ = (lambda cosmoresults, a, Γ=Γ: Γ)
     # Default log behaviour
     if logs is None:
@@ -3255,7 +4100,7 @@ def register_species(
         else:
             logs = {'rho': (None, None), 'p': (None, None)}
     # Transform source_continuity to function
-    if isinstance(source_continuity, (int, float, np.integer, np.floating)):
+    if isinstance(source_continuity, (int, float)):
         source_continuity = (lambda cosmoresults, a, source_continuity=source_continuity: source_continuity)
     # Pack the information into a SpeciesInfo instance
     species_info = SpeciesInfo(
@@ -3323,8 +4168,7 @@ def register_perturbation(
 ):
     if not name.isidentifier():
         abort(
-            f'Transfer function name "{name}" is illegal '
-            f'as it is not a valid Python identifier'
+            f'Transfer function name "{name}" is illegal as it is not a valid Python identifier'
         )
     if name_latex is None:
         name_latex = rf'\mathrm{{{name_class}}}'.replace('_', ' ')
@@ -3546,7 +4390,7 @@ for class_extra_perturbation in class_extra_perturbations:
                 f'Failed to generate {esc_concept} name '
                 f'for CLASS perturbation "{class_extra_perturbation}"'
             )
-        transferfunction_info = register_perturbation(perturbation_name, class_extra_perturbation)
+        transferfunction_info = register(perturbation_name, class_extra_perturbation)
         class_extra_perturbations_class.add(transferfunction_info.name_class)
 
 # Read in definitions from CLASS source files at import time
@@ -3570,10 +4414,9 @@ for (varname,
             pattern = rf'(^|[^0-9a-zA-Z_]){varname}\s*=\s*(.*?)(/\*| |//|;|\n|$)'
         filename_abs = rf'{path.class_dir}/{filename}'
         try:
-            with open_file(filename_abs, mode='r', encoding='utf-8') as class_file:
-                value = type(default_value)(
-                    re.search(pattern, class_file.read()).group(2).strip('"')
-                )
+            with open_file(filename_abs, mode='r') as class_file:
+                value = type(default_value)(re.search(pattern, class_file.read())
+                                            .group(2).strip('"'))
         except:
             masterwarn(f'Failed to read value of {varname} from {filename_abs}')
             value = default_value
@@ -3586,8 +4429,3 @@ for (varname,
         k_gridsize_max = (class__ARGUMENT_LENGTH_MAX_ - 1)//(len(k_float2str(0)) + 1)
     elif varname == 'a_min':
         class_a_min = -1.0 if special_params.get('special') == 'class' else value
-
-# Get local domain information
-domain_info = get_domain_info()
-cython.declare(domain_layout_local_indices='int[::1]')
-domain_layout_local_indices = domain_info.layout_local_indices

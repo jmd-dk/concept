@@ -12,7 +12,7 @@ render2D_select = {
     'all': {'data': True, 'image': True, 'terminal image': True},
 }
 
-# Numerics
+# Numerical parameters
 boxsize = 128*Mpc
 potential_options = {
     'interpolation': {
@@ -32,7 +32,7 @@ powerspec_options = {
     'interlace'    : True,
     'k_max'        : 'Nyquist',
 }
-class_modes_per_decade = 8
+k_modes_per_decade = 8
 
 # Cosmology
 a_begin = 0.1
@@ -51,7 +51,7 @@ select_approximations = {
     },
 }
 
-# Simulation
+# Simulation options
 primordial_amplitude_fixed = True
 
 # Graphics

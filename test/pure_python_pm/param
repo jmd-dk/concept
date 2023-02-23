@@ -5,7 +5,7 @@ output_bases       = {'snapshot': 'snapshot'}
 output_times       = {'snapshot': (0.1, 0.5, 1)}
 snapshot_type      = 'concept'
 
-# Numerics
+# Numerical parameters
 boxsize = 8*Mpc
 potential_options = {
     'gridsize': {
@@ -23,4 +23,3 @@ a_begin = 0.02
 
 # Physics
 select_forces = {'matter': {'gravity': 'pm'}}
-

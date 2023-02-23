@@ -1,5 +1,5 @@
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
-# Copyright © 2015–2023 Jeppe Mosgaard Dakin.
+# Copyright © 2015–2021 Jeppe Mosgaard Dakin.
 #
 # CO𝘕CEPT is free software: You can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -47,7 +47,6 @@ pyfiles =         \
     fluid         \
     graphics      \
     gravity       \
-    ic            \
     integration   \
     interactions  \
     linear        \
@@ -110,7 +109,7 @@ endif
 # used for unique naming of temporary files.
 pid=$(shell echo $${PPID})
 # The python configuration script
-python_config = $(shell readlink -f $(python))-config
+python_config = $(shell readlink -f $$(which $(python)))-config
 # Options passed when cythonising .pyx files
 python_version_major = $(shell $(python) -B -c "import sys; print(sys.version_info.major)")
 cythonflags = -$(python_version_major) -D -a
@@ -257,7 +256,7 @@ LDFLAGS += $(call unique, $(call sensible_path,      \
 # Build targets #
 #################
 # The below recipes are responsible for the
-# .py -> ((.pyx -> types) -> .pxd) -> (.c + .html) -> .o -> .so
+# .py --> ((.pyx --> types) --> .pxd) --> (.c + .html) --> .o --> .so
 # build chain.
 
 # Link object files into shared object Python modules
@@ -309,10 +308,9 @@ ifneq ($(unsafe_building),True)
     # makes the .pyx files depend on the .py file
     # of the module implementing the iterator.
     gravity.pyx:      interactions.py  # particle_particle()
-    analysis.pyx:     mesh.py          # domain_loop(), fourier_loop()
-    graphics.pyx:     mesh.py          # slab_loop()
-    ic.pyx:           mesh.py          # domain_loop(), fourier_loop(), fourier_curve_loop()
+    analysis.pyx:     mesh.py          # fourier_loop()
     interactions.pyx: mesh.py          # fourier_loop()
+    linear.pyx:       mesh.py          # fourier_loop()
     # Because modules cimport stuff from each other, some .c
     # (and therefore also .html) files depend on the .pxd files of
     # other modules.

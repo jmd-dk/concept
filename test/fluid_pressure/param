@@ -1,4 +1,4 @@
-# Hidden
+# Hidden parameters
 _w  = 0.2                 # Constant equation of state for fluid
 _ρ0 = 100*m_sun/kpc**3    # Mean fluid density
 _A  = 1e-3*_ρ0            # Amplitude of fluid sine
@@ -11,7 +11,7 @@ output_dirs  = {'snapshot': f'{param.dir}/output'}
 output_bases = {'snapshot': 'snapshot'}
 output_times = {'snapshot': linspace(0, _T, 9)}
 
-# Numerics
+# Numerical parameters
 boxsize = sqrt(light_speed**2*_w + (1 + _w)*_σ)*_T
 
 # Physics
@@ -19,6 +19,5 @@ select_eos_w             = {'matter': _w}
 select_boltzmann_closure = {'matter': 'truncate'}
 select_approximations    = {'matter': {'P = wρ': True}}
 
-# Debugging
+# Debugging options
 enable_Hubble = False
-

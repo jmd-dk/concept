@@ -20,7 +20,7 @@ To learn how to *use* parameters and parameter files, see the
 
 Parameters are specified as Python 3 variables. As such, it is helpful to be
 familiar with basic Python syntax and
-`data types <https://docs.python.org/3/library/stdtypes.html>`__, such as
+`data types <https://docs.python.org/3/library/stdtypes.html>`_, such as
 ``str``\ ings, ``list``\ s and ``dict``\ ionaries.
 
 Below you will find the parameter categories, corresponding to the sections
@@ -40,7 +40,7 @@ these categories have no meaning.
    debugging
 
 Besides these sections, you may also look in the
-`provided example parameter files <https://github.com/jmd-dk/concept/tree/master/param>`__.
+`provided example parameter files <https://github.com/jmd-dk/concept/tree/master/param>`_.
 In particular, ``example_explanatory`` defines close to all supported
 parameters. Though this makes it impractically large for actual use, it serves
 to briefly showcase the many possible parameters.
@@ -76,11 +76,11 @@ the value, as no default units are ever assumed by CO\ *N*\ CEPT. For example,
 .. code-block:: python3
 
    # Numerics
-   boxsize = 512      # ❌
+   boxsize = 512      # wrong!
    boxsize = 512*Mpc  # OK
 
    # Cosmology
-   H0 = 67             # ❌
+   H0 = 67             # wrong!
    H0 = 67*km/(s*Mpc)  # OK
 
 A large set of units is understood:
@@ -94,8 +94,6 @@ A large set of units is understood:
 
 with brackets ``[...]`` indicating allowed SI prefixes.
 
-CO\ *N*\ CEPT always expresses angles in terms of radians.
-
 The following physical constants are further available:
 
 * ``c`` or ``light_speed`` (speed of light in vacuum).
@@ -105,10 +103,10 @@ The following physical constants are further available:
 .. note::
    The precise relations between the above units and constants are adopted
    from the
-   `2019 redefinition of the SI base units <https://en.wikipedia.org/wiki/2019_redefinition_of_the_SI_base_units#Redefinition>`__,
-   exact `IAU definitions <https://arxiv.org/abs/1605.09788>`__ and
+   `2019 redefinition of the SI base units <https://en.wikipedia.org/wiki/2019_redefinition_of_the_SI_base_units#Redefinition>`_,
+   exact `IAU definitions <https://arxiv.org/abs/1605.09788>`_ and
    experimental
-   `2020 values from the Particle Data Group <https://doi.org/10.1093/ptep/ptaa104>`__.
+   `2020 values from the Particle Data Group <https://doi.org/10.1093/ptep/ptaa104>`_.
 
 A few mathematical constants are similarly readily available:
 
@@ -306,16 +304,14 @@ of ellipses '``...``' like so:
    output_dirs = {
        'snapshot' : f'{path.output_dir}/{param}',
        'powerspec': ...,
-       'bispec'   : ...,
        'render2D' : ...,
        'render3D' : ...,
    }
 
-Here, the keys ``'powerspec'``, ``'bispec'``, ``'render2D'`` and
-``'render3D'`` will all map to the same value as ``'snapshot'``. More
-generally, an ellipsis is replaced by the first non-ellipsis value encountered
-when looking back up the key-value definitions, wrapping around if necessary.
-Thus,
+Here, the keys ``'powerspec'``, ``'render2D'`` and ``'render3D'`` will map
+to the same value as ``'snapshot'``. More generally, an ellipsis is replaced
+by the first non-ellipsis value encountered when looking back up the key-value
+definitions, wrapping around if necessary. Thus,
 
 .. code-block:: python3
 
@@ -323,13 +319,12 @@ Thus,
    output_times = {
        'snapshot' : ...,
        'powerspec': 1,
-       'bispec'   : ...,
        'render2D' : ...,
        'render3D' : [0.1, 0.3, 1],
    }
 
-results in ``'snapshot'`` being mapped to ``[0.1, 0.3, 1]`` while ``'bispec'``
-and ``'render2D'`` are being mapped to ``1``.
+results in ``'snapshot'`` being mapped to ``[0.1, 0.3, 1]`` and ``'render2D'``
+to ``1``.
 
 .. note::
    Another takeaway from the above example is the fact that CO\ *N*\ CEPT
@@ -377,7 +372,6 @@ defined. For this, you can do either of:
 
      >>> parameter0
      >>> parameter1
-     >>> exit()
 
 Here brackets ``[...]`` indicate optional command-line arguments, with
 ``param`` the :ref:`parameter file <parameter_file>` and ``cmd-param`` any
@@ -479,7 +473,7 @@ We can also refer to components using their representation, like so:
        'fluid'    : -1,
    }
 
-which again would assign :math:`25\,\text{kpc}` as the softening length to
+which again would assign :math:`25\,\mathrm{kpc}` as the softening length to
 both ``'spam'`` and ``'ham'``, assuming these are particle components. As
 fluid components do not have an associated softening length, the value set for
 ``'fluid'`` does not matter for this particular component selection, even in
@@ -496,8 +490,8 @@ Component selections support the
        'all' : 15*kpc,
    }
 
-which assigns :math:`25\,\text{kpc}` as the softening length to the
-``'spam'`` and ``'ham'`` components and :math:`15\,\text{kpc}` to
+which assigns :math:`25\,\mathrm{kpc}` as the softening length to the
+``'spam'`` and ``'ham'`` components and :math:`15\,\mathrm{kpc}` to
 all others.
 
 There is also a ``'default'`` key --- which works similar to ``'all'`` ---
@@ -507,8 +501,9 @@ the code, intended to catch otherwise unset components within a selection.
 Some component selection parameters further support component *combinations*.
 An example is the ``powerspec_select`` :ref:`parameter <powerspec_select>`.
 The following specifies that we want power spectrum outputs for both
-``'spam'`` and ``'ham'`` individually, as well as their combined (auto)
-power spectrum:
+``'spam'`` and ``'ham'`` individually, as well as for their combination
+(equivalent to what we would have gotten had all constituent particles of
+both components been part of a single component):
 
 .. code-block:: python3
 
@@ -553,21 +548,18 @@ deterministic simulations, always yielding bitwise identical outputs
 (snapshots included) when run several times over. Note that this does come at
 a performance penalty.
 
-* ``random_seeds``: CO\ *N*\ CEPT makes use of explicit (pseudo-)randomness
-  for generating initial conditions, specifically the primordial noise. For
-  the sake of reproducibility, this random noise is generated using particular
-  random seeds, specified by the
-  ``random_seeds`` :ref:`parameter <random_seeds>`.
+* ``random_seed``: Some randomness is inherent to most simulations. Currently,
+  CO\ *N*\ CEPT only makes use of explicit (pseudo-)randomness for generating
+  initial conditions, specifically the primordial noise. For the sake of
+  reproducibility, this random noise is generated using a particular random
+  seed, specified by the ``random_seed`` :ref:`parameter <random_seed>`.
 
-  For deterministic behaviour, you should then keep the values of these seeds
-  fixed between simulations, e.g.
+  For deterministic behaviour, you should then keep this seed value fixed
+  between simulations, e.g.
 
   .. code-block:: python3
 
-     random_seeds = {
-         'primordial amplitudes': 1_000,  # keep fixed between runs
-         'primordial phases'    : 2_000,  # keep fixed between runs
-     }
+     random_seed = 0  # keep fixed between runs
 
 * ``shortrange_params``: By default, the decomposition of tiles into subtiles
   is dynamically updated throughout the simulation, based on CPU timing
@@ -632,7 +624,7 @@ a performance penalty.
   * If running CO\ *N*\ CEPT locally or always on a single, specific node of a
     cluster, every simulation should make use of the same FFTW plans, stored
     as
-    `FFTW wisdom <https://www.fftw.org/fftw3_doc/Words-of-Wisdom_002dSaving-Plans.html>`__:
+    `FFTW wisdom <https://www.fftw.org/fftw3_doc/Words-of-Wisdom_002dSaving-Plans.html>`_:
 
     .. code-block:: python3
 
