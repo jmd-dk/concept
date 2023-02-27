@@ -31,7 +31,7 @@ cimport('from communication import partition,                   '
         '                          exchange,                    '
         '                          smart_mpi,                   '
         )
-cimport('from mesh import domain_decompose, get_fftw_slab, slab_decompose')
+cimport('from mesh import domain_decompose, get_fftw_slab, slab_decompose, convert_particles_to_fluid')
 cimport('from species import Component, FluidScalar, update_species_present')
 
 # Pure Python imports
@@ -136,8 +136,17 @@ class ConceptSnapshot:
             # Store each component as a separate group
             # within /components.
             for component in self.components:
+                original_representation = component.representation
+
                 component_h5 = hdf5_file.create_group(f'components/{component.name}')
                 component_h5.attrs['species'] = component.species
+
+                if not component.representation == 'particles' and not component.representation == 'fluid':
+                    abort(
+                        f'Does not know how to save {component.name} '
+                        f'with representation "{component.representation}"'
+                    )
+
                 if component.representation == 'particles':
                     N, N_local = component.N, component.N_local
                     N_lin = cbrt(N)
@@ -161,7 +170,15 @@ class ConceptSnapshot:
                     mom_h5 = component_h5.create_dataset('mom', (N, 3), dtype=C2np['double'])
                     pos_h5[start_local:end_local, :] = component.pos_mv3[:N_local, :]
                     mom_h5[start_local:end_local, :] = component.mom_mv3[:N_local, :]
-                elif component.representation == 'fluid':
+
+                    # Hacky insertion
+                    masterprint(f'{component.gridsize} ...')
+                    component.gridsize = 64
+
+                    # Convert the particles to a fluid representation
+                    convert_particles_to_fluid(component, 4)
+                
+                if component.representation == 'fluid':
                     # Write out progress message
                     masterprint(
                         f'Writing out {component.name} ({component.species} with '
@@ -178,7 +195,7 @@ class ConceptSnapshot:
                     # with multi_index (0, ), (1, ), ..., (0, 0), ...
                     shape = (component.gridsize, )*3
                     for index, fluidvar in enumerate(
-                        component.fluidvars[:component.boltzmann_order + 1]
+                        component.fluidvars[:component.boltzmann_order + 2]
                     ):
                         fluidvar_h5 = component_h5.create_group('fluidvar_{}'.format(index))
                         for multi_index in fluidvar.multi_indices:
@@ -230,15 +247,19 @@ class ConceptSnapshot:
                                 component_h5[name] = fluidscalar_h5
                             except:
                                 pass
-                else:
-                    abort(
-                        f'Does not know how to save {component.name} '
-                        f'with representation "{component.representation}"'
-                    )
+
                 # Done saving this component
                 hdf5_file.flush()
                 Barrier()
                 masterprint('done')
+
+                # After the conversion, the particles were saved in a fluid representation
+                # We now destroy the fluid grids to save memory and return the component to 
+                # a particle representation 
+                if original_representation == 'particles':
+                    component.resize(1)
+                    component.representation = original_representation
+
         # Done saving the snapshot
         masterprint('done')
         # Return the filename of the saved file

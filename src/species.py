@@ -1540,12 +1540,11 @@ class Component:
         if boltzmann_order == -2:
             boltzmann_order = is_selected(self, select_boltzmann_order)
         self.boltzmann_order = boltzmann_order
+
         if self.representation == 'particles':
-            if self.boltzmann_order != 1:
-                abort(
-                    f'Particle components must have boltzmann_order = 1, '
-                    f'but boltzmann_order = {self.boltzmann_order} was specified for {self.name}'
-                )
+            # Manually set the boltzmann order to 2 so that we can mesh the T_{ij}
+            self.boltzmann_order = 2
+
         elif self.representation == 'fluid':
             if self.boltzmann_order < -1:
                 abort(
@@ -1631,6 +1630,7 @@ class Component:
                 fluidvar[multi_index] = FluidScalar(index, multi_index, is_linear=False)
             # Add the fluid variable to the list
             self.fluidvars.append(fluidvar)
+
         # If CLASS should be used to close the Boltzmann hierarchy,
         # we need one additional fluid variable. This should act like
         # a symmetric tensor of rank boltzmann_order, but really only a
@@ -2181,9 +2181,10 @@ class Component:
                 if cosmoresults is not None:
                     abort(f'The realize() method was called with {N_vars} variables '
                           'while cosmoresults was supplied as well')
+
         # In the case of particles,
         # momenta should be realised before positions.
-        if self.representation == 'particles' and variables == [0, 1]:
+        if self.representation == 'particles':
             variables = [1, 0]
         # Realise each of the variables in turn
         options_passed = options.copy()

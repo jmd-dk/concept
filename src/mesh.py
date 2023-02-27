@@ -1351,12 +1351,19 @@ subslabs_cache = {}
     a='double',
     cellsize='double',
     constant_contribution='bint',
+    quadratic='bint',
     contribution='double',
     contribution_factor='double',
     contribution_mv='double[::1]',
+    contribution_mv1='double[::1]',
+    contribution_mv2='double[::1]',
     contribution_ptr='double*',
+    contribution_ptr1='double*',
+    contribution_ptr2='double*',
     contribution_weighted='double',
     dim='int',
+    dim1='int',
+    dim2='int',
     grid_ptr='double*',
     index='Py_ssize_t',
     indexˣ='Py_ssize_t',
@@ -1406,6 +1413,8 @@ def interpolate_particles(component, gridsize, grid, quantity, order, ᔑdt,
     w_eff = component.w_eff(a=a)
     # Determine the contribution of each particle based on the quantity
     contribution = 1
+    quadratic = False
+
     if quantity == 'ρ':
         constant_contribution = True
         if ᔑdt:
@@ -1430,6 +1439,19 @@ def interpolate_particles(component, gridsize, grid, quantity, order, ᔑdt,
         dim = 'xyz'.index(quantity[1])
         contribution_mv = component.mom_mv[dim:]
         contribution_ptr = cython.address(contribution_mv[:])
+    elif quantity in {'Sxx', 'Sxy', 'Sxz', 'Syy', 'Syz', 'Szz', 'Syx', 'Szx', 'Szy'}:
+        constant_contribution = False
+        quadratic = True
+
+        dim1 = 'xyz'.index(quantity[1])
+        dim2 = 'xyz'.index(quantity[2])
+
+        contribution_mv1 = component.mom_mv[dim1:]
+        contribution_mv2 = component.mom_mv[dim2:]
+
+        contribution_ptr1 = cython.address(contribution_mv1[:])
+        contribution_ptr2 = cython.address(contribution_mv2[:])
+
     else:
         abort(
             f'interpolate_particles() called with '
@@ -1446,13 +1468,17 @@ def interpolate_particles(component, gridsize, grid, quantity, order, ᔑdt,
     posxˣ = component.posxˣ
     posyˣ = component.posyˣ
     poszˣ = component.poszˣ
+
     size_j, size_k = grid.shape[1], grid.shape[2]
     grid_ptr = cython.address(grid[:, :, :])
     for indexˣ in range(0, 3*component.N_local, 3):
         # Get the total contribution from this particle
         with unswitch:
             if not constant_contribution:
-                contribution = contribution_factor*contribution_ptr[indexˣ]
+                if quadratic:
+                    contribution = contribution_factor*contribution_ptr1[indexˣ]*contribution_ptr2[indexˣ]
+                else:
+                    contribution = contribution_factor*contribution_ptr[indexˣ]
         # Get, translate and scale the coordinates so that
         # nghosts - ½ < r < shape[r] - nghosts - ½ for r ∈ {x, y, z}.
         x = (posxˣ[indexˣ] - offset_x)*ℝ[(1/cellsize)*(1 - machine_ϵ)]
@@ -1659,6 +1685,12 @@ def convert_particles_to_fluid(component, order):
     for dim in range(3):
         J_dim = component.J[dim]
         interpolate_particles(component, gridsize, J_dim.grid_mv, 'J' + 'xyz'[dim], order, ᔑdt)
+
+    for dim1 in range(3):
+        for dim2 in range(3):
+            ς_dim = component.ς[dim1, dim2]
+            interpolate_particles(component, gridsize, ς_dim.grid_mv, 'S' + 'xyz'[dim1] + 'xyz'[dim2], order, ᔑdt)
+
     # The interpolation may have left some cells empty. Count up the
     # number of such vacuum cells and add to each a density of
     # ρ_vacuum, while leaving the momentum at zero. This will increase
@@ -1696,12 +1728,7 @@ def convert_particles_to_fluid(component, order):
         )
     # Populate ghost points of all fluid grids
     component.communicate_fluid_grids('=')
-    # The particle data is no longer needed. Free it to save memory.
-    component.representation = 'particles'
-    component.resize(1)
-    # Re-insert the original representation and return
-    # the original number of vacuum cells.
-    component.representation = original_representation
+
     return N_vacuum_originally
 
 # Function for getting the shape of a local grid, which is part of a

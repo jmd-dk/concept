@@ -1708,6 +1708,10 @@ directive_prefix = '#SBATCH'
 lines = []
 lines.append(f'{directive_prefix} --job-name=${jobname}')
 lines.append(f'{directive_prefix} --partition=${queue}')
+
+lines.append(f'{directive_prefix} --account=pc_heptheory')
+lines.append(f'{directive_prefix} --qos=lr_normal')
+
 if ${nnodes}:
     lines.append(f'{directive_prefix} --nodes=${nnodes}')
     lines.append(f'{directive_prefix} --ntasks-per-node=${nprocs_per_node}')
