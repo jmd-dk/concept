@@ -513,7 +513,8 @@ The 'graphics' parameter category contains parameters specifying the look of
 
                       * ``'background'``: Solid background
                         `color <https://matplotlib.org/stable/gallery/color/named_colors.html>`__
-                        to use.
+                        to use. If instead you want a completely transparent
+                        background, you can use a value of ``None``.
 
                       * ``'fontsize'``: Font size to use for the :math:`t` and
                         :math:`a` labels. Can be given as a number or as a

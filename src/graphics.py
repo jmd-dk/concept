@@ -1151,7 +1151,7 @@ def get_render2D_declarations(components):
                 # Set the terminal resolution equal to the gridsize,
                 # though no larger than the terminal width.
                 terminal_resolution = np.min((declaration.gridsize, terminal_width))
-                # As the terminal render is obtained through FFT's,
+                # As the terminal render is obtained through FFTs,
                 # the terminal resolution must be divisible by
                 # the number of processes and be even.
                 terminal_resolution = terminal_resolution//nprocs*nprocs
@@ -2411,9 +2411,14 @@ def fetch_render3D_fig(declaration, autoscale=False):
         # Update text artists in accordance with declaration options
         # common to all components. The text colour is either black
         # or white, depending on the brightness of the background.
-        text_color = 'white'
-        if get_perceived_brightness(declaration.background) > 0.5:
+        if declaration.background is None:
+            # Special case of transparent background
             text_color = 'black'
+        else:
+            # Solid background
+            text_color = 'white'
+            if get_perceived_brightness(declaration.background) > 0.5:
+                text_color = 'black'
         for art in arts.text:
             art.set_color(text_color)
             art.set_fontsize(declaration.fontsize*resolution/declaration.resolution)
@@ -2903,7 +2908,7 @@ render3D_rgbα = empty(1, dtype=C2np['float'])
 cython.declare(α_threshold='float')
 α_threshold = 1./160.
 
-# Function for computing histogram of slab valuws
+# Function for computing histogram of slab values
 @cython.header(
     # Arguments
     slab='double[:, :, ::1]',
@@ -3025,7 +3030,7 @@ def fit_histogram_gaussian(bin_edges, bins):
         [n_counts, bin_edges[n_bins], bin_edges[n_bins] - bin_edges[0]],
     )
     # Determine initial guess on fitting parameters by iterating over
-    # the historgram from both sides, stopping when the central area
+    # the histogram from both sides, stopping when the central area
     # corresponds to 2×1σ.
     count = int(n_counts*(1 - erf(1/sqrt(2)))/2)
     oneσ_left_index, oneσ_right_index = trim_histogram(bins, count, count)
@@ -3158,16 +3163,18 @@ def finalize_render3D(declaration, img):
     img_text = render_render3D(fig)
     # Blend text render into scatter render
     blend_render3D(img, img_text, mode='under')
-    # Blend solid background into scatter render
-    background = ones([1, 1, 4], dtype=C2np['float'])
-    background[0, 0, :3] = declaration.background
-    blend_render3D(img, background, mode='over')
+    # Blend solid background into scatter render,
+    # unless a transparent background is specified.
+    if declaration.background is not None:
+        background = ones([1, 1, 4], dtype=C2np['float'])
+        background[0, 0, :3] = declaration.background
+        blend_render3D(img, background, mode='over')
     # Ensure pixel values to be in the interval [0, 1]
     truncate_saturated_render3D(img)
     return img
 
 # Function for enhancing the brightness of an image
-# in accorance with enhancement.brightness().
+# in accordance with enhancement.brightness().
 @cython.header(
     # Arguments
     declaration=object,  # Render3DDeclaration
@@ -3413,7 +3420,7 @@ def resize_render3D(img, resolution):
     for index in range(img.shape[0]*img.shape[1]*img.shape[2]):
         img_ptr[index] *= 256*(1 - machine_ϵ_32)
     # Use the pillow image library to carry out the rescaling.
-    # Specifially, use the Lanczos method for the resampling,
+    # Specifically, use the Lanczos method for the resampling,
     # minimizing Moiré patterns when downsampling.
     img = asarray(
         Image.fromarray(

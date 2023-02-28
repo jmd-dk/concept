@@ -2286,7 +2286,7 @@ def slab_decompose(grid, slab_or_buffer_name=None, prepare_fft=False, trim=False
     Alternatively, if a slab grid should be fetched from elsewhere,
     its name should be specified as the second argument.
 
-    If FFT's are to be carried out on a slab fetched by name,
+    If FFTs are to be carried out on a slab fetched by name,
     you must specify prepare_fft=True, in which case the slab will be
     created via FFTW.
 

@@ -2356,7 +2356,7 @@ def to_rgb(value, *, collective=False):
             value = str(value)
         try:
             rgb = asarray(matplotlib.colors.ColorConverter().to_rgb(value), dtype=C2np['double'])
-        except:
+        except Exception:
             # Could not convert value to colour
             abort(f'Colour not understood: {value}')
     if collective:
@@ -2376,8 +2376,8 @@ def to_rgbα(value, α=1, *, collective=False):
         elif len(value) == 4:
             rgb, α = value[:3], value[3]
         else:
-            # Value not understood
-            rgb = asarray([-1, -1, -1])
+            # Could not convert value to colour and α
+            abort(f'Colour + alpha not understood: {value}')
     return to_rgb(rgb, collective=collective), α
 cython.declare(
     # Input/output
@@ -4119,7 +4119,10 @@ for key, d2 in d.items():
         d2.setdefault(key2, val2)
 d = render3D_options['background']
 for key, val in d.copy().items():
-    d[key] = to_rgb(val, collective=True)
+    if str(val).lower() in {'none', 'transparent'}:
+        d[key] = None
+    else:
+        d[key] = to_rgb(val, collective=True)
 d = render3D_options['resolution']
 for key, val in d.copy().items():
     val = int(round(val))
@@ -5341,16 +5344,17 @@ def is_selected(component_or_components, d, accumulate=False, default=None):
         d_transformed[key] = val
     d = d_transformed
     # Do the lookup
+    notfound_token = '__�__'
     selected = []
     for key in keys:
-        val = d.get(key)
-        if val is None and isinstance(key, str):
+        val = d.get(key, notfound_token)
+        if val is notfound_token and isinstance(key, str):
             # Maybe the key is a regular expression
             for d_key, d_val in d.items():
                 if isinstance(d_key, str) and re.compile(d_key).fullmatch(key):
                     val = d_val
                     break
-        if val is not None:
+        if val is not notfound_token:
             selected.append(val)
     # Return either the last (highest precedence) selection or a
     # list/dict of all selections, based on the value of accumulate.
