@@ -1664,6 +1664,7 @@ def initialize_rung_populations(components, Δt):
 @cython.header(
     # Arguments
     components=list,
+    tensor_perturbations=object, # the tensor perturbations to be saved
     output_filenames=dict,
     dump_time=object,  # collections.namedtuple
     Δt='double',
@@ -1690,7 +1691,7 @@ def dump(components, tensor_perturbations, output_filenames, dump_time, Δt=0):
         filename = output_filenames['snapshot'].format(time_param, time_value)
         if time_param == 't':
             filename += unit_time
-        save(components, filename)
+        save(components, tensor_perturbations, filename)
     # Dump power spectrum
     if time_value in powerspec_times[time_param]:
         filename = output_filenames['powerspec'].format(time_param, time_value)

@@ -91,6 +91,8 @@ class ConceptSnapshot:
         self.components = []
         # Dict containing the base units in str format
         self.units = {}
+        # List of tensor perturbations to save
+        self.tensor_perturbations = {}
 
     # Method that saves the snapshot to an hdf5 file
     @cython.pheader(
@@ -196,7 +198,7 @@ class ConceptSnapshot:
                     # with multi_index (0, ), (1, ), ..., (0, 0), ...
                     shape = (component.gridsize, )*3
                     for index, fluidvar in enumerate(
-                        component.fluidvars[:component.boltzmann_order + 2]
+                        component.fluidvars[:component.boltzmann_order + 1]
                     ):
                         fluidvar_h5 = component_h5.create_group('fluidvar_{}'.format(index))
                         for multi_index in fluidvar.multi_indices:
@@ -2174,6 +2176,7 @@ class GadgetSnapshot:
 @cython.pheader(
     # Argument
     one_or_more_components=object,  # Component or container of Components
+    tensor_perturbations=object, # the tensor perturbations to be saved
     filename=str,
     params=dict,
     snapshot_type=str,
@@ -2231,6 +2234,10 @@ def save(
     snapshot = eval(snapshot_type.capitalize() + 'Snapshot()')
     # Populate the snapshot with data
     snapshot.populate(components_selected, params)
+  
+    # Extra population of the tensor perturbations
+    snapshot.tensor_perturbations = list([tensor_perturbations])
+
     # Make sure that the directory of the snapshot exists
     if master:
         os.makedirs(os.path.dirname(filename), exist_ok=True)
