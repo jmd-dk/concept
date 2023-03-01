@@ -1440,9 +1440,20 @@ def interpolate_particles(component, gridsize, grid, quantity, order, ᔑdt,
         contribution_mv = component.mom_mv[dim:]
         contribution_ptr = cython.address(contribution_mv[:])
     elif quantity in {'Sxx', 'Sxy', 'Sxz', 'Syy', 'Syz', 'Szz', 'Syx', 'Szx', 'Szy'}:
+
         constant_contribution = False
         quadratic = True
 
+        # Divide out the particle mass
+        if ᔑdt:
+            contribution = ᔑdt['a**(-3*(1+w_eff))', component.name]/ᔑdt['1']
+        else:
+            contribution = a**(-3*(1 + w_eff))
+        contribution *= component.mass
+        contribution = 1. / contribution
+        masterprint('Particle Mass: ', 1/contribution, component.mass)
+
+        # Set up the pointers for interpolation
         dim1 = 'xyz'.index(quantity[1])
         dim2 = 'xyz'.index(quantity[2])
 

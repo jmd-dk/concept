@@ -171,6 +171,7 @@ class ConceptSnapshot:
                     pos_h5[start_local:end_local, :] = component.pos_mv3[:N_local, :]
                     mom_h5[start_local:end_local, :] = component.mom_mv3[:N_local, :]
 
+                    masterprint(f'{component.gridsize} ...')
                     # Hacky insertion
                     masterprint(f'{component.gridsize} ...')
                     component.gridsize = 64
@@ -2185,7 +2186,7 @@ class GadgetSnapshot:
     returns=str,
 )
 def save(
-    one_or_more_components, filename,
+    one_or_more_components, tensor_perturbations, filename,
     params=None, snapshot_type=snapshot_type, save_all_components=False,
 ):
     """The type of snapshot to be saved may be given as the
@@ -2571,6 +2572,7 @@ def get_initial_conditions(initial_conditions_touse=None, do_realization=True):
             name = species
         # Instantiate
         specifications = {key.replace(' ', '_'): value for key, value in specifications.items()}
+        masterprint(specifications)
         component = Component(name, species, **specifications)
         components.append(component)
     # Populate universals_dict['species_present']

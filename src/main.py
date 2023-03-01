@@ -38,6 +38,7 @@ cimport(
 )
 cimport('from snapshot import get_initial_conditions, save')
 cimport('from utilities import delegate')
+cimport('from species import TensorPerturbationsTimeSlice')
 
 # Pure Python imports
 from integration import init_time
@@ -100,6 +101,10 @@ def timeloop():
     # Determine and set the correct initial values for the cosmic time
     # universals.t and the scale factor universals.a = a(universals.t).
     init_time()
+
+    # Initialize Tensor Perturbations
+    tensor_perturbations = TensorPerturbationsTimeSlice(gridsize=64)
+
     # Check if an autosaved snapshot exists for the current
     # parameter file. If not, the initial_time_step will be 0.
     (
@@ -121,6 +126,7 @@ def timeloop():
     if not components:
         masterprint('done')
         return
+
     # Get the dump times and the output filename patterns
     dump_times, output_filenames = prepare_for_output(
         components,
@@ -154,7 +160,7 @@ def timeloop():
     masterprint('done')
     # Possibly output at the beginning of simulation
     if dump_times[0].t == universals.t or dump_times[0].a == universals.a:
-        dump(components, output_filenames, dump_times[0])
+        dump(components, tensor_perturbations, output_filenames, dump_times[0])
         dump_times.pop(0)
         # Return now if all dumps lie at the initial time
         if len(dump_times) == 0:
@@ -387,7 +393,7 @@ def timeloop():
                                 autosave_time = time()
                     # Dump output if at dump time
                     if universals.t == dump_time.t:
-                        if dump(components, output_filenames, dump_time, Δt):
+                        if dump(components, tensor_perturbations, output_filenames, dump_time, Δt):
                             # The "dump" was really the activation of a
                             # component. This new component might need
                             # a reduced time step size.
@@ -1669,7 +1675,7 @@ def initialize_rung_populations(components, Δt):
     time_value='double',
     returns='bint',
 )
-def dump(components, output_filenames, dump_time, Δt=0):
+def dump(components, tensor_perturbations, output_filenames, dump_time, Δt=0):
     time_param = dump_time.time_param
     time_value = {'t': dump_time.t, 'a': dump_time.a}[time_param]
     any_activations = False

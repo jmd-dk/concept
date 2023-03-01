@@ -412,8 +412,6 @@ class FluidScalar:
     def __str__(self):
         return self.__repr__()
 
-
-
 # Class providing the data structure for particle tiling.
 # Though the variable naming only refer to tiles (within a domain),
 # subtiles (within a tile) makes use of this data structure as well.
@@ -828,6 +826,87 @@ class Tiling:
     def __str__(self):
         return self.__repr__()
 
+# The class containing the metric perturbations
+@cython.cclass
+class TensorPerturbations:
+    """An instance of this class represents the collection of u_{ij} metric
+       perturbations
+    """
+
+    # Initialisation method
+    @cython.pheader(
+        # Arguments
+        gridsize='Py_ssize_t',
+        boltzmann_order='Py_ssize_t',
+        boltzmann_closure=str,
+        # Locals
+        tile_index='signed char',
+        index='Py_ssize_t',
+        indexᵖ='Py_ssize_t',
+    )
+    def __init__(self, *, gridsize=-1, boltzmann_order=2, boltzmann_closure='truncate'):
+
+        self.name = 'Metric Perturbations'
+        self.gridsize = gridsize
+        self.representation = 'Metric Perturbations'
+        self.species = 'Metric Perturbations'
+
+        # Warn if weird gridsize
+        if self.gridsize%2 != 0:
+            masterwarn(
+                f'{self.name.capitalize()} has an odd grid size ({self.gridsize}). '
+                f'Some operations may not function correctly.'
+            )
+
+        # Function for converting expressions involving
+        # 'N' and 'gridsize' to floats.
+        def to_float(s):
+            s = str(s)
+            s = (s
+                .replace('N', str(self.gridsize**3))
+                .replace('gridsize', str(self.gridsize))
+                )
+        
+            s = s.replace('nprocs', str(nprocs))
+            return eval(s, globals(), units_dict)
+
+        # Set Boltzmann order and closure for the tensor
+        self.boltzmann_order = boltzmann_order
+        self.boltzmann_closure = boltzmann_closure
+
+        # Generate the field variables
+        self.fluidvar = Tensor(self, 2, (3, )*2, symmetric=True)
+
+        for multi_index in self.fluidvar.multi_indices:
+            self.fluidvar[multi_index] = FluidScalar(2, multi_index, is_linear=True)
+
+        # Assign the field variables as conveniently named attributes
+        self.uxx = self.fluidvar[0, 0]
+        self.uxy = self.fluidvar[0, 1]
+        self.uxz = self.fluidvar[0, 2]
+        self.uyy = self.fluidvar[1, 1]
+        self.uyz = self.fluidvar[1, 2]
+        self.uzz = self.fluidvar[2, 2]
+
+# The class containing the collection of metric perturbations and time
+# derivatives
+
+@cython.cclass
+class TensorPerturbationsTimeSlice:
+    """ This object represents a collection of u_{ij} and du_{ij} metric perturbations
+        at a particular instance in time
+    """
+
+    @cython.pheader( 
+        # Arguments
+        gridsize='Py_ssize_t',
+        boltzmann_order='Py_ssize_t',
+        boltzmann_closure=str,
+    )
+
+    def __init__(self, *, gridsize=64):
+        self.u = TensorPerturbations(gridsize=gridsize)
+        self.du = TensorPerturbations(gridsize=gridsize)
 
 # The class governing any component of the universe
 @cython.cclass
