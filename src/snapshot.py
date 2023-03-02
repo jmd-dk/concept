@@ -32,12 +32,10 @@ cimport('from communication import partition,                   '
         '                          smart_mpi,                   '
         )
 cimport('from mesh import domain_decompose, get_fftw_slab, slab_decompose, convert_particles_to_fluid')
-cimport('from species import Component, FluidScalar, update_species_present')
+cimport('from species import Component, FluidScalar, update_species_present, TensorPerturbations, TensorPerturbationsTimeSlice')
 
 # Pure Python imports
 import struct
-
-
 
 # Class storing a CO𝘕CEPT snapshot. Besides holding methods for
 # saving/loading, it stores component data.
@@ -83,6 +81,7 @@ class ConceptSnapshot:
         """
         public dict params
         public list components
+        public list tensor_perturbations
         public dict units
         """
         # Dict containing all the parameters of the snapshot
@@ -92,7 +91,7 @@ class ConceptSnapshot:
         # Dict containing the base units in str format
         self.units = {}
         # List of tensor perturbations to save
-        self.tensor_perturbations = {}
+        self.tensor_perturbations = []
 
     # Method that saves the snapshot to an hdf5 file
     @cython.pheader(
@@ -104,6 +103,7 @@ class ConceptSnapshot:
         N_local='Py_ssize_t',
         N_str=str,
         component='Component',
+        tensor_component='TensorPerturbationsTimeSlice',
         end_local='Py_ssize_t',
         fluidscalar='FluidScalar',
         indices=object,  # int or tuple
@@ -135,6 +135,46 @@ class ConceptSnapshot:
             hdf5_file.attrs['boxsize']       = correct_float(self.params['boxsize'])
             hdf5_file.attrs[unicode('Ωb')]   = correct_float(self.params['Ωb'])
             hdf5_file.attrs[unicode('Ωcdm')] = correct_float(self.params['Ωcdm'])
+
+            # Save the tensor perturbations
+            index = 2 # this is always the case for the u_{ij}
+            tensor_component = self.tensor_perturbations[0]
+            component_h5 = hdf5_file.create_group(f'components/MetricPerturbations')
+
+            # Save the gridsize attribute     
+            component_h5.attrs['gridsize'] = tensor_component.gridsize
+            shape = (tensor_component.gridsize, )*3
+
+            # Save the u_ij fluid variable
+            fluidvar = tensor_component.u.fluidvar
+            fluidvar_h5 = component_h5.create_group('u')
+            for multi_index in fluidvar.multi_indices:
+                fluidscalar = fluidvar[multi_index]
+                fluidscalar_h5 = fluidvar_h5.create_dataset(f'u_{multi_index}', shape, dtype=C2np['double'])
+
+                slab = slab_decompose(fluidscalar.grid_mv)
+                slab_start = slab.shape[0]*rank
+                slab_end = slab_start + slab.shape[0]
+                fluidscalar_h5[slab_start:slab_end, :, :,] = slab[:, :, :tensor_component.gridsize]
+
+            # Save the du_ij fluid variable
+            fluidvar = tensor_component.du.fluidvar
+            fluidvar_h5 = component_h5.create_group('du')
+            for multi_index in fluidvar.multi_indices:
+                fluidscalar = fluidvar[multi_index]
+                fluidscalar_h5 = fluidvar_h5.create_dataset(f'du_{multi_index}', shape, dtype=C2np['double'])
+
+                slab = slab_decompose(fluidscalar.grid_mv)
+                slab_start = slab.shape[0]*rank
+                slab_end = slab_start + slab.shape[0]
+                fluidscalar_h5[slab_start:slab_end, :, :,] = slab[:, :, :tensor_component.gridsize]
+
+
+            # Done saving this component
+            hdf5_file.flush()
+            Barrier()
+            masterprint('done')
+
             # Store each component as a separate group
             # within /components.
             for component in self.components:
@@ -173,9 +213,7 @@ class ConceptSnapshot:
                     pos_h5[start_local:end_local, :] = component.pos_mv3[:N_local, :]
                     mom_h5[start_local:end_local, :] = component.mom_mv3[:N_local, :]
 
-                    masterprint(f'{component.gridsize} ...')
                     # Hacky insertion
-                    masterprint(f'{component.gridsize} ...')
                     component.gridsize = 64
 
                     # Convert the particles to a fluid representation
@@ -203,6 +241,7 @@ class ConceptSnapshot:
                         fluidvar_h5 = component_h5.create_group('fluidvar_{}'.format(index))
                         for multi_index in fluidvar.multi_indices:
                             fluidscalar = fluidvar[multi_index]
+
                             fluidscalar_h5 = fluidvar_h5.create_dataset(
                                 f'fluidscalar_{multi_index}',
                                 shape,
@@ -262,6 +301,7 @@ class ConceptSnapshot:
                 if original_representation == 'particles':
                     component.resize(1)
                     component.representation = original_representation
+
 
         # Done saving the snapshot
         masterprint('done')
