@@ -38,7 +38,7 @@ cimport(
 )
 cimport('from snapshot import get_initial_conditions, save')
 cimport('from utilities import delegate')
-cimport('from species import TensorPerturbationsTimeSlice')
+cimport('from species import TensorComponent')
 
 # Pure Python imports
 from integration import init_time
@@ -103,7 +103,7 @@ def timeloop():
     init_time()
 
     # Initialize Tensor Perturbations
-    tensor_perturbations = TensorPerturbationsTimeSlice(gridsize=64)
+    tensor_perturbations = TensorComponent(gridsize=64)
 
     # Check if an autosaved snapshot exists for the current
     # parameter file. If not, the initial_time_step will be 0.

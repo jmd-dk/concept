@@ -32,7 +32,7 @@ cimport('from communication import partition,                   '
         '                          smart_mpi,                   '
         )
 cimport('from mesh import domain_decompose, get_fftw_slab, slab_decompose, convert_particles_to_fluid')
-cimport('from species import Component, FluidScalar, update_species_present, TensorPerturbations, TensorPerturbationsTimeSlice')
+cimport('from species import Component, FluidScalar, update_species_present, TensorComponent')
 
 # Pure Python imports
 import struct
@@ -103,7 +103,7 @@ class ConceptSnapshot:
         N_local='Py_ssize_t',
         N_str=str,
         component='Component',
-        tensor_component='TensorPerturbationsTimeSlice',
+        tensor_component='TensorComponent',
         end_local='Py_ssize_t',
         fluidscalar='FluidScalar',
         indices=object,  # int or tuple

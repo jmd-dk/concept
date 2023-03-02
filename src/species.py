@@ -828,7 +828,7 @@ class Tiling:
 
 # The class containing the metric perturbations
 @cython.cclass
-class TensorPerturbations:
+class TensorField:
     """An instance of this class represents the collection of u_{ij} metric
        perturbations
     """
@@ -973,7 +973,7 @@ class TensorPerturbations:
 
 
 @cython.cclass
-class TensorPerturbationsTimeSlice:
+class TensorComponent:
     """ This object represents a collection of u_{ij} and du_{ij} metric perturbations
         at a particular instance in time
     """
@@ -986,13 +986,13 @@ class TensorPerturbationsTimeSlice:
     def __init__(self, *, gridsize=64):
         """
         public Py_ssize_t gridsize
-        public TensorPerturbations u
-        public TensorPerturbations du
+        public TensorField u
+        public TensorField du
         """        
 
         self.gridsize = gridsize
-        self.u = TensorPerturbations(gridsize=gridsize)
-        self.du = TensorPerturbations(gridsize=gridsize)
+        self.u = TensorField(gridsize=gridsize)
+        self.du = TensorField(gridsize=gridsize)
 
 # The class governing any component of the universe
 @cython.cclass
