@@ -39,7 +39,7 @@ cimport(
 cimport('from snapshot import get_initial_conditions, save')
 cimport('from utilities import delegate')
 cimport('from species import TensorComponent')
-
+cimport('from mesh import convert_particles_to_fluid')
 # Pure Python imports
 from integration import init_time
 import interactions

@@ -219,7 +219,7 @@ class ConceptSnapshot:
                     # Convert the particles to a fluid representation
                     convert_particles_to_fluid(component, 4)
                 
-                if component.representation == 'fluid':
+                if component.representation == 'fluid' or component.representation =='particles':
                     # Write out progress message
                     masterprint(
                         f'Writing out {component.name} ({component.species} with '
@@ -263,32 +263,6 @@ class ConceptSnapshot:
                                 :,
                                 :,
                             ] = slab[:, :, :component.gridsize]
-                    # Create additional names (hard links) for the fluid
-                    # groups and data sets. The names from
-                    # component.fluid_names will be used, except for
-                    # the additional linear variable, if CLASS is used
-                    # to close the Boltzmann hierarchy
-                    # (hence the try/except).
-                    for name, indices in component.fluid_names.items():
-                        if not isinstance(name, str) or name == 'ordered':
-                            continue
-                        if isinstance(indices, int):
-                            # "name" is a fluid variable name (e.g. J,
-                            # though not ϱ as this is a fluid scalar).
-                            try:
-                                fluidvar_h5 = component_h5['fluidvar_{}'.format(indices)]
-                                component_h5[name] = fluidvar_h5
-                            except:
-                                pass
-                        else:  # indices is a tuple
-                            # "name" is a fluid scalar name (e.g. ϱ, Jx)
-                            index, multi_index = indices
-                            try:
-                                fluidvar_h5 = component_h5['fluidvar_{}'.format(index)]
-                                fluidscalar_h5 = fluidvar_h5['fluidscalar_{}'.format(multi_index)]
-                                component_h5[name] = fluidscalar_h5
-                            except:
-                                pass
 
                 # Done saving this component
                 hdf5_file.flush()
@@ -298,9 +272,9 @@ class ConceptSnapshot:
                 # After the conversion, the particles were saved in a fluid representation
                 # We now destroy the fluid grids to save memory and return the component to 
                 # a particle representation 
-                if original_representation == 'particles':
-                    component.resize(1)
-                    component.representation = original_representation
+                #if original_representation == 'particles':
+                #    component.resize(1)
+                #    component.representation = original_representation
 
 
         # Done saving the snapshot

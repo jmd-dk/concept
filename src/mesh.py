@@ -1679,6 +1679,7 @@ def convert_particles_to_fluid(component, order):
     original_representation = component.representation
     # Instantiate fluid grids spanning the local domains.
     # The newly allocated grids will be nullified.
+    
     component.representation = 'fluid'
     shape = tuple([component.gridsize//ds for ds in domain_subdivisions])
     if any([component.gridsize != domain_subdivisions[dim]*shape[dim] for dim in range(3)]):
@@ -1738,6 +1739,7 @@ def convert_particles_to_fluid(component, order):
         )
     # Populate ghost points of all fluid grids
     component.communicate_fluid_grids('=')
+    component.representation = original_representation
 
     return N_vacuum_originally
 
