@@ -1451,7 +1451,6 @@ def interpolate_particles(component, gridsize, grid, quantity, order, ᔑdt,
             contribution = a**(-3*(1 + w_eff))
         contribution *= component.mass
         contribution = 1. / contribution
-        masterprint('Particle Mass: ', 1/contribution, component.mass)
 
         # Set up the pointers for interpolation
         dim1 = 'xyz'.index(quantity[1])
@@ -1698,7 +1697,7 @@ def convert_particles_to_fluid(component, order):
         interpolate_particles(component, gridsize, J_dim.grid_mv, 'J' + 'xyz'[dim], order, ᔑdt)
 
     for dim1 in range(3):
-        for dim2 in range(3):
+        for dim2 in range(dim1, 3):
             ς_dim = component.ς[dim1, dim2]
             interpolate_particles(component, gridsize, ς_dim.grid_mv, 'S' + 'xyz'[dim1] + 'xyz'[dim2], order, ᔑdt)
 
@@ -3825,8 +3824,7 @@ def slabs_check_symmetry(
     ᐁgrid_dim_ptr='double*',
     returns='double[:, :, ::1]',
 )
-def diff_domaingrid(
-    grid, dim, order,
+def diff_domaingrid(grid, dim, order,
     Δx=1, buffer_or_buffer_name=0, direction='forward', do_ghost_communication=True,
 ):
     """This function differentiates a given domain grid along the dim'th
@@ -3977,6 +3975,129 @@ def diff_domaingrid(
         if index_i == index_i_end:
             break
         index_i += ℤ[size_j*size_k]
+    # Populate the ghost points with copies of their
+    # corresponding actual points.
+    if do_ghost_communication:
+        communicate_ghosts(ᐁgrid_dim, '=')
+    return ᐁgrid_dim
+
+
+
+# Function for differentiating domain grids
+@cython.pheader(
+    # Arguments
+    grid='double[:, :, ::1]',
+    dim='int',
+    Δx='double',
+    buffer_or_buffer_name=object,  # double[:, :, ::1] or int or str
+    do_ghost_communication='bint',
+    # Locals
+    grid_mv='double[::1]',
+    grid_ptr_lower_1='double*',
+    grid_ptr_lower_2='double*',
+    grid_ptr_upper_1='double*',
+    grid_ptr_upper_2='double*',
+    index='Py_ssize_t',
+    index_i='Py_ssize_t',
+    index_i_end='Py_ssize_t',
+    index_j='Py_ssize_t',
+    index_j_end='Py_ssize_t',
+    offset_1='Py_ssize_t',
+    offset_2='Py_ssize_t',
+    offset_ghosts='Py_ssize_t',
+    size_i='Py_ssize_t',
+    size_j='Py_ssize_t',
+    size_k='Py_ssize_t',
+    ᐁgrid_dim='double[:, :, ::1]',
+    ᐁgrid_dim_mv='double[::1]',
+    ᐁgrid_dim_ptr='double*',
+    returns='double[:, :, ::1]',
+)
+def laplacian_domaingrid(grid, dim, order,
+    Δx=1, buffer_or_buffer_name=0, direction='forward', do_ghost_communication=True,
+):
+    """This function computes the laplacian of a given domain grid
+    through finite differencing. The passed grid must
+    include correctly populated ghost points, and the returned grid will
+    contain correctly populated ghost points as well unless
+    do_ghost_communication is False.
+    The order argument specifies the order of the differentiation,
+    meaning the number of neighbouring grid points used to approximate
+    the first derivative. For odd orders, the differentiation cannot be
+    symmetric, and so the direction should be specified as either
+    'forward' or 'backward'.
+    To achieve proper units, the physical grid spacing may be specified
+    as Δx. If not given, grid units (Δx == 1) are used. The
+    buffer_or_buffer_name argument can be a (contiguous) buffer to store
+    the results, or alternatively the name of a buffer to use. In either
+    case, existing values will be overwritten.
+    Note that a grid cannot be differentiated in-place by passing the
+    grid as both the first and fifth argument, as the differentiation
+    of each grid point requires information from the original
+    (non-differentiated) grid.
+    """
+    # Sanity checks on input
+    if isinstance(buffer_or_buffer_name, (int, str)):
+        ᐁgrid_dim = get_buffer(asarray(grid).shape, buffer_or_buffer_name, nullify=False)
+    else:
+        ᐁgrid_dim = buffer_or_buffer_name
+        if asarray(ᐁgrid_dim).shape != asarray(grid).shape:
+            abort(
+                f'diff_domaingrid() called with grid of shape {asarray(grid).shape}'
+                f'and buffer of different shape {asarray(ᐁgrid_dim).shape}'
+            )
+
+    # Extract pointer of ᐁgrid_dim, offset to take care of ghost points
+    size_i, size_j, size_k = asarray(grid).shape
+    offset_ghosts = nghosts*((size_j + 1)*size_k + 1)
+    ᐁgrid_dim_mv = asarray(ᐁgrid_dim).ravel()
+    ᐁgrid_dim_ptr = cython.address(ᐁgrid_dim_mv[offset_ghosts:])
+
+    # Extract pointers of grid, offset to take care of ghost points and
+    # steps along direction dim.
+    grid_mv = asarray(grid).ravel()
+    grid_ptr_central = cython.address(grid_mv[(offset_ghosts):])
+
+    for dim in (0, 1, 2):
+
+        offset_1 = (1*ℤ[(dim == 0)*size_j] + 1*ℤ[dim == 1])*size_k + 1*ℤ[dim == 2]
+        offset_2 = (2*ℤ[(dim == 0)*size_j] + 2*ℤ[dim == 1])*size_k + 2*ℤ[dim == 2]
+
+        grid_ptr_upper_1 = cython.address(grid_mv[(offset_ghosts + offset_1):])
+        grid_ptr_lower_1 = cython.address(grid_mv[(offset_ghosts - offset_1):])
+        grid_ptr_upper_2 = cython.address(grid_mv[(offset_ghosts + offset_2):])
+        grid_ptr_lower_2 = cython.address(grid_mv[(offset_ghosts - offset_2):])
+
+        # Loop over the 3D grid. Cython does not produce optimal code when
+        # using a stepped range, so we write out the looping by hand.
+        index_i = 0
+        index_i_end = (size_i - ℤ[2*nghosts + 1])*ℤ[size_j*size_k]
+        
+        while True:
+            index_j     = index_i
+            index_j_end = index_i + ℤ[(size_j - ℤ[2*nghosts + 1])*size_k]
+        
+            while True:
+                index     = index_j
+                index_end = index_j + ℤ[size_k - ℤ[2*nghosts + 1]]
+                
+                while True:
+                    ᐁgrid_dim_ptr[index] = (-ℝ[(1/12)/Δx/Δx] * (grid_ptr_upper_2[index] + grid_ptr_lower_2[index])
+                                            +ℝ[(16/12)/Δx/Δx] * (grid_ptr_upper_1[index] + grid_ptr_lower_1[index])
+                                            -ℝ[(30/12)/Δx/Δx] * grid_ptr_central[index] 
+                                           )
+                    # Breakouts and loop counter incrementations
+                    if index == index_end:
+                        break
+                    index += 1
+
+                if index_j == index_j_end:
+                    break
+                index_j += size_k
+
+            if index_i == index_i_end:
+                break
+            index_i += ℤ[size_j*size_k]
     # Populate the ghost points with copies of their
     # corresponding actual points.
     if do_ghost_communication:
