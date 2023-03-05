@@ -2239,6 +2239,10 @@ class DictWithCounter(dict):
 user_params = DictWithCounter(construct_user_params_namespace('inferables'))
 # Additional things which should be available when defining parameters
 user_params.update({
+    # Names of the fundamental units
+    'unit_time'  : unit_time,
+    'unit_length': unit_length,
+    'unit_mass'  : unit_mass,
     # Units from the units struct
     **units_dict,
     'units': types.SimpleNamespace(**units_dict),
@@ -2271,9 +2275,6 @@ user_params.useall()
 # "Import" the parameter file by executing it
 # in the namespace defined by the user_params namespace.
 exec_params(param_file_content, user_params, suppress_exceptions=False)
-# Also mark the unit-parameters as used
-for u in ('length', 'time', 'mass'):
-    user_params.use(f'unit_{u}')
 # Update the class_params inside of the user_params with default values.
 # This is important for the variable inference to come. For the actual
 # (module level) class_params, this has to be done again (see the
