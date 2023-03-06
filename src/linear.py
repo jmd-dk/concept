@@ -3574,7 +3574,7 @@ for (varname,
                 value = type(default_value)(
                     re.search(pattern, class_file.read()).group(2).strip('"')
                 )
-        except:
+        except Exception:
             masterwarn(f'Failed to read value of {varname} from {filename_abs}')
             value = default_value
     value = bcast(value if master else None)

@@ -211,7 +211,7 @@ def walrus(lines, no_optimization):
                 expression = line[index_bgn:index_end].strip()
                 try:
                     parsed = ast.parse(expression)
-                except:
+                except Exception:
                     continue
                 if len(parsed.body) == 1:
                     break
@@ -629,7 +629,7 @@ def cimport_function(lines, no_optimization):
             return [
                 f'try:\n',
                 f'    import {module}\n',
-                f'except:\n',
+                f'except Exception:\n',
                 f'    pass\n',
                 f'cimport {module}\n',
             ]
@@ -638,7 +638,7 @@ def cimport_function(lines, no_optimization):
             return [
                 f'try:\n',
                 f'    from {module} import {function}\n',
-                f'except:\n',
+                f'except Exception:\n',
                 f'    pass\n',
                 f'from {module} cimport {function}\n',
             ]
@@ -660,7 +660,7 @@ def cimport_function(lines, no_optimization):
         for funcname in funcnames:
             try:
                 iterator_lines = inspect.getsourcelines(module.__dict__[funcname])[0]
-            except:
+            except Exception:
                 continue
             if not iterator_lines[0].startswith('@'):
                 continue
@@ -681,7 +681,7 @@ def cimport_function(lines, no_optimization):
                     ].strip()
                     try:
                         depends = eval(iterator_arg)
-                    except:
+                    except Exception:
                         pass
                     if not depends:
                         tmp_dict = {}
@@ -839,7 +839,7 @@ def check_float_literals():
             capture_output=True,
         )
         legal_literals = completed_process.stdout.decode().split('\n')
-    except:
+    except Exception:
         pass
     legal_literals = [
         legal_literal
@@ -945,7 +945,7 @@ def inline_iterators(lines, no_optimization):
             continue
         try:
             iterator_lines = inspect.getsourcelines(module.__dict__[func_name])[0]
-        except:
+        except Exception:
             new_lines.append(line)
             continue
         iterator_lines = commons.onelinerize(iterator_lines)
@@ -1037,7 +1037,7 @@ def inline_iterators(lines, no_optimization):
                 if isinstance(val, str) and val[0] not in r'"\'':
                     try:
                         val = eval(val)
-                    except:
+                    except Exception:
                         pass
                 kw_onlys[key] = val
             for blackboardbold in blackboardbolds:
@@ -1084,7 +1084,7 @@ def inline_iterators(lines, no_optimization):
                     condition = match.group(2).strip()
                     try:
                         result = eval(condition, kw_onlys)
-                    except:
+                    except Exception:
                         # Could not determine value of condition
                         iterator_lines_new.append(iterator_line)
                         continue
@@ -1210,7 +1210,7 @@ def remove_trvial_branching(lines, no_optimization):
             condition = match.group(2)
             try:
                 result = eval(condition, {})
-            except:
+            except Exception:
                 new_lines.append(line)
                 continue
             # Trivial if/elif found
@@ -2811,7 +2811,7 @@ def remove_duplicate_declarations(lines, no_optimization):
             try:
                 ast.parse(''.join(lines[locals_begin:j+1]).strip()[1:])
                 valid = True
-            except:
+            except Exception:
                 pass
             if valid:
                 locals_str = ''.join([
@@ -3244,7 +3244,7 @@ def make_types(filename, no_optimization):
             existing_extension_types = eval(existing_extension_types_content)
             if existing_extension_types == extension_types:
                 return
-        except:
+        except Exception:
             print(f'Warning: Could not interpret the content of "{filename}".', file=sys.stderr)
     # Write the dictionary to the types file:
     with open(filename, mode='w', encoding='utf-8') as types_file:

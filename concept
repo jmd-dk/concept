@@ -366,7 +366,7 @@ bash_array2python_list() {
 try:
     eval(\"${element}\")
     print(\"${element}\")
-except:
+except Exception:
     print('\"{}\"'.format(\"${element}\"))
 ")
         # Append element to list
@@ -847,7 +847,7 @@ def positive_int(value):
         raise argparse.ArgumentTypeError(\"invalid positive int value: '{}'\".format(value_raw))
     try:
         value = float(eval(value))
-    except:
+    except Exception:
         raise_argparse_exception()
     if value != int(value):
         raise_argparse_exception()
@@ -875,11 +875,11 @@ def positive_int_or_int_pair(value, value_input=None):
     else:  # value.count(':') == 0
         try:
             value_eval = eval(value)
-        except:
+        except Exception:
             return positive_int_or_int_pair(value.replace(' ', ':'), value_input)
         try:
             value_float = float(value_eval)
-        except:
+        except Exception:
             raise_argparse_exception()
         value_int = int(value_float)
         if value_int == value_float and value_int > 0:
@@ -906,7 +906,7 @@ def memory(value):
              }
     try:
         value = int(math.ceil(float(eval(value, units))))
-    except:
+    except Exception:
         raise_argparse_exception()
     return value
 # Function which converts a time value to the format hh:mm:ss
@@ -926,7 +926,7 @@ def time(value):
     value = value.replace(' ', '')
     try:
         value = int(value)*units['s']
-    except:
+    except Exception:
         pass
     # Attempt to interpret the time as an expression
     # like '2hr + 30mins'.
@@ -935,7 +935,7 @@ def time(value):
         value = re.subn(r'([0-9]+)([a-z]+)', r'\g<1>*\g<2>', value)[0]
         try:
             value = int(math.ceil(float(eval(value, units))))
-        except:
+        except Exception:
             pass
     # Attempt to interpret the time in the format
     # 'm:s' or 'h:m:s' or 'd:h:m:s' or 'd+h:m:s' or 'd+h:m' or 'd+h'.

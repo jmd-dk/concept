@@ -1960,7 +1960,7 @@ def check_autosave():
             auxiliary = {}
             try:
                 exec(content, auxiliary)
-            except:
+            except Exception:
                 traceback.print_exc()
                 use_autosave = False
             if not use_autosave:

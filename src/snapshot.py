@@ -78,7 +78,7 @@ class ConceptSnapshot:
             with open_hdf5(filename, mode='r', raise_exception=True) as hdf5_file:
                 hdf5_file.attrs[unicode('Ωcdm')]
                 return True
-        except:
+        except Exception:
             pass
         return False
 
@@ -268,7 +268,7 @@ class ConceptSnapshot:
                             try:
                                 fluidvar_h5 = component_h5[f'fluidvar_{indices}']
                                 component_h5[name] = fluidvar_h5
-                            except:
+                            except Exception:
                                 pass
                         else:  # indices is a tuple
                             # "name" is a fluid scalar name (e.g. ϱ, Jx)
@@ -277,7 +277,7 @@ class ConceptSnapshot:
                                 fluidvar_h5 = component_h5[f'fluidvar_{index}']
                                 fluidscalar_h5 = fluidvar_h5[f'fluidscalar_{multi_index}']
                                 component_h5[name] = fluidscalar_h5
-                            except:
+                            except Exception:
                                 pass
                 else:
                     abort(
@@ -760,7 +760,7 @@ class GadgetSnapshot:
                     f.read(struct.calcsize(cls.block_name_fmt)),
                 )[0].decode('utf8').rstrip():
                     return 2
-        except:
+        except Exception:
             pass
         # Test for SnapFormat 1 by checking the size
         # of the header block.
@@ -768,7 +768,7 @@ class GadgetSnapshot:
             with open_file(filename, mode='rb') as f:
                 if cls.headersize == struct.unpack('I', f.read(sizesC['I']))[0]:
                     return 1
-        except:
+        except Exception:
             pass
         return -1
 

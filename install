@@ -2225,7 +2225,7 @@ try:
         import ${pypackage}
     sleep(1)
     print('\nTrue')
-except:
+except Exception:
     print('\nFalse')
 " 2>/dev/null | tail -n 1)"
         if [ "${pypackage_installed}" == "True" ]; then

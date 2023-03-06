@@ -3146,7 +3146,7 @@ class Component:
         # Initialise w dependent on its type
         try:
             w = float(w)
-        except:
+        except Exception:
             pass
         if isinstance(w, (float, np.floating)):
             # Assign passed constant w
@@ -3201,7 +3201,7 @@ class Component:
             self.w_type = 'constant'
             try:
                 self.w_constant = float(species_registered[self.species].w)
-            except:
+            except Exception:
                 if self.representation == 'particles':
                     self.w_constant = 0
                 else:
@@ -3300,7 +3300,7 @@ class Component:
             # Test that the expression is parsable
             try:
                 self.w()
-            except:
+            except Exception:
                 abort(
                     f'Cannot parse w = "{w_ori}" as an expression '
                     f'and no file with that name can be found either.'

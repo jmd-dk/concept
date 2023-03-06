@@ -71,7 +71,7 @@ def positive_float(value):
         if isinstance(final_value, str):
             final_value = eval(final_value)
         final_value = float(final_value)
-    except:
+    except Exception:
         raise_argparse_exception()
     if final_value < 0:
         raise_argparse_exception()
@@ -85,7 +85,7 @@ def positive_int_or_inf(value):
         raise argparse.ArgumentTypeError(\"invalid positive int value: '{}'\".format(value_raw))
     try:
         value = float(eval(value))
-    except:
+    except Exception:
         raise_argparse_exception()
     if value == inf:
         return value

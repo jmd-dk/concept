@@ -188,7 +188,7 @@ def buf_and_dtype(buf):
         arr = asarray(buf)
         if arr.shape:
             return (buf, arr.dtype.char)
-    except:
+    except Exception:
         pass
     return buf
 Allgather = lambda sendbuf, recvbuf: comm.Allgather(
@@ -397,7 +397,7 @@ def align_text(lines, alignat='$', indent=0, rstrip=True, handle_numbers=True):
                     num = num[:num.index('×')]
                 try:
                     float(num)
-                except:
+                except Exception:
                     all_are_nums = False
                     break
                 all_are_nums = True
@@ -414,7 +414,7 @@ def align_text(lines, alignat='$', indent=0, rstrip=True, handle_numbers=True):
                     num = num[:num.index('×')]
                 try:
                     float(num)
-                except:
+                except Exception:
                     continue
                 # This part is a number
                 if '.' in part:
@@ -918,8 +918,8 @@ enable_terminal_formatting = True
 def warn(*args, skipline=True, prefix='Warning', wrap=True, **kwargs):
     try:
         universals.any_warnings = True
-    except:
-        ...
+    except Exception:
+        pass
     # Add initial newline (if skipline is True) to prefix
     # and append a colon.
     prefix = '{}{}{}'.format('\n' if skipline else '', prefix, ':' if prefix else '')
@@ -1196,7 +1196,7 @@ if not cython.compiled:
     NULL = None
     # Dummy functions and constants
     def dummy_func(*args, **kwargs):
-        ...
+        pass
     # The BlackboardBold dicts for constant expressions
     class BlackboardBold(dict):
         def __init__(self, constant_type):
@@ -1228,9 +1228,9 @@ if not cython.compiled:
         def __call__(self, *args):
             return self
         def __enter__(self):
-            ...
+            pass
         def __exit__(self, *exc_info):
-            ...
+            pass
     unswitch = DummyContextManager()
     copy_on_import = DummyContextManager()
     # The pxd function, which in pure Python defines the variables
@@ -1271,7 +1271,7 @@ if not cython.compiled:
         for varname in words:
             try:
                 d.setdefault(varname, dummypxd)
-            except:
+            except Exception:
                 pass
 # Function for building "structs" (really simple namespaces).
 # In compiled mode, this function body will be copied and
@@ -1296,16 +1296,16 @@ def build_struct(**kwargs):
             ctype, val = val, '__build_struct_undefined__'
         try:
             ctype = C2np[ctype]
-        except:
+        except Exception:
             try:
                 ctype = eval(ctype)
-            except:
+            except Exception:
                 pass
         ctypes[key] = ctype
         if val == '__build_struct_undefined__':
             try:
                 val = ctype()
-            except:
+            except Exception:
                 val = b'' if '*' in ctype else 0
         kwargs[key] = val
     for key, val in kwargs.copy().items():
@@ -1314,11 +1314,11 @@ def build_struct(**kwargs):
             namespace = {k: v for d in (globals(), kwargs) for k, v in d.items()}
             try:
                 val = eval(val, namespace)
-            except:
+            except Exception:
                 pass
         try:
             kwargs[key] = ctypes[key](val)
-        except:
+        except Exception:
             pass
     if not cython.compiled:
         # In pure Python, emulate a struct by a simple namespace
@@ -1436,7 +1436,7 @@ def asciify(s):
                 char_list.append(f'{begin}{unicode_name}{end}')
                 in_unicode_char = False
                 unicode_char = ''
-            except:
+            except Exception:
                 pass
         else:
             # ASCII
@@ -1628,7 +1628,7 @@ def eval_unit(unit_str_in, namespace=None, fail_on_error=True):
     else:
         try:
             unit = eval(unit_str, namespace)
-        except:
+        except Exception:
             unit = None
     return unit
 
@@ -1843,12 +1843,12 @@ def produce_np_and_builtin_function(funcname):
     np_func = getattr(np, funcname)
     try:
         builtin_func = getattr(__builtins__, funcname)
-    except:
+    except Exception:
         builtin_func = __builtins__[funcname]
     def np_and_builtin_function(*args, **kwargs):
         try:
             return np_func(*args, **kwargs)
-        except:
+        except Exception:
             return builtin_func(*args, **kwargs)
     return np_and_builtin_function
 # Convenient class for wrapping the param variable,
@@ -1957,14 +1957,14 @@ def exec_params(content, d_in, suppress_exceptions=True):
                 lines_executed.add(n)
                 lines_failed = []
                 continue
-            except:
+            except Exception:
                 pass
             lines_failed.append(n)
             if len(lines_failed) < 2:
                 continue
             try:
                 exec('\n'.join([lines[m] for m in lines_failed]), d)
-            except:
+            except Exception:
                 continue
             for m in lines_failed:
                 lines_executed.add(m)
@@ -1972,7 +1972,7 @@ def exec_params(content, d_in, suppress_exceptions=True):
     if lines_failed:
         try:
             exec('\n'.join([lines[m] for m in lines_failed]), d)
-        except:
+        except Exception:
             pass
     if not suppress_exceptions:
         # If exceptions should raise an error, we do an extra exec
@@ -2131,13 +2131,13 @@ def stringify_dict(d):
             f = ast.literal_eval(key)
             if isinstance(f, (float, np.floating)):
                 key = f'{f:.12g}'
-        except:
+        except Exception:
             pass
         try:
             f = ast.literal_eval(val)
             if isinstance(f, (float, np.floating)):
                 val = f'{f:.12g}'
-        except:
+        except Exception:
             pass
         d_modified[key] = val
     return d_modified
@@ -4586,7 +4586,7 @@ def call_class(extra_params=None, sleep_time=0.1, mode='single node', class_call
     elif thread_scheme == 'env':
         try:
             num_threads = int(OMP_NUM_THREADS)
-        except:
+        except Exception:
             num_threads = -1
     # Write out progress message. If perturbations will be computed,
     # the node masters will print out status updates from within the
@@ -5154,7 +5154,7 @@ def correct_float(val_raw):
     try:
         val_raw = float(val_raw)
         isnumber = True
-    except:
+    except Exception:
         pass
     if not isnumber:
         # Assume container
@@ -5845,11 +5845,11 @@ def commons_flood():
             frame = stack[1].frame
         try:
             inspect.getmodule(frame).__dict__.update(commons_module.__dict__)
-        except:
+        except Exception:
             pass
         try:
             frame.f_locals.update(commons_module.__dict__)
-        except:
+        except Exception:
             pass
     else:
         # Running in pure Python mode.

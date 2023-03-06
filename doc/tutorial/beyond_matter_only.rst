@@ -695,7 +695,7 @@ this, you should make use of the following script:
        for var, val in matches:
            try:
                exec(f'{var} = {val}')
-           except:
+           except Exception:
                exec(f'{var} = "{val}"')
        k, P_sim, P_lin = np.loadtxt(filename, usecols=(0, 2, 3), unpack=True)
        mask = ~np.isnan(P_lin)
@@ -1394,7 +1394,7 @@ and without decaying cold dark matter, make use of the below script:
        for var, val in matches:
            try:
                exec(f'{var} = {val}')
-           except:
+           except Exception:
                exec(f'{var} = "{val}"')
        boxsizes.add(boxsize)
        k, P_sim, P_lin = np.loadtxt(filename, usecols=(0, 2, 3), unpack=True)
@@ -1880,7 +1880,7 @@ the results using the following plotting script:
        P_lins['matter'][mass                   ] = P_lin[mask]
        try:
            k_ν, P_sim, P_lin = np.loadtxt(filename, usecols=(4, 6, 7), unpack=True)
-       except:
+       except Exception:
            continue
        mask_ν = ~np.isnan(P_lin)
        k_ν = k_ν[mask_ν]

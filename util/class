@@ -270,7 +270,7 @@ initial_conditions = _initial_conditions
 # Merge default approximations with user approximations
 try:
     select_approximations = {**_approximations, **select_approximations}
-except:
+except Exception:
     select_approximations = _approximations
 # Reinsert original path to the parameter file
 param = _param_ori
