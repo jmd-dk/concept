@@ -263,6 +263,7 @@ if _boxsize is not None:
     exec 4>&1
     jobid_and_exit_code="$(                \
         "${concept}"                       \
+            -b="${build}"                  \
             -c="${command_line_params}"    \
             -j="${job_directive}"          \
             -m="${main}"                   \
