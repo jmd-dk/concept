@@ -1237,7 +1237,7 @@ def remove_trvial_branching(lines, no_optimization):
                             indentation_comment -= 4
                             new_lines[len(new_lines) - j - 1] = (
                                 ' '*indentation_comment
-                                + '# Trivial unswitch removed due removal of below if\n'
+                                + '# Trivial unswitch removed due to removal of below if\n'
                             )
                         else:
                             break

@@ -2648,14 +2648,13 @@ def fourier_loop(
         _deconv_j_numer='double',
         _deconv_k_denom='double',
         _deconv_k_numer='double',
-        _i='Py_ssize_t',
+        _gridsize='Py_ssize_t',
         _i_chunk='int',
         _i_chunk_bgn='Py_ssize_t',
         _i_chunk_end='Py_ssize_t',
         _i_end='Py_ssize_t',
         _index_ij='Py_ssize_t',
         _index_j='Py_ssize_t',
-        _j='Py_ssize_t',
         _j_chunk='int',
         _j_chunk_bgn='Py_ssize_t',
         _j_chunk_end='Py_ssize_t',
@@ -2665,7 +2664,18 @@ def fourier_loop(
         _j_global_chunk_bgn='Py_ssize_t',
         _j_global_chunk_end='Py_ssize_t',
         _j_global_end='Py_ssize_t',
+        _ki_bgn='Py_ssize_t',
+        _ki_chunk_bgn='Py_ssize_t',
+        _ki_chunk_end='Py_ssize_t',
+        _ki_end='Py_ssize_t',
+        _ki_max='Py_ssize_t',
+        _kj_bgn='Py_ssize_t',
+        _kj_chunk_bgn='Py_ssize_t',
+        _kj_chunk_end='Py_ssize_t',
+        _kj_end='Py_ssize_t',
+        _kj_max='Py_ssize_t',
         _kk_bgn='Py_ssize_t',
+        _kk_end='Py_ssize_t',
         _nyquist='Py_ssize_t',
         _offset_j='Py_ssize_t',
         _slab_size_i='Py_ssize_t',
@@ -2681,13 +2691,14 @@ def fourier_loop(
     )
     if interlace_lattice is None:
         interlace_lattice = Lattice()
-    # Set up slab shape
-    _nyquist = gridsize//2
-    _slab_size_j = gridsize//nprocs
-    _slab_size_i = gridsize
-    _slab_size_k = gridsize + 2
+    # Set up slab shape. Avoid NumPy ints in pure Python mode.
+    _gridsize = int(gridsize)
+    _nyquist = _gridsize//2
+    _slab_size_j = _gridsize//nprocs
+    _slab_size_i = _gridsize
+    _slab_size_k = _gridsize + 2
     if gridsize_corrections == -1:
-        gridsize_corrections = gridsize
+        gridsize_corrections = _gridsize
     # Set default end indices if not given. After this,
     # _j_end and _i_end should be used instead of j_end and i_end.
     if j_end is None:
@@ -2718,6 +2729,8 @@ def fourier_loop(
             _j_global_chunk_bgn = pairmax(_j_global_bgn, ℤ[_nyquist + 1])
             _j_chunk_bgn = _j_global_chunk_bgn - _offset_j
             _j_chunk_end = _j_end
+        _kj_chunk_bgn = _offset_j + _j_chunk_bgn - ℤ[-_j_chunk & _gridsize]
+        _kj_chunk_end = _offset_j + _j_chunk_end - ℤ[-_j_chunk & _gridsize]
         # We similarly loop through the i-dimension in two chunks,
         # skipping the Nyquist point (ki = -_nyquist ⇒ _i = _nyquist)
         # in between.
@@ -2728,18 +2741,24 @@ def fourier_loop(
             else:  # _i_chunk == 1
                 _i_chunk_bgn = pairmax(i_bgn, ℤ[_nyquist + 1])
                 _i_chunk_end = _i_end
+            _ki_chunk_bgn = _i_chunk_bgn - ℤ[-_i_chunk & _gridsize]
+            _ki_chunk_end = _i_chunk_end - ℤ[-_i_chunk & _gridsize]
             # Loop over the j chunk
-            _index_j = ℤ[_j_chunk_bgn*_slab_size_i - ℤ[_slab_size_i + 1]]
-            for _j in range(_j_chunk_bgn, _j_chunk_end):
+            _kj_bgn = _kj_chunk_bgn
+            _kj_end = _kj_chunk_end
+            _index_j = ℤ[_j_chunk_bgn*_slab_size_i - _slab_size_i - 1]
+            with unswitch(2):
+                if k2_max != -1:
+                    _kj_max = ℤ[isqrt(k2_max*(k2_max != -1))]
+                    _kj_bgn = pairmax(_kj_bgn, -_kj_max)
+                    _kj_end = pairmin(_kj_end, _kj_max + 1)
+                    _index_j -= (
+                        (
+                            -_j_chunk & -(_kj_chunk_bgn < -_kj_max)
+                        ) & (_kj_max + _kj_chunk_bgn)
+                    )*_slab_size_i
+            for kj in range(_kj_bgn, _kj_end):
                 _index_j += _slab_size_i
-                # The j-component of the wave vector (grid units)
-                _j_global = _offset_j + _j
-                kj = _j_global - ℤ[-_j_chunk & gridsize]
-                # Bail out if beyond maximum frequency
-                with unswitch(3):
-                    if k2_max != -1:
-                        if ℤ[kj**2] > k2_max:
-                            continue
                 # The j-component of the 1D NGP deconvolution factor.
                 # This is given by
                 #   deconv_1D_NGP = 1/sinc(ky*Δx/2)
@@ -2759,16 +2778,21 @@ def fourier_loop(
                 _deconv_j_numer = kj*ℝ[π/gridsize_corrections] + machine_ϵ
                 _deconv_j_denom = sin(_deconv_j_numer)
                 # Loop over the i chunk
-                _index_ij = (_i_chunk_bgn + _index_j)*_slab_size_k
-                for _i in range(_i_chunk_bgn, _i_chunk_end):
+                _ki_bgn = _ki_chunk_bgn
+                _ki_end = _ki_chunk_end
+                _index_ij = _i_chunk_bgn + _index_j
+                with unswitch(3):
+                    if k2_max != -1:
+                        _ki_max = isqrt(k2_max - ℤ[kj**2])
+                        _ki_bgn = pairmax(_ki_bgn, -_ki_max)
+                        _ki_end = pairmin(_ki_end, _ki_max + 1)
+                        _index_ij -= (
+                            -_i_chunk & -(_ki_chunk_bgn < -_ki_max)
+                            & (_ki_max + _ki_chunk_bgn)
+                        )
+                _index_ij *= _slab_size_k
+                for ki in range(_ki_bgn, _ki_end):
                     _index_ij += _slab_size_k
-                    # The i-component of the wave vector (grid units)
-                    ki = _i - ℤ[-_i_chunk & gridsize]
-                    # Bail out if beyond maximum frequency
-                    with unswitch(4):
-                        if k2_max != -1:
-                            if ℤ[ℤ[kj**2] + ki**2] > k2_max:
-                                continue
                     # The product of the i- and the j-components
                     # of the 1D NGP deconvolution factor.
                     _deconv_i_numer = ki*ℝ[π/gridsize_corrections] + machine_ϵ
@@ -2809,13 +2833,12 @@ def fourier_loop(
                     # k == 2*kk. Here the Nyquist point kk = _nyquist is
                     # the last element along this dimension, and so we
                     # skip it by simply not including it in the range.
+                    _kk_end = _nyquist
+                    with unswitch(4):
+                        if k2_max != -1:
+                            _kk_end = pairmin(_kk_end, 1 + isqrt(k2_max - ℤ[ℤ[kj**2] + ℤ[ki**2]]))
                     index = _index_ij + 2*(_kk_bgn - 1)
-                    for kk in range(_kk_bgn, _nyquist):
-                        # Bail out if beyond maximum frequency
-                        with unswitch(5):
-                            if k2_max != -1:
-                                if ℤ[ℤ[ℤ[kj**2] + ki**2] + kk**2] > k2_max:
-                                    break
+                    for kk in range(_kk_bgn, _kk_end):
                         # Index into (real part of) complex Fourier mode
                         index += 2
                         # Combined factor for deconvolution
@@ -3071,7 +3094,9 @@ fourier_coords = cython.address(fourier_coords_mv[:])
 # physical ki, kj, kk (in grid units).
 # The iteration is determined from the passed gridsize, as well as
 # k_min (the minimum floating-point k in grid units) and
-# k_max (the maximum floating-point k in grid units).
+# k_max (the maximum floating-point k in grid units), both of which are
+# assumed positive. With cell (0, 0, 0) placed at the origin, it covers
+# a range from |k| = 0 to |k| = sqrt(3*½**2) = sqrt(3)/2.
 # If skip_origin is True, the ki = kj = kk = 0 point will be excluded
 # from the iteration.
 # If skip_negative_ki is True, only the ki ≥ 0 quarter of the shell will

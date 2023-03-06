@@ -4724,7 +4724,7 @@ with copy_on_import:
         function is in fact the fastest option. Note that unlike
         int(cbrt(x)), int(sqrt(x)) always returns the correct answer.
         """
-        return cast(sqrt(x), 'Py_ssize_t')
+        return int(sqrt(x))
 
 # Check whether integer is quadratic
 with copy_on_import:
