@@ -1670,16 +1670,12 @@ def convert_particles_to_fluid(component, order):
     fluid grids, effectively converting from a 'particles'
     representation to a 'fluid' representation. The mass attribute of
     the passed component should be the particle mass, not the average
-    fluid element mass. The value of the representation attribute does
-    not matter and will not be altered. The size of the fluid grids are
-    determined by component.gridsize. To save memory, the particle data
-    will be freed (resized to a minimum size) during the process.
+    fluid element mass. This changes the representation attribute of the
+    data to fluid, so it is important to change it back to particles where
+    necessary. The size of the fluid grids are determined by component.gridsize.
     """
-    # Backup of original representation
-    original_representation = component.representation
     # Instantiate fluid grids spanning the local domains.
     # The newly allocated grids will be nullified.
-    
     component.representation = 'fluid'
     shape = tuple([component.gridsize//ds for ds in domain_subdivisions])
     if any([component.gridsize != domain_subdivisions[dim]*shape[dim] for dim in range(3)]):
@@ -1739,7 +1735,6 @@ def convert_particles_to_fluid(component, order):
         )
     # Populate ghost points of all fluid grids
     component.communicate_fluid_grids('=')
-    component.representation = original_representation
 
     return N_vacuum_originally
 
@@ -3995,6 +3990,7 @@ def diff_domaingrid(grid, dim, order,
     do_ghost_communication='bint',
     # Locals
     grid_mv='double[::1]',
+    grid_ptr_central='double*',
     grid_ptr_lower_1='double*',
     grid_ptr_lower_2='double*',
     grid_ptr_upper_1='double*',
@@ -4016,7 +4012,7 @@ def diff_domaingrid(grid, dim, order,
     returns='double[:, :, ::1]',
 )
 def laplacian_domaingrid(grid, dim, order,
-    Δx=1, buffer_or_buffer_name=0, direction='forward', do_ghost_communication=True,
+    Δx=1, buffer_or_buffer_name=0, do_ghost_communication=True,
 ):
     """This function computes the laplacian of a given domain grid
     through finite differencing. The passed grid must
@@ -4045,7 +4041,7 @@ def laplacian_domaingrid(grid, dim, order,
         ᐁgrid_dim = buffer_or_buffer_name
         if asarray(ᐁgrid_dim).shape != asarray(grid).shape:
             abort(
-                f'diff_domaingrid() called with grid of shape {asarray(grid).shape}'
+                f'laplacian_domaingrid() called with grid of shape {asarray(grid).shape}'
                 f'and buffer of different shape {asarray(ᐁgrid_dim).shape}'
             )
 

@@ -219,7 +219,7 @@ class ConceptSnapshot:
                     # Convert the particles to a fluid representation
                     convert_particles_to_fluid(component, 4)
                 
-                if component.representation == 'fluid' or component.representation =='particles':
+                if component.representation == 'fluid':
                     # Write out progress message
                     masterprint(
                         f'Writing out {component.name} ({component.species} with '
@@ -272,10 +272,9 @@ class ConceptSnapshot:
                 # After the conversion, the particles were saved in a fluid representation
                 # We now destroy the fluid grids to save memory and return the component to 
                 # a particle representation 
-                #if original_representation == 'particles':
-                #    component.resize(1)
-                #    component.representation = original_representation
-
+                if original_representation == 'particles':
+                    component.resize(1)
+                    component.representation = original_representation
 
         # Done saving the snapshot
         masterprint('done')

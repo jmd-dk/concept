@@ -39,12 +39,10 @@ cimport(
 cimport('from snapshot import get_initial_conditions, save')
 cimport('from utilities import delegate')
 cimport('from species import TensorComponent')
-cimport('from mesh import convert_particles_to_fluid')
+
 # Pure Python imports
 from integration import init_time
 import interactions
-
-
 
 # Function containing the main time loop of CO𝘕CEPT
 @cython.header(
@@ -213,6 +211,8 @@ def timeloop():
     for dump_index, dump_time in enumerate(dump_times):
         # Break out of this loop when a dump has been performed
         while True:
+            masterprint(time_step_type)
+
             # Things to do at the beginning and end of each time step
             if time_step > time_step_previous:
                 time_step_previous = time_step
@@ -252,6 +252,7 @@ def timeloop():
             # Handle the time step.
             # This is either of type "init" or "full".
             if time_step_type == 'init':
+                masterprint('Initial Step')
                 # An init step is always followed by a full step
                 time_step_type = 'full'
                 # This is not a full base time step. Half a long-range
@@ -326,6 +327,7 @@ def timeloop():
                     recompute_Δt_max = False
                     continue
             elif time_step_type == 'full':
+                masterprint('Full Step')
                 # This is a full base time step of size Δt.
                 # All components will be drifted and kicked Δt.
                 # The kicks will start and end half a time step ahead
