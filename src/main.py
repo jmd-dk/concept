@@ -218,18 +218,11 @@ def timeloop():
             ###   THIS IS THE MOST IMPORTANT PART WE MUST SYNCHRONIZE CORRECTLY   ###
             #########################################################################
 
-            masterprint('Current Time: ', universals.t)
-            masterprint('Default Time Step: ', Δt)
-            masterprint('Next Dump Time: ', dump_time.t)
-
             if universals.t + Δt < dump_time.t:
                 sync_time = universals.t + Δt
             else:
                 sync_time = dump_time.t
             Δt = sync_time - universals.t
-   
-            masterprint('Dump Corrected Sync Time: ', sync_time)
-            masterprint('Dump Corrected Time Step: ', Δt)
 
             ###########################################################################
             ###   We are now always performing a full Kick-Drift-Kick               ###
@@ -280,8 +273,6 @@ def timeloop():
             ###   and must handle the sync_time extremely carefully              ###
             ########################################################################
 
-            masterprint('Init Step')
-
             # Half a long-range kick. This assumes a syncrhonized state
             kick_long(components, Δt, sync_time, 'init')
 
@@ -328,7 +319,6 @@ def timeloop():
             ###############################################################
 
             time_step_type = 'full'
-            masterprint('Full Step')
 
             # Drift fluids.
             drift_fluids(components, Δt, sync_time)
