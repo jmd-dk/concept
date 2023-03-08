@@ -1,3 +1,4 @@
+
 # This file is part of CO𝘕CEPT, the cosmological 𝘕-body code in Python.
 # Copyright © 2015–2021 Jeppe Mosgaard Dakin.
 #
@@ -208,258 +209,188 @@ def timeloop():
     sync_time = ထ
     recompute_Δt_max = True
     Δt_backup = -1
+
     for dump_index, dump_time in enumerate(dump_times):
         # Break out of this loop when a dump has been performed
         while True:
-            masterprint(time_step_type)
 
-            # Things to do at the beginning and end of each time step
-            if time_step > time_step_previous:
-                time_step_previous = time_step
-                # If at an "init" time step, all short-range rungs will
-                # be synchronized. Here, re-assign a short-range rung to
-                # each particle based on their short-range acceleration,
-                # disregarding their currently assigned rung and flagged
-                # rung jumps. Any flagged rung jumps will be nullified.
-                if time_step_type == 'init':
-                    for component in components:
-                        component.assign_rungs(Δt, fac_softening)
-                # Update subtile computation times
+            #########################################################################
+            ###   THIS IS THE MOST IMPORTANT PART WE MUST SYNCHRONIZE CORRECTLY   ###
+            #########################################################################
+
+            masterprint('Current Time: ', universals.t)
+            masterprint('Default Time Step: ', Δt)
+            masterprint('Next Dump Time: ', dump_time.t)
+
+            if universals.t + Δt < dump_time.t:
+                sync_time = universals.t + Δt
+            else:
+                sync_time = dump_time.t
+            Δt = sync_time - universals.t
+   
+            masterprint('Dump Corrected Sync Time: ', sync_time)
+            masterprint('Dump Corrected Time Step: ', Δt)
+
+            ###########################################################################
+            ###   We are now always performing a full Kick-Drift-Kick               ###
+            ###   resulting in a synchronized state. Thus we will move all our      ###
+            ###   timestep book-keeping to this location in the code                ###
+            ###########################################################################
+
+            time_step_previous = time_step
+            time_step_type = 'init'
+
+            # Re-assign a short-range rung to each particle based on their short-range 
+            # their short-range acceleration
+            for component in components:
+                component.assign_rungs(Δt, fac_softening)
+
+            # Update subtile computation times
+            for component in components:
+                for subtiling_name, subtiling in component.tilings.items():
+                    match = re.search(r'(.*) \(subtiles', subtiling_name)
+                    if not match:
+                        continue
+                    subtiling_computation_times[component][match.group(1)
+                        ] += subtiling.computation_time_total
+
+            # Print out message at the end of each time step
+            if time_step > initial_time_step:
+                print_timestep_footer(components)
+
+            # Reset all computation_time_total tiling attributes
+            for component in components:
+                for tiling in component.tilings.values():
+                    tiling.computation_time_total = 0
+
+            # Update universals.time_step. Danger. See original comments.
+            universals.time_step = time_step
+ 
+            # Print out message at the beginning of each time step
+            Δt_print = Δt
+            if universals.t + Δt*(1 + Δt_reltol) + 2*machine_ϵ > sync_time:
+                Δt_print = sync_time - universals.t
+
+            print_timestep_heading(time_step, Δt_print, bottleneck, components)
+
+            ########################################################################
+            ###   We are modifying to kick-drift-kick so that everything is      ###
+            ###   synchronized at the beginning of the loop. This means we       ###
+            ###   perform and init step and then a full step in each iteration   ###
+            ###   and must handle the sync_time extremely carefully              ###
+            ########################################################################
+
+            masterprint('Init Step')
+
+            # Half a long-range kick. This assumes a syncrhonized state
+            kick_long(components, Δt, sync_time, 'init')
+
+            # Particle re-ordering for optimization
+            if 𝔹[particle_reordering]:
                 for component in components:
-                    for subtiling_name, subtiling in component.tilings.items():
-                        match = re.search(r'(.*) \(subtiles', subtiling_name)
-                        if not match:
-                            continue
-                        subtiling_computation_times[component][match.group(1)
-                            ] += subtiling.computation_time_total
-                # Print out message at the end of each time step
-                if time_step > initial_time_step:
-                    print_timestep_footer(components)
-                # Reset all computation_time_total tiling attributes
-                for component in components:
-                    for tiling in component.tilings.values():
-                        tiling.computation_time_total = 0
-                # Update universals.time_step. This is only ever done
-                # here, and so in general you should not count on
-                # universals.time_step being exactly equal to time_step.
-                universals.time_step = time_step
-                # Print out message at the beginning of each time step
-                Δt_print = Δt
-                if universals.t + Δt*(1 + Δt_reltol) + 2*machine_ϵ > sync_time:
-                    Δt_print = sync_time - universals.t
-                print_timestep_heading(time_step, Δt_print,
-                    bottleneck if time_step_type == 'init' else '', components)
-            # Handle the time step.
-            # This is either of type "init" or "full".
-            if time_step_type == 'init':
-                masterprint('Initial Step')
-                # An init step is always followed by a full step
-                time_step_type = 'full'
-                # This is not a full base time step. Half a long-range
-                # kick will be applied, i.e. fluid interactions,
-                # long-range particle interactions and internal
-                # sources terms. Each particle rung will be kicked by
-                # half a sub-step. It is assumed that the drifting and
-                # kicking of all components is synchronized. As this
-                # does not count as an actual time step,
-                # the universal time will not be updated.
-                # Apply initial half kick to fluids, initial half
-                # long-range kick to particles and initial half
-                # application of internal sources.
-                kick_long(components, Δt, sync_time, 'init')
-                # Sort particles in memory so that the order matches
-                # the visiting order when iterating through all subtiles
-                # within tiles, improving the performance of
-                # CPU caching. For the in-memory sorting, the Δmom
-                # buffers will be used. It is then important that these
-                # do not currently contain information needed later.
-                # Note that for N_rungs = 1, the tiles and subtiles are
-                # not yet instantiated if this is the first time step,
-                # as no fake short-range kick has been performed prior
-                # to the main time loop.
-                if 𝔹[particle_reordering]:
-                    for component in components:
-                        if not subtiling_computation_times[component]:
-                            continue
-                        if 𝔹[particle_reordering == 'deterministic']:
-                            # If multiple tilings+subtilings exist on a
-                            # component, the sorting will be done with
-                            # respect to the first subtiling
-                            # encountered.
-                            for subtiling_name in component.tilings:
-                                match = re.search(r'(.*) \(subtiles', subtiling_name)
-                                if not match:
-                                    continue
-                                interaction_name = match.group(1)
-                                break
-                        else:
-                            # If multiple tilings+subtilings exist on a
-                            # component, the sorting will be done with
-                            # respect to the subtiling with the highest
-                            # recorded computation time. Note that the
-                            # same component might then be sorted
-                            # according to different subtilings on
-                            # different processes.
-                            interaction_name = collections.Counter(
-                                subtiling_computation_times[component]
-                            ).most_common(1)[0][0]
-                        tiling_name    = f'{interaction_name} (tiles)'
-                        subtiling_name = f'{interaction_name} (subtiles)'
-                        component.tile_sort(tiling_name, subtiling_name)
-                        # Reset subtile computation time
-                        subtiling_computation_times[component].clear()
-                # Initial half short-range kick of particles on
-                # all rungs. No rung jumps will occur, as any such
-                # have been nullified by the call
-                # to Component.assign_rungs() above.
-                kick_short(components, Δt)
-                # Check whether next dump is within one and a half Δt
-                if dump_time.t - universals.t <= 1.5*Δt:
-                    # Next base step should synchronize at dump time
-                    sync_time = dump_time.t
-                    continue
-                # Check whether the base time step needs to be reduced
-                Δt_max, bottleneck = get_base_timestep_size(components, static_timestepping_func)
-                if Δt > Δt_max:
-                    # Next base step should synchronize.
-                    # Thereafter we can lower the base time step size.
-                    sync_time = universals.t + 0.5*Δt
-                    recompute_Δt_max = False
-                    continue
-            elif time_step_type == 'full':
-                masterprint('Full Step')
-                # This is a full base time step of size Δt.
-                # All components will be drifted and kicked Δt.
-                # The kicks will start and end half a time step ahead
-                # of the drifts.
-                # Drift fluids.
-                drift_fluids(components, Δt, sync_time)
-                # Continually perform interlaced drift and kick
-                # operations of the short-range particle rungs, until
-                # the particles are drifted forward to the exact time of
-                # the next base time step (Δt away) and kicked half a
-                # sub-step (of size Δt/2**(rung_index + 1)) into the
-                # next base time step.
-                driftkick_short(components, Δt, sync_time)
-                # All drifting is now exactly at the next base time
-                # step, while the long-range kicks are lagging half a
-                # step behind. Before doing the long-range kicks, set
-                # the universal time and scale factor to match the
-                # current position of the long-range kicks, so that
-                # various time averages will be over the kick step.
-                universals.t += 0.5*Δt
-                if universals.t + Δt_reltol*Δt + 2*machine_ϵ > sync_time:
-                    universals.t = sync_time
-                universals.a = scale_factor(universals.t)
-                # Apply full kick to fluids, full long-range kick to
-                # particles and fully apply internal sources.
-                kick_long(components, Δt, sync_time, 'full')
-                # Set universal time and scale factor to match end of
-                # this base time step (the location of drifts).
-                universals.t += 0.5*Δt
-                if universals.t + Δt_reltol*Δt + 2*machine_ϵ > sync_time:
-                    universals.t = sync_time
-                universals.a = scale_factor(universals.t)
-                # Check whether we are at sync time
-                if universals.t == sync_time:
-                    # We are at sync time. Base time step completed.
-                    # Reset time_step_type and sync_time
-                    time_step_type = 'init'
-                    sync_time = ထ
-                    # If Δt has been momentarily lowered just to reach
-                    # the sync time, the true value is stored in
-                    # Δt_backup. Here we undo this lowering.
-                    if Δt_backup != -1:
-                        if Δt < Δt_backup:
-                            Δt = Δt_backup
-                        Δt_backup = -1
-                    # Reduce base time step if necessary.
-                    # If not, increase it as allowed.
-                    if recompute_Δt_max:
-                        Δt_max, bottleneck = get_base_timestep_size(
-                            components, static_timestepping_func,
-                        )
-                    recompute_Δt_max = True
-                    Δt, bottleneck = update_base_timestep_size(
-                        Δt, Δt_min, Δt_max, bottleneck, time_step, time_step_last_sync,
-                        tolerate_danger=(bottleneck == bottleneck_static_timestepping),
-                    )
-                    # Update time step counters
-                    time_step += 1
-                    time_step_last_sync = time_step
-                    # If it is time, perform autosave
-                    with unswitch:
-                        if autosave_interval > 0:
-                            if bcast(time() - autosave_time > ℝ[autosave_interval/units.s]):
+                    if not subtiling_computation_times[component]:
+                        continue
+                    if 𝔹[particle_reordering == 'deterministic']:
+                        # If multiple tilings+subtilings exist on a
+                        # component, the sorting will be done with
+                        # respect to the first subtiling
+                        # encountered.
+                        for subtiling_name in component.tilings:
+                            match = re.search(r'(.*) \(subtiles', subtiling_name)
+                            if not match:
+                                continue
+                            interaction_name = match.group(1)
+                            break
+                    else:
+                        # If multiple tilings+subtilings exist on a
+                        # component, the sorting will be done with
+                        # respect to the subtiling with the highest
+                        # recorded computation time. Note that the
+                        # same component might then be sorted
+                        # according to different subtilings on
+                        # different processes.
+                        interaction_name = collections.Counter(
+                            subtiling_computation_times[component]
+                        ).most_common(1)[0][0]
+                    tiling_name    = f'{interaction_name} (tiles)'
+                    subtiling_name = f'{interaction_name} (subtiles)'
+                    component.tile_sort(tiling_name, subtiling_name)
+ 
+                    # Reset subtile computation time
+                    subtiling_computation_times[component].clear()
+
+            # Half a short-range kick
+            kick_short(components, Δt)
+
+            ###############################################################
+            ###   After performing an initial step, we then perform a   ### 
+            ###   a full step that ends with synchronized states        ###
+            ###############################################################
+
+            time_step_type = 'full'
+            masterprint('Full Step')
+
+            # Drift fluids.
+            drift_fluids(components, Δt, sync_time)
+
+            # Interlaced drift-kick for shot-range rungs
+            driftkick_short(components, Δt, sync_time)
+
+            # Update the time for the long-range kick
+            universals.t += 0.5*Δt
+            if universals.t + Δt_reltol*Δt + 2*machine_ϵ > sync_time:
+                universals.t = sync_time
+            universals.a = scale_factor(universals.t)
+
+            # Long-range kick to particles, long-range kick + internal soures for fluids
+            kick_long(components, Δt, sync_time, 'full')
+
+            # Update the time for the end of the base time step (at drift time)
+            universals.t += 0.5*Δt
+            if universals.t + Δt_reltol*Δt + 2*machine_ϵ > sync_time:
+                universals.t = sync_time
+            universals.a = scale_factor(universals.t)
+
+            ############################################################################
+            ###   If we set our sync_time correctly, these states are synchronized   ###
+            ###   The next loop iteration then begin with an init step               ###
+            ###   Now we do some book-keeping to ensure the next step goes right     ###
+            ############################################################################
+
+            # Update time step counts
+            time_step += 1
+            time_step_last_sync = time_step
+
+            # Recompute the base time step
+            Δt_max, bottleneck = get_base_timestep_size(components, static_timestepping_func)
+            Δt, bottleneck = update_base_timestep_size(
+                Δt, Δt_min, Δt_max, bottleneck, time_step, time_step_last_sync,
+                tolerate_danger=(bottleneck == bottleneck_static_timestepping),
+            )
+
+            # If it is time, perform an autosave
+            with unswitch:
+                if autosave_interval > 0:
+                    if bcast(time() - autosave_time > ℝ[autosave_interval/units.s]):
                                 autosave(components, time_step, Δt_begin, Δt, output_filenames)
                                 autosave_time = time()
-                    # Dump output if at dump time
-                    if universals.t == dump_time.t:
-                        if dump(components, tensor_perturbations, output_filenames, dump_time, Δt):
-                            # The "dump" was really the activation of a
-                            # component. This new component might need
-                            # a reduced time step size.
-                            initial_fac_times.add(universals.t)
-                            Δt_max, bottleneck = get_base_timestep_size(
-                                components, static_timestepping_func,
-                            )
-                            Δt, bottleneck = update_base_timestep_size(
-                                Δt, Δt_min, Δt_max, bottleneck,
-                                allow_increase=False, tolerate_danger=True,
-                            )
-                        # Ensure that we have at least a whole
-                        # base time step before the next dump.
-                        if dump_index != len(dump_times) - 1:
-                            Δt_max = dump_times[dump_index + 1].t - universals.t
-                            if Δt > Δt_max:
-                                # We are now lowering Δt in order to
-                                # reach the next dump time exactly. Once
-                                # the dump is completed, this lowering
-                                # of Δt should be undone, and so we take
-                                # a backup of the actual Δt.
-                                Δt_backup = Δt
-                                Δt = Δt_max
-                        # Break out of the infinite loop,
-                        # proceeding to the next dump time.
-                        break
-                    # Not at dump time.
-                    # Ensure that we have at least a whole
-                    # base time step before we reach the dump time.
-                    Δt_max = dump_time.t - universals.t
-                    if Δt > Δt_max:
-                        # We are now lowering Δt in order to reach the
-                        # next dump time exactly. Once the dump is
-                        # completed, this lowering of Δt should be
-                        # undone, and so we take a backup
-                        # of the actual Δt.
-                        Δt_backup = Δt
-                        Δt = Δt_max
-                    # Go to init step
-                    continue
-                # Base time step completed
-                time_step += 1
-                # Check whether next dump is within one and a half Δt
-                if dump_time.t - universals.t <= 1.5*Δt:
-                    # We need to synchronize at dump time
-                    sync_time = dump_time.t
-                    continue
-                # Check whether the base time step needs to be reduced
-                Δt_max, bottleneck = get_base_timestep_size(components, static_timestepping_func)
-                if Δt > Δt_max:
-                    # We should synchronize, whereafter the
-                    # base time step size can be lowered.
-                    sync_time = universals.t + Δt
-                    recompute_Δt_max = False
-                    continue
-                # Check whether the base time step should be increased
-                if (Δt_max > Δt_increase_min_factor*Δt
-                    and (time_step + 1 - time_step_last_sync) >= Δt_period
-                ):
-                    # We should synchronize, whereafter the
-                    # base time step size can be raised.
-                    sync_time = universals.t + Δt
-                    recompute_Δt_max = False
-                    continue
+
+            # If we are at a dump time, do the dump
+            if universals.t == dump_time.t:
+                # Handle if a new component was activated
+                if dump(components, tensor_perturbations, output_filenames, dump_time, Δt):
+                    initial_fac_times.add(universals.t)
+                    Δt_max, bottleneck = get_base_timestep_size(components, static_timestepping_func)
+                       
+                    Δt, bottleneck = update_base_timestep_size(
+                        Δt, Δt_min, Δt_max, bottleneck,
+                        allow_increase=False, tolerate_danger=True,
+                    )
+
+                # Break out of the infinite loop,
+                # proceeding to the next dump time.
+                break
+
     # All dumps completed; end of main time loop
     print_timestep_footer(components)
     print_timestep_heading(time_step, Δt, bottleneck, components, end=True)
