@@ -13,15 +13,23 @@ this_test = os.path.basename(os.path.dirname(this_dir))
 # Read in data from the CO𝘕CEPT snapshots
 species.allow_similarly_named_components = True
 a = []
-nprocs_list = sorted(int(dname[(dname.index('python_') + 7):])
-                     for dname in [os.path.basename(dname)
-                                   for dname in glob('{}/output_python_*'.format(this_dir))])
-components = {'cython': {n: [] for n in nprocs_list},
-              'python': {n: [] for n in nprocs_list}}
+nprocs_list = sorted(
+    int(dname[(dname.index('python_') + 7):])
+    for dname in [
+        os.path.basename(dname)
+        for dname in glob(f'{this_dir}/output_python_*')
+    ]
+)
+components = {
+    'cython': {n: [] for n in nprocs_list},
+    'python': {n: [] for n in nprocs_list},
+}
 for cp in components.keys():
     for n in nprocs_list:
-        for fname in sorted(glob('{}/output_{}_{}/snapshot_a=*'.format(this_dir, cp, n)),
-                            key=lambda s: s[(s.index('=') + 1):]):
+        for fname in sorted(
+            glob(f'{this_dir}/output_{cp}_{n}/snapshot_a=*'),
+            key=(lambda s: s[(s.index('=') + 1):]),
+        ):
             snapshot = load(fname, compare_params=False)
             if cp == 'cython' and n == 1:
                 a.append(snapshot.params['a'])
@@ -29,7 +37,7 @@ for cp in components.keys():
 N_snapshots = len(a)
 
 # Begin analysis
-masterprint('Analysing {} data ...'.format(this_test))
+masterprint(f'Analysing {this_test} data ...')
 
 # Using the particle order of the cython snapshot as the standard, find the corresponding
 # ID's in the python snapshots and order these particles accordingly.
@@ -90,7 +98,7 @@ for i in range(N_snapshots):
         ])))
 
 # Plot
-fig_file = this_dir + '/result.png'
+fig_file = f'{this_dir}/result.png'
 fig, axes = plt.subplots(len(nprocs_list), sharex=True, sharey=True)
 for n, d, ax in zip(dist.keys(), dist.values(), axes):
     for i in range(N_snapshots):

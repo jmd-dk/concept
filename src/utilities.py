@@ -645,15 +645,15 @@ def info():
         # The value of special_params['generate params'] is either a
         # directory path where the parameter file should be placed,
         # or False if no parameter file should be generated.
-        generate_params = special_params.get('generate params')
-        if generate_params:
-            if os.path.basename(generate_params) == '__together_with_snapshot__':
-                generate_params = os.path.dirname(snapshot_filename)
+        generate_param = special_params.get('generate param')
+        if generate_param:
+            if os.path.basename(generate_param) == '__together_with_snapshot__':
+                generate_param = os.path.dirname(snapshot_filename)
             # Make sure that the params directory exists
             if master:
-                os.makedirs(generate_params, exist_ok=True)
+                os.makedirs(generate_param, exist_ok=True)
             # The filename of the new parameter file
-            parameter_filename = f'{generate_params}/{os.path.basename(snapshot_filename)}'
+            parameter_filename = f'{generate_param}/{os.path.basename(snapshot_filename)}'
             for ext in snapshot_extensions:
                 if parameter_filename.endswith(ext):
                     index = len(parameter_filename) - len(ext)

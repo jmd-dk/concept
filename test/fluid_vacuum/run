@@ -30,14 +30,21 @@ set -e
 gridsize=$(get_param "_size")
 
 # Generate initial conditions
-"${concept}" -n 1 -p "${this_dir}/param" -m "${this_dir}/gen_ic.py" \
-    --pure-python --local
+"${concept}"                   \
+    -n 1                       \
+    -p "${this_dir}/param"     \
+    -m "${this_dir}/gen_ic.py" \
+    --pure-python
 
 # Run the CO𝘕CEPT code on the particle initial conditions
-"${concept}" -n 1 -p "${this_dir}/param" --local
+"${concept}"               \
+    -n 1                   \
+    -p "${this_dir}/param"
 
 # Play the 2D terminal renders in the log file as an animation
-"${concept}" -u play --fps 5
+"${concept}"    \
+    -u play     \
+        --fps 5
 
 # Move particle snapshots to a new directory
 mkdir "${this_dir}/output/particles"
@@ -45,9 +52,11 @@ mv "${this_dir}/output/snapshot"* "${this_dir}/output/particles/"
 
 # Function for converting particle snapshots to fluid snapshots
 particles2fluid() {
-    "${concept}" --local -u convert "${1}"             \
-        "control particles.gridsize = ${gridsize}"     \
-        "control particles.name     = converted fluid"
+    "${concept}"                                           \
+        -u convert                                         \
+            "${1}"                                         \
+            "control particles.gridsize = ${gridsize}"     \
+            "control particles.name     = converted fluid"
 }
 
 # Convert particle initial conditions to fluid initial conditions
@@ -56,10 +65,14 @@ mv "${this_dir}/ic.hdf5" "${this_dir}/ic_particles.hdf5"
 mv "${this_dir}/ic_converted.hdf5" "${this_dir}/ic.hdf5"
 
 # Run the CO𝘕CEPT code on the fluid initial conditions
-"${concept}" -n 1 -p "${this_dir}/param" --local
+"${concept}"               \
+    -n 1                   \
+    -p "${this_dir}/param"
 
 # Play the 2D terminal renders in the log file as an animation
-"${concept}" -u play --fps 5
+"${concept}"    \
+    -u play     \
+        --fps 5
 
 # Move fluid snapshots to a new directory
 mkdir "${this_dir}/output/fluid"
@@ -69,8 +82,11 @@ mv "${this_dir}/output/snapshot"* "${this_dir}/output/fluid/"
 particles2fluid "${this_dir}/output/particles"
 
 # Analyse the output snapshots
-"${concept}" -n 1 -p "${this_dir}/param" -m "${this_dir}/analyze.py" \
-    --pure-python --local
+"${concept}"                    \
+    -n 1                        \
+    -p "${this_dir}/param"      \
+    -m "${this_dir}/analyze.py" \
+    --pure-python
 
 # Test ran successfully. Deactivate traps.
 trap : 0

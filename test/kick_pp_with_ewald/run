@@ -24,11 +24,16 @@ trap 'abort' EXIT
 set -e
 
 # Generate initial conditions
-"${concept}" -n 1 -p "${this_dir}/param" -m "${this_dir}/gen_ic.py" \
-    --pure-python --local
+"${concept}"                   \
+    -n 1                       \
+    -p "${this_dir}/param"     \
+    -m "${this_dir}/gen_ic.py" \
+    --pure-python
 
 # Run the CO𝘕CEPT code on the generated initial conditions
-"${concept}" -n 1 -p "${this_dir}/param" --local
+"${concept}"               \
+    -n 1                   \
+    -p "${this_dir}/param"
 
 # Run the GADGET code on the generated initial conditions
 Gadget2_local_dir="${this_dir}/Gadget2"
@@ -39,7 +44,9 @@ for suffix in "64" "64_dbl"; do
     rm -f "${Gadget2_local_dir}/ewald_spc_table_${suffix}.dat"
 done
 
-"${concept}" -u gadget "${Gadget2_local_dir}" -p "${this_dir}/param"
+"${concept}"                         \
+    -u gadget "${Gadget2_local_dir}" \
+    -p "${this_dir}/param"
 (                                        \
     cd "${Gadget2_local_dir}"            \
     && make clean                        \
@@ -48,8 +55,11 @@ done
 )
 
 # Analyse the output snapshots
-"${concept}" -n 1 -p "${this_dir}/param" -m "${this_dir}/analyze.py" \
-    --pure-python --local
+"${concept}"                    \
+    -n 1                        \
+    -p "${this_dir}/param"      \
+    -m "${this_dir}/analyze.py" \
+    --pure-python
 
 # Test ran successfully. Deactivate traps.
 trap : 0

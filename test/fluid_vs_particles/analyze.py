@@ -15,11 +15,13 @@ fluids = {'particles': [], 'fluid': []}
 a = []
 for kind in ('particles', 'fluid'):
     if kind == 'particles':
-        regex = '{}/output_{}/snapshot_a=*_converted*'.format(this_dir, kind)
+        regex = f'{this_dir}/output_{kind}/snapshot_a=*_converted*'
     elif kind == 'fluid':
-        regex = '{}/output_{}/snapshot_a=*'.format(this_dir, kind)
-    for fname in sorted(glob(regex),
-                        key=lambda s: s[(s.index('=') + 1):]):
+        regex = f'{this_dir}/output_{kind}/snapshot_a=*'
+    for fname in sorted(
+        glob(regex),
+        key=(lambda s: s[(s.index('=') + 1):]),
+    ):
         snapshot = load(fname, compare_params=False)
         fluids[kind].append(snapshot.components[0])
         if kind == 'particles':
@@ -32,15 +34,17 @@ for kind in ('particles', 'fluid'):
     fluids[kind] = [fluids[kind][o] for o in order]
 
 # Begin analysis
-masterprint('Analysing {} data ...'.format(this_test))
+masterprint(f'Analysing {this_test} data ...')
 
 # Load in power spectra
 powerspecs = {'particles': [], 'fluid': []}
 powerspec_filenames = {'particles': [], 'fluid': []}
 for kind in ('particles', 'fluid'):
-    regex = '{}/output_{}/powerspec_a=*[!.png]'.format(this_dir, kind)
-    for fname in sorted(glob(regex),
-                        key=lambda s: s[(s.index('=') + 1):]):
+    regex = f'{this_dir}/output_{kind}/powerspec_a=*[!.png]'
+    for fname in sorted(
+        glob(regex),
+        key=(lambda s: s[(s.index('=') + 1):]),
+    ):
         powerspec_filenames[kind].append(fname)
         k, power, σ = np.loadtxt(fname, unpack=True)
         powerspecs[kind].append(power)
@@ -54,23 +58,28 @@ for kind in ('particles', 'fluid'):
 # particle and fluid power spectra.
 n_points = 5
 rel_tol = 2.0e-1
-for (a_i,
-     power_particles,
-     power_fluid,
-     fname_particles,
-     fname_fluid,
-     ) in zip(a,
-              powerspecs['particles'],
-              powerspecs['fluid'],
-              powerspec_filenames['particles'],
-              powerspec_filenames['fluid'],
-              ):
+for (
+    a_i,
+    power_particles,
+    power_fluid,
+    fname_particles,
+    fname_fluid,
+) in zip(
+    a,
+    powerspecs['particles'],
+    powerspecs['fluid'],
+    powerspec_filenames['particles'],
+    powerspec_filenames['fluid'],
+):
     # Compare the first n points of the two power spectra
     for i in range(n_points):
         if not isclose(power_particles[i], power_fluid[i], rel_tol=rel_tol):
-            abort('Large-scale power of particle and fluid simulations disagree at a = {}.\n'
-                  'See "{}.png" and "{}.png" for a visualization.'
-                  .format(a_i, fname_particles, fname_fluid))
+            abort(
+                f'Large-scale power of particle and fluid simulations '
+                f'disagree at a = {a_i}.\n'
+                f'See "{fname_particles}.png" and "{fname_fluid}.png" '
+                f'for a visualization.'
+            )
 
 # Compare the biggest halos of the particle and the fluid simulation
 def find_biggest_halo(component):
@@ -96,26 +105,30 @@ def find_biggest_halo(component):
             return indices, r
 render3D_filenames = {'particles': [], 'fluid': []}
 for kind in ('particles', 'fluid'):
-    regex = '{}/output_{}/render3D_a=*'.format(this_dir, kind)
-    for fname in sorted(glob(regex),
-                        key=lambda s: s[(s.index('=') + 1):]):
+    regex = f'{this_dir}/output_{kind}/render3D_a=*'
+    for fname in sorted(
+        glob(regex),
+        key=(lambda s: s[(s.index('=') + 1):]),
+    ):
         render3D_filenames[kind].append(fname)
     # Sort filenames chronologically
     render3D_filenames[kind] = [render3D_filenames[kind][o] for o in order]
 rel_tol = 0.1
 abs_tol = 2 + 0.02*gridsize
 N_largest_halos = 5
-for (a_i,
-     particles_component,
-     fluid_component,
-     fname_particles,
-     fname_fluid,
-     ) in zip(a,
-              fluids['particles'],
-              fluids['fluid'],
-              render3D_filenames['particles'],
-              render3D_filenames['fluid'],
-              ):
+for (
+    a_i,
+    particles_component,
+    fluid_component,
+    fname_particles,
+    fname_fluid,
+) in zip(
+    a,
+    fluids['particles'],
+    fluids['fluid'],
+    render3D_filenames['particles'],
+    render3D_filenames['fluid'],
+):
     # Find the largest halo in the particle simulation
     indices_particles, r_particles = find_biggest_halo(particles_component)
     # Find the same halo in the fluid simulation.
@@ -146,21 +159,25 @@ for (a_i,
     # Compare sizes
     if not isclose(r_particles, r_fluid, rel_tol=rel_tol, abs_tol=abs_tol):
         if r_particles > r_fluid:
-            abort('At a = {}, the largest halo in the particle simulation is significantly larger '
-                  'than the largest halo in the fluid simulation.\n'
-                  'See "{}" and "{}" for a visualization.'
-                  .format(a_i, fname_particles, fname_fluid))
+            abort(
+                f'At a = {a_i}, the largest halo in the particle simulation '
+                f'is significantly larger than the largest halo in the '
+                f'fluid simulation.\n'
+                f'See "{fname_particles}" and "{fname_fluid}" for a visualization.'
+            )
         else:
-            abort('At a = {}, the largest halo in the fluid simulation is significantly larger '
-                  'than the largest halo in the particle simulation.\n'
-                  'See "{}" and "{}" for a visualization.'
-                  .format(a_i, fname_fluid, fname_particles))
+            abort(
+                f'At a = {a_i}, the largest halo in the fluid simulation is significantly larger '
+                f'than the largest halo in the particle simulation.\n'
+                f'See "{fname_fluid}" and "{fname_particles}" for a visualization.'
+            )
     # The largest halo should be in the same location in the two simulations
     if distance > abs_tol:
-        abort('At a = {}, the largest halo of the particle simulation does not coincide with '
-              'the largest halo of the fluid simulation.\n'
-              'See "{}" and "{}" for a visualization.'
-              .format(a_i, fname_particles, fname_fluid))
+        abort(
+            f'At a = {a_i}, the largest halo of the particle simulation does not coincide with '
+            f'the largest halo of the fluid simulation.\n'
+            f'See "{fname_particles}" and "{fname_fluid}" for a visualization.'
+        )
 
 # Done analysing
 masterprint('done')

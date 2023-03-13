@@ -14,7 +14,7 @@ this_test = os.path.basename(os.path.dirname(this_dir))
 # Read in power spectra
 powerspecs_all = {'particles': {}, 'fluid': {}}
 for kind in ('particles', 'fluid'):
-    for fname in sorted(glob('{}/output_{}/powerspec*'.format(this_dir, kind))):
+    for fname in sorted(glob(f'{this_dir}/output_{kind}/powerspec*')):
         n = int(re.search('nprocs=(.*)_a=', fname).group(1))
         k, modes, power = np.loadtxt(fname, unpack=True)
         powerspecs_all[kind][n] = (k, power)
@@ -25,7 +25,7 @@ n_values = list(powerspecs_all['particles'].keys())
 masterprint(f'Analysing {this_test} data ...')
 
 # Plot power spectra from realised components
-fig_file = this_dir + '/result.png'
+fig_file = f'{this_dir}/result.png'
 fig, ax = plt.subplots(figsize=(8, 6))
 for kind, powerspecs in powerspecs_all.items():
     for n, (k, power) in powerspecs.items():
@@ -33,7 +33,7 @@ for kind, powerspecs in powerspecs_all.items():
             k,
             power,
             alpha=0.7,
-            label='{}, nprocs = {}'.format(kind, n),
+            label=f'{kind}, nprocs = {n}',
         )
 # Compute and plot power spectrum from CLASS
 a = a_begin

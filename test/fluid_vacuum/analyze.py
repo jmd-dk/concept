@@ -16,36 +16,38 @@ fluids = {'particles simulations': [], 'fluid simulations': []}
 times = []
 for kind in ('particles', 'fluid'):
     if kind == 'particles':
-        regex = '{}/output/{}/snapshot_t=*_converted*'.format(this_dir, kind)
+        regex = f'{this_dir}/output/{kind}/snapshot_t=*_converted*'
     elif kind == 'fluid':
-        regex = '{}/output/{}/snapshot_t=*'.format(this_dir, kind)
-    for fname in sorted(glob(regex),
-                        key=lambda s: s[(s.index('=') + 1):]):
+        regex = f'{this_dir}/output/{kind}/snapshot_t=*'
+    for fname in sorted(
+        glob(regex),
+        key=(lambda s: s[(s.index('=') + 1):]),
+    ):
         snapshot = load(fname, compare_params=False)
-        fluids[kind + ' simulations'].append(snapshot.components[0])
+        fluids[f'{kind} simulations'].append(snapshot.components[0])
         if kind == 'particles':
-            times.append(float(re.search('snapshot_t=(.*)' + unit_time, fname).group(1)))
+            times.append(float(re.search(f'snapshot_t=(.*){unit_time}', fname).group(1)))
 N_snapshots = len(times)
 gridsize = fluids['particles simulations'][0].gridsize
 # Sort data chronologically
 order = np.argsort(times)
 times = [times[o]  for o in order]
 for kind in ('particles', 'fluid'):
-    fluids[kind + ' simulations'] = [fluids[kind + ' simulations'][o] for o in order]
+    fluids[f'{kind} simulations'] = [fluids[f'{kind} simulations'][o] for o in order]
 # Use precise times
 times = output_times['t']['snapshot']
 
 # Begin analysis
-masterprint('Analysing {} data ...'.format(this_test))
+masterprint(f'Analysing {this_test} data ...')
 
 # Plot
-fig_file = this_dir + '/result.png'
+fig_file = f'{this_dir}/result.png'
 fig, axes = plt.subplots(N_snapshots, sharex=True, sharey=True, figsize=(8, 3*N_snapshots))
 x = [boxsize*i/gridsize for i in range(gridsize)]
 ϱ = {'particles simulations': [], 'fluid simulations': []}
 for kind, markersize in zip(('particles', 'fluid'), (15, 10)):
-    for ax, fluid, t in zip(axes, fluids[kind + ' simulations'], times):
-        ϱ[kind + ' simulations'].append(
+    for ax, fluid, t in zip(axes, fluids[f'{kind} simulations'], times):
+        ϱ[f'{kind} simulations'].append(
             fluid.ϱ.grid_noghosts[
                 :gridsize,
                 :gridsize,
@@ -54,7 +56,7 @@ for kind, markersize in zip(('particles', 'fluid'), (15, 10)):
         )
         ax.plot(
             x,
-            ϱ[kind + ' simulations'][-1],
+            ϱ[f'{kind} simulations'][-1],
             '.',
             markersize=markersize,
             alpha=0.7,
@@ -82,19 +84,23 @@ fig.savefig(fig_file, dpi=150)
 # Fluid elements in yz-slices should all have the same ϱ and J
 tol_fac = 1e-6
 for kind in ('particles', 'fluid'):
-    for fluid, t in zip(fluids[kind + ' simulations'], times):
+    for fluid, t in zip(fluids[f'{kind} simulations'], times):
         for fluidscalar in fluid.iterate_fluidscalars():
             grid = fluidscalar.grid_noghosts[:gridsize, :gridsize, :gridsize]
             for i in range(gridsize):
                 yz_slice = grid[i, :, :]
-                if not isclose(np.std(yz_slice), 0,
-                               rel_tol=0,
-                               abs_tol=max((tol_fac*np.std(grid), 1e+1*gridsize**2*machine_ϵ))):
-                    abort('Non-uniformities have emerged after {} {} '
-                          'in yz-slices of fluid scalar variable {} '
-                          'in {} simulation.\n'
-                          'See "{}" for a visualization.'
-                          .format(t, unit_time, fluidscalar, kind.rstrip('s'), fig_file))
+                if not isclose(
+                    np.std(yz_slice),
+                    0,
+                    rel_tol=0,
+                    abs_tol=max((tol_fac*np.std(grid), 1e+1*gridsize**2*machine_ϵ)),
+                ):
+                    abort(
+                        f'Non-uniformities have emerged after {t} {unit_time} '
+                        f'in yz-slices of fluid scalar variable {fluidscalar} '
+                        f'in {kind.rstrip("s")} simulation.\n'
+                        f'See "{fig_file}" for a visualization.'
+                    )
 
 # Compare ϱ's from the fluid and snapshot simulations
 discontinuity_tol = 2
@@ -105,15 +111,21 @@ for ϱ_fluid, ϱ_particles, t in zip(ϱ['fluid simulations'], ϱ['particles simu
     slope_right = np.roll(ϱ_particles, +1) - ϱ_particles
     discontinuities = abs(slope_right - slope_left)
     discontinuities = [max(d) for d in zip(*[np.roll(discontinuities, r) for r in range(-3, 4)])]
-    if not all(isclose(ϱ_fluid_i, ϱ_particles_i,
-                       rel_tol=0,
-                       abs_tol=(discontinuity_tol*discontinuity + abs_tol),
-                       ) for ϱ_fluid_i, ϱ_particles_i, discontinuity in zip(ϱ_fluid,
-                                                                            ϱ_particles,
-                                                                            discontinuities)):
-        abort('Fluid did not evolve correctly up to t = {} {}.\n'
-              'See "{}" for a visualization.'
-              .format(t, unit_time, fig_file))
+    if not all(
+        isclose(
+            ϱ_fluid_i,
+            ϱ_particles_i,
+            rel_tol=0,
+            abs_tol=(discontinuity_tol*discontinuity + abs_tol),
+        )
+        for ϱ_fluid_i, ϱ_particles_i, discontinuity in zip(
+            ϱ_fluid, ϱ_particles, discontinuities,
+        )
+    ):
+        abort(
+            f'Fluid did not evolve correctly up to t = {t} {unit_time}.\n'
+            f'See "{fig_file}" for a visualization.'
+        )
 
 # Done analysing
 masterprint('done')

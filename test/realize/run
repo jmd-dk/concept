@@ -26,39 +26,43 @@ trap 'abort' EXIT
 set -e
 
 # Realise matter particles and compute their power spectrum
-for n in ${nprocs_list[@]}; do
-    echo "$(cat "${this_dir}/param")
-initial_conditions = {
+initial_conditions="\
+{
     'species': 'matter',
     'N'      : _size**3,
 }
-output_dirs  = {'powerspec': f'{param.dir}/output_particles'}
-output_bases = {'powerspec': 'powerspec_nprocs=${n}'}
-" > "${this_dir}/ic.param"
-    "${concept}" -n ${n}                   \
-                 -p "${this_dir}/ic.param" \
-                 --local
+"
+for n in ${nprocs_list[@]}; do
+    "${concept}"                                                          \
+        -n ${n}                                                           \
+        -p "${this_dir}/param"                                            \
+        -c "initial_conditions = ${initial_conditions}"                   \
+        -c "output_dirs = {'powerspec': f'{param.dir}/output_particles'}"
 done
 
 # Realise matter fluid and compute its power spectrum
-for n in ${nprocs_list[@]}; do
-    echo "$(cat "${this_dir}/param")
-initial_conditions = {
+initial_conditions="\
+{
     'species'          : 'matter',
     'gridsize'         : _size,
     'boltzmann_order'  : 0,
     'boltzmann_closure': 'truncate',
 }
-output_dirs  = {'powerspec': f'{param.dir}/output_fluid'}
-output_bases = {'powerspec': 'powerspec_nprocs=${n}'}
-" > "${this_dir}/ic.param"
-    "${concept}" -n ${n}                   \
-                 -p "${this_dir}/ic.param" \
-                 --local
+"
+for n in ${nprocs_list[@]}; do
+    "${concept}"                                                      \
+        -n ${n}                                                       \
+        -p "${this_dir}/param"                                        \
+        -c "initial_conditions = ${initial_conditions}"               \
+        -c "output_dirs = {'powerspec': f'{param.dir}/output_fluid'}"
 done
 
 # Analyse the output power spectra
-"${concept}" -n 1 -p "${this_dir}/param" -m "${this_dir}/analyze.py" --pure-python --local
+"${concept}"                    \
+    -n 1                        \
+    -p "${this_dir}/param"      \
+    -m "${this_dir}/analyze.py" \
+    --pure-python
 
 # Test ran successfully. Deactivate traps.
 trap : 0

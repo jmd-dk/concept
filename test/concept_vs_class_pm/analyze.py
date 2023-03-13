@@ -13,7 +13,7 @@ masterprint(f'Analysing {this_test} data ...')
 
 # Read in the power spectra
 spectra = {}
-for fname in sorted(glob(this_dir + '/output/powerspec_a=*')):
+for fname in sorted(glob(f'{this_dir}/output/powerspec_a=*')):
     if fname.endswith('.png'):
         continue
     a = float(re.search(r'=(.+)', fname).group(1))

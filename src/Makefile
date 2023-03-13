@@ -22,13 +22,12 @@
 
 # This is the build makefile for the CO𝘕CEPT code.
 # This makefile accepts the options
-#   native_optimizations
-#   no_lto
-#   no_optimizations
-#   no_update_timestamps
-#   unsafe_building
-# all of which may be either 'True' or 'False',
-# with unset values being equivalent to 'False'.
+#   optimizations           (default: True)
+#   linktime_optimizations  (default: True)
+#   native_optimizations    (default: False)
+#   safe_build              (default: True)
+#   no_update_timestamps    (no default; meant for internal use only)
+# all of which may be either True or False.
 
 # Use the Bash shell
 SHELL = /usr/bin/env bash
@@ -169,27 +168,28 @@ other_cflags = \
 
 # Optimization options
 no_optimizations_flag = --no-optimizations
-ifneq ($(no_optimizations),True)
+ifneq ($(optimizations),False)
+    optimizations         = True
     no_optimizations_flag =
     # General optimizations
-    optimizations        += -DNDEBUG -O3 -funroll-loops
-    optimizations_linker += -O3
+    optimization_flags        += -DNDEBUG -O3 -funroll-loops
+    optimization_flags_linker += -O3
     # Python/Cython optimizations
-    optimizations += -DCYTHON_WITHOUT_ASSERTIONS
+    optimization_flags += -DCYTHON_WITHOUT_ASSERTIONS
     # Floating-point optimizations
     ifeq ($(compiler),gcc)
-        optimizations += -ffast-math
+        optimization_flags += -ffast-math
     else ifeq ($(compiler),clang)
-        optimizations += -ffast-math
+        optimization_flags += -ffast-math
     else ifeq ($(compiler),icc)
-        optimizations += -fp-model fast=2
+        optimization_flags += -fp-model fast=2
     endif
     # Native optimizations
     ifeq ($(native_optimizations),True)
-        optimizations += -march=native
+        optimization_flags += -march=native
     endif
     # Link time optimizations
-    ifneq ($(no_lto),True)
+    ifneq ($(linktime_optimizations),False)
         check_fname = .check_lto_$(pid)
         lto_warning = $(shell                                                    \
             echo "int main(void){ return 0; }" > $(check_fname).c;               \
@@ -199,15 +199,15 @@ ifneq ($(no_optimizations),True)
             $(RM) $(check_fname)*;                                               \
         )
         ifeq ("$(lto_warning)","")
-            optimizations        += -flto
-            optimizations_linker += -flto
+            optimization_flags        += -flto
+            optimization_flags_linker += -flto
         endif
     endif
 endif
 CFLAGS += $(call unique, $(call sensible_path, \
     $(python_cflags)                           \
     $(other_cflags)                            \
-    $(optimizations)                           \
+    $(optimization_flags)                      \
     $(warnings)                                \
     $(includes)                                \
 ))
@@ -244,11 +244,11 @@ LDLIBS += $(call unique, $(call sensible_path, \
 # Linker options
 python_ldflags = $(shell $(python_config) --ldflags)
 comma = ,
-LDFLAGS += $(call unique, $(call sensible_path,      \
-    $(python_ldflags)                                \
-    $(filter-out -ffast-math,$(optimizations))       \
-    $(addprefix -Wl$(comma),$(optimizations_linker)) \
-    $(warnings)                                      \
+LDFLAGS += $(call unique, $(call sensible_path,           \
+    $(python_ldflags)                                     \
+    $(filter-out -ffast-math,$(optimization_flags))       \
+    $(addprefix -Wl$(comma),$(optimization_flags_linker)) \
+    $(warnings)                                           \
 ))
 
 
@@ -303,8 +303,8 @@ $(addsuffix .pyx, $(pyfiles)): %.pyx: %.py
 # Additional target dependencies
 $(foreach ext,c html,$(addsuffix .$(ext), mesh)): fft.c
 # Target dependencies which strictly speaking should be
-# taken into account, but can be ignored using the --unsafe-building flag.
-ifneq ($(unsafe_building),True)
+# taken into account, but can be ignored using --safe-build=False.
+ifneq ($(safe_build),False)
     # Use of inline iterators defined in other modules
     # makes the .pyx files depend on the .py file
     # of the module implementing the iterator.

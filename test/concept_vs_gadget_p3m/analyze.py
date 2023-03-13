@@ -14,8 +14,10 @@ this_test = os.path.basename(os.path.dirname(this_dir))
 species.allow_similarly_named_components = True
 a = []
 components = []
-for fname in sorted(glob(this_dir + '/output/snapshot_a=*'),
-                    key=lambda s: s[(s.index('=') + 1):]):
+for fname in sorted(
+    glob(f'{this_dir}/output/snapshot_a=*'),
+    key=(lambda s: s[(s.index('=') + 1):]),
+):
     snapshot = load(fname, compare_params=False)
     a.append(snapshot.params['a'])
     components.append(snapshot.components[0])
@@ -23,11 +25,11 @@ N_snapshots = len(a)
 
 # Read in data from the GADGET snapshots
 components_gadget = []
-for fname in sorted(glob(this_dir + '/Gadget2/output/snapshot_*'))[:N_snapshots]:
+for fname in sorted(glob(f'{this_dir}/Gadget2/output/snapshot_*'))[:N_snapshots]:
     components_gadget.append(load(fname, compare_params=False, only_components=True)[0])
 
 # Begin analysis
-masterprint('Analysing {} data ...'.format(this_test))
+masterprint(f'Analysing {this_test} data ...')
 
 # Using the particle order of CO𝘕CEPT as the standard,
 # find the corresponding ID's in the GADGET snapshots
@@ -69,7 +71,7 @@ for i in range(N_snapshots):
     components_gadget[i].momz = components_gadget[i].momz[ID]
 
 # Compute distance between particles in the two snapshots
-fig_file = this_dir + '/result.png'
+fig_file = f'{this_dir}/result.png'
 fig, ax = plt.subplots()
 dist = []
 for i in range(N_snapshots):
@@ -113,8 +115,10 @@ fig.savefig(fig_file, dpi=150)
 # Printout error message for unsuccessful test
 tol = 1.2e-2
 if any(np.mean(d/boxsize) > tol for d in dist):
-    abort('The results from CO𝘕CEPT disagree with those from GADGET-2.\n'
-          'See "{}" for a visualization.'.format(fig_file))
+    abort(
+        f'The results from CO𝘕CEPT disagree with those from GADGET-2.\n'
+        f'See "{fig_file}" for a visualization.'
+    )
 
 # Done analysing
 masterprint('done')

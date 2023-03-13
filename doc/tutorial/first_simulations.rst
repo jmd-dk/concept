@@ -21,6 +21,15 @@ invocations of the ``concept`` script. Later this tutorial covers how to submit
 CO\ *N*\ CEPT jobs to the scheduler when
 :doc:`working on a cluster <working_remotely>`.
 
+.. tip::
+   You may set the ``CONCEPT_local`` environment variable to ``True``,
+   which is equivalent to supplying ``--local`` to all future invocations
+   of ``concept``:
+
+   .. code-block:: bash
+
+      export CONCEPT_local=True
+
 As we did not provide any parameters to CO\ *N*\ CEPT, it shut down
 immediately. We can add parameters using the ``-c`` option, like so:
 

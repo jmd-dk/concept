@@ -16,10 +16,19 @@ Many options require a value, e.g. ``-n 2`` or equivalently
 ``--nprocs 2``. Instead of a space, the option name and value may be separated
 by an equal sign; ``-n=2`` or ``--nprocs=2``.
 
+Every command-line option has a corresponding ``CONCEPT_*`` environment
+variable, named according to the long format of the option (with dashes ``-``
+replaced by underscores ``_``). As an example, executing
+
+.. code-block:: bash
+
+   export CONCEPT_nprocs=4
+
+will effectively supply ``--nprocs 4`` to future invocations of ``concept`` in
+an implicit manner. Manually supplying ``--nprocs``/``-n`` will overrule the
+value set by ``CONCEPT_nprocs``.
+
 The command-line options are grouped into four categories as listed below.
-Underneath each category heading, a new facet of the ``concept`` script is
-described, which might be of interest even if you do not want to study each
-option in detail.
 
 .. contents::
    :local:
@@ -51,8 +60,8 @@ learning about the usage of a given option, this page is much preferable.
 
 .. _parameter_file:
 
-Parameter file: ``-p``, ``--params``
-....................................
+Parameter file: ``-p``, ``--param``
+...................................
 Specifies the parameter file to use:
 
 .. code-block:: bash
@@ -380,30 +389,41 @@ The ``-j`` option may be specified multiple times.
 
 
 
-.. _no_watching:
+.. _watch_cmdoption:
 
-No watching: ``--no-watching``
-..............................
+Watch: ``--watch``
+..................
 After submitting a remote job, rather than put you back at the system prompt,
 CO\ *N*\ CEPT will run the :doc:`watch utility </utilities/watch>` in order
 for you to follow the progression of the job. This have no effect on the job
 itself, and you may stop watching its printout using ``Ctrl``\ +\ ``C``.
 
 If you have no desire to watch the job progression, you may specify this
-option:
+as follows:
 
 .. code-block:: bash
 
-   ./concept --no-watching
+   ./concept --watch False
 
 in which case the watch utility will not be run at all.
 
+.. note::
+   This is an example of a Boolean command-line option. As a value, you may
+   use any of ``False``/``f``/``no``/``n``/``0`` for signifying ``False`` and
+   any of ``True``/``t``/``yes``/``y``/``1`` for signifying ``True`` (all case
+   insensitive). In addition, specifying the command-line option alone with no
+   value is the same as setting it to ``True``, i.e. ``--watch`` is equivalent
+   to ``--watch True``. As ``True`` also happens to be the default value,
+   supplying ``--watch`` by itself then does nothing. This is not so for
+   Boolean command-line options which default to ``False``, e.g. the
+   ``--local`` :ref:`option <local>`.
 
 
-.. _other_modes_of_building_running:
 
-Other modes of building/running
--------------------------------
+.. _building_and_running:
+
+Building and running
+--------------------
 The following options change the way that CO\ *N*\ CEPT is built or run.
 
 While the Python source code for CO\ *N*\ CEPT lives in the ``scr`` directory,
@@ -427,6 +447,12 @@ using the job scheduler, but run it directly as if you were running locally.
 .. code-block:: bash
 
    ./concept --local
+   # or
+   ./conceot --local True
+
+This is a Boolean command-line option, defaulting to ``False``. See the note
+in the description of the ``--watch`` :ref:`option <watch_cmdoption>`
+for details.
 
 
 
@@ -441,9 +467,15 @@ any :ref:`build <build>`:
 .. code-block:: bash
 
    ./concept --pure-python
+   # or
+   ./concept --pure-python True
 
 While handy for development, running actual simulations in pure Python mode
 is impractical due to an enormous performance hit.
+
+This is a Boolean command-line option, defaulting to ``False``. See the note
+in the description of the ``--watch`` :ref:`option <watch_cmdoption>`
+for details.
 
 
 
@@ -511,15 +543,85 @@ with the source in ``src``, a rebuild can be triggered by using
 
 .. code-block:: bash
 
+   ./concept --rebuild
+   # or
    ./concept --rebuild True
 
-Conversely, an out-of-date build will be used as is if you specify
+Conversely, an out-of-date build will be used as is, if you specify
 
 .. code-block:: bash
 
    ./concept --rebuild False
 
-Specifying just ``--rebuild`` is equivalent to ``--rebuild True``.
+This is almost a Boolean command-line option, with the caveat that its
+default value ("unset") is neither ``True`` nor ``False``, as by default the
+code is rebuild conditionally, depending on whether the present build is
+up-to-date with the source. See the note in the description of the
+``--watch`` :ref:`option <watch_cmdoption>` for details on Boolean
+command-line options.
+
+
+
+.. _optimizations:
+
+Optimizations: ``--optimizations``
+..................................
+During compilation of CO\ *N*\ CEPT, a lot of optimizations are performed.
+These include source code transformations performed by ``pyxpp.py`` as well
+as standard C compiler optimizations (including
+:ref:`LTO <link_time_optimizations>`), applied in the ``Makefile``. Though
+these optimizations should not be disabled under normal circumstances, you may
+do so by supplying
+
+.. code-block:: bash
+
+   ./concept --optimizations False
+
+.. note::
+   If the :ref:`build <build>` directory already contains compiled code that
+   is up-to-date with the source at ``src`` (built with or without
+   optimizations), the code will not be rebuild. To rebuild without
+   optimizations, you can make use of the :ref:`rebuild <rebuild>` option:
+
+   .. code-block:: bash
+
+      ./concept --optimizations False --rebuild
+
+This is a Boolean command-line option, defaulting to ``True``. See the note
+in the description of the ``--watch`` :ref:`option <watch_cmdoption>`
+for details.
+
+
+
+.. _link_time_optimizations:
+
+Link time optimizations: ``--linktime-optimizations``
+.....................................................
+Link time optimizations (LTO) are on by default when compiling CO\ *N*\ CEPT,
+if supported by the compiler. Though usually preferable, the associated
+increase in build time and especially memory may be undesirable. To build
+CO\ *N*\ CEPT without link time optimizations, supply
+
+.. code-block:: bash
+
+   ./concept --linktime-optimizations False
+
+If optimizations are :ref:`disabled generally <optimizations>`
+(``--optimizations False``), LTO are disabled as well.
+
+.. note::
+   If the :ref:`build <build>` directory already contains compiled code that
+   is up-to-date with the source at ``src`` (built with or without LTO),
+   the code will not be rebuild. To rebuild without LTO, you can make use of
+   the :ref:`rebuild <rebuild>` option:
+
+   .. code-block:: bash
+
+      ./concept --linktime-optimizations False --rebuild
+
+This is a Boolean command-line option, defaulting to ``True``. See the note
+in the description of the ``--watch`` :ref:`option <watch_cmdoption>`
+for details.
 
 
 
@@ -537,8 +639,13 @@ percent performance increase out of the compilation:
 .. code-block:: bash
 
    ./concept --native-optimizations
+   # or
+   ./concept --native-optimizations True
 
 Specifically, this adds the ``-march=native`` compiler optimization.
+
+Enabling native optimizations is not possible if optimizations are
+:ref:`disabled generally <optimizations>` (``--optimizations False``).
 
 If working on a cluster with nodes of different architectures, having separate
 build directories for these is recommended if building with native
@@ -554,81 +661,40 @@ optimizations. See the :ref:`build <build>` option for details.
 
       ./concept --native-optimizations --rebuild
 
-
-
-.. _no_link_time_optimizations:
-
-No link time optimizations: ``--no-lto``
-........................................
-Link time optimizations (LTO) are on by default when compiling CO\ *N*\ CEPT,
-if supported by the compiler. Though preferable, the associated increase in
-build time and especially memory may be undesirable. To build CO\ *N*\ CEPT
-without link time optimizations, supply this option:
-
-.. code-block:: bash
-
-   ./concept --no-lto
-
-.. note::
-   If the :ref:`build <build>` directory already contains compiled code that
-   is up-to-date with the source at ``src`` (built with or without LTO),
-   the code will not be rebuild. To rebuild without LTO, you can make use of
-   the :ref:`rebuild <rebuild>` option:
-
-   .. code-block:: bash
-
-      ./concept --no-lto --rebuild
+This is a Boolean command-line option, defaulting to ``False``. See the note
+in the description of the ``--watch`` :ref:`option <watch_cmdoption>`
+for details.
 
 
 
-.. _no_optimizations:
-
-No optimizations: ``--no-optimizations``
-........................................
-During compilation of CO\ *N*\ CEPT, a lot of optimizations are performed.
-These include source code transformations performed by ``pyxpp.py`` as well
-as standard C compiler optimizations (including
-:ref:`LTO <no_link_time_optimizations>`), applied in the ``Makefile``. Though
-these optimizations should not be disabled under normal circumstances, you may
-do so by supplying this option:
-
-.. code-block:: bash
-
-   ./concept --no-optimizations
-
-.. note::
-   If the :ref:`build <build>` directory already contains compiled code that
-   is up-to-date with the source at ``src`` (built with or without
-   optimizations), the code will not be rebuild. To rebuild without
-   optimizations, you can make use of the :ref:`rebuild <rebuild>` option:
-
-   .. code-block:: bash
-
-      ./concept --no-optimizations --rebuild
-
-
-
-Unsafe building: ``--unsafe-building``
-......................................
+Safe build: ``--safe-build``
+............................
 By default the compilation process is carried out in a safe manner, meaning
 that changes within a file triggers recompilation of all other files which
 rely on the specific file in question. If you know that a change is entirely
 internal to the given file, you may save yourself some compilation time by
-supplying this option, in which case all interdependencies between the files
-are ignored during compilation:
+supplying
 
 .. code-block:: bash
 
-   ./concept --unsafe-building
+   ./concept --safe-build False
+
+in which case all interdependencies between the files will be ignored
+during compilation.
 
 .. caution::
-   This option really *is* unsafe and may very well lead to a buggy build. To
-   clean up after an unsuccessful build, use the :ref:`rebuild <rebuild>`
-   option or remove the ``build`` directory entirely using
+   Using ``--safe-build False`` really *is* unsafe and may very well lead to a
+   buggy build. To clean up after an unsuccessful build, use the
+   :ref:`rebuild <rebuild>` option or remove the ``build`` directory
+   entirely using
 
    .. code-block:: bash
 
       (source concept && make clean)
+
+This is a Boolean command-line option, defaulting to ``True``. See the note
+in the description of the ``--watch`` :ref:`option <watch_cmdoption>`
+for details.
 
 
 
@@ -659,7 +725,7 @@ simulation, after which it compares the results --- do e.g.
 
 .. code-block:: bash
 
-   ./concept -t test/concept_vs_gadget_p3m
+   ./concept -t concept_vs_gadget_p3m
 
 The path to the test may be specified in any of these formats:
 
@@ -673,12 +739,13 @@ when working on a remote cluster/server.
 
 Once a test is complete, it will report either success or failure. Most
 tests also produce some artefacts within their subdirectory, most notably
-plots. You can clean up these artefacts by running the ``clean`` script within
-the corresponding test subdirectory, e.g.
+plots.
+
+Multiple tests may be specified together:
 
 .. code-block:: bash
 
-   test/concept_vs_gadget_p3m/clean
+   ./concept -t concept_vs_gadget_p3m render
 
 The entire test suite may be run using
 
@@ -687,8 +754,7 @@ The entire test suite may be run using
    ./concept -t all
 
 which runs each test sequentially. If one of the tests fails, the process
-terminates immediately. To clean up after all tests, i.e. run the ``clean``
-script within each subdirectory of the ``test`` directory, do
+terminates immediately. To clean up after all tests, do
 
 .. code-block:: bash
 
@@ -808,11 +874,12 @@ commands are interpreted directly by Python.
 
 While the above example requires knowledge of the internal code and serves no
 real use outside of development, a perhaps more useful usage of interactive
-mode is to combine it with :ref:`\\\\-\\\\-main <main_entry_point>` when
-writing auxiliary scripts, or to use it purely exploratory. Say we did not
-know the variable name and value of the gravitational constant implemented in
-CO\ *N*\ CEPT, an we wanted to find out. We might go exploring, doing
-something like
+mode is to combine it with the :ref:`main entry point <main_entry_point>`
+option when writing auxiliary scripts, or to use it purely exploratory.
+
+Say we did not know the variable name and value of the gravitational constant
+implemented in CO\ *N*\ CEPT, an we wanted to find out. We might go exploring,
+doing something like
 
 .. code-block:: bash
 
@@ -837,6 +904,10 @@ something like
 
    >>> # 💭 Success!
    >>> exit()
+
+This is a Boolean command-line option, defaulting to ``False``. See the note
+in the description of the ``--watch`` :ref:`option <watch_cmdoption>`
+for details.
 
 
 

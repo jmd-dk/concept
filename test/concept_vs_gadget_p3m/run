@@ -22,28 +22,35 @@ trap 'abort' EXIT
 set -e
 
 # Generate initial conditions
-echo "$(cat "${this_dir}/param")
-output_dirs  = {'snapshot': '${this_dir}'}
-output_bases = {'snapshot': 'ic'}
-output_times = {'snapshot': a_begin}
+"${concept}"                                        \
+    -n 1                                            \
+    -p "${this_dir}/param"                          \
+    -c "output_dirs  = {'snapshot': '${this_dir}'}" \
+    -c "output_bases = {'snapshot': 'ic'}"          \
+    -c "output_times = {'snapshot': a_begin}"       \
+    -c "
 initial_conditions = {
     'name'   : 'GADGET halo',
     'species': 'matter',
     'N'      : 8**3,
 }
-enable_class_background = True  # Do use CLASS when creating the initial conditions
-" > "${this_dir}/ic.param"
-"${concept}" -n 1 -p "${this_dir}/ic.param" --local
+"                                                   \
+    -c "enable_class_background = True"
 mv "${this_dir}/ic_"* "${this_dir}/ic"
 
 # Run the CO𝘕CEPT code on the generated initial conditions
-"${concept}" -n 1 -p "${this_dir}/param" --local
+"${concept}"               \
+    -n 1                   \
+    -p "${this_dir}/param"
 
 # Run the GADGET-2 code on the generated initial conditions
 Gadget2_local_dir="${this_dir}/Gadget2"
 mkdir -p "${Gadget2_local_dir}"
 cp "${Gadget2_dir}/"* "${Gadget2_local_dir}" 2>/dev/null || :
-"${concept}" -u gadget "${Gadget2_local_dir}" -p "${this_dir}/param"
+"${concept}"                   \
+    -u gadget                  \
+        "${Gadget2_local_dir}" \
+    -p "${this_dir}/param"
 replace_gadget_param() {
     name="$1"
     value="$2"
@@ -60,7 +67,11 @@ replace_gadget_param "TreeDomainUpdateFrequency" "0"
 )
 
 # Analyse the output snapshots
-"${concept}" -n 1 -p "${this_dir}/param" -m "${this_dir}/analyze.py" --pure-python --local
+"${concept}"                    \
+    -n 1                        \
+    -p "${this_dir}/param"      \
+    -m "${this_dir}/analyze.py" \
+    --pure-python
 
 # Test ran successfully. Deactivate traps.
 trap : 0

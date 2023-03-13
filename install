@@ -9413,7 +9413,10 @@ if [ "${concept_install}" == "True" ] && [ "${concept_installed}" == "False" ]; 
         echo "Will now try without link time optimizations"
         (source "${concept}" && make clean) || :
         build_concept_success="True"
-        logo_printed=True "${concept}" --local --no-lto 2>&1 || build_concept_success="False"
+        logo_printed=True "${concept}"     \
+            --local                        \
+            --linktime-optimizations False \
+            2>&1 || build_concept_success="False"
     fi
     export make_jobs="${make_jobs_backup}"
     if [ "${build_concept_success}" == "False" ]; then

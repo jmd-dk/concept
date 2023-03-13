@@ -15,8 +15,10 @@ species.allow_similarly_named_components = True
 fluid_components = []
 particle_components = []
 a = []
-for fname in sorted(glob(this_dir + '/output/snapshot_a=*'),
-                    key=lambda s: s[(s.index('=') + 1):]):
+for fname in sorted(
+    glob(f'{this_dir}/output/snapshot_a=*'),
+    key=(lambda s: s[(s.index('=') + 1):]),
+):
     snapshot = load(fname, compare_params=False)
     for component in snapshot.components:
         if component.representation == 'fluid':
@@ -34,7 +36,7 @@ fluid_components    = [fluid_components[o]    for o in order]
 particle_components = [particle_components[o] for o in order]
 
 # Begin analysis
-masterprint('Analysing {} data ...'.format(this_test))
+masterprint(f'Analysing {this_test} data ...')
 
 # Extract ϱ(x) of fluids and y(x) of particles.
 # To compare ϱ to y, a scaling is needed.
@@ -61,7 +63,7 @@ for fluid, particles in zip(fluid_components, particle_components):
     y_interp.append(np.polyval(np.polyfit(particles.posx, y_i, order), x_fluid))
 
 # Plot
-fig_file = this_dir + '/result.png'
+fig_file = f'{this_dir}/result.png'
 fig, axes = plt.subplots(N_snapshots, sharex=True, figsize=(8, 3*N_snapshots))
 for ax, particles, ϱ_i, y_i, y_interp_i, a_i in zip(
     axes, particle_components, ϱ, y, y_interp, a,
@@ -117,32 +119,44 @@ for fluid, a_i in zip(fluid_components, a):
             ϱ_grid = grid
             for i in range(gridsize):
                 yz_slice = grid[i, :, :]
-                if not isclose(np.std(yz_slice), 0,
-                               rel_tol=0,
-                               abs_tol=max((tol_fac_ϱ*np.std(grid), 1e+1*gridsize**2*machine_ϵ))):
-                    abort('Non-uniformities have emerged at a = {} '
-                          'in yz-slices of fluid scalar variable {}.\n'
-                          'See "{}" for a visualization.'
-                          .format(a_i, fluidscalar, fig_file))
+                if not isclose(
+                    np.std(yz_slice),
+                    0,
+                    rel_tol=0,
+                    abs_tol=max((tol_fac_ϱ*np.std(grid), 1e+1*gridsize**2*machine_ϵ)),
+                ):
+                    abort(
+                        f'Non-uniformities have emerged at a = {a_i} '
+                        f'in yz-slices of fluid scalar variable {fluidscalar}.\n'
+                        f'See "{fig_file}" for a visualization.'
+                    )
         elif varnum == 1:
             # J
             u_grid = grid/ϱ_grid
-            if not isclose(np.std(u_grid), 0,
-                           rel_tol=0,
-                           abs_tol=(tol_fac_u*abs(np.mean(u_grid)) + machine_ϵ)):
-                abort('Non-uniformities have emerged at a = {} '
-                      'in fluid scalar variable {}'
-                      .format(a_i, fluidscalar))
+            if not isclose(
+                np.std(u_grid),
+                0,
+                rel_tol=0,
+                abs_tol=(tol_fac_u*abs(np.mean(u_grid)) + machine_ϵ),
+            ):
+                abort(
+                    f'Non-uniformities have emerged at a = {a_i} '
+                    f'in fluid scalar variable {fluidscalar}'
+                )
 
 # Compare ϱ to the fluid from the snapshots
 tol_fac = 0.02
 for ϱ_i, y_interp_i, a_i in zip(ϱ, y_interp, a):
-    if not isclose(mean(abs(ϱ_i - y_interp_i)), 0,
-                   rel_tol=0,
-                   abs_tol=(tol_fac*np.std(ϱ_i) + machine_ϵ)):
-        abort('Fluid drift differs from particle drift at a = {:.3g}.\n'
-              'See "{}" for a visualization.'
-              .format(a_i, fig_file))
+    if not isclose(
+        mean(abs(ϱ_i - y_interp_i)),
+        0,
+        rel_tol=0,
+        abs_tol=(tol_fac*np.std(ϱ_i) + machine_ϵ),
+    ):
+        abort(
+            f'Fluid drift differs from particle drift at a = {a_i:.3g}.\n'
+            f'See "{fig_file}" for a visualization.'
+        )
 
 # Done analysing
 masterprint('done')

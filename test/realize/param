@@ -1,5 +1,6 @@
 # Input/output
 output_times     = {'a': {'powerspec': a_begin}}
+output_bases     = {'powerspec': f'powerspec_nprocs={nprocs}'}
 powerspec_select = {'all': {'data': True}}
 
 # Numerics

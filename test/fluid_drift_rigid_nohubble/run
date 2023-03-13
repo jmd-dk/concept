@@ -22,18 +22,26 @@ trap 'abort' EXIT
 set -e
 
 # Generate initial conditions
-"${concept}" -n 1 -p "${this_dir}/param" -m "${this_dir}/gen_ic.py" \
-    --pure-python --local
+"${concept}"                   \
+    -n 1                       \
+    -p "${this_dir}/param"     \
+    -m "${this_dir}/gen_ic.py" \
+    --pure-python
 
 # Run the CO𝘕CEPT code on the fluid initial conditions
-"${concept}" -n 1 -p "${this_dir}/param" --local
+"${concept}"               \
+    -n 1                   \
+    -p "${this_dir}/param"
 
 # Play the 2D terminal renders in the log file as an animation
 "${concept}" -u play
 
 # Analyse the output snapshots
-"${concept}" -n 1 -p "${this_dir}/param" -m "${this_dir}/analyze.py" \
-    --pure-python --local
+"${concept}"                    \
+    -n 1                        \
+    -p "${this_dir}/param"      \
+    -m "${this_dir}/analyze.py" \
+    --pure-python
 
 # Test ran successfully. Deactivate traps.
 trap : 0

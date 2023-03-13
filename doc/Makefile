@@ -65,7 +65,7 @@ html: sphinx
 	            "$${filename}"                                                           \
 	        ;                                                                            \
 	    done;                                                                            \
-	    sed -i 's/CONCEPT/CO<em>N<\/em>CEPT/g' "$${filename}";                           \
+	    sed -i 's/CONCEPT\([^_]\|$$\)/CO<em>N<\/em>CEPT\1/g' "$${filename}";             \
 	done
 	@# Change search placeholder text
 	@for filename in $$(find $(BUILDDIR)/html/ -name '*.html'); do                                \

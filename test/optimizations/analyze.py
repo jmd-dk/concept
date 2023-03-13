@@ -67,10 +67,10 @@ if not np.allclose(
 
 # Compare 2D renders
 render2D_optimized_filename = (
-    glob(this_dir + '/output_optimized/render2D*')[0]
+    glob(f'{this_dir}/output_optimized/render2D*')[0]
 )
 render2D_unoptimized_filename = (
-    glob(this_dir + '/output_unoptimized/render2D*')[0]
+    glob(f'{this_dir}/output_unoptimized/render2D*')[0]
 )
 with open_hdf5(render2D_optimized_filename, mode='r') as hdf5_file:
     render2D_optimized = hdf5_file['data'][...]

@@ -25,34 +25,42 @@ trap 'abort' EXIT
 set -e
 
 # Generate initial conditions
-echo "$(cat "${this_dir}/param")
-output_dirs  = {'snapshot': '${this_dir}'}
-output_bases = {'snapshot': 'ic'}
-output_times = {'snapshot': a_begin}
+"${concept}"                                        \
+    -n 1                                            \
+    -p "${this_dir}/param"                          \
+    -c "output_dirs  = {'snapshot': '${this_dir}'}" \
+    -c "output_bases = {'snapshot': 'ic'}"          \
+    -c "output_times = {'snapshot': a_begin}"       \
+    -c "
 initial_conditions = {
     'species': 'matter',
     'N'      : 4**3,
 }
-" > "${this_dir}/ic.param"
-"${concept}" -n 1                      \
-             -p "${this_dir}/ic.param" \
-             --local
+"
 mv "${this_dir}/ic_"* "${this_dir}/ic.hdf5"
 
 # Run the CO𝘕CEPT code on the generated initial conditions
 for n in ${nprocs_list[@]}; do
-    "${concept}" -n ${n} -p "${this_dir}/param" --local
+    "${concept}"              \
+        -n ${n}               \
+       -p "${this_dir}/param"
     mv "${this_dir}/output" "${this_dir}/output_cython_${n}"
 done
 # Run the CO𝘕CEPT code in pure Python mode on the generated initial conditions
 for n in ${nprocs_list[@]}; do
-    "${concept}" -n ${n} -p "${this_dir}/param" --pure-python --local
+    "${concept}"               \
+        -n ${n}                \
+        -p "${this_dir}/param" \
+        --pure-python
     mv "${this_dir}/output" "${this_dir}/output_python_${n}"
 done
 
 # Analyse the output snapshots
-"${concept}" -n 1 -p "${this_dir}/param" -m "${this_dir}/analyze.py" \
-    --pure-python --local
+"${concept}"                    \
+    -n 1                        \
+    -p "${this_dir}/param"      \
+    -m "${this_dir}/analyze.py" \
+    --pure-python
 
 # Test ran successfully. Deactivate traps.
 trap : 0

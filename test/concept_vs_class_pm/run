@@ -22,10 +22,16 @@ trap 'abort' EXIT
 set -e
 
 # Run the CO𝘕CEPT code
-"${concept}" -n 2 -p "${this_dir}/param" --local
+"${concept}"               \
+    -n 2                   \
+    -p "${this_dir}/param"
 
 # Analyse the output power spectra
-"${concept}" -n 1 -p "${this_dir}/param" -m "${this_dir}/analyze.py" --pure-python --local
+"${concept}"                    \
+    -n 1                        \
+    -p "${this_dir}/param"      \
+    -m "${this_dir}/analyze.py" \
+    --pure-python
 
 # Test ran successfully. Deactivate traps.
 trap : 0

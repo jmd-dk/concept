@@ -131,7 +131,13 @@ possibly with the addition of ``-n 4`` or some other number of processes.
 .. note::
    The remainder of this section of the tutorial leaves out explicit mention
    of the ``-n`` option to ``concept`` invocations. Please add whatever number
-   of processes you would like yourself.
+   of processes you would like yourself. To always use e.g. 4 processes,
+   you may set the ``CONCEPT_nprocs``
+   :ref:`environment variable <number_of_processes>`:
+
+   .. code-block:: bash
+
+      export CONCEPT_nprocs=4
 
 A relatively large number of particles :math:`N = 192^3` is used in order to
 increase the precision of the simulation. Our goal is to investigate the

@@ -25,27 +25,23 @@ trap 'abort' EXIT
 set -e
 
 # Perform pure Python and compiled test with CLASS background disabled
-for pure_python_flag in "--pure-python" ""; do
-    cp "${this_dir}/param" "${this_dir}/param_specialized"
-    echo "enable_class_background = False" >> "${this_dir}/param_specialized"
-    echo "_pure_python = \"${pure_python_flag}\"" >> "${this_dir}/param_specialized"
-    "${concept}" -n 1                               \
-                 -p "${this_dir}/param_specialized" \
-                 -m "${this_dir}/analyze.py"        \
-                 ${pure_python_flag}                \
-                 --local
+for pure_python in True False; do
+    "${concept}"                             \
+        -n 1                                 \
+        -p "${this_dir}/param"               \
+        -c "enable_class_background = False" \
+        -m "${this_dir}/analyze.py"          \
+        --pure-python=${pure_python}
 done
 
 # Perform pure Python and compiled test with CLASS background enabled
-for pure_python_flag in "--pure-python" ""; do
-    cp "${this_dir}/param" "${this_dir}/param_specialized"
-    echo "enable_class_background = True" >> "${this_dir}/param_specialized"
-    echo "_pure_python = \"${pure_python_flag}\"" >> "${this_dir}/param_specialized"
-    "${concept}" -n 1                                \
-                 -p "${this_dir}/param_specialized" \
-                 -m "${this_dir}/analyze.py"         \
-                 ${pure_python_flag}                 \
-                 --local
+for pure_python in True False; do
+    "${concept}"                            \
+        -n 1                                \
+        -p "${this_dir}/param"              \
+        -c "enable_class_background = True" \
+        -m "${this_dir}/analyze.py"         \
+        --pure-python=${pure_python}
 done
 
 # Test ran successfully. Deactivate traps.

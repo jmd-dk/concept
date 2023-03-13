@@ -28,6 +28,7 @@
   we can now use either BCC (standard) or FCC interlacing. For potentials,
   we now have independent upstream and downstream interlacing.
 - Support for loading of TIPSY snapshots.
+- `CONCEPT_*` environment variables corresponding to command-line options.
 - The `class` utility is easier to work with, owing to the new `--kmin`,
   `--kmax` and `--modes` options. The `--times` option can now also be used to
   specify explicit scale factor values to use.
@@ -38,6 +39,8 @@
 - Faster detrending of perturbations.
 
 #### 👌 Other changes
+- Some command-line options are renamed. Boolean command-line options may now
+  be supplied with an optional Boolean value.
 - The binning of power spectra is now done logarithmically in wave number.
   The `powerspec_options['binsize']` parameter has accordingly been
   substituted for `powerspec_options['bins per decade']`.

@@ -57,7 +57,7 @@ import argparse, sys
 # Setup command-line arguments
 parser = argparse.ArgumentParser(
     prog='$(basename "${this_file}")',
-    description='Run the ${esc_concept} $(basename "${this_file}") utility',
+    description='run the ${esc_concept} $(basename "${this_file}") utility',
 )
 parser.add_argument(
     'version',
@@ -193,7 +193,7 @@ Check out https://github.com/jmd-dk/concept/ for available versions." "red"
 fi
 
 # Get and print out update information
-current_version="$("${concept}" -v | tail -n 1 || :)"
+current_version="$("${concept}" -v || :)"
 if [[ "${current_version}" == *"."* ]] && [[ "${current_version}" != "v"* ]]; then
     current_version="v${current_version}"
 fi

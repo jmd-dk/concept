@@ -20,7 +20,8 @@ def load_results(subtest):
     ncomponents_values = set()
     nprocs_values = set()
     subtiling_values = set()
-    directory_pattern = get_directory(subtest, '*', '*',
+    directory_pattern = get_directory(
+        subtest, '*', '*',
         subtiling={'domain': None, 'tile': '*'}[subtest],
     )
     for directory in glob(directory_pattern):

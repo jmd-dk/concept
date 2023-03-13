@@ -98,7 +98,7 @@ def positive_int_or_inf(value):
 # Setup command-line arguments
 parser = argparse.ArgumentParser(
     prog='$(basename "${this_file}")',
-    description='Run the ${esc_concept} $(basename "${this_file}") utility',
+    description='run the ${esc_concept} $(basename "${this_file}") utility',
 )
 parser.add_argument(
     'path',

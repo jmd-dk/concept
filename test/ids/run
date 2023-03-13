@@ -45,13 +45,19 @@ mv_snapshot() {
     mv "${f}" "${fname}"
     echo "${fname}"
 }
+get_pure_python_dirname() {
+    pure_python="$1"
+    if [ "${pure_python}" == "True" ]; then
+        pure_python_dirname="purepython"
+    else
+        pure_python_dirname="compiled"
+    fi
+    echo "${pure_python_dirname}"
+}
 subtest_dir="${this_dir}/realize"
 nprocs_list=(1 2 3 4)
-for pure_python in "--pure-python" ""; do
-    pure_python_dirname="compiled"
-    if [ -n "${pure_python}" ]; then
-        pure_python_dirname="${pure_python//-/}"
-    fi
+for pure_python in True False; do
+    pure_python_dirname="$(get_pure_python_dirname "${pure_python}")"
     for n in ${nprocs_list[@]}; do
         "${concept}"                                       \
             -n ${n}                                        \
@@ -60,8 +66,7 @@ for pure_python in "--pure-python" ""; do
             -c "output_times = {'snapshot': a_begin}"      \
             -c "snapshot_type = 'concept'"                 \
             -c "select_particle_id = True"                 \
-            ${pure_python}                                 \
-            --local
+            --pure-python=${pure_python}
         fname="$(mv_snapshot "${subtest_dir}/${pure_python_dirname}/nprocs${n}")"
     done
 done
@@ -84,11 +89,8 @@ done
 subtest_dir="${this_dir}/snapshot"
 nprocs_list=(1 4)
 snap_list=("concept" "gadget-1-32" "gadget-1-64" "gadget-2-32" "gadget-2-64")
-for pure_python in "--pure-python" ""; do
-    pure_python_dirname="compiled"
-    if [ -n "${pure_python}" ]; then
-        pure_python_dirname="${pure_python//-/}"
-    fi
+for pure_python in True False; do
+    pure_python_dirname="$(get_pure_python_dirname "${pure_python}")"
     for n in ${nprocs_list[@]}; do
         for snap in ${snap_list[@]}; do
             snapformat=2
@@ -111,8 +113,7 @@ for pure_python in "--pure-python" ""; do
                 -c "gadget_snapshot_params['snapformat'] = ${snapformat}" \
                 -c "gadget_snapshot_params['dataformat']['ID'] = ${bit}"  \
                 -c "select_particle_id = True"                            \
-                ${pure_python}                                            \
-                --local
+                --pure-python=${pure_python}
             fname="$(mv_snapshot "${subtest_dir}/${pure_python_dirname}/nprocs${n}/${snap}" "A")"
             "${concept}"                                  \
                 -n 5                                      \
@@ -120,8 +121,7 @@ for pure_python in "--pure-python" ""; do
                 -c "initial_conditions = '${fname}'"      \
                 -c "output_times = {'snapshot': a_begin}" \
                 -c "snapshot_type = 'concept'"            \
-                -c "select_particle_id = True"            \
-                --local
+                -c "select_particle_id = True"
             fname="$(mv_snapshot "${subtest_dir}/${pure_python_dirname}/nprocs${n}/${snap}" "B")"
         done
     done
@@ -140,11 +140,8 @@ done
 subtest_dir="${this_dir}/madeup"
 nprocs_list=(1 4)
 # Save GADGET snapshots
-for pure_python in "--pure-python" ""; do
-    pure_python_dirname="compiled"
-    if [ -n "${pure_python}" ]; then
-        pure_python_dirname="${pure_python//-/}"
-    fi
+for pure_python in True False; do
+    pure_python_dirname="$(get_pure_python_dirname "${pure_python}")"
     for n in ${nprocs_list[@]}; do
         "${concept}"                                  \
             -n ${n}                                   \
@@ -152,8 +149,7 @@ for pure_python in "--pure-python" ""; do
             -c "output_times = {'snapshot': a_begin}" \
             -c "snapshot_type = 'gadget'"             \
             -c "select_particle_id = False"           \
-            ${pure_python}                            \
-            --local
+            --pure-python=${pure_python}
         fname="$(mv_snapshot "${subtest_dir}/${pure_python_dirname}/nprocs${n}/gadget")"
     done
 done
@@ -164,16 +160,12 @@ snap="${fname}"
     "${fname}"                      \
     -p "${this_dir}/param"          \
     -c "snapshot_type = 'concept'"  \
-    -c "select_particle_id = False" \
-    --local
+    -c "select_particle_id = False"
 snap_dirname="$(dirname "${snap}")"
 snap="${snap_dirname}/$(cd "${snap_dirname}" && echo snap*.hdf5)"
 # Load the CO𝘕CEPT snapshot and store with made-up IDs
-for pure_python in "--pure-python" ""; do
-    pure_python_dirname="compiled"
-    if [ -n "${pure_python}" ]; then
-        pure_python_dirname="${pure_python//-/}"
-    fi
+for pure_python in True False; do
+    pure_python_dirname="$(get_pure_python_dirname "${pure_python}")"
     for n in ${nprocs_list[@]}; do
         "${concept}"                                  \
             -n ${n}                                   \
@@ -182,8 +174,7 @@ for pure_python in "--pure-python" ""; do
             -c "output_times = {'snapshot': a_begin}" \
             -c "snapshot_type = 'concept'"            \
             -c "select_particle_id = True"            \
-            ${pure_python}                            \
-            --local
+            --pure-python=${pure_python}
         fname="$(mv_snapshot "${subtest_dir}/${pure_python_dirname}/nprocs${n}/concept")"
     done
 done
@@ -200,11 +191,8 @@ snap="${fname}"
 # position and momenta in the end, when using the IDs as identifications.
 subtest_dir="${this_dir}/evolution"
 nprocs_list=(1 4)
-for pure_python in "--pure-python" ""; do
-    pure_python_dirname="compiled"
-    if [ -n "${pure_python}" ]; then
-        pure_python_dirname="${pure_python//-/}"
-    fi
+for pure_python in True False; do
+    pure_python_dirname="$(get_pure_python_dirname "${pure_python}")"
     for n in ${nprocs_list[@]}; do
         "${concept}"                            \
             -n ${n}                             \
@@ -213,8 +201,7 @@ for pure_python in "--pure-python" ""; do
             -c "output_times = {'snapshot': 1}" \
             -c "snapshot_type = 'concept'"      \
             -c "select_particle_id = True"      \
-            ${pure_python}                      \
-            --local
+            --pure-python=${pure_python}
         fname="$(mv_snapshot "${subtest_dir}/${pure_python_dirname}/nprocs${n}")"
     done
 done
@@ -226,8 +213,7 @@ done
     -n 1                        \
     -p "${this_dir}/param"      \
     -m "${this_dir}/analyze.py" \
-    --pure-python               \
-    --local
+    --pure-python
 
 # Test ran successfully. Deactivate traps.
 trap : 0

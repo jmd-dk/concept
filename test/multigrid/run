@@ -40,8 +40,7 @@ powerspec_global_list=($((size/4*3)) ${size} $((size/4*5)))
     -n 4                                                             \
     -p "${this_dir}/param"                                           \
     -c "initial_conditions = {'species': 'matter', 'N': ${size}**3}" \
-    -c "output_times = {'snapshot': a_begin}"                        \
-    --local
+    -c "output_times = {'snapshot': a_begin}"
 # Compute power spectra using the different global grid sizes.
 # Disable the power spectrum binning in order to ensure that the
 # power is measured at the exact same k values
@@ -53,8 +52,7 @@ for powerspec_global in ${powerspec_global_list[@]}; do
         -n 4                                                            \
         -p "${this_dir}/param"                                          \
         -c "powerspec_options['bins per decade'] = inf"                 \
-        -c "powerspec_options['global gridsize'] = ${powerspec_global}" \
-        --local
+        -c "powerspec_options['global gridsize'] = ${powerspec_global}"
     mv "${this_dir}/output/powerspec"*.png "${subtest_dir}/powerspec_${powerspec_global}.png"
     mv "${this_dir}/output/powerspec"*     "${subtest_dir}/powerspec_${powerspec_global}"
 done
@@ -79,8 +77,7 @@ rm -rf "${this_dir}/output"
     -n 1                       \
     -p "${this_dir}/param"     \
     -m "${this_dir}/gen_ic.py" \
-    --pure-python              \
-    --local
+    --pure-python
 mkdir -p "${subtest_dir}"
 mv "${this_dir}/output/"* "${subtest_dir}/sine.hdf5"
 # Compute 2D renders using the different global grid sizes
@@ -90,8 +87,7 @@ for render2D_global in ${render2D_global_list[@]}; do
         -p "${this_dir}/param"                                        \
         -c "initial_conditions = '${subtest_dir}/sine.hdf5'"          \
         -c "output_times = {'render2D': a_begin}"                     \
-        -c "render2D_options['global gridsize'] = ${render2D_global}" \
-        --local
+        -c "render2D_options['global gridsize'] = ${render2D_global}"
     mv "${this_dir}/output/render2D"*.png "${subtest_dir}/render2D_${render2D_global}.png"
     mv "${this_dir}/output/render2D"*.hdf5 "${subtest_dir}/render2D_${render2D_global}.hdf5"
 done
@@ -141,8 +137,7 @@ for potential_global_p3m in ${potential_global_p3m_list[@]}; do
                 'gravity': {                                                             \
                     'scale': '1.25*boxsize/${potential_global_p3m_list[0]}',             \
                 },                                                                       \
-            }"                                                                           \
-        --local
+            }"
     mv "${this_dir}/output/powerspec"*.png "${subtest_dir}/powerspec_${potential_global_p3m}.png"
     mv "${this_dir}/output/powerspec"*     "${subtest_dir}/powerspec_${potential_global_p3m}"
 done
@@ -226,8 +221,7 @@ for n in ${nprocs_list[@]}; do
                 'evolver'                 : 0,                                              \
            }"                                                                               \
         -c "render2D_options['upstream gridsize'] = powerspec_options['upstream gridsize']" \
-        -c "render2D_options['global gridsize'  ] = powerspec_options['global gridsize'  ]" \
-        --local
+        -c "render2D_options['global gridsize'  ] = powerspec_options['global gridsize'  ]"
     mkdir -p "${subtest_dir}/${n}"
     mv "${this_dir}/output/powerspec"* "${subtest_dir}/${n}/"
 done
@@ -240,8 +234,7 @@ rm -rf "${this_dir}/output"
     -n 1                        \
     -p "${this_dir}/param"      \
     -m "${this_dir}/analyze.py" \
-    --pure-python               \
-    --local
+    --pure-python
 
 # Test ran successfully. Deactivate traps.
 trap : 0

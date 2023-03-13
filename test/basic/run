@@ -24,16 +24,16 @@ set -e
 
 # Clean and run in pure Python with different number of CPUs
 (cd "${concept_dir}" && make clean)
-"${concept}"      --pure-python --local
-"${concept}" -n 1 --pure-python --local
-"${concept}" -n 2 --pure-python --local
-"${concept}" -n 4 --pure-python --local
+"${concept}"      --pure-python
+"${concept}" -n 1 --pure-python
+"${concept}" -n 2 --pure-python
+"${concept}" -n 4 --pure-python
 
 # Build and run in compiled mode with different number of CPUs
-"${concept}"      --local
-"${concept}" -n 1 --local
-"${concept}" -n 2 --local
-"${concept}" -n 4 --local
+"${concept}"
+"${concept}" -n 1
+"${concept}" -n 2
+"${concept}" -n 4
 
 # Test ran successfully. Deactivate traps.
 trap : 0

@@ -28,35 +28,33 @@ trap 'abort' EXIT
 set -e
 
 # Run the (linear) massless neutrino simulation
-sim="massless"
-cp "${this_dir}/param" "${this_dir}/param_${sim}"
-echo "
-initial_conditions[1]['boltzmann_order'] = -1
-class_params['m_ncdm'] = 1e-100
-" >> "${this_dir}/param_${sim}"
-"${concept}" -n 4 -p "${this_dir}/param_${sim}" --local
-mv "${this_dir}/output" "${this_dir}/output_${sim}"
+"${concept}"                                           \
+    -n 4                                               \
+    -p "${this_dir}/param"                             \
+    -c "initial_conditions[1]['boltzmann_order'] = -1" \
+    -c "class_params['m_ncdm'] = 1e-100"
+mv "${this_dir}/output" "${this_dir}/output_massless"
 
 # Run the linear massive neutrino simulation
-sim="massive_linear"
-cp "${this_dir}/param" "${this_dir}/param_${sim}"
-echo "
-initial_conditions[1]['boltzmann_order'] = -1
-" >> "${this_dir}/param_${sim}"
-"${concept}" -n 4 -p "${this_dir}/param_${sim}" --local
-mv "${this_dir}/output" "${this_dir}/output_${sim}"
+"${concept}"                                           \
+    -n 4                                               \
+    -p "${this_dir}/param"                             \
+    -c "initial_conditions[1]['boltzmann_order'] = -1"
+mv "${this_dir}/output" "${this_dir}/output_massive_linear"
 
 # Run the non-linear massive neutrino simulation
-sim="massive_nonlinear"
-cp "${this_dir}/param" "${this_dir}/param_${sim}"
-echo "
-initial_conditions[1]['boltzmann_order'] = +1
-" >> "${this_dir}/param_${sim}"
-"${concept}" -n 4 -p "${this_dir}/param_${sim}" --local
-mv "${this_dir}/output" "${this_dir}/output_${sim}"
+"${concept}"                                           \
+    -n 4                                               \
+    -p "${this_dir}/param"                             \
+    -c "initial_conditions[1]['boltzmann_order'] = +1"
+mv "${this_dir}/output" "${this_dir}/output_massive_nonlinear"
 
 # Analyse the output snapshots
-"${concept}" -n 1 -p "${this_dir}/param" -m "${this_dir}/analyze.py" --pure-python --local
+"${concept}"                    \
+    -n 1                        \
+    -p "${this_dir}/param"      \
+    -m "${this_dir}/analyze.py" \
+    --pure-python
 
 # Test ran successfully. Deactivate traps.
 trap : 0

@@ -13,13 +13,19 @@ this_test = os.path.basename(os.path.dirname(this_dir))
 # Read in data from the CO𝘕CEPT snapshots
 species.allow_similarly_named_components = True
 a = []
-nprocs_list = sorted(int(dname[(dname.index('_') + 1):])
-                     for dname in [os.path.basename(dname)
-                                   for dname in glob('{}/output_*'.format(this_dir))])
+nprocs_list = sorted(
+    int(dname[(dname.index('_') + 1):])
+    for dname in [
+        os.path.basename(dname)
+        for dname in glob(f'{this_dir}/output_*')
+    ]
+)
 components = {n: [] for n in nprocs_list}
 for n in nprocs_list:
-    for fname in sorted(glob('{}/output_{}/snapshot_a=*'.format(this_dir, n)),
-                        key=lambda s: s[(s.index('=') + 1):]):
+    for fname in sorted(
+        glob(f'{this_dir}/output_{n}/snapshot_a=*'),
+        key=(lambda s: s[(s.index('=') + 1):]),
+    ):
         snapshot = load(fname, compare_params=False)
         if n == 1:
             a.append(snapshot.params['a'])
@@ -27,7 +33,7 @@ for n in nprocs_list:
 N_snapshots = len(a)
 
 # Begin analysis
-masterprint('Analysing {} data ...'.format(this_test))
+masterprint(f'Analysing {this_test} data ...')
 
 # Using the particle order of the n=1 snapshot as the standard,
 # find the corresponding ID's in the snapshots and order these
@@ -89,7 +95,7 @@ for i in range(N_snapshots):
         ])))
 
 # Plot
-fig_file = this_dir + '/result.png'
+fig_file = f'{this_dir}/result.png'
 fig, axes = plt.subplots(len(nprocs_list) - 1, sharex=True, sharey=True)
 for n, d, ax in zip(dist.keys(), dist.values(), axes):
     for i in range(N_snapshots):
@@ -115,8 +121,10 @@ fig.savefig(fig_file, dpi=150)
 # Printout error message for unsuccessful test
 tol = 2e-2
 if any(np.mean(asarray(d)/boxsize) > tol for d in dist.values()):
-    abort('Runs with different numbers of processes yield different results!\n'
-          'See "{}" for a visualization.'.format(fig_file))
+    abort(
+        f'Runs with different numbers of processes yield different results!\n'
+        f'See "{fig_file}" for a visualization.'
+    )
 
 # Done analysing
 masterprint('done')

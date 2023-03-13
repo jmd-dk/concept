@@ -29,19 +29,18 @@ trap 'abort' EXIT
 set -e
 
 # Generate initial conditions
-echo "$(cat "${this_dir}/param")
-output_dirs  = {'snapshot': '${this_dir}/output'}
-output_bases = {'snapshot': 'snapshot'}
-output_times = {'snapshot': a_begin}
+"${concept}"                                               \
+    -n 1                                                   \
+    -p "${this_dir}/param"                                 \
+    -c "output_dirs  = {'snapshot': '${this_dir}/output'}" \
+    -c "output_bases = {'snapshot': 'snapshot'}"           \
+    -c "output_times = {'snapshot': a_begin}"              \
+    -c "
 initial_conditions = {
     'species': 'matter',
     'N'      : _size**3,
 }
-" > "${this_dir}/ic.param"
-"${concept}"                  \
-    -n 1                      \
-    -p "${this_dir}/ic.param" \
-    --local
+"
 mv "${this_dir}/output/snapshot"* "${this_dir}/output/snapshot.hdf5"
 
 # Make copies of the snapshot
@@ -72,38 +71,44 @@ render3D_options = {
 " > "${this_dir}/render3D.param_1"
 
 # 3D render the single snapshot without explicitly specifying a 3D render parameter file
-"${concept}" -n 1 -u render3D "${this_dir}/output/snapshot.hdf5" --local
-mv "${this_dir}/output/render3D_snapshot.png" \
+"${concept}" -n 1 -u render3D "${this_dir}/output/snapshot.hdf5"
+mv                                                     \
+    "${this_dir}/output/render3D_snapshot.png"         \
     "${this_dir}/output/render3D_snapshot_default.png"
 
 # 3D render the single snapshot by specifying a 3D render parameter file
-"${concept}"                                       \
-    -n 1                                           \
-    -p "${this_dir}/render3D.param_0"              \
-    -u render3D "${this_dir}/output/snapshot.hdf5" \
-    --local
+"${concept}"                               \
+    -n 1                                   \
+    -p "${this_dir}/render3D.param_0"      \
+    -u render3D                            \
+        "${this_dir}/output/snapshot.hdf5"
 
 # 3D render all (both) snapshots in the subdir, using 2 processes
-"${concept}"                                \
-    -n 2                                    \
-    -p "${this_dir}/render3D.param_1"       \
-    -u render3D "${this_dir}/output/subdir" \
-    --local
+"${concept}"                          \
+    -n 2                              \
+    -p "${this_dir}/render3D.param_1" \
+    -u render3D                       \
+        "${this_dir}/output/subdir"
 
 # Analyse the output snapshots
 "${concept}"                    \
     -n 1                        \
     -p "${this_dir}/param"      \
     -m "${this_dir}/analyze.py" \
-    --pure-python               \
-    --local
+    --pure-python
 
 # For the spectacularity of it, run a small simulation
 # demonstrating 2D terminal rendering.
-"${concept}" -n 1 -p "${this_dir}/param" --local
+"${concept}"               \
+    -n 1                   \
+    -p "${this_dir}/param"
 
 # Also demonstrate the play utility
-"${concept}" -u play --fps 10 --component "matter" --repeats 3
+"${concept}"                 \
+    -u play                  \
+        --fps 10             \
+        --component "matter" \
+        --repeats 3
 
 # Test ran successfully. Deactivate traps.
 trap : 0

@@ -87,17 +87,17 @@ define heading
         extra = [];                                                                \
         extra.append('native optimizations')                                       \
             if '$(native_optimizations)' == 'True'                                 \
-                and '$(no_optimizations)' != 'True'                                \
+                and '$(optimizations)' != 'False'                                  \
             else None;                                                             \
         extra.append('no link time optimizations')                                 \
-            if '$(no_lto)' == 'True'                                               \
-                and '$(no_optimizations)' != 'True'                                \
+            if '$(linktime_optimizations)' == 'False'                              \
+                and '$(optimizations)' != 'False'                                  \
             else None;                                                             \
         extra.append('no optimizations')                                           \
-            if '$(no_optimizations)' == 'True'                                     \
+            if '$(optimizations)' == 'False'                                       \
             else None;                                                             \
         extra.append('unsafe')                                                     \
-            if '$(unsafe_building)' == 'True'                                      \
+            if '$(safe_build)' == 'False'                                          \
             else None;                                                             \
         extra.append('serially')                                                   \
             if re.search(r'^ *(-j|--j|--jo|--job|--jobs)=? *1$$', '$(make_jobs)')  \

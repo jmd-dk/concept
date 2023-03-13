@@ -22,17 +22,19 @@ trap 'abort' EXIT
 set -e
 
 # Generate initial conditions
-echo "$(cat "${this_dir}/param")
-output_dirs  = {'snapshot': '${this_dir}'}
-output_bases = {'snapshot': 'ic'}
-output_times = {'snapshot': a_begin}
+"${concept}"                                        \
+    -n 1                                            \
+    -p "${this_dir}/param"                          \
+    -c "output_dirs  = {'snapshot': '${this_dir}'}" \
+    -c "output_bases = {'snapshot': 'ic'}"          \
+    -c "output_times = {'snapshot': a_begin}"       \
+    -c "
 initial_conditions = {
     'name'   : 'GADGET halo',
     'species': 'matter',
     'N'      : 8**3,
 }
-" > "${this_dir}/ic.param"
-"${concept}" -n 1 -p "${this_dir}/ic.param" --local
+"
 mv "${this_dir}/ic_"* "${this_dir}/ic"
 
 # Run the GADGET-2 code on the generated initial conditions
@@ -49,8 +51,8 @@ cp "${Gadget2_dir}/"* "${Gadget2_local_dir}" 2>/dev/null || :
 
 # Analyse the output by comparing the momentum spread
 # in the beginning and final snapshot.
-info_0="$("${concept}" -u info --stats "${Gadget2_local_dir}/output/snapshot_000" --local)"
-info_1="$("${concept}" -u info --stats "${Gadget2_local_dir}/output/snapshot_001" --local)"
+info_0="$("${concept}" -u info --stats "${Gadget2_local_dir}/output/snapshot_000")"
+info_1="$("${concept}" -u info --stats "${Gadget2_local_dir}/output/snapshot_001")"
 momentum_spread_0="$(echo "${info_0}" | grep 'momentum spread' | awk '{print $3, $4, $5}')"
 momentum_spread_1="$(echo "${info_1}" | grep 'momentum spread' | awk '{print $3, $4, $5}')"
 momentum_spread_growth="$("${concept}" -m "
@@ -64,7 +66,7 @@ for momentum_spread in momentum_spreads:
         momentum_spread = momentum_spread.replace(c, r)
     mean_momentum_spreads.append(np.mean(eval(momentum_spread)))
 print(int(round(mean_momentum_spreads[1]/mean_momentum_spreads[0])))
-" --pure-python --local | tail -n 1)"
+" --pure-python | tail -n 1)"
 # Expected rate of std(mom) between the two snapshots.
 # Note that this depends slightly on the
 # pseudo-random number generation.

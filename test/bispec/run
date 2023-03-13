@@ -47,8 +47,7 @@ antialiasing="True"
     -n 4                                       \
     -c "bispec_antialiasing = ${antialiasing}" \
     -c "output_times['snapshot'] = ..."        \
-    -p "${this_dir}/param"                     \
-    --local
+    -p "${this_dir}/param"
 rename_bispec
 
 # Compute antialiased bispectrum for a paired realisation
@@ -56,8 +55,7 @@ rename_bispec
     -n 2                                       \
     -p "${this_dir}/param"                     \
     -c "bispec_antialiasing = ${antialiasing}" \
-    -c "primordial_phase_shift = π"            \
-    --local
+    -c "primordial_phase_shift = π"
 rename_bispec pi
 
 # Compute bispectrum without antialiasing using the bispec utility.
@@ -69,17 +67,16 @@ antialiasing="False"
     -p "${this_dir}/param"                                       \
     -c "bispec_antialiasing = ${antialiasing}"                   \
     -c "bispec_options['shellthickness'] = '1e-3*k_fundamental'" \
-    -c "\
-_k_samples = [\
-    ( 2,  1,  1),\
-    ( 3,  3,  2),\
-    ( 7,  6,  3),\
-    (10, 10, 10),\
-    (13, 12,  9),\
-]  # (k₁, k₂, k₃)\
+    -c "
+_k_samples = [
+    ( 2,  1,  1),
+    ( 3,  3,  2),
+    ( 7,  6,  3),
+    (10, 10, 10),
+    (13, 12,  9),
+]  # (k₁, k₂, k₃)
 "                                                                \
-    -u bispec "${this_dir}/output/snapshot"*                     \
-    --local
+    -u bispec "${this_dir}/output/snapshot"*
 rename_bispec
 
 # Compute antialiased squeezed bispectrum for a paired
@@ -96,8 +93,7 @@ for shift in 0 pi; do
         -c "primordial_phase_shift = ${shift}"                         \
         -c "initial_conditions = ${fluid_ic}"                          \
         -c "realization_options['non-Gaussianity'] = ${fnl}"           \
-        -c "bispec_options['configuration']['all'] = ('squeezed', 20)" \
-        --local
+        -c "bispec_options['configuration']['all'] = ('squeezed', 20)"
     rename_bispec "squeezed_${shift}"
 done
 
@@ -107,8 +103,7 @@ done
     -p "${this_dir}/param"                               \
     -c "realization_options['non-Gaussianity'] = ${fnl}" \
     -m "${this_dir}/analyze.py"                          \
-    --pure-python                                        \
-    --local
+    --pure-python
 
 # Test ran successfully. Deactivate traps.
 trap : 0

@@ -34,9 +34,7 @@ fi
 "${concept}"                         \
     -b "${this_dir}/build_optimized" \
     -n 4                             \
-    -p "${this_dir}/param"           \
-    --local                          \
-
+    -p "${this_dir}/param"
 mv "${this_dir}/output" "${this_dir}/output_optimized"
 
 # Run the CO𝘕CEPT code without optimizations
@@ -44,9 +42,7 @@ mv "${this_dir}/output" "${this_dir}/output_optimized"
     -b "${this_dir}/build_unoptimized" \
     -n 4                               \
     -p "${this_dir}/param"             \
-    --no-optimizations                 \
-    --local                            \
-
+    --optimizations=False
 mv "${this_dir}/output" "${this_dir}/output_unoptimized"
 
 # Analyse the output power spectra and 2D renders
@@ -54,8 +50,6 @@ mv "${this_dir}/output" "${this_dir}/output_unoptimized"
     -n 1                        \
     -p "${this_dir}/param"      \
     -m "${this_dir}/analyze.py" \
-    --pure-python               \
-    --local                     \
-
+    --pure-python
 # Test ran successfully. Deactivate traps.
 trap : 0

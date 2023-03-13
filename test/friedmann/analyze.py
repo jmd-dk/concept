@@ -25,8 +25,8 @@ scale_factors = np.logspace(np.log10(a_begin), np.log10(1), N_points)
 # Compute the cosmic time for each value of the scale factor
 cosmic_times = [cosmic_time(a) for a in scale_factors]
 
-# Dependent on the mode, save the computed cosmic times
-compiled = not user_params['_pure_python']
+# Save the computed cosmic times
+compiled = not ast.literal_eval(os.environ['CONCEPT_pure_python'])
 mode = f'class={enable_class_background}_compiled={compiled}'
 np.savetxt(f'{this_dir}/t_{mode}.dat', cosmic_times)
 

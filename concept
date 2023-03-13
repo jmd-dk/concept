@@ -268,11 +268,24 @@ print(''.join(ANSI), end='', flush=True)
 " \
     $(stat -c '%Y' "${this_file}")
 }
-# Print out the logo the first time an execution reaches this point
-if [ "${logo_printed}" != "True" ] && [ "${being_sourced}" == "False" ]; then
+# Print out the logo the first time an execution reaches this point.
+# Do not print the logo if the file is beind sourced or if the version
+# should be printed.
+if     [ "${logo_printed}"  != "True"  ] \
+    && [ "${being_sourced}" == "False" ] \
+    && [[ " $@ " != *" -v "           ]] \
+    && [[ " $@ " != *" --v "          ]] \
+    && [[ " $@ " != *" --ve "         ]] \
+    && [[ " $@ " != *" --ver "        ]] \
+    && [[ " $@ " != *" --vers "       ]] \
+    && [[ " $@ " != *" --versi "      ]] \
+    && [[ " $@ " != *" --versio "     ]] \
+    && [[ " $@ " != *" --version "    ]] \
+; then
     print_logo
     export logo_printed="True"
 fi
+
 
 # Function for converting paths to absolute paths
 absolute_path() {
@@ -545,27 +558,27 @@ if [ -n "${mpi_env}" ]; then
 fi
 
 # Default values of command-line arguments
+build_default="${build_dir}"
+command_line_params_default=""
 interactive_default="False"
-jobname_default="concept"
+job_directive_default=""
+job_name_default="concept"
+linktime_optimizations_default="True"
 local_default="False"
+main_default="${src_dir}/main.py"
 memory_default="-1"  # -1 implies unset
 native_optimizations_default="False"
-no_lto_default="False"
-no_optimizations_default="False"
-no_watching_default="False"
-nprocs_default=1
-param_default="None"
+nprocs_default="1"
+optimizations_default="True"
+param_default="None"  # None implies unset
 pure_python_default="False"
-unsafe_building_default="False"
+queue_default=""
+rebuild_default=""  # empty implies that a rebuild is triggered by changes to the source
+safe_build_default="True"
+tests_default=""
+utility_default=""
 walltime_default="00:00:00"  # 00:00:00 implies unset
-
-# Initial but illegal values of some command-line arguments,
-# for testing whether these arguments have been supplied.
-nprocs_unspecified="-1"
-param_unspecified="__none__"
-queue_unspecified="__none__"
-test_unspecified="__none__"
-utility_unspecified="__none__"
+watch_default="True"
 
 # Functions for building the code
 set_make_jobs() {
@@ -640,16 +653,6 @@ check_rebuild_necessary() {
     fi
 }
 build_concept() {
-    # Never build the code when running one of these utilities
-    utilities_nobuild=("play" "update" "watch")
-    utility_name="$(basename "${utility}")"
-    if [ -n "${utility_name}" ]; then
-        for utility_nobuild in ${utilities_nobuild[@]}; do
-            if [ "${utility_name}" == "${utility_nobuild}" ]; then
-                return
-            fi
-        done
-    fi
     # In case of pure Python mode, run directly off of the Python source
     if [ "${pure_python}" == "True" ]; then
         build="${src_dir}"
@@ -679,12 +682,12 @@ build_concept() {
     start_time_build=$("${python}" -B -c "import time; print(time.time())")
     set_make_jobs
     make_concept() {
-        make                                               \
-            build="${build}"                               \
-            native_optimizations="${native_optimizations}" \
-            no_lto="${no_lto}"                             \
-            no_optimizations="${no_optimizations}"         \
-            unsafe_building="${unsafe_building}"           \
+        make                                                   \
+            build="${build}"                                   \
+            optimizations="${optimizations}"                   \
+            linktime_optimizations="${linktime_optimizations}" \
+            native_optimizations="${native_optimizations}"     \
+            safe_build="${safe_build}"                         \
             ${make_jobs}
     }
     n_make_attemps=3
@@ -751,8 +754,8 @@ prepare_python_options() {
 print_info() {
     echo "Date:            ${start_time_human_sec}" \
         | tee -a "${job_dir}/${jobid}/log"
-    if [ -n "${jobname}" ] && [ "${jobname}" != "${jobname_default}" ]; then
-        echo "Job name:        ${jobname}" \
+    if [ -n "${job_name}" ] && [ "${job_name}" != "${job_name_default}" ]; then
+        echo "Job name:        ${job_name}" \
             | tee -a "${job_dir}/${jobid}/log"
     fi
     echo "Job ID:          ${jobid}" \
@@ -838,27 +841,12 @@ cd "${concept_dir}"
 argparse_finished="False"
 argparse_exit_code=""
 args=$("${python}" -B -c "
-import argparse, math, re, sys
-# Function which checks whether input is a representation of
-# a positive integer and converts it.
-def positive_int(value):
-    value_raw = value
-    def raise_argparse_exception():
-        raise argparse.ArgumentTypeError(\"invalid positive int value: '{}'\".format(value_raw))
-    try:
-        value = float(eval(value))
-    except Exception:
-        raise_argparse_exception()
-    if value != int(value):
-        raise_argparse_exception()
-    value = int(value)
-    if value < 1:
-        raise_argparse_exception()
-    return value
+import argparse, math, os, re, sys
 # Function which checks whether input is a representation of
 # one or two positive integers. If two ints are given,
 # separate them by a colon.
 def positive_int_or_int_pair(value, value_input=None):
+    value = str(value)
     if value_input is None:
         value_input = value
     def raise_argparse_exception():
@@ -888,22 +876,24 @@ def positive_int_or_int_pair(value, value_input=None):
 # Function which checks whether input is a representation of
 # a memory size and converts it to bytes.
 def memory(value):
+    value = str(value)
     value_raw = value
     def raise_argparse_exception():
-        raise argparse.ArgumentTypeError(\"invalid memory value: '{}'\".format(value_raw))
+        raise argparse.ArgumentTypeError(f\"invalid memory value: '{value_raw}'\")
     # Convert to (whole) bytes
     value = value.lower()
     value = value.replace(' ', '').replace('b', '')
     value = re.subn(r'([0-9]+)([a-z]+)', r'\g<1>*\g<2>', value)[0]
-    units = {'k': 2**10,
-             'm': 2**20,
-             'g': 2**30,
-             't': 2**40,
-             'p': 2**50,
-             'e': 2**60,
-             'z': 2**70,
-             'y': 2**80,
-             }
+    units = {
+        'k': 2**10,
+        'm': 2**20,
+        'g': 2**30,
+        't': 2**40,
+        'p': 2**50,
+        'e': 2**60,
+        'z': 2**70,
+        'y': 2**80,
+    }
     try:
         value = int(math.ceil(float(eval(value, units))))
     except Exception:
@@ -911,6 +901,7 @@ def memory(value):
     return value
 # Function which converts a time value to the format hh:mm:ss
 def time(value):
+    value = str(value)
     # Convert value to integer seconds
     units = {'s': 1}
     units['sec'] = units['secs'] = units['seond'] = units['seonds'] = units['s']
@@ -990,162 +981,295 @@ def time(value):
     return value
 # Function which checks whether input is a boolean or is empty
 def bool_or_empty(value):
+    value = str(value)
     value_raw = value
     value = str(value).lower()
     if value == '':
         return value
-    if value in {'true', 'y', 'yes'}:
+    if value in {'true',  't', 'y', 'yes', '1'}:
         return 'True'
-    if value in {'false', 'n', 'no'}:
+    if value in {'false', 'f', 'n', 'no',  '0'}:
         return 'False'
-    raise argparse.ArgumentTypeError(\"invalid non-empty bool value: '{}'\".format(value_raw))
+    raise argparse.ArgumentTypeError(f\"invalid bool value: '{value_raw}'\")
+# Function which checks whether input is a boolean,
+# with empty input defaulting to True.
+def bool_truebydefault(value):
+    value = str(value)
+    value_raw = value
+    value = str(value).lower()
+    if value in {'', 'true',  't', 'y', 'yes', '1'}:
+        return 'True'
+    if value in {    'false', 'f', 'n', 'no',  '0'}:
+        return 'False'
+    raise argparse.ArgumentTypeError(f\"invalid bool value: '{value_raw}'\")
 # Function for setting up a parser for command-line arguments
 def get_parser(*, add_help=True):
+    def add_parser_argument(name, group, help, default, useenv=True, shortname=False, **kwargs):
+        names = []
+        if shortname:
+            names.append(f'-{name[0]}')
+        names.append(f'--{name}')
+        if useenv:
+            default = os.environ.get(f'CONCEPT_{name}'.replace('-', '_'), default)
+        default = str(default)
+        if kwargs.get('action') == 'append' or kwargs.get('nargs') == '+':
+            default = [default]
+        group.add_argument(
+            *names,
+            help=help,
+            default=default,
+            **kwargs,
+        )
     parser = argparse.ArgumentParser(
         prog='$(basename "${this_file}")',
-        description='Run the ${esc_concept} code',
-        add_help=add_help,
+        description='run the ${esc_concept} code',
+        add_help=False,
     )
-    parser.add_argument(
-        '-b', '--build',
-        help='build directory to use',
-        default='${build_dir}',
+    # Basics
+    group_basic = parser.add_argument_group('basics')
+    if add_help:
+        add_parser_argument(
+            'help',
+            group_basic,
+            help='show this help message and exit',
+            default=False,
+            shortname=True,
+            action='help'
     )
-    parser.add_argument(
-        '-c', '--command-line-params',
+    add_parser_argument(
+        'param',
+        group_basic,
+        help='parameter file to use',
+        default='${param_default}',
+        shortname=True,
+    )
+    add_parser_argument(
+        'command-line-params',
+        group_basic,
         help=(
             'specify parameter(s) directly from the command-line. '
-            'If a parameter file is specified as well, the command-line '
-            'parameters will take precedence. This option may be specified '
-            'multiple times.'
+            'If a parameter file is specified as well, '
+            'the command-line parameters will take precedence. '
+            'This option may be specified multiple times.'
         ),
-        default=[],
+        default='${command_line_params_default}',
+        shortname=True,
         action='append',
     )
-    parser.add_argument(
-        '-i', '--interactive',
-        help='inspect interactively after program execution',
-        default=${interactive_default},
-        action='store_true',
-    )
-    parser.add_argument(
-        '-j', '--job-directive',
-        help=(
-            'specify an additional line to add to the job script header '
-            'for remote jobs. This option may be specified multiple times.'
-        ),
-        default=[],
-        action='append',
-    )
-    parser.add_argument(
-        '-m', '--main',
-        help='entry point of the code. Can be a Python filename or command.',
-        default='${src_dir}/main.py',
-    )
-    parser.add_argument(
-        '--memory',
-        help='total memory allocated for remote job',
-        type=memory,
-        default=${memory_default},
-    )
-    parser.add_argument(
-        '-n', '--nprocs',
+    add_parser_argument(
+        'nprocs',
+        group_basic,
         help=(
             'total number of processes '
             'or number of nodes and number of processes per node'
         ),
+        default='${nprocs_default}',
+        shortname=True,
         type=positive_int_or_int_pair,
-        default=${nprocs_unspecified},
     )
-    parser.add_argument(
-        '-p', '--params',
-        help='parameter file to use',
-        default='${param_unspecified}',
-    )
-    parser.add_argument(
-        '-q', '--queue',
-        help='queue for submission of the remote job',
-        default='${queue_unspecified}',
-    )
-    parser.add_argument(
-        '-t', '--tests',
+    add_parser_argument(
+        'utility',
+        group_basic,
         help=(
-            'run test TESTS. TESTS can be any subdirectory of the test directory. '
-            'Use TESTS=all to run all tests'
+            'run utility UTILITY. UTILITY can be any executable '
+            'in the util directory.'
         ),
-        default='${test_unspecified}',
-    )
-    parser.add_argument(
-        '-u', '--utility',
+        default='${utility_default}',
+        useenv=False,  # do not make use of environment variable
+        shortname=True,
         nargs='+',
-        help='run utility UTILITY. UTILITY can be any executable in the util directory',
-        default=['${utility_unspecified}']*2,  # One for utility, one for utility_args
     )
-    parser.add_argument(
-        '-w', '--walltime',
+    # Remote job submission
+    group_job = parser.add_argument_group('remote job submission')
+    add_parser_argument(
+        'queue',
+        group_job,
+        help='queue/partition for submission of the remote job',
+        default='${queue_default}',
+        shortname=True,
+    )
+    add_parser_argument(
+        'walltime',
+        group_job,
         help='maxium allowed wall time for remote job',
-        type=time,
         default='${walltime_default}',
+        shortname=True,
+        type=time,
     )
-    parser.add_argument(
-        '--job-name',
+    add_parser_argument(
+        'memory',
+        group_job,
+        help='total memory allocated for remote job',
+        default='${memory_default}',
+        type=memory,
+    )
+    add_parser_argument(
+        'job-name',
+        group_job,
         help='name of the job to be used with Slurm/TORQUE/PBS',
-        default='${jobname_default}',
+        default='${job_name_default}',
     )
-    parser.add_argument(
-        '--local',
-        help='force the run to be done locally, without submitting it as a remote job',
-        default=${local_default},
-        action='store_true',
+    add_parser_argument(
+        'job-directive',
+        group_job,
+        help=(
+            'specify an additional line to add to the job script '
+            'header for remote jobs. This option may be specified '
+            'multiple times.'
+        ),
+        default='${job_directive_default}',
+        shortname=True,
+        action='append',
     )
-    parser.add_argument(
-        '--native-optimizations',
-        help='allow the compiler to generate non-portable code optimized for this machine',
-        default=${native_optimizations_default},
-        action='store_true',
-    )
-    parser.add_argument(
-        '--no-lto',
-        help='disable link time optimizations',
-        default=${no_lto_default},
-        action='store_true',
-    )
-    parser.add_argument(
-        '--no-optimizations',
-        help='disable compiler optimizations',
-        default=${no_optimizations_default},
-        action='store_true',
-    )
-    parser.add_argument(
-        '--no-watching',
-        help='do not follow the submitted job via the watch utility',
-        default=${no_watching_default},
-        action='store_true',
-    )
-    parser.add_argument(
-        '--pure-python',
-        help='run in pure Python mode',
-        default=${pure_python_default},
-        action='store_true',
-    )
-    parser.add_argument(
-        '--rebuild',
+    add_parser_argument(
+        'watch',
+        group_job,
+        help=(
+            'if True, follow submitted jobs via the watch utility '
+            'upon remote submission. Defaults to ${watch_default}.'
+        ),
+        default=${watch_default},
         nargs='?',
-        help='specify whether to rebuild the code before running it',
-        type=bool_or_empty,
-        default='',
+        type=bool_truebydefault,
         const='True',
     )
-    parser.add_argument(
-        '--unsafe-building',
-        help='ignore dependencies between modules when building',
-        default=${unsafe_building_default},
-        action='store_true',
+    # Building and running
+    group_build = parser.add_argument_group('building and running')
+    add_parser_argument(
+        'local',
+        group_build,
+        help=(
+            'if True, forces the run to be carried out locally, '
+            'without submitting it as a remote job. '
+            'Defaults to ${local_default}.'
+        ),
+        default='${local_default}',
+        nargs='?',
+        type=bool_truebydefault,
+        const='True',
     )
-    parser.add_argument(
-        '-v', '--version',
-        help='print version info',
+    add_parser_argument(
+        'pure-python',
+        group_build,
+        help=(
+            'if True, run in pure Python mode. '
+            'Defaults to ${pure_python_default}.'
+        ),
+        default=${pure_python_default},
+        nargs='?',
+        type=bool_truebydefault,
+        const='True',
+    )
+    add_parser_argument(
+        'build',
+        group_build,
+        help='build directory to use',
+        default='${build_default}',
+        shortname=True,
+    )
+    add_parser_argument(
+        'rebuild',
+        group_build,
+        help=(
+            'specify whether to rebuild the code before running it. '
+            'By default the code is build if any of the source files '
+            'have been changed since the last build.'
+        ),
+        default='${rebuild_default}',
+        nargs='?',
+        type=bool_or_empty,
+        const='True',
+    )
+    add_parser_argument(
+        'optimizations',
+        group_build,
+        help=(
+            'if True, enables compiler optimizations. '
+            'Defaults to ${optimizations_default}.'
+        ),
+        default='${optimizations_default}',
+        nargs='?',
+        type=bool_truebydefault,
+        const='True',
+    )
+    add_parser_argument(
+        'linktime-optimizations',
+        group_build,
+        help=(
+            'if True, allows the compiler to make use of '
+            'link time optimizations. '
+            'Defaults to ${linktime_optimizations_default}.'
+        ),
+        default='${linktime_optimizations_default}',
+        nargs='?',
+        type=bool_truebydefault,
+        const='True',
+    )
+    add_parser_argument(
+        'native-optimizations',
+        group_build,
+        help=(
+            'if True, allows the compiler to generate non-portable '
+            'code optimized specifically for this machine. '
+            'Defaults to ${native_optimizations_default}.'
+        ),
+        default='${native_optimizations_default}',
+        nargs='?',
+        type=bool_truebydefault,
+        const='True',
+    )
+    add_parser_argument(
+        'safe-build',
+        group_build,
+        help=(
+            'if False, dependencies between modules will be ignored '
+            'when building. Defaults to ${safe_build_default}.'
+        ),
+        default=${safe_build_default},
+        nargs='?',
+        type=bool_truebydefault,
+        const='True',
+    )
+    # Special
+    group_special = parser.add_argument_group('specials')
+    add_parser_argument(
+        'tests',
+        group_special,
+        help=(
+            'run tests TESTS. TESTS can be one or more of the '
+            'subdirectories within the test directory. '
+            'Use TESTS=all to run all tests.'
+        ),
+        default='${tests_default}',
+        shortname=True,
+        nargs='+',
+    )
+    add_parser_argument(
+        'main',
+        group_special,
+        help=(
+            'entry point of the program. '
+            'Can be a Python filename or command.'
+        ),
+        default='${main_default}',
+        shortname=True,
+    )
+    add_parser_argument(
+        'interactive',
+        group_special,
+        help='inspect interactively after program execution',
+        default='${interactive_default}',
+        shortname=True,
+        nargs='?',
+        type=bool_truebydefault,
+        const='True',
+    )
+    add_parser_argument(
+        'version',
+        group_special,
+        help='print version and exit',
         default=False,
+        shortname=True,
         action='store_true',
     )
     return parser
@@ -1158,8 +1282,13 @@ parser = get_parser(add_help=False)
 args, unknown_args = parser.parse_known_args()
 # If a utility is to be used, -h/--help and arguments
 # unknown to this script should be passed on to the utility.
-utility_args = args.utility[1:]
-if args.utility[0] != '${utility_unspecified}':
+utility = args.utility
+utility_args = ['${utility_default}']
+if isinstance(args.utility, list):
+    utility = args.utility[0]
+    if len(args.utility) > 1:
+        utility_args = args.utility[1:]
+if utility != '${utility_default}':
     utility_args += unknown_args
 else:
     # No utility should be used. Parse again,
@@ -1176,30 +1305,44 @@ def python_list2bash_array(lst):
     ) + \"'\")
 # Print out the arguments.
 # These will be captured in the Bash 'args' variable
-print('; '.join([
+print(' ;:; '.join([
     \"argparse_finished=True\",
     \"build='{}'\".format(str(args.build).replace(\"'\", '\"')),
-    \"command_line_params='{}'\".format(' ; '.join(args.command_line_params).replace(\"'\", '\"')),
+    \"command_line_params='{}'\".format(
+        '\\n'.join([
+            arg for arg in args.command_line_params if arg.strip()
+        ]).replace(\"'\", '\"')
+    ),
     \"interactive={}\".format(args.interactive),
-    \"job_directive='{}'\".format(' ; '.join(args.job_directive).replace(\"'\", '\"')),
+    \"job_directive='{}'\".format(
+        ' ; '.join([
+            arg for arg in args.job_directive if arg.strip(' ;')
+        ]).replace(\"'\", '\"')
+    ),
     \"main='{}'\".format(str(args.main).replace(\"'\", '\"')),
     \"memory='{}'\".format(args.memory),
     \"nprocs={}\".format(args.nprocs),
-    \"param='{}'\".format(args.params),
+    \"param='{}'\".format(args.param),
     \"queue='{}'\".format(args.queue),
-    \"test='{}'\".format(args.tests),
-    \"utility='{}'\".format(args.utility[0]),
-    \"utility_args={}\".format(python_list2bash_array(utility_args)),
+    \"tests='{}'\".format(
+        ';'.join([
+            arg for arg in args.tests if arg.strip(' ;')
+        ]).replace(\"'\", '\"')
+    ),
+    \"utility='{}'\".format(utility),
+    \"utility_args={}\".format(python_list2bash_array(
+        [arg for arg in utility_args if arg.strip()]
+    )),
     \"walltime={}\".format(args.walltime),
-    \"jobname='{}'\".format(args.job_name),
+    \"job_name='{}'\".format(args.job_name),
     \"local={}\".format(args.local),
+    \"optimizations={}\".format(args.optimizations),
+    \"linktime_optimizations={}\".format(args.linktime_optimizations),
     \"native_optimizations={}\".format(args.native_optimizations),
-    \"no_lto={}\".format(args.no_lto),
-    \"no_optimizations={}\".format(args.no_optimizations),
-    \"no_watching={}\".format(args.no_watching),
-    \"pure_python={}\".format(args.pure_python),
     \"rebuild={}\".format(args.rebuild),
-    \"unsafe_building={}\".format(args.unsafe_building),
+    \"safe_build={}\".format(args.safe_build),
+    \"pure_python={}\".format(args.pure_python),
+    \"watch={}\".format(args.watch),
     \"version={}\".format(args.version),
 ]))
 " "$@" || echo "argparse_exit_code=$?")
@@ -1220,10 +1363,27 @@ fi
 # Print version info and exit, if requested
 if [ "${version}" == "True" ]; then
     "${concept}" -m 'import commons; print(commons.__version__)' \
-        --local --pure-python | tail -n 1
+        --pure-python --local | tail -n 1
     trap : 0
     exit 0
 fi
+
+# Export command-line arguments as environment variables
+while read arg; do
+    arg_name="${arg%%=*}"
+    arg_val="${arg#*=}"
+    arg_val="$(printf "${arg_val}")"  # expand \n
+    eval "arg_val=${arg_val}"
+    if [ "${arg_name}" == "utility" ]; then
+        # If a utility is specified by the path to the corresponding
+        # executable, reduce this to the utility name only.
+        arg_val="$(basename "${arg_val}" || :)"
+    fi
+    eval "export CONCEPT_${arg_name}=\${arg_val}"
+done <<< "$("${python}" -B -c "
+for arg in '''${args}'''.split(';:;'):
+    print(arg.strip().replace('\n', r'\\\\n'))
+")"
 
 # Display warning if a build directory is selected
 # while running in pure Python mode.
@@ -1233,7 +1393,7 @@ as running in pure Python mode" "red"
 fi
 
 # Display warning if the requested memory is below one megabyte
-if [ ${memory} -gt 0 ] && [ ${memory} -lt 1048576 ]; then
+if [ "${memory}" != "${memory_default}" ] && [ ${memory} -lt 1048576 ]; then
     colorprint "Warning: The requested memory is below 1 MB. \
 Have you forgotten to specify the unit?" "red"
 fi
@@ -1257,77 +1417,37 @@ build="$(absolute_path "${build}")"
 if [ "${main_as_command}" == "False" ]; then
     main="$(absolute_path "${main}")"
 fi
-if [ "${param}" != "${param_unspecified}" ]; then
+if [ "${param}" != "${param_default}" ]; then
     param_ori="${param}"
     param="$(absolute_path "${param}")"
     if [ ! -f "${param}" ] && [ -f "${param_dir}/${param_ori}" ]; then
         param="${param_dir}/${param_ori}"
     fi
 fi
-if [ "${test}" != "${test_unspecified}" ] && [ "${test}" != "all" ]; then
-    if [[ "${test}" == *"/run" ]]; then
-        test="$(dirname "${test}")"
-    fi
-    test="${test_dir}/$(basename "${test}")"
+if [ "${tests}" != "${tests_default}" ]; then
+    IFS=';' read -ra tests_arr <<< "${tests}"
+    tests=""
+    sep=""
+    for test in "${tests_arr[@]}"; do
+        if [[ "${test}" == *"/run" ]]; then
+            test="$(dirname "${test}")"
+        fi
+        if [ "${test}" != "all" ]; then
+            test="${test_dir}/$(basename "${test}")"
+        fi
+        tests="${tests}${sep}${test}"
+        sep=";"
+    done
 fi
-if [ "${utility}" != "${utility_unspecified}" ]; then
+if [ "${utility}" != "${utility_default}" ]; then
     utility="${util_dir}/$(basename "${utility}")"
 fi
-
-# Function for doing fuzzy comparisons between
-# illegal concept options and possible correct ones.
-concept_options=("$@")
-suggest_correct_invocation() {
-    # First argument: The illegal option
-    # Second argument: The option type ('test' or 'utility')
-    illegal_option="$(basename "$1")"
-    invocation="$0"
-    for arg in "${concept_options[@]}"; do
-        if [ "${replace_next}" == "True" ]; then
-            invocation="${invocation} __replace__"
-            replace_next="False"
-        else
-            invocation="${invocation} ${arg}"
-        fi
-        if ([ "$2" == "test" ] && (        \
-               [ "${arg}" == "-t"      ]   \
-            || [ "${arg}" == "--test"  ]   \
-            || [ "${arg}" == "--tests" ]   \
-        )) || ([ "$2" == "utility" ] && (  \
-               [ "${arg}" == "-u"        ] \
-            || [ "${arg}" == "--util"    ] \
-            || [ "${arg}" == "--utility" ] \
-        )); then
-            replace_next="True"
-        fi
-    done
-    "${python}" -B -c "
-import difflib, shutil, os
-if '$2' == 'test':
-    files = os.listdir('${test_dir}')
-    possibilities = [file for file in files if os.path.isdir('${test_dir}/' + file)]
-elif '$2' == 'utility':
-    files = os.listdir('${util_dir}')
-    possibilities = [file for file in files if shutil.which('${util_dir}/' + file)]
-max_ratio = 0
-for possibility in possibilities:
-    ratio = max([
-        difflib.SequenceMatcher(a='${illegal_option}', b=possibility).ratio(),
-        difflib.SequenceMatcher(a='${illegal_option}'.lower(), b=possibility.lower()).ratio(),
-    ])
-    if ratio > max_ratio:
-        max_ratio = ratio
-        closest_match = possibility
-if max_ratio > 0.01:
-    print('Did you mean:\n${invocation}'.replace('__replace__', closest_match))
-                   "
-}
 
 # Use the main.{py/so} of the build instead of the source.
 # Error out if neither path exists. If a utility is to be run,
 # do not do this now, but wait until this script is called back
 # from the utility.
-if [ "${main_as_command}" == "False" ] && [ "${utility}" == "${utility_unspecified}" ]; then
+if [ "${main_as_command}" == "False" ] && [ "${utility}" == "${utility_default}" ]; then
     main_ori="${main}"
     main_missing=0
     for i in 0 1; do
@@ -1360,7 +1480,7 @@ if [ "${main_as_command}" == "False" ] && [ "${utility}" == "${utility_unspecifi
 fi
 
 # Do the supplied paths exist?
-if [ "${param}" != "${param_unspecified}" ] && [ ! -f "${param}" ]; then
+if [ "${param}" != "${param_default}" ] && [ ! -f "${param}" ]; then
     if [ -d "${param}" ]; then
         colorprint "Error: Parameter file \"${param}\" is a directory" "red"
     else
@@ -1368,33 +1488,27 @@ if [ "${param}" != "${param_unspecified}" ] && [ ! -f "${param}" ]; then
     fi
     exit 1
 fi
-if [ "${test}" != "${test_unspecified}" ] && [ "${test}" != "all" ] && [ ! -d "${test}" ]; then
-    if [ -f "${test}" ]; then
-        colorprint "Error: Test \"${test}\" is a file but should be a directory" "red"
-    else
-        colorprint "Error: Test \"${test}\" does not exist" "red"
-    fi
-    # Suggest closest match
-    suggest_correct_invocation "${test}" "test"
-    exit 1
+if [ "${tests}" != "${tests_default}" ]; then
+    IFS=';' read -ra tests_arr <<< "${tests}"
+    for test in "${tests_arr[@]}"; do
+        if [ "${test}" == "all" ] || [ -d "${test}" ]; then
+            continue
+        fi
+        if [ -f "${test}" ]; then
+            colorprint "Error: Test \"${test}\" is a file but should be a directory" "red"
+        else
+            colorprint "Error: Test \"${test}\" does not exist" "red"
+        fi
+        exit 1
+    done
 fi
-if [ "${utility}" != "${utility_unspecified}" ] && [ ! -f "${utility}" ]; then
+if [ "${utility}" != "${utility_default}" ] && [ ! -f "${utility}" ]; then
     if [ -d "${utility}" ]; then
         colorprint "Error: Utility \"${utility}\" is a directory" "red"
     else
         colorprint "Error: Utility \"${utility}\" does not exist" "red"
     fi
-    # Suggest closest match
-    suggest_correct_invocation "${utility}" "utility"
     exit 1
-fi
-
-# Assigned values to unspecified options
-if [ "${nprocs}" == "${nprocs_unspecified}" ]; then
-    nprocs="${nprocs_default}"
-fi
-if [ "${param}" == "${param_unspecified}" ]; then
-    param="${param_default}"
 fi
 
 # Check for syntax errors in supplied parameter file.
@@ -1412,12 +1526,13 @@ ast.parse(source)
         exit 1
     fi
 fi
+
 # Check for syntax errors in supplied command-line parameters.
 # Other types of errors will not be detected before runtime.
 if [ -n "${command_line_params}" ]; then
     command_line_params_traceback="$("${python}" -B -c "
 import ast
-source = '${command_line_params}'
+source = '''${command_line_params}'''
 ast.parse(source)
 " 2>&1 || :)"
     if [ -n "${command_line_params_traceback}" ]; then
@@ -1434,78 +1549,48 @@ fi
 # Determine whether to run CO𝘕CEPT locally or remotely (via some
 # resource manager). Always treat tests as if they were run locally.
 remote="False"
-if     [ "${local}" == "False"               ] \
-    && [ "${test}"  == "${test_unspecified}" ] \
-    && [ "${ssh}"   == "True"                ]; then
+if     [ "${local}" == "False"            ] \
+    && [ "${tests}" == "${tests_default}" ] \
+    && [ "${ssh}"   == "True"             ]; then
     remote="True"
 fi
 
-# If a test is to be run, run it and exit
-if [ "${test}" != "${test_unspecified}" ]; then
-    # Function for running a test, completely containing it within an
-    # artifact subdirectory.
-    run_test() {
-        test_name="$1"
-        test_name="$(basename "${test_name}")"
-        artifact_dir="${test_dir}/${test_name}/artifact"
+# If tests are to be run, run them and exit
+if [ "${tests}" != "${tests_default}" ]; then
+    # Function for running a single test, completely containing it
+    # within an artifact subdirectory.
+    run_test_specific() {
+        test="$1"
+        test="$(basename "${test}")"
+        start_time_test=$("${python}" -B -c "import time; print(time.time())")
+        colorprint "\nRunning ${test} test" "yellow"
+        artifact_dir="${test_dir}/${test}/artifact"
         rm -rf "${artifact_dir}"
         mkdir "${artifact_dir}"
-        for f in "${test_dir}/${test_name}/"*; do
+        for f in "${test_dir}/${test}/"*; do
             if [ "${f}" == "${artifact_dir}" ]; then
                 continue
             fi
             cp -r "${f}" "${artifact_dir}/"
         done
         "${artifact_dir}/run"
+        test_check_err_logs
+        colorprint "${test} test ran successfully" "green"
+        # Print out the execution time for this test
+        "${mpiexec}" -n 1 "${python}" -B -c "from commons import *
+print('Total execution time: {}'.format(time_since(${start_time_test})))"
     }
-    # Function which can extract parameters from the parameter file
-    # given by "${this_dir}/param". This is used by some tests.
-    get_param() {
-        "${concept}"                              \
-            -c="${command_line_params}"           \
-            -m="
-from commons import *
-${2}
-try:
-    print('param_var =', ${1})
-except NameError:
-    print('param_var =', user_params['''${1}'''])
-"                                                 \
-            -n=1                                  \
-            -p="${this_dir}/param"                \
-            --local                               \
-            --pure-python                         \
-        | grep "param_var"                        \
-        | tail -n 1                               \
-        | sed 's/^.\{12\}//'
-    }
-    # If the job directory is clean,
-    # we count any generated *_err file as a test failure.
-    test_check_err_logs() { :; }
-    if [ ! -d "${job_dir}" ] || [ -z "$(ls "${job_dir}")" ]; then
-        test_check_err_logs() {
-            if ls "${job_dir}/"*/log_err >/dev/null 2>&1; then
-                colorprint "It looks like ${test_name} test generated error messages.\n\
-This is counted as a test failure." "red"
-                exit 1
-            fi
-        }
-    fi
-    # Enable warnings that are ignored by default.
-    # We do this in order to get notified about deprecated code usage.
-    # Due to the above test_check_err_logs(), any such warning will
-    # lead to test failure if starting with an empty job directory.
-    if [ -z "${PYTHONWARNINGS}" ]; then
-        export PYTHONWARNINGS=default
-    fi
-    # Do the test(s)
-    if [ "${test}" == "all" ]; then
-        # Find and run all tests
-        tests="$(cd "${test_dir}" && "${python}" -B -c "
+    # Function for running given test (including "all"),
+    # with time measurements added.
+    run_test() {
+        test="$1"
+        if [ "${test}" == "all" ]; then
+            # Find and run all tests
+            tests_all="$(cd "${test_dir}" && "${python}" -B -c "
 from glob import glob
 # List tests in order of required execution.
 # Tests not included here will be run last.
-order = (
+order = [
     # Test whether the code is able to compile and run
     'basic',
     # Tests of the CLASS installation,
@@ -1556,44 +1641,92 @@ order = (
     # Tests of other functionality
     'classutil',
     'render',
-)
-# Find all tests (directories in ${test_dir}).
+]
+# Find all tests (directories in test_dir).
 # Skip test if its (directory) name has a leading underscore.
-tests = (dir[:-1] for dir in glob('*/') if not dir.startswith('_'))
+tests = (dir.rstrip('/') for dir in glob('*/') if not dir.startswith('_'))
 # Sort the tests based on the order given above
-sorted_tests = sorted(tests, key=lambda test: order.index(test) if test in order else len(order))
+sorted_tests = sorted(
+    tests,
+    key=(lambda test: (order.index(test), test) if test in order else (len(order), test)),
+)
 for test in sorted_tests:
     print(test)
-"              )"
-        # Run all tests in the test directory
-        printf "\nThe following tests will be run in order:\n"
-        for test_name in ${tests}; do
-            echo "    ${test_name}"
-        done
-        echo
-        (cd "${concept_dir}" && make clean-test)
-        for test_name in ${tests}; do
-            start_time_test=$("${python}" -B -c "import time; print(time.time())")
-            colorprint "\nRunning ${test_name} test" "yellow"
-            run_test "${test_name}"
-            test_check_err_logs
-            colorprint "${test_name} test ran successfully" "green"
-            # Print out the execution time for this test
-            "${mpiexec}" -n 1 "${python}" -B -c "from commons import *
-print('Total execution time: {}'.format(time_since(${start_time_test})))"
-        done
-        colorprint "\nAll tests ran successfully" "green"
-    else
-        # Run specific test
-        test_name="$(basename "${test}")"
-        colorprint "\nRunning ${test_name} test" "yellow"
-        run_test "${test}"
-        test_check_err_logs
-        colorprint "${test_name} test ran successfully" "green"
+"
+            )"
+            # Run all tests in the test directory
+            printf "\nThe following tests will be run in order:\n"
+            for test in ${tests_all}; do
+                echo "    ${test}"
+            done
+            echo
+            (cd "${concept_dir}" && make clean-test)
+            for test in ${tests_all}; do
+                run_test_specific "${test}"
+            done
+            colorprint "\nAll tests ran successfully" "green"
+        else
+            # Run specific test
+            run_test_specific "${test}"
+        fi
+    }
+    # Function which can extract parameters from the parameter file
+    # given by "${this_dir}/param". This is used by some tests.
+    get_param() {
+        "${concept}"                              \
+            -n=1                                  \
+            -p="${this_dir}/param"                \
+            -c="${command_line_params}"           \
+            -m="
+from commons import *
+${2}
+try:
+    print('param_var =', ${1})
+except NameError:
+    print('param_var =', user_params['''${1}'''])
+"                                                 \
+            --pure-python                         \
+            --local                               \
+        | grep "param_var"                        \
+        | tail -n 1                               \
+        | sed 's/^.\{12\}//'
+    }
+    # If the job directory is clean,
+    # we count any generated *_err file as a test failure.
+    test_check_err_logs() { :; }
+    if [ ! -d "${job_dir}" ] || [ -z "$(ls "${job_dir}")" ]; then
+        test_check_err_logs() {
+            if ls "${job_dir}/"*/log_err >/dev/null 2>&1; then
+                colorprint "It looks like ${test} test generated error messages.\n\
+This is counted as a test failure." "red"
+                exit 1
+            fi
+        }
     fi
-    # Print out the total time it took to run the test(s)
-    "${mpiexec}" -n 1 "${python}" -B -c "from commons import *
+    # Unset the tests environment variable so that subprocesss are free
+    # to perform the actual testing (otherwise we get stuck in the
+    # current initializing phase).
+    unset CONCEPT_tests
+    # Ensure that the testing is carried out locally
+    export CONCEPT_local="True"
+    # Enable warnings that are ignored by default.
+    # We do this in order to get notified about deprecated code usage.
+    # Due to the above test_check_err_logs(), any such warning will
+    # lead to test failure if starting with an empty job directory.
+    if [ -z "${PYTHONWARNINGS}" ]; then
+        export PYTHONWARNINGS=default
+    fi
+    # Do the test(s)
+    IFS=';' read -ra tests_arr <<< "${tests}"
+    for test in "${tests_arr[@]}"; do
+        run_test "${test}"
+    done
+    # If several tests have been run,
+    # print out the total time it took to run them all.
+    if [ "${test}" == "all" ] || [ ${#tests_arr[@]} -gt 1 ]; then
+        "${mpiexec}" -n 1 "${python}" -B -c "from commons import *
 print('Total execution time: {}'.format(time_since(${start_time_epoch})))"
+    fi
     # Deactivate traps and exit
     trap : 0
     exit 0
@@ -1605,47 +1738,242 @@ if [ "${remote}" == "True" ] && [ "${interactive}" == "True" ]; then
     exit 1
 fi
 
+# Function implementing functionality common to many utilities,
+# typically involving some processing of snapshots.
+launch_utility() {
+    # Arguments: Product name (singular), product name (plural),
+    # yes to defaults, default utility parameters, paths.
+    local product_singular="$1"
+    local product_plural="$2"
+    local yes_to_defaults="$3"
+    local utility_params="$4"
+    local utility_params_closing="$5"
+    local paths=("${@:6}")
+    extract_info() {
+        local text="$1"
+        local pattern="$2"
+        "${python}" -B -c                                                        \
+            "import re; print(re.search(r'${pattern}', '''${text}''').group(1))" \
+            2>/dev/null                                                          \
+        || :
+    }
+    # Read in user-supplied parameters
+    user_params=""
+    if [ "${param}" != "${param_default}" ]; then
+        user_params="$(cat "${param}")"
+    fi
+    # Get filenames of snapshots and create matching
+    # (temporary) parameter files.
+    snapshot_param_fake="${tmp_dir}/param/${start_time_human_nosep}/${CONCEPT_utility}/None"
+    if [ ${#paths[@]} -gt 0 ]; then
+        # Convert to absolute paths
+        for i in ${!paths[@]}; do
+            paths[${i}]="$(absolute_path "${paths[${i}]}" "${workdir}")"
+        done
+        # Get filenames
+        info="$(                                                                       \
+            "${concept}"                                                               \
+                -u=info                                                                \
+                    "$(bash_array2python_list "${paths[@]}")"                          \
+                    --generate-param="${tmp_dir}/param/${start_time_human_nosep}/info" \
+                --local                                                                \
+        )"
+        snapshot_filenames="$(echo "${info}" | grep -x 'Parameters.*' | grep -o '".*"')"
+        snapshot_param_filenames="$(                                 \
+            echo "${info}"                                           \
+            | grep -x 'The above parameters have been written to .*' \
+            | grep -o '".*"'                                         \
+        )"
+        snapshot_param_filenames="${snapshot_param_filenames//\"/}"
+        # Print out the snapshots which will be processed
+        n_snapshots="$(echo "${snapshot_filenames}" | wc -l)"
+        if [ ${n_snapshots} == 1 ]; then
+            echo "${product_singular} will be produced of the following snapshot:"
+        else
+            echo "${product_plural} will be produced of the following snapshots:"
+        fi
+        echo "${snapshot_filenames}"
+        # Spawning many simultaneous remote jobs which read in snapshots
+        # can put the file system under a lot of stress.
+        # If several snapshots are to be processed remotely,
+        # prompt the user for confirmation.
+        if [ "${remote}" == "True" ] && [ ${n_snapshots} -gt 1 ]; then
+            if [ "${yes_to_defaults}" == "True" ]; then
+                printf "\nA job will be submitted for each snapshot\n"
+            else
+                while :; do
+                    read -p "
+Simultaneous submission of many jobs which read from disk
+may put the file system under severe stress.
+Would you like to submit a job for each
+of the above snapshots anyway? [Y/n] " yn
+                    case "${yn}" in
+                        [Yy]*)
+                            break
+                            ;;
+                        [Nn]*)
+                            trap : 0
+                            exit 0
+                            ;;
+                        "")
+                            break
+                            ;;
+                        *)
+                            ;;
+                    esac
+                done
+            fi
+        fi
+    else
+        # No paths given. Run CO𝘕CEPT once.
+        n_snapshots=1
+        snapshot_filenames="'None'"
+        snapshot_param_filenames="${snapshot_param_fake}"
+    fi
+    # Run the CO𝘕CEPT code for each snapshot
+    utility_param_dirname="${tmp_dir}/param/${start_time_human_nosep}/${CONCEPT_utility}"
+    mkdir -p "${utility_param_dirname}"
+    jobids=()
+    for ((i = 1; i <= n_snapshots; i += 1)); do
+        # Filename of the parameter file to create and use
+        utility_param="${utility_param_dirname}/$((i - 1))"
+        # Get the i'th snapshot and generated parameter file
+        snapshot_filename="$(echo "${snapshot_filenames}"       | sed "${i}q;d")"
+        snapshot_param="$(echo    "${snapshot_param_filenames}" | sed "${i}q;d")"
+        # Make temporary parameter file with everything needed
+        echo "
+##################
+# Utility header #
+##################
+# Set the path to the parameter file to be the path to the actual
+# parameter file specified by the user, not this auto-generated
+# parameter file.
+_param_ori, param = param, type(param)('${param}')
+
+#########################################################
+# Parameters deduced from snapshot ${snapshot_filename} #
+#########################################################
+$([ "${snapshot_param}" == "${snapshot_param_fake}" ] || cat "${snapshot_param}")
+# Record the scale factor and boxsize
+try:
+    _a_begin = a_begin
+except NameError:
+    _a_begin = None
+try:
+    _boxsize = boxsize
+except NameError:
+    _boxsize = None
+
+#########################################
+# ${CONCEPT_utility} utility parameters #
+#########################################
+${utility_params}
+special_params['snapshot_filename'] = ${snapshot_filename}
+
+############################
+# User-supplied parameters #
+############################
+${user_params}
+
+##################
+# Utility footer #
+##################
+# Reinsert original path to the parameter file
+param = _param_ori
+# Use scale factor and boxsize from snapshot
+if _a_begin is not None:
+    a_begin = _a_begin
+if _boxsize is not None:
+    boxsize = _boxsize
+
+#################################################
+# ${CONCEPT_utility} closing utility parameters #
+#################################################
+${utility_params_closing}
+" > "${utility_param}"
+        # Cleanup
+        rm -f "${snapshot_param}"
+        # Run CO𝘕CEPT to process the snapshot.
+        # Submitted jobs should not be watched at this time.
+        # Capture the jobid and exit code.
+        exec 4>&1
+        jobid_and_exit_code="$(                \
+            "${concept}"                       \
+                -p "${utility_param}"          \
+                --watch=False                  \
+            | tee >(cat >&4)                   \
+            | grep "^Job "                     \
+            | head -n 1                        \
+            ; echo "exit_code${PIPESTATUS[0]}" \
+        )"
+        exec 4>&-
+        exit_code="$(extract_info "${jobid_and_exit_code}" "exit_code(\d+)")"
+        if [ -z "${exit_code}" ]; then
+            colorprint "Error capturing exit code" "red"
+            exit 1
+        elif [ ${exit_code} != 0 ]; then
+            exit ${exit_code}
+        fi
+        jobid="$(extract_info "${jobid_and_exit_code}" "Job .*?(\d+)")"
+        jobids=("${jobids[@]}" "${jobid}")
+        # Cleanup
+        if [ "${remote}" == "False" ] || [ -n "${jobid}" ]; then
+            rm -f "${utility_param}"
+        fi
+    done
+    # Cleanup
+    rm -rf "${utility_param_dirname}" || :
+    # Deactivate traps before watching jobs and/or exiting
+    trap : 0
+    # Watch remotely submitted jobs in submission order
+    any_jobs="False"
+    for jobid in "${jobids[@]}"; do
+        if [ -n "${jobid}" ]; then
+            any_jobs="True"
+            break
+        fi
+    done
+    if [ "${remote}" == "True" ] && [ "${CONCEPT_watch}" == "True" ] && [ "${any_jobs}" == "True" ]; then
+        plural=""
+        if [ ${n_snapshots} -gt 1 ]; then
+            plural="s"
+        fi
+        printf "\nYou can now kill (Ctrl+C) this script without cancelling the job${plural}\n"
+        printf "\nWill now watch the submitted job${plural}\n"
+        for jobid in "${jobids[@]}"; do
+            if [ -n "${jobid}" ]; then
+                "${concept}" -u watch "${jobid}"
+            fi
+        done
+    fi
+    echo
+    # Final message
+    if [ "${remote}" == "False" ] || [ "${CONCEPT_watch}" == "True" ]; then
+        completely_successful="True"
+        for jobid in "${jobids[@]}"; do
+            if  [ -z "${jobid}" ] || [ -f "${job_dir}/${jobid}/log_err" ]; then
+                completely_successful="False"
+            fi
+        done
+        if [ "${completely_successful}" == "True" ]; then
+            colorprint "${CONCEPT_utility} utility finished successfully" "green"
+        else
+            echo "${CONCEPT_utility} utility finished"
+        fi
+    else
+        echo "${CONCEPT_utility} utility finished. Check the submitted job${plural} for results."
+    fi
+}
+
 # If a utility is to be run, run it and exit
-if [ "${utility}" != "${utility_unspecified}" ]; then
+if [ "${utility}" != "${utility_default}" ]; then
     # If no argument was passed after the -u option,
     # utility_args should be empty.
-    if [ "${utility_args}" == '""' ] || [ "${utility_args}" == "''" ]; then
+    if     [ "${utility_args}" == ""   ] \
+        || [ "${utility_args}" == '""' ] \
+        || [ "${utility_args}" == "''" ] \
+    ; then
         utility_args=""
-    fi
-    # Set flag variables for the flag command options,
-    # so that a utility can call this script with the same flags enabled
-    # as was used to invoke this script originally.
-    interactive_flag=""
-    if [ "${interactive}" == "True" ]; then
-        interactive_flag="--interactive"
-    fi
-    local_flag=""
-    if [ "${local}" == "True" ]; then
-        local_flag="--local"
-    fi
-    native_optimizations_flag=""
-    if [ "${native_optimizations}" == "True" ]; then
-        native_optimizations_flag="--native-optimizations"
-    fi
-    no_lto_flag=""
-    if [ "${no_lto}" == "True" ]; then
-        no_lto_flag="--no-lto"
-    fi
-    no_optimizations_flag=""
-    if [ "${no_optimizations}" == "True" ]; then
-        no_optimizations_flag="--no-optimizations"
-    fi
-    no_watching_flag=""
-    if [ "${no_watching}" == "True" ]; then
-        no_watching_flag="--no-watching"
-    fi
-    pure_python_flag=""
-    if [ "${pure_python}" == "True" ]; then
-        pure_python_flag="--pure-python"
-    fi
-    unsafe_building_flag=""
-    if [ "${unsafe_building}" == "True" ]; then
-        unsafe_building_flag="--unsafe-building"
     fi
     # Run utility and exit
     colorprint "\nRunning the $(basename "${utility}") utility" "yellow"
@@ -1692,7 +2020,7 @@ lines = [
     '# The above is a copy of the CO𝘕CEPT parameter file \"${param}\".',
     '# Below we apply any additional command-line parameters.',
 ]
-for statement in '${command_line_params}'.split(';'):
+for statement in '''${command_line_params}'''.split(';'):
     lines.append(statement.strip())
 lines.append('')
 with open('${job_dir}/${jobid}/param', mode='a', encoding='utf-8') as f:
@@ -1727,7 +2055,7 @@ if [ "${remote}" == "True" ]; then
         jobscript_header="$(${python} -B -c "
 directive_prefix = '#SBATCH'
 lines = []
-lines.append(f'{directive_prefix} --job-name=${jobname}')
+lines.append(f'{directive_prefix} --job-name=${job_name}')
 lines.append(f'{directive_prefix} --partition=${queue}')
 if ${nnodes}:
     lines.append(f'{directive_prefix} --nodes=${nnodes}')
@@ -1779,7 +2107,7 @@ and the number of processes per node" "red"
         jobscript_header="$(${python} -B -c "
 directive_prefix = '#PBS'
 lines = []
-lines.append(f'{directive_prefix} -N ${jobname}')
+lines.append(f'{directive_prefix} -N ${job_name}')
 lines.append(f'{directive_prefix} -q ${queue}')
 lines.append(f'{directive_prefix} -l nodes=${nnodes}:ppn=${nprocs_per_node}')
 if ${memory} > 0:
@@ -1899,16 +2227,16 @@ ${mpi_env}
 
 # Variables
 build=\"${build}\"
-jobname=\"${jobname}\"
+job_name=\"${job_name}\"
 main=\"${main}\"
 param=\"${param}\"
 utility=\"${utility}\"
+optimizations=\"${optimizations}\"
+linktime_optimizations=\"${linktime_optimizations}\"
 native_optimizations=\"${native_optimizations}\"
-no_lto=\"${no_lto}\"
-no_optimizations=\"${no_optimizations}\"
-pure_python=\"${pure_python}\"
 rebuild=\"${rebuild}\"
-unsafe_building=\"${unsafe_building}\"
+safe_build=\"${safe_build}\"
+pure_python=\"${pure_python}\"
 main_as_command=\"${main_as_command}\"
 memory_display=\"${memory_display}\"
 queue_display=\"${queue_display}\"
@@ -2007,7 +2335,7 @@ An almost complete job script has been saved to\n\
         exit 1
     fi
     # Only submit if a queue is specified
-    if [ "${queue}" == "${queue_unspecified}" ]; then
+    if [ "${queue}" == "${queue_default}" ]; then
         printf "\nJob not submitted as no queue is specified.\n\
 An almost complete job script has been saved to\n\
 \"${jobscript}\"\n"
@@ -2035,8 +2363,8 @@ An almost complete job script has been saved to\n\
     # Deactivate traps before exiting
     trap : 0
     # Invoke the watch utility on the submitted job
-    # unless --no-watching was supplied.
-    if [ "${no_watching}" == "False" ]; then
+    # unless --watch=False is supplied.
+    if [ "${watch}" == "True" ]; then
         # Invoke the watch utility on the submitted job
         printf "You can now kill (Ctrl+C) this script without cancelling the job\n"
         "${concept}" -u watch "${jobid}"

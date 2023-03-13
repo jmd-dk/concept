@@ -25,11 +25,15 @@ trap 'abort' EXIT
 set -e
 
 # Generate initial conditions
-"${concept}" -n 1 -p "${this_dir}/param" -m "${this_dir}/gen_ic.py" \
-    --pure-python --local
+"${concept}" -n 1              \
+    -p "${this_dir}/param"     \
+    -m "${this_dir}/gen_ic.py" \
+    --pure-python
 
 # Run the CO𝘕CEPT code on the generated initial conditions
-"${concept}" -n 1 -p "${this_dir}/param" --local
+"${concept}"               \
+    -n 1                   \
+    -p "${this_dir}/param"
 
 # Run the GADGET-2 code on the generated initial conditions
 Gadget2_local_dir="${this_dir}/Gadget2"
@@ -44,8 +48,10 @@ cp "${Gadget2_dir}/"* "${Gadget2_local_dir}" 2>/dev/null || :
 )
 
 # Analyse the output snapshots
-"${concept}" -n 1 -p "${this_dir}/param" -m "${this_dir}/analyze.py" \
-    --pure-python --local
+"${concept}" -n 1               \
+    -p "${this_dir}/param"      \
+    -m "${this_dir}/analyze.py" \
+    --pure-python
 
 # Test ran successfully. Deactivate traps.
 trap : 0

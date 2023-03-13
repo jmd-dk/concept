@@ -21,7 +21,7 @@ render3D_1 = plt.imread(render3D_1_path)
 
 # The two identical 3D renders should be exactly equal
 if not np.all(render3D_0 == render3D_1):
-    abort('The 3D renders "{}" and "{}" are not identical!'.format(render3D_0, render3D_1))
+    abort(f'The 3D renders "{render3D_0}" and "{render3D_1}" are not identical!')
 
 # The dimensions of the images should be as stated in
 # render3D.param_0 and render3D.param_1.
@@ -37,18 +37,22 @@ for r, p, param_i in zip(
         masterprint('done')
         abort(
             f'The 3D render "{p}" is not of size '
-            f'{render3D_resolution}x{render3D_resolution}!'
+            f'{render3D_resolution}x{render3D_resolution}'
         )
 
 # There should be some completely black pixels in the first 3D render
 # and some completely white pixels in the second (and third) 3D render
 # due to the text.
 if not np.any(render3D[:, :, :3] > [0.99]*3):
-    abort('The scale factor text do not seem to '
-          'be white on 3D render "{}".'.format(render3D_path))
+    abort(
+        f'The scale factor text do not seem to '
+        f'be white on 3D render "{render3D_path}"'
+    )
 if not np.any(render3D_0[:, :, :3] < [0.01]*3):
-    abort('The scale factor text do not seem to '
-          'be black on 3D render "{}".'.format(render3D_0_path))
+    abort(
+        f'The scale factor text do not seem to '
+        f'be black on 3D render "{render3D_0_path}"'
+    )
 
 # Done analysing
 masterprint('done')

@@ -14,11 +14,13 @@ this_test = os.path.basename(os.path.dirname(this_dir))
 species.allow_similarly_named_components = True
 fluids = []
 times = []
-for fname in sorted(glob(this_dir + '/output/snapshot_t=*'),
-                    key=lambda s: s[(s.index('=') + 1):]):
+for fname in sorted(
+    glob(f'{this_dir}/output/snapshot_t=*'),
+    key=(lambda s: s[(s.index('=') + 1):]),
+):
     snapshot = load(fname, compare_params=False)
     fluids.append(snapshot.components[0])
-    times.append(float(re.search('snapshot_t=(.*)' + unit_time, fname).group(1)))
+    times.append(float(re.search(f'snapshot_t=(.*){unit_time}', fname).group(1)))
 gridsize = fluids[0].gridsize
 N_snapshots = len(fluids)
 # Sort data chronologically
@@ -29,7 +31,7 @@ fluids = [fluids[o] for o in order]
 times = output_times['t']['snapshot']
 
 # Begin analysis
-masterprint('Analysing {} data ...'.format(this_test))
+masterprint(f'Analysing {this_test} data ...')
 
 # Extract hidden parameters
 w = user_params['_w']
@@ -38,7 +40,7 @@ A = user_params['_A']
 ρ0 = user_params['_ρ0']
 
 # Plot
-fig_file = this_dir + '/result.png'
+fig_file = f'{this_dir}/result.png'
 fig, axes = plt.subplots(N_snapshots, sharex=True, sharey=True, figsize=(8, 3*N_snapshots))
 x_values = [boxsize*i/gridsize for i in range(gridsize)]
 ρ = []
@@ -84,20 +86,26 @@ for fluid, t in zip(fluids, times):
                 rel_tol=0,
                 abs_tol=1e+1*machine_ϵ,
             ):
-                abort('Non-uniformities have emerged at t = {} {} '
-                      'in yz-slices of fluid scalar variable {}.\n'
-                      'See "{}" for a visualization.'
-                      .format(t, unit_time, fluidscalar, fig_file))
+                abort(
+                    f'Non-uniformities have emerged at t = {t} {unit_time} '
+                    f'in yz-slices of fluid scalar variable {fluidscalar}.\n'
+                    f'See "{fig_file}" for a visualization.'
+                )
 
 # Compare ρ from the snapshots to the analytical solution
 abs_tol = 1e-2*A
 for ρ_i, ρ_snapshot_i, t in zip(ρ, ρ_snapshot, times):
-    if not isclose(np.mean(abs(ρ_i - ρ_snapshot_i)), 0,
-                   rel_tol=0,
-                   abs_tol=abs_tol):
-        abort('Fluid evolution differs from the analytical solution at t = {} {}.\n'
-              'See "{}" for a visualization.'
-              .format(t, unit_time, fig_file))
+    if not isclose(
+        np.mean(abs(ρ_i - ρ_snapshot_i)),
+        0,
+        rel_tol=0,
+        abs_tol=abs_tol,
+    ):
+        abort(
+            f'Fluid evolution differs from the analytical solution '
+            f'at t = {t} {unit_time}.\n'
+            f'See "{fig_file}" for a visualization.'
+        )
 
 # Done analysing
 masterprint('done')
