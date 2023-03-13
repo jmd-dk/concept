@@ -53,6 +53,7 @@ import interactions
     bottleneck=str,
     component='Component',
     components=list,
+    rhs_evals=list,
     dump_index='Py_ssize_t',
     dump_time=object,  # collections.namedtuple
     dump_times=list,
@@ -103,6 +104,9 @@ def timeloop():
 
     # Initialize Tensor Perturbations
     tensor_perturbations = TensorComponent(gridsize=64)
+    rhs_evals = [TensorComponent(gridsize=64), TensorComponent(gridsize=64),
+                 TensorComponent(gridsize=64), TensorComponent(gridsize=64),
+                 TensorComponent(gridsize=64)]
 
     # Check if an autosaved snapshot exists for the current
     # parameter file. If not, the initial_time_step will be 0.
@@ -172,11 +176,20 @@ def timeloop():
     initial_fac_times.add(universals.t)
     Δt_max, bottleneck = get_base_timestep_size(components, static_timestepping_func)
     Δt_begin = Δt_max
+
+
+    ########################################################################
+    ###   I commented this out because I don't want this functionality   ###
+    ########################################################################
+
     # We always want the simulation time span to be at least
     # one whole Δt_period long.
-    timespan = dump_times[len(dump_times) - 1].t - universals.t
-    if Δt_begin > timespan/Δt_period:
-        Δt_begin = timespan/Δt_period
+    #timespan = dump_times[len(dump_times) - 1].t - universals.t
+    #if Δt_begin > timespan/Δt_period:
+    #    Δt_begin = timespan/Δt_period
+
+
+
     # We need at least a whole base time step before the first dump
     if Δt_begin > dump_times[0].t - universals.t:
         Δt_begin = dump_times[0].t - universals.t
@@ -218,11 +231,12 @@ def timeloop():
             ###   THIS IS THE MOST IMPORTANT PART WE MUST SYNCHRONIZE CORRECTLY   ###
             #########################################################################
 
-            if universals.t + Δt < dump_time.t:
-                sync_time = universals.t + Δt
-            else:
-                sync_time = dump_time.t
+            sync_time = universals.t + Δt
             Δt = sync_time - universals.t
+
+            masterprint('Current at time: ', universals.t)
+            masterprint('Advancing to time: ', sync_time)
+            masterprint('Next Snapshot at: ', dump_time.t)
 
             ###########################################################################
             ###   We are now always performing a full Kick-Drift-Kick               ###
@@ -265,6 +279,14 @@ def timeloop():
                 Δt_print = sync_time - universals.t
 
             print_timestep_heading(time_step, Δt_print, bottleneck, components)
+
+            ###################################################################
+            ###   Perform the Predictor Step for the Tensor Perturbations   ###
+            ###################################################################
+
+            masterprint('Computing Predictor Step for Tensor Perturbations')
+            rhs_evals[3].source(tensor_perturbations, components)
+            tensor_perturbations.update(rhs_evals[:4], Δt)
 
             ########################################################################
             ###   We are modifying to kick-drift-kick so that everything is      ###
@@ -341,6 +363,20 @@ def timeloop():
                 universals.t = sync_time
             universals.a = scale_factor(universals.t)
 
+            ###################################################################
+            ###   Perform the Corrector Step for the Tensor Perturbations   ###
+            ###################################################################
+
+            masterprint('Computing Corrector Step for Tensor Perturbations')
+            rhs_evals[4].source(tensor_perturbations, components)
+            tensor_perturbations.update(rhs_evals, Δt)
+
+            ###############################
+            ###   Clean the RHS Evals   ###
+            ###############################
+
+            rhs_evals = [TensorComponent(gridsize=64)] + rhs_evals[1:4] + [TensorComponent(gridsize=64)]
+
             ############################################################################
             ###   If we set our sync_time correctly, these states are synchronized   ###
             ###   The next loop iteration then begin with an init step               ###
@@ -366,7 +402,7 @@ def timeloop():
                                 autosave_time = time()
 
             # If we are at a dump time, do the dump
-            if universals.t == dump_time.t:
+            if universals.t + Δt_reltol*Δt + 2*machine_ϵ > dump_time.t:
                 # Handle if a new component was activated
                 if dump(components, tensor_perturbations, output_filenames, dump_time, Δt):
                     initial_fac_times.add(universals.t)

@@ -42,6 +42,9 @@ cimport(
     '    species_canonical, species_registered,    '
 )
 
+cimport('from mesh import convert_particles_to_fluid')
+
+
 
 
 # Class which serves as the data structure for fluid variables,
@@ -970,7 +973,28 @@ class TensorField:
             fluidscalar= self.fluidvar[multi_index]
             communicate_ghosts(fluidscalar.grid_mv, operation)
 
+    # Method for adding the grids together
+    @cython.pheader(
+        rhs = object,
+        Δt = 'double',
+        weight = 'double',
+        field_ptr = 'double*',
+        source_ptr = 'double*',
+        index='Py_ssize_t',
+        multi_index=object,
+        field_scalar = 'FluidScalar',
+        source_scalar = 'FluidScalar',
+    )
+    def add(self, rhs, weight):
+        for multi_index in self.fluidvar.multi_indices:
+            field_scalar = self.fluidvar[multi_index]
+            source_scalar = rhs[multi_index]
 
+            field_ptr = field_scalar.grid
+            source_ptr = source_scalar.grid
+
+            for index in range(self.size):
+                field_ptr[index] += source_ptr[index]*weight
 
 @cython.cclass
 class TensorComponent:
@@ -982,7 +1006,6 @@ class TensorComponent:
         # Arguments
         gridsize='Py_ssize_t',
     )
-
     def __init__(self, *, gridsize=64):
         """
         public Py_ssize_t gridsize
@@ -993,6 +1016,74 @@ class TensorComponent:
         self.gridsize = gridsize
         self.u = TensorField(gridsize=gridsize)
         self.du = TensorField(gridsize=gridsize)
+
+    @cython.pheader( 
+        # Arguments
+        rhs_evals='object',
+        Δt='double'
+    )
+    def update(self, rhs_evals, Δt):
+        if len(rhs_evals) == 4:
+            self.adams_bashforth(rhs_evals, Δt)
+        else:
+            self.adams_moulton(rhs_evals, Δt)
+
+    @cython.header( 
+        # Arguments
+        rhs_evals='object',
+        Δt='double'
+    )
+    def adams_bashforth(self, rhs_evals, Δt):
+        self.u.add(rhs_evals[0].u.fluidvar, Δt * -9./24.)
+        self.u.add(rhs_evals[1].u.fluidvar, Δt * 37./24.)
+        self.u.add(rhs_evals[2].u.fluidvar, Δt * -59./24.)
+        self.u.add(rhs_evals[3].u.fluidvar, Δt * 55./24.)
+        self.u.communicate_fluid_grids('=')
+
+        self.du.add(rhs_evals[0].du.fluidvar, Δt * -9./24.)
+        self.du.add(rhs_evals[1].du.fluidvar, Δt * 37./24.)
+        self.du.add(rhs_evals[2].du.fluidvar, Δt * -59./24.)
+        self.du.add(rhs_evals[3].du.fluidvar, Δt * 55./24.)
+        self.du.communicate_fluid_grids('=')
+
+    @cython.header( 
+        # Arguments
+        rhs_evals=list,
+        Δt='double'
+    )
+    def adams_moulton(self, rhs_evals, Δt):
+        self.u.add(rhs_evals[0].u.fluidvar, Δt * -19./720.)
+        self.u.add(rhs_evals[1].u.fluidvar, Δt * 106./720.)
+        self.u.add(rhs_evals[2].u.fluidvar, Δt * -264./720.)
+        self.u.add(rhs_evals[3].u.fluidvar, Δt * 646./720.)
+        self.u.add(rhs_evals[4].u.fluidvar, Δt * 251./720.)
+        self.u.communicate_fluid_grids('=')
+
+        self.du.add(rhs_evals[0].du.fluidvar, Δt * -19./720.)
+        self.du.add(rhs_evals[1].du.fluidvar, Δt * 106./720.)
+        self.du.add(rhs_evals[2].du.fluidvar, Δt * -264./720.)
+        self.du.add(rhs_evals[3].du.fluidvar, Δt * 646./720.)
+        self.du.add(rhs_evals[4].du.fluidvar, Δt * 251./720.)
+        self.du.communicate_fluid_grids('=')
+
+
+    @cython.pheader(
+        state = 'TensorComponent',
+        components = 'list',
+        index = 'Py_ssize_t',
+        component = 'Component',
+    )
+    def source(self, state, components):
+        self.u.add(state.du.fluidvar, 1)
+
+        for component in components:
+            if component.representation ==  'particles':
+                component.gridsize = self.gridsize
+                convert_particles_to_fluid(component, 4)
+                self.du.add(component.fluidvars[2], 1)
+                
+                component.resize(1)
+                component.representation = 'particles'
 
 # The class governing any component of the universe
 @cython.cclass

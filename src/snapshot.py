@@ -214,7 +214,10 @@ class ConceptSnapshot:
                     mom_h5[start_local:end_local, :] = component.mom_mv3[:N_local, :]
 
                     # Hacky insertion
-                    component.gridsize = 64
+                    component.gridsize = tensor_component.gridsize
+                    masterprint(component.gridsize)
+                    #component.gridsize = 64
+                    #masterprint(component.gridsize)
 
                     # Convert the particles to a fluid representation
                     convert_particles_to_fluid(component, 4)
