@@ -213,11 +213,8 @@ class ConceptSnapshot:
                     pos_h5[start_local:end_local, :] = component.pos_mv3[:N_local, :]
                     mom_h5[start_local:end_local, :] = component.mom_mv3[:N_local, :]
 
-                    # Hacky insertion
+                    # Make the meshed particle grid the same size as the tensor component
                     component.gridsize = tensor_component.gridsize
-                    masterprint(component.gridsize)
-                    #component.gridsize = 64
-                    #masterprint(component.gridsize)
 
                     # Convert the particles to a fluid representation
                     convert_particles_to_fluid(component, 4)
