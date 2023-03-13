@@ -402,7 +402,7 @@ def timeloop():
                                 autosave_time = time()
 
             # If we are at a dump time, do the dump
-            if universals.t + Δt_reltol*Δt + 2*machine_ϵ > dump_time.t:
+            if universals.t + 1e-11 > dump_time.t:
                 # Handle if a new component was activated
                 if dump(components, tensor_perturbations, output_filenames, dump_time, Δt):
                     initial_fac_times.add(universals.t)
