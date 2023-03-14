@@ -199,6 +199,38 @@ class Spline:
             ẏ *= self.eval(x_in)
         return ẏ
 
+
+    # Method for doing spline derivative evaluation
+    @cython.pheader(
+        # Arguments
+        x_in='double',
+        # Locals
+        x='double',
+        ẏ='double',
+        returns='double',
+    )
+    def eval_deriv2(self, x_in):
+        x = log(x_in) if self.logx else x_in
+        # Check that x is within the interpolation interval
+        x = self.in_interval(x, 'differentiate at')
+        # Use SciPy in pure Python and GSL when compiled
+        if not cython.compiled:
+            y_ddot = self.spline(x, 2)
+        else:
+            y_ddot = gsl_spline_eval_deriv2(self.spline, x, self.acc)
+        # Undo the log
+        if self.logx and self.logy:
+
+            y = self.eval(x_in)
+            y_dot = self.eval_deriv(x_in)
+            y_ddot = y / x_in**2 * (y_ddot + (x_in * y_dot / y)**2-(x_in * y_dot / y))
+
+        elif self.logx:
+            y_ddot = 0.
+        elif self.logy:
+            y_ddot = 0.
+        return y_ddot
+
     # Method for computing the definite integral over some
     # interval [a, b] of the splined function.
     @cython.pheader(
@@ -561,6 +593,36 @@ def scale_factor(t=-1):
         abort('The function a(t) has not been tabulated. Have you called init_time?')
     return spline_t_a.eval(t)
 
+# Function for computing the conformal time tau,
+# given a value for the scale factor
+@cython.pheader(
+    a='double',
+    returns = 'double',
+)
+def a_to_tau(a=1):
+    return spline_a_tau.eval(a)
+
+
+# Function for computing the scalar factor,
+# given a value for the conformal time
+@cython.pheader(
+    tau='double',
+    returns = 'double',
+)
+def tau_to_a(tau=1):
+    return spline_tau_a.eval(tau)
+
+
+# Function for computing the second derivative of the scale factor
+# wrt to the conformal time, given a value for the conformal time
+@cython.pheader(
+    tau='double',
+    returns = 'double',
+)
+def tau_to_app(tau=1):
+    return spline_tau_a.eval_deriv2(tau)
+
+
 # Function for computing the cosmic time t,
 # given a value for the scale factor.
 @cython.pheader(
@@ -800,7 +862,7 @@ spline_t_integrands = {}
 # will also be tabulated and stored in the module namespace in the
 # form of spline_a_t, spline_t_a and spline_a_H.
 def init_time(reinitialize=False):
-    global time_initialized, spline_a_t, spline_t_a, spline_a_H
+    global time_initialized, spline_a_t, spline_t_a, spline_a_H, spline_a_tau, spline_tau_a
     # This is a pure function as it contains a closure.
     # Some type information is necessary.
     cython.declare(
@@ -810,6 +872,7 @@ def init_time(reinitialize=False):
         a_values='double[::1]',
         t_values='double[::1]',
         t_begin_correct='double',
+        tau_values='double[::1]',
     )
     if time_initialized and not reinitialize:
         return
@@ -837,6 +900,8 @@ def init_time(reinitialize=False):
             a_values = 1/(background['z'] + 1)
             t_values = background['proper time [Gyr]']*units.Gyr
             H_values = background['H [1/Mpc]']*(light_speed/units.Mpc)
+            tau_values = background['conf. time [Mpc]'] / units.Mpc/light_speed * units.Gyr
+
         elif master:
             masterprint('Solving matter + Λ background ...')
             # Get the age of the universe t(a=1)
@@ -898,9 +963,16 @@ def init_time(reinitialize=False):
         a_values = smart_mpi(a_values, 0, mpifun='bcast')
         t_values = smart_mpi(t_values, 1, mpifun='bcast')
         H_values = smart_mpi(H_values, 2, mpifun='bcast')
+        tau_values = smart_mpi(tau_values, 3, mpifun='bcast')
+
         spline_a_t = Spline(a_values, t_values, 't(a)', logx=True, logy=True)
         spline_t_a = Spline(t_values, a_values, 'a(t)', logx=True, logy=True)
         spline_a_H = Spline(a_values, H_values, 'H(a)', logx=True, logy=True)
+
+        # New spline interpolating functions
+        spline_a_tau = Spline(a_values, tau_values, 'tau(a)', logx=True, logy=True)
+        spline_tau_a = Spline(tau_values, a_values, 'a(tau)', logx=True, logy=True)
+
         # A specification of initial scale factor or
         # cosmic time is needed.
         if 'a_begin' in user_params_keys_raw:
@@ -947,10 +1019,10 @@ def init_time(reinitialize=False):
 cython.declare(time_initialized='bint')
 time_initialized = False
 
-
-
 # Global Spline objects defined by init_time
-cython.declare(spline_a_t='Spline', spline_t_a='Spline', spline_a_H='Spline')
+cython.declare(spline_a_t='Spline', spline_t_a='Spline', spline_a_H='Spline', spline_a_tau='Spline', spline_tau_a='Spline')
 spline_a_t = None
 spline_t_a = None
 spline_a_H = None
+spline_a_tau = None
+spline_tau_a = None
