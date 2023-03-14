@@ -3715,7 +3715,7 @@ if user_params.get('select_softening_length'):
         replace_ellipsis(select_softening_length)
     else:
         select_softening_length = {'all': user_params['select_softening_length']}
-select_softening_length.setdefault('default', '0.03*boxsize/cbrt(N)')
+select_softening_length.setdefault('default', '0.025*boxsize/cbrt(N)')
 user_params['select_softening_length'] = select_softening_length
 # Simulation options
 Δt_base_background_factor = float(user_params.get('Δt_base_background_factor', 1))

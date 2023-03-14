@@ -329,7 +329,7 @@ select_approximations = {  # Toggle approximations for each component
 }
 softening_kernel = 'spline'  # Gravitational softening kernel to use
 select_softening_length = {  # Gravitational softening length for each component
-    'particles': '0.03*boxsize/cbrt(N)',
+    'particles': '0.025*boxsize/cbrt(N)',
 }
 
 # Simulation
