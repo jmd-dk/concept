@@ -37,7 +37,7 @@ cimport(
     '    scale_factor,         '
     '    scalefactor_integral, '
     '    a_to_tau,             '
-    '    tau_to_app,           '
+    '    a_to_app,             '
 )
 cimport('from snapshot import get_initial_conditions, save')
 cimport('from utilities import delegate')
@@ -103,9 +103,6 @@ def timeloop():
     # Determine and set the correct initial values for the cosmic time
     # universals.t and the scale factor universals.a = a(universals.t).
     init_time()
-
-
-
 
     # Initialize Tensor Perturbations
     tensor_perturbations = TensorComponent(gridsize=64)
@@ -291,8 +288,8 @@ def timeloop():
             ###################################################################
 
             masterprint('Computing Predictor Step for Tensor Perturbations')
-            rhs_evals[3].source(tensor_perturbations, components)
-            tensor_perturbations.update(rhs_evals[:4], Δt)
+            rhs_evals[3].source(tensor_perturbations, components, universals.a, a_to_app(universals.a))
+            tensor_perturbations.update(rhs_evals[:4], 1)
 
             ########################################################################
             ###   We are modifying to kick-drift-kick so that everything is      ###
@@ -373,15 +370,15 @@ def timeloop():
             ###   Perform the Corrector Step for the Tensor Perturbations   ###
             ###################################################################
 
-            masterprint('Computing Corrector Step for Tensor Perturbations')
-            rhs_evals[4].source(tensor_perturbations, components)
-            tensor_perturbations.update(rhs_evals, Δt)
+            #masterprint('Computing Corrector Step for Tensor Perturbations')
+            #rhs_evals[4].source(tensor_perturbations, components, universals.a, a_to_app(universals.a))
+            #tensor_perturbations.update(rhs_evals, 1)
 
             ###############################
             ###   Clean the RHS Evals   ###
             ###############################
 
-            rhs_evals = [TensorComponent(gridsize=64)] + rhs_evals[1:4] + [TensorComponent(gridsize=64)]
+            rhs_evals = rhs_evals[1:4] + [TensorComponent(gridsize=64), TensorComponent(gridsize=64)]
 
             ############################################################################
             ###   If we set our sync_time correctly, these states are synchronized   ###
@@ -399,13 +396,6 @@ def timeloop():
                 Δt, Δt_min, Δt_max, bottleneck, time_step, time_step_last_sync,
                 tolerate_danger=(bottleneck == bottleneck_static_timestepping),
             )
-
-            # If it is time, perform an autosave
-            with unswitch:
-                if autosave_interval > 0:
-                    if bcast(time() - autosave_time > ℝ[autosave_interval/units.s]):
-                                autosave(components, time_step, Δt_begin, Δt, output_filenames)
-                                autosave_time = time()
 
             # If we are at a dump time, do the dump
             if universals.t + 1e-11 > dump_time.t:

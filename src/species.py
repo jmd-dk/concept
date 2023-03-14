@@ -1072,8 +1072,10 @@ class TensorComponent:
         components = 'list',
         index = 'Py_ssize_t',
         component = 'Component',
+        R = 'double',
+        Rpp = 'double',
     )
-    def source(self, state, components):
+    def source(self, state, components, R, Rpp):
         self.u.add(state.du.fluidvar, 1)
 
         for component in components:

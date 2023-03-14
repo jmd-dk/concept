@@ -622,6 +622,17 @@ def tau_to_a(tau=1):
 def tau_to_app(tau=1):
     return spline_tau_a.eval_deriv2(tau)
 
+# Function for computing the second derivative of the scale factor
+# with respect to conformal time evaluated at the specified scale factor
+@cython.pheader(
+    a='double',
+    returns = 'double',
+)
+def a_to_app(a=1):
+    return spline_tau_a.eval_deriv2(spline_a_tau.eval(a))
+
+
+
 
 # Function for computing the cosmic time t,
 # given a value for the scale factor.
