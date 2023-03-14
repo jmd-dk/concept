@@ -1077,6 +1077,7 @@ class TensorComponent:
     )
     def source(self, state, components, R, Rpp):
         self.u.add(state.du.fluidvar, 1)
+        self.du.add(state.u.fluidvar, Rpp/R)
 
         for component in components:
             if component.representation ==  'particles':
