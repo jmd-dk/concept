@@ -38,6 +38,7 @@ cimport(
     '    scalefactor_integral, '
     '    a_to_tau,             '
     '    a_to_app,             '
+    '    tau_to_a,             '
 )
 cimport('from snapshot import get_initial_conditions, save')
 cimport('from utilities import delegate')
@@ -88,6 +89,8 @@ import interactions
     Δt_min='double',
     Δt_max='double',
     Δt_print='double',
+    ConfTime='double',
+    dConfTime='double',
     returns='void',
 )
 def timeloop():
@@ -225,193 +228,187 @@ def timeloop():
     recompute_Δt_max = True
     Δt_backup = -1
 
-    for dump_index, dump_time in enumerate(dump_times):
-        # Break out of this loop when a dump has been performed
-        while True:
+    ####################################################################
+    ###   Set up the Information for the Fixed Conformal Step Size   ###
+    ####################################################################
 
-            #########################################################################
-            ###   THIS IS THE MOST IMPORTANT PART WE MUST SYNCHRONIZE CORRECTLY   ###
-            #########################################################################
+    dConfTime = 0.0010872105981289105 # Hacky insertion
+    ConfTime = a_to_tau(universals.a)
 
-            sync_time = universals.t + Δt
-            Δt = sync_time - universals.t
+    # Hacky insertion for the number of steps
+    for step_index in range(10):
 
-            masterprint('Current at time: ', universals.t)
-            masterprint('Advancing to time: ', sync_time)
-            masterprint('Next Snapshot at: ', dump_time.t)
-            masterprint('Conformal Time: ', a_to_tau(universals.a))
+        #########################################################################
+        ###   THIS IS THE MOST IMPORTANT PART WE MUST SYNCHRONIZE CORRECTLY   ###
+        #########################################################################
 
-            ###########################################################################
-            ###   We are now always performing a full Kick-Drift-Kick               ###
-            ###   resulting in a synchronized state. Thus we will move all our      ###
-            ###   timestep book-keeping to this location in the code                ###
-            ###########################################################################
-
-            time_step_previous = time_step
-            time_step_type = 'init'
-
-            # Re-assign a short-range rung to each particle based on their short-range 
-            # their short-range acceleration
-            for component in components:
-                component.assign_rungs(Δt, fac_softening)
-
-            # Update subtile computation times
-            for component in components:
-                for subtiling_name, subtiling in component.tilings.items():
-                    match = re.search(r'(.*) \(subtiles', subtiling_name)
-                    if not match:
-                        continue
-                    subtiling_computation_times[component][match.group(1)
-                        ] += subtiling.computation_time_total
-
-            # Print out message at the end of each time step
-            if time_step > initial_time_step:
-                print_timestep_footer(components)
-
-            # Reset all computation_time_total tiling attributes
-            for component in components:
-                for tiling in component.tilings.values():
-                    tiling.computation_time_total = 0
-
-            # Update universals.time_step. Danger. See original comments.
-            universals.time_step = time_step
+        # Calculate the time step size based on the desired conformal time step
+        Δt = cosmic_time(tau_to_a(ConfTime + dConfTime)) - cosmic_time(tau_to_a(ConfTime))
+        sync_time = universals.t + Δt
  
-            # Print out message at the beginning of each time step
-            Δt_print = Δt
-            if universals.t + Δt*(1 + Δt_reltol) + 2*machine_ϵ > sync_time:
-                Δt_print = sync_time - universals.t
+        # Print Information about the Step
+        masterprint('Current at time: ', universals.t)
+        masterprint('Advancing to time: ', sync_time)
+        masterprint('Conformal Time: ', ConfTime)
 
-            print_timestep_heading(time_step, Δt_print, bottleneck, components)
+        # Update the conformal time for the next step
+        ConfTime += scale_factor(sync_time)
 
-            ###################################################################
-            ###   Perform the Predictor Step for the Tensor Perturbations   ###
-            ###################################################################
+        ###########################################################################
+        ###   We are now always performing a full Kick-Drift-Kick               ###
+        ###   resulting in a synchronized state. Thus we will move all our      ###
+        ###   timestep book-keeping to this location in the code                ###
+        ###########################################################################
 
-            masterprint('Computing Predictor Step for Tensor Perturbations')
-            rhs_evals[3].source(tensor_perturbations, components, universals.a, a_to_app(universals.a))
-            tensor_perturbations.update(rhs_evals[:4], 1)
+        time_step_previous = time_step
+        time_step_type = 'init'
 
-            ########################################################################
-            ###   We are modifying to kick-drift-kick so that everything is      ###
-            ###   synchronized at the beginning of the loop. This means we       ###
-            ###   perform and init step and then a full step in each iteration   ###
-            ###   and must handle the sync_time extremely carefully              ###
-            ########################################################################
+        # Re-assign a short-range rung to each particle based on their short-range 
+        # their short-range acceleration
+        for component in components:
+            component.assign_rungs(Δt, fac_softening)
 
-            # Half a long-range kick. This assumes a syncrhonized state
-            kick_long(components, Δt, sync_time, 'init')
+        # Update subtile computation times
+        for component in components:
+            for subtiling_name, subtiling in component.tilings.items():
+                match = re.search(r'(.*) \(subtiles', subtiling_name)
+                if not match:
+                    continue
+                subtiling_computation_times[component][match.group(1)
+                    ] += subtiling.computation_time_total
 
-            # Particle re-ordering for optimization
-            if 𝔹[particle_reordering]:
-                for component in components:
-                    if not subtiling_computation_times[component]:
-                        continue
-                    if 𝔹[particle_reordering == 'deterministic']:
-                        # If multiple tilings+subtilings exist on a
-                        # component, the sorting will be done with
-                        # respect to the first subtiling
-                        # encountered.
-                        for subtiling_name in component.tilings:
-                            match = re.search(r'(.*) \(subtiles', subtiling_name)
-                            if not match:
-                                continue
-                            interaction_name = match.group(1)
-                            break
-                    else:
-                        # If multiple tilings+subtilings exist on a
-                        # component, the sorting will be done with
-                        # respect to the subtiling with the highest
-                        # recorded computation time. Note that the
-                        # same component might then be sorted
-                        # according to different subtilings on
-                        # different processes.
-                        interaction_name = collections.Counter(
-                            subtiling_computation_times[component]
-                        ).most_common(1)[0][0]
-                    tiling_name    = f'{interaction_name} (tiles)'
-                    subtiling_name = f'{interaction_name} (subtiles)'
-                    component.tile_sort(tiling_name, subtiling_name)
+        # Print out message at the end of each time step
+        if time_step > initial_time_step:
+            print_timestep_footer(components)
+
+        # Reset all computation_time_total tiling attributes
+        for component in components:
+            for tiling in component.tilings.values():
+                tiling.computation_time_total = 0
+
+        # Update universals.time_step. Danger. See original comments.
+        universals.time_step = time_step
  
-                    # Reset subtile computation time
-                    subtiling_computation_times[component].clear()
+        # Print out message at the beginning of each time step
+        Δt_print = Δt
+        if universals.t + Δt*(1 + Δt_reltol) + 2*machine_ϵ > sync_time:
+            Δt_print = sync_time - universals.t
 
-            # Half a short-range kick
-            kick_short(components, Δt)
+        print_timestep_heading(time_step, Δt_print, bottleneck, components)
 
-            ###############################################################
-            ###   After performing an initial step, we then perform a   ### 
-            ###   a full step that ends with synchronized states        ###
-            ###############################################################
+        ###################################################################
+        ###   Perform the Predictor Step for the Tensor Perturbations   ###
+        ###################################################################
 
-            time_step_type = 'full'
+        masterprint('Computing Predictor Step for Tensor Perturbations')
+        rhs_evals[3].source(tensor_perturbations, components, universals.a, a_to_app(universals.a))
+        tensor_perturbations.update(rhs_evals[:4], dConfTime)
 
-            # Drift fluids.
-            drift_fluids(components, Δt, sync_time)
+        ########################################################################
+        ###   We are modifying to kick-drift-kick so that everything is      ###
+        ###   synchronized at the beginning of the loop. This means we       ###
+        ###   perform and init step and then a full step in each iteration   ###
+        ###   and must handle the sync_time extremely carefully              ###
+        ########################################################################
 
-            # Interlaced drift-kick for shot-range rungs
-            driftkick_short(components, Δt, sync_time)
+        # Half a long-range kick. This assumes a syncrhonized state
+        kick_long(components, Δt, sync_time, 'init')
 
-            # Update the time for the long-range kick
-            universals.t += 0.5*Δt
-            if universals.t + Δt_reltol*Δt + 2*machine_ϵ > sync_time:
-                universals.t = sync_time
-            universals.a = scale_factor(universals.t)
+        # Particle re-ordering for optimization
+        if 𝔹[particle_reordering]:
+            for component in components:
+                if not subtiling_computation_times[component]:
+                    continue
+                if 𝔹[particle_reordering == 'deterministic']:
+                    # If multiple tilings+subtilings exist on a
+                    # component, the sorting will be done with
+                    # respect to the first subtiling
+                    # encountered.
+                    for subtiling_name in component.tilings:
+                        match = re.search(r'(.*) \(subtiles', subtiling_name)
+                        if not match:
+                            continue
+                        interaction_name = match.group(1)
+                        break
+                else:
+                    # If multiple tilings+subtilings exist on a
+                    # component, the sorting will be done with
+                    # respect to the subtiling with the highest
+                    # recorded computation time. Note that the
+                    # same component might then be sorted
+                    # according to different subtilings on
+                    # different processes.
+                    interaction_name = collections.Counter(
+                        subtiling_computation_times[component]
+                    ).most_common(1)[0][0]
+      
+                tiling_name    = f'{interaction_name} (tiles)'
+                subtiling_name = f'{interaction_name} (subtiles)'
+                component.tile_sort(tiling_name, subtiling_name)
+ 
+                # Reset subtile computation time
+                subtiling_computation_times[component].clear()
 
-            # Long-range kick to particles, long-range kick + internal soures for fluids
-            kick_long(components, Δt, sync_time, 'full')
+        # Half a short-range kick
+        kick_short(components, Δt)
 
-            # Update the time for the end of the base time step (at drift time)
-            universals.t += 0.5*Δt
-            if universals.t + Δt_reltol*Δt + 2*machine_ϵ > sync_time:
-                universals.t = sync_time
-            universals.a = scale_factor(universals.t)
+        ###############################################################
+        ###   After performing an initial step, we then perform a   ### 
+        ###   a full step that ends with synchronized states        ###
+        ###############################################################
 
-            ###################################################################
-            ###   Perform the Corrector Step for the Tensor Perturbations   ###
-            ###################################################################
+        time_step_type = 'full'
 
-            #masterprint('Computing Corrector Step for Tensor Perturbations')
-            #rhs_evals[4].source(tensor_perturbations, components, universals.a, a_to_app(universals.a))
-            #tensor_perturbations.update(rhs_evals, 1)
+        # Drift fluids.
+        drift_fluids(components, Δt, sync_time)
 
-            ###############################
-            ###   Clean the RHS Evals   ###
-            ###############################
+        # Interlaced drift-kick for shot-range rungs
+        driftkick_short(components, Δt, sync_time)
 
-            rhs_evals = rhs_evals[1:4] + [TensorComponent(gridsize=64), TensorComponent(gridsize=64)]
+        # Update the time for the long-range kick
+        universals.t += 0.5*Δt
+        if universals.t + Δt_reltol*Δt + 2*machine_ϵ > sync_time:
+            universals.t = sync_time
+        universals.a = scale_factor(universals.t)
 
-            ############################################################################
-            ###   If we set our sync_time correctly, these states are synchronized   ###
-            ###   The next loop iteration then begin with an init step               ###
-            ###   Now we do some book-keeping to ensure the next step goes right     ###
-            ############################################################################
+        # Long-range kick to particles, long-range kick + internal soures for fluids
+        kick_long(components, Δt, sync_time, 'full')
 
-            # Update time step counts
-            time_step += 1
-            time_step_last_sync = time_step
+        # Update the time for the end of the base time step (at drift time)
+        universals.t += 0.5*Δt
+        if universals.t + Δt_reltol*Δt + 2*machine_ϵ > sync_time:
+            universals.t = sync_time
+        universals.a = scale_factor(universals.t)
 
-            # Recompute the base time step
-            Δt_max, bottleneck = get_base_timestep_size(components, static_timestepping_func)
-            Δt, bottleneck = update_base_timestep_size(
-                Δt, Δt_min, Δt_max, bottleneck, time_step, time_step_last_sync,
-                tolerate_danger=(bottleneck == bottleneck_static_timestepping),
-            )
+        ###################################################################
+        ###   Perform the Corrector Step for the Tensor Perturbations   ###
+        ###################################################################
 
-            # If we are at a dump time, do the dump
-            if universals.t + 1e-11 > dump_time.t:
-                # Handle if a new component was activated
-                if dump(components, tensor_perturbations, output_filenames, dump_time, Δt):
-                    initial_fac_times.add(universals.t)
-                    Δt_max, bottleneck = get_base_timestep_size(components, static_timestepping_func)
-                       
-                    Δt, bottleneck = update_base_timestep_size(
-                        Δt, Δt_min, Δt_max, bottleneck,
-                        allow_increase=False, tolerate_danger=True,
-                    )
+        masterprint('Computing Corrector Step for Tensor Perturbations')
+        rhs_evals[4].source(tensor_perturbations, components, universals.a, a_to_app(universals.a))
+        tensor_perturbations.update(rhs_evals, dConfTime)
 
-                # Break out of the infinite loop,
-                # proceeding to the next dump time.
-                break
+        ###############################
+        ###   Clean the RHS Evals   ###
+        ###############################
+
+        rhs_evals = rhs_evals[1:4] + [TensorComponent(gridsize=64), TensorComponent(gridsize=64)]
+
+        ############################################################################
+        ###   If we set our sync_time correctly, these states are synchronized   ###
+        ###   The next loop iteration then begin with an init step               ###
+        ###   Now we do some book-keeping to ensure the next step goes right     ###
+        ############################################################################
+
+        # Update time step counts
+        time_step += 1
+        time_step_last_sync = time_step
+
+        ############################
+        ###   Perform the Dump   ###
+        ############################
+        dump_time = DumpTime('a', t=None, a = universals.a)
+        dump(components, tensor_perturbations, output_filenames, dump_time, Δt)
 
     # All dumps completed; end of main time loop
     print_timestep_footer(components)
@@ -1642,7 +1639,7 @@ def dump(components, tensor_perturbations, output_filenames, dump_time, Δt=0):
                 activate_terminate(components, time_value, Δt, act) and act == 'activate'
             )
     # Dump snapshot
-    if time_value in snapshot_times[time_param]:
+    if True:
         filename = output_filenames['snapshot'].format(time_param, time_value)
         if time_param == 't':
             filename += unit_time
