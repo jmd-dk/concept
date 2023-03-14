@@ -36,6 +36,8 @@ cimport(
     '    remove_doppelgängers, '
     '    scale_factor,         '
     '    scalefactor_integral, '
+    '    a_to_tau,             '
+    '    tau_to_app,           '
 )
 cimport('from snapshot import get_initial_conditions, save')
 cimport('from utilities import delegate')
@@ -101,6 +103,9 @@ def timeloop():
     # Determine and set the correct initial values for the cosmic time
     # universals.t and the scale factor universals.a = a(universals.t).
     init_time()
+
+
+
 
     # Initialize Tensor Perturbations
     tensor_perturbations = TensorComponent(gridsize=64)
@@ -237,6 +242,7 @@ def timeloop():
             masterprint('Current at time: ', universals.t)
             masterprint('Advancing to time: ', sync_time)
             masterprint('Next Snapshot at: ', dump_time.t)
+            masterprint('Conformal Time: ', a_to_tau(universals.a))
 
             ###########################################################################
             ###   We are now always performing a full Kick-Drift-Kick               ###
