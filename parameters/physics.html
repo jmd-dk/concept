@@ -120,7 +120,7 @@
 <li class="toctree-l1"><a class="reference internal" href="../command_line_options.html">Command-line options</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="../command_line_options.html#basics">Basics</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#help-h-help">Help: <code class="docutils literal notranslate"><span class="pre">-h</span></code>, <code class="docutils literal notranslate"><span class="pre">--help</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#parameter-file-p-params">Parameter file: <code class="docutils literal notranslate"><span class="pre">-p</span></code>, <code class="docutils literal notranslate"><span class="pre">--params</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#parameter-file-p-param">Parameter file: <code class="docutils literal notranslate"><span class="pre">-p</span></code>, <code class="docutils literal notranslate"><span class="pre">--param</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#command-line-parameters-c-command-line-params">Command-line parameters: <code class="docutils literal notranslate"><span class="pre">-c</span></code>, <code class="docutils literal notranslate"><span class="pre">--command-line-params</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#number-of-processes-n-nprocs">Number of processes: <code class="docutils literal notranslate"><span class="pre">-n</span></code>, <code class="docutils literal notranslate"><span class="pre">--nprocs</span></code></a><ul>
 <li class="toctree-l4"><a class="reference internal" href="../command_line_options.html#specifying-multiple-nodes">Specifying multiple nodes</a></li>
@@ -135,18 +135,18 @@
 <li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#memory-memory">Memory: <code class="docutils literal notranslate"><span class="pre">--memory</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#job-name-job-name">Job name: <code class="docutils literal notranslate"><span class="pre">--job-name</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#job-directive-j-job-directive">Job directive: <code class="docutils literal notranslate"><span class="pre">-j</span></code>, <code class="docutils literal notranslate"><span class="pre">--job-directive</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#no-watching-no-watching">No watching: <code class="docutils literal notranslate"><span class="pre">--no-watching</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#watch-watch">Watch: <code class="docutils literal notranslate"><span class="pre">--watch</span></code></a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="../command_line_options.html#other-modes-of-building-running">Other modes of building/running</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../command_line_options.html#building-and-running">Building and running</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#local-local">Local: <code class="docutils literal notranslate"><span class="pre">--local</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#pure-python-pure-python">Pure Python: <code class="docutils literal notranslate"><span class="pre">--pure-python</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#build-b-build">Build: <code class="docutils literal notranslate"><span class="pre">-b</span></code>, <code class="docutils literal notranslate"><span class="pre">--build</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#rebuild-rebuild">Rebuild: <code class="docutils literal notranslate"><span class="pre">--rebuild</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#optimizations-optimizations">Optimizations: <code class="docutils literal notranslate"><span class="pre">--optimizations</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#link-time-optimizations-linktime-optimizations">Link time optimizations: <code class="docutils literal notranslate"><span class="pre">--linktime-optimizations</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#native-optimizations-native-optimizations">Native optimizations: <code class="docutils literal notranslate"><span class="pre">--native-optimizations</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#no-link-time-optimizations-no-lto">No link time optimizations: <code class="docutils literal notranslate"><span class="pre">--no-lto</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#no-optimizations-no-optimizations">No optimizations: <code class="docutils literal notranslate"><span class="pre">--no-optimizations</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#unsafe-building-unsafe-building">Unsafe building: <code class="docutils literal notranslate"><span class="pre">--unsafe-building</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#safe-build-safe-build">Safe build: <code class="docutils literal notranslate"><span class="pre">--safe-build</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="../command_line_options.html#specials">Specials</a><ul>
@@ -1044,7 +1044,7 @@ and <span class="math notranslate nohighlight">\(\epsilon_{\text{B}} = 2.8\epsil
 <td><p><strong>Default</strong></p></td>
 <td><p></p></td>
 <td><div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
-    <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="s1">&#39;0.03*boxsize/cbrt(N)&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="s1">&#39;0.025*boxsize/cbrt(N)&#39;</span><span class="p">,</span>
 <span class="p">}</span>
 </pre></div>
 </div>
@@ -1064,7 +1064,7 @@ length <span class="math notranslate nohighlight">\(\epsilon\)</span>. This para
 particle components within the simulation (fluid
 components have no need for softening).</p>
 <p>The default value sets <span class="math notranslate nohighlight">\(\epsilon\)</span> to be
-<span class="math notranslate nohighlight">\(3\,\%\)</span> of the mean inter-particle distance,
+<span class="math notranslate nohighlight">\(2.5\,\%\)</span> of the mean inter-particle distance,
 within each particle component separately. Here <code class="docutils literal notranslate"><span class="pre">'N'</span></code>
 is dynamically substituted for the number of particles
 <span class="math notranslate nohighlight">\(N\)</span> within the given component.</p>

@@ -120,7 +120,7 @@
 <li class="toctree-l1"><a class="reference internal" href="command_line_options.html">Command-line options</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="command_line_options.html#basics">Basics</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="command_line_options.html#help-h-help">Help: <code class="docutils literal notranslate"><span class="pre">-h</span></code>, <code class="docutils literal notranslate"><span class="pre">--help</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="command_line_options.html#parameter-file-p-params">Parameter file: <code class="docutils literal notranslate"><span class="pre">-p</span></code>, <code class="docutils literal notranslate"><span class="pre">--params</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="command_line_options.html#parameter-file-p-param">Parameter file: <code class="docutils literal notranslate"><span class="pre">-p</span></code>, <code class="docutils literal notranslate"><span class="pre">--param</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="command_line_options.html#command-line-parameters-c-command-line-params">Command-line parameters: <code class="docutils literal notranslate"><span class="pre">-c</span></code>, <code class="docutils literal notranslate"><span class="pre">--command-line-params</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="command_line_options.html#number-of-processes-n-nprocs">Number of processes: <code class="docutils literal notranslate"><span class="pre">-n</span></code>, <code class="docutils literal notranslate"><span class="pre">--nprocs</span></code></a><ul>
 <li class="toctree-l4"><a class="reference internal" href="command_line_options.html#specifying-multiple-nodes">Specifying multiple nodes</a></li>
@@ -135,18 +135,18 @@
 <li class="toctree-l3"><a class="reference internal" href="command_line_options.html#memory-memory">Memory: <code class="docutils literal notranslate"><span class="pre">--memory</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="command_line_options.html#job-name-job-name">Job name: <code class="docutils literal notranslate"><span class="pre">--job-name</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="command_line_options.html#job-directive-j-job-directive">Job directive: <code class="docutils literal notranslate"><span class="pre">-j</span></code>, <code class="docutils literal notranslate"><span class="pre">--job-directive</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="command_line_options.html#no-watching-no-watching">No watching: <code class="docutils literal notranslate"><span class="pre">--no-watching</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="command_line_options.html#watch-watch">Watch: <code class="docutils literal notranslate"><span class="pre">--watch</span></code></a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="command_line_options.html#other-modes-of-building-running">Other modes of building/running</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="command_line_options.html#building-and-running">Building and running</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="command_line_options.html#local-local">Local: <code class="docutils literal notranslate"><span class="pre">--local</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="command_line_options.html#pure-python-pure-python">Pure Python: <code class="docutils literal notranslate"><span class="pre">--pure-python</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="command_line_options.html#build-b-build">Build: <code class="docutils literal notranslate"><span class="pre">-b</span></code>, <code class="docutils literal notranslate"><span class="pre">--build</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="command_line_options.html#rebuild-rebuild">Rebuild: <code class="docutils literal notranslate"><span class="pre">--rebuild</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="command_line_options.html#optimizations-optimizations">Optimizations: <code class="docutils literal notranslate"><span class="pre">--optimizations</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="command_line_options.html#link-time-optimizations-linktime-optimizations">Link time optimizations: <code class="docutils literal notranslate"><span class="pre">--linktime-optimizations</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="command_line_options.html#native-optimizations-native-optimizations">Native optimizations: <code class="docutils literal notranslate"><span class="pre">--native-optimizations</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="command_line_options.html#no-link-time-optimizations-no-lto">No link time optimizations: <code class="docutils literal notranslate"><span class="pre">--no-lto</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="command_line_options.html#no-optimizations-no-optimizations">No optimizations: <code class="docutils literal notranslate"><span class="pre">--no-optimizations</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="command_line_options.html#unsafe-building-unsafe-building">Unsafe building: <code class="docutils literal notranslate"><span class="pre">--unsafe-building</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="command_line_options.html#safe-build-safe-build">Safe build: <code class="docutils literal notranslate"><span class="pre">--safe-build</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="command_line_options.html#specials">Specials</a><ul>
@@ -452,7 +452,7 @@ the compilation taken place without trouble.</p>
 <a class="reference internal" href="#insufficient-memory"><span class="std std-ref">insufficient memory</span></a>, it may be that one or more
 of the applied optimizations cause trouble. First, try compiling without link
 time optimizations:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>--rebuild<span class="w"> </span>--no-lto<span class="w"> </span>--local
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>--rebuild<span class="w"> </span>--linktime-optimizations<span class="w"> </span>False<span class="w"> </span>--local
 </pre></div>
 </div>
 <div class="admonition note">
@@ -466,7 +466,7 @@ fully optimized build.</p>
 this a working solution, as the performance improvements obtained through
 link time optimizations are not crucial.</p>
 <p>A much more drastic thing to try is to compile without <em>any</em> optimizations:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>--rebuild<span class="w"> </span>--no-optimizations<span class="w"> </span>--local
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>--rebuild<span class="w"> </span>--optimizations<span class="w"> </span>False<span class="w"> </span>--local
 </pre></div>
 </div>
 <p>If this works, the problem is definitely with some of the optimization flags.
@@ -477,7 +477,7 @@ Instead, experiment with removing individual optimization flags added to the
 <code class="docutils literal notranslate"><span class="pre">src/Makefile</span></code>. E.g. get rid of <code class="docutils literal notranslate"><span class="pre">-ffast-math</span></code> and/or <code class="docutils literal notranslate"><span class="pre">-funroll-loops</span></code>,
 and/or substitute the <code class="docutils literal notranslate"><span class="pre">-O3</span></code> flag with <code class="docutils literal notranslate"><span class="pre">-O2</span></code>, then <code class="docutils literal notranslate"><span class="pre">-O1</span></code>, then <code class="docutils literal notranslate"><span class="pre">-O0</span></code>,
 before removing it completely. For each attempt, recompile CO<em>N</em>CEPT
-with<em>out</em> <code class="docutils literal notranslate"><span class="pre">--no-optimizations</span></code>.</p>
+with<em>out</em> <code class="docutils literal notranslate"><span class="pre">--optimizations</span> <span class="pre">False</span></code>.</p>
 </section>
 </section>
 <section id="terminal-colour-output-looks-weird">
@@ -710,7 +710,7 @@ CO<em>N</em>CEPT with the <code class="docutils literal notranslate"><span class
 non-portable optimizations (default build), use the <code class="docutils literal notranslate"><span class="pre">--rebuild</span></code> option.</p>
 <p>If rebuilding the code with only portable optimizations did not fix the
 problem, it is worth submitting a remote CO<em>N</em>CEPT job without <em>any</em>
-optimizations via the <code class="docutils literal notranslate"><span class="pre">--no-optimizations</span></code> <a class="reference internal" href="command_line_options.html#no-optimizations"><span class="std std-ref">option</span></a>
+optimizations via the <code class="docutils literal notranslate"><span class="pre">--optimizations</span> <span class="pre">False</span></code> <a class="reference internal" href="command_line_options.html#optimizations"><span class="std std-ref">option</span></a>
 to the <code class="docutils literal notranslate"><span class="pre">concept</span></code> script, just to see what happens. Remember to also supply
 <code class="docutils literal notranslate"><span class="pre">--rebuild</span></code> to force recompilation. If this works, you should experiment
 with <code class="docutils literal notranslate"><span class="pre">src/Makefile</span></code> as described <a class="reference internal" href="#dangerous-optimizations"><span class="std std-ref">here</span></a>,

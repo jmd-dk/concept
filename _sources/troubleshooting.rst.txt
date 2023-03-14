@@ -123,7 +123,7 @@ time optimizations:
 
 .. code-block:: bash
 
-   ./concept --rebuild --no-lto --local
+   ./concept --rebuild --linktime-optimizations False --local
 
 .. note::
 
@@ -140,7 +140,7 @@ A much more drastic thing to try is to compile without *any* optimizations:
 
 .. code-block:: bash
 
-   ./concept --rebuild --no-optimizations --local
+   ./concept --rebuild --optimizations False --local
 
 If this works, the problem is definitely with some of the optimization flags.
 You should however not run CO\ *N*\ CEPT simulations with the compiled code in
@@ -150,7 +150,7 @@ Instead, experiment with removing individual optimization flags added to the
 ``src/Makefile``. E.g. get rid of ``-ffast-math`` and/or ``-funroll-loops``,
 and/or substitute the ``-O3`` flag with ``-O2``, then ``-O1``, then ``-O0``,
 before removing it completely. For each attempt, recompile CO\ *N*\ CEPT
-with\ *out* ``--no-optimizations``.
+with\ *out* ``--optimizations False``.
 
 
 
@@ -445,7 +445,7 @@ non-portable optimizations (default build), use the ``--rebuild`` option.
 
 If rebuilding the code with only portable optimizations did not fix the
 problem, it is worth submitting a remote CO\ *N*\ CEPT job without *any*
-optimizations via the ``--no-optimizations`` :ref:`option <no_optimizations>`
+optimizations via the ``--optimizations False`` :ref:`option <optimizations>`
 to the ``concept`` script, just to see what happens. Remember to also supply
 ``--rebuild`` to force recompilation. If this works, you should experiment
 with ``src/Makefile`` as described :ref:`here <dangerous_optimizations>`,

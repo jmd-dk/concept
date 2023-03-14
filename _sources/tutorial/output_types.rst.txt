@@ -158,7 +158,7 @@ density.
    The available colormaps can be viewed
    `here <https://matplotlib.org/stable/gallery/color/colormap_reference.html>`__.
    A single colour value may also be given, either as an RGB tuple (each value
-   raning from 0 to 1) or as a
+   ranging from 0 to 1) or as a
    `named colour <https://matplotlib.org/stable/gallery/color/named_colors.html>`__.
 
 We also specify the background colour, as well as the resolution (height and

@@ -627,7 +627,7 @@ physical models and schemes to be used.
 \  **Default**     \  .. code-block:: python3
 
                          {
-                             'default': '0.03*boxsize/cbrt(N)',
+                             'default': '0.025*boxsize/cbrt(N)',
                          }
 
 -- --------------- -- -
@@ -643,7 +643,7 @@ physical models and schemes to be used.
                       components have no need for softening).
 
                       The default value sets :math:`\epsilon` to be
-                      :math:`3\,\%` of the mean inter-particle distance,
+                      :math:`2.5\,\%` of the mean inter-particle distance,
                       within each particle component separately. Here ``'N'``
                       is dynamically substituted for the number of particles
                       :math:`N` within the given component.
