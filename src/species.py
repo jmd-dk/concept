@@ -42,7 +42,7 @@ cimport(
     '    species_canonical, species_registered,    '
 )
 
-cimport('from mesh import convert_particles_to_fluid')
+cimport('from mesh import convert_particles_to_fluid, laplacian_domaingrid')
 
 
 
@@ -976,7 +976,6 @@ class TensorField:
     # Method for adding the grids together
     @cython.pheader(
         rhs = object,
-        Δt = 'double',
         weight = 'double',
         field_ptr = 'double*',
         source_ptr = 'double*',
@@ -995,6 +994,34 @@ class TensorField:
 
             for index in range(self.size):
                 field_ptr[index] += source_ptr[index]*weight
+
+    # Method for adding the grids together
+    @cython.pheader(
+        rhs = object,
+        weight = 'double',
+        field_ptr = 'double*',
+        source_ptr = 'double*',
+        index='Py_ssize_t',
+        multi_index=object,
+        field_scalar = 'FluidScalar',
+        source_scalar = 'FluidScalar',
+        Δx = 'double',
+    )
+    def add_laplacian(self, rhs, weight):
+        Δx = boxsize/self.gridsize/ units.Mpc/light_speed * units.Gyr
+        masterprint(boxsize/self.gridsize,  1/units.Mpc/light_speed * units.Gyr, Δx)
+
+        for multi_index in self.fluidvar.multi_indices:
+            field_scalar = self.fluidvar[multi_index]
+            source_scalar = rhs[multi_index]
+
+            field_ptr = field_scalar.grid
+            source_ptr = cython.address(laplacian_domaingrid(source_scalar.grid_mv, Δx=Δx)[:, :, :])
+
+            for index in range(self.size):
+                field_ptr[index] += source_ptr[index]*weight
+
+
 
 @cython.cclass
 class TensorComponent:
@@ -1034,16 +1061,18 @@ class TensorComponent:
         Δt='double'
     )
     def adams_bashforth(self, rhs_evals, Δt):
+
         self.u.add(rhs_evals[0].u.fluidvar, Δt * -9./24.)
         self.u.add(rhs_evals[1].u.fluidvar, Δt * 37./24.)
         self.u.add(rhs_evals[2].u.fluidvar, Δt * -59./24.)
         self.u.add(rhs_evals[3].u.fluidvar, Δt * 55./24.)
-        self.u.communicate_fluid_grids('=')
 
         self.du.add(rhs_evals[0].du.fluidvar, Δt * -9./24.)
         self.du.add(rhs_evals[1].du.fluidvar, Δt * 37./24.)
         self.du.add(rhs_evals[2].du.fluidvar, Δt * -59./24.)
         self.du.add(rhs_evals[3].du.fluidvar, Δt * 55./24.)
+
+        self.u.communicate_fluid_grids('=')
         self.du.communicate_fluid_grids('=')
 
     @cython.header( 
@@ -1057,13 +1086,14 @@ class TensorComponent:
         self.u.add(rhs_evals[2].u.fluidvar, Δt * (-264./720. + 59./24.))
         self.u.add(rhs_evals[3].u.fluidvar, Δt * (646./720.  - 55./24.))
         self.u.add(rhs_evals[4].u.fluidvar, Δt * (251./720.))
-        self.u.communicate_fluid_grids('=')
 
         self.du.add(rhs_evals[0].du.fluidvar, Δt * (-19./720.  + 9./24.))
         self.du.add(rhs_evals[1].du.fluidvar, Δt * (106./720.  - 37./24.))
         self.du.add(rhs_evals[2].du.fluidvar, Δt * (-264./720. + 59./24.))
         self.du.add(rhs_evals[3].du.fluidvar, Δt * (646./720.  - 55./24.))
         self.du.add(rhs_evals[4].du.fluidvar, Δt * (251./720.))
+
+        self.u.communicate_fluid_grids('=')
         self.du.communicate_fluid_grids('=')
 
 
@@ -1076,8 +1106,11 @@ class TensorComponent:
         Rpp = 'double',
     )
     def source(self, state, components, R, Rpp):
+
         self.u.add(state.du.fluidvar, 1)
+        
         self.du.add(state.u.fluidvar, Rpp/R)
+        self.du.add_laplacian(state.u.fluidvar, 1)
 
         for component in components:
             if component.representation ==  'particles':

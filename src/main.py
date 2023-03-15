@@ -232,7 +232,7 @@ def timeloop():
     ###   Set up the Information for the Fixed Conformal Step Size   ###
     ####################################################################
 
-    dConfTime = 0.0010872105981289105 # Hacky insertion
+    dConfTime = 0.002174421196257821 # Hacky insertion
     ConfTime = a_to_tau(universals.a)
 
     # Hacky insertion for the number of steps
@@ -300,7 +300,7 @@ def timeloop():
         ###   Perform the Predictor Step for the Tensor Perturbations   ###
         ###################################################################
 
-        masterprint('Computing Predictor Step for Tensor Perturbations')
+        masterprint('Computing Predictor Step for Tensor Perturbations', a_to_app(universals.a) / universals.a )
         rhs_evals[3].source(tensor_perturbations, components, universals.a, a_to_app(universals.a))
         tensor_perturbations.update(rhs_evals[:4], dConfTime)
 

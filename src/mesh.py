@@ -4011,8 +4011,8 @@ def diff_domaingrid(grid, dim, order,
     ᐁgrid_dim_ptr='double*',
     returns='double[:, :, ::1]',
 )
-def laplacian_domaingrid(grid, dim, order,
-    Δx=1, buffer_or_buffer_name=0, do_ghost_communication=True,
+def laplacian_domaingrid(grid, Δx=1, buffer_or_buffer_name=0,
+    do_ghost_communication=True,
 ):
     """This function computes the laplacian of a given domain grid
     through finite differencing. The passed grid must
@@ -4036,7 +4036,7 @@ def laplacian_domaingrid(grid, dim, order,
     """
     # Sanity checks on input
     if isinstance(buffer_or_buffer_name, (int, str)):
-        ᐁgrid_dim = get_buffer(asarray(grid).shape, buffer_or_buffer_name, nullify=False)
+        ᐁgrid_dim = get_buffer(asarray(grid).shape, buffer_or_buffer_name, nullify=True)
     else:
         ᐁgrid_dim = buffer_or_buffer_name
         if asarray(ᐁgrid_dim).shape != asarray(grid).shape:
@@ -4080,10 +4080,12 @@ def laplacian_domaingrid(grid, dim, order,
                 index_end = index_j + ℤ[size_k - ℤ[2*nghosts + 1]]
                 
                 while True:
-                    ᐁgrid_dim_ptr[index] = (-ℝ[(1/12)/Δx/Δx] * (grid_ptr_upper_2[index] + grid_ptr_lower_2[index])
+
+                    ᐁgrid_dim_ptr[index] += (-ℝ[(1/12)/Δx/Δx] * (grid_ptr_upper_2[index] + grid_ptr_lower_2[index])
                                             +ℝ[(16/12)/Δx/Δx] * (grid_ptr_upper_1[index] + grid_ptr_lower_1[index])
                                             -ℝ[(30/12)/Δx/Δx] * grid_ptr_central[index] 
-                                           )
+                                            )
+
                     # Breakouts and loop counter incrementations
                     if index == index_end:
                         break
