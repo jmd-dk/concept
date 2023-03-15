@@ -145,6 +145,9 @@ export PYTHONPATH="${src_dir}:${PYTHONPATH}"
 # Disable Python hash randomization (salting) for reproducibility
 export PYTHONHASHSEED=0
 
+# Do not produce .pyc files
+export PYTHONDONTWRITEBYTECODE=1
+
 # Some Python packages may need access to libraries at runtime
 for lib in "blas" "fftw" "gsl" "hdf5" "ncurses" "python" "zlib"; do
     eval "lib_dir=\"\${${lib}_dir}\""
@@ -183,11 +186,11 @@ fi
 # The time before any computation begins.
 # This time is saved both in seconds after the Unix epoch
 # and in a human readable format.
-start_time_epoch="$("${python}" -B -c "
+start_time_epoch="$("${python}" -c "
 import datetime
 print(datetime.datetime.now().timestamp())
 ")"
-start_time_human="$("${python}" -B -c "
+start_time_human="$("${python}" -c "
 import datetime
 print(str(datetime.datetime.fromtimestamp(${start_time_epoch}))[:-3])
 ")"
@@ -207,7 +210,7 @@ fi
 # Function for printing coloured messages
 colorprint() {
     # Arguments: Message, colour
-    "${python}" -B -c "
+    "${python}" -c "
 import sys
 from blessings import Terminal
 terminal = Terminal(force_styling=True)
@@ -228,7 +231,7 @@ print_logo() {
     # While the colour of the 𝘕 is fixed, the colour used for the rest
     # is determined from the timestamp of this file.
     # This uses up the 16th and 17th colour of the terminal.
-    "${python}" -B -c "
+    "${python}" -c "
 import sys, matplotlib
 # Generate colour based on input number
 color_for_N = 'darkorange'
@@ -337,7 +340,7 @@ absolute_path() {
 # concept directory, if it is no more than one directory above the
 # concept directory. Otherwise, return the absolute path back again.
 sensible_path() {
-    "${python}" -B -c "
+    "${python}" -c "
 path = '${1}'
 from os.path import relpath
 rel = relpath(path, '${concept_dir}')
@@ -375,7 +378,7 @@ bash_array2python_list() {
     local element
     for element in "$@"; do
         # If element is a string, encapsulate it in quotation marks
-        element=$("${python}" -B -c "
+        element=$("${python}" -c "
 try:
     eval(\"${element}\")
     print(\"${element}\")
@@ -497,12 +500,12 @@ export OMPI_MCA_rmaps_base_oversubscribe=1"
         # As we are importing MPI4Py we ought to invoke Python via
         # mpiexec, though this may lead to trouble when sourcing.
         if [ "${being_sourced}" == "False" ]; then
-            mpi_warning="$("${mpiexec}" -n 1 "${python}" -B -c '
+            mpi_warning="$("${mpiexec}" -n 1 "${python}" -c '
 import mpi4py.rc; mpi4py.rc.threads = False  # Do not use threads
 from mpi4py import MPI
 ' 2>&1 || :)"
         else
-            mpi_warning="$("${python}" -B -c '
+            mpi_warning="$("${python}" -c '
 import mpi4py.rc; mpi4py.rc.threads = False  # Do not use threads
 from mpi4py import MPI
 ' 2>&1 || :)"
@@ -679,7 +682,7 @@ build_concept() {
     # and a small base memory. Attempting the compilation
     # a few times in a row can help, as the dynamic memory
     # then has a chance to increase.
-    start_time_build=$("${python}" -B -c "import time; print(time.time())")
+    start_time_build=$("${python}" -c "import time; print(time.time())")
     set_make_jobs
     make_concept() {
         make                                                   \
@@ -712,7 +715,7 @@ build_concept() {
         exit 1
     fi
     if [[ "${make_output}" == *"Building modules"* ]]; then
-        "${mpiexec}" -n 1 "${python}" -B -c "from commons import *
+        "${mpiexec}" -n 1 "${python}" -c "from commons import *
 print('Build time: {}'.format(time_since(${start_time_build})))"
     fi
 }
@@ -840,7 +843,7 @@ cd "${concept_dir}"
 # Use Python's argparse module to handle command-line arguments
 argparse_finished="False"
 argparse_exit_code=""
-args=$("${python}" -B -c "
+args=$("${python}" -c "
 import argparse, math, os, re, sys
 # Function which checks whether input is a representation of
 # one or two positive integers. If two ints are given,
@@ -1380,7 +1383,7 @@ while read arg; do
         arg_val="$(basename "${arg_val}" || :)"
     fi
     eval "export CONCEPT_${arg_name}=\${arg_val}"
-done <<< "$("${python}" -B -c "
+done <<< "$("${python}" -c "
 for arg in '''${args}'''.split(';:;'):
     print(arg.strip().replace('\n', r'\\\\n'))
 ")"
@@ -1514,7 +1517,7 @@ fi
 # Check for syntax errors in supplied parameter file.
 # Other types of errors will not be detected before runtime.
 if [ "${param}" != "${param_default}" ]; then
-    param_traceback="$("${python}" -B -c "
+    param_traceback="$("${python}" -c "
 import ast
 with open('${param}', mode='r', encoding='utf-8') as f:
     source = f.read()
@@ -1530,7 +1533,7 @@ fi
 # Check for syntax errors in supplied command-line parameters.
 # Other types of errors will not be detected before runtime.
 if [ -n "${command_line_params}" ]; then
-    command_line_params_traceback="$("${python}" -B -c "
+    command_line_params_traceback="$("${python}" -c "
 import ast
 source = '''${command_line_params}'''
 ast.parse(source)
@@ -1562,7 +1565,7 @@ if [ "${tests}" != "${tests_default}" ]; then
     run_test_specific() {
         test="$1"
         test="$(basename "${test}")"
-        start_time_test=$("${python}" -B -c "import time; print(time.time())")
+        start_time_test=$("${python}" -c "import time; print(time.time())")
         colorprint "\nRunning ${test} test" "yellow"
         artifact_dir="${test_dir}/${test}/artifact"
         rm -rf "${artifact_dir}"
@@ -1577,7 +1580,7 @@ if [ "${tests}" != "${tests_default}" ]; then
         test_check_err_logs
         colorprint "${test} test ran successfully" "green"
         # Print out the execution time for this test
-        "${mpiexec}" -n 1 "${python}" -B -c "from commons import *
+        "${mpiexec}" -n 1 "${python}" -c "from commons import *
 print('Total execution time: {}'.format(time_since(${start_time_test})))"
     }
     # Function for running given test (including "all"),
@@ -1586,7 +1589,7 @@ print('Total execution time: {}'.format(time_since(${start_time_test})))"
         test="$1"
         if [ "${test}" == "all" ]; then
             # Find and run all tests
-            tests_all="$(cd "${test_dir}" && "${python}" -B -c "
+            tests_all="$(cd "${test_dir}" && "${python}" -c "
 from glob import glob
 # List tests in order of required execution.
 # Tests not included here will be run last.
@@ -1723,8 +1726,8 @@ This is counted as a test failure." "red"
     done
     # If several tests have been run,
     # print out the total time it took to run them all.
-    if [ "${test}" == "all" ] || [ ${#tests_arr[@]} -gt 1 ]; then
-        "${mpiexec}" -n 1 "${python}" -B -c "from commons import *
+    if [ "${tests}" == "all" ] || [ ${#tests_arr[@]} -gt 1 ]; then
+        "${mpiexec}" -n 1 "${python}" -c "from commons import *
 print('Total execution time: {}'.format(time_since(${start_time_epoch})))"
     fi
     # Deactivate traps and exit
@@ -1752,7 +1755,7 @@ launch_utility() {
     extract_info() {
         local text="$1"
         local pattern="$2"
-        "${python}" -B -c                                                        \
+        "${python}" -c                                                           \
             "import re; print(re.search(r'${pattern}', '''${text}''').group(1))" \
             2>/dev/null                                                          \
         || :
@@ -1984,7 +1987,7 @@ if [ "${utility}" != "${utility_default}" ]; then
         called_from_concept="True" "${utility}" "${utility_args[@]}"
     fi
     # Print out the total execution time for this utility
-    "${mpiexec}" -n 1 "${python}" -B -c "from commons import *
+    "${mpiexec}" -n 1 "${python}" -c "from commons import *
 print('Total execution time: {}'.format(time_since(${start_time_epoch})))"
     exit 0
 fi
@@ -2014,7 +2017,7 @@ copy_param() {
     fi
     # Insert command-line parameters
     # at the bottom of the copied parameter file.
-    "${python}" -B -c "
+    "${python}" -c "
 lines = [
     '',
     '# The above is a copy of the CO𝘕CEPT parameter file \"${param}\".',
@@ -2039,20 +2042,20 @@ if [ "${remote}" == "True" ]; then
         # Split the 'nprocs' variable up into the number of nodes
         # and the number of processes per node, if both are given.
         if [[ "${nprocs}" == *':'* ]]; then
-            nnodes=$("${python}" -B -c "print('${nprocs}'[:'${nprocs}'.index(':')])")
-            nprocs_per_node=$("${python}" -B -c "print('${nprocs}'[('${nprocs}'.index(':') + 1):])")
+            nnodes=$("${python}" -c "print('${nprocs}'[:'${nprocs}'.index(':')])")
+            nprocs_per_node=$("${python}" -c "print('${nprocs}'[('${nprocs}'.index(':') + 1):])")
             ((nprocs = nnodes*nprocs_per_node))
         else
             nnodes=0  # Has to be 0, not 1
             nprocs_per_node=${nprocs}
         fi
         # Compute dedicated memory per process and node in megabytes
-        mb_per_process=$("${python}" -B -c "print(int(${memory}/(2**20*${nprocs})))")
+        mb_per_process=$("${python}" -c "print(int(${memory}/(2**20*${nprocs})))")
         if [ "${nnodes}" -gt 0 ]; then
-            mb_per_node=$("${python}" -B -c "print(int(${memory}/(2**20*${nnodes})))")
+            mb_per_node=$("${python}" -c "print(int(${memory}/(2**20*${nnodes})))")
         fi
         # Construct Slurm header
-        jobscript_header="$(${python} -B -c "
+        jobscript_header="$(${python} -c "
 directive_prefix = '#SBATCH'
 lines = []
 lines.append(f'{directive_prefix} --job-name=${job_name}')
@@ -2098,13 +2101,13 @@ print('\n'.join(lines))
 and the number of processes per node" "red"
             exit 1
         fi
-        nnodes=$("${python}" -B -c "print('${nprocs}'[:'${nprocs}'.index(':')])")
-        nprocs_per_node=$("${python}" -B -c "print('${nprocs}'[('${nprocs}'.index(':') + 1):])")
+        nnodes=$("${python}" -c "print('${nprocs}'[:'${nprocs}'.index(':')])")
+        nprocs_per_node=$("${python}" -c "print('${nprocs}'[('${nprocs}'.index(':') + 1):])")
         ((nprocs = nnodes*nprocs_per_node))
         # Compute dedicated memory per process in megabytes
-        mb_per_process=$("${python}" -B -c "print(int(${memory}/(2**20*${nprocs})))")
+        mb_per_process=$("${python}" -c "print(int(${memory}/(2**20*${nprocs})))")
         # Construct TORQUE header
-        jobscript_header="$(${python} -B -c "
+        jobscript_header="$(${python} -c "
 directive_prefix = '#PBS'
 lines = []
 lines.append(f'{directive_prefix} -N ${job_name}')
@@ -2135,7 +2138,7 @@ print('\n'.join(lines))
     fi
     # Prepare display texts with the total memory consumption
     # and maximum allowed wall time.
-    infos_display="$("${mpiexec}" -n 1 "${python}" -B -c "
+    infos_display="$("${mpiexec}" -n 1 "${python}" -c "
 memory = ${memory}
 walltime = '${walltime}'
 from commons import *
@@ -2297,12 +2300,12 @@ cd \"\${concept_dir}\"
 # Run the code. Both stdout and stderr are being logged
 # to job_dir/jobid/log, while the stderr alone is also logged
 # to job_dir/jobid/log_err.
-\${mpi_executor}                                         \\
-    \"\${python}\" -B \${m_flag} \"\${main_as_library}\" \\
-        \"param='\${param}'\"                            \\
-        \"jobid='\${jobid}'\"                            \\
-    >> \"\${job_dir}/\${jobid}/log\"                     \\
-    2>> >(tee -a \"\${job_dir}/\${jobid}/log_err\")      \\
+\${mpi_executor}                                      \\
+    \"\${python}\" \${m_flag} \"\${main_as_library}\" \\
+        \"param='\${param}'\"                         \\
+        \"jobid='\${jobid}'\"                         \\
+    >> \"\${job_dir}/\${jobid}/log\"                  \\
+    2>> >(tee -a \"\${job_dir}/\${jobid}/log_err\")   \\
 
 # Run complete. Do cleanup.
 if [ -f \"\${job_dir}/\${jobid}/log_err\" ] && [ ! -s \"\${job_dir}/\${jobid}/log_err\" ]; then
@@ -2373,9 +2376,9 @@ An almost complete job script has been saved to\n\
 else
     # Run locally
     if [[ "${nprocs}" == *':'* ]]; then
-        nnodes=$("${python}" -B -c "print('${nprocs}'[:'${nprocs}'.index(':')])")
+        nnodes=$("${python}" -c "print('${nprocs}'[:'${nprocs}'.index(':')])")
         if [ "${nnodes}" == "1" ]; then
-            nprocs=$("${python}" -B -c "print('${nprocs}'[('${nprocs}'.index(':') + 1):])")
+            nprocs=$("${python}" -c "print('${nprocs}'[('${nprocs}'.index(':') + 1):])")
         else
             colorprint "You may not specify a number of nodes when running locally" "red"
             exit 1
@@ -2415,18 +2418,18 @@ else
     # We want the exit code of mpiexec, but it is not easily retrieved
     # due to the logging. We therefore print the exit code to a
     # temporary file which we then read and discard.
-    (                                                                   \
-        (                                                               \
-            "${mpiexec}" -n "${nprocs}" ${mpiexec_args}                 \
-                "${python}" -B ${i_flag} ${m_flag} "${main_as_library}" \
-                    "param='${param}'"                                  \
-                    "jobid='${jobid}'"                                  \
-            | tee -a "${job_dir}/${jobid}/log";                         \
-            echo "${PIPESTATUS[0]}" > "${job_dir}/${jobid}/.exit_code"  \
-        ) 3>&1 1>&2 2>&3                                                \
-        | tee -a                                                        \
-            "${job_dir}/${jobid}/log"                                   \
-            "${job_dir}/${jobid}/log_err"                               \
+    (                                                                  \
+        (                                                              \
+            "${mpiexec}" -n "${nprocs}" ${mpiexec_args}                \
+                "${python}" ${i_flag} ${m_flag} "${main_as_library}"   \
+                    "param='${param}'"                                 \
+                    "jobid='${jobid}'"                                 \
+            | tee -a "${job_dir}/${jobid}/log";                        \
+            echo "${PIPESTATUS[0]}" > "${job_dir}/${jobid}/.exit_code" \
+        ) 3>&1 1>&2 2>&3                                               \
+        | tee -a                                                       \
+            "${job_dir}/${jobid}/log"                                  \
+            "${job_dir}/${jobid}/log_err"                              \
     ) 3>&1 1>&2 2>&3
     # Get the exit code from the temporary file
     sleep_time=0.01

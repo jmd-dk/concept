@@ -2079,8 +2079,7 @@ class TransferFunction:
             # Non-linear curve fitting necessary
             exponent_max = 15
             fitted_trends = []
-            with warnings.catch_warnings():
-                warnings.simplefilter('ignore', category=RuntimeWarning)
+            with warnings.catch_warnings(action='ignore', category=RuntimeWarning):
                 for initial_guess in (
                     (-1, 0),
                     (+1, 0),

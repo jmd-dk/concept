@@ -3789,8 +3789,7 @@ def measure(component, quantity, communicate=True):
         # As the momenta should sum to ~0, floating-point inaccuracies
         # become highly visible. To counteract this, we carry out the
         # computation with increased precision.
-        with decimal.localcontext() as ctx:
-            ctx.prec = 2*17
+        with decimal.localcontext(prec=2*17):
             if component.representation == 'particles':
                 # Total momentum and momentum spread of all particles,
                 # for each dimension.

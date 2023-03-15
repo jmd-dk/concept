@@ -297,40 +297,40 @@ if [ -n "${concept_version}" ]; then
     concept_version_specified="True"
 fi
 set_version "concept"           "master"
-set_version "blas"              "0.3.20"  "0.3.20"
+set_version "blas"              "0.3.21"  "0.3.21"
 set_version "class"             "2.7.2"
 set_version "fftw"              "3.3.10"  "3.3.10"
 set_version "fftw_for_gadget"   "2.1.5"   "2.1.5"   # Do not change
 set_version "gadget"            "2.0.7"             # Do not change
 set_version "gsl"               "2.7"     "2.7"
-set_version "hdf5"              "1.12.1"
-set_version "libffi"            "3.4.2"   "3.3"
+set_version "hdf5"              "1.14.0"
+set_version "libffi"            "3.4.4"   "3.4.3"
 if [ "${mpi}" == "mpich" ]; then
-    set_version "mpi"           "3.4.3"   "3.4.3"
+    set_version "mpi"           "4.1.1"   "4.1.1"
 elif [ "${mpi}" == "openmpi" ]; then
-    set_version "mpi"           "4.1.2"
+    set_version "mpi"           "4.1.5"
 fi
-set_version "ncurses"           "6.3"     "6.3"
-set_version "openssl"           "3.0.1"   "3.0.0"
-set_version "perl"              "5.34.0"
-set_version "python"            "3.9.10"
-set_version "zlib"              "1.2.11"  "1.2.11"
+set_version "ncurses"           "6.4"     "6.4"
+set_version "openssl"           "3.0.8"   "3.0.7"
+set_version "perl"              "5.36.0"
+set_version "python"            "3.11.2"
+set_version "zlib"              "1.2.13"  "1.2.13"
 # Python packages
 set_version "blessings"         "1.7"
-set_version "cython"            "0.29.28"
+set_version "cython"            "0.29.33"
 set_version "cythongsl"         "0.2.2"
-set_version "h5py"              "3.6.0"
-set_version "matplotlib"        "3.6.3"
-set_version "mpi4py"            "3.1.3"
-set_version "numpy"             "1.22.3"
-set_version "pip"               "22.0.4"
-set_version "scipy"             "1.8.0"
-set_version "setuptools"        "61.2.0"
-set_version "sphinx"            "4.5.0"
-set_version "sphinx_copybutton" "0.5.0"
-set_version "sphinx_rtd_theme"  "1.0.0"
-set_version "sphinx_tabs"       "3.3.1"
-set_version "wheel"             "0.37.1"
+set_version "h5py"              "3.8.0"
+set_version "matplotlib"        "3.7.1"
+set_version "mpi4py"            "3.1.4"
+set_version "numpy"             "1.24.2"
+set_version "pip"               "23.0.1"
+set_version "scipy"             "1.10.1"
+set_version "setuptools"        "67.6.0"
+set_version "sphinx"            "6.1.3"
+set_version "sphinx_copybutton" "0.5.1"
+set_version "sphinx_rtd_theme"  "1.2.0"
+set_version "sphinx_tabs"       "3.4.1"
+set_version "wheel"             "0.38.4"
 # Note that the versions may be changed further down due to known
 # compatibility issues between specific versions of the above programs
 # and specific versions of system dependencies.
@@ -2158,6 +2158,9 @@ if     [ "${openssl_preinstalled}" == "True" ] \
     assume_preinstalled "perl"
 fi
 
+# Do not let Python produce .pyc files
+export PYTHONDONTWRITEBYTECODE=1
+
 # Function that checks whether a given Python package
 # is installed or not.
 check_pypackage_installed() {
@@ -2190,7 +2193,7 @@ check_pypackage_installed() {
     fi
     local pypackage_installed
     for python_executor in "${python_executors[@]}"; do
-        pypackage_installed="$(${python_executor} "${python}" -B -c "
+        pypackage_installed="$(${python_executor} "${python}" -c "
 from time import sleep
 try:
     if '${pypackage}' == 'cythongsl':
@@ -3301,9 +3304,9 @@ set_python() {
     for python_version_major in 3 2; do
         python_tmp="${python_dir}/bin/python${python_version_major}"
         if [ -f "${python_tmp}" ]; then
-            python_version_minor=$(                          \
+            python_version_minor=$(                         \
                 "${python_tmp}"                             \
-                -B -c                                       \
+                -c                                          \
                 "import sys; print(sys.version_info.minor)" \
             )
             python="${python_tmp}.${python_version_minor}"
@@ -6043,12 +6046,12 @@ openssl_install_func() {
     fi
     ./config shared --prefix="${openssl_dir}" \
         --openssldir="${openssl_dir}/openssl" 2>&1 || return 1
-    make 2>&1 || return 1  # Should not be run in parallel
+    make 2>&1 || return 1  # should not be run in parallel
     if [ "${do_tests}" == "True" ]; then
-        make test 2>&1 | tee "test_log"  # Should not be run in parallel
+        make test 2>&1 | tee "test_log"  # should not be run in parallel
         [ ${PIPESTATUS[0]} -eq 0 ] || test_success="False"
     fi
-    make install 2>&1 || return 1  # Should not be run in parallel
+    make install_sw 2>&1 || return 1  # should not be run in parallel
 }
 install "OpenSSL" compiler "${compiler_possibilities[@]}"
 
@@ -6194,22 +6197,7 @@ python_install_func() {
         export LD_LIBRARY_PATH="${openssl_dir}/lib:${LD_LIBRARY_PATH}"
         export LDFLAGS="-L${openssl_dir}/lib -Wl,-rpath=${openssl_dir}/lib ${LDFLAGS}"
         with_openssl="--with-openssl=${openssl_dir}"
-        # Modify Modules/Setup (Modules/Setup.dist in older Python
-        # versions) in order for Python to use the custom SSL library.
-        modules_setup_filename=""
-        for setup_filename in "Setup" "Setup.dist"; do
-            if [ -f "Modules/${setup_filename}" ]; then
-                modules_setup_filename="Modules/${setup_filename}"
-                break
-            fi
-        done
-        if [ -n "${modules_setup_filename}" ]; then
-            first_line="$(grep -n "SSL=" "${modules_setup_filename}")"
-            first_line=${first_line%:*}
-            ((last_line = first_line + 3))
-            sed -i "${first_line},${last_line}s/.//" "${modules_setup_filename}"
-            sed -i "${first_line}s/.*/SSL=${openssl_dir//\//\\/}/" "${modules_setup_filename}"
-        fi
+        with_openssl="${with_openssl} --with-openssl-rpath=auto"
     fi
     if [ -n "${zlib_dir}" ] && [ -d "${zlib_dir}" ]; then
         export CPPFLAGS="-I${zlib_dir}/include ${CPPFLAGS}"
@@ -6283,7 +6271,7 @@ python_install_func() {
         fi
     fi
     # Make install
-    make install 2>&1 || return 1  # Should be run serially
+    make install 2>&1 || return 1  # should be run serially
     # Cleanup if installing in slim mode.
     # Note that this also cleans up e.g. OpenSSL.
     if [ "${slim}" == "True" ]; then
@@ -6293,11 +6281,11 @@ python_install_func() {
         mv "${python_dir}/share/.terminfo" "${python_dir}/share/terminfo" || :
     fi
 }
-install "Python"                                                    \
-    compiler "${compiler_possibilities_specified_mpi_last[@]}"  ";" \
-    inteloptimizations "" "-O1"              ";"                    \
-    disable_atomic_operations "False" "True" ";"                    \
-    pyoptimizations "pgo lto" "pgo" "lto" "" ";"                    \
+install "Python"                                                   \
+    compiler "${compiler_possibilities_specified_mpi_last[@]}" ";" \
+    inteloptimizations "" "-O1"              ";"                   \
+    disable_atomic_operations "False" "True" ";"                   \
+    pyoptimizations "pgo lto" "pgo" "lto" "" ";"                   \
 # Create a python variable, storing the path to the Python interpreter
 set_python
 
@@ -6477,8 +6465,8 @@ Attempting to download ${1} using pip ${all_pip_args}\n\n"
         sleep ${sleep_time}
     done
     if [ "${pip_status}" == "error" ]; then
-        error "Error downloading ${1}"
-        exit 1
+        echo "Error downloading ${1}" >&2
+        return 1
     fi
 }
 
@@ -6693,7 +6681,7 @@ extra_pip_arg=${extra_pip_arg}\n\n"
     rm -rf "${tmp_pip_dir}" "${tmp_pip_dir}_tmp" "${tmp_pip_dir}_cp" || :
     # Return non-zero on failure
     if [ "${pypackage_installed}" != "True" ]; then
-        echo "pip could not install/upgrade ${1}"
+        echo "pip could not install/upgrade ${1}" >&2
         return 1
     fi
 }
@@ -6811,12 +6799,12 @@ if [ "${python_install}" == "True" ] && [ "${python_installed}" == "False" ] \
             || installed_packages_success="False"
     fi
     if [ "${installed_packages_success}" == "False" ]; then
-        installed_packages="$("${python}" -B -c "
+        installed_packages="$("${python}" -c "
 import pip
 print('\n'.join([i.key for i in pip.get_installed_distributions()]))
 ")"
     fi
-    installed_packages="$("${python}" -B -c "
+    installed_packages="$("${python}" -c "
 packages = '''${installed_packages}'''.split('\n')
 for i, package in enumerate(packages):
     if not package.strip().replace(' ', '').replace('-', ''):
@@ -6841,6 +6829,17 @@ print('\n'.join(packages))
             fi
         done
     done <<< "${installed_packages}"
+fi
+
+# If Python has been installed without the readline package (typically
+# because the readline development headers were not found during Python
+# configuration), attempt to install it now. Specifically, we install
+# the gnureadline package, which shadows the standard readline package.
+if [ "${python_install}" == "True" ] && [ "${python_installed}" == "False" ]; then
+    pyreadline_installed="$(check_pypackage_installed "readline")"
+    if [ "${pyreadline_installed}" == "False" ]; then
+        pip_install_pypackage "gnureadline" || :
+    fi
 fi
 
 # Install Python packages from PyPI
@@ -6883,7 +6882,7 @@ Attempting to install Cython with compiler=${compiler}\n\n"
     set_cython_dir() {
         cython_dir="$(                                                   \
             dirname "$(                                                  \
-                "${python}" -B -c                                        \
+                "${python}" -c                                           \
                 'import inspect, cython; print(inspect.getfile(cython))' \
                 || :                                                     \
             )"                                                           \
@@ -6947,7 +6946,7 @@ Attempting to install CythonGSL with compiler=${compiler}\n\n"
     # declared in __init__.pxd.
     cythongsl_dir="$(                                                        \
         dirname "$(                                                          \
-            "${python}" -B -c                                                \
+            "${python}" -c                                                   \
             'import inspect, cython_gsl; print(inspect.getfile(cython_gsl))' \
             || :                                                             \
         )"                                                                   \
@@ -7132,7 +7131,7 @@ runtime_library_dirs = ${blas_dir}/lib
             if [ -d "${blas_dir}" ]; then
                 export LD_LIBRARY_PATH="${blas_dir}/lib:${LD_LIBRARY_PATH}"
             fi
-            ("${python}" -B -c "import numpy; numpy.test('full', \
+            ("${python}" -c "import numpy; numpy.test('full', \
 extra_argv=['-q', '--color=yes'])" 2>&1 | tee "test_log"; \
                 echo "${PIPESTATUS[0]}" > "${exit_code_filename}") & numpy_test_pid=$!
             soothe ${numpy_test_pid} ${numpy_test_max_time}
@@ -7338,7 +7337,7 @@ runtime_library_dirs = ${blas_dir}/lib
             if [ -d "${blas_dir}" ]; then
                 export LD_LIBRARY_PATH="${blas_dir}/lib:${LD_LIBRARY_PATH}"
             fi
-            ("${python}" -B -c "import scipy; scipy.test('full', \
+            ("${python}" -c "import scipy; scipy.test('full', \
 extra_argv=['-q', '--color=yes', '-k not test_face'])" 2>&1 | tee "test_log"; \
                 echo "${PIPESTATUS[0]}" > "${exit_code_filename}") & scipy_test_pid=$!
             soothe ${scipy_test_pid} ${scipy_test_max_time}
@@ -7419,8 +7418,11 @@ if [ "${matplotlib_install}" == "True" ] && [ "${matplotlib_installed}" == "Fals
     # building Matplotlib.
     # This list of setup dependencies are taken from
     #   https://matplotlib.org/stable/devel/dependencies.html#setup-dependencies
+    # and
+    #  https://github.com/matplotlib/matplotlib/blob/main/pyproject.toml
     dependencies=(       \
         "certifi"        \
+        "pybind11"       \
         "setuptools_scm" \
     )
     for dependency in "${dependencies[@]}"; do
@@ -7490,7 +7492,7 @@ if [ "${matplotlib_install}" == "True" ] && [ "${matplotlib_installed}" == "Fals
             cp -r "${pillow_build_dir}_cp" "${pillow_build_dir}"
             cd "${pillow_build_dir}"
             if [ "${zip_1980_fix}" == "True" ]; then
-                bdist_egg_file="$("${python}" -B -c "
+                bdist_egg_file="$("${python}" -c "
 import inspect
 import setuptools.command.bdist_egg as bdist_egg
 print(inspect.getfile(bdist_egg))
@@ -7523,6 +7525,9 @@ print(inspect.getfile(bdist_egg))
 
     fi
     # Download Matplotlib
+    current_step="the downloading of Matplotlib ${matplotlib_version}"
+    heading "Downloading Matplotlib ${matplotlib_version}"
+    set_status "Downloading Matplotlib ${matplotlib_version}"
     tmp_pip_dir="${tmp_dir}/pip"
     rm -rf "${tmp_pip_dir}" "${tmp_pip_dir}_tmp" || :
     mkdir -p "${tmp_pip_dir}_tmp"
@@ -7553,7 +7558,6 @@ print(inspect.getfile(bdist_egg))
     matplotlib_install_func() {
         cd "${concept_dir}"
         rm -rf "${matplotlib_build_dir}" || :
-        "${python}" -m pip uninstall "matplotlib" -y >/dev/null 2>&1 || :
         cp -r "${matplotlib_build_dir}_cp" "${matplotlib_build_dir}"
         cd "${matplotlib_build_dir}"
         unset MPLSETUPCFG
@@ -7630,6 +7634,7 @@ print(inspect.getfile(bdist_egg))
         if [ "${slim}" == "True" ]; then
             removable_dependencies=( \
                 "certifi"            \
+                "pybind11"           \
                 "setuptools_scm"     \
             )
             for dependency in "${removable_dependencies[@]}"; do
@@ -7652,7 +7657,7 @@ print(inspect.getfile(bdist_egg))
         # download() function.
         set_matplotlib_clibs
         cd "${matplotlib_build_dir}"
-        content="$("${python}" -B -c "
+        content="$("${python}" -c "
 import setupext
 def get_and_extract_tarball(urls, *args, **kwargs):
     print('\n'.join(urls))
@@ -7669,7 +7674,7 @@ for clib in '${matplotlib_clibs}'.split():
             if [[ "${line}" == "# "* ]]; then
                 matplotlib_clib="$(echo "${line}" | awk '{print $NF}')"
                 eval "matplotlib_${matplotlib_clib}_urls=()"
-            else
+            elif [ -n "${line}" ]; then
                 urls="matplotlib_${matplotlib_clib}_urls"
                 eval "${urls}=(\"\${${urls}[@]}\" \"${line}\")"
             fi
@@ -7878,7 +7883,7 @@ if [ "${concept_install}" == "True" ] && [ "${concept_installed}" == "False" ]; 
     current_step="setup of the .env file"
     printf "\nSetting up the .env file\n"
     set_status "Setting up the .env file"
-    "${python}" -B -c "
+    "${python}" -c "
 import os
 with open('${env}', mode='r', encoding='utf-8') as file:
     lines = file.readlines()
@@ -9049,8 +9054,10 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
                 sed -i "${linenr}iliblist += ['mvec', 'm']" "python/setup.py"
             fi
         fi
+        unset PYTHONDONTWRITEBYTECODE  # temporarily allow Python to produce .pyc files
         PYTHON="${python}" make ${make_jobs} 2>&1 || return 1
-        "${python}" -B -c "import classy; classy.Class().compute()" || return 1
+        export PYTHONDONTWRITEBYTECODE=1
+        "${python}" -c "import classy; classy.Class().compute()" || return 1
         # Test CLASS
         if [ "${do_tests}" == "True" ]; then
             if [ -d "${blas_dir}" ]; then
@@ -9060,7 +9067,7 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
             # tens of gigabytes of memory and uses the Nose and
             # parameterized Python packages. Instead we perform a simple
             # test of our own, which only does a background computation.
-            if ! "${python}" -B -c "
+            if ! "${python}" -c "
 import sys
 from classy import Class
 cosmo = Class()
@@ -9089,6 +9096,8 @@ sys.exit(int(cosmo.get_background()['proper time [Gyr]'][-1]) != 13)
         fast_math "True" "False"                ";" \
 
 fi
+# Do not let Python produce .pyc files
+export PYTHONDONTWRITEBYTECODE=1
 
 
 
@@ -9238,7 +9247,7 @@ if [ "${gadget_install}" == "True" ] && [ "${gadget_installed}" == "False" ]; th
     # As M_PI is not part of the C standard,
     # it should be defined within the GADGET source code.
     if [ -n "${python}" ]; then
-        pi="$("${python}" -B -c "import math; print('pi =', math.pi)" \
+        pi="$("${python}" -c "import math; print('pi =', math.pi)" \
             | grep 'pi =' | awk '{print $NF}' || :)"
         if [[ "${pi}" == "3.14"* ]]; then
             echo "

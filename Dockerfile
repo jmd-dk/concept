@@ -1,5 +1,5 @@
 # Basics
-FROM debian:11.5-slim
+FROM debian:11.6-slim
 SHELL ["/usr/bin/env", "bash", "-c"]
 CMD ["bash"]
 

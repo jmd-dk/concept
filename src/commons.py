@@ -578,8 +578,7 @@ def get_matplotlib():
                 fig = args[0]
             # Matplotlib might emit several differet UserWarning's,
             # which we do not want to display.
-            with warnings.catch_warnings():
-                warnings.simplefilter('ignore', category=UserWarning)
+            with warnings.catch_warnings(action='ignore', category=UserWarning):
                 fix_minor_tick_labels(fig)
                 func(*args, **kwargs)
         return wrapper
@@ -5543,7 +5542,10 @@ def open_hdf5(filename, raise_exception=False, **kwargs):
     It is an error to call non-collectively from any process but the
     master mode.
     """
-    import h5py
+    # A warning about np.float128 might be emitted from _get_machar()
+    # within numpy/core/getlimits.py upon importing h5py.
+    with warnings.catch_warnings(action='ignore', category=UserWarning):
+        import h5py
     # Minimum and maximum time to wait between checks on the file
     sleep_time_min = 1
     sleep_time_max = 300

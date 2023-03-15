@@ -822,7 +822,7 @@ You may draw inspiration from the current or older versions of the
 Python dependencies
 ...................
 The CO\ *N*\ CEPT source depends explicitly on
-`Python <https://www.python.org/>`__ version 3.9 or newer, together with the
+`Python <https://www.python.org/>`__ version 3.11 or newer, together with the
 following Python packages (many of which have heavy dependencies of their
 own):
 
