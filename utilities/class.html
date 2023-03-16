@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html class="writer-html5" lang="en" >
 <head>
-  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>class utility &mdash; CONCEPT Documentation</title>
@@ -16,10 +16,11 @@
     <script src="../_static/js/html5shiv.min.js"></script>
   <![endif]-->
   
-        <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
         <script src="../_static/jquery.js"></script>
-        <script src="../_static/underscore.js"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
         <script src="../_static/doctools.js"></script>
+        <script src="../_static/sphinx_highlight.js"></script>
         <script src="../_static/clipboard.min.js"></script>
         <script src="../_static/copybutton.js"></script>
         <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
@@ -35,12 +36,16 @@
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
         <div class="wy-side-nav-search" >
-            <a href="../index.html" class="icon icon-home"> CO<em>N</em>CEPT
-            <img src="../_static/logo.png" class="logo" alt="Logo"/>
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            CO<em>N</em>CEPT
+              <img src="../_static/logo.png" class="logo" alt="Logo"/>
           </a>
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
-    <input type="text" name="q" placeholder="Search documentation" />
+    <input type="text" name="q" placeholder="Search documentation" aria-label="Search docs" />
     <input type="hidden" name="check_keywords" value="yes" />
     <input type="hidden" name="area" value="default" />
   </form>
@@ -328,9 +333,9 @@
         <div class="rst-content style-external-links">
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
-      <li><a href="../index.html" class="icon icon-home"></a> &raquo;</li>
-          <li><a href="utilities.html">Utilities</a> &raquo;</li>
-      <li>class utility</li>
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="utilities.html">Utilities</a></li>
+      <li class="breadcrumb-item active">class utility</li>
       <li class="wy-breadcrumbs-aside">
               <a href="https://github.com/jmd-dk/concept/" class="fa fa-github"> Code Repository</a>
       </li>
@@ -344,7 +349,7 @@
            <div itemprop="articleBody">
              
   <section id="class-utility">
-<h1>class utility<a class="headerlink" href="#class-utility" title="Permalink to this headline"></a></h1>
+<h1>class utility<a class="headerlink" href="#class-utility" title="Permalink to this heading"></a></h1>
 <p>The CO<em>N</em>CEPT ‘class’ utility enables easy access to linear perturbations
 (and background quantities) outside of CO<em>N</em>CEPT, e.g. for use with other
 simulation codes. In a nutshell, a cosmology is specified to CO<em>N</em>CEPT
@@ -368,7 +373,7 @@ It is also advisable to have gone through the CO<em>N</em>CEPT
 first subsection of <a class="reference internal" href="../tutorial/beyond_matter_only.html#radiation"><span class="std std-ref">beyond matter-only simulations</span></a>.</p>
 </div>
 <p>Entries on this page:</p>
-<div class="contents local topic" id="contents">
+<nav class="contents local" id="contents">
 <ul class="simple">
 <li><p><a class="reference internal" href="#basic-usage" id="id5">Basic usage</a></p></li>
 <li><p><a class="reference internal" href="#command-line-options" id="id6">Command-line options</a></p></li>
@@ -377,9 +382,9 @@ first subsection of <a class="reference internal" href="../tutorial/beyond_matte
 <li><p><a class="reference internal" href="#running-through-docker" id="id9">Running through Docker</a></p></li>
 <li><p><a class="reference internal" href="#tips-and-tricks" id="id10">Tips and tricks</a></p></li>
 </ul>
-</div>
+</nav>
 <section id="basic-usage">
-<span id="id1"></span><h2><a class="toc-backref" href="#id5">Basic usage</a><a class="headerlink" href="#basic-usage" title="Permalink to this headline"></a></h2>
+<span id="id1"></span><h2><a class="toc-backref" href="#id5" role="doc-backlink">Basic usage</a><a class="headerlink" href="#basic-usage" title="Permalink to this heading"></a></h2>
 <p>A basic invocation of the CO<em>N</em>CEPT class utility looks like</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-u<span class="w"> </span>class<span class="w"> </span><span class="se">\</span>
@@ -434,7 +439,7 @@ of these HDF5 files can be explored using tools such as
 <code class="docutils literal notranslate"><span class="pre">--modes</span></code> <a class="reference internal" href="#fourier-modes"><span class="std std-ref">command-line option</span></a>.</p>
 </section>
 <section id="command-line-options">
-<h2><a class="toc-backref" href="#id6">Command-line options</a><a class="headerlink" href="#command-line-options" title="Permalink to this headline"></a></h2>
+<h2><a class="toc-backref" href="#id6" role="doc-backlink">Command-line options</a><a class="headerlink" href="#command-line-options" title="Permalink to this heading"></a></h2>
 <p>Below the possible command-line options to the CO<em>N</em>CEPT class utility are
 described, i.e. additional options to the <code class="docutils literal notranslate"><span class="pre">concept</span></code> script allowed once
 <code class="docutils literal notranslate"><span class="pre">-u</span> <span class="pre">class</span></code> is supplied. For the <code class="docutils literal notranslate"><span class="pre">&lt;perturbations&gt;</span></code> option, see
@@ -444,7 +449,7 @@ command-line options to the <code class="docutils literal notranslate"><span cla
 <a class="reference internal" href="../command_line_options.html#utility"><span class="std std-ref">this section</span></a> for how standard command-line options are used
 together with utility specific ones.</p>
 <section id="help-h-help">
-<h3>Help: <code class="docutils literal notranslate"><span class="pre">-h</span></code>, <code class="docutils literal notranslate"><span class="pre">--help</span></code><a class="headerlink" href="#help-h-help" title="Permalink to this headline"></a></h3>
+<h3>Help: <code class="docutils literal notranslate"><span class="pre">-h</span></code>, <code class="docutils literal notranslate"><span class="pre">--help</span></code><a class="headerlink" href="#help-h-help" title="Permalink to this heading"></a></h3>
 <p>Displays a short description of each command-line option to the class utility
 and exits:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>-u<span class="w"> </span>class<span class="w"> </span>-h
@@ -452,7 +457,7 @@ and exits:</p>
 </div>
 </section>
 <section id="minimum-fourier-mode-kmin">
-<span id="minimum-fourier-mode"></span><h3>Minimum Fourier mode: <code class="docutils literal notranslate"><span class="pre">--kmin</span></code><a class="headerlink" href="#minimum-fourier-mode-kmin" title="Permalink to this headline"></a></h3>
+<span id="minimum-fourier-mode"></span><h3>Minimum Fourier mode: <code class="docutils literal notranslate"><span class="pre">--kmin</span></code><a class="headerlink" href="#minimum-fourier-mode-kmin" title="Permalink to this heading"></a></h3>
 <p>Sets the minimum needed Fourier <span class="math notranslate nohighlight">\(k\)</span> mode for the perturbations. For e.g.
 <span class="math notranslate nohighlight">\(k \geq 5\times 10^{-4}\, \text{Mpc}^{-1}\)</span>:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>-u<span class="w"> </span>class<span class="w"> </span>--kmin<span class="w"> </span>5e-4/Mpc
@@ -465,7 +470,7 @@ and exits:</p>
 </div>
 </section>
 <section id="maximum-fourier-mode-kmax">
-<span id="maximum-fourier-mode"></span><h3>Maximum Fourier mode: <code class="docutils literal notranslate"><span class="pre">--kmax</span></code><a class="headerlink" href="#maximum-fourier-mode-kmax" title="Permalink to this headline"></a></h3>
+<span id="maximum-fourier-mode"></span><h3>Maximum Fourier mode: <code class="docutils literal notranslate"><span class="pre">--kmax</span></code><a class="headerlink" href="#maximum-fourier-mode-kmax" title="Permalink to this heading"></a></h3>
 <p>Sets the maximum needed Fourier <span class="math notranslate nohighlight">\(k\)</span> mode for the perturbations. For e.g.
 <span class="math notranslate nohighlight">\(k \leq 2\, \text{Mpc}^{-1}\)</span>:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>-u<span class="w"> </span>class<span class="w"> </span>--kmax<span class="w"> </span><span class="m">2</span>/Mpc
@@ -483,7 +488,7 @@ the CLASS computation time for each mode grows rapidly with <span class="math no
 </div>
 </section>
 <section id="fourier-modes-modes">
-<span id="fourier-modes"></span><h3>Fourier modes: <code class="docutils literal notranslate"><span class="pre">--modes</span></code><a class="headerlink" href="#fourier-modes-modes" title="Permalink to this headline"></a></h3>
+<span id="fourier-modes"></span><h3>Fourier modes: <code class="docutils literal notranslate"><span class="pre">--modes</span></code><a class="headerlink" href="#fourier-modes-modes" title="Permalink to this heading"></a></h3>
 <p>When specified as an integer, this sets the total number of Fourier <span class="math notranslate nohighlight">\(k\)</span>
 modes for the perturbations. E.g.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>-u<span class="w"> </span>class<span class="w"> </span>--modes<span class="w"> </span><span class="m">128</span>
@@ -530,7 +535,7 @@ within this file.</p></li>
 values outside this range being dropped.</p>
 </section>
 <section id="times-times">
-<span id="times"></span><h3>Times: <code class="docutils literal notranslate"><span class="pre">--times</span></code><a class="headerlink" href="#times-times" title="Permalink to this headline"></a></h3>
+<span id="times"></span><h3>Times: <code class="docutils literal notranslate"><span class="pre">--times</span></code><a class="headerlink" href="#times-times" title="Permalink to this heading"></a></h3>
 <p>When specified as an integer, this sets the total number of times
 (scale factor <span class="math notranslate nohighlight">\(a\)</span> values) at which to tabulate the perturbations. E.g.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>-u<span class="w"> </span>class<span class="w"> </span>--times<span class="w"> </span><span class="m">512</span>
@@ -576,7 +581,7 @@ within this file.</p></li>
 </ul>
 </section>
 <section id="gauge-gauge">
-<span id="gauge"></span><h3>Gauge: <code class="docutils literal notranslate"><span class="pre">--gauge</span></code><a class="headerlink" href="#gauge-gauge" title="Permalink to this headline"></a></h3>
+<span id="gauge"></span><h3>Gauge: <code class="docutils literal notranslate"><span class="pre">--gauge</span></code><a class="headerlink" href="#gauge-gauge" title="Permalink to this heading"></a></h3>
 <p>Sets the gauge of the processed perturbations. E.g.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>-u<span class="w"> </span>class<span class="w"> </span>--gauge<span class="w"> </span>N-body
 </pre></div>
@@ -593,7 +598,7 @@ with the perturbations transformed to <em>N</em>-body gauge by CO<em>N</em>CEPT.
 </section>
 </section>
 <section id="file-contents">
-<span id="id2"></span><h2><a class="toc-backref" href="#id7">File contents</a><a class="headerlink" href="#file-contents" title="Permalink to this headline"></a></h2>
+<span id="id2"></span><h2><a class="toc-backref" href="#id7" role="doc-backlink">File contents</a><a class="headerlink" href="#file-contents" title="Permalink to this heading"></a></h2>
 <p>The result of a CO<em>N</em>CEPT class utility computation is a file called
 <code class="docutils literal notranslate"><span class="pre">class_processed.hdf5</span></code>, containing the requested perturbations as well as
 background quantities. As mentioned earlier, the contents of HDF5 files are
@@ -601,7 +606,7 @@ conveniently explored using a graphical tool like
 <a class="reference external" href="https://vitables.org/">ViTables</a>. Details of the contents of
 <code class="docutils literal notranslate"><span class="pre">class_processed.hdf5</span></code> are described below.</p>
 <section id="data-layout">
-<span id="id3"></span><h3>Data layout<a class="headerlink" href="#data-layout" title="Permalink to this headline"></a></h3>
+<span id="id3"></span><h3>Data layout<a class="headerlink" href="#data-layout" title="Permalink to this heading"></a></h3>
 <p>The data layout within <code class="docutils literal notranslate"><span class="pre">class_processed.hdf5</span></code> is as follows:</p>
 <ul>
 <li><p><code class="docutils literal notranslate"><span class="pre">background</span></code>: Group containing various background quantities, tabulated
@@ -688,7 +693,7 @@ units used for the data throughout the file:</p>
 </ul>
 </section>
 <section id="extra-output">
-<h3>Extra output<a class="headerlink" href="#extra-output" title="Permalink to this headline"></a></h3>
+<h3>Extra output<a class="headerlink" href="#extra-output" title="Permalink to this heading"></a></h3>
 <p>The <a class="reference internal" href="#data-layout"><span class="std std-ref">above</span></a> lists of background and perturbation quantities
 are what end up in the processed HDF5 file by default, though the raw CLASS
 computation contains other quantities as well. You may request these other
@@ -722,17 +727,13 @@ happens, a warning will be emitted.</p>
 </div>
 </section>
 <section id="units">
-<h3>Units<a class="headerlink" href="#units" title="Permalink to this headline"></a></h3>
+<h3>Units<a class="headerlink" href="#units" title="Permalink to this heading"></a></h3>
 <p>As written <a class="reference internal" href="#data-layout"><span class="std std-ref">above</span></a>, the <code class="docutils literal notranslate"><span class="pre">units</span></code> group contains the base
 units used for all data within the file, with the default base units being
 <span class="math notranslate nohighlight">\(\text{Mpc}\)</span>, <span class="math notranslate nohighlight">\(\text{Gpc}\)</span> and <span class="math notranslate nohighlight">\(10^{10}\, m_{\odot}\)</span>. Given
 these default base units, the table below lists the full units in which the
 various data sets are expressed:</p>
 <table class="docutils align-center">
-<colgroup>
-<col style="width: 47%" />
-<col style="width: 53%" />
-</colgroup>
 <thead>
 <tr class="row-odd"><th class="head"><p class="centered">
 <strong>Quantity</strong></p></th>
@@ -820,16 +821,12 @@ the speed of light squared:</p>
 </section>
 </section>
 <section id="complete-example-massive-neutrinos">
-<h2><a class="toc-backref" href="#id8">Complete example (massive neutrinos)</a><a class="headerlink" href="#complete-example-massive-neutrinos" title="Permalink to this headline"></a></h2>
+<h2><a class="toc-backref" href="#id8" role="doc-backlink">Complete example (massive neutrinos)</a><a class="headerlink" href="#complete-example-massive-neutrinos" title="Permalink to this heading"></a></h2>
 <p>Here follows a complete code example for a CO<em>N</em>CEPT class utility
 computation of a cosmology involving massive neutrinos.</p>
 <p>The cosmology for which we want to compute the linear perturbations is
 specified by the following table:</p>
 <table class="docutils align-center">
-<colgroup>
-<col style="width: 44%" />
-<col style="width: 56%" />
-</colgroup>
 <thead>
 <tr class="row-odd"><th class="head"><p class="centered">
 <strong>Parameter</strong></p></th>
@@ -1059,7 +1056,7 @@ one can extract and use (some of) the data within this file:</p>
     <span class="n">units</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">f</span><span class="p">[</span><span class="s1">&#39;units&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">attrs</span><span class="p">)</span>
     <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Units:&#39;</span><span class="p">,</span> <span class="n">units</span><span class="p">)</span>
 
-<span class="c1"># Construct matter power spectrum spline</span>
+<span class="c1"># Construct matter power spectrum interpolator</span>
 <span class="n">A_s</span> <span class="o">=</span> <span class="mf">2.1e-9</span>
 <span class="n">n_s</span> <span class="o">=</span> <span class="mf">0.96</span>
 <span class="n">α_s</span> <span class="o">=</span> <span class="mi">0</span>
@@ -1069,17 +1066,16 @@ one can extract and use (some of) the data within this file:</p>
     <span class="o">*</span><span class="n">k</span><span class="o">**</span><span class="p">(</span><span class="o">-</span><span class="mi">3</span><span class="o">/</span><span class="mi">2</span><span class="p">)</span><span class="o">*</span><span class="p">(</span><span class="n">k</span><span class="o">/</span><span class="n">k_pivot</span><span class="p">)</span><span class="o">**</span><span class="p">((</span><span class="n">n_s</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span><span class="o">/</span><span class="mi">2</span><span class="p">)</span>
     <span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">α_s</span><span class="o">/</span><span class="mi">4</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">k</span><span class="o">/</span><span class="n">k_pivot</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
 <span class="p">)</span>
-<span class="n">spline</span> <span class="o">=</span> <span class="n">scipy</span><span class="o">.</span><span class="n">interpolate</span><span class="o">.</span><span class="n">interp2d</span><span class="p">(</span>
-    <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">k_pt</span><span class="p">),</span>
-    <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">a_pt</span><span class="p">),</span>
-    <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">((</span><span class="n">ζ</span><span class="p">(</span><span class="n">k_pt</span><span class="p">)</span><span class="o">*</span><span class="n">δ_pt</span><span class="p">[</span><span class="s1">&#39;b+cdm&#39;</span><span class="p">])</span><span class="o">**</span><span class="mi">2</span><span class="p">),</span>
-    <span class="n">kind</span><span class="o">=</span><span class="s1">&#39;cubic&#39;</span><span class="p">,</span>
+<span class="n">interpolator</span> <span class="o">=</span> <span class="n">scipy</span><span class="o">.</span><span class="n">interpolate</span><span class="o">.</span><span class="n">RegularGridInterpolator</span><span class="p">(</span>
+    <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">k_pt</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">a_pt</span><span class="p">)),</span>
+    <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">((</span><span class="n">ζ</span><span class="p">(</span><span class="n">k_pt</span><span class="p">)</span><span class="o">*</span><span class="n">δ_pt</span><span class="p">[</span><span class="s1">&#39;b+cdm&#39;</span><span class="p">])</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">T</span><span class="p">,</span>
+    <span class="n">method</span><span class="o">=</span><span class="s1">&#39;cubic&#39;</span><span class="p">,</span>
 <span class="p">)</span>
-<span class="n">P_m</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">z</span><span class="p">,</span> <span class="n">logk</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">k_pt</span><span class="p">),</span> <span class="n">spline</span><span class="o">=</span><span class="n">spline</span><span class="p">:</span> <span class="p">(</span>
-    <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">spline</span><span class="p">(</span><span class="n">logk</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="mi">1</span><span class="o">/</span><span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="n">z</span><span class="p">))))</span>
+<span class="n">P_m</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">z</span><span class="p">,</span> <span class="n">logk</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">k_pt</span><span class="p">),</span> <span class="n">interpolator</span><span class="o">=</span><span class="n">interpolator</span><span class="p">:</span> <span class="p">(</span>
+    <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">interpolator</span><span class="p">((</span><span class="n">logk</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="mi">1</span><span class="o">/</span><span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="n">z</span><span class="p">)))))</span>
 <span class="p">)</span>
 
-<span class="c1"># Construct δρ splines for all species</span>
+<span class="c1"># Construct δρ interpolators for all species</span>
 <span class="n">δρ</span> <span class="o">=</span> <span class="p">{}</span>
 <span class="k">for</span> <span class="n">species</span><span class="p">,</span> <span class="n">δ_species</span> <span class="ow">in</span> <span class="n">δ_pt</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
     <span class="n">ρ_species</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">scipy</span><span class="o">.</span><span class="n">interpolate</span><span class="o">.</span><span class="n">interp1d</span><span class="p">(</span>
@@ -1087,14 +1083,13 @@ one can extract and use (some of) the data within this file:</p>
         <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">ρ_bg</span><span class="p">[</span><span class="n">species</span><span class="p">]),</span>
         <span class="n">kind</span><span class="o">=</span><span class="s1">&#39;cubic&#39;</span><span class="p">,</span>
     <span class="p">)(</span><span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">a_pt</span><span class="p">)))</span>
-    <span class="n">spline</span> <span class="o">=</span> <span class="n">scipy</span><span class="o">.</span><span class="n">interpolate</span><span class="o">.</span><span class="n">interp2d</span><span class="p">(</span>
-        <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">k_pt</span><span class="p">),</span>
-        <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">a_pt</span><span class="p">),</span>
-        <span class="n">δ_species</span><span class="o">*</span><span class="n">ρ_species</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span>
-        <span class="n">kind</span><span class="o">=</span><span class="s1">&#39;linear&#39;</span><span class="p">,</span>
+    <span class="n">interpolator</span> <span class="o">=</span> <span class="n">scipy</span><span class="o">.</span><span class="n">interpolate</span><span class="o">.</span><span class="n">RegularGridInterpolator</span><span class="p">(</span>
+        <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">k_pt</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">a_pt</span><span class="p">)),</span>
+        <span class="p">(</span><span class="n">δ_species</span><span class="o">*</span><span class="n">ρ_species</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span><span class="o">.</span><span class="n">T</span><span class="p">,</span>
+        <span class="n">method</span><span class="o">=</span><span class="s1">&#39;linear&#39;</span><span class="p">,</span>
     <span class="p">)</span>
-    <span class="n">δρ</span><span class="p">[</span><span class="n">species</span><span class="p">]</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">z</span><span class="p">,</span> <span class="n">logk</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">k_pt</span><span class="p">),</span> <span class="n">spline</span><span class="o">=</span><span class="n">spline</span><span class="p">:</span> <span class="p">(</span>
-        <span class="n">spline</span><span class="p">(</span><span class="n">logk</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="mi">1</span><span class="o">/</span><span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="n">z</span><span class="p">)))</span>
+    <span class="n">δρ</span><span class="p">[</span><span class="n">species</span><span class="p">]</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">z</span><span class="p">,</span> <span class="n">logk</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">k_pt</span><span class="p">),</span> <span class="n">interpolator</span><span class="o">=</span><span class="n">interpolator</span><span class="p">:</span> <span class="p">(</span>
+        <span class="n">interpolator</span><span class="p">((</span><span class="n">logk</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="mi">1</span><span class="o">/</span><span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="n">z</span><span class="p">))))</span>
     <span class="p">)</span>
 
 <span class="c1"># Plot energy density history</span>
@@ -1220,7 +1215,7 @@ is thus <span class="math notranslate nohighlight">\(-\delta_{\alpha}\)</span>.<
 </ul>
 </section>
 <section id="running-through-docker">
-<span id="id4"></span><h2><a class="toc-backref" href="#id9">Running through Docker</a><a class="headerlink" href="#running-through-docker" title="Permalink to this headline"></a></h2>
+<span id="id4"></span><h2><a class="toc-backref" href="#id9" role="doc-backlink">Running through Docker</a><a class="headerlink" href="#running-through-docker" title="Permalink to this heading"></a></h2>
 <p>As described under <a class="reference internal" href="../installation.html#supported-platforms"><span class="std std-ref">Supported platforms</span></a>, it is
 possible to run CO<em>N</em>CEPT through Docker. While not preferable for running
 large simulations, running CO<em>N</em>CEPT this way for casual use of the class
@@ -1256,7 +1251,7 @@ parameters via the <code class="docutils literal notranslate"><span class="pre">
 <a class="reference internal" href="../command_line_options.html#command-line-parameters"><span class="std std-ref">command-line option</span></a>.</p>
 </section>
 <section id="tips-and-tricks">
-<h2><a class="toc-backref" href="#id10">Tips and tricks</a><a class="headerlink" href="#tips-and-tricks" title="Permalink to this headline"></a></h2>
+<h2><a class="toc-backref" href="#id10" role="doc-backlink">Tips and tricks</a><a class="headerlink" href="#tips-and-tricks" title="Permalink to this heading"></a></h2>
 <p>Below we list a few tips and tricks that are not discussed above.</p>
 <p><h3> Plotting perturbations on the fly </h3></p>
 <p>It can be difficult to judge whether the various CLASS precision parameters

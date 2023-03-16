@@ -1286,7 +1286,7 @@ CO\ *N*\ CEPT run.
                       may be erroneously located outside of the box. If a
                       particle is positioned exactly on the upper boundary
                       :math:`L_{\text{box}}`, this is silently wrapped back
-                      to :math:`0`. Positions beyond this as well as as
+                      to :math:`0`. Positions beyond this as well as
                       negative positions are counted as out-of-bounds.
 
                       If this parameter is set to ``False`` (the default), any

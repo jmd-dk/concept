@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html class="writer-html5" lang="en" >
 <head>
-  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>5. Other kinds of output &mdash; CONCEPT Documentation</title>
@@ -16,10 +16,11 @@
     <script src="../_static/js/html5shiv.min.js"></script>
   <![endif]-->
   
-        <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
         <script src="../_static/jquery.js"></script>
-        <script src="../_static/underscore.js"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
         <script src="../_static/doctools.js"></script>
+        <script src="../_static/sphinx_highlight.js"></script>
         <script src="../_static/clipboard.min.js"></script>
         <script src="../_static/copybutton.js"></script>
         <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
@@ -35,12 +36,16 @@
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
         <div class="wy-side-nav-search" >
-            <a href="../index.html" class="icon icon-home"> CO<em>N</em>CEPT
-            <img src="../_static/logo.png" class="logo" alt="Logo"/>
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            CO<em>N</em>CEPT
+              <img src="../_static/logo.png" class="logo" alt="Logo"/>
           </a>
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
-    <input type="text" name="q" placeholder="Search documentation" />
+    <input type="text" name="q" placeholder="Search documentation" aria-label="Search docs" />
     <input type="hidden" name="check_keywords" value="yes" />
     <input type="hidden" name="area" value="default" />
   </form>
@@ -328,9 +333,9 @@
         <div class="rst-content style-external-links">
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
-      <li><a href="../index.html" class="icon icon-home"></a> &raquo;</li>
-          <li><a href="tutorial.html">Tutorial</a> &raquo;</li>
-      <li><span class="section-number">5. </span>Other kinds of output</li>
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="tutorial.html">Tutorial</a></li>
+      <li class="breadcrumb-item active"><span class="section-number">5. </span>Other kinds of output</li>
       <li class="wy-breadcrumbs-aside">
               <a href="https://github.com/jmd-dk/concept/" class="fa fa-github"> Code Repository</a>
       </li>
@@ -344,7 +349,7 @@
            <div itemprop="articleBody">
              
   <section id="other-kinds-of-output">
-<h1><span class="section-number">5. </span>Other kinds of output<a class="headerlink" href="#other-kinds-of-output" title="Permalink to this headline"></a></h1>
+<h1><span class="section-number">5. </span>Other kinds of output<a class="headerlink" href="#other-kinds-of-output" title="Permalink to this heading"></a></h1>
 <p>So far, the result of any simulation has been power spectra, though several
 other types of output are available, as exemplified by the below parameter
 file:</p>
@@ -393,7 +398,7 @@ specified 15 outputs spaced logarithmically equidistant between
 specified that we only want the data files — also including the linear theory
 spectrum — as output, not plots of this data.</p>
 <section id="bispectra">
-<h2><span class="section-number">5.1. </span>Bispectra<a class="headerlink" href="#bispectra" title="Permalink to this headline"></a></h2>
+<h2><span class="section-number">5.1. </span>Bispectra<a class="headerlink" href="#bispectra" title="Permalink to this heading"></a></h2>
 <p>The output directory will be populated with a large number of output files.
 The ones with names beginning with <code class="docutils literal notranslate"><span class="pre">bispec</span></code> are the bispectrum files,
 analogous to the by-now familiar power spectrum files. Looking at the
@@ -423,7 +428,7 @@ bispectrum. A <a class="reference internal" href="bispectra.html"><span class="d
 dedicated to the bispectrum, including other configurations.</p>
 </section>
 <section id="d-renders">
-<h2><span class="section-number">5.2. </span>3D renders<a class="headerlink" href="#d-renders" title="Permalink to this headline"></a></h2>
+<h2><span class="section-number">5.2. </span>3D renders<a class="headerlink" href="#d-renders" title="Permalink to this heading"></a></h2>
 <p>You will find other image files in the output directory with names that begin
 with <code class="docutils literal notranslate"><span class="pre">render3D</span></code>. These are — unsurprisingly — the 3D renders.</p>
 <p>In the <code class="docutils literal notranslate"><span class="pre">render3D_select</span></code> parameter we’ve specified that we want 3D renders
@@ -444,7 +449,7 @@ ranging from 0 to 1) or as a
 width) of the image, in pixels.</p>
 </section>
 <section id="id1">
-<h2><span class="section-number">5.3. </span>2D renders<a class="headerlink" href="#id1" title="Permalink to this headline"></a></h2>
+<h2><span class="section-number">5.3. </span>2D renders<a class="headerlink" href="#id1" title="Permalink to this heading"></a></h2>
 <p>The 2D renders show the particle configuration projected along one of the axes
 of the box.</p>
 <p>In the <code class="docutils literal notranslate"><span class="pre">render2D_select</span></code> parameter we’ve specified that we want images as
@@ -499,7 +504,7 @@ available utilities, do .e.g</p>
 consult <a class="reference internal" href="../utilities/utilities.html"><span class="doc">Utilities</span></a>.</p>
 </section>
 <section id="snapshots">
-<h2><span class="section-number">5.4. </span>Snapshots<a class="headerlink" href="#snapshots" title="Permalink to this headline"></a></h2>
+<h2><span class="section-number">5.4. </span>Snapshots<a class="headerlink" href="#snapshots" title="Permalink to this heading"></a></h2>
 <p>Snapshots are raw dumps of the simulated system, in this case the positions
 and momenta of all <span class="math notranslate nohighlight">\(N = 64^3\)</span> particles. By default, CO<em>N</em>CEPT uses
 its own snapshot format, which is simply a well-structured HDF5 file.</p>

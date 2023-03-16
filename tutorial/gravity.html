@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html class="writer-html5" lang="en" >
 <head>
-  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>4. Mastering gravity &mdash; CONCEPT Documentation</title>
@@ -16,10 +16,11 @@
     <script src="../_static/js/html5shiv.min.js"></script>
   <![endif]-->
   
-        <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
         <script src="../_static/jquery.js"></script>
-        <script src="../_static/underscore.js"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
         <script src="../_static/doctools.js"></script>
+        <script src="../_static/sphinx_highlight.js"></script>
         <script src="../_static/clipboard.min.js"></script>
         <script src="../_static/copybutton.js"></script>
         <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
@@ -35,12 +36,16 @@
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
         <div class="wy-side-nav-search" >
-            <a href="../index.html" class="icon icon-home"> CO<em>N</em>CEPT
-            <img src="../_static/logo.png" class="logo" alt="Logo"/>
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            CO<em>N</em>CEPT
+              <img src="../_static/logo.png" class="logo" alt="Logo"/>
           </a>
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
-    <input type="text" name="q" placeholder="Search documentation" />
+    <input type="text" name="q" placeholder="Search documentation" aria-label="Search docs" />
     <input type="hidden" name="check_keywords" value="yes" />
     <input type="hidden" name="area" value="default" />
   </form>
@@ -328,9 +333,9 @@
         <div class="rst-content style-external-links">
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
-      <li><a href="../index.html" class="icon icon-home"></a> &raquo;</li>
-          <li><a href="tutorial.html">Tutorial</a> &raquo;</li>
-      <li><span class="section-number">4. </span>Mastering gravity</li>
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="tutorial.html">Tutorial</a></li>
+      <li class="breadcrumb-item active"><span class="section-number">4. </span>Mastering gravity</li>
       <li class="wy-breadcrumbs-aside">
               <a href="https://github.com/jmd-dk/concept/" class="fa fa-github"> Code Repository</a>
       </li>
@@ -344,7 +349,7 @@
            <div itemprop="articleBody">
              
   <section id="mastering-gravity">
-<h1><span class="section-number">4. </span>Mastering gravity<a class="headerlink" href="#mastering-gravity" title="Permalink to this headline"></a></h1>
+<h1><span class="section-number">4. </span>Mastering gravity<a class="headerlink" href="#mastering-gravity" title="Permalink to this heading"></a></h1>
 <p>The fact that gravity is extremely important for the cosmic evolution has
 already been demonstrated. We would like our simulations to be able to compute
 gravity in a manner that is both accurate and efficient. In CO<em>N</em>CEPT, the
@@ -416,7 +421,7 @@ different values for <code class="docutils literal notranslate"><span class="pre
 <span class="math notranslate nohighlight">\(a = 1\)</span>, along with the corresponding plot
 <code class="docutils literal notranslate"><span class="pre">output/tutorial/powerspec_A_a=1.00.png</span></code>.</p>
 <section id="the-pm-method">
-<h2><span class="section-number">4.1. </span>The PM method<a class="headerlink" href="#the-pm-method" title="Permalink to this headline"></a></h2>
+<h2><span class="section-number">4.1. </span>The PM method<a class="headerlink" href="#the-pm-method" title="Permalink to this heading"></a></h2>
 <p>A new parameter appearing in the <a class="reference internal" href="#param-gravity"><span class="std std-ref">tutorial</span></a> parameter
 file is <code class="docutils literal notranslate"><span class="pre">select_forces</span></code>, which is set to map <code class="docutils literal notranslate"><span class="pre">'matter'</span></code> to the
 gravitational interaction using the particle-mesh (PM) method. This method
@@ -532,7 +537,7 @@ as can be for fluid (i.e. non-particle) components, used to model species
 different from matter.</p>
 </section>
 <section id="the-p3m-method">
-<h2><span class="section-number">4.2. </span>The P³M method<a class="headerlink" href="#the-p3m-method" title="Permalink to this headline"></a></h2>
+<h2><span class="section-number">4.2. </span>The P³M method<a class="headerlink" href="#the-p3m-method" title="Permalink to this heading"></a></h2>
 <p>A different gravitational method is the particle-particle-particle-mesh (P³M)
 method. This method also makes use of a potential grid, but here the grid is
 used only to get the gravitational force between particles separated by a
