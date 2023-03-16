@@ -44,8 +44,11 @@
 - The binning of power spectra is now done logarithmically in wave number.
   The `powerspec_options['binsize']` parameter has accordingly been
   substituted for `powerspec_options['bins per decade']`.
+- Default particle softening length changed to 2.5% of the mean
+  inter-particle distance.
 - The `install` script has been made more robust regarding pre-installed MPI
   distributions as well as the installation of NumPy/SciPy.
+- Python >= 3.11 is now required.
 
 [Commits since 1.0.1](https://github.com/jmd-dk/concept/compare/v1.0.1...master)
 
