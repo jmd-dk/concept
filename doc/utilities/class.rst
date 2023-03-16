@@ -701,7 +701,7 @@ one can extract and use (some of) the data within this file:
        units = dict(f['units'].attrs)
        print('Units:', units)
 
-   # Construct matter power spectrum spline
+   # Construct matter power spectrum interpolator
    A_s = 2.1e-9
    n_s = 0.96
    α_s = 0
@@ -711,17 +711,16 @@ one can extract and use (some of) the data within this file:
        *k**(-3/2)*(k/k_pivot)**((n_s - 1)/2)
        *np.exp(α_s/4*np.log(k/k_pivot)**2)
    )
-   spline = scipy.interpolate.interp2d(
-       np.log(k_pt),
-       np.log(a_pt),
-       np.log((ζ(k_pt)*δ_pt['b+cdm'])**2),
-       kind='cubic',
+   interpolator = scipy.interpolate.RegularGridInterpolator(
+       (np.log(k_pt), np.log(a_pt)),
+       np.log((ζ(k_pt)*δ_pt['b+cdm'])**2).T,
+       method='cubic',
    )
-   P_m = lambda z, logk=np.log(k_pt), spline=spline: (
-       np.exp(spline(logk, np.log(1/(1 + z))))
+   P_m = lambda z, logk=np.log(k_pt), interpolator=interpolator: (
+       np.exp(interpolator((logk, np.log(1/(1 + z)))))
    )
 
-   # Construct δρ splines for all species
+   # Construct δρ interpolators for all species
    δρ = {}
    for species, δ_species in δ_pt.items():
        ρ_species = np.exp(scipy.interpolate.interp1d(
@@ -729,14 +728,13 @@ one can extract and use (some of) the data within this file:
            np.log(ρ_bg[species]),
            kind='cubic',
        )(np.log(a_pt)))
-       spline = scipy.interpolate.interp2d(
-           np.log(k_pt),
-           np.log(a_pt),
-           δ_species*ρ_species.reshape(-1, 1),
-           kind='linear',
+       interpolator = scipy.interpolate.RegularGridInterpolator(
+           (np.log(k_pt), np.log(a_pt)),
+           (δ_species*ρ_species.reshape(-1, 1)).T,
+           method='linear',
        )
-       δρ[species] = lambda z, logk=np.log(k_pt), spline=spline: (
-           spline(logk, np.log(1/(1 + z)))
+       δρ[species] = lambda z, logk=np.log(k_pt), interpolator=interpolator: (
+           interpolator((logk, np.log(1/(1 + z))))
        )
 
    # Plot energy density history
@@ -803,7 +801,6 @@ one can extract and use (some of) the data within this file:
    # Save figure
    fig.tight_layout()
    fig.savefig('plot.png', dpi=150)
-
 
 To run the :ref:`above script <plot-class>`, save it to a file --- e.g.
 ``plot.py`` --- within the same directory as ``class_processed.hdf5``, then

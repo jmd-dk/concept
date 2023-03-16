@@ -1699,11 +1699,16 @@ except NameError:
     test_check_err_logs() { :; }
     if [ ! -d "${job_dir}" ] || [ -z "$(ls "${job_dir}")" ]; then
         test_check_err_logs() {
-            if ls "${job_dir}/"*/log_err >/dev/null 2>&1; then
-                colorprint "It looks like ${test} test generated error messages.\n\
+            for f in "${job_dir}/"*"/log_err"; do
+                if [ "${f}" == "${job_dir}/*/log_err" ]; then
+                    continue
+                fi
+                if [ -f "${f}" ] && [ -s "${f}" ]; then
+                    colorprint "It looks like ${test} test generated error messages.\n\
 This is counted as a test failure." "red"
-                exit 1
-            fi
+                    exit 1
+                fi
+            done
         }
     fi
     # Unset the tests environment variable so that subprocesss are free

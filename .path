@@ -81,5 +81,5 @@ mpiexec='/home/jeppe/concept/dep/mpich/bin/mpiexec'
 # The file containing paths (this file)
 path='/home/jeppe/concept/.path'
 # The Python interpreter
-python='/home/jeppe/concept/dep/python/bin/python3.9'
+python='/home/jeppe/concept/dep/python/bin/python3.11'
 

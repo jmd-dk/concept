@@ -1196,7 +1196,7 @@ class Component:
                         # use 2*cbrt(N). For pre-initial condition
                         # lattices other than the simple cubic
                         # (bocy-centered cubic, face-centered cubic),
-                        # we use the same grid size as for the the
+                        # we use the same grid size as for the
                         # simple cubic.
                         gridsizes = ('cbrt(Ñ)', )*2
                         if method_extra == 'p3m':
