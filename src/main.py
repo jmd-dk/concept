@@ -193,8 +193,6 @@ def timeloop():
     #if Δt_begin > timespan/Δt_period:
     #    Δt_begin = timespan/Δt_period
 
-
-
     # We need at least a whole base time step before the first dump
     if Δt_begin > dump_times[0].t - universals.t:
         Δt_begin = dump_times[0].t - universals.t
@@ -236,7 +234,7 @@ def timeloop():
     ConfTime = a_to_tau(universals.a)
 
     # Hacky insertion for the number of steps
-    for step_index in range(10):
+    for step_index in range(21000):
 
         #########################################################################
         ###   THIS IS THE MOST IMPORTANT PART WE MUST SYNCHRONIZE CORRECTLY   ###
@@ -252,7 +250,7 @@ def timeloop():
         masterprint('Conformal Time: ', ConfTime)
 
         # Update the conformal time for the next step
-        ConfTime += scale_factor(sync_time)
+        ConfTime = a_to_tau(scale_factor(sync_time))
 
         ###########################################################################
         ###   We are now always performing a full Kick-Drift-Kick               ###
@@ -407,19 +405,13 @@ def timeloop():
         ############################
         ###   Perform the Dump   ###
         ############################
-        dump_time = DumpTime('a', t=None, a = universals.a)
-        dump(components, tensor_perturbations, output_filenames, dump_time, Δt)
+        if time_step % 100 == 0:
+            dump_time = DumpTime('a', t=None, a = universals.a)
+            dump(components, tensor_perturbations, output_filenames, dump_time, Δt)
 
     # All dumps completed; end of main time loop
     print_timestep_footer(components)
     print_timestep_heading(time_step, Δt, bottleneck, components, end=True)
-    # Remove dumped autosave, if any
-    if master and os.path.isdir(autosave_subdir):
-        masterprint('Removing autosave ...')
-        shutil.rmtree(autosave_subdir)
-        if not os.listdir(autosave_dir):
-            shutil.rmtree(autosave_dir)
-        masterprint('done')
 
 # Set of (cosmic) times at which the maximum time step size Δt_max
 # should be further scaled by Δt_initial_fac, which are at the initial
