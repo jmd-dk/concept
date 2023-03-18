@@ -2634,6 +2634,52 @@ def fourier_operate(slab, deconv_order=0, interlace_flag=0, diff_dim=-1):
         slab_ptr[index + 1] = im
     return slab
 
+
+# Function returning the spectral laplacian as applied to a grid
+@cython.pheader(
+    # Arguments
+    grid='double[:, :, ::1]',
+    # Locals
+    slab='double[:, :, ::1]',
+    slab_size_i='Py_ssize_t',
+    slab_size_j='Py_ssize_t',
+    slab_size_k='Py_ssize_t',
+    slab_ptr='double*',
+    gridsize='Py_ssize_t',
+    index='Py_ssize_t',
+    ki='Py_ssize_t',
+    kj='Py_ssize_t',
+    kk='Py_ssize_t',
+    factor='double',
+    θ='double',
+    norm_factor='double',
+    returns='double[:, :, ::1]',
+)
+def spectral_laplacian(grid):
+    
+    # Slab decompose and fourier transform the input grid
+    slab = slab_decompose(grid, prepare_fft = True)
+    fft(slab, 'forward', apply_forward_normalization=True)    
+
+    # Extract slab shape and pointer
+    slab_size_j, slab_size_i, slab_size_k = asarray(slab).shape
+    slab_ptr = cython.address(slab[:, :, :])
+
+    # Perform the laplacian operation in the fourier domain
+    gridsize = slab_size_i
+    norm_factor = ℝ[2*π / boxsize * units.Gyr * light_speed / units.Mpc]
+    masterprint(norm_factor)
+    
+    for index, ki, kj, kk, factor, θ in fourier_loop(gridsize):
+
+        factor = -norm_factor * norm_factor * (ki * ki + kj * kj + kk * kk) 
+
+        slab_ptr[index    ] *= factor
+        slab_ptr[index + 1] *= factor
+
+    fft(slab, 'backward')
+    return domain_decompose(slab)
+
 # Function for nullifying sets of modes of Fourier space slabs
 @cython.header(
     # Arguments
