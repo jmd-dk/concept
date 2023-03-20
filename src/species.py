@@ -42,7 +42,7 @@ cimport(
     '    species_canonical, species_registered,    '
 )
 
-cimport('from mesh import convert_particles_to_fluid, laplacian_domaingrid')
+cimport('from mesh import convert_particles_to_fluid, laplacian_domaingrid, spectral_laplacian')
 
 
 
@@ -1016,10 +1016,11 @@ class TensorField:
             source_scalar = rhs[multi_index]
 
             field_ptr = field_scalar.grid
-            source_ptr = cython.address(laplacian_domaingrid(source_scalar.grid_mv, Δx=Δx)[:, :, :])
+            source_ptr = cython.address(spectral_laplacian(source_scalar.grid_mv)[:, :, :])
 
             for index in range(self.size):
                 field_ptr[index] += source_ptr[index]*weight
+
 
 
 
@@ -1120,6 +1121,10 @@ class TensorComponent:
                 
                 component.resize(1)
                 component.representation = 'particles'
+
+        self.u.communicate_fluid_grids('=')
+        self.du.communicate_fluid_grids('=')
+
 
 # The class governing any component of the universe
 @cython.cclass

@@ -2309,6 +2309,7 @@ def fourier_loop(
     *,
     sparse=False, skip_origin=False, k2_max=-1,
     deconv_order=0, interlace_flag=False,
+    with_nyquist=False,
 ):
     # Cython declarations for variables used for the iteration,
     # including all arguments and variables to yield.
@@ -2326,6 +2327,7 @@ def fourier_loop(
         k2_max='Py_ssize_t',
         deconv_order='int',
         interlace_flag='int',
+        with_nyquist='bint',
         # Locals
         _deconv_i_denom='double',
         _deconv_i_numer='double',
@@ -2354,6 +2356,7 @@ def fourier_loop(
         _j_global_end='Py_ssize_t',
         _kk_bgn='Py_ssize_t',
         _nyquist='Py_ssize_t',
+        _nyquist_plus='Py_ssize_t',
         _offset_j='Py_ssize_t',
         _slab_size_i='Py_ssize_t',
         _slab_size_j='Py_ssize_t',
@@ -2367,6 +2370,12 @@ def fourier_loop(
     )
     # Set up slab shape
     _nyquist = gridsize//2
+
+    if with_nyquist:
+        _nyquist_plus = _nyquist
+    else:
+        _nyquist_plus = _nyquist + 1
+
     _slab_size_j = gridsize//nprocs
     _slab_size_i = gridsize
     _slab_size_k = gridsize + 2
@@ -2396,7 +2405,7 @@ def fourier_loop(
     for _j_chunk in range(2):
         if _j_chunk == 0:
             _j_chunk_bgn = j_bgn
-            _j_global_chunk_end = pairmin(_j_global_end, _nyquist)
+            _j_global_chunk_end = pairmin(_j_global_end, _nyquist_plus)
             _j_chunk_end = _j_global_chunk_end - _offset_j
         else:  # _j_chunk == 1
             _j_global_chunk_bgn = pairmax(_j_global_bgn, ℤ[_nyquist + 1])
@@ -2408,7 +2417,7 @@ def fourier_loop(
         for _i_chunk in range(2):
             if _i_chunk == 0:
                 _i_chunk_bgn = i_bgn
-                _i_chunk_end = pairmin(_i_end, _nyquist)
+                _i_chunk_end = pairmin(_i_end, _nyquist_plus)
             else:  # _i_chunk == 1
                 _i_chunk_bgn = pairmax(i_bgn, ℤ[_nyquist + 1])
                 _i_chunk_end = _i_end
@@ -2494,7 +2503,7 @@ def fourier_loop(
                     # the last element along this dimension, and so we
                     # skip it by simply not including it in the range.
                     index = _index_ij + 2*(_kk_bgn - 1)
-                    for kk in range(_kk_bgn, _nyquist):
+                    for kk in range(_kk_bgn, _nyquist_plus):
                         # Bail out if beyond maximum frequency
                         with unswitch(5):
                             if k2_max != -1:
@@ -2650,35 +2659,49 @@ def fourier_operate(slab, deconv_order=0, interlace_flag=0, diff_dim=-1):
     ki='Py_ssize_t',
     kj='Py_ssize_t',
     kk='Py_ssize_t',
+    k_unit='double',
     factor='double',
     θ='double',
-    norm_factor='double',
+    re='double',
+    im='double',
+    shape=tuple,
+    new_grid = 'double[:, :, ::1]',
     returns='double[:, :, ::1]',
 )
 def spectral_laplacian(grid):
     
     # Slab decompose and fourier transform the input grid
-    slab = slab_decompose(grid, prepare_fft = True)
+    slab = slab_decompose(grid, slab_or_buffer_name = 'laplacian slab buffer', prepare_fft = True)
     fft(slab, 'forward', apply_forward_normalization=True)    
 
     # Extract slab shape and pointer
     slab_size_j, slab_size_i, slab_size_k = asarray(slab).shape
     slab_ptr = cython.address(slab[:, :, :])
-
-    # Perform the laplacian operation in the fourier domain
     gridsize = slab_size_i
-    norm_factor = ℝ[2*π / boxsize * units.Gyr * light_speed / units.Mpc]
-    masterprint(norm_factor)
-    
+    masterprint(gridsize)
+
+    # Get the fundamental wavenumber in units of 1/Gyr 
+    k_unit = ℝ[2*π / boxsize / units.Gyr * light_speed * units.Mpc]
+    masterprint(k_unit)
+ 
     for index, ki, kj, kk, factor, θ in fourier_loop(gridsize):
 
-        factor = -norm_factor * norm_factor * (ki * ki + kj * kj + kk * kk) 
+        if factor > 1.00001:
+            print('Unusual Factor Value: ', factor, ' at ', ki, kj, kk)
 
+        factor *= -k_unit * k_unit * (ki * ki + kj * kj + kk * kk)
+
+        # Extract real and imag part of slab
         slab_ptr[index    ] *= factor
         slab_ptr[index + 1] *= factor
-
+    
+    # Inverse fourier transformation
     fft(slab, 'backward')
-    return domain_decompose(slab)
+
+    # Create an Empty Buffer to Domain Decompose
+    shape = get_gridshape_local(gridsize)
+    new_grid = get_buffer(shape, 'laplacian grid buffer', nullify = True)
+    return domain_decompose(slab, new_grid, do_ghost_communication=True)
 
 # Function for nullifying sets of modes of Fourier space slabs
 @cython.header(
