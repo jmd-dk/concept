@@ -2164,9 +2164,13 @@ export PYTHONDONTWRITEBYTECODE=1
 # Function that checks whether a given Python package
 # is installed or not.
 check_pypackage_installed() {
-    # Arguments: Python package name
-    local pypackage="${1}"
+    # Arguments: Python package name, [display traceback]
+    local pypackage="$1"
     pypackage="${pypackage//-/}"
+    display_traceback="$2"
+    if [ "${display_traceback}" != "True" ]; then
+        display_traceback="False"
+    fi
     current_dir="$(pwd)"
     cd "${concept_dir}"
     # Some Python packages may need access to libraries at runtime
@@ -2186,15 +2190,23 @@ check_pypackage_installed() {
     # is run through MPI.
     python_executors=("")
     if [ "${pypackage}" == "mpi4py" ]; then
-        python_executors=("${python_executors[@]}" "mpiexec -n 1")
-        if [ -n "${mpiexec_extra_args_local}" ]; then
-            python_executors=("${python_executors[@]}" "mpiexec ${mpiexec_extra_args_local} -n 1")
+        mpiexec_path="$(get_command "mpiexec")" || :
+        if [ -n "${mpiexec_path}" ]; then
+            python_executors=("${python_executors[@]}" "mpiexec -n 1")
+            if [ -n "${mpiexec_extra_args_local}" ]; then
+                python_executors=(                             \
+                    "${python_executors[@]}"                   \
+                    "mpiexec ${mpiexec_extra_args_local} -n 1" \
+                )
+            fi
         fi
     fi
     local pypackage_installed
     for python_executor in "${python_executors[@]}"; do
         pypackage_installed="$(${python_executor} "${python}" -c "
+import sys
 from time import sleep
+import traceback
 try:
     if '${pypackage}' == 'cythongsl':
         # CythonGSL has an extra underscore when importing
@@ -2203,7 +2215,7 @@ try:
         # Python-dateutil is imported as dateutil
         import dateutil
     elif '${pypackage}' == 'fonttools':
-        # fontTools is written in camel case
+        # fontTools is written in dromedary case
         import fontTools
     elif '${pypackage}' == 'matplotlib':
         # For Matplotlib we do a more thorough test
@@ -2214,6 +2226,12 @@ try:
         # For MPI4Py we do a more thorough test
         import mpi4py.rc; mpi4py.rc.threads = False  # Do not use threads
         from mpi4py import MPI
+    elif '${pypackage}' == 'numpy':
+        # Check for basic float errors in NumPy
+        import numpy as np
+        x = np.min([1.0, 2.0])
+        if not np.isfinite(x) or x != 1.0:
+            raise ValueError
     elif '${pypackage}' == 'pillow':
         # Pillow is imported as PIL
         import PIL
@@ -2230,7 +2248,9 @@ try:
     print('\nTrue')
 except Exception:
     print('\nFalse')
-" 2>/dev/null | tail -n 1)"
+    if ${display_traceback}:
+        print(traceback.format_exc(), file=sys.stderr)
+" | tail -n 1)"
         if [ "${pypackage_installed}" == "True" ]; then
             break
         else
@@ -5223,6 +5243,8 @@ install() {
     # Iterate over Cartesian product of arrays, attempting installation
     # for each set of variable values.
     compiler=""
+    install_attempt=""
+    install_loop_iteration="-1"
     install_loop "${progname_formatted}" ${counter} 0 "${no_init_install}"
     if [ "${install_success}" == "False" ]; then
         error "Failed to install ${progname_formatted_fancy}"
@@ -5316,6 +5338,17 @@ install_loop() {
     # If we are in the innermost recursive call,
     # call the supplied function and return.
     if [ "${varnum}" == "${nvars}" ]; then
+        # Skip attempts already tried out by a
+        # previous invocation of this script.
+        ((install_loop_iteration += 1)) || :
+        if [ -z "${install_attempt}" ] && [ -f "${tmp_dir}/${progname}/.attempt" ]; then
+            install_attempt="$(cat "${tmp_dir}/${progname}/.attempt")"
+        fi
+        if [ -n "${install_attempt}" ] \
+            && [ "${install_loop_iteration}" -le "${install_attempt}" ]; then
+            install_success="False"
+            return
+        fi
         # Initialise installation
         reset_environment
         if [ -n "${compiler}" ]; then
@@ -5346,6 +5379,9 @@ with ${attempting_to_install_text}\n\n"
         install_success="True"
         test_success=""
         "${progname}_install_func" || install_success="False"
+        # Record attempt
+        mkdir -p "${tmp_dir}/${progname}" || :
+        echo "${install_loop_iteration}" > "${tmp_dir}/${progname}/.attempt"
         return
     fi
     # Carry out nested looping
@@ -5610,6 +5646,65 @@ perl_install_func() {
     if [ -n "${perl_cflags}" ]; then
         perl_config_options="${perl_config_options} -Accflags=${perl_cflags}"
     fi
+    # Some times, various macros from float.h end up not being defined.
+    # This can happen if several compilers are in use simultaneously.
+    # Below we following the IEEE standard for 128-bit
+    # (not 80-bit) floats.
+    if [ "${define_float_macros}" == "True" ]; then
+        FLOAT_VARS=(
+            FLT_RADIX       "(2)"                                             \
+            FLT_MANT_DIG    "(24)"                                            \
+            FLT_EPSILON     "(1.192092896E-07F)"                              \
+            FLT_DIG         "(6)"                                             \
+            FLT_MIN_EXP     "(-125)"                                          \
+            FLT_MIN         "(1.175494351E-38F)"                              \
+            FLT_MIN_10_EXP  "(-37)"                                           \
+            FLT_MAX_EXP     "(+128)"                                          \
+            FLT_MAX         "(3.402823466E+38F)"                              \
+            FLT_MAX_10_EXP  "(+38)"                                           \
+            DBL_MANT_DIG    "(53)"                                            \
+            DBL_EPSILON     "(2.2204460492503131E-16)"                        \
+            DBL_DIG         "(15)"                                            \
+            DBL_MIN_EXP     "(-1021)"                                         \
+            DBL_MIN         "(2.2250738585072014E-308)"                       \
+            DBL_MIN_10_EXP  "(-307)"                                          \
+            DBL_MAX_EXP     "(+1024)"                                         \
+            DBL_MAX         "(1.7976931348623157E+308)"                       \
+            DBL_MAX_10_EXP  "(+308)"                                          \
+            LDBL_MANT_DIG   "(113)"                                           \
+            LDBL_EPSILON    "(1.925929944387235853055977942584927319E-34L)"   \
+            LDBL_DIG        "(33)"                                            \
+            LDBL_MIN_EXP    "(-16381)"                                        \
+            LDBL_MIN        "(3.362103143112093506262677817321752603E-4932L)" \
+            LDBL_MIN_10_EXP "(-4931)"                                         \
+            LDBL_MAX_EXP    "(+16384)"                                        \
+            LDBL_MAX        "(1.189731495357231765085759326628007016E+4932L)" \
+            LDBL_MAX_10_EXP "(+4932)"                                         \
+        )
+        if [ ! -f "perl.h" ]; then
+            return 1
+        fi
+        pattern_0='#include *<float\\.h>'
+        pattern_1='#include *<limits\\.h>'
+        linenr_0=$(awk "\$0 ~ \"${pattern_0}\" {print NR}" "perl.h" | head -n 1)
+        linenr_1=$(awk "\$0 ~ \"${pattern_1}\" {print NR}" "perl.h" | head -n 1)
+        linenr=0
+        if [ -n "${linenr_0}" ] && [ "${linenr_0}" -gt ${linenr} ]; then
+            linenr=${linenr_0}
+        fi
+        if [ -n "${linenr_1}" ] && [ "${linenr_1}" -gt ${linenr} ]; then
+            linenr=${linenr_1}
+        fi
+        if [ "${linenr}" -gt 0 ]; then
+            ((linenr += 1))
+        fi
+        for ((i = 0; i < ${#FLOAT_VARS[@]}; i += 2)); do
+            ((j = i + 1))
+            name="${FLOAT_VARS[$i]}"
+            val=${FLOAT_VARS[$j]}
+            sed -i "${linenr}s/^/#ifndef ${name}\n    #define ${name} ${val}\n#endif\n/" perl.h
+        done
+    fi
     ./Configure ${perl_config_options} 2>&1 || return 1
     # Sometimes make fails to build due to #include of poll.h from a
     # wrong location. A fix for this is implemented below.
@@ -5658,6 +5753,7 @@ perl_install_func() {
 libimf_dumped="False"
 install "Perl"                                  \
     compiler "${compiler_possibilities[@]}" ";" \
+    define_float_macros "False" "True"      ";" \
     without_then_with_cc "False" "True"     ";" \
     dump_libimf "True" "False"              ";" \
     perl_poll_fix "False" "True"            ";" \
@@ -6330,6 +6426,198 @@ if [ -n "${python}" ]; then
     done
 fi
 
+# On some systems (NFS) file operations can be out of sync,
+# causing trouble. The below functions implement "gentle" versions of
+# basic file operations.
+attempts_gently=5
+sleep_gently=1
+mkdir_gently() {
+    sleep ${sleep_gently}
+    for ((attempt = 0; attempt < ${attempts_gently}; attempt += 1)); do
+        ok="True"
+        mkdir $@ || ok="False"
+        sleep ${sleep_gently}
+        if [ "${ok}" == "False" ]; then
+            continue
+        fi
+        for arg in $@; do
+            if [[ "${arg}" == "-"* ]]; then
+                continue
+            fi
+            if [ ! -d "${arg}" ]; then
+                ok="False"
+                break
+            fi
+        done
+        if [ "${ok}" == "True" ]; then
+            return
+        fi
+    done
+    return 1
+}
+cp_gently() {
+    sleep ${sleep_gently}
+    n_files=0
+    for arg in $@; do
+        if [[ "${arg}" == "-"* ]]; then
+            continue
+        fi
+        ((n_files += 1))
+    done
+    if [ ${n_files} -ne 2 ]; then
+        echo "cp_gently() called with ${n_files} != 2 file arguments" >&2
+        return 1
+    fi
+    for ((attempt = 0; attempt < ${attempts_gently}; attempt += 1)); do
+        ok="True"
+        cp $@ || ok="False"
+        sleep ${sleep_gently}
+        if [ "${ok}" == "False" ]; then
+            continue
+        fi
+        s_file="-1"
+        for ((check = 0; check < ${attempts_gently}; check += 1)); do
+            i_file=0
+            for arg in $@; do
+                if [[ "${arg}" == "-"* ]]; then
+                    continue
+                fi
+                ((i_file += 1))
+                if [ ${i_file} -ne 2 ]; then
+                    continue
+                fi
+                if [ ! -f "${arg}" ] && [ ! -d "${arg}" ]; then
+                    break
+                fi
+                s_file_prev="${s_file}"
+                s_file="$(du -b "${arg}")"
+                if [ "${s_file}" == "${s_file_prev}" ]; then
+                    return
+                fi
+                break
+            done
+            sleep ${sleep_gently}
+        done
+    done
+    return 1
+}
+mv_gently() {
+    sleep ${sleep_gently}
+    n_files=0
+    for arg in $@; do
+        if [[ "${arg}" == "-"* ]]; then
+            continue
+        fi
+        ((n_files += 1))
+        if [ ${n_files} -eq 1 ]; then
+            file_first="${arg}"
+        fi
+        if [ ${n_files} -eq 2 ]; then
+            file_last="${arg}"
+            if [ -d "${file_last}" ]; then
+                file_last="${file_last}/${file_first}"
+            fi
+        fi
+    done
+    if [ ${n_files} -ne 2 ]; then
+        echo "mv_gently() called with ${n_files} != 2 file arguments" >&2
+        return 1
+    fi
+    for ((attempt = 0; attempt < ${attempts_gently}; attempt += 1)); do
+        ok="True"
+        mv $@ || ok="False"
+        sleep ${sleep_gently}
+        if [ "${ok}" == "False" ]; then
+            continue
+        fi
+        ok="False"
+        s_file="-1"
+        for ((check = 0; check < ${attempts_gently}; check += 1)); do
+            s_file_prev="${s_file}"
+            s_file="$(du -b "${file_last}")"
+            if [ "${s_file}" == "${s_file_prev}" ]; then
+                ok="True"
+                break
+            fi
+            sleep ${sleep_gently}
+        done
+        if [ "${ok}" == "True" ]; then
+            return
+        fi
+    done
+    return 1
+}
+rm_gently() {
+    sleep ${sleep_gently}
+    file_args=()
+    flag_args=""
+    for arg in $@; do
+        if [[ "${arg}" == "-"* ]]; then
+            flag_args="${flag_args} ${arg}"
+            continue
+        fi
+        arg="${arg%/}"  # remove trailing /
+        if [ -z "${arg}" ]; then
+            continue
+        fi
+        if [ ! -f "${arg}" ] && [ ! -d "${arg}" ]; then
+            # Ignore non-existing files and directories
+            continue
+        fi
+        if [ ${#file_args} -gt 0 ]; then
+            file_args=("${file_args[@]}" "${arg}")
+        else
+            file_args=("${arg}")
+        fi
+    done
+    for file_arg in ${file_args[@]}; do
+        ok="False"
+        for ((i = 0; i < 100; i += 1)); do
+            file_arg_tmp="${file_arg}_rm${i}"
+            if [ -f "${file_arg_tmp}" ] || [ -d "${file_arg_tmp}" ]; then
+                continue
+            fi
+            ok="True"
+            break
+        done
+        if [ "${ok}" == "False" ]; then
+            echo "Failed to create non-existing name for temporary file" >&2
+            return 1
+        fi
+        ok="True"
+        mv_gently "${file_arg}" "${file_arg_tmp}" || ok="False"
+        if [ "${ok}" == "False" ]; then
+            echo "Failed to move ${file_arg} to ${file_arg_tmp}" >&2
+            return 1
+        fi
+        for ((attempt = 0; attempt < ${attempts_gently}; attempt += 1)); do
+            ok="True"
+            rm ${flag_args} "${file_arg_tmp}" || ok="False"
+            sleep ${sleep_gently}
+            if [ "${ok}" == "False" ]; then
+                continue
+            fi
+            ok="False"
+            for ((check = 0; check < ${attempts_gently}; check += 1)); do
+                if [ ! -f "${file_arg_tmp}" ] && [ ! -d "${file_arg_tmp}" ]; then
+                    ok="True"
+                    break
+                fi
+                sleep ${sleep_gently}
+            done
+            if [ "${ok}" == "True" ]; then
+                break
+            fi
+        done
+        if [ "${ok}" == "False" ]; then
+            echo "Failed to remove ${file_arg_tmp}" >&2
+            return 1
+        fi
+    done
+    # Success
+    return 0
+}
+
 # Function for downloading Python packages, utilizing pip
 pip_download() {
     # Arguments: Python package name, version, pip_download_time.
@@ -6359,7 +6647,7 @@ pip_download() {
     pip_name_nodashes="${pip_name//-/}"
     pip_name_nodashes="${pip_name_nodashes//_/}"
     tmp_pip_dir="${tmp_dir}/pip"
-    mkdir -p "${tmp_pip_dir}"
+    mkdir_gently -p "${tmp_pip_dir}"
     tmp_pip_dir="${tmp_pip_dir// /\\ }"  # Add backslashes before spaces
     # Maximum allowed time (in seconds) for download. After this time,
     # the download process will be killed. This is needed because the
@@ -6397,6 +6685,7 @@ Attempting to download ${1} using pip ${all_pip_args}\n\n"
                 # package, but then hang indefinitely.
                 # Kill the process after ${pip_download_time} seconds.
                 soothe ${pip_download_pid} ${pip_download_time}
+                sleep ${sleep_gently}
                 # Check whether the archive exists
                 if ls "${tmp_pip_dir}"                                \
                     | sed 's/-//g; s/_//g'                            \
@@ -6428,13 +6717,13 @@ Attempting to download ${1} using pip ${all_pip_args}\n\n"
                                     # file placed in "${tmp_pip_dir}".
                                     pypackage_dir="${pip_tmp_download_dir}/${pip_name_nodashes}-${pypackage_version}"
                                     if [ "${pypackage_download_dir}" != "${pypackage_dir}" ]; then
-                                        mv "${pypackage_download_dir}" "${pypackage_dir}"
+                                        mv_gently "${pypackage_download_dir}" "${pypackage_dir}"
                                     fi
                                     current_dir="$(pwd)"
                                     cd "${pip_tmp_download_dir}"
                                     pypackage_archive="${pip_name_nodashes}-${pypackage_version}.tar.gz"
-                                    rm -rf "${tmp_pip_dir}/${pypackage_archive}" || :
-                                    tar -cvf - "${pip_name_nodashes}-${pypackage_version}" \
+                                    rm_gently -rf "${tmp_pip_dir}/${pypackage_archive}" || :
+                                    tar -cf - "${pip_name_nodashes}-${pypackage_version}" \
                                         | gzip > "${tmp_pip_dir}/${pypackage_archive}"
                                     cd "${current_dir}"
                                     pip_status="success"
@@ -6449,7 +6738,7 @@ Attempting to download ${1} using pip ${all_pip_args}\n\n"
                     && [ -d "${TMPDIR}"                      ] \
                     && [ "${TMPDIR}" == "${tmp_pip_dir}_tmp" ] \
                 ; then
-                    rm -rf "${TMPDIR}" || :
+                    rm_gently -rf "${TMPDIR}" || :
                 fi
                 if [ "${pip_status}" == "success" ]; then
                     break
@@ -6472,25 +6761,35 @@ Attempting to download ${1} using pip ${all_pip_args}\n\n"
 
 # Function for installing and upgrading Python packages, utilizing pip
 pip_install_pypackage() {
-    # Arguments: Python package name, [version or "upgrade"]
+    # Arguments: Python package name, [version or "upgrade", display_heading]
     # (install specific version or update existing version to newest).
     # If second argument is not provided, the newest version
     # will be installed.
     local command_end=""
     pypackage_version=""
+    display_heading="$3"
+    if [ "${display_heading}" != "False" ]; then
+        display_heading="True"
+    fi
     if [ "${2}" == "upgrade" ]; then
-        current_step="upgrade of ${1}"
-        heading "Upgrading ${1}"
-        set_status "Upgrading ${1}"
+        if [ "${display_heading}" == "True" ]; then
+            current_step="upgrade of ${1}"
+            heading "Upgrading ${1}"
+            set_status "Upgrading ${1}"
+        fi
     else
         if [ -n "${2}" ]; then
-            current_step="installation of ${1} ${2}"
-            heading "Installing ${1} ${2}"
-            set_status "Installing ${1} ${2}"
+            if [ "${display_heading}" == "True" ]; then
+                current_step="installation of ${1} ${2}"
+                heading "Installing ${1} ${2}"
+                set_status "Installing ${1} ${2}"
+            fi
         else
-            current_step="installation of ${1}"
-            heading "Installing ${1}"
-            set_status "Installing ${1}"
+            if [ "${display_heading}" == "True" ]; then
+                current_step="installation of ${1}"
+                heading "Installing ${1}"
+                set_status "Installing ${1}"
+            fi
         fi
         if [ -n "${2}" ]; then
             pypackage_version="${2}"
@@ -6504,8 +6803,8 @@ pip_install_pypackage() {
     fi
     # Download Python package source
     tmp_pip_dir="${tmp_dir}/pip"
-    rm -rf "${tmp_pip_dir}" "${tmp_pip_dir}_tmp" || :
-    mkdir -p "${tmp_pip_dir}" "${tmp_pip_dir}_tmp"
+    rm_gently -rf "${tmp_pip_dir}" "${tmp_pip_dir}_tmp" || :
+    mkdir_gently -p "${tmp_pip_dir}" "${tmp_pip_dir}_tmp"
     export TMPDIR="${tmp_pip_dir}_tmp"
     export TEMP="${TMPDIR}"
     export TMP="${TMPDIR}"
@@ -6513,8 +6812,8 @@ pip_install_pypackage() {
     pypackage_nodashes="${pypackage//-/}"
     pypackage_nodashes="${pypackage_nodashes//_/}"
     pip_download "${1}" "${2}"
-    rm -rf "${tmp_pip_dir}_cp" || :
-    cp -r "${tmp_pip_dir}" "${tmp_pip_dir}_cp"
+    rm_gently -rf "${tmp_pip_dir}_cp" || :
+    cp_gently -r "${tmp_pip_dir}" "${tmp_pip_dir}_cp"
     # Install Python package from source
     upgrade_flag=""
     if [ "${2}" == "upgrade" ]; then
@@ -6531,8 +6830,8 @@ pip_install_pypackage() {
             if [ "${working_cython}" == "False" ]; then
                 continue
             fi
-            rm -rf "${tmp_pip_dir}" || :
-            cp -r "${tmp_pip_dir}_cp" "${tmp_pip_dir}"
+            rm_gently -rf "${tmp_pip_dir}" || :
+            cp_gently -r "${tmp_pip_dir}_cp" "${tmp_pip_dir}"
             # Extract source files
             wd="$(pwd)"
             cd "${tmp_pip_dir}"
@@ -6566,22 +6865,23 @@ pip_install_pypackage() {
                 cd "${wd}"
                 continue
             fi
-            rm -f ${precythonized}
+            rm_gently -f ${precythonized}
             # Pack source into a tar.gz file with the name
             # <package>-<version>.tar.gz, which takes the place of the
             # downloaded archive.
             cd ..
-            rm -rf "${pypackage_archive}"
+            rm_gently -rf "${pypackage_archive}"
             if [ -n "${pypackage_version}" ]; then
                 pypackage_archive="${pypackage}-${pypackage_version}.tar.gz"
             else
                 pypackage_archive="${pypackage}.tar.gz"
             fi
-            tar -cvf - "${f}" | gzip > "${pypackage_archive}"
-            rm -rf "${f}"
+            tar -cf - "${f}" | gzip > "${pypackage_archive}"
+            sleep ${sleep_gently}
+            rm_gently -rf "${f}"
             cd "${wd}"
-            rm -rf "${tmp_pip_dir}_cp" || :
-            cp -r "${tmp_pip_dir}" "${tmp_pip_dir}_cp"
+            rm_gently -rf "${tmp_pip_dir}_cp" || :
+            cp_gently -r "${tmp_pip_dir}" "${tmp_pip_dir}_cp"
             # The re-cythonisation should be carried out using the
             # Cython that is installed on the Python that we work with.
             # It may however be fetched from the PATH, and so we need to
@@ -6610,13 +6910,14 @@ pip_install_pypackage() {
                 "                                                   " \
             ; do
                 extra_pip_arg="$(echo ${extra_pip_arg} | awk '{$1=$1};1')"
-                rm -rf "${tmp_pip_dir}" || :
-                cp -r "${tmp_pip_dir}_cp" "${tmp_pip_dir}"
+                rm_gently -rf "${tmp_pip_dir}" || :
+                cp_gently -r "${tmp_pip_dir}_cp" "${tmp_pip_dir}"
                 if [ -z "${upgrade_flag}" ]; then
                     printf "
 Attempting to install ${1} using pip with force_recythonization=${force_recythonization}, \
 pyuser=${pyuser}, extra_pip_arg=${extra_pip_arg}\n\n"
                     "${python}" -m pip uninstall "${pypackage}" -y >/dev/null 2>&1 || :
+                    sleep ${sleep_gently}
                 fi
                 "${python}" -m pip install            \
                     ${pyuser}                         \
@@ -6628,7 +6929,7 @@ pyuser=${pyuser}, extra_pip_arg=${extra_pip_arg}\n\n"
                     "${pypackage}${command_end}" 2>&1 \
                     & pip_install_pid=$!
                 soothe ${pip_install_pid}
-                pypackage_installed=$(check_pypackage_installed ${pypackage})
+                pypackage_installed=$(check_pypackage_installed ${pypackage} True)
                 if [ "${pypackage_installed}" == "True" ]; then
                     break
                 fi
@@ -6642,7 +6943,7 @@ pyuser=${pyuser}, extra_pip_arg=${extra_pip_arg}\n\n"
             if [ "${force_recythonization}" == "True" ]; then
                 continue
             fi
-            rm -rf "${tmp_pip_dir}" || :
+            rm_gently -rf "${tmp_pip_dir}" || :
             for extra_pip_arg in                                      \
                 "--no-cache-dir                                     " \
                 "--no-cache-dir --no-build-isolation                " \
@@ -6660,11 +6961,13 @@ force_recythonization=${force_recythonization}, pyuser=${pyuser}, \
 extra_pip_arg=${extra_pip_arg}\n\n"
                 if [ -z "${upgrade_flag}" ]; then
                     "${python}" -m pip uninstall "${pypackage}" -y >/dev/null 2>&1 || :
+                    sleep ${sleep_gently}
                 fi
                 "${python}" -m pip install ${pyuser} ${extra_pip_arg} \
                     "${pypackage}${command_end}" 2>&1 & pip_install_pid=$!
                 soothe ${pip_install_pid}
-                pypackage_installed=$(check_pypackage_installed ${pypackage})
+                sleep ${sleep_gently}
+                pypackage_installed=$(check_pypackage_installed ${pypackage} True)
                 if [ "${pypackage_installed}" == "True" ]; then
                     break
                 fi
@@ -6678,7 +6981,7 @@ extra_pip_arg=${extra_pip_arg}\n\n"
         fi
     done
     reset_environment
-    rm -rf "${tmp_pip_dir}" "${tmp_pip_dir}_tmp" "${tmp_pip_dir}_cp" || :
+    rm_gently -rf "${tmp_pip_dir}" "${tmp_pip_dir}_tmp" "${tmp_pip_dir}_cp" || :
     # Return non-zero on failure
     if [ "${pypackage_installed}" != "True" ]; then
         echo "pip could not install/upgrade ${1}" >&2
@@ -6763,12 +7066,13 @@ if [ "${pip_install}" == "True" ] && [ "${python_install}" == "True" ]; then
             "                                                   " \
         ; do
             extra_pip_arg="$(echo ${extra_pip_arg} | awk '{$1=$1};1')"
-            rm -rf "${tmp_pip_dir}" "${tmp_pip_dir}_tmp" || :
-            mkdir -p "${tmp_pip_dir}" "${tmp_pip_dir}_tmp"
+            rm_gently -rf "${tmp_pip_dir}" "${tmp_pip_dir}_tmp" || :
+            mkdir_gently -p "${tmp_pip_dir}" "${tmp_pip_dir}_tmp"
             "${python}" -m pip install \
                 ${extra_pip_arg}       \
                 --upgrade              \
                 "${package}==${package_version}" 2>&1 || pip_success="False"
+            sleep ${sleep_gently}
             if [ "${pip_success}" == "True" ]; then
                 break
             fi
@@ -6779,7 +7083,7 @@ if [ "${pip_install}" == "True" ] && [ "${python_install}" == "True" ]; then
         fi
     done
     reset_environment
-    rm -rf "${tmp_pip_dir}" "${tmp_pip_dir}_tmp" || :
+    rm_gently -rf "${tmp_pip_dir}" "${tmp_pip_dir}_tmp" || :
 fi
 
 # The code below will upgrade all packages pre-installed
@@ -6868,7 +7172,7 @@ if [ "${cython_install}" == "True" ] && [ "${cython_installed}" == "False" ] \
         printf "
 Attempting to install Cython with compiler=${compiler}\n\n"
         pip_install_pypackage "Cython" "${cython_version}"
-        if [ "$(check_pypackage_installed cython)" == "False" ]; then
+        if [ "$(check_pypackage_installed cython True)" == "False" ]; then
             continue
         fi
         install_success="True"
@@ -6877,41 +7181,6 @@ Attempting to install Cython with compiler=${compiler}\n\n"
     if [ "${install_success}" == "False" ]; then
         error "Failed to install Cython"
         exit 1
-    fi
-    # Implement fixes to the installed Cython code
-    set_cython_dir() {
-        cython_dir="$(                                                   \
-            dirname "$(                                                  \
-                "${python}" -c                                           \
-                'import inspect, cython; print(inspect.getfile(cython))' \
-                || :                                                     \
-            )"                                                           \
-        )"
-        if [ "$(basename "${cython_dir}")" == "site-packages" ]; then
-            for base in "Cython" "cython"; do
-                for d in "${cython_dir}/${base}"*; do
-                    if [ -f "${d}/${1}" ]; then
-                        cython_dir="${d}"
-                        return
-                    fi
-                done
-            done
-        fi
-    }
-    if [ ${python_version_major} -eq 3 ] && [ ${python_version_minor} -ge 9 ]; then
-        # PyUnicode_GET_SIZE has been deprecated in favor of
-        # PyUnicode_GET_LENGTH since Python 3.3. In Python 3.9 the use
-        # of PyUnicode_GET_SIZE emits a warning. Relevant issue:
-        #   https://github.com/cython/cython/issues/3924
-        cython_file="Utility/ModuleSetupCode.c"
-        set_cython_dir "${cython_file}"
-        if [ -f "${cython_dir}/${cython_file}" ]; then
-            sed -i                                                  \
-                's/# *define *__Pyx_PyUnicode_IS_TRUE.*/\
-#define __Pyx_PyUnicode_IS_TRUE(u) (0 != PyUnicode_GET_LENGTH(u))/' \
-                "${cython_dir}/${cython_file}"                      \
-                || :
-        fi
     fi
     reset_environment
 fi
@@ -6927,7 +7196,7 @@ if [ "${cythongsl_install}" == "True" ] && [ "${cythongsl_installed}" == "False"
 Attempting to install CythonGSL with compiler=${compiler}\n\n"
         export LD_LIBRARY_PATH="${gsl_dir}/lib:${LD_LIBRARY_PATH}"
         pip_install_pypackage "CythonGSL" "${cythongsl_version}"
-        if [ "$(check_pypackage_installed cythongsl)" == "False" ]; then
+        if [ "$(check_pypackage_installed cythongsl True)" == "False" ]; then
             continue
         fi
         install_success="True"
@@ -6959,6 +7228,7 @@ Attempting to install CythonGSL with compiler=${compiler}\n\n"
             "GSL_EDIVERGE" \
         ; do
             sed -i "/${varname}/d" "${cythongsl_dir}/gsl_integration.pxd" || :
+            sleep ${sleep_gently}
         done
     fi
     reset_environment
@@ -6983,8 +7253,8 @@ if [ "${numpy_install}" == "True" ] && [ "${numpy_installed}" == "False" ] \
     set_status "Installing NumPy ${numpy_version}"
     # Download NumPy
     tmp_pip_dir="${tmp_dir}/pip"
-    rm -rf "${tmp_pip_dir}" "${tmp_pip_dir}_tmp" || :
-    mkdir -p "${tmp_pip_dir}_tmp"
+    rm_gently -rf "${tmp_pip_dir}" "${tmp_pip_dir}_tmp" || :
+    mkdir_gently -p "${tmp_pip_dir}_tmp"
     export TMPDIR="${tmp_pip_dir}_tmp"
     export TEMP="${TMPDIR}"
     export TMP="${TMPDIR}"
@@ -7040,18 +7310,35 @@ library_dirs = ${blas_dir}/lib
 include_dirs = ${blas_dir}/include
 runtime_library_dirs = ${blas_dir}/lib
 " > "${numpy_build_dir}/site.cfg"
-    cp -r "${numpy_build_dir}" "${numpy_build_dir}_cp"
+    cp_gently -r "${numpy_build_dir}" "${numpy_build_dir}_cp"
     # Build and install NumPy with OpenBLAS support.
     # We wish to use the gfortran Fortran compiler. We try out all the
     # compiler environments but overwriting the Fortran compiler.
     # If this fails, we retry without overwriting the Fortran compiler.
     numpy_install_func() {
+        if [ "${use_pip_install_pypackage}" == "True" ]; then
+            # If all attempts of building from source fails,
+            # try the pip_install_pypackage() function, which also
+            # allows pre-built wheels.
+            cd "${concept_dir}"
+            pip_install_pypackage_success="True"
+            pip_install_pypackage "NumPy" "${numpy_version}" "False" \
+                || pip_install_pypackage_success="False"
+            if [ "${pip_install_pypackage_success}" == "True" ]; then
+                return
+            fi
+            # Failed with pip_install_pypackage() as well. Give up.
+            error "Failed to install NumPy"
+            exit 1
+        fi
         if [ "${numpy_gfortran}" == "True" ]; then
             export FC="gfortran"
             export F77="gfortran"
             export F90="gfortran"
             export F9X="gfortran"
         fi
+        export CFLAGS="${CFLAGS} ${cstd}"
+        export CXXFLAGS="${CXXFLAGS} ${cxxstd}"
         if [ -n "${cstd}" ]; then
             export OPT="${OPT} ${cstd}"
         fi
@@ -7071,9 +7358,9 @@ runtime_library_dirs = ${blas_dir}/lib
         export LDFLAGS="${extra_LDFLAGS} ${LDFLAGS}"
         export PATH="${python_dir}/bin:${PATH}"
         cd "${concept_dir}"
-        rm -rf "${numpy_build_dir}" || :
+        rm_gently -rf "${numpy_build_dir}" || :
         "${python}" -m pip uninstall "numpy" -y >/dev/null 2>&1 || :
-        cp -r "${numpy_build_dir}_cp" "${numpy_build_dir}"
+        cp_gently -r "${numpy_build_dir}_cp" "${numpy_build_dir}"
         cd "${numpy_build_dir}"
         echo "True" > ".setuppy_success"
         if [ -n "${fcompiler}" ]; then
@@ -7084,19 +7371,18 @@ runtime_library_dirs = ${blas_dir}/lib
                 || echo "False" > ".setuppy_success") & setuppy_pid=$!
         fi
         soothe ${setuppy_pid}
-        sleep 1
+        sleep ${sleep_gently}
         setuppy_success="$(cat '.setuppy_success')"
         if [ "${setuppy_success}" != "True" ]; then
             # Cleanup before retrying
             cd "${concept_dir}"
             while [ -d "${numpy_build_dir}" ]; do
-                rm -rf "${numpy_build_dir}" || :
-                sleep 1
+                rm_gently -rf "${numpy_build_dir}" || :
             done
             return 1
         fi
         if [ "${setuppy_mode}" == "wheel" ]; then
-            rm -rf concept_wheel || :
+            rm_gently -rf concept_wheel || :
             ("${python}" setup.py bdist_wheel -d concept_wheel   \
                 && cd "${concept_dir}"                           \
                 && "${python}" -m pip install                    \
@@ -7107,18 +7393,17 @@ runtime_library_dirs = ${blas_dir}/lib
             "${python}" setup.py install ${numpy_pyuser} & setuppy_pid=$!
         fi
         soothe ${setuppy_pid}
-        if [ "$(check_pypackage_installed numpy)" == "False" ]; then
+        if [ "$(check_pypackage_installed numpy True)" == "False" ]; then
             # Cleanup before retrying
             cd "${concept_dir}"
             while [ -d "${numpy_build_dir}" ]; do
-                rm -rf "${numpy_build_dir}" || :
-                sleep 1
+                rm_gently -rf "${numpy_build_dir}" || :
             done
             return 1
         fi
         # Clean up
         cd "${concept_dir}"
-        rm -rf "${tmp_pip_dir}" "${tmp_pip_dir}_tmp" "${tmp_dir}/numpy" || :
+        rm_gently -rf "${tmp_pip_dir}" "${tmp_pip_dir}_tmp" "${tmp_dir}/numpy" || :
         reset_environment
         # Test NumPy
         if [ "${do_tests}" == "True" ]; then
@@ -7126,8 +7411,8 @@ runtime_library_dirs = ${blas_dir}/lib
             # takes longer than numpy_test_max_time seconds.
             numpy_test_max_time=3600
             exit_code_filename="${tmp_dir}/.exit_code_numpy"
-            mkdir -p "$(dirname "${exit_code_filename}")"
-            rm -f "${exit_code_filename}" || :
+            mkdir_gently -p "$(dirname "${exit_code_filename}")"
+            rm_gently -f "${exit_code_filename}" || :
             if [ -d "${blas_dir}" ]; then
                 export LD_LIBRARY_PATH="${blas_dir}/lib:${LD_LIBRARY_PATH}"
             fi
@@ -7135,11 +7420,11 @@ runtime_library_dirs = ${blas_dir}/lib
 extra_argv=['-q', '--color=yes'])" 2>&1 | tee "test_log"; \
                 echo "${PIPESTATUS[0]}" > "${exit_code_filename}") & numpy_test_pid=$!
             soothe ${numpy_test_pid} ${numpy_test_max_time}
-            sleep 1
+            sleep ${sleep_gently}
             kill -9 ${numpy_test_pid} >/dev/null 2>&1 || :
             wait    ${numpy_test_pid} >/dev/null 2>&1 || :
             exit_code="$(cat "${exit_code_filename}" 2>/dev/null || :)"
-            rm -f "${exit_code_filename}" || :
+            rm_gently -f "${exit_code_filename}" || :
             if [ "${exit_code}" != "0" ]; then
                 test_success="False"
             fi
@@ -7149,6 +7434,7 @@ extra_argv=['-q', '--color=yes'])" 2>&1 | tee "test_log"; \
         fi
     }
     install "NumPy" "no_init_install"                                  \
+        use_pip_install_pypackage "False" "True"                   ";" \
         numpy_pyuser "" "--user"                                   ";" \
         numpy_gfortran "True" "False"                              ";" \
         compiler "${compiler_possibilities_specified_mpi_last[@]}" ";" \
@@ -7208,8 +7494,8 @@ if [ "${scipy_install}" == "True" ] && [ "${scipy_installed}" == "False" ] \
     set_status "Installing SciPy ${scipy_version}"
     # Download SciPy
     tmp_pip_dir="${tmp_dir}/pip"
-    rm -rf "${tmp_pip_dir}" "${tmp_pip_dir}_tmp" || :
-    mkdir -p "${tmp_pip_dir}_tmp"
+    rm_gently -rf "${tmp_pip_dir}" "${tmp_pip_dir}_tmp" || :
+    mkdir_gently -p "${tmp_pip_dir}_tmp"
     export TMPDIR="${tmp_pip_dir}_tmp"
     export TEMP="${TMPDIR}"
     export TMP="${TMPDIR}"
@@ -7242,12 +7528,27 @@ library_dirs = ${blas_dir}/lib
 include_dirs = ${blas_dir}/include
 runtime_library_dirs = ${blas_dir}/lib
 " > "${scipy_build_dir}/site.cfg"
-    cp -r "${scipy_build_dir}" "${scipy_build_dir}_cp"
+    cp_gently -r "${scipy_build_dir}" "${scipy_build_dir}_cp"
     # Build and install SciPy with OpenBLAS support.
     # We wish to use the gfortran Fortran compiler. We try out all the
     # compiler environments but overwriting the Fortran compiler.
     # If this fails, we retry without overwriting the Fortran compiler.
     scipy_install_func() {
+        if [ "${use_pip_install_pypackage}" == "True" ]; then
+            # If all attempts of building from source fails,
+            # try the pip_install_pypackage() function, which also
+            # allows pre-built wheels.
+            cd "${concept_dir}"
+            pip_install_pypackage_success="True"
+            pip_install_pypackage "SciPy" "${scipy_version}" "False" \
+                || pip_install_pypackage_success="False"
+            if [ "${pip_install_pypackage_success}" == "True" ]; then
+                return
+            fi
+            # Failed with pip_install_pypackage() as well. Give up.
+            error "Failed to install SciPy"
+            exit 1
+        fi
         if [ "${scipy_gfortran}" == "True" ]; then
             export FC="gfortran"
             export F77="gfortran"
@@ -7258,6 +7559,7 @@ runtime_library_dirs = ${blas_dir}/lib
             export SCIPY_USE_PYTHRAN="${scipy_pythran}"
         fi
         export CFLAGS="${CFLAGS} ${cstd}"
+        export CXXFLAGS="${CXXFLAGS} ${cxxstd}"
         export TMPDIR="${tmp_pip_dir}_tmp"
         export TEMP="${TMPDIR}"
         export TMP="${TMPDIR}"
@@ -7271,15 +7573,16 @@ runtime_library_dirs = ${blas_dir}/lib
         export LDFLAGS="${extra_LDFLAGS} ${LDFLAGS}"
         export PATH="${python_dir}/bin:${PATH}"
         cd "${concept_dir}"
-        rm -rf "${scipy_build_dir}" || :
+        rm_gently -rf "${scipy_build_dir}" || :
         "${python}" -m pip uninstall "scipy" -y >/dev/null 2>&1 || :
-        cp -r "${scipy_build_dir}_cp" "${scipy_build_dir}"
+        cp_gently -r "${scipy_build_dir}_cp" "${scipy_build_dir}"
         cd "${scipy_build_dir}"
         if [ -n "${zip_safe}" ]; then
             sed -i "s/\(^ *\)\(setup *(.*\)$/\1metadata['zip_safe'] = ${zip_safe}; \2/" \
                 setup.py || return 1
         fi
         echo "True" > ".setuppy_success"
+        sleep ${sleep_gently}
         if [ -n "${fcompiler}" ]; then
             ("${python}" setup.py build --fcompiler="${fcompiler}" \
                 || echo "False" > ".setuppy_success") & setuppy_pid=$!
@@ -7288,19 +7591,19 @@ runtime_library_dirs = ${blas_dir}/lib
                 || echo "False" > ".setuppy_success") & setuppy_pid=$!
         fi
         soothe ${setuppy_pid}
-        sleep 1
+        sleep ${sleep_gently}
         setuppy_success="$(cat '.setuppy_success')"
         if [ "${setuppy_success}" != "True" ]; then
             # Cleanup before retrying
             cd "${concept_dir}"
             while [ -d "${scipy_build_dir}" ]; do
-                rm -rf "${scipy_build_dir}" || :
-                sleep 1
+                rm_gently -rf "${scipy_build_dir}" || :
+                sleep ${sleep_gently}
             done
             return 1
         fi
         if [ "${setuppy_mode}" == "wheel" ]; then
-            rm -rf concept_wheel || :
+            rm_gently -rf concept_wheel || :
             ("${python}" setup.py bdist_wheel -d concept_wheel   \
                 && cd "${concept_dir}"                           \
                 && "${python}" -m pip install                    \
@@ -7311,18 +7614,18 @@ runtime_library_dirs = ${blas_dir}/lib
             "${python}" setup.py install ${scipy_pyuser} & setuppy_pid=$!
         fi
         soothe ${setuppy_pid}
-        if [ "$(check_pypackage_installed scipy)" == "False" ]; then
+        if [ "$(check_pypackage_installed scipy True)" == "False" ]; then
             # Cleanup before retrying
             cd "${concept_dir}"
             while [ -d "${scipy_build_dir}" ]; do
-                rm -rf "${scipy_build_dir}" || :
-                sleep 1
+                rm_gently -rf "${scipy_build_dir}" || :
+                sleep ${sleep_gently}
             done
             return 1
         fi
         # Clean up
         cd "${concept_dir}"
-        rm -rf "${tmp_pip_dir}" "${tmp_pip_dir}_tmp" "${tmp_dir}/scipy" || :
+        rm_gently -rf "${tmp_pip_dir}" "${tmp_pip_dir}_tmp" "${tmp_dir}/scipy" || :
         reset_environment
         # Test SciPy
         if [ "${do_tests}" == "True" ]; then
@@ -7332,8 +7635,8 @@ runtime_library_dirs = ${blas_dir}/lib
             # We skip the test_face test as this require bz2,
             # which may not be installed.
             exit_code_filename="${tmp_dir}/.exit_code_scipy"
-            mkdir -p "$(dirname "${exit_code_filename}")"
-            rm -f "${exit_code_filename}" || :
+            mkdir_gently -p "$(dirname "${exit_code_filename}")"
+            rm_gently -f "${exit_code_filename}" || :
             if [ -d "${blas_dir}" ]; then
                 export LD_LIBRARY_PATH="${blas_dir}/lib:${LD_LIBRARY_PATH}"
             fi
@@ -7341,7 +7644,7 @@ runtime_library_dirs = ${blas_dir}/lib
 extra_argv=['-q', '--color=yes', '-k not test_face'])" 2>&1 | tee "test_log"; \
                 echo "${PIPESTATUS[0]}" > "${exit_code_filename}") & scipy_test_pid=$!
             soothe ${scipy_test_pid} ${scipy_test_max_time}
-            sleep 1
+            sleep ${sleep_gently}
             kill -9 ${scipy_test_pid} >/dev/null 2>&1 || :
             wait    ${scipy_test_pid} >/dev/null 2>&1 || :
             exit_code="$(cat "${exit_code_filename}" 2>/dev/null || :)"
@@ -7351,7 +7654,7 @@ extra_argv=['-q', '--color=yes', '-k not test_face'])" 2>&1 | tee "test_log"; \
             if tail -n 1 "test_log" | grep " failed" >/dev/null 2>&1; then
                 test_success="False"
             fi
-            rm -f "${exit_code_filename}" || :
+            rm_gently -f "${exit_code_filename}" || :
         fi
         # If installing in slim mode, remove build dependencies
         # that are no longer needed.
@@ -7360,9 +7663,15 @@ extra_argv=['-q', '--color=yes', '-k not test_face'])" 2>&1 | tee "test_log"; \
                 "beniget"            \
                 "gast"               \
                 "ply"                \
-                "pybind11"           \
                 "pythran"            \
             )
+            # The pybind11 package can also be removed, but we need it
+            # again for installing Matplotlib. To save some time,
+            # only remove it if we are not goint to install Matplotlib.
+            if [ "${matplotlib_install}" != "True" ] || [ "${matplotlib_installed}" != "False" ] \
+                || [ "$(check_pypackage_installed matplotlib)" == "True" ]; then
+                removable_dependencies=("${removable_dependencies[@]}" "pybind11")
+            fi
             for dependency in "${removable_dependencies[@]}"; do
                 eval "dependency_installed=\"\${${dependency}_installed}\""
                 if [ "${dependency_installed}" == "False" ]; then
@@ -7372,12 +7681,14 @@ extra_argv=['-q', '--color=yes', '-k not test_face'])" 2>&1 | tee "test_log"; \
         fi
     }
     install "SciPy" "no_init_install"                                  \
+        use_pip_install_pypackage "False" "True"                   ";" \
         scipy_pyuser "" "--user"                                   ";" \
         scipy_gfortran "True" "False"                              ";" \
         compiler "${compiler_possibilities_specified_mpi_last[@]}" ";" \
         setuppy_mode "wheel" "install"                             ";" \
         zip_safe "False" ""                                        ";" \
         cstd "-std=c99" ""                                         ";" \
+        cxxstd "-std=c++11" "-std=c++14" ""                        ";" \
         fcompiler "gnu95" ""                                       ";" \
         extra_FCFLAGS "" "-fPIC"                                   ";" \
         extra_LDFLAGS "" "-shared"                                 ";" \
@@ -7453,8 +7764,8 @@ if [ "${matplotlib_install}" == "True" ] && [ "${matplotlib_installed}" == "Fals
         printf "\nSwitching installation strategy for pillow\n\n"
         # Download pillow
         tmp_pip_dir="${tmp_dir}/pip"
-        rm -rf "${tmp_pip_dir}" "${tmp_pip_dir}_tmp" || :
-        mkdir -p "${tmp_pip_dir}_tmp"
+        rm_gently -rf "${tmp_pip_dir}" "${tmp_pip_dir}_tmp" || :
+        mkdir_gently -p "${tmp_pip_dir}_tmp"
         export TMPDIR="${tmp_pip_dir}_tmp"
         export TEMP="${TMPDIR}"
         export TMP="${TMPDIR}"
@@ -7475,7 +7786,7 @@ if [ "${matplotlib_install}" == "True" ] && [ "${matplotlib_installed}" == "Fals
             fi
         done
         cd "${concept_dir}"
-        cp -r "${pillow_build_dir}" "${pillow_build_dir}_cp"
+        cp_gently -r "${pillow_build_dir}" "${pillow_build_dir}_cp"
         pillow_install_func() {
             if [ -d "${zlib_dir}" ]; then
                 export CPPFLAGS="-I${zlib_dir}/include ${CPPFLAGS}"
@@ -7488,8 +7799,8 @@ if [ "${matplotlib_install}" == "True" ] && [ "${matplotlib_installed}" == "Fals
             export TMP="${TMPDIR}"
             export PATH="${python_dir}/bin:${PATH}"
             cd "${concept_dir}"
-            rm -rf "${pillow_build_dir}" || :
-            cp -r "${pillow_build_dir}_cp" "${pillow_build_dir}"
+            rm_gently -rf "${pillow_build_dir}" || :
+            cp_gently -r "${pillow_build_dir}_cp" "${pillow_build_dir}"
             cd "${pillow_build_dir}"
             if [ "${zip_1980_fix}" == "True" ]; then
                 bdist_egg_file="$("${python}" -c "
@@ -7500,23 +7811,24 @@ print(inspect.getfile(bdist_egg))
                 if [ ! -f "${bdist_egg_file}" ]; then
                     return 1
                 fi
-                cp "${bdist_egg_file}" "${bdist_egg_file}_ori" || return 1
+                cp_gently "${bdist_egg_file}" "${bdist_egg_file}_ori" || return 1
                 sed -i                                                             \
                     "s/\(^.*\. *ZipFile\)\(.*\))$/\1\2, strict_timestamps=False)/" \
                     "${bdist_egg_file}"                                            \
                 || return 1
+                sleep ${sleep_gently}
             fi
             "${python}" setup.py build_ext --disable-jpeg install ${pyuser} || :
             if [ "${zip_1980_fix}" == "True" ]; then
-                cp "${bdist_egg_file}_ori" "${bdist_egg_file}" || :
-                rm -f "${bdist_egg_file}_ori" || :
+                cp_gently "${bdist_egg_file}_ori" "${bdist_egg_file}" || :
+                rm_gently -f "${bdist_egg_file}_ori" || :
             fi
-            if [ "$(check_pypackage_installed pillow)" == "False" ]; then
+            if [ "$(check_pypackage_installed pillow True)" == "False" ]; then
                 return 1
             fi
             # Clean up
             cd "${concept_dir}"
-            rm -rf "${tmp_pip_dir}" "${tmp_pip_dir}_tmp" "${tmp_dir}/pillow" || :
+            rm_gently -rf "${tmp_pip_dir}" "${tmp_pip_dir}_tmp" "${tmp_dir}/pillow" || :
             reset_environment
         }
         install "pillow" "no_init_install"  \
@@ -7529,8 +7841,8 @@ print(inspect.getfile(bdist_egg))
     heading "Downloading Matplotlib ${matplotlib_version}"
     set_status "Downloading Matplotlib ${matplotlib_version}"
     tmp_pip_dir="${tmp_dir}/pip"
-    rm -rf "${tmp_pip_dir}" "${tmp_pip_dir}_tmp" || :
-    mkdir -p "${tmp_pip_dir}_tmp"
+    rm_gently -rf "${tmp_pip_dir}" "${tmp_pip_dir}_tmp" || :
+    mkdir_gently -p "${tmp_pip_dir}_tmp"
     export TMPDIR="${tmp_pip_dir}_tmp"
     export TEMP="${TMPDIR}"
     export TMP="${TMPDIR}"
@@ -7550,21 +7862,36 @@ print(inspect.getfile(bdist_egg))
             break
         fi
     done
-    cp -r "${matplotlib_build_dir}" "${matplotlib_build_dir}_cp"
+    cp_gently -r "${matplotlib_build_dir}" "${matplotlib_build_dir}_cp"
     # Install Matplotlib
     current_step="installation of Matplotlib ${matplotlib_version}"
     heading "Installing Matplotlib ${matplotlib_version}"
     set_status "Installing Matplotlib ${matplotlib_version}"
     matplotlib_install_func() {
+        if [ "${use_pip_install_pypackage}" == "True" ]; then
+            # If all attempts of building from source fails,
+            # try the pip_install_pypackage() function, which also
+            # allows pre-built wheels.
+            cd "${concept_dir}"
+            pip_install_pypackage_success="True"
+            pip_install_pypackage "Matplotlib" "${matplotlib_version}" "False" \
+                || pip_install_pypackage_success="False"
+            if [ "${pip_install_pypackage_success}" == "True" ]; then
+                return
+            fi
+            # Failed with pip_install_pypackage() as well. Give up.
+            error "Failed to install Matplotlib"
+            exit 1
+        fi
         cd "${concept_dir}"
-        rm -rf "${matplotlib_build_dir}" || :
-        cp -r "${matplotlib_build_dir}_cp" "${matplotlib_build_dir}"
+        rm_gently -rf "${matplotlib_build_dir}" || :
+        cp_gently -r "${matplotlib_build_dir}_cp" "${matplotlib_build_dir}"
         cd "${matplotlib_build_dir}"
         unset MPLSETUPCFG
         for cfg in mplsetup setup; do
             cfg="${cfg}.cfg"
             if [ -f "${cfg}.template" ]; then
-                cp "${cfg}.template" "${cfg}"
+                cp_gently "${cfg}.template" "${cfg}"
                 export MPLSETUPCFG="$(pwd)/${cfg}"
                 break
             fi
@@ -7577,7 +7904,7 @@ print(inspect.getfile(bdist_egg))
         fi
         if [ "${use_predownloaded_clibs}" == "True" ]; then
             download_matplotlib_clibs
-            mkdir -p "${matplotlib_build_dir}/build"
+            mkdir_gently -p "${matplotlib_build_dir}/build"
             set_matplotlib_clibs
             for matplotlib_clib in ${matplotlib_clibs}; do
                 matplotlib_clib_lowercase="$( \
@@ -7588,7 +7915,7 @@ print(inspect.getfile(bdist_egg))
                 cd "${tmp_dir}/${matplotlib_clib_lowercase}"
                 for f in *; do
                     if [ -d "${f}" ]; then
-                        rm -rf "${f}" || :
+                        rm_gently -rf "${f}" || :
                     fi
                 done
                 for f in *; do
@@ -7601,8 +7928,8 @@ print(inspect.getfile(bdist_egg))
                 fi
                 extract "${f}" "True"
                 for f in *; do
-                    rm -rf "${matplotlib_build_dir}/build/${f}" || :
-                    cp -r "${f}" "${matplotlib_build_dir}/build/"
+                    rm_gently -rf "${matplotlib_build_dir}/build/${f}" || :
+                    cp_gently -r "${f}" "${matplotlib_build_dir}/build/"
                 done
             done
         fi
@@ -7617,16 +7944,16 @@ print(inspect.getfile(bdist_egg))
             --find-links="${tmp_dir}/pip" \
             "${matplotlib_build_dir}" 2>&1 & pip_install_pid=$!
         soothe ${pip_install_pid}
-        if [ "$(check_pypackage_installed matplotlib)" == "False" ]; then
+        if [ "$(check_pypackage_installed matplotlib True)" == "False" ]; then
             return 1
         fi
         # Clean up
         cd "${concept_dir}"
-        rm -rf "${tmp_pip_dir}" "${tmp_pip_dir}_tmp" "${tmp_dir}/matplotlib" || :
+        rm_gently -rf "${tmp_pip_dir}" "${tmp_pip_dir}_tmp" "${tmp_dir}/matplotlib" || :
         set_matplotlib_clibs
         for matplotlib_clib in ${matplotlib_clibs}; do
             matplotlib_clib_lowercase="$(echo "${matplotlib_clib}" | tr '[:upper:]' '[:lower:]')"
-            rm -rf "${tmp_dir}/${matplotlib_clib_lowercase}" || :
+            rm_gently -rf "${tmp_dir}/${matplotlib_clib_lowercase}" || :
         done
         reset_environment
         # If installing in slim mode, remove build dependencies
@@ -7702,6 +8029,7 @@ for clib in '${matplotlib_clibs}'.split():
         done
     }
     install "Matplotlib" "no_init_install"                             \
+        use_pip_install_pypackage "False" "True"                   ";" \
         compiler "${compiler_possibilities_specified_mpi_last[@]}" ";" \
         pyuser "" "--user"                                         ";" \
         use_predownloaded_clibs "True" "False"                     ";" \

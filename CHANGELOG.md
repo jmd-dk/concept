@@ -46,8 +46,9 @@
   substituted for `powerspec_options['bins per decade']`.
 - Default particle softening length changed to 2.5% of the mean
   inter-particle distance.
-- The `install` script has been made more robust regarding pre-installed MPI
-  distributions as well as the installation of NumPy/SciPy.
+- The `install` script has been made more robust, in particular with regards
+  to pre-installed MPI distributions, non-GNU compilers and Python packages,
+  in particular NumPy/SciPy.
 - Python >= 3.11 is now required.
 
 [Commits since 1.0.1](https://github.com/jmd-dk/concept/compare/v1.0.1...master)

@@ -587,6 +587,43 @@ def get_matplotlib():
         ['tight_layout', 'savefig'],
         fix_minor_tick_labels_decorator,
     )
+    # On some systems the axis bounding box may some times become
+    # infinite or NaN (for whatever reason), which ultimately results in
+    # a ValueError. Here we detect this prior to calling draw() and
+    # replaces the non-finite values with some default values,
+    # avoiding the error. Note that these default values will not be
+    # optimal in general, and so a warning will be printed.
+    def ensure_finite_bbox(fig=None):
+        if fig is None:
+            fig = plt.gcf()
+        warned = False
+        defaults = {'x0': 0.0, 'y0': 0.0, 'x1': 1.0, 'y1': 1.0}
+        for ax in fig.axes:
+            try:
+                bbox = ax.transAxes._boxout._bbox
+            except Exception:
+                continue
+            for attr, default in defaults.items():
+                val = getattr(bbox, attr, 0)
+                if not np.isfinite(val):
+                    if not warned:
+                        warn('Non-finite bounding box within Matplotlib:', bbox)
+                        warned = True
+                    setattr(bbox, attr, default)
+    def ensure_finite_bbox_decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            fig = None
+            if len(args) > 0 and isinstance(args[0], matplotlib.figure.Figure):
+                fig = args[0]
+            ensure_finite_bbox(fig)
+            func(*args, **kwargs)
+        return wrapper
+    patch_matplotlib(
+        ['plt', 'matplotlib.figure.Figure'],
+        ['draw'],
+        ensure_finite_bbox_decorator,
+    )
     # Add the matplotlib module to the global store for future lookups
     matplotlib_cache.append(matplotlib)
     # Return the matplotlib module itself
