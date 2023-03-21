@@ -1444,15 +1444,10 @@ def interpolate_particles(component, gridsize, grid, quantity, order, ᔑdt,
         constant_contribution = False
         quadratic = True
 
-        # Divide out the particle mass
-        if ᔑdt:
-            contribution = ᔑdt['a**(-3*(1+w_eff))', component.name]/ᔑdt['1']
-        else:
-            contribution = a**(-3*(1 + w_eff))
-        contribution *= component.mass
-        contribution = 1. / contribution
+        # Get the pointers to the conjugate momenta. Note that the conjugate momenta 
+        # are defined by q/m = au = a²ẋ = a²dx/dt where 'x' is the comoving coordinate
+        # hence we will need to remove some factors of a
 
-        # Set up the pointers for interpolation
         dim1 = 'xyz'.index(quantity[1])
         dim2 = 'xyz'.index(quantity[2])
 
@@ -1461,6 +1456,20 @@ def interpolate_particles(component, gridsize, grid, quantity, order, ᔑdt,
 
         contribution_ptr1 = cython.address(contribution_mv1[:])
         contribution_ptr2 = cython.address(contribution_mv2[:])
+
+        # Now we are calculating the mass as appropriately adjusted for the decay
+        if ᔑdt:
+            abort(f'interpolate_particles() called with ᔑdt for T_{ij}')
+
+        # Decaying components should have their momentum reduced due
+        # to loss of mass. As the mass at time a is given by
+        # self.mass*a**(-3*self.w_eff(a)),
+        
+        # Mass at time a
+        contribution = component.mass*a**(-3*w_eff)
+
+        # Inverse mass at time a
+        contribution = 1. / contribution
 
     else:
         abort(
@@ -2678,16 +2687,11 @@ def spectral_laplacian(grid):
     slab_size_j, slab_size_i, slab_size_k = asarray(slab).shape
     slab_ptr = cython.address(slab[:, :, :])
     gridsize = slab_size_i
-    masterprint(gridsize)
 
     # Get the fundamental wavenumber in units of 1/Gyr 
     k_unit = ℝ[2*π / boxsize / units.Gyr * light_speed * units.Mpc]
-    masterprint(k_unit)
  
     for index, ki, kj, kk, factor, θ in fourier_loop(gridsize):
-
-        if factor > 1.00001:
-            print('Unusual Factor Value: ', factor, ' at ', ki, kj, kk)
 
         factor *= -k_unit * k_unit * (ki * ki + kj * kj + kk * kk)
 

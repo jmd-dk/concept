@@ -94,7 +94,6 @@ import interactions
     returns='void',
 )
 def timeloop():
-    masterprint(units.Mpc, light_speed, units.Gyr, ℝ[.123456789123456789123456789])
 
     # Do nothing if no dump times exist
     if not (  [nr for val in output_times['a'].values() for nr in val]
@@ -236,7 +235,7 @@ def timeloop():
     ConfTime = a_to_tau(universals.a)
 
     # Hacky insertion for the number of steps
-    for step_index in range(10):
+    for step_index in range(21000):
 
         #########################################################################
         ###   THIS IS THE MOST IMPORTANT PART WE MUST SYNCHRONIZE CORRECTLY   ###
@@ -407,7 +406,7 @@ def timeloop():
         ############################
         ###   Perform the Dump   ###
         ############################
-        if True:
+        if time_step % 100 == 0:
             dump_time = DumpTime('a', t=None, a = universals.a)
             dump(components, tensor_perturbations, output_filenames, dump_time, Δt)
 
