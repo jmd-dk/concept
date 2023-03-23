@@ -2381,9 +2381,9 @@ def fourier_loop(
     _nyquist = gridsize//2
 
     if with_nyquist:
-        _nyquist_plus = _nyquist
-    else:
         _nyquist_plus = _nyquist + 1
+    else:
+        _nyquist_plus = _nyquist
 
     _slab_size_j = gridsize//nprocs
     _slab_size_i = gridsize
@@ -2690,8 +2690,9 @@ def spectral_laplacian(grid):
 
     # Get the fundamental wavenumber in units of 1/Gyr 
     k_unit = ℝ[2*π / boxsize / units.Gyr * light_speed * units.Mpc]
+    masterprint(k_unit)
  
-    for index, ki, kj, kk, factor, θ in fourier_loop(gridsize):
+    for index, ki, kj, kk, factor, θ in fourier_loop(gridsize,with_nyquist=True):
 
         factor *= -k_unit * k_unit * (ki * ki + kj * kj + kk * kk)
 
