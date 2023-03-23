@@ -231,7 +231,7 @@ def timeloop():
     ###   Set up the Information for the Fixed Conformal Step Size   ###
     ####################################################################
 
-    dConfTime = 0006523127554334868 # Hacky insertion
+    dConfTime = .0006523127554334868 # Hacky insertion
     ConfTime = a_to_tau(universals.a)
 
     # Hacky insertion for the number of steps
