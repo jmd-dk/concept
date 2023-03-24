@@ -1021,8 +1021,19 @@ class TensorField:
             for index in range(self.size):
                 field_ptr[index] += source_ptr[index]*weight
 
+    # Method for adding component sources to the tensor girds
+    @cython.pheader(
+        component = 'Component',
+    )
+    def add_source(self, component):
+        if component.representation ==  'particles':
 
-
+            component.gridsize = self.gridsize
+            convert_particles_to_fluid(component, 4)
+            self.add(component.fluidvars[2], 1)
+                
+            component.resize(1)
+            component.representation = 'particles'
 
 @cython.cclass
 class TensorComponent:
@@ -1112,15 +1123,9 @@ class TensorComponent:
         
         self.du.add(state.u.fluidvar, Rpp/R)
         self.du.add_laplacian(state.u.fluidvar, 1)
-
+        
         for component in components:
-            if component.representation ==  'particles':
-                component.gridsize = self.gridsize
-                convert_particles_to_fluid(component, 4)
-                self.du.add(component.fluidvars[2], 1)
-                
-                component.resize(1)
-                component.representation = 'particles'
+            self.du.add_source(component)
 
         self.u.communicate_fluid_grids('=')
         self.du.communicate_fluid_grids('=')
