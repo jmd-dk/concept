@@ -1470,6 +1470,7 @@ def interpolate_particles(component, gridsize, grid, quantity, order, ᔑdt,
 
         # Inverse mass at time a
         contribution = 1. / contribution
+        contribution *= a**(-3)
 
     else:
         abort(
@@ -2690,7 +2691,6 @@ def spectral_laplacian(grid):
 
     # Get the fundamental wavenumber in units of 1/Gyr 
     k_unit = ℝ[2*π / boxsize / units.Gyr * light_speed * units.Mpc]
-    masterprint(k_unit)
  
     for index, ki, kj, kk, factor, θ in fourier_loop(gridsize,with_nyquist=True):
 

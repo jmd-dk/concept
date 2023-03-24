@@ -1009,7 +1009,6 @@ class TensorField:
     )
     def add_laplacian(self, rhs, weight):
         Δx = boxsize/self.gridsize/ units.Mpc/light_speed * units.Gyr
-        masterprint(boxsize/self.gridsize,  1/units.Mpc/light_speed * units.Gyr, Δx)
 
         for multi_index in self.fluidvar.multi_indices:
             field_scalar = self.fluidvar[multi_index]
@@ -1024,16 +1023,78 @@ class TensorField:
     # Method for adding component sources to the tensor girds
     @cython.pheader(
         component = 'Component',
+        w = 'double',
+        w_eff = 'double',
+        a = 'double',
+        rho_prefactor = 'double',
+        JJ_prefactor = 'double',
+        rho_scalar = 'FluidScalar',
+        field_scalar = 'FluidScalar',
+        J1_scalar = 'FluidScalar',
+        J2_scalar = 'FluidScalar',
+        rho_ptr = 'double*',
+        field_ptr = 'double*',
+        J1_ptr = 'double*',
+        J2_ptr = 'double*',
     )
     def add_source(self, component):
         if component.representation ==  'particles':
+            a = universals.a
+            w = component.w(a=universals.a)
+            w_eff = component.w_eff(a = universals.a)
+
+            masterprint('Equation of state parameters: ', a, w, w_eff)
 
             component.gridsize = self.gridsize
             convert_particles_to_fluid(component, 4)
-            self.add(component.fluidvars[2], 1)
+            self.add(component.fluidvars[2], a**3)
                 
             component.resize(1)
             component.representation = 'particles'
+
+        else:
+            a = universals.a
+            w = component.w(a=universals.a)
+            w_eff = component.w_eff(a = universals.a)
+            masterprint('Equation of state parameters: ', a, w, w_eff)
+
+            # Prefactors that we will reuse
+            rho_prefactor = a**(-3*(1+w_eff)) * w * a**(3)
+            JJ_prefactor = a**(3*w_eff - 5) / (1 + w) * a**(3)
+
+            # Pointer to fluid density grid
+            rho_scalar = component.ϱ
+            rho_ptr = rho_scalar.grid
+
+            # Start by adding the fluid density contribution
+            for dim in range(3):
+                field_scalar = self.fluidvar[dim, dim]
+                field_ptr = field_scalar.grid
+
+                for index in range(self.size):
+                    field_ptr[index] += rho_prefactor * rho_ptr[index]
+
+            # Now add the fluid momentum density contribution
+            for dim1 in range(3):
+                for dim2 in range(3):
+
+                    # Momentum density scalars
+                    J1_scalar = component.J[dim1]
+                    J2_scalar = component.J[dim2]
+            
+                    # Momentum density pointers
+                    J1_ptr = J1_scalar.grid
+                    J2_ptr = J2_scalar.grid 
+
+                    # Pointer to the field we add to
+                    field_scalar = self.fluidvar[dim1, dim2]
+                    field_ptr = field_scalar.grid
+
+                    for index in range(self.size):
+                        field_ptr[index] += JJ_prefactor * J1_ptr[index] * J2_ptr[index] / rho_ptr[index]
+
+
+
 
 @cython.cclass
 class TensorComponent:
