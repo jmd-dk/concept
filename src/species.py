@@ -829,6 +829,8 @@ class Tiling:
     def __str__(self):
         return self.__repr__()
 
+
+
 # The class containing the metric perturbations
 @cython.cclass
 class TensorField:
@@ -1039,6 +1041,7 @@ class TensorField:
     )
     def add_source(self, component):
         if component.representation ==  'particles':
+            masterprint('Using Particle Source')
             a = universals.a
             w = component.w(a=universals.a)
             w_eff = component.w_eff(a = universals.a)
@@ -1048,9 +1051,6 @@ class TensorField:
             component.gridsize = self.gridsize
             convert_particles_to_fluid(component, 4)
             self.add(component.fluidvars[2], a**3)
-                
-            component.resize(1)
-            component.representation = 'particles'
 
         else:
             a = universals.a
@@ -1059,20 +1059,11 @@ class TensorField:
             masterprint('Equation of state parameters: ', a, w, w_eff)
 
             # Prefactors that we will reuse
-            rho_prefactor = a**(-3*(1+w_eff)) * w * a**(3)
-            JJ_prefactor = a**(3*w_eff - 5) / (1 + w) * a**(3)
+            JJ_prefactor = 1. / (1. + w) * a**(-2 + 3 * w_eff)
 
             # Pointer to fluid density grid
             rho_scalar = component.ϱ
             rho_ptr = rho_scalar.grid
-
-            # Start by adding the fluid density contribution
-            for dim in range(3):
-                field_scalar = self.fluidvar[dim, dim]
-                field_ptr = field_scalar.grid
-
-                for index in range(self.size):
-                    field_ptr[index] += rho_prefactor * rho_ptr[index]
 
             # Now add the fluid momentum density contribution
             for dim1 in range(3):
@@ -1092,8 +1083,6 @@ class TensorField:
 
                     for index in range(self.size):
                         field_ptr[index] += JJ_prefactor * J1_ptr[index] * J2_ptr[index] / rho_ptr[index]
-
-
 
 
 @cython.cclass
@@ -1294,6 +1283,7 @@ class Component:
         public str name
         public str species
         public str representation
+        public str original_representation
         public dict forces
         public dict potential_gridsizes
         public dict potential_differentiations
@@ -1425,10 +1415,12 @@ class Component:
             self.N = N
             self.gridsize = 1
             self.representation = 'particles'
+            self.original_representation = 'particles'
         elif gridsize != -1:
             self.gridsize = gridsize
             self.N = 1
             self.representation = 'fluid'
+            self.original_representation = 'fluid'
             if self.gridsize%2 != 0:
                 masterwarn(
                     f'{self.name.capitalize()} has an odd grid size ({self.gridsize}). '

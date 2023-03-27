@@ -178,6 +178,7 @@ class ConceptSnapshot:
             # Store each component as a separate group
             # within /components.
             for component in self.components:
+                
                 original_representation = component.representation
 
                 component_h5 = hdf5_file.create_group(f'components/{component.name}')
@@ -189,7 +190,7 @@ class ConceptSnapshot:
                         f'with representation "{component.representation}"'
                     )
 
-                if component.representation == 'particles':
+                if component.original_representation == 'particles':
                     N, N_local = component.N, component.N_local
                     N_lin = cbrt(N)
                     if N > 1 and isint(N_lin):
@@ -213,12 +214,6 @@ class ConceptSnapshot:
                     pos_h5[start_local:end_local, :] = component.pos_mv3[:N_local, :]
                     mom_h5[start_local:end_local, :] = component.mom_mv3[:N_local, :]
 
-                    # Make the meshed particle grid the same size as the tensor component
-                    component.gridsize = tensor_component.gridsize
-
-                    # Convert the particles to a fluid representation
-                    convert_particles_to_fluid(component, 4)
-                
                 if component.representation == 'fluid':
                     # Write out progress message
                     masterprint(
@@ -268,13 +263,6 @@ class ConceptSnapshot:
                 hdf5_file.flush()
                 Barrier()
                 masterprint('done')
-
-                # After the conversion, the particles were saved in a fluid representation
-                # We now destroy the fluid grids to save memory and return the component to 
-                # a particle representation 
-                if original_representation == 'particles':
-                    component.resize(1)
-                    component.representation = original_representation
 
         # Done saving the snapshot
         masterprint('done')

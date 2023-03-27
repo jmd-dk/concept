@@ -43,6 +43,7 @@ cimport(
 cimport('from snapshot import get_initial_conditions, save')
 cimport('from utilities import delegate')
 cimport('from species import TensorComponent')
+cimport('from mesh import convert_particles_to_fluid')
 
 # Pure Python imports
 from integration import init_time
@@ -110,9 +111,11 @@ def timeloop():
 
     # Initialize Tensor Perturbations
     tensor_perturbations = TensorComponent(gridsize=64)
-    rhs_evals = [TensorComponent(gridsize=64), TensorComponent(gridsize=64),
-                 TensorComponent(gridsize=64), TensorComponent(gridsize=64),
-                 TensorComponent(gridsize=64)]
+    rhs_evals = [TensorComponent(gridsize=tensor_perturbations.gridsize),
+                 TensorComponent(gridsize=tensor_perturbations.gridsize),
+                 TensorComponent(gridsize=tensor_perturbations.gridsize),
+                 TensorComponent(gridsize=tensor_perturbations.gridsize),
+                 TensorComponent(gridsize=tensor_perturbations.gridsize),]
 
     # Check if an autosaved snapshot exists for the current
     # parameter file. If not, the initial_time_step will be 0.
@@ -167,6 +170,13 @@ def timeloop():
         component.realize_if_linear(2, specific_multi_index='trace')  # 𝒫
         component.realize_if_linear(2, specific_multi_index=(0, 0))   # ς
     masterprint('done')
+
+    # Make fluid grids for the initial output. This is just for debugging
+    for component in components:
+        if component.original_representation == 'particles':
+            component.gridsize = tensor_perturbations.gridsize
+            convert_particles_to_fluid(component, 4)
+
     # Possibly output at the beginning of simulation
     if dump_times[0].t == universals.t or dump_times[0].a == universals.a:
         dump(components, tensor_perturbations, output_filenames, dump_times[0])
@@ -174,6 +184,13 @@ def timeloop():
         # Return now if all dumps lie at the initial time
         if len(dump_times) == 0:
             return
+
+    # Return the particle component to particle representation
+    for component in components:
+        if component.original_representation == 'particles':
+            component.resize(1)
+            component.representation = component.original_representation
+
     # Set initial time step size
     static_timestepping_func = prepare_static_timestepping()
     # Including the current (initial) t in initial_fac_times in
@@ -303,6 +320,11 @@ def timeloop():
         rhs_evals[3].source(tensor_perturbations, components, universals.a, a_to_app(universals.a))
         tensor_perturbations.update(rhs_evals[:4], dConfTime)
 
+        # When we sourced the RHS, we converted the particles to a fluid representation.
+        # Now we return the component to a particle representation if necessary 
+        for component in components:
+            component.representation = component.original_representation
+
         ########################################################################
         ###   We are modifying to kick-drift-kick so that everything is      ###
         ###   synchronized at the beginning of the loop. This means we       ###
@@ -379,19 +401,38 @@ def timeloop():
             universals.t = sync_time
         universals.a = scale_factor(universals.t)
 
+        ##############################################################
+        ###   Add the decay sources to the decay radiation fluid   ###
+        ##############################################################
+
+        # We neeed the particle species back in the fluid representation to access
+        # the fluid data for sourcing the decay radiation
+        for component in components:
+            component.representation = 'fluid'
+
+        # We are now done with the mesh created at the beginning of this timestep
+        # so we will nullify that fluid data 
+        for component in components: 
+            if component.original_representation == 'particles':
+                component.resize(1)
+                component.representation = 'particles'
+
+
         ###################################################################
         ###   Perform the Corrector Step for the Tensor Perturbations   ###
         ###################################################################
 
+        # Recompute the RHS terms, which involves a convert_particles_to_fluid step
         masterprint('Computing Corrector Step for Tensor Perturbations')
         rhs_evals[4].source(tensor_perturbations, components, universals.a, a_to_app(universals.a))
         tensor_perturbations.update(rhs_evals, dConfTime)
+
 
         ###############################
         ###   Clean the RHS Evals   ###
         ###############################
 
-        rhs_evals = rhs_evals[1:4] + [TensorComponent(gridsize=64), TensorComponent(gridsize=64)]
+        rhs_evals = rhs_evals[1:4] + [TensorComponent(gridsize=tensor_perturbations.gridsize), TensorComponent(gridsize=tensor_perturbations.gridsize)]
 
         ############################################################################
         ###   If we set our sync_time correctly, these states are synchronized   ###
@@ -406,9 +447,16 @@ def timeloop():
         ############################
         ###   Perform the Dump   ###
         ############################
-        if True:
-            dump_time = DumpTime('a', t=None, a = universals.a)
-            dump(components, tensor_perturbations, output_filenames, dump_time, Δt)
+        dump_time = DumpTime('a', t=None, a = universals.a)
+        dump(components, tensor_perturbations, output_filenames, dump_time, Δt)
+
+        # When we sourced the RHS, we converted the particles to a fluid representation.
+        # Now we return the component to a particle representation if necessary 
+        for component in components:
+            if component.original_representation == 'particles': 
+                component.resize(1)
+                component.representation = 'particles'
+
 
     # All dumps completed; end of main time loop
     print_timestep_footer(components)

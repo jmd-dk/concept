@@ -669,6 +669,7 @@ def flux_limiter_koren(r):
         return 2*r
     return 0
 
+
 # Function which evolve the fluid variables of a component
 # due to internal source terms. This function should be used
 # together with the kurganov_tadmor function.
