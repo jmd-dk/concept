@@ -1058,8 +1058,8 @@ class TensorField:
             w_eff = component.w_eff(a = universals.a)
             masterprint('Equation of state parameters: ', a, w, w_eff)
 
-            # Prefactors that we will reuse
-            JJ_prefactor = 1. / (1. + w) * a**(-2 + 3 * w_eff)
+            # Prefactors that we will reuse. a**4 comes from lowering the index on J
+            JJ_prefactor = 1. / (1. + w) * a**(-2 + 3 * w_eff) * a**4
 
             # Pointer to fluid density grid
             rho_scalar = component.ϱ
