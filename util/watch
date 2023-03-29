@@ -154,7 +154,7 @@ if [ "${resource_manager}" == "slurm" ]; then
         exit 1
     fi
     # Function which lists information about all jobs in standard
-    # PBS format (jobid, jobname, username, time, state, queue).
+    # PBS format (jobid, job_name, username, time, state, queue).
     get_info() {
         ${info_command} --format='%i %j %u %M %t %P'
     }
@@ -168,7 +168,7 @@ elif [ "${resource_manager}" == "torque" ]; then
         exit 1
     fi
     # Function which lists information about all jobs in standard
-    # PBS format (jobid, jobname, username, time, state, queue).
+    # PBS format (jobid, job_name, username, time, state, queue).
     get_info() {
         ${info_command}
     }
@@ -205,7 +205,7 @@ update_job_info() {
     while read -r line; do
         jobid_line="$(echo "${line}" | awk '{print $1}')"
         jobid_line="${jobid_line%%.*}"
-        jobname_line="$(echo "${line}" | awk '{print $2}')"
+        job_name_line="$(echo "${line}" | awk '{print $2}')"
         if [ "${jobid_line}" == "${jobid}" ]; then
             # Submitted job with matching job ID found
             username_line="$(echo "${line}" | awk '{print $3}')"
@@ -214,13 +214,13 @@ update_job_info() {
                 colorprint "Job ${jobid} does not belong to you" "red"
                 exit 1
             fi
-            jobname="${jobname_line}"
+            job_name="${job_name_line}"
             state="$(echo "${line}" | awk '{print $5}')"
             queue="$(echo "${line}" | awk '{print $6}')"
             break
         fi
         # Perhaps the specified job ID is really the job name
-        if [ "${jobname_line}" == "${jobid}" ]; then
+        if [ "${job_name_line}" == "${jobid}" ]; then
             username_line="$(echo "${line}" | awk '{print $3}')"
             username_line="${username_line:0:15}"
             if [ "${username_line}" == "${username}" ]; then
@@ -249,12 +249,12 @@ update_job_info() {
     # promote the above candidate to the actual job.
     # This overwrites jobid with the actual job ID.
     if [ "${state}" == "${state_notexist}" ] && [ ${Njobs} -ge 1 ]; then
-        jobname="${jobid}"
+        job_name="${jobid}"
         jobid="${jobid_candidate}"
         state="${state_candidate}"
         queue="${queue_candidate}"
         if [ ${Njobs} -gt 1 ]; then
-            printf "Found ${Njobs} submitted jobs named \"${jobname}\" submitted\n"
+            printf "Found ${Njobs} submitted jobs named \"${job_name}\" submitted\n"
             if [ "${state}" == "${state_running}" ]; then
                 echo "The latest running job (${jobid}) will be watched"
             else
@@ -295,10 +295,10 @@ if [ "${jobid}" == "${jobid_unspecified}" ]; then
         if [ "${username_line}" != "${username}" ]; then
             continue
         fi
-        jobname="$(echo "${line}" | awk '{print $2}')"
+        job_name="$(echo "${line}" | awk '{print $2}')"
         # Only count job as a CO𝘕CEPT job if its name
         # is the default CO𝘕CEPT job name.
-        if [ "${jobname}" != "${jobname_default}" ]; then
+        if [ "${job_name}" != "${job_name_default}" ]; then
             continue
         fi
         # Submitted CO𝘕CEPT job found
@@ -339,7 +339,7 @@ if [ "${jobid}" == "${jobid_unspecified}" ]; then
 else
     # Parse passed job ID
     jobid="${jobid%%.*}"  # remove possible suffix
-    if [ "${jobid}" == "${jobname_default}" ]; then
+    if [ "${jobid}" == "${job_name_default}" ]; then
         # Passed job ID is really the job name
         :
     elif [ -f "${job_dir}/${jobid}/log" ]; then
@@ -420,7 +420,7 @@ check_suddenly_finished() {
             exit 0
         else
             echo "Job ${jobid} has finished running, but no log file is to be found" >&2
-            if [ "${jobname}" != "${jobname_default}" ]; then
+            if [ "${job_name}" != "${job_name_default}" ]; then
                 printf "Are you certain that job ${jobid} was a ${esc_concept} job?\n" >&2
             fi
             exit 1
@@ -478,7 +478,7 @@ while [ ! -f "${job_dir}/${jobid}/log" ]; do
         slept=0
         if [ "${message_printed}" == "False" ]; then
             echo "Can't find log file of job ${jobid}" >&2
-            if [ "${jobname}" != "${jobname_default}" ]; then
+            if [ "${job_name}" != "${job_name_default}" ]; then
                 printf "Are you certain that job ${jobid} is a ${esc_concept} job?\n" >&2
             fi
             message_printed="True"

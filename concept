@@ -858,7 +858,7 @@ def positive_int_or_int_pair(value, value_input=None):
         )
     for sep in ',;':
         value = value.replace(sep, ':')
-    if value.count(':') > 1:
+    if value == '' or value.count(':') > 1:
         raise_argparse_exception()
     elif value.count(':') == 1:
         values = value.split(':')

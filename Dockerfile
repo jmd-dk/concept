@@ -17,10 +17,10 @@ RUN : \
     # Update APT cache
     && apt-get update \
     # Install and set up less
-    && apt-get install -y --no-install-recommends less \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends less \
     && echo "[ ! -t 0 ] || alias less='less -r -f'" >> ~/.bashrc \
     # Install and set up Bash auto-completion
-    && apt-get install -y --no-install-recommends bash-completion \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends bash-completion \
     && echo "[ ! -t 0 ] || source /etc/bash_completion" >> ~/.bashrc \
     # Set up Bash history search with ↑↓
     && echo "[ ! -t 0 ] || bind '\"\e[A\": history-search-backward' 2>/dev/null" >> ~/.bashrc \
@@ -30,7 +30,7 @@ RUN : \
     && echo "[ ! -t 0 ] || alias ls='ls --color=auto'" >> ~/.bashrc \
     && echo "[ ! -t 0 ] || alias grep='grep --color=auto'" >> ~/.bashrc \
     # Add concept user
-    && apt-get install -y --no-install-recommends sudo \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends sudo \
     && echo "Defaults lecture = never" > "/etc/sudoers.d/privacy" \
     && groupadd -r concept \
     && useradd -m -g concept concept \

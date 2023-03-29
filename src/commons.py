@@ -1926,6 +1926,7 @@ def construct_user_params_namespace(params_iteration):
         'random'  : np.random.random,
         'basename': os.path.basename,
         'dirname' : os.path.dirname,
+        'glob'    : glob,
         # MPI variables and functions
         'master'         : master,
         'nprocs'         : nprocs,
