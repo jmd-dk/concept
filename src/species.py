@@ -62,6 +62,8 @@ cimport('from analysis import measure')
     receiver_grid='double*',
     receiver_rho_total='double',
     index='Py_ssize_t',
+    dim='Py_ssize_t',
+    w = 'double',
     w_eff_1 = 'double',
     w_eff_2 = 'double',
     rescale_factor='double',
@@ -69,7 +71,11 @@ cimport('from analysis import measure')
 )
 def source_decay(donor_component, receiver_component, a1, a2):
 
-   # The donor scalar and grid
+    #######################################
+    ###   Sourcing the Energy Density   ###
+    #######################################
+
+    # The donor scalar and grid
     donor_scalar = donor_component.ϱ
     donor_grid = donor_scalar.grid
     donor_rho_total = measure(donor_component, 'ϱ')[0] * donor_component.gridsize**3
@@ -80,12 +86,15 @@ def source_decay(donor_component, receiver_component, a1, a2):
     receiver_rho_total = measure(receiver_component, 'ϱ')[0] * receiver_component.gridsize**3
 
     # Here we calculate how much to homogeneously rescale out of the receiver density
+    w = receiver_component.w(a=a1)
     w_eff_1 = receiver_component.w_eff(a = a1)
     w_eff_2 = receiver_component.w_eff(a = a2)
-  
-    # This factor rescales away the homogeneous growth from a1 to a2
-    rescale_factor = a1**(-3*w_eff_1) / a2 **(-3*w_eff_2)
 
+    # This rescales away the dependence on the effective equation of state
+    # so that the quantity a^3*ϱ is conserved. 
+    rescale_factor = a2**(3 * (w_eff_2-w) ) / a1**(3 * (w_eff_1-w))
+    masterprint('Density Rescale Factor: ', rescale_factor)
+  
     # This is how much total we took away from the receiver grid
     add_factor = (1-rescale_factor) * receiver_rho_total / donor_rho_total
     
@@ -93,7 +102,29 @@ def source_decay(donor_component, receiver_component, a1, a2):
         receiver_grid[index] *= rescale_factor
         receiver_grid[index] += add_factor * donor_grid[index]
 
+    #########################################
+    ###   Sourcing the Momentum Density   ###
+    #########################################
 
+    w_eff_1 = donor_component.w_eff(a = a1)
+    w_eff_2 = donor_component.w_eff(a = a2)
+
+    # This is the mass loss fraction due to decay
+    rescale_factor = a1**(3*w_eff_1) / a2**(3*w_eff_2)
+
+    # This is now the fraction of momentum transferred to the fluid
+    rescale_factor = 1. - rescale_factor
+    masterprint('Momentum Factor: ', rescale_factor)
+
+    for dim in range(3):
+        donor_scalar = donor_component.J[dim]
+        donor_grid = donor_scalar.grid
+
+        receiver_scalar = receiver_component.J[dim]
+        receiver_grid = receiver_scalar.grid
+
+        for index in range(receiver_component.size):
+            receiver_grid[index] += rescale_factor * donor_grid[index]
 
 # Class which serves as the data structure for fluid variables,
 # efficiently and elegantly implementing symmetric

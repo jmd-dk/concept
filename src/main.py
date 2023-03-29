@@ -335,12 +335,6 @@ def timeloop():
         else:
             source_decay(components[1], components[0], scale_factor(universals.t), scale_factor(universals.t + Δt/2.))
 
-        for component in components:
-            if component.name == 'DecayRadiation':
-                masterprint(component.name, measure(component, 'ϱ'))
-                masterprint(component.name, measure(component, 'mass'))
-                           
-
         # Now we are done with the meshed data created at the beginning of this 
         # time step so we will nullify that fluid data 
         for component in components: 
