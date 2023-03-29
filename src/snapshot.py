@@ -31,7 +31,7 @@ cimport('from communication import partition,                   '
         '                          exchange,                    '
         '                          smart_mpi,                   '
         )
-cimport('from mesh import domain_decompose, get_fftw_slab, slab_decompose, convert_particles_to_fluid')
+cimport('from mesh import domain_decompose, get_fftw_slab, slab_decompose')
 cimport('from species import Component, FluidScalar, update_species_present, TensorComponent')
 
 # Pure Python imports
@@ -169,7 +169,6 @@ class ConceptSnapshot:
                 slab_end = slab_start + slab.shape[0]
                 fluidscalar_h5[slab_start:slab_end, :, :,] = slab[:, :, :tensor_component.gridsize]
 
-
             # Done saving this component
             hdf5_file.flush()
             Barrier()
@@ -178,8 +177,6 @@ class ConceptSnapshot:
             # Store each component as a separate group
             # within /components.
             for component in self.components:
-                
-                original_representation = component.representation
 
                 component_h5 = hdf5_file.create_group(f'components/{component.name}')
                 component_h5.attrs['species'] = component.species
@@ -191,6 +188,7 @@ class ConceptSnapshot:
                     )
 
                 if component.original_representation == 'particles':
+
                     N, N_local = component.N, component.N_local
                     N_lin = cbrt(N)
                     if N > 1 and isint(N_lin):

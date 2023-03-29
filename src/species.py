@@ -42,8 +42,56 @@ cimport(
     '    species_canonical, species_registered,    '
 )
 
-cimport('from mesh import convert_particles_to_fluid, laplacian_domaingrid, spectral_laplacian')
+cimport('from mesh import spectral_laplacian')
+cimport('from analysis import measure')
 
+
+# Method for sourcing the decay radiation from the 
+# decaying dark matter
+@cython.pheader(
+    # Arguments
+    donor_component = 'Component',
+    receiver_component = 'Component',
+    a1 = 'double',
+    a2 = 'double',
+    # Locals
+    donor_scalar='FluidScalar',
+    donor_grid='double*',
+    donor_rho_total='double',
+    receiver_scalar='FluidScalar',
+    receiver_grid='double*',
+    receiver_rho_total='double',
+    index='Py_ssize_t',
+    w_eff_1 = 'double',
+    w_eff_2 = 'double',
+    rescale_factor='double',
+    add_factor = 'double',
+)
+def source_decay(donor_component, receiver_component, a1, a2):
+
+   # The donor scalar and grid
+    donor_scalar = donor_component.ϱ
+    donor_grid = donor_scalar.grid
+    donor_rho_total = measure(donor_component, 'ϱ')[0] * donor_component.gridsize**3
+
+    # The receiver scalar and grid    
+    receiver_scalar = receiver_component.ϱ
+    receiver_grid = receiver_scalar.grid
+    receiver_rho_total = measure(receiver_component, 'ϱ')[0] * receiver_component.gridsize**3
+
+    # Here we calculate how much to homogeneously rescale out of the receiver density
+    w_eff_1 = receiver_component.w_eff(a = a1)
+    w_eff_2 = receiver_component.w_eff(a = a2)
+  
+    # This factor rescales away the homogeneous growth from a1 to a2
+    rescale_factor = a1**(-3*w_eff_1) / a2 **(-3*w_eff_2)
+
+    # This is how much total we took away from the receiver grid
+    add_factor = (1-rescale_factor) * receiver_rho_total / donor_rho_total
+    
+    for index in range(receiver_component.size):
+        receiver_grid[index] *= rescale_factor
+        receiver_grid[index] += add_factor * donor_grid[index]
 
 
 
@@ -1040,23 +1088,18 @@ class TensorField:
         J2_ptr = 'double*',
     )
     def add_source(self, component):
-        if component.representation ==  'particles':
-            masterprint('Using Particle Source')
+        if component.original_representation ==  'particles':
             a = universals.a
             w = component.w(a=universals.a)
             w_eff = component.w_eff(a = universals.a)
 
-            masterprint('Equation of state parameters: ', a, w, w_eff)
 
-            component.gridsize = self.gridsize
-            convert_particles_to_fluid(component, 4)
             self.add(component.fluidvars[2], a**3)
 
         else:
             a = universals.a
             w = component.w(a=universals.a)
             w_eff = component.w_eff(a = universals.a)
-            masterprint('Equation of state parameters: ', a, w, w_eff)
 
             # Prefactors that we will reuse. a**4 comes from lowering the index on J
             JJ_prefactor = 1. / (1. + w) * a**(-2 + 3 * w_eff) * a**4
