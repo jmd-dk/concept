@@ -2182,7 +2182,7 @@ def stringify_dict(d):
 # and returns the background.
 def get_class_background(class_params, class_call_reason=''):
     from classy import Class
-    cosmo = Class()
+    cosmo = Class(concept_class_call=True)
     cosmo.set(stringify_dict(class_params))
     if class_call_reason:
         class_call_reason = class_call_reason.strip() + ' '
@@ -4716,7 +4716,7 @@ def call_class(extra_params=None, sleep_time=0.1, mode='single node', class_call
     cosmo = func = None
     if (mode == 'single node' and master) or (mode == 'mpi' and node_master):
         from classy import Class
-        cosmo = Class(node=node, num_threads=num_threads, message=message)
+        cosmo = Class(concept_class_call=True, node=node, num_threads=num_threads, message=message)
         cosmo.set(params_specialized)
         func = cosmo.compute
     # The background should be available to all processes.

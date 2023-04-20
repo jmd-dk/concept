@@ -8992,7 +8992,6 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
     )
     linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" "${filename}" | head -n 1)
     patch_class "${filename}" ${linenr} "insert" "below" "${new_lines[@]}"
-
     filename="${class_dir}/source/input.c"
     pattern='class_read_list_of_doubles_or_default *\\( *\"deg_ncdm\"'
     new_lines=(                                                                 \
@@ -9244,10 +9243,14 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
     linenr="$(grep -n "__cinit__" "${class_dir}/python/classy.pyx")"
     linenr="${linenr%%:*}"
     sed -i "${linenr}s/.*/    def __cinit__(self, \
-        default=False, node=0, num_threads=-1, message=''): \
+        default=False, concept_class_call=False, node=0, num_threads=-1, message=''): \
         # Changed for use with CONCEPT/" "${class_dir}/python/classy.pyx"
     ((linenr += 1))
     new_lines=(                                                            \
+        "import os"                                                        \
+        "os.environ.pop('CONCEPT_CLASS_CALL', None)"                       \
+        "if concept_class_call:"                                           \
+        "    os.environ['CONCEPT_CLASS_CALL'] = '1'"                       \
         "self.ba.node = <int>node"                                         \
         "self.ba.num_threads = <int>num_threads"                           \
         "self.ba.message = <char*>malloc((len(message) + 1)*sizeof(char))" \
@@ -9284,17 +9287,18 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
         "char* message"   \
     )
     patch_class "${class_dir}/python/cclassy.pxd" ${linenr_2} "insert" "above" "${new_lines[@]}"
-    linenr="$(grep -n "precision_file *\[ *0 *\] *= *'\\\\0' *;" \
-        "${class_dir}/source/input.c")"
-    linenr="${linenr%%:*}"
-    ((linenr += 1))
-    new_lines=(                                         \
-        "pba->node = 0;"                                \
-        "pba->num_threads = -1;"                        \
-        "pba->message = (char*)malloc(1*sizeof(char));" \
-        "pba->message[0] = '\\\\0';"                    \
+    pattern='pba *-> *shooting_failed *= *_FALSE_ *;'
+    new_lines=(
+        "char * CONCEPT_CLASS_CALL = getenv(\"CONCEPT_CLASS_CALL\");" \
+        "if (CONCEPT_CLASS_CALL == NULL) {"                           \
+        "  pba->node = 0;"                                            \
+        "  pba->num_threads = -1;"                                    \
+        "  pba->message = (char*)malloc(1*sizeof(char));"             \
+        "  pba->message[0] = '\\\\0';"                                \
+        "}"                                                           \
     )
-    patch_class "${class_dir}/source/input.c" ${linenr} "insert" "below" "${new_lines[@]}"
+    linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" "${class_dir}/source/input.c" | head -n 1)
+    patch_class "${class_dir}/source/input.c" $((linenr + 1)) "insert" "below" "${new_lines[@]}"
     linenr="$(grep -n 'for (index_k = ppt->k_size\[index_md\]-1; index_k >=0; index_k--)' \
         "${class_dir}/source/perturbations.c")"
     linenr="${linenr%%:*}"
