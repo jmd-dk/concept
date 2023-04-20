@@ -281,6 +281,7 @@ class_params = {  # CLASS parameters. See the CLASS documentation for details.
     # General precision parameters
     'evolver': 0,
 }
+enable_warm_dark_matter = False  # If True, interprets the last ncdm species as wdm
 
 # Physics
 select_forces = {  # Forces and methods which act on each component

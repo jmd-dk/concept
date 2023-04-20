@@ -3377,7 +3377,8 @@ register_species(
     'cold dark matter', 'cdm', ['dark matter', 'dm'], w=0,
 )
 register_species(
-    'matter', matter_class_species, ['total matter', 'm'], w=0,
+    'matter', matter_class_species, ['total matter', 'm'],
+    w=(None if enable_warm_dark_matter else 0),
 )
 register_species(
     'photon', 'g', ['photons', 'gamma', unicode('γ'), asciify('γ')], w=1/3,
@@ -3404,6 +3405,12 @@ register_species(
     'neutrino', neutrino_class_species, ['neutrinos', 'nu', unicode('ν'), asciify('ν')],
     logs={'rho': (True, True), 'p': (True, True)},
 )
+if enable_warm_dark_matter:
+    num_ncdm = get_number_of_massive_neutrino_species()
+    register_species(
+        'warm dark matter', f'ncdm[{num_ncdm}]', ['wdm'],
+        logs={'rho': (True, True), 'p': (True, True)},
+    )
 register_species(
     'radiation', radiation_class_species, ['rad', 'r'], w=1/3,
 )

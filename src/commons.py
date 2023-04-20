@@ -2183,7 +2183,7 @@ def stringify_dict(d):
 def get_class_background(class_params, class_call_reason=''):
     from classy import Class
     cosmo = Class()
-    cosmo.set(class_params)
+    cosmo.set(stringify_dict(class_params))
     if class_call_reason:
         class_call_reason = class_call_reason.strip() + ' '
     masterprint(f'Calling CLASS {class_call_reason}...')
@@ -2191,6 +2191,19 @@ def get_class_background(class_params, class_call_reason=''):
     masterprint('done')
     background = cosmo.get_background()
     return background
+# This function returns the number of proper massive neutrino species,
+# i.e. excluding warm dark matter. User parameters are referenced via
+# the user_params dict so that this function may be called prior to
+# initializing/finalizing these.
+def get_number_of_massive_neutrino_species():
+    num_ncdm = int(float(user_params.get('class_params', {}).get('N_ncdm', 0)))
+    num_ncdm -= int(float(user_params.get('enable_warm_dark_matter', False)))
+    if num_ncdm == -1:
+        masterwarn(
+            'You are running with warm dark matter '
+            'but class_params contains no ncdm species'
+        )
+    return num_ncdm
 # Function that updates given CLASS parameters with default values
 # matching the CO𝘕CEPT parameters.
 def update_class_params(class_params, namespace=None):
@@ -2219,6 +2232,11 @@ def update_class_params(class_params, namespace=None):
     # Apply updates to the CLASS parameters
     for param_name, param_value in class_params_default.items():
         class_params.setdefault(param_name, param_value)
+    # Set the CO𝘕CEPT specific growthfac_contrib_ncdm CLASS parameter
+    # if we are running with warm dark matter.
+    if float(user_params.get('enable_warm_dark_matter', False)):
+        num_ncdm = get_number_of_massive_neutrino_species()
+        class_params.setdefault('growthfac_contrib_ncdm', [0.0]*num_ncdm + [1.0])
     # Transform all CLASS container parameters to str's of
     # comma-separated values. All other CLASS parameters will also
     # be converted to their str representation.
@@ -2356,18 +2374,18 @@ cython.declare(
 if inferred_params_set['Ων']:
     Ων = float(user_params['Ων'])
 else:
-    N_ncdm = int(user_params.get('class_params', {}).get('N_ncdm', 0))
-    if N_ncdm != 0:
+    num_ncdm = get_number_of_massive_neutrino_species()
+    if num_ncdm > 0:
         if master:
             background = get_class_background(
                 user_params.get('class_params', {}),
                 class_call_reason=(
                     f'in order to determine Ων = '
-                    + ' + '.join(['Ων' + unicode_subscript(str(i)) for i in range(N_ncdm)])
+                    + ' + '.join(['Ων' + unicode_subscript(str(i)) for i in range(num_ncdm)])
                 ),
             )
             Ων = 0
-            for i in range(N_ncdm):
+            for i in range(num_ncdm):
                 Ων += background[f'(.)rho_ncdm[{i}]'][-1]
             Ων /= background['(.)rho_crit'][-1]
         Ων = bcast(Ων)
@@ -2455,6 +2473,7 @@ cython.declare(
     t_begin='double',
     primordial_spectrum=dict,
     class_params=dict,
+    enable_warm_dark_matter='bint',
     # Physics
     select_forces=dict,
     select_species=dict,
@@ -3549,6 +3568,7 @@ user_params['primordial_spectrum'] = primordial_spectrum
 class_params = dict(user_params.get('class_params', {}))
 replace_ellipsis(class_params)
 user_params['class_params'] = class_params
+enable_warm_dark_matter = bool(float(user_params.get('enable_warm_dark_matter', False)))
 # Physics
 default_force_method = {
     'gravity': 'p3m',
@@ -4227,6 +4247,7 @@ cython.declare(
     ρ_crit='double',
     Ωdcdm='double',
     Ωm='double',
+    Ωwdm='double',
     ρ_mbar='double',
     matter_class_species=str,
     radiation_class_species=str,
@@ -4306,7 +4327,7 @@ if nghosts < 1:
 # comoving density since we only study flat universes).
 ρ_crit = 3*H0**2/(8*π*G_Newton)
 # The density parameter for all matter
-Ωdcdm = 0
+Ωdcdm = Ωwdm = 0
 if any([key in class_params for key in
     {'Omega_dcdmdr', 'omega_dcdmdr', 'Omega_ini_dcdm', 'omega_ini_dcdm'}
 ]):
@@ -4323,11 +4344,30 @@ if any([key in class_params for key in
         )
         Ωdcdm = background['(.)rho_dcdm'][-1]/background['(.)rho_crit'][-1]
     Ωdcdm = bcast(Ωdcdm)
-Ωm = Ωb + Ωcdm + Ωdcdm
+num_ncdm = get_number_of_massive_neutrino_species()
+if enable_warm_dark_matter:
+    # We are running with warm dark matter
+    if master:
+        background = get_class_background(
+            class_params,
+            class_call_reason='in order to determine Ωwdm',
+        )
+        Ωwdm = background[f'(.)rho_ncdm[{num_ncdm}]'][-1]/background['(.)rho_crit'][-1]
+    Ωwdm = bcast(Ωwdm)
+Ωm = Ωb + Ωcdm + Ωdcdm + Ωwdm
 # Specification of which CLASS species together constitute "matter"
 # in the current simulation. Ignore species with very low Ω.
-matter_class_species = '+'.join([class_species
-    for class_species, Ω in {'b': Ωb, 'cdm': Ωcdm, 'dcdm': Ωdcdm}.items() if Ω > 1e-9])
+matter_class_species_Ω = {
+    'b': Ωb,
+    'cdm': Ωcdm,
+    'dcdm': Ωdcdm,
+    f'ncdm[{num_ncdm}]': Ωwdm,
+}
+matter_class_species = '+'.join([
+    class_species
+    for class_species, Ω in matter_class_species_Ω.items()
+    if Ω > 1e-9
+])
 # The average, comoving matter density
 ρ_mbar = Ωm*ρ_crit
 # Specification of which CLASS species together constitute "radiation",
@@ -4355,9 +4395,9 @@ else:
     # Massless neutrinos present in CLASS by default
     radiation_class_species += '+ur'
     neutrino_class_species += '+ur'
-N_ncdm = int(round(class_params.get('N_ncdm', 0)))
-if N_ncdm > 0:
-    massive_neutrino_class_species += '+'.join([f'ncdm[{i}]' for i in range(N_ncdm)])
+num_ncdm = get_number_of_massive_neutrino_species()
+if num_ncdm > 0:
+    massive_neutrino_class_species += '+'.join([f'ncdm[{i}]' for i in range(num_ncdm)])
     neutrino_class_species += f'+{massive_neutrino_class_species}'
 if Ωdcdm > 1e-9 and class_params.get('Gamma_dcdm', 0) > 0:
     radiation_class_species += '+dr'
