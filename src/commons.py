@@ -4824,6 +4824,7 @@ with copy_on_import:
         # Locals
         b='Py_ssize_t',
         bits='Py_ssize_t',
+        one='Py_ssize_t',
         s='Py_ssize_t',
         y='Py_ssize_t',
         returns='Py_ssize_t',
@@ -4844,7 +4845,8 @@ with copy_on_import:
         for s in range(bits - 3, -3, -3):
             if (x >> s) == 0:
                 continue
-            x -= 1 << s
+            one = 1  # we need this to be 64-bit
+            x -= one << s
             y = 1
             for s in range(s - 3, -3, -3):
                 y += y

@@ -1396,7 +1396,7 @@ as running in pure Python mode" "red"
 fi
 
 # Display warning if the requested memory is below one megabyte
-if [ "${memory}" != "${memory_default}" ] && [ ${memory} -lt 1048576 ]; then
+if [ "${memory}" != "${memory_default}" ] && [ ${memory} -ne 0 ] && [ ${memory} -lt 1048576 ]; then
     colorprint "Warning: The requested memory is below 1 MB. \
 Have you forgotten to specify the unit?" "red"
 fi

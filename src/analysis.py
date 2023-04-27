@@ -2178,7 +2178,7 @@ def get_bispec_computation_order(bins, n_max=512, offset=0):
             if reverse:
                 data_lexsorted = np.flip(data_lexsorted, axis=0).copy()
             else:
-                # Create n⨉6 array with rows of the form
+                # Create n×6 array with rows of the form
                 #   (k₁_inner, k₁_outer, k₂_inner, k₂_outer, k₃_inner, k₃_outer)
                 info_lexsorted = sorted(
                     [
