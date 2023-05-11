@@ -1575,6 +1575,8 @@ GADGET snapshots</p></td>
         <span class="s1">&#39;VEL&#39;</span><span class="p">:</span> <span class="mi">32</span><span class="p">,</span>
         <span class="s1">&#39;ID&#39;</span> <span class="p">:</span> <span class="s1">&#39;automatic&#39;</span><span class="p">,</span>
     <span class="p">},</span>
+    <span class="s1">&#39;particles per file&#39;</span><span class="p">:</span> <span class="s1">&#39;automatic&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;parallel write&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
     <span class="s1">&#39;Nall high word&#39;</span><span class="p">:</span> <span class="s1">&#39;NallHW&#39;</span><span class="p">,</span>
     <span class="s1">&#39;header&#39;</span><span class="p">:</span> <span class="p">{},</span>
     <span class="s1">&#39;settle&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
@@ -1594,7 +1596,7 @@ GADGET snapshots</p></td>
 <td><p>This parameter is a <code class="docutils literal notranslate"><span class="pre">dict</span></code> of several individual
 sub-parameters, each of which is described below.</p>
 <p>Sub-parameters which affect the <em>writing</em> of
-GADGET-snapshots:</p>
+GADGET snapshots:</p>
 <ul>
 <li><p><code class="docutils literal notranslate"><span class="pre">'snapformat'</span></code>: Specifies whether GADGET snapshots
 should use a <code class="docutils literal notranslate"><span class="pre">SnapFormat</span></code> of <code class="docutils literal notranslate"><span class="pre">1</span></code> or <code class="docutils literal notranslate"><span class="pre">2</span></code>. Note
@@ -1615,8 +1617,21 @@ to <code class="docutils literal notranslate"><span class="pre">unsigned</span> 
 for <code class="docutils literal notranslate"><span class="pre">'ID'</span></code>). In addition, the value of <code class="docutils literal notranslate"><span class="pre">'ID'</span></code> may
 also be set to <code class="docutils literal notranslate"><span class="pre">'automatic'</span></code>, in which case 32 bits
 will be used if this is enough to uniquely label each
-particle (<span class="math notranslate nohighlight">\(N \leq 2^{32}\)</span>). If not, 64 bits will
+particle (<span class="math notranslate nohighlight">\(N &lt; 2^{32}\)</span>). If not, 64 bits will
 be used.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'particles</span> <span class="pre">per</span> <span class="pre">file'</span></code>: This specifies the maximum
+number of total particles (across all particle types)
+to save within each file of a distributed (multi-file)
+GADGET snapshot. When set to <code class="docutils literal notranslate"><span class="pre">'automatic'</span></code>
+(the default), CO<em>N</em>CEPT will tune this number to
+be as large as possible, given the limitations of the
+file format. For single-precision data, this comes out
+to be <span class="math notranslate nohighlight">\(178\,956\,969 \approx 563^3\)</span> particles
+per file. By manually setting <code class="docutils literal notranslate"><span class="pre">'particles</span> <span class="pre">per</span> <span class="pre">file'</span></code>
+to some number, you can control the maximum file size.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'parallel</span> <span class="pre">write'</span></code>: Boolean specifying whether to
+write out snapshot files in parallel for distributed
+(multi-file) GADGET snapshots.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">'Nall</span> <span class="pre">high</span> <span class="pre">word'</span></code>: The <code class="docutils literal notranslate"><span class="pre">Nall</span></code> field of the header
 (see table 4 of the
 <a class="reference external" href="https://wwwmpa.mpa-garching.mpg.de/gadget/users-guide.pdf">user guide for GADGET-2</a>)
@@ -1625,7 +1640,7 @@ particles (of each type) within the snapshot, summed
 over all files in case of the snapshot being
 distributed over several files. Unfortunately, this is
 a 32-bit field, and so cannot store <span class="math notranslate nohighlight">\(N\)</span> in the
-case of <span class="math notranslate nohighlight">\(N &gt; 2^{32}\)</span>. To overcome this
+case of <span class="math notranslate nohighlight">\(N \ge 2^{32}\)</span>. To overcome this
 limitation, another 32-bit field <code class="docutils literal notranslate"><span class="pre">NallHW</span></code> exists,
 meant to contain the “high word” part of a now
 distributed 64-integer, with <code class="docutils literal notranslate"><span class="pre">Nall</span></code> supplying the
@@ -1671,20 +1686,8 @@ CO<em>N</em>CEPT and as so will always be set equal to
 specification.</p>
 </li>
 </ul>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>CO<em>N</em>CEPT does not provide a way to specify the
-number of files over which to distribute each GADGET
-snapshot. It simply writes as few files as possible,
-with the maximum number of particles per file
-(assuming single-precision data) being
-<span class="math notranslate nohighlight">\(178\,956\,969 \approx 563^3\)</span>, the exact number
-coming about due to the details of the GADGET format.
-When using double-precision, this number is adjusted
-accordingly.</p>
-</div>
 <p>Sub-parameters which affect the <em>reading</em> of
-GADGET-snapshots:</p>
+GADGET snapshots:</p>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">'settle'</span></code>: If a GADGET snapshot is stored in
 <code class="docutils literal notranslate"><span class="pre">SnapFormat</span></code> <code class="docutils literal notranslate"><span class="pre">2</span></code> (see the
@@ -1697,7 +1700,7 @@ to settle for one of them. A value of <code class="docutils literal notranslate"
 will be given if the two sizes disagree.</p></li>
 </ul>
 <p>Sub-parameters which affect <em>both</em> the reading
-and writing of GADGET-snapshots:</p>
+and writing of GADGET snapshots:</p>
 <ul>
 <li><p><code class="docutils literal notranslate"><span class="pre">'units'</span></code>: While the units used for the data within
 GADGET snapshots are typically as shown above, i.e.</p>
@@ -1733,6 +1736,21 @@ snapshots.</p>
     <span class="s1">&#39;units&#39;</span><span class="p">:</span> <span class="p">{</span>
         <span class="s1">&#39;length&#39;</span><span class="p">:</span> <span class="s1">&#39;Mpc/h&#39;</span><span class="p">,</span>
     <span class="p">},</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Example 1</strong></p></td>
+<td><p></p></td>
+<td><p>Fill each GADGET snapshot file with at most
+<span class="math notranslate nohighlight">\(420^3\)</span> particles when writing snapshot files to
+disk, thus limiting the size of each file to
+<span class="math notranslate nohighlight">\(\sim 2\, \text{GB}\)</span> (assuming
+single-precision):</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">gadget_snapshot_params</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;particles per file&#39;</span><span class="p">:</span> <span class="mi">420</span><span class="o">**</span><span class="mi">3</span><span class="p">,</span>
 <span class="p">}</span>
 </pre></div>
 </div>

@@ -1098,6 +1098,8 @@ CO\ *N*\ CEPT run.
                                  'VEL': 32,
                                  'ID' : 'automatic',
                              },
+                             'particles per file': 'automatic',
+                             'parallel write': True,
                              'Nall high word': 'NallHW',
                              'header': {},
                              'settle': 0,
@@ -1113,7 +1115,7 @@ CO\ *N*\ CEPT run.
                       sub-parameters, each of which is described below.
 
                       Sub-parameters which affect the *writing* of
-                      GADGET-snapshots:
+                      GADGET snapshots:
 
                       * ``'snapformat'``: Specifies whether GADGET snapshots
                         should use a ``SnapFormat`` of ``1`` or ``2``. Note
@@ -1134,8 +1136,21 @@ CO\ *N*\ CEPT run.
                         for ``'ID'``). In addition, the value of ``'ID'`` may
                         also be set to ``'automatic'``, in which case 32 bits
                         will be used if this is enough to uniquely label each
-                        particle (:math:`N \leq 2^{32}`). If not, 64 bits will
+                        particle (:math:`N < 2^{32}`). If not, 64 bits will
                         be used.
+                      * ``'particles per file'``: This specifies the maximum
+                        number of total particles (across all particle types)
+                        to save within each file of a distributed (multi-file)
+                        GADGET snapshot. When set to ``'automatic'``
+                        (the default), CO\ *N*\ CEPT will tune this number to
+                        be as large as possible, given the limitations of the
+                        file format. For single-precision data, this comes out
+                        to be :math:`178\,956\,969 \approx 563^3` particles
+                        per file. By manually setting ``'particles per file'``
+                        to some number, you can control the maximum file size.
+                      * ``'parallel write'``: Boolean specifying whether to
+                        write out snapshot files in parallel for distributed
+                        (multi-file) GADGET snapshots.
                       * ``'Nall high word'``: The ``Nall`` field of the header
                         (see table 4 of the
                         `user guide for GADGET-2 <https://wwwmpa.mpa-garching.mpg.de/gadget/users-guide.pdf>`__)
@@ -1144,7 +1159,7 @@ CO\ *N*\ CEPT run.
                         over all files in case of the snapshot being
                         distributed over several files. Unfortunately, this is
                         a 32-bit field, and so cannot store :math:`N` in the
-                        case of :math:`N > 2^{32}`. To overcome this
+                        case of :math:`N \ge 2^{32}`. To overcome this
                         limitation, another 32-bit field ``NallHW`` exists,
                         meant to contain the "high word" part of a now
                         distributed 64-integer, with ``Nall`` supplying the
@@ -1194,19 +1209,8 @@ CO\ *N*\ CEPT run.
                         ``0``. This is changed to ``1`` by the above parameter
                         specification.
 
-                      .. note::
-                         CO\ *N*\ CEPT does not provide a way to specify the
-                         number of files over which to distribute each GADGET
-                         snapshot. It simply writes as few files as possible,
-                         with the maximum number of particles per file
-                         (assuming single-precision data) being
-                         :math:`178\,956\,969 \approx 563^3`, the exact number
-                         coming about due to the details of the GADGET format.
-                         When using double-precision, this number is adjusted
-                         accordingly.
-
                       Sub-parameters which affect the *reading* of
-                      GADGET-snapshots:
+                      GADGET snapshots:
 
                       * ``'settle'``: If a GADGET snapshot is stored in
                         ``SnapFormat`` ``2`` (see the
@@ -1219,7 +1223,7 @@ CO\ *N*\ CEPT run.
                         will be given if the two sizes disagree.
 
                       Sub-parameters which affect *both* the reading
-                      and writing of GADGET-snapshots:
+                      and writing of GADGET snapshots:
 
                       * ``'units'``: While the units used for the data within
                         GADGET snapshots are typically as shown above, i.e.
@@ -1254,6 +1258,19 @@ CO\ *N*\ CEPT run.
                              'units': {
                                  'length': 'Mpc/h',
                              },
+                         }
+
+-- --------------- -- -
+\  **Example 1**   \  Fill each GADGET snapshot file with at most
+                      :math:`420^3` particles when writing snapshot files to
+                      disk, thus limiting the size of each file to
+                      :math:`\sim 2\, \text{GB}` (assuming
+                      single-precision):
+
+                      .. code-block:: python3
+
+                         gadget_snapshot_params = {
+                             'particles per file': 420**3,
                          }
 
 == =============== == =

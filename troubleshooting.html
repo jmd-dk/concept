@@ -430,7 +430,7 @@ steps from within the CO<em>N</em>CEPT installation directory.</p>
 <li><p>Add extra swap memory: If you have root privileges on the system, you can
 temporarily increase the available memory by adding a swap file:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">n</span><span class="o">=</span><span class="m">8</span>
-sudo<span class="w"> </span>dd<span class="w"> </span><span class="k">if</span><span class="o">=</span>/dev/zero<span class="w"> </span><span class="nv">of</span><span class="o">=</span>swapfile<span class="w"> </span><span class="nv">bs</span><span class="o">=</span><span class="m">1024</span><span class="w"> </span><span class="nv">count</span><span class="o">=</span><span class="k">$((</span>n*2**20<span class="k">))</span>
+sudo<span class="w"> </span>dd<span class="w"> </span><span class="k">if</span><span class="o">=</span>/dev/zero<span class="w"> </span><span class="nv">of</span><span class="o">=</span>swapfile<span class="w"> </span><span class="nv">bs</span><span class="o">=</span><span class="m">1024</span><span class="w"> </span><span class="nv">count</span><span class="o">=</span><span class="k">$((</span><span class="nv">n</span><span class="o">*</span><span class="m">2</span><span class="o">**</span><span class="m">20</span><span class="k">))</span>
 sudo<span class="w"> </span>chmod<span class="w"> </span><span class="m">600</span><span class="w"> </span>swapfile
 sudo<span class="w"> </span>mkswap<span class="w"> </span>swapfile
 sudo<span class="w"> </span>swapon<span class="w"> </span>swapfile
