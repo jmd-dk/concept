@@ -2263,7 +2263,7 @@ def domain_decompose(
     n_chunks='Py_ssize_t',
     rank_recv='int',
     rank_send='int',
-    request=object,  # mpi4py.MPI.Request object
+    request=object,  # mpi4py.MPI.Request
     shape=tuple,
     should_send='bint',
     should_recv='bint',

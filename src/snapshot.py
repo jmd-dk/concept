@@ -722,6 +722,14 @@ class GadgetSnapshot:
             )
         )
     )
+    if gadget_snapshot_params['particles per file'] > 0:
+        if gadget_snapshot_params['particles per file'] > num_particles_file_max:
+            masterwarn(
+                f'The number of particles to write to each GADGET snapshot file, '
+                f'{gadget_snapshot_params["particles per file"]}, is larger than '
+                f'the recommended maximum of {num_particles_file_max}.'
+            )
+        num_particles_file_max = gadget_snapshot_params['particles per file']
 
     # Class method for identifying a file to be a snapshot of this type
     @classmethod
@@ -828,7 +836,6 @@ class GadgetSnapshot:
         public double _unit_mass
         object block_names
         Component misnamed_halo_component
-        Py_ssize_t current_block_size
         """
         # Dict containing all the parameters of the snapshot
         self.params = {}
@@ -849,8 +856,6 @@ class GadgetSnapshot:
         # Rogue component used as the GADGET halo component
         # though it is not named accordingly.
         self.misnamed_halo_component = None
-        # Size of the current block in bytes, when writing
-        self.current_block_size = -1
         # Check on low level type sizes
         sizes_expected = {'s': 1, 'i': 4, 'I': 4, 'Q': 8, 'f': 4, 'd': 8}
         for fmt, size_expected in sizes_expected.items():
@@ -913,57 +918,59 @@ class GadgetSnapshot:
         filename=str,
         save_all='bint',
         # Locals
-        N='Py_ssize_t',
-        N_str=str,
+        bits=object,  # Python int
         block=dict,
         block_fmt=str,
+        block_index='Py_ssize_t',
         block_name=str,
-        block_size='Py_ssize_t',
         block_type=str,
         blocks=dict,
         boxsize_gadget_doubleprec='double',
         boxsize_gadget_singleprec='float',
-        chunk='double[::1]',
         chunk_doubleprec='double[::1]',
-        chunk_doubleprec_ptr='double*',
-        chunk_ptr='double*',
         chunk_singleprec='float[::1]',
-        chunk_singleprec_ptr='float*',
-        chunk_size='Py_ssize_t',
         chunk_size_max_needed='Py_ssize_t',
         component='Component',
-        data='double[::1]',
-        data_components=list,
-        data_value_doubleprec='double',
-        data_value_singleprec='float',
-        doubleprec_needed='bint',
-        filename_i=str,
-        i='Py_ssize_t',
-        id_counter='Py_ssize_t',
-        id_counters='Py_ssize_t[::1]',
+        component_index='Py_ssize_t',
+        fake_id_max=int,  # Python int
+        file_index='Py_ssize_t',
+        filename_existing=str,
+        filename_existing_prefix=str,
+        finalize_block='bint',
         id_max='Py_ssize_t',
-        ids_chunk='Py_ssize_t[::1]',
         ids_mv='Py_ssize_t[::1]',
-        indexᵖ='Py_ssize_t',
-        indexʳ='Py_ssize_t',
-        j='Py_ssize_t',
-        msg=str,
-        msg_list=list,
+        indent='int',
+        index='Py_ssize_t',
+        index_left='Py_ssize_t',
+        index_prev='Py_ssize_t',
+        index_rght='Py_ssize_t',
+        indexᵖ_bgn='Py_ssize_t',
+        indexᵖ_end='Py_ssize_t',
+        indices_components='Py_ssize_t[::1]',
+        initialize_block='bint',
+        initialize_file='bint',
         num_files='Py_ssize_t',
-        num_particle_file_tot='Py_ssize_t',
-        num_particles_file_tot='Py_ssize_t[::1]',
+        num_nonlocal_prior='Py_ssize_t[::1]',
+        num_write='Py_ssize_t',
         num_write_file=list,
         num_write_files=list,
+        num_write_files_tot='Py_ssize_t[:, ::1]',
         num_write_max='Py_ssize_t',
-        num_write='Py_ssize_t',
-        plural=str,
-        rank_writer='int',
-        save_pos=object,  # bool or None
-        save_vel=object,  # bool or None
-        singleprec_needed='bint',
-        size_write='Py_ssize_t',
-        unit='double',
-        unit_components=list,
+        num_writeoute_jobs='Py_ssize_t',
+        parallel_write='bint',
+        rank_next='int',
+        rank_prev='int',
+        request=object,  # mpi4py.MPI.Request
+        requests=list,
+        save_pos='bint',
+        save_vel='bint',
+        writeout_job=object,  # WriteoutJob
+        writeout_jobid=tuple,
+        writeout_jobid_next=tuple,
+        writeout_jobid_prev=tuple,
+        writeout_jobids=list,
+        writeout_jobids_completed=set,
+        writeout_jobs=dict,
         returns=str,
     )
     def save(self, filename, save_all=False):
@@ -971,6 +978,16 @@ class GadgetSnapshot:
         self.snapformat = gadget_snapshot_params['snapformat']
         # Divvy up the particles between the files and processes
         num_write_files = self.divvy()
+        num_write_files_tot = asarray(
+            [
+                allreduce(
+                    asarray(num_write_file, dtype=C2np['Py_ssize_t']),
+                    op=MPI.SUM,
+                )
+                for num_write_file in num_write_files
+            ],
+            dtype=C2np['Py_ssize_t'],
+        )
         num_files = len(num_write_files)
         # If the snapshot is to be saved over several files,
         # create a directory for storing these.
@@ -986,6 +1003,10 @@ class GadgetSnapshot:
                 if os.path.isfile(filename):
                     os.remove(filename)
                 os.makedirs(filename, exist_ok=True)
+                filename_existing_prefix = f'{filename}/{output_bases["snapshot"]}.'
+                for filename_existing in glob(f'{filename_existing_prefix}*'):
+                    if re.fullmatch(r'\d+', filename_existing[len(filename_existing_prefix):]):
+                        os.remove(filename_existing)
         # Progress messages
         msg = filename
         if num_files > 1:
@@ -999,234 +1020,232 @@ class GadgetSnapshot:
             msg_list.append(f'{component.name} ({N_str} {component.species}) particle{plural}')
         msg = ', '.join(msg_list)
         masterprint(f'Writing out {msg} ...')
+        # Determine whether to save positions and/or velocities
+        save_pos = save_vel = True
+        if not save_all:
+            save_pos = any([
+                component.snapshot_vars['save']['pos']
+                for component in self.components
+            ])
+            save_vel = any([
+                component.snapshot_vars['save']['mom']
+                for component in self.components
+            ])
+            if save_pos and any([
+                not component.snapshot_vars['save']['pos']
+                for component in self.components
+            ]):
+                masterwarn(
+                    f'It is specified that particle positions of some component(s) '
+                    f'should not be stored in snapshots, while particle positions '
+                    f'of other component(s) should. For {self.name} snapshots all '
+                    f'components must be treated the same. All components will be '
+                    f'saved with particle positions.'
+                )
+            if save_vel and any([
+                not component.snapshot_vars['save']['mom']
+                for component in self.components
+            ]):
+                masterwarn(
+                    f'It is specified that particle momenta/velocities of some '
+                    f'component(s) should not be stored in snapshots, while particle '
+                    f'velocities of other component(s) should. For {self.name} snapshots '
+                    f'all components must be treated the same. All components will be '
+                    f'saved with particle velocities.'
+                )
         # Get information about the blocks to be written out
         blocks = self.get_blocks_info('save')
-        # The boxsize in GADGET units, used for safeguarding against
-        # out-of-bounds particles after converting to GADGET units.
-        boxsize_gadget_singleprec = C2np['float' ](boxsize/blocks['POS']['unit'][0])
-        boxsize_gadget_doubleprec = C2np['double'](boxsize/blocks['POS']['unit'][0])
+        if not save_pos:
+            blocks.pop('POS', None)
+        if not save_vel:
+            blocks.pop('VEL', None)
+        # Warn about storing particle IDs using
+        # an integer type that is too small.
+        block = blocks.get('ID', {})
+        if block:
+            block_type = block['type']
+            block_fmt = block_type[len(block_type) - 1]
+            bits = int(8*C2np[fmt2C[block_fmt]]().itemsize)
+            if component.use_ids:
+                for component, ids_mv in zip(self.components, block.get('data')):
+                    id_max = allreduce(max(ids_mv[:component.N_local]), op=MPI.MAX)
+                    if id_max >= 2**bits:
+                        masterwarn(
+                            f'Component "{component.name}" contains particle IDs '
+                            f'larger than what can be stored using '
+                            f'{bits}-bit unsigned integers'
+                        )
+            else:
+                fake_id_max = -1
+                for component in self.components:
+                    fake_id_max += int(component.N)
+                    if fake_id_max >= 2**bits:
+                        masterwarn(
+                            f'Component "{component.name}" will be assigned particle IDs '
+                            f'larger than what can be stored using '
+                            f'{bits}-bit unsigned integers'
+                        )
+        # If fake IDs need to be created for any of the components,
+        # we need to know the total number of particles on the lower
+        # ranked processes, for each component.
+        if all([component.use_ids for component in self.components]):
+            num_nonlocal_prior = zeros(len(self.components), dtype=C2np['Py_ssize_t'])
+        else:
+            num_nonlocal_prior = np.sum(
+                asarray(
+                    allgather([component.N_local for component in self.components]),
+                    dtype=C2np['Py_ssize_t'],
+                )[:rank],
+                axis=0,
+            )
         # Instantiate chunk buffers for particle data
         num_write_max = 0
         for num_write in itertools.chain(*num_write_files):
             if num_write > num_write_max:
                 num_write_max = num_write
         chunk_size_max_needed = np.min((3*num_write_max, ℤ[self.chunk_size_max//8]))
-        singleprec_needed = any([block['type'].endswith('f') for block in blocks.values()])
-        doubleprec_needed = any([block['type'].endswith('d') for block in blocks.values()])
-        if singleprec_needed:
+        chunk_singleprec = None
+        chunk_doubleprec = None
+        if any([block['type'].endswith('f') for block in blocks.values()]):
             chunk_singleprec = empty(chunk_size_max_needed, dtype=C2np['float'])
-            chunk_singleprec_ptr = cython.address(chunk_singleprec[:])
-        if doubleprec_needed:
+        if any([block['type'].endswith('d') for block in blocks.values()]):
             chunk_doubleprec = empty(chunk_size_max_needed, dtype=C2np['double'])
-            chunk_doubleprec_ptr = cython.address(chunk_doubleprec[:])
-        # We store particle IDs for all components within the snapshot,
-        # regardless of whether the components actually use particle IDs
-        # or not. In case they do not, some IDs will simply be made up.
-        # This is done in such a manner that all particles (even across
-        # components / particle type) receive a unique ID, though
-        # clashes may happen if some other component in fact do make use
-        # of particle IDs, as such overlaps are not detected.
-        # The counters below are for keeping track of the unique
-        # particles IDs of each particle type. The particle IDs are
-        # generated consecutively, with all particles of a given type
-        # receiving IDs following each other with no gaps.
-        id_counters = zeros(len(self.components), dtype=C2np['Py_ssize_t'])
-        id_counter = 0
-        for j in range(1, len(self.components)):
-            id_counter += self.components[j - 1].N
-            id_counters[j] = id_counter
-        # Determine whether to save positions and/or velocities
-        if save_all:
-            save_pos = True
-            save_vel = True
-        else:
-            save_pos = save_vel = None
-            for component in self.components:
-                if component is None:
+        # The boxsize in GADGET units, used for safeguarding against
+        # out-of-bounds particles after converting to GADGET units.
+        boxsize_gadget_singleprec = C2np['float' ](boxsize/blocks.get('POS', 1)['unit'][0])
+        boxsize_gadget_doubleprec = C2np['double'](boxsize/blocks.get('POS', 1)['unit'][0])
+        # To carry out the snapshot writing in parallel, we formulate
+        # the task as many smaller "writeout" jobs. Each such job has an
+        # ID of the form
+        #   (file_index, block_index, component_index, rank)
+        # For a given file_index, all jobs with this file index must be
+        # carried out in order (according to the lexicographical order
+        # of the job ID), across all processes. The jobs themselves are
+        # further characterized by the local indices of the particles to
+        # be written. Furthermore, each job knows the ID of the preceding
+        # and following job, as well as whether it is up to this
+        # specific job to also initialize the file, initialize
+        # the block, finalize the block.
+        WriteoutJob = collections.namedtuple(
+            'WriteoutJob',
+            (
+                'initialize_file', 'initialize_block', 'finalize_block',
+                'jobid_prev', 'jobid_next',
+                'file_index', 'block_name', 'component_index', 'indices',
+            ),
+        )
+        writeout_jobs = {}
+        indices_components = zeros(len(self.components), dtype=C2np['Py_ssize_t'])
+        for file_index, num_write_file in enumerate(num_write_files):
+            for component_index, num_write in enumerate(num_write_file):
+                # Share information about the number of particles
+                # to write between all processes.
+                num_write_procs = asarray(allgather(num_write), dtype=C2np['Py_ssize_t'])
+                if num_write == 0:
                     continue
-                if not save_pos and component.snapshot_vars['save']['pos']:
-                    if save_pos is False:
-                        masterwarn(
-                            f'It is specified that particle positions of some component(s) '
-                            f'should not be stored in snapshots, while particle positions '
-                            f'of other component(s) should. For {self.name} snapshots all '
-                            f'components must be treated the same. All components will be '
-                            f'saved with particle positions.'
-                        )
-                    save_pos = True
-                if component.snapshot_vars['save']['mom']:
-                    if save_vel is False:
-                        masterwarn(
-                            f'It is specified that particle momenta/velocities of some '
-                            f'component(s) should not be stored in snapshots, while particle '
-                            f'velocities of other component(s) should. For {self.name} snapshots '
-                            f'all components must be treated the same. All components will be '
-                            f'saved with particle velocities.'
-                        )
-                    save_vel = True
-        # Write out each file in turn
-        for i, num_write_file in enumerate(num_write_files):
-            if num_files == 1:
-                filename_i = filename
-            else:
-                masterprint(f'Writing snapshot file {i}/{num_files - 1} ...')
-                filename_i = f'{filename}/{output_bases["snapshot"]}.{i}'
-            # Initialise the file with the HEAD block
-            self.write_header(filename_i, num_write_file)
-            # The number of particles of each type to be written
-            # to this file by all processes.
-            num_particles_file_tot = reduce(
-                asarray(num_write_file, dtype=C2np['Py_ssize_t']),
-                op=MPI.SUM,
-            )
-            # Write out the data blocks
-            for block_name, block in blocks.items():
-                if block_name == 'POS' and not save_pos:
-                    continue
-                if block_name == 'VEL' and not save_vel:
-                    continue
-                data_components = block.get('data')
-                unit_components = block.get('unit')
-                block_type = block['type']
-                block_fmt = block_type[len(block_type) - 1]
-                dtype = C2np[fmt2C[block_fmt]]
-                # Begin block
-                if master:
-                    block_size = np.sum(num_particles_file_tot)*struct.calcsize(block_type)
-                    self.write_block_bgn(filename_i, block_size, block_name)
-                # Write out the block contents
-                if block_name in {'POS', 'VEL'}:
-                    # Iterate over each component
-                    for j, (num_write, data, unit) in enumerate(
-                        zip(num_write_file, data_components, unit_components)
-                    ):
-                        size_write = 3*num_write
-                        chunk_size = np.min((size_write, ℤ[self.chunk_size_max//8]))
-                        # Write the block in serial,
-                        # one process at a time.
-                        for rank_writer in range(nprocs):
-                            Barrier()
-                            if rank != rank_writer:
-                                continue
-                            if num_write == 0:
-                                continue
-                            # Write out data in chunks
-                            with open_file(filename_i, mode='ab') as f:
-                                for indexʳ in range(0, size_write, chunk_size):
-                                    if indexʳ + chunk_size > size_write:
-                                        chunk_size = size_write - indexʳ
-                                    chunk = data[indexʳ:(indexʳ + chunk_size)]
-                                    chunk_ptr = cython.address(chunk[:])
-                                    # Copy chunk while applying unit
-                                    # conversion, then write this copy
-                                    # to the file. For positions,
-                                    # safeguard against
-                                    # round-off errors.
-                                    if 𝔹[block_fmt == 'f']:
-                                        for index_chunk in range(chunk_size):
-                                            data_value_singleprec = chunk_ptr[index_chunk]*ℝ[1/unit]
-                                            with unswitch(4):
-                                                if block_name == 'POS':
-                                                    if data_value_singleprec >= boxsize_gadget_singleprec:
-                                                        data_value_singleprec -= boxsize_gadget_singleprec
-                                            chunk_singleprec_ptr[index_chunk] = data_value_singleprec
-                                        asarray(chunk_singleprec[:chunk_size]).tofile(f)
-                                    elif 𝔹[block_fmt == 'd']:
-                                        for index_chunk in range(chunk_size):
-                                            data_value_doubleprec = chunk_ptr[index_chunk]*ℝ[1/unit]
-                                            with unswitch(4):
-                                                if block_name == 'POS':
-                                                    if data_value_doubleprec >= boxsize_gadget_doubleprec:
-                                                        data_value_doubleprec -= boxsize_gadget_doubleprec
-                                            chunk_doubleprec_ptr[index_chunk] = data_value_doubleprec
-                                        asarray(chunk_doubleprec[:chunk_size]).tofile(f)
-                                    else:
-                                        abort(
-                                            f'Block format "{block_fmt}" not implemented '
-                                            f'for block "{block_name}"'
-                                        )
-                            # Crop the now written data
-                            # away from the memory view.
-                            data_components[j] = data[size_write:]
-                elif block_name == 'ID':
-                    # Iterate over each component
-                    for j, (num_write, component, ids_mv) in enumerate(
-                        zip(num_write_file, self.components, data_components)
-                    ):
-                        if component.use_ids:
-                            # Warn about storing particle IDs using an
-                            # integer type too small.
-                            if i == 0:
-                                id_max = allreduce(max(ids_mv[:component.N_local]), op=MPI.MAX)
-                                if id_max >= 2**(8*dtype().itemsize):
-                                    masterwarn(
-                                        f'Component "{component.name}" contains particle IDs '
-                                        f'larger than what can be stored using '
-                                        f'{8*dtype().itemsize}-bit unsigned integers'
-                                    )
-                            chunk_size = np.min((num_write, ℤ[self.chunk_size_max//8]))
-                            # Write the block in serial,
-                            # one process at a time.
-                            for rank_writer in range(nprocs):
-                                Barrier()
-                                if rank != rank_writer:
-                                    continue
-                                if num_write == 0:
-                                    continue
-                                # Write out data in chunks
-                                with open_file(filename_i, mode='ab') as f:
-                                    for indexᵖ in range(0, num_write, chunk_size):
-                                        if indexᵖ + chunk_size > num_write:
-                                            chunk_size = num_write - indexᵖ
-                                        ids_chunk = ids_mv[indexᵖ:(indexᵖ + chunk_size)]
-                                        asarray(ids_chunk, dtype=dtype).tofile(f)
-                                # Crop the now written data
-                                # away from the memory view.
-                                data_components[j] = ids_mv[num_write:]
-                        else:
-                            # This component does not have particle IDs,
-                            # yet these are needed for the snapshot.
-                            # We generate some particles IDs on the fly.
-                            # As these do not correspond to actual data,
-                            # they can be handled by a single process.
-                            if master:
-                                if i == 0:
-                                    masterprint('Assigning particle IDs')
-                                num_particle_file_tot = num_particles_file_tot[j]
-                                if num_particle_file_tot == 0:
-                                    continue
-                                # Get and update ID counters
-                                id_counter = id_counters[j]
-                                id_counters[j] += num_particle_file_tot
-                                # Warn about storing particle IDs using
-                                # an integer type too small.
-                                if i == 0:
-                                    id_max = id_counter + component.N - 1
-                                    if id_max >= 2**(8*dtype().itemsize):
-                                        masterwarn(
-                                            f'Component "{component.name}" will be assigned '
-                                            f'particle IDs larger than what can be stored using '
-                                            f'{8*dtype().itemsize}-bit unsigned integers'
-                                        )
-                                # Generate and write the IDs
-                                chunk_size = np.min(
-                                    (num_particle_file_tot, ℤ[self.chunk_size_max//8])
-                                )
-                                indexᵖ_bgn = id_counter
-                                indexᵖ_end = id_counter + num_particle_file_tot
-                                with open_file(filename_i, mode='ab') as f:
-                                    for indexᵖ in range(indexᵖ_bgn, indexᵖ_end, chunk_size):
-                                        if indexᵖ + chunk_size > indexᵖ_end:
-                                            chunk_size = indexᵖ_end - indexᵖ
-                                        arange(indexᵖ, indexᵖ + chunk_size, dtype=dtype).tofile(f)
+                # Compute local particle indices
+                indexᵖ_bgn = indices_components[component_index]
+                indexᵖ_end = indexᵖ_bgn + num_write
+                indices_components[component_index] = indexᵖ_end
+                # Add (incomplete) writeout job IDs
+                for block_index, block_name in enumerate(blocks):
+                    writeout_jobid = (file_index, block_index, component_index, rank)
+                    writeout_jobs[writeout_jobid] = WriteoutJob(
+                        *[None]*5,
+                        file_index, block_name, component_index, (indexᵖ_bgn, indexᵖ_end),
+                    )
+        # Let all processes know about all writeout job IDs
+        writeout_jobids = sorted(itertools.chain(*allgather(list(writeout_jobs))))
+        num_writeoute_jobs = len(writeout_jobids)
+        # Find neighbour writeout job IDs and update the missing
+        # fields accordingly. If we are not writing in parallel,
+        # let each writeout job depend on the previous one.
+        parallel_write = gadget_snapshot_params['parallel write']
+        for writeout_jobid, writeout_job in writeout_jobs.items():
+            index_left = 0
+            index_rght = num_writeoute_jobs - 1
+            index = -1
+            index_prev = -1
+            while True:
+                index = (index_left + index_rght)//2
+                if index == index_prev:
+                    break
+                index_prev = index
+                if writeout_jobids[index] < writeout_jobid:
+                    index_left = index
+                elif writeout_jobids[index] > writeout_jobid:
+                    index_rght = index
                 else:
-                    abort(f'Does not know how to write {self.name} block "{block_name}"')
-                # End block
-                Barrier()
-                self.write_block_end(filename_i)
-            # Done saving this snapshot file
-            if num_files > 1:
-                masterprint('done')
+                    break
+            if index < num_writeoute_jobs - 1 and writeout_jobids[index + 1] == writeout_jobid:
+                index += 1
+            writeout_jobid_prev = writeout_jobid_next = None
+            initialize_file = initialize_block = finalize_block = True
+            if index > 0:
+                writeout_jobid_prev = writeout_jobids[index - 1]
+                if writeout_jobid_prev[0] == writeout_jobid[0]:
+                    # Same file as previous
+                    initialize_file = False
+                    if writeout_jobid_prev[1] == writeout_jobid[1]:
+                        # Same block as previous
+                        initialize_block = False
+                elif parallel_write:
+                    # Different file from previous
+                    writeout_jobid_prev = None
+            if index < num_writeoute_jobs - 1:
+                writeout_jobid_next = writeout_jobids[index + 1]
+                if writeout_jobid_next[0] == writeout_jobid[0]:
+                    # Same file as next
+                    if writeout_jobid_next[1] == writeout_jobid[1]:
+                        # Same block as next
+                        finalize_block = False
+                elif parallel_write:
+                    # Different file from next
+                    writeout_jobid_next = None
+            writeout_jobs[writeout_jobid] = writeout_job._replace(
+                initialize_file=initialize_file,
+                initialize_block=initialize_block,
+                finalize_block=finalize_block,
+                jobid_prev=writeout_jobid_prev,
+                jobid_next=writeout_jobid_next,
+            )
+        writeout_jobids.clear()
+        # Carry out each of the jobs as they become available
+        indent = bcast(progressprint['indentation'])
+        writeout_jobids_completed = set()
+        requests = []
+        while writeout_jobs:
+            for writeout_jobid, writeout_job in writeout_jobs.copy().items():
+                writeout_jobid_prev = writeout_job.jobid_prev
+                if writeout_jobid_prev is not None:
+                    rank_prev = writeout_jobid_prev[3]
+                    if iprobe(source=rank_prev):
+                        writeout_jobids_completed.add(recv(source=rank_prev))
+                    if writeout_jobid_prev not in writeout_jobids_completed:
+                        continue
+                # Job ready to be carried out
+                self.execute_writeout_job(
+                    filename, num_write_files_tot, num_nonlocal_prior, blocks, writeout_job,
+                    chunk_singleprec, chunk_doubleprec,
+                    boxsize_gadget_singleprec, boxsize_gadget_doubleprec,
+                    indent,
+                )
+                # Inform of the availability of the next job
+                writeout_jobid_next = writeout_job.jobid_next
+                if writeout_jobid_next is not None:
+                    rank_next = writeout_jobid_next[3]
+                    requests.append(isend(writeout_jobid, dest=rank_next))
+                # Running cleanup
+                writeout_jobids_completed.discard(writeout_jobid_prev)
+                writeout_jobs.pop(writeout_jobid)
+                # Start over rather than continuing on,
+                # prioritising early jobs.
+                break
+        # For good measure, ensure that all messages have been received
+        # and that all processes are synchronized.
+        for request in requests:
+            request.wait()
+        Barrier()
         # Finalise progress messages
         masterprint('done')
         masterprint('done')
@@ -1234,6 +1253,166 @@ class GadgetSnapshot:
         # snapshot files having been written for this single snapshot,
         # this will be a directory.
         return filename
+
+    # Method for carrying out a single "writeout" job
+    @cython.header(
+        # Arguments
+        filename=str,
+        num_write_files_tot='Py_ssize_t[:, ::1]',
+        num_nonlocal_prior='Py_ssize_t[::1]',
+        blocks=dict,
+        writeout_job=object,  # WriteoutJob
+        chunk_singleprec='float[::1]',
+        chunk_doubleprec='double[::1]',
+        boxsize_gadget_singleprec='float',
+        boxsize_gadget_doubleprec='double',
+        indent='int',
+        # Locals
+        block=dict,
+        block_fmt=str,
+        block_name=str,
+        block_size='Py_ssize_t',
+        block_type=str,
+        chunk='double[::1]',
+        chunk_doubleprec_ptr='double*',
+        chunk_ptr='double*',
+        chunk_singleprec_ptr='float*',
+        chunk_size='Py_ssize_t',
+        component='Component',
+        component_index='Py_ssize_t',
+        component_prior='Component',
+        data=object,  # np.ndarray
+        data_value_doubleprec='double',
+        data_value_singleprec='float',
+        dtype=object,
+        file_index='Py_ssize_t',
+        id_base='Py_ssize_t',
+        id_bgn='Py_ssize_t',
+        id_end='Py_ssize_t',
+        ids_chunk=object,  # np.ndarray
+        index_chunk='Py_ssize_t',
+        indexᵖ='Py_ssize_t',
+        indexᵖ_bgn='Py_ssize_t',
+        indexᵖ_end='Py_ssize_t',
+        indexʳ='Py_ssize_t',
+        indexʳ_bgn='Py_ssize_t',
+        indexʳ_end='Py_ssize_t',
+        num_files='Py_ssize_t',
+        num_write='Py_ssize_t',
+        size_write='Py_ssize_t',
+        unit='double',
+        returns='void',
+    )
+    def execute_writeout_job(
+        self, filename, num_write_files_tot, num_nonlocal_prior, blocks, writeout_job,
+        chunk_singleprec, chunk_doubleprec,
+        boxsize_gadget_singleprec, boxsize_gadget_doubleprec,
+        indent=0,
+    ):
+        file_index = writeout_job.file_index
+        block_name = writeout_job.block_name
+        component_index = writeout_job.component_index
+        indexᵖ_bgn, indexᵖ_end = writeout_job.indices
+        num_files = num_write_files_tot.shape[0]
+        if num_files > 1:
+            filename = f'{filename}/{output_bases["snapshot"]}.{file_index}'
+        component = self.components[component_index]
+        # Initialise the file with the HEAD block
+        if writeout_job.initialize_file:
+            if num_files > 1:
+                indentation = ' '*indent
+                fancyprint(
+                    f'{indentation}Writing snapshot file {file_index}/{num_files - 1}',
+                    indent=-1,
+                )
+            self.write_header(filename, num_write_files_tot[file_index])
+        # Extract block specifics
+        block = blocks[block_name]
+        data = block.get('data'                            )[component_index]
+        unit = block.get('unit', [1.0]*len(self.components))[component_index]
+        block_type = block['type']
+        block_fmt = block_type[len(block_type) - 1]
+        dtype = C2np[fmt2C[block_fmt]]
+        block_size = np.sum(num_write_files_tot[file_index])*struct.calcsize(block_type)
+        # The first fake particle ID to assign
+        # if this component does not make use of IDs.
+        id_base = 0
+        if not component.use_ids:
+            for component_prior in self.components[:component_index]:
+                id_base += component_prior.N
+            id_base += num_nonlocal_prior[component_index]
+        # Begin block
+        if writeout_job.initialize_block:
+            self.write_block_bgn(filename, block_size, block_name)
+        # Write out the block contents in chunks
+        chunk_singleprec_ptr = NULL
+        chunk_doubleprec_ptr = NULL
+        if chunk_singleprec is not None:
+            chunk_singleprec_ptr = cython.address(chunk_singleprec[:])
+        if chunk_doubleprec is not None:
+            chunk_doubleprec_ptr = cython.address(chunk_doubleprec[:])
+        num_write = indexᵖ_end - indexᵖ_bgn
+        if block_name in {'POS', 'VEL'}:
+            indexʳ_bgn = 3*indexᵖ_bgn
+            indexʳ_end = 3*indexᵖ_end
+            size_write = 3*num_write
+            chunk_size = np.min((size_write, ℤ[self.chunk_size_max//8]))
+            with open_file(filename, mode='ab') as f:
+                indexʳ = indexʳ_bgn
+                while indexʳ != indexʳ_end:
+                    if indexʳ + chunk_size > indexʳ_end:
+                        chunk_size = indexʳ_end - indexʳ
+                    chunk = data[indexʳ:(indexʳ + chunk_size)]
+                    chunk_ptr = cython.address(chunk[:])
+                    indexʳ += chunk_size
+                    # Copy chunk while applying unit conversion,
+                    # then write this copy to the file. For positions,
+                    # safeguard against round-off errors.
+                    if 𝔹[block_fmt == 'f']:
+                        for index_chunk in range(chunk_size):
+                            data_value_singleprec = chunk_ptr[index_chunk]*ℝ[1/unit]
+                            with unswitch(1):
+                                if 𝔹[block_name == 'POS']:
+                                    if data_value_singleprec >= boxsize_gadget_singleprec:
+                                        data_value_singleprec -= boxsize_gadget_singleprec
+                            chunk_singleprec_ptr[index_chunk] = data_value_singleprec
+                        asarray(chunk_singleprec[:chunk_size]).tofile(f)
+                    elif 𝔹[block_fmt == 'd']:
+                        for index_chunk in range(chunk_size):
+                            data_value_doubleprec = chunk_ptr[index_chunk]*ℝ[1/unit]
+                            with unswitch(1):
+                                if 𝔹[block_name == 'POS']:
+                                    if data_value_doubleprec >= boxsize_gadget_doubleprec:
+                                        data_value_doubleprec -= boxsize_gadget_doubleprec
+                            chunk_doubleprec_ptr[index_chunk] = data_value_doubleprec
+                        asarray(chunk_doubleprec[:chunk_size]).tofile(f)
+                    else:
+                        abort(
+                            f'Block format "{block_fmt}" not implemented '
+                            f'for block "{block_name}"'
+                        )
+        elif block_name == 'ID':
+            chunk_size = np.min((num_write, ℤ[self.chunk_size_max//8]))
+            with open_file(filename, mode='ab') as f:
+                indexᵖ = indexᵖ_bgn
+                while indexᵖ != indexᵖ_end:
+                    if indexᵖ + chunk_size > indexᵖ_end:
+                        chunk_size = indexᵖ_end - indexᵖ
+                    if component.use_ids:
+                        ids_chunk = data[indexᵖ:(indexᵖ + chunk_size)]
+                    else:
+                        # This component does not have particle IDs.
+                        # Generate some on the fly.
+                        id_bgn = id_base + indexᵖ
+                        id_end = id_bgn + chunk_size
+                        ids_chunk = arange(id_bgn, id_end, dtype=dtype)
+                    indexᵖ += chunk_size
+                    asarray(ids_chunk, dtype=dtype).tofile(f)
+        else:
+            abort(f'Does not know how to write {self.name} block "{block_name}"')
+        # End block
+        if writeout_job.finalize_block:
+            self.write_block_end(filename, block_size)
 
     # Method for divvying up the particles of each processes
     # between the files to be written.
@@ -1455,20 +1634,7 @@ class GadgetSnapshot:
 
     # Method for writing out the initial HEAD block
     # of a GADGET snapshot file.
-    def write_header(self, filename, num_write_file):
-        """Though the majority of the work is carried out by the master
-        process only, this method needs to be called by all processes.
-        On the master process, the return value is the number of
-        particles to be written to this file.
-        """
-        # Get the total number of particles of each type in this
-        # snapshot file, after which only the master continues.
-        num_particles_file_tot = reduce(
-            asarray(num_write_file, dtype=C2np['Py_ssize_t']),
-            op=MPI.SUM,
-        )
-        if not master:
-            return
+    def write_header(self, filename, num_particles_file_tot):
         # Create header for this particular file
         num_particles_header = [0]*self.num_particle_types
         indices = [self.get_component_index(component) for component in self.components]
@@ -1477,32 +1643,30 @@ class GadgetSnapshot:
         header = self.header.copy()
         header['Npart'] = num_particles_header
         # Initialize file with HEAD block
+        block_size = self.headersize
         with open_file(filename, mode='wb') as f:
             # Start the HEAD block
-            self.write_block_bgn(f, self.headersize, self.block_name_header)
+            self.write_block_bgn(f, block_size, self.block_name_header)
             # Write out header, tallying up its size
             size = 0
             for key, val in self.header_fields.items():
                 size += self.write(f, val.fmt, header[key])
-            if size > self.current_block_size:
+            if size > block_size:
                 abort(
                     f'The "{self.block_name_header}" block took up {size} bytes '
-                    f'but was specified to {self.current_block_size}'
+                    f'but was specified as {block_size}'
                 )
             # Pad the header with zeros to fill out its specified size
-            size_padding = self.current_block_size - size
+            size_padding = block_size - size
             self.write(f, 'b', [0]*size_padding)
             # Close the HEAD block
-            self.write_block_end(f)
+            self.write_block_end(f, block_size)
 
     # Method for initialising a block on disk
     def write_block_bgn(self, f, block_size, block_name):
-        """Though safe to call by all processes, the work is carried out
-        by the master process only. The passed f may be either a
-        file name or a file object to an already opened file.
+        """The passed f may be either a file name
+        or a file object to an already opened file.
         """
-        if not master:
-            return
         block_name_length = int(self.block_name_fmt.rstrip('s'))
         if len(block_name) > block_name_length:
             abort(f'Block name "{block_name}" larger than {block_name_length} characters')
@@ -1522,26 +1686,16 @@ class GadgetSnapshot:
                 writeout(f)
         else:
             writeout(f)
-        # Store block size for use with write_block_end()
-        self.current_block_size = block_size
 
     # Method for finalising a block on disk
-    def write_block_end(self, f):
-        """Though safe to call by all processes, the work is carried out
-        by the master process only. The passed f may be either a
-        file name or a file object to an already opened file.
+    def write_block_end(self, f, block_size):
+        """The passed f may be either a file name
+        or a file object to an already opened file.
         """
-        if not master:
-            return
-        if self.current_block_size == -1:
-            abort(
-                f'write_block_end() was called though '
-                f'it seems that write_block_bgn() was never called'
-            )
         # Closure for doing the actual writing
         def writeout(f):
             # The closing int
-            self.write(f, 'I', self.current_block_size)
+            self.write(f, 'I', block_size)
         # Call writeout() in accordance with the supplied f
         if isinstance(f, str):
             filename = f
@@ -1893,7 +2047,7 @@ class GadgetSnapshot:
                 load_pos = True
             if component.snapshot_vars['load']['mom']:
                 load_vel = True
-        # Construct ID counters for each components.
+        # Construct ID counters for each component.
         # Only used in case the snapshot does not include IDs.
         num_particles_tot = [
             (0 if component is None else component.N)
@@ -3289,7 +3443,7 @@ def get_initial_conditions(initial_conditions_touse=None, do_realization=True):
             # A component to realise is given. Remember this.
             initial_condition_specifications.append(path_or_specifications.copy())
         else:
-            abort(f'Error parsing initial_conditions of type {type(path_or_dict)}')
+            abort(f'Error parsing initial_conditions of type {type(path_or_specifications)}')
     n_components_from_snapshot = len(components)
     # Instantiate the component(s) given as
     # initial condition specifications.

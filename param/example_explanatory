@@ -104,10 +104,12 @@ gadget_snapshot_params = {  # Specifications for output GADGET snapshots
         'VEL': 32,
         'ID' : 'automatic',
     },
-    'Nall high word': 'NallHW',  # Place to store high word part of Nall
-    'header': {},                # Header field values
-    'settle': 0,                 # Settle for one or the other reported block sizes in case of disagreement
-    'units': {                   # Unit system used when reading/writing Gadget snapshots
+    'particles per file': 'automatic',  # Maximum number of particles per file
+    'parallel write': True,             # Save snapshot files in parallel?
+    'Nall high word': 'NallHW',         # Place to store high word part of Nall
+    'header': {},                       # Header field values
+    'settle': 0,                        # Settle for one or the other reported block sizes in case of disagreement
+    'units': {                          # Unit system used when reading/writing Gadget snapshots
         'length'  : 'kpc/h',
         'velocity': 'km/s',
         'mass'    : '10¹⁰ m☉/h',

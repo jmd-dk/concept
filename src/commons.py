@@ -2724,6 +2724,8 @@ gadget_snapshot_params_defaults = {
         'VEL': 32,
         'ID' : 'automatic',
     },
+    'particles per file': 'automatic',
+    'parallel write': True,
     'Nall high word': 'NallHW',
     'header': {},
     'settle': 0,
@@ -2791,6 +2793,18 @@ for key, val in gadget_snapshot_params_dataformat.items():
         )
     gadget_snapshot_params_dataformat[key] = val
 gadget_snapshot_params['dataformat'] = gadget_snapshot_params_dataformat
+if isinstance(gadget_snapshot_params['particles per file'], str):
+    if 'auto' in gadget_snapshot_params['particles per file'].lower():
+        gadget_snapshot_params['particles per file'] = -1
+    else:
+        abort(
+            f'Could not understand gadget_snapshot_params["particles per file"] '
+            f'= {gadget_snapshot_params["particles per file"]}'
+        )
+gadget_snapshot_params['particles per file'] = int(round(float(
+    gadget_snapshot_params['particles per file']
+)))
+gadget_snapshot_params['parallel write'] = bool(gadget_snapshot_params['parallel write'])
 for key in gadget_snapshot_params.copy():
     key_transformed = (
         key.lower().replace(' ', '').replace('-', '').replace('[', '').replace(']', '')
@@ -2823,6 +2837,9 @@ for key, val in gadget_snapshot_params_defaults['units'].items():
     gadget_snapshot_params_units.setdefault(key, val)
 gadget_snapshot_params['units'] = gadget_snapshot_params_units
 gadget_snapshot_params['settle'] = int(gadget_snapshot_params['settle'])%2
+for key in gadget_snapshot_params:
+    if key not in gadget_snapshot_params_defaults:
+        abort(f'Unknown sub-parameter "{key}" in gadget_snapshot_params')
 user_params['gadget_snapshot_params'] = gadget_snapshot_params
 snapshot_wrap = bool(user_params.get('snapshot_wrap', False))
 life_output_order = tuple(user_params.get('life_output_order', ()))
