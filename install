@@ -6173,7 +6173,6 @@ blas_install_func() {
     openblas_singlethread="USE_THREAD=0 USE_OPENMP=0"
     openblas_make_options="${openblas_make_options} ${openblas_singlethread}"
     # Attempt build
-    openblas_make_options="${openblas_make_options} ${NO_AVX}"
     if [ "${openblas_gfortran}" == "True" ]; then
         export FC="gfortran"
         export F77="gfortran"
@@ -6187,12 +6186,16 @@ blas_install_func() {
     if [ "${compiler}" != "default" ] && [ -n "${CC}" ]; then
         openblas_make_options="${openblas_make_options} CC=${CC}"
     fi
-    if [ -n "${openblas_BINARY}" ]; then
-        openblas_make_options="${openblas_make_options} BINARY=${openblas_BINARY}"
-    fi
     if [ -d "${perl_dir}" ]; then
         export PATH="${perl_dir}/bin:${PATH}"
     fi
+    if [ -n "${openblas_BINARY}" ]; then
+        openblas_make_options="${openblas_make_options} BINARY=${openblas_BINARY}"
+    fi
+    if [ -n "${openblas_TARGET}" ]; then
+        openblas_make_options="${openblas_make_options} TARGET=${openblas_TARGET}"
+    fi
+    openblas_make_options="${openblas_make_options} ${TARGET} ${openblas_NO_AVX}"
     # Specify MAKE_NB_JOBS instead of explicit -j. By default this is
     # set to the number of hardware threads. As this takes up
     # a lot of resources we always set this to a low number,
@@ -6201,17 +6204,26 @@ blas_install_func() {
     make MAKE_NB_JOBS=1 ${openblas_singlethread} PREFIX="${blas_dir}" install || return 1
     # Note that OpenBLAS runs its test suite during the build
 }
+TARGET_possibilities=( \
+    ""                 \
+    "NEHALEM"          \
+    "PRESCOTT"         \
+    "NORTHWOOD"        \
+    "SSE_GENERIC"      \
+    "GENERIC"          \
+)
 NO_AVX_possibilities=(               \
     ""                               \
                        "NO_AVX512=1" \
              "NO_AVX2=1 NO_AVX512=1" \
     "NO_AVX=1 NO_AVX2=1 NO_AVX512=1" \
 )
-install "BLAS"                                  \
-    openblas_gfortran "True" "False"        ";" \
-    openblas_BINARY "" "32"                 ";" \
-    compiler "${compiler_possibilities[@]}" ";" \
-    NO_AVX "${NO_AVX_possibilities[@]}"     ";" \
+install "BLAS"                                       \
+    openblas_gfortran "True" "False"             ";" \
+    openblas_BINARY "" "32"                      ";" \
+    compiler "${compiler_possibilities[@]}"      ";" \
+    openblas_TARGET "${TARGET_possibilities[@]}" ";" \
+    openblas_NO_AVX "${NO_AVX_possibilities[@]}" ";" \
 
 # Python
 if [ "${python_install}" == "True" ]; then
