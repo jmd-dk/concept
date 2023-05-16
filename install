@@ -6632,7 +6632,8 @@ rm_gently() {
 
 # Function for downloading Python packages, utilizing pip
 pip_download() {
-    # Arguments: Python package name, version, pip_download_time.
+    # Arguments: Python package name, version, pip_download_time,
+    # dig_through_trash_possibilities.
     # No second argument, blank second argument or a second argument of
     # "upgrade" means newest version. The second argument can also be a
     # version string that pip understands, e.g. ">=1.4".
@@ -6668,9 +6669,14 @@ pip_download() {
     if [ -n "${3}" ]; then
         pip_download_time=${3}
     fi
+    # Set (order of) possibilities for digging through trash
+    dig_through_trash_possibilities="False True"
+    if [ -n "${4}" ]; then
+        dig_through_trash_possibilities="${4}"
+    fi
     # Download the Python package
     for n in {1..3}; do
-        for dig_through_trash in "False" "True"; do
+        for dig_through_trash in ${dig_through_trash_possibilities}; do
             pip_args="download --no-cache-dir --no-binary=:all:"
             if [ "${dig_through_trash}" == "True" ]; then
                 pip_args="${pip_args} --no-clean"
@@ -7511,7 +7517,7 @@ if [ "${scipy_install}" == "True" ] && [ "${scipy_installed}" == "False" ] \
     export TMPDIR="${tmp_pip_dir}_tmp"
     export TEMP="${TMPDIR}"
     export TMP="${TMPDIR}"
-    pip_download "SciPy" "${scipy_version}"
+    pip_download "SciPy" "${scipy_version}" "" "True False"
     cd "${tmp_pip_dir}"
     extract "scipy"* "True"
     for f in *; do
