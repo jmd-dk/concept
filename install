@@ -301,7 +301,7 @@ set_version "blas"              "0.3.21"  "0.3.21"
 set_version "class"             "2.7.2"
 set_version "fftw"              "3.3.10"  "3.3.10"
 set_version "fftw_for_gadget"   "2.1.5"   "2.1.5"   # Do not change
-set_version "gadget"            "2.0.7"             # Do not change
+set_version "gadget"            "2.0.7"   "2.0.7"   # Do not change
 set_version "gsl"               "2.7"     "2.7"
 set_version "hdf5"              "1.14.0"
 set_version "libffi"            "3.4.4"   "3.4.3"
@@ -313,7 +313,7 @@ fi
 set_version "ncurses"           "6.4"     "6.4"
 set_version "openssl"           "3.0.8"   "3.0.7"
 set_version "perl"              "5.36.0"
-set_version "python"            "3.11.2"
+set_version "python"            "3.11.3"
 set_version "zlib"              "1.2.13"  "1.2.13"
 # Python packages
 set_version "blessings"         "1.7"
@@ -323,9 +323,9 @@ set_version "h5py"              "3.8.0"
 set_version "matplotlib"        "3.7.1"
 set_version "mpi4py"            "3.1.4"
 set_version "numpy"             "1.24.2"
-set_version "pip"               "23.0.1"
+set_version "pip"               "23.1.2"
 set_version "scipy"             "1.10.1"
-set_version "setuptools"        "67.6.0"
+set_version "setuptools"        "67.7.2"
 set_version "sphinx"            "6.1.3"
 set_version "sphinx_copybutton" "0.5.0"
 set_version "sphinx_rtd_theme"  "1.2.0"
@@ -577,6 +577,8 @@ env_var_names=(       \
     LD_LIBRARY_PATH   \
     LD_PRELOAD        \
     LDFLAGS           \
+    LIBFFI_CFLAGS     \
+    LIBFFI_LIBS       \
     LIBS              \
     MPICC             \
     MPILIBS           \
@@ -3039,7 +3041,7 @@ fi
 # GADGET
 if [ "${gadget_install}" == "True" ]; then
     if [ -z "${gadget_url}" ]; then
-        gadget_url="https://www.mpa-garching.mpg.de/gadget/gadget-${gadget_version}.tar.gz"
+        gadget_url="https://wwwmpa.mpa-garching.mpg.de/gadget/gadget-${gadget_version}.tar.gz"
     fi
     # Check if already installed/downloaded
     check_progress "GADGET"
@@ -3048,8 +3050,15 @@ if [ "${gadget_install}" == "True" ]; then
         validate_url "GADGET" "False"
         if [ "${validate_url_status}" != "success" ]; then
             echo "Primary GADGET link broken: ${gadget_url}"
-            error "Error: The install script does not know of a secondary GADGET link"
-            exit 1
+            fallback "GADGET"
+            gadget_url="https://www.mpa-garching.mpg.de/gadget/gadget-${gadget_version}.tar.gz"
+            echo "Using secondary GADGET link: ${gadget_url}"
+            # Check if already installed and/or downloaded
+            check_progress "GADGET"
+            # If not yet downloaded, validate the URL
+            if [ "${gadget_downloaded}" != "True" ]; then
+                validate_url "GADGET"
+            fi
         fi
     fi
 fi
@@ -3068,7 +3077,7 @@ if [ "${gsl_install}" == "True" ]; then
             echo "Primary GSL link broken: ${gsl_url}"
             fallback "GSL"
             gsl_url="https://ftpmirror.gnu.org/gsl/gsl-${gsl_version}.tar.gz"
-            echo "Using secondary gsl link: ${gsl_url}"
+            echo "Using secondary GSL link: ${gsl_url}"
             # Check if already installed and/or downloaded
             check_progress "GSL"
             # If not yet downloaded, validate the URL
@@ -5562,7 +5571,8 @@ get_options() {
 
 # zlib
 zlib_install_func() {
-    ./configure --shared --prefix="${zlib_dir}" 2>&1 || return 1
+    ./configure --shared --prefix="${zlib_dir}" \
+        --libdir="${zlib_dir}/lib" 2>&1 || return 1
     if [ "${do_tests}" == "True" ]; then
         make ${make_jobs} test 2>&1 | tee "test_log"
         [ ${PIPESTATUS[0]} -eq 0 ] || test_success="False"
@@ -5576,7 +5586,7 @@ install "zlib" compiler "${compiler_possibilities[@]}"
 
 # GSL
 gsl_install_func() {
-    ./configure --prefix="${gsl_dir}" 2>&1 || return 1
+    ./configure --prefix="${gsl_dir}" --libdir="${gsl_dir}/lib" 2>&1 || return 1
     make ${make_jobs} 2>&1 || return 1
     if [ "${do_tests}" == "True" ]; then
         make ${make_jobs} check 2>&1 | tee "test_log"
@@ -5807,7 +5817,8 @@ ${mpi_configure_option}"
     if [ -d "${perl_dir}" ]; then
         export PATH="${perl_dir}/bin:${PATH}"
     fi
-    ./configure ${mpi_configure_options} --prefix="${mpi_dir}" 2>&1 || return 1
+    ./configure ${mpi_configure_options} --prefix="${mpi_dir}" \
+        --libdir="${mpi_dir}/lib" 2>&1 || return 1
     make_jobs_mpi=""
     if [ "${make_jobs}" == "-j" ]; then
         # Building in parallel takes up a lot of resources
@@ -5881,6 +5892,7 @@ hdf5_install_func() {
         ${enable_parallel}               \
         ${with_zlib}                     \
         --prefix="${hdf5_dir}"           \
+        --libdir="${hdf5_dir}/lib"       \
         2>&1 || return 1
     # Newer versions of gcc (e.g. 8.1.0) do not allow attributes to
     # be specified after the declarator in function definitions.
@@ -6035,7 +6047,7 @@ fftw_install_func() {
     done
     ./configure ${enable_shared} ${enable_mpi} \
         ${fftw_configure_options} ${with_pic} ${simd_instructions} \
-        --prefix="${fftw_dir}" 2>&1 || return 1
+        --prefix="${fftw_dir}" --libdir="${fftw_dir}/lib" 2>&1 || return 1
     make 2>&1 || return 1  # Parallel builds fail on some systems
     if     [ "${extra_optimizations}" == "True" ] || [ -n "${simd_instructions}" ] \
         || [ "${do_tests}" == "True" ]; then
@@ -6114,7 +6126,8 @@ ncurses_install_func() {
     # Due to a bug in (at least) ncurses 6.0, this is needed on
     # some systems. See https://trac.sagemath.org/ticket/19762
     export CPPFLAGS="-P ${CPPFLAGS}"
-    ./configure --with-shared --prefix="${ncurses_dir}" 2>&1 || return 1
+    ./configure --with-shared --prefix="${ncurses_dir}" \
+        --libdir="${ncurses_dir}/lib" 2>&1 || return 1
     make ${make_jobs}         2>&1 || return 1
     make ${make_jobs} install 2>&1 || return 1
     if [ "${do_tests}" == "True" ]; then
@@ -6140,7 +6153,7 @@ openssl_install_func() {
         export PATH="${perl_dir}/bin:${PATH}"
         export PERL="${perl_dir}/bin/perl"
     fi
-    ./config shared --prefix="${openssl_dir}" \
+    ./Configure shared --prefix="${openssl_dir}" --libdir="${openssl_dir}/lib" \
         --openssldir="${openssl_dir}/openssl" 2>&1 || return 1
     make 2>&1 || return 1  # should not be run in parallel
     if [ "${do_tests}" == "True" ]; then
@@ -6153,7 +6166,8 @@ install "OpenSSL" compiler "${compiler_possibilities[@]}"
 
 # libffi
 libffi_install_func() {
-    ./configure --prefix="${libffi_dir}" 2>&1 || return 1
+    ./configure --prefix="${libffi_dir}" --libdir="${libffi_dir}"/lib \
+        --disable-multi-os-directory 2>&1 || return 1
     make ${make_jobs} 2>&1 || return 1
     if [ "${do_tests}" == "True" ]; then
         make check 2>&1 | tee "test_log"
@@ -6315,25 +6329,36 @@ python_install_func() {
     with_system_ffi=""
     if [ -n "${libffi_dir}" ] && [ -d "${libffi_dir}" ]; then
         with_system_ffi="--with-system-ffi"
-        current_dir="$(pwd)"
-        for lib_dir in "lib" "lib64"; do
-            if [ ! -d "${libffi_dir}/${lib_dir}" ]; then
+        libffi_libdirs=()
+        for lib_dir in "${libffi_dir}/lib64" "${libffi_dir}/lib"; do
+            if [ ! -d "${lib_dir}" ]; then
                 continue
             fi
-            cd "${libffi_dir}/${lib_dir}"
-            for f in *; do
-                if     [ -d "${f}" ] \
-                    && [[ "${f}" == "libffi"* ]] \
-                    && [ -d "${libffi_dir}/${lib_dir}/${f}/include" ]; then
-                    export CPPFLAGS="-I${libffi_dir}/${lib_dir}/${f}/include ${CPPFLAGS}"
-                    break
+            for d in "${lib_dir}/libffi"*; do
+                if [ -d "${d}" ]; then
+                    libffi_libdirs=("${libffi_libdirs[@]}" "${d}")
+                    if [ -d "${d}/pkgconfig" ]; then
+                        export PKG_CONFIG_PATH="${d}/pkgconfig:${PKG_CONFIG_PATH}"
+                    fi
                 fi
             done
-            export LD_LIBRARY_PATH="${libffi_dir}/${lib_dir}:${LD_LIBRARY_PATH}"
-            export LDFLAGS="-L${libffi_dir}/${lib_dir} \
--Wl,-rpath=${libffi_dir}/${lib_dir} ${LDFLAGS}"
+            libffi_libdirs=("${libffi_libdirs[@]}" "${lib_dir}")
+            if [ -d "${lib_dir}/pkgconfig" ]; then
+                export PKG_CONFIG_PATH="${lib_dir}/pkgconfig:${PKG_CONFIG_PATH}"
+            fi
         done
-        cd "${current_dir}"
+        LIBFFI_LIBS="-lffi"
+        for d in "${libffi_libdirs[@]}"; do
+            export LIBFFI_LIBS="-L${d} -Wl,-rpath=${d} ${LIBFFI_LIBS}"
+            export LD_LIBRARY_PATH="${d}:${LD_LIBRARY_PATH}"
+            export LDFLAGS="-L${d} -Wl,-rpath=${d} ${LDFLAGS}"
+        done
+        export LIBFFI_CFLAGS="-I${libffi_dir}"
+        export CPPFLAGS="-I${libffi_dir} ${CPPFLAGS}"
+        if [ -d "${libffi_dir}/include" ]; then
+            export LIBFFI_CFLAGS="-I${libffi_dir}/include ${LIBFFI_CFLAGS}"
+            export CPPFLAGS="-I${libffi_dir}/include ${CPPFLAGS}"
+        fi
     fi
     export LDFLAGS="-L${python_dir}/lib -Wl,--rpath=${python_dir}/lib ${LDFLAGS}"
     # Configure.
@@ -6345,6 +6370,7 @@ python_install_func() {
     # hangs, letting the user know that everything will be all right.
     pyconfigure_success="True"
     ./configure --enable-shared ${with_pgo} ${with_lto} --prefix="${python_dir}" \
+        --libdir="${python_dir}/lib" --with-platlibdir=lib                       \
         ${with_ensurepip_install}                                                \
         ${with_openssl}                                                          \
         ${with_system_ffi}                                                       \
@@ -9555,7 +9581,7 @@ fftw_for_gadget_install_func() {
     fi
     ./configure ${enable_shared} ${enable_mpi} ${precision_flags} \
         ${fftw_configure_options} ${with_pic} \
-        --prefix="${fftw_for_gadget_dir}" 2>&1 || return 1
+        --prefix="${fftw_for_gadget_dir}" --libdir="${fftw_for_gadget_dir}/lib" 2>&1 || return 1
     make 2>&1 || return 1  # Parallel builds fail on some systems
     if [ "${extra_optimizations}" == "True" ] || [ "${do_tests}" == "True" ]; then
         fftw_for_gadget_test_max_time=3600
@@ -9779,9 +9805,7 @@ export make_jobs="${make_jobs_backup}"
 ###################################
 if [ "${concept_install}" == "True" ] && [ "${concept_installed}" == "False" ]; then
     current_step="building ${esc_concept}"
-    # Do not print a heading,
-    # as the CO𝘕CEPT build process does this by itself.
-    echo
+    heading "Building ${esc_concept}"
     set_status "Building ${esc_concept}"
     # Build the code by running it with no parameters specified.
     # As the CO𝘕CEPT build process requires a lot of memory, we perform
