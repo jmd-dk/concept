@@ -272,6 +272,14 @@ its own snapshot format, which is simply a well-structured HDF5 file.
 
       sudo apt install qtbase5-dev
 
+   It might also help to install the master version rather than the latest
+   release:
+
+   .. code-block:: bash
+
+      (source concept && $python -m pip uninstall -y vitables)
+      (source concept && $python -m pip install git+https://github.com/uvemas/ViTables.git)
+
 Such snapshots are useful if you want to process the raw data using some
 external program. You can also initialise a simulation from a snapshot, instead
 of generating initial conditions from scratch. To try this, redefine the

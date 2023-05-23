@@ -102,13 +102,14 @@ const _displayItem = (item, searchTerms) => {
 };
 const _finishSearch = (resultCount) => {
   Search.stopPulse();
-        Search.title.text(_('Search results'));
-        if (!resultCount)
-          Search.status.text(_('Could not find anything matching the search query.'));
-        else if (resultCount == 1)
-          Search.status.text(_('Found 1 page matching the search query.'));
-        else
-          Search.status.text(_('Found %s pages matching the search query.').replace('%s', resultCount));
+  Search.title.innerText = _("Search Results");
+  if (!resultCount)
+    Search.status.innerText = Documentation.gettext(
+      "Your search did not match any documents. Please make sure that all words are spelled correctly and that you've selected enough categories."
+    );
+  else
+    Search.status.innerText = _(
+      `Search finished, found ${resultCount} page(s) matching the search query.`
     );
 };
 const _displayNextItem = (
