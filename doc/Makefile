@@ -71,22 +71,6 @@ html: sphinx
 	@for filename in $$(find $(BUILDDIR)/html/ -name '*.html'); do                                \
 	    sed -i 's/placeholder="Search docs"/placeholder="Search documentation"/g' "$${filename}"; \
 	done
-	@# Change search result text
-	@filename=$(BUILDDIR)/html/_static/searchtools.js;                                                                \
-	pattern='Search Results';                                                                                         \
-	linenr_1=$$(awk "\$$0 ~ \"$${pattern}\" {print NR}" "$${filename}" | head -n 1);                                  \
-	pattern='Search finished, found';                                                                                 \
-	linenr_2=$$(awk "\$$0 ~ \"$${pattern}\" {print NR}" "$${filename}" | head -n 1);                                  \
-	sed -i "$${linenr_1},$${linenr_2}d" "$${filename}";                                                               \
-	indentation="        ";                                                                                           \
-	new_lines="\        Search.title.text(_('Search results'));\n\
-	$${indentation}if ("'!'"resultCount)\n\
-	$${indentation}  Search.status.text(_('Could not find anything matching the search query.'));\n\
-	$${indentation}else if (resultCount == 1)\n\
-	$${indentation}  Search.status.text(_('Found 1 page matching the search query.'));\n\
-	$${indentation}else\n\
-	$${indentation}  Search.status.text(_('Found %s pages matching the search query.').replace('%s', resultCount));"; \
-	sed -i "$${linenr_1}i$${new_lines}" "$${filename}"
 	@# Remove HTML tags from titles
 	@for filename in $$(find $(BUILDDIR)/html/ -name '*.html'); do                  \
 	    sed                                                                         \
