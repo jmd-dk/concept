@@ -12,15 +12,15 @@ installation on your local machine, not on a remote cluster.
 .. note::
    Though CO\ *N*\ CEPT may be installed on Windows through the
    `Windows Subsytem for Linux <https://docs.microsoft.com/en-us/windows/wsl/about>`__,
-   installing on a native Linux system is recommended. Don't bother attempting the
-   installation on macOS.
+   installing on a native Linux system is recommended. The installation will
+   not work on macOS.
 
-To install the latest release of CO\ *N*\ CEPT along with all of its
+To install the latest version of CO\ *N*\ CEPT along with all of its
 dependencies, open a terminal and invoke
 
 .. code-block:: bash
 
-   bash <(wget -O- --no-check-certificate https://raw.githubusercontent.com/jmd-dk/concept/v1.0.1/install)
+   bash <(wget -O- --no-check-certificate https://raw.githubusercontent.com/jmd-dk/concept/master/install)
 
 You will be prompted for an installation directory.
 
