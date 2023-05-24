@@ -47,7 +47,7 @@ To get started with CO*N*CEPT, walking through the [tutorial] is highly
 recommended. That said, installation can be as simple as
 
 ```bash
-bash <(wget -O- https://raw.githubusercontent.com/jmd-dk/concept/v1.0.1/install)
+bash <(wget -O- https://raw.githubusercontent.com/jmd-dk/concept/master/install)
 ```
 
 which installs CO*N*CEPT along with all of its dependencies into a single
