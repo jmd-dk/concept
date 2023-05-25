@@ -619,7 +619,7 @@ class CosmoResults:
             # simulation timespan, a >= a_begin, we now cut off the
             # lower tail of all perturbations.
             if master:
-                def find_a_min(universals_a_begin):
+                def find_a_min(universals_a_begin, do_warn=True):
                     for perturbation in self._perturbations:
                         a_values = perturbation['a']
                         # Find the index in a_values which corresponds to
@@ -635,18 +635,17 @@ class CosmoResults:
                             )
                             if class_a_min > 0 and universals_a_begin < class_a_min:
                                 msg += (
-                                    f' Not all perturbations are defined at '
-                                    f'a_begin = {universals_a_begin}. Note that CLASS '
-                                    f'perturbations earlier than a_min = {class_a_min} in '
-                                    f'source/perturbations.c will not be used. If you really want '
-                                    f'perturbations at still earlier times, decrease this a_min '
+                                    f' Note that CLASS perturbations earlier than '
+                                    f'a_min = {class_a_min} in source/perturbations.c '
+                                    f'will not be used. If you really want perturbations '
+                                    f'at still earlier times, decrease this a_min '
                                     f'and recompile CLASS.'
                                 )
                             elif universals_a_begin < universals.a_begin:
                                 msg += (
-                                    f' It may help to decrease the CLASS parameter '
-                                    f'"perturb_integration_stepsize" and/or '
-                                    f'"perturb_sampling_stepsize".'
+                                    ' It may help to decrease the CLASS parameter '
+                                    '"perturb_integration_stepsize" and/or '
+                                    '"perturb_sampling_stepsize".'
                                 )
                             abort(msg)
                         index, a_value = 0, -1
@@ -661,12 +660,23 @@ class CosmoResults:
                         # than absolutely needed.
                         index -= 3
                         if index < 0:
+                            if do_warn:
+                                warn(
+                                    'Some perturbations are not tabulated by CLASS '
+                                    'at times early enough to be satisfactory. '
+                                    'It may help to decrease the CLASS parameter '
+                                    '"perturb_integration_stepsize" and/or '
+                                    '"perturb_sampling_stepsize".'
+                                )
                             index = 0
                         yield index, a_values[index], perturbation
                 # Find the minimum scale factor value
                 # needed across all k modes.
                 universals_a_begin_min = universals.a_begin
-                for index, universals_a_begin, perturbation in find_a_min(universals_a_begin_min):
+                for index, universals_a_begin, perturbation in find_a_min(
+                    universals_a_begin_min,
+                    do_warn=True,
+                ):
                     if universals_a_begin < universals_a_begin_min:
                         universals_a_begin_min = universals_a_begin
                 # Remove perturbations earlier than
@@ -674,7 +684,10 @@ class CosmoResults:
                 # as otherwise the array will not be owning the data,
                 # meaning that it cannot be freed by Python's
                 # garbage collection.
-                for index, universals_a_begin, perturbation in find_a_min(universals_a_begin_min):
+                for index, universals_a_begin, perturbation in find_a_min(
+                    universals_a_begin_min,
+                    do_warn=False,
+                ):
                     for key, val in perturbation.items():
                         perturbation[key] = asarray(val[index:]).copy()
             # The perturbations stored by the master process will now be

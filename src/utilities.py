@@ -1452,11 +1452,19 @@ def handle_class_arg(arg, kind, vmin=0, vmax=ထ):
     else:
         values = eval_unit(arg, units_dict)
     if isinstance(values, (int, float, np.integer, np.floating)):
-        if values == ထ:
-            values = -1
+        is_pure_number = True
+        try:
+            float(arg)
+        except Exception:
+            is_pure_number = False
+        if is_pure_number:
+            if values == ထ:
+                values = -1
+            else:
+                values = int(round(values))
         else:
-            values = int(round(values))
-    else:
+            values = [values]
+    if not isinstance(values, (int, float, np.integer, np.floating)):
         values = asarray(values, dtype=C2np['double'])
         if values.shape == ():
             values = asarray([values[()]])
