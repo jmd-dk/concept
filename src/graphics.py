@@ -3275,7 +3275,7 @@ def brighten_render3D(img, fac, measure_rms=False):
                 img[i, j, c] *= fac
             with unswitch:
                 if measure_rms:
-                    α = img[i, j, 4]
+                    α = img[i, j, 3]
                     if α > 0:
                         n_opaque += 1
                         r_rms += img[i, j, 0]**2
