@@ -1059,9 +1059,10 @@ for different components</p></td>
 <td><p></p></td>
 <td><div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
     <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="p">{</span>
-        <span class="s1">&#39;data&#39;</span>  <span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
-        <span class="s1">&#39;linear&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
-        <span class="s1">&#39;plot&#39;</span>  <span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="s1">&#39;data&#39;</span>            <span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="s1">&#39;linear&#39;</span>          <span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="s1">&#39;linear imprinted&#39;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="s1">&#39;plot&#39;</span>            <span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
     <span class="p">},</span>
 <span class="p">}</span>
 </pre></div>
@@ -1081,6 +1082,12 @@ tabulated values of the (auto) power spectrum
 <span class="math notranslate nohighlight">\(P(k)\)</span>. A separate column within these files
 containing the corresponding linear-theory power
 spectrum is added if <code class="docutils literal notranslate"><span class="pre">'linear'</span></code> is also selected.
+The <code class="docutils literal notranslate"><span class="pre">'linear</span> <span class="pre">imprinted'</span></code> output is again the
+linear-theory power spectrum, but computed by first
+realising a full 3D density field and then computing its
+power spectrum, leaving the
+<a class="reference internal" href="simulation.html#random-seeds"><span class="std std-ref">primordial noise</span></a> imprinted on
+the spectrum.
 Selecting <code class="docutils literal notranslate"><span class="pre">'plot'</span></code> results in a plot of the specified
 data, stored as a PNG file.</p>
 <p>To tune the specifics of how power spectra are computed,
@@ -1134,7 +1141,7 @@ and do not make any plots:</p>
 <td><p>Do not create any power spectrum outputs except plots
 of the component with a name/species of <code class="docutils literal notranslate"><span class="pre">'matter'</span></code>:</p>
 <div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">powerspec_select</span> <span class="o">=</span> <span class="p">{</span>
-    <span class="s1">&#39;all&#39;</span>   <span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="s1">&#39;all&#39;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
     <span class="s1">&#39;matter&#39;</span><span class="p">:</span> <span class="p">{</span>
         <span class="s1">&#39;plot&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
     <span class="p">},</span>
@@ -1145,6 +1152,33 @@ of the component with a name/species of <code class="docutils literal notranslat
 </tr>
 <tr class="row-odd"><td><p></p></td>
 <td><p><strong>Example 3</strong></p></td>
+<td><p></p></td>
+<td><p>Output imprinted linear power spectra rather than pure
+linear power spectra, for all components:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">powerspec_select</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;all&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;data&#39;</span>            <span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="s1">&#39;linear&#39;</span>          <span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="s1">&#39;linear imprinted&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="s1">&#39;plot&#39;</span>            <span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="p">},</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>As the “imprinted” version of the linear power
+spectrum shares both the
+<a class="reference internal" href="simulation.html#random-seeds"><span class="std std-ref">primordial random noise</span></a> and the
+binning with the non-linear simulation power
+spectrum, ratios between non-linear and linear power
+spectra become less noisy when using imprinted
+linear spectra.</p>
+</div>
+</td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Example 4</strong></p></td>
 <td><p></p></td>
 <td><p>Create full (auto) power spectrum outputs for
 all components, as well as for the combined

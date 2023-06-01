@@ -196,35 +196,68 @@ plotting script:
 
    # Read in data
    this_dir = os.path.dirname(os.path.realpath(__file__))
+   ks = {}
    P_sims = {}
+   P_lins = {}
+   P_lins_imprinted = {}
    for filename in sorted(glob.glob(f'{this_dir}/powerspec*'), key=os.path.getmtime):
        matches = re.findall(r'(?=_(.*?)=(.*?)_)', os.path.basename(filename))
        if not matches or filename.endswith('.png'):
            continue
        for var, val in matches:
            exec(f'{var} = "{val}"')
-       k, P_sim, P_lin = np.loadtxt(filename, usecols=(0, 2, 3), unpack=True)
+       P_lin_imprinted = None
+       try:
+           k, P_sim, P_lin, P_lin_imprinted = np.loadtxt(
+               filename, usecols=(0, 2, 3, 4), unpack=True,
+           )
+       except ValueError:
+           k, P_sim, P_lin = np.loadtxt(filename, usecols=(0, 2, 3), unpack=True)
        mask = ~np.isnan(P_lin)
-       P_sims[lin] = P_sim[mask]
-   P_lin = P_lin[mask]
-   k = k[mask]
-
+       ks[len(k)] = k[mask]
+       P_lins[len(k)] = P_lin[mask]
+       if P_lin_imprinted is not None:
+           P_lins_imprinted[len(k)] = P_lin_imprinted[mask]
+       P_sims[len(k), lin] = P_sim[mask]
    # Plot
    fig, axes = plt.subplots(2, sharex=True)
+   def darken(color):
+       return 0.65*np.asarray(matplotlib.colors.ColorConverter().to_rgb(color))
    linestyles = ['-', '--', ':', '-.']
-   for lin, P_sim in P_sims.items():
+   for i, ((lenk, lin), P_sim) in enumerate(P_sims.items()):
        linestyle = linestyles[
            sum(np.allclose(line.get_ydata()[:30], P_sim[:30], 1e-3) for line in axes[0].lines)
            %len(linestyles)
        ]
-       axes[0].loglog(k, P_sim, linestyle, label=f'simulation: {lin = }')
-       axes[1].semilogx(k, (P_sim/P_lin - 1)*100, linestyle)
+       k = ks[lenk]
+       P_lin = P_lins[lenk]
+       axes[0].loglog(k, P_sim, linestyle, color=f'C{i}', label=f'simulation: {lin = }')
+       axes[1].semilogx(k, (P_sim/P_lin - 1)*100, linestyle, color=f'C{i}')
+       P_lin_imprinted = P_lins_imprinted.get(lenk)
+       if P_lin_imprinted is not None:
+           axes[1].semilogx(
+               k, (P_sim/P_lin_imprinted - 1)*100, linestyle,
+               color=darken(f'C{i}'),
+           )
+   lenk = max(ks)
+   k = ks[lenk]
+   P_lin = P_lins[lenk]
    axes[0].loglog(k, P_lin, 'k--', label='linear', linewidth=1)
    axes[1].semilogx(k, (P_lin/P_lin - 1)*100, 'k--', linewidth=1)
    k_max = 0.5*k[-1]
    axes[0].set_xlim(k[0], k_max)
    axes[0].set_ylim(0.95*min(P_lin[k < k_max]), 1.05*max(P_lin[k < k_max]))
    axes[1].set_ylim(-1, 1)
+   if P_lins_imprinted:
+       axes[1].plot(
+           0.5, 0.5, '-',
+           color='grey', label='raw linear', transform=axes[1].transAxes,
+       )
+       axes[1].plot(
+           0.5, 0.5, '-',
+           color=darken('grey'), label='imprinted linear', transform=axes[1].transAxes,
+       )
+       axes[1].legend()
    axes[1].set_xlabel(r'$k\, [\mathrm{Mpc}^{-1}]$')
    axes[0].set_ylabel(r'$P\, [\mathrm{Mpc}^3]$')
    axes[1].set_ylabel(r'$P_{\mathrm{simulation}}/P_{\mathrm{linear}} - 1\, [\%]$')
@@ -485,7 +518,9 @@ simply as ``'radiation'``. Thus,
 
 .. code-block:: bash
 
-   ./concept -p param/tutorial -c "_lin = 'radiation + metric'"
+   ./concept \
+       -p param/tutorial \
+       -c "_lin = 'radiation + metric'"
 
 works just as well. You are encouraged to run at least one of the above and
 check that you obtain the same result as before.
@@ -500,6 +535,41 @@ You are in fact already familiar with the idea of combining species, as
    as this dynamically maps to the set of all radiation species present in the
    current cosmology, whatever this may be. Similarly, ``'matter'`` is safe to
    use even in a cosmology without e.g. cold dark matter.
+
+
+
+.. raw:: html
+
+   <h3>Imprinted linear power spectra</h3>
+
+With confidence in the linear corrections, let us now go back to using binned
+power spectra. That is, remove the ``powerspec_options`` parameter --- which
+you introduced earlier --- from the parameter file. Further add imprinted
+linear power spectra to the desired output, by changing
+``powerspec_select`` to
+
+.. code-block:: python3
+
+   powerspec_select = {
+       'matter': {'data': True, 'linear': True, 'linear imprinted': True, 'plot': False},
+   }
+
+inside the parameter file. Now perform one last simulation including the
+necessary linear corrections;
+
+.. code-block:: bash
+
+   ./concept \
+       -p param/tutorial \
+       -c "_lin = 'radiation + metric'"
+
+After updating the plot yet again, you should find that you are able to obtain
+excellent agreement with linear theory with the binned spectra as well, when
+using the "imprinted" version of the linear theory prediction.
+
+To better disentangle the effects of the linear corrections from those of the
+imprinted linear power spectrum, you may further wish to rerun the simulation
+with\ *out* any linear corrections, keeping the imprinted linear output enabled.
 
 
 

@@ -628,9 +628,10 @@ CO\ *N*\ CEPT run.
 
                          {
                              'default': {
-                                 'data'  : True,
-                                 'linear': True,
-                                 'plot'  : True,
+                                 'data'            : True,
+                                 'linear'          : True,
+                                 'linear imprinted': False,
+                                 'plot'            : True,
                              },
                          }
 
@@ -646,6 +647,12 @@ CO\ *N*\ CEPT run.
                       :math:`P(k)`. A separate column within these files
                       containing the corresponding linear-theory power
                       spectrum is added if ``'linear'`` is also selected.
+                      The ``'linear imprinted'`` output is again the
+                      linear-theory power spectrum, but computed by first
+                      realising a full 3D density field and then computing its
+                      power spectrum, leaving the
+                      :ref:`primordial noise <random_seeds>` imprinted on
+                      the spectrum.
                       Selecting ``'plot'`` results in a plot of the specified
                       data, stored as a PNG file.
 
@@ -694,14 +701,38 @@ CO\ *N*\ CEPT run.
                       .. code-block:: python3
 
                          powerspec_select = {
-                             'all'   : False,
+                             'all': False,
                              'matter': {
                                  'plot': True,
                              },
                          }
 
 -- --------------- -- -
-\  **Example 3**   \  Create full (auto) power spectrum outputs for
+\  **Example 3**   \  Output imprinted linear power spectra rather than pure
+                      linear power spectra, for all components:
+
+                      .. code-block:: python3
+
+                         powerspec_select = {
+                             'all': {
+                                 'data'            : True,
+                                 'linear'          : False,
+                                 'linear imprinted': True,
+                                 'plot'            : True,
+                             },
+                         }
+
+                      .. tip::
+                         As the "imprinted" version of the linear power
+                         spectrum shares both the
+                         :ref:`primordial random noise <random_seeds>` and the
+                         binning with the non-linear simulation power
+                         spectrum, ratios between non-linear and linear power
+                         spectra become less noisy when using imprinted
+                         linear spectra.
+
+-- --------------- -- -
+\  **Example 4**   \  Create full (auto) power spectrum outputs for
                       all components, as well as for the combined
                       ``'matter'`` and ``'neutrino'`` components:
 

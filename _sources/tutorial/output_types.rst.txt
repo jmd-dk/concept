@@ -32,7 +32,7 @@ file:
        'render2D' : logspace(log10(a_begin), log10(1), 15),
    }
    powerspec_select = {
-       'matter': {'data': True, 'linear': True, 'plot': False},
+       'matter': {'data': True, 'linear': True, 'linear imprinted': True, 'plot': True},
    }
    bispec_select = {
        'matter': {'data': True, 'reduced': True, 'tree-level': True, 'plot': True},
@@ -44,7 +44,7 @@ file:
        'matter': {'image': True},
    }
 
-   # Numeris
+   # Numerics
    boxsize = 128*Mpc
    potential_options = 2*_size
 
@@ -90,9 +90,9 @@ by saving them to ``param/tutorial`` and executing
 This will take a few minutes. You may read along in the meantime.
 
 We see that besides power spectra, we now have *snapshots*, *bispectra* and
-*renders*, the latter of which come in a 2D and a 3D version. The ellipses
-(``...``) used above in ``output_dirs`` indicate that we want all kinds of
-output to go to the same directory.
+*renders*, the latter of which comes in a 2D and a 3D version. The ellipses
+(``...``) used above in e.g. ``output_dirs`` indicate that we want all kinds
+of output to go to the same directory.
 
 For the ``output_times``, different values are given for three of the output
 types, while ``'bispec'`` and ``'render3D'`` are set to use the same times as
@@ -101,8 +101,15 @@ specified 15 outputs spaced logarithmically equidistant between
 :math:`a = a_{\text{begin}} = 0.02` and :math:`a = 1`.
 
 Among the new parameters introduced are ``powerspec_select``, in which we have
-specified that we only want the data files --- also including the linear theory
-spectrum --- as output, not plots of this data.
+specified that we want the usual data files and plots, including the linear
+theory predictions. A new kind of power spectrum output,
+``'linear imprinted'``, is also specified. This is once again the linear
+theory prediction, but with the random realisation noise imprinted onto it,
+effectively incorporating cosmic variance. From the power spectrum plots, it
+is clear that this kind of linear power spectrum is a much closer match to
+the simulation power spectrum at the lower :math:`k`. For taking ratios of
+non-linear and linear power spectra, such "imprinted" linear spectra are thus
+to be preferred.
 
 
 
@@ -116,11 +123,11 @@ as its reduced version :math:`Q`, and even the perturbative tree-level
 prediction. We get all of these as they are enabled in the ``bispec_select``
 parameter.
 
-For the first bispectrum plot at :math:`a = a_{\text{begin}}`, the :math:`B`
-line is mostly dashed. Dashed lines are used for negative values, which
-usually indicate that the bispectrum signal present in the simulation is too
-small compared to the noise. Indeed, the later plots show :math:`B` as a full
-line, indicating positive, proper values.
+For the first bispectrum plot at :math:`a = a_{\text{begin}}`, the coloured
+simulation :math:`B` line is mostly dashed, indicating negative values, which
+usually means that the bispectrum signal present in the simulation is too
+small compared to the noise. Indeed, the later plots show the simulation
+:math:`B` as a full line, indicating positive, proper values.
 
 The bispectrum data files are very analogous to the power spectrum files,
 though the number of columns contained within them is usually much greater.
@@ -187,7 +194,7 @@ resolution given in ``'terminal resolution'``. The terminal image is then
 displayed using one character slot per grid cell, i.e. the terminal render
 will be ``'terminal resolution'`` (80) characters wide. Since the terminal
 render is constructed from the original 2D render, this does not show more
-details even though the resolution is higher (80 vs. 64).
+detail even though the resolution is higher (80 vs. 64).
 
 Also available through ``render2D_options`` is the colormap to use.
 
