@@ -81,12 +81,15 @@ def plot_powerspec(declaration, filename):
     if not filename.endswith('.png'):
         filename += '.png'
     # Extract variables
-    components    = declaration.components
-    k_bin_centers = asarray(declaration.k_bin_centers)
-    power         = asarray(declaration.power)
-    power_linear  = declaration.power_linear
+    components             = declaration.components
+    k_bin_centers          = asarray(declaration.k_bin_centers)
+    power                  = asarray(declaration.power)
+    power_linear           = declaration.power_linear
+    power_linear_imprinted = declaration.power_linear_imprinted
     if power_linear is not None:
         power_linear = asarray(power_linear)
+    if power_linear_imprinted is not None:
+        power_linear_imprinted = asarray(power_linear_imprinted)
     # Begin progress message
     if len(components) == 1:
         components_str = components[0].name
@@ -105,8 +108,12 @@ def plot_powerspec(declaration, filename):
     else:
         # The odd case of no power at all
         ax.semilogx(k_bin_centers, power, '-', label=label)
-    # Also plot linear CLASS power spectra, if specified
-    if power_linear is not None:
+    # Also plot linear power spectra, if specified
+    def plot_linear(power, linestyle, label_attrs=None):
+        if label_attrs is None:
+            label_attrs = []
+        else:
+            label_attrs = any2list(label_attrs)
         gauge = collections.Counter(
             [component.realization_options['gauge'] for component in components]
         ).most_common(1)[0][0]
@@ -115,21 +122,31 @@ def plot_powerspec(declaration, filename):
             'synchronous': r'synchronous',
             'newtonian'  : r'Newtonian',
         }.get(gauge, gauge)
+        label_attrs.append(f'{gauge} gauge')
         backscale = collections.Counter(
             [component.realization_options['backscale'] for component in components]
         ).most_common(1)[0][0]
-        backscale_str = ', back-scaled'*backscale
-        label_linear = f'linear ({gauge} gauge{backscale_str})'
+        if backscale:
+            label_attrs.append('back-scaled')
+        label = 'linear'
+        if label_attrs:
+            label += ' ({})'.format(', '.join(label_attrs))
         ylim = ax.get_ylim()
-        if np.any(power_linear) and np.any(~np.isnan(power_linear)):
-            ax.loglog(k_bin_centers, power_linear, 'k--', label=label_linear)
+        if np.any(power) and np.any(~np.isnan(power)):
+            ax.loglog(k_bin_centers, power, f'k{linestyle}', label=label)
         else:
             # The odd case of no power at all
-            ax.semilogx(k_bin_centers, power_linear, 'k--', label=label_linear)
-        # Labels are only needed when both the non-linear (simulation)
-        # and linear spectrum are plotted.
-        ax.legend(fontsize=14)
+            ax.semilogx(k_bin_centers, power, f'k{linestyle}', label=label)
         ax.set_ylim(ylim)
+    nlines = 1
+    if power_linear is not None:
+        nlines += 1
+        plot_linear(power_linear, '--')
+    if power_linear_imprinted is not None:
+        nlines += 1
+        plot_linear(power_linear_imprinted, ':', 'imprinted')
+    if nlines > 1:
+        ax.legend(fontsize=14)
     ax.set_xlim(k_bin_centers[0], k_bin_centers[-1])
     # Finishing touches
     ax.set_xlabel(rf'$k$ $[\mathrm{{{unit_length}}}^{{-1}}]$', fontsize=14)
@@ -326,6 +343,8 @@ def plot_bispec(declaration, filename):
         }
         plt.close(fig_tmp)
         for key, val in ticks.items():
+            if not val:
+                continue
             ticks[key] = correct_float(np.concatenate(([1e-1*val[0]], val, [1e+1*val[-1]])))
         return ticks
     def log_tick_formatter(val, pos=None):
@@ -447,7 +466,7 @@ def plot_bispec(declaration, filename):
                 np.mean(bpower),
                 bpower[1],
             ])
-            if do_reduced:
+            if bpower_reduced is not None:
                 bpower_reduced = asarray([
                     bpower_reduced[0],
                     np.mean(bpower_reduced),
@@ -468,7 +487,12 @@ def plot_bispec(declaration, filename):
             xdata_treelevel, ydata_treelevel = (
                 bins_data_treelevel[dimensions[0]], bins_data_treelevel[dimensions[1]],
             )
-            xdata_treelevel, ydata_treelevel, bpower_treelevel, bpower_reduced_treelevel = ensuretri(
+            (
+                xdata_treelevel,
+                ydata_treelevel,
+                bpower_treelevel,
+                bpower_reduced_treelevel,
+            ) = ensuretri(
                 xdata_treelevel, ydata_treelevel, bpower_treelevel,
                 (bpower_reduced_treelevel if do_reduced else None),
             )

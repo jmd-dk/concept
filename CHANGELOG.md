@@ -23,6 +23,7 @@
   - Novel anti-aliasing for bispectrum shells.
   - Perturbation theory (tree-level) predictions.
 - Particle **IDs**.
+- Linear power spectra **imprinted** with realisation noise.
 - Improved and generalized 3D renders.
 - Interlacing is now implemented through the new lattice system, meaning that
   we can now use either BCC (standard) or FCC interlacing. For potentials,

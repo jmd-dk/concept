@@ -359,7 +359,6 @@ gauges_used = collections.defaultdict(set)
     value='double',
     w='double',
     w_eff='double',
-    δ_min='double',
     ϱ_bar='double',
     ϱ_ptr='double*',
     ςⁱⱼ_ptr='double*',
@@ -397,22 +396,13 @@ def realize_fluid(component, a, a_next, variable, multi_index, use_gridˣ=False)
     if variable == 0:
         ϱ_ptr = ptr
         # δ → ϱ = ϱ_bar(1 + δ)
-        δ_min = ထ
         for index in range(component.size):
             value = ϱ_ptr[index]
-            if value < δ_min:
-                δ_min = ℝ[ϱ_ptr[index]]
             with unswitch:
                 if nongaussianity:
                     # Add non-Gaussian contribution: δ → δ + f_NL*δ²
                     value += nongaussianity*value**2
             ϱ_ptr[index] = ϱ_bar*(1 + value)
-        δ_min = allreduce(δ_min, op=MPI.MIN)
-        if δ_min < -1:
-            masterwarn(
-                f'The realised energy density field of {component.name} '
-                f'has min(δ) = {δ_min:.4g} < -1'
-            )
     elif variable == 1:
         # Note that the momentum grids are currently unaffected
         # by the non-Gaussianity.

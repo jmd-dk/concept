@@ -505,7 +505,7 @@ np.lib   .npyio.asunicode = asstr
 #   - Ensures that we use the agg back-end.
 #   - Sets some custom preferences.
 #   - Ensure that I/O exceptions trigger abort
-#   - Patches a bug.
+#   - Patches bugs.
 def get_matplotlib():
     if matplotlib_cache:
         return matplotlib_cache[0]
@@ -580,7 +580,7 @@ def get_matplotlib():
             # which we do not want to display.
             with warnings.catch_warnings(action='ignore', category=UserWarning):
                 fix_minor_tick_labels(fig)
-                func(*args, **kwargs)
+                return func(*args, **kwargs)
         return wrapper
     patch_matplotlib(
         ['plt', 'matplotlib.figure.Figure'],
@@ -617,12 +617,24 @@ def get_matplotlib():
             if len(args) > 0 and isinstance(args[0], matplotlib.figure.Figure):
                 fig = args[0]
             ensure_finite_bbox(fig)
-            func(*args, **kwargs)
+            return func(*args, **kwargs)
         return wrapper
     patch_matplotlib(
         ['plt', 'matplotlib.figure.Figure'],
         ['draw'],
         ensure_finite_bbox_decorator,
+    )
+    # Suppress RuntimeWarning's from triangulations
+    def suppress_runtime_warning(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            with warnings.catch_warnings(action='ignore', category=RuntimeWarning):
+                return func(*args, **kwargs)
+        return wrapper
+    patch_matplotlib(
+        ['plt.Axes', 'matplotlib.tri'],
+        ['tricontour', 'tricontourf', 'tripcolor', 'triplot'],
+        suppress_runtime_warning,
     )
     # Add the matplotlib module to the global store for future lookups
     matplotlib_cache.append(matplotlib)
@@ -2595,20 +2607,41 @@ if 'powerspec_select' in user_params:
         powerspec_select = user_params['powerspec_select']
     else:
         powerspec_select = {'default': user_params['powerspec_select']}
-    powerspec_select.setdefault('default', {'data': False, 'linear': False, 'plot': False})
+    for key, val in powerspec_select.copy().items():
+        if not isinstance(val, dict):
+            continue
+        powerspec_select[key] = {
+            key2.replace(' ', '').replace('-', '').replace('_', ''): val2
+            for key2, val2 in val.items()
+        }
+    powerspec_select.setdefault(
+        'default',
+        {
+            'data': False,
+            'linear': False,
+            'linearimprinted': False,
+            'plot': False,
+        },
+    )
 else:
     powerspec_select = {
-        'default': {'data': True, 'linear': True, 'plot': True},
+        'default': {
+            'data': True,
+            'linear': True,
+            'linearimprinted': False,
+            'plot': True,
+        },
     }
 replace_ellipsis(powerspec_select)
 for key, val in powerspec_select.copy().items():
     if isinstance(val, dict):
         val.setdefault('data', False)
         val.setdefault('linear', False)
+        val.setdefault('linearimprinted', False)
         val.setdefault('plot', False)
         unknown = ', '.join([
             f'"{do}"'
-            for do in set(val.keys()) - {'data', 'linear', 'plot'}
+            for do in set(val.keys()) - {'data', 'linear', 'linearimprinted', 'plot'}
         ])
         if unknown:
             abort(f'Unknown selections in powerspec_select["{key}"]: {unknown}')
@@ -2616,6 +2649,7 @@ for key, val in powerspec_select.copy().items():
         powerspec_select[key] = {
             'data': bool(val),
             'linear': bool(val),
+            'linearimprinted': bool(val),
             'plot': bool(val),
         }
 user_params['powerspec_select'] = powerspec_select
@@ -2632,11 +2666,21 @@ if 'bispec_select' in user_params:
             for key2, val2 in val.items()
         }
     bispec_select.setdefault(
-        'default', {'data': False, 'reduced': False, 'treelevel': False, 'plot': False},
+        'default', {
+            'data': False,
+            'reduced': False,
+            'treelevel': False,
+            'plot': False,
+        },
     )
 else:
     bispec_select = {
-        'default': {'data': True, 'reduced': True, 'treelevel': True, 'plot': True},
+        'default': {
+            'data': True,
+            'reduced': True,
+            'treelevel': True,
+            'plot': True,
+        },
     }
 replace_ellipsis(bispec_select)
 for key, val in bispec_select.copy().items():
@@ -2647,7 +2691,9 @@ for key, val in bispec_select.copy().items():
         val.setdefault('plot', False)
         unknown = ', '.join([
             f'"{do}"'
-            for do in set(val.keys()) - {'data', 'reduced', 'treelevel', 'plot'}
+            for do in set(val.keys()) - {
+                'data', 'reduced', 'treelevel', 'plot',
+            }
         ])
         if unknown:
             abort(f'Unknown selections in bispec_select["{key}"]: {unknown}')
@@ -2671,10 +2717,21 @@ if 'render2D_select' in user_params:
             key2.replace(' ', '').replace('-', '').replace('_', ''): val2
             for key2, val2 in val.items()
         }
-    render2D_select.setdefault('default', {'data': False, 'image': False, 'terminalimage': False})
+    render2D_select.setdefault(
+        'default',
+        {
+            'data': False,
+            'image': False,
+            'terminalimage': False,
+        },
+    )
 else:
     render2D_select = {
-        'default': {'data': True, 'image': True, 'terminalimage': True},
+        'default': {
+            'data': True,
+            'image': True,
+            'terminalimage': True,
+        },
     }
 replace_ellipsis(render2D_select)
 for key, val in render2D_select.copy().items():
@@ -4303,6 +4360,7 @@ output_times = {
 if not enable_class_background:
     for d in powerspec_select.values():
         d['linear'] = False
+        d['linearimprinted'] = False
     for d in bispec_select.values():
         d['treelevel'] = False
 # The number of ghost point layers around the domain grids (so that the

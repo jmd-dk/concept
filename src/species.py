@@ -1370,10 +1370,12 @@ class Component:
             'render2D' : render2D_options,
             'render3D' : render3D_options,
         }.items():
-            upstream_gridsize = is_selected(
-                self, options['upstream gridsize'],
-                default=-1,
-            )
+            upstream_gridsize = -1
+            if self.name:
+                upstream_gridsize = is_selected(
+                    self, options['upstream gridsize'],
+                    default=upstream_gridsize,
+                )
             if upstream_gridsize == -1:
                 if self.representation == 'fluid':
                     upstream_gridsize = 'gridsize'

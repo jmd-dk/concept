@@ -215,9 +215,9 @@ which of the three power spectra to trust, if any.
 Though inadequate for precision simulations, the PM method remains a valuable
 tool due to its unprecedented efficiency, as sometimes the benefits of rapid
 simulations outweigh the drawbacks from the loss of precision. Also, as we
-shall :doc:`delve into later <beyond_matter_only>`, PM gravity is as accurate
-as can be for fluid (i.e. non-particle) components, used to model species
-different from matter.
+shall :ref:`delve into later <nonlinear_massive_neutrinos>`, PM gravity is as
+accurate as can be for fluid (i.e. non-particle) components, used to model
+species different from matter.
 
 
 
@@ -254,8 +254,8 @@ short-range part is by far the most time-consuming.
 
 Once completed, add the P³M (D) result to the comparison plot by rerunning
 :ref:`plot.py <plot-gravity>`. You will see that P³M lies somewhere in-between
-B and C at intermediary scales, while having more power than any of the PM's
-at the smallest scales.
+B and C at intermediary scales, while having more power than any of the PM
+ones at the smallest scales.
 
 As before, let's now double the grid size, and perform a final simulation, E.
 You will find that this time, the P³M simulation isn't nearly as slow, as

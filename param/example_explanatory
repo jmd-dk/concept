@@ -81,20 +81,52 @@ snapshot_select = {  # Select which components to save to and load from snapshot
     },
 }
 powerspec_select = {  # Toggle power spectra computation for individual and sets of components
-    'all'             : {'data': True, 'linear': True, 'plot': True},
-    'all combinations': {'data': True, 'linear': True, 'plot': False},
+    'all': {
+        'data'            : True,
+        'linear'          : True,
+        'linear imprinted': True,
+        'plot'            : True,
+    },
+    'all combinations': {
+        'data'            : True,
+        'linear'          : True,
+        'linear imprinted': False,
+        'plot'            : False,
+    },
 }
 bispec_select = {  # Toggle bispectra computation for individual and sets of components
-    'all'             : {'data': True, 'reduced': True, 'tree-level': True, 'plot': True},
-    'all combinations': {'data': True, 'reduced': True, 'tree-level': True, 'plot': False},
+    'all': {
+        'data'                : True,
+        'reduced'             : True,
+        'tree-level'          : True,
+        'plot'                : True,
+    },
+    'all combinations': {
+        'data'                : True,
+        'reduced'             : True,
+        'tree-level'          : True,
+        'plot'                : False,
+    },
 }
 render2D_select = {  # Toggle 2D rendering for individual and sets of components
-    'matter'  : {'data': False, 'image': True,  'terminal image': True},
-    'neutrino': {'data': False, 'image': False, 'terminal image': False},
+    'matter': {
+        'data'          : False,
+        'image'         : True,
+        'terminal image': True,
+    },
+    'neutrino': {
+        'data'          : False,
+        'image'         : False,
+        'terminal image': False,
+    },
 }
 render3D_select = {  # Toggle 3D rendering for individual and sets of components
-    'all'             : {'image': True},
-    'all combinations': {'image': True},
+    'all': {
+        'image': True,
+    },
+    'all combinations': {
+        'image': True,
+    },
 }
 snapshot_type = 'concept'  # Type of output snapshots
 gadget_snapshot_params = {  # Specifications for output GADGET snapshots

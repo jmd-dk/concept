@@ -2960,41 +2960,10 @@ def get_linear_powerspec(component_or_components, k_magnitudes, power=None, a=-1
         components = [component_or_components]
     if a == -1:
         a = universals.a
-    # Determine gauge
-    gauges = collections.Counter(
-        [component.realization_options['gauge'] for component in components]
-    )
-    gauge = gauges.most_common(1)[0][0]
-    if len(gauges) > 1:
-        masterwarn(
-            f'get_linear_powerspec() called with components {{'
-            + ', '.join([component.name for component in components])
-            + f'}} with gauges {set(gauges.keys())}. The {gauge} gauge will be used.'
-        )
-    # Determine whether to use back-scaling
-    backscales = collections.Counter(
-        [component.realization_options['backscale'] for component in components]
-    )
-    backscale = backscales.most_common(1)[0][0]
-    if len(backscales) > 1:
-        backscale = False
-        masterwarn(
-            f'get_linear_powerspec() called with components {{'
-            + ', '.join([component.name for component in components])
-            + f'}}, some of which makes use of back-scaling and some of which do not. '
-            + f'Here back-scaling will not be used.'
-        )
-    # Instantiate fake component with the species defined
-    # as the sum of all species of the passed components.
-    component = components[0]
-    linear_component = type(component)(
-        '',
-        '+'.join([component.species for component in components]),
-        gridsize=2,
-        boltzmann_order=-1,
-        boltzmann_closure='class',
-    )
-    linear_component.name = 'linear power spectrum'
+    # Get fake component used for the linear power spectrum
+    linear_component = get_linear_component(components)
+    gauge = linear_component.realization_options['gauge']
+    backscale = linear_component.realization_options['backscale']
     # Get grid size for linear perturbation computation.
     # If class_dedicated_spectra is False, we will try to reuse any
     # existing CosmoResults object in an attempt to not rerun CLASS,
@@ -3073,6 +3042,9 @@ def get_linear_powerspec(component_or_components, k_magnitudes, power=None, a=-1
     k_magnitudes_arr=object,  # np.ndarray
     k_magnitudes_ptr='double*',
     power='double[::1]',
+    power_0='double',
+    power_1='double',
+    power_2='double',
     power_ptr='double*',
     size='Py_ssize_t',
     value='double',
@@ -3186,6 +3158,46 @@ def get_treelevel_bispec(
 def get_matter_bispec_kernel(k0, k1, k2, α=2./7.):
     x = (k2**2 - k1**2 - k0**2)/(k0*k1)
     return (1 - α) + 0.25*x*((k0/k1 + k1/k0) + α*x)
+
+# Function for retrieving a "linear component", meaning a component
+# meant for doing linear power spectrum calculations,
+# with attributes inherited from the passed component(s).
+def get_linear_component(component_or_components, gridsize=2):
+    if isinstance(component_or_components, list):
+        components = component_or_components
+    else:
+        components = [component_or_components]
+    # Instantiate fake component with the species defined
+    # as the sum of all species of the passed components.
+    component = components[0]
+    linear_component = type(component)(
+        '',
+        '+'.join([component.species for component in components]),
+        gridsize=gridsize,
+        boltzmann_order=-1,
+        boltzmann_closure='class',
+    )
+    linear_component.name = 'linear power spectrum'
+    # Determine realization options
+    def most_common(option, default=None):
+        values = collections.Counter(
+            [component.realization_options[option] for component in components]
+        )
+        value = values.most_common(1)[0][0]
+        if len(values) > 1:
+            if default is not None:
+                value = default
+            masterwarn(
+                f'get_linear_component() called with components {{'
+                + ', '.join([component.name for component in components])
+                + f'}} with {option} ∈ {set(values.keys())}. Will use {option} = {value}.'
+            )
+        return value
+    linear_component.realization_options['gauge']          = most_common('gauge')
+    linear_component.realization_options['backscale']      = most_common('backscale', False)
+    linear_component.realization_options['nongaussianity'] = most_common('nongaussianity')
+    linear_component.realization_options['structure']      = 'primordial'
+    return linear_component
 
 # The primordial curvature perturbation ζ(k),
 # parametrised by parameters in the primordial_spectrum dict.
