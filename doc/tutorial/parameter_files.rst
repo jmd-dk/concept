@@ -8,10 +8,10 @@ text file.
    The ``param`` directory is meant as a dedicated place to store your
    parameter files. It comes with a few example parameter files included.
 
-Copy the content below to a file named e.g. ``param/tutorial``:
+Copy the content below to a file named e.g. ``param/tutorial-3``:
 
 .. code-block:: python3
-   :caption: param/tutorial
+   :caption: param/tutorial-3
    :name: param-parameter-files
 
    # Non-parameter helper variable used to control the size of the simulation
@@ -44,7 +44,7 @@ To run CO\ *N*\ CEPT using this parameter file, do
 .. code-block:: bash
 
    ./concept \
-       -p param/tutorial \
+       -p param/tutorial-3 \
        -n 4
 
 The simulation specified by the above parameters is quite similar to the
@@ -79,10 +79,10 @@ specifications. In doing so, we've made use of several helpful tricks:
   ``output_dir`` in the ``.path`` file, which will be
   ``'/path/to/concept/output'``. When used as is, the ``param`` variable
   maps to the file name of the parameter file in which it is used, in this
-  case ``'tutorial'``. In total, the power spectrum output directory then gets
-  set to ``'/path/to/concept/output/tutorial'``. We could have gotten away
-  with just writing ``'output/tutorial'`` out statically. Such relative paths
-  in parameter files should be given with respect to the
+  case ``'tutorial-3'``. In total, the power spectrum output directory then
+  gets set to ``'/path/to/concept/output/tutorial-3'``. We could have gotten
+  away with just writing ``'output/tutorial-3'`` out statically. Such relative
+  paths in parameter files should be given with respect to the
   installation directory.
 
 * We've specified multiple times at which to dump power spectra in
@@ -121,7 +121,7 @@ code:
 .. code-block:: bash
 
    ./concept \
-       -p param/tutorial \
+       -p param/tutorial-3 \
        -c "_size = 64" \
        -n 4
 

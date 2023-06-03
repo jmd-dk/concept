@@ -5,7 +5,7 @@ other types of output are available, as exemplified by the below parameter
 file:
 
 .. code-block:: python3
-   :caption: param/tutorial
+   :caption: param/tutorial-5
    :name: param-output-types
    :emphasize-lines: 10, 12-14, 17, 19-21, 23-34, 46-68
 
@@ -79,12 +79,12 @@ file:
    }
 
 Run a simulation using the :ref:`above <param-output-types>` parameters, e.g.
-by saving them to ``param/tutorial`` and executing
+by saving them to ``param/tutorial-5`` and executing
 
 .. code-block:: bash
 
    ./concept \
-       -p param/tutorial \
+       -p param/tutorial-5 \
        -n 4
 
 This will take a few minutes. You may read along in the meantime.
@@ -134,11 +134,11 @@ though the number of columns contained within them is usually much greater.
 
 .. tip::
    One way to comfortably view wide text files (e.g.
-   ``output/tutorial/bispec_a=1.00``) in the terminal is to use
+   ``output/tutorial-5/bispec_a=1.00``) in the terminal is to use
 
    .. code-block:: python3
 
-      less -S output/tutorial/bispec_a=1.00
+      less -S output/tutorial-5/bispec_a=1.00
 
    You can then scroll both horizontally and vertically with the arrow keys.
    Press ``Q`` to quit.
@@ -213,7 +213,7 @@ know its job ID.
 
    .. code-block:: bash
 
-      grep -o "job [0-9]*" output/tutorial/powerspec_a=1.00
+      grep -o "job [0-9]*" output/tutorial-5/powerspec_a=1.00
 
 With the job ID at hand, try the following:
 
@@ -335,7 +335,7 @@ achieve both without even altering the parameter file:
 .. code-block:: python3
 
    ./concept \
-       -p param/tutorial \
+       -p param/tutorial-5 \
        -c "output_times = {'snapshot': a_begin}" \
        -c "output_dirs = {'snapshot': path.ic_dir}" \
        -n 4
@@ -363,10 +363,9 @@ simply do
 
 .. code-block:: bash
 
-   ./concept -u info output/tutorial
+   ./concept -u info output/tutorial-5
 
 or
-
 
 .. code-block:: bash
 

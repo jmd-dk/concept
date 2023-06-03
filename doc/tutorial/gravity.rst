@@ -12,7 +12,7 @@ some sample simulations. The parameter specifications below are very similar
 to the ones encountered in the previous section.
 
 .. code-block:: python3
-   :caption: param/tutorial
+   :caption: param/tutorial-4
    :name: param-gravity
    :emphasize-lines: 12-14, 29-32
 
@@ -49,22 +49,7 @@ to the ones encountered in the previous section.
        'matter': {'gravity': 'pm'},
    }
 
-Save these parameters to e.g. ``param/tutorial``.
-
-.. tip::
-   If the file ``param/tutorial`` already exists due to previous tutorial
-   work, you may safely overwrite the old content. Similarly, it's best to
-   clean up (or remove entirely) the ``output/tutorial`` directory before
-   continuing. If you wish to keep the old content, you can do e.g.
-
-   .. code-block:: bash
-
-      mv output/tutorial output/tutorial_3
-
-   If you wish to store the outputs of each tutorial section separately, you
-   can also name the parameter file(s) something more imaginative than just
-   '``tutorial``'. The output directories are set up to reflect the parameter
-   file name.
+Save these parameters to e.g. ``param/tutorial-4``.
 
 Now run a simulation using the :ref:`tutorial <param-gravity>` parameter file
 by executing
@@ -72,7 +57,7 @@ by executing
 .. code-block:: bash
 
    ./concept \
-       -p param/tutorial \
+       -p param/tutorial-4 \
        -c "_sim = 'A'"
 
 and optionally specifying whatever number of processes you'd like with the
@@ -85,9 +70,9 @@ simulations without having their outputs overwrite each other, by supplying
 different values for ``_sim``.
 
 The result of the simulation will be a data file
-``output/tutorial/powerspec_A_a=1.00`` of the matter power spectrum at
+``output/tutorial-4/powerspec_A_a=1.00`` of the matter power spectrum at
 :math:`a = 1`, along with the corresponding plot
-``output/tutorial/powerspec_A_a=1.00.png``.
+``output/tutorial-4/powerspec_A_a=1.00.png``.
 
 
 
@@ -112,12 +97,12 @@ To try this out, update ``potential_options`` to
 
    potential_options = 2*_size
 
-in ``param/tutorial`` and run a new simulation, this time using
+in ``param/tutorial-4`` and run a new simulation, this time using
 
 .. code-block:: bash
 
    ./concept \
-       -p param/tutorial \
+       -p param/tutorial-4 \
        -c "_sim = 'B'"
 
 Visually comparing ``powerspec_A_a=1.00.png`` to ``powerspec_B_a=1.00.png``,
@@ -130,12 +115,12 @@ the grid size, i.e. switch to using
 
    potential_options = 3*_size
 
-in ``param/tutorial`` and execute
+in ``param/tutorial-4`` and execute
 
 .. code-block:: bash
 
    ./concept \
-       -p param/tutorial \
+       -p param/tutorial-4 \
        -c "_sim = 'C'"
 
 Properly comparing the three individual output plots is not so easy. To better
@@ -145,7 +130,7 @@ your favourite plotting tool, or --- for your convenience --- using the
 script below:
 
 .. code-block:: python3
-   :caption: output/tutorial/plot.py
+   :caption: output/tutorial-4/plot.py
    :name: plot-gravity
 
    import glob, os, re
@@ -193,12 +178,12 @@ script below:
 
 Do not feel bad about using this plotting script --- and others to come later
 on in the tutorial --- without studying it in any detail. To run the script,
-save the :ref:`above code <plot-gravity>` to a file in the ``output/tutorial``
-directory, say ``output/tutorial/plot.py``, then do
+save the :ref:`above code <plot-gravity>` to a file in the
+``output/tutorial-4`` directory, say ``output/tutorial-4/plot.py``, then do
 
 .. code-block:: bash
 
-   ./concept -m output/tutorial/plot.py
+   ./concept -m output/tutorial-4/plot.py
 
 .. note::
    The ``-m`` command-line option redirects ``concept`` to run the specified
@@ -207,10 +192,11 @@ directory, say ``output/tutorial/plot.py``, then do
    directly, but using ``./concept -m`` we are guaranteed that the environment
    is set up correctly, according to the CO\ *N*\ CEPT installation.
 
-The script will produce the output ``output/tutorial/plot.png``. Investigating
-this comparison plot, we see that in fact simulation B --- the one with the
-"in-between" potential grid size --- has the most power. It's then unclear
-which of the three power spectra to trust, if any.
+The script will produce the output ``output/tutorial-4/plot.png``.
+Investigating this comparison plot, we see that in fact simulation
+B --- the one with the "in-between" potential grid size --- has the
+most power. It's then unclear which of the three power spectra to trust,
+if any.
 
 Though inadequate for precision simulations, the PM method remains a valuable
 tool due to its unprecedented efficiency, as sometimes the benefits of rapid

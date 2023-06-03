@@ -53,7 +53,7 @@ We begin our exploration by performing a standard matter-only simulation, as
 specified by the below parameter file:
 
 .. code-block:: python3
-   :caption: param/tutorial :math:`\,` (radiation)
+   :caption: param/tutorial-7.1 :math:`\,` (radiation)
    :name: param-radiation
    :emphasize-lines: 12-22, 36-43, 53
 
@@ -111,20 +111,12 @@ specified by the below parameter file:
    # Should be supplied as a command-line parameter.
    _lin = ''
 
-As usual, save the parameters as e.g. ``param/tutorial``.
-
-.. note::
-   Before running simulations, it's best to ensure that the output directory
-   (``output/tutorial``) is empty (or non-existent), so that old output does
-   not get mixed in with the new. The various plotting scripts of this
-   tutorial may not function correctly if run from a directory containing
-   "old" output.
-
-With a clean ``output/tutorial`` directory, run the simulation:
+As usual, save the parameters as e.g. ``param/tutorial-7.1``, then run the
+simulation:
 
 .. code-block:: bash
 
-   ./concept -p param/tutorial
+   ./concept -p param/tutorial-7.1
 
 possibly with the addition of ``-n 4`` or some other number of processes.
 
@@ -158,9 +150,9 @@ The unfamiliar parameter specifications will be explained in due time.
 
    <h3>The hunt for high precision</h3>
 
-Investigating the resulting ``output/tutorial/powerspec_lin=_a=0.02.png`` you
-should see a familiar looking simulation power spectrum: decently looking at
-intermediary :math:`k`, inaccurate at small :math:`k` and with obvious
+Investigating the resulting ``output/tutorial-7.1/powerspec_lin=_a=0.02.png``
+you should see a familiar looking simulation power spectrum: decently looking
+at intermediary :math:`k`, inaccurate at small :math:`k` and with obvious
 numerical artefacts at large :math:`k`. As we are interested in fine details
 at low :math:`k`, we need to improve the precision here. We can do so by
 adding
@@ -186,7 +178,7 @@ simulation. To better see this difference, we shall make use of the below
 plotting script:
 
 .. code-block:: python3
-   :caption: output/tutorial/plot.py :math:`\,` (radiation)
+   :caption: output/tutorial-7.1/plot.py :math:`\,` (radiation)
    :name: plot-radiation
 
    import glob, os, re
@@ -268,18 +260,19 @@ plotting script:
    fig.subplots_adjust(hspace=0)
    fig.savefig(f'{this_dir}/plot.png', dpi=150)
 
-Save the script as e.g. ``output/tutorial/plot.py`` and run it using
+Save the script as e.g. ``output/tutorial-7.1/plot.py`` and run it using
 
 .. code-block:: bash
 
-   ./concept -m output/tutorial/plot.py
+   ./concept -m output/tutorial-7.1/plot.py
 
-This will produce ``output/tutorial/plot.png``, where the bottom panel shows
-the relative error between the simulated power spectrum and that computed
-using purely linear theory. They should agree to within a percent at the
-lowest :math:`k`. At higher :math:`k` the agreement is worse. Though this can
-be remedied by increasing the resolution of the simulation (e.g. by increasing
-``_size``), we shall not do so here, as we focus on the lower :math:`k` only.
+This will produce ``output/tutorial-7.1/plot.png``, where the bottom panel
+shows the relative error between the simulated power spectrum and that
+computed using purely linear theory. They should agree to within a percent at
+the lowest :math:`k`. At higher :math:`k` the agreement is worse. Though this
+can be remedied by increasing the resolution of the simulation (e.g. by
+increasing ``_size``), we shall not do so here, as we focus on the lower
+:math:`k` only.
 
 The power spectra outputted by the simulation are binned logarithmically in
 :math:`k`. This is usually desirable, though higher precision at the lowest
@@ -307,7 +300,7 @@ observe better agreement with linear theory at low :math:`k`.
 With our high-precision setup established, we are ready to start experimenting
 with adding in the missing species to the simulation, hopefully leading to
 better agreement with linear theory on the largest scales. To keep the clutter
-within ``output/tutorial`` to a minimum, go ahead and add
+within ``output/tutorial-7.1`` to a minimum, go ahead and add
 
 .. code-block:: python3
 
@@ -403,7 +396,7 @@ with the inclusion of linear photons, run
 .. code-block:: bash
 
    ./concept \
-       -p param/tutorial \
+       -p param/tutorial-7.1 \
        -c "_lin = 'photon'"
 
 .. tip::
@@ -429,7 +422,7 @@ which includes both linear photons and linear massless neutrinos:
 .. code-block:: bash
 
    ./concept \
-       -p param/tutorial \
+       -p param/tutorial-7.1 \
        -c "_lin = 'photon, massless neutrino'"
 
 Redoing the plot, we discover that including the neutrinos made the
@@ -469,7 +462,7 @@ photons and neutrinos in their entirety, run
 .. code-block:: bash
 
    ./concept \
-       -p param/tutorial \
+       -p param/tutorial-7.1 \
        -c "_lin = 'photon, massless neutrino, metric'"
 
 Re-plotting, you should see a much better behaved simulation power spectrum at
@@ -509,7 +502,7 @@ specify this directly at the command-line using
 .. code-block:: bash
 
    ./concept \
-       -p param/tutorial \
+       -p param/tutorial-7.1 \
        -c "_lin = 'photon + massless neutrino + metric'"
 
 This idea of combining species is embraced fully by CO\ *N*\ CEPT. As such,
@@ -519,7 +512,7 @@ simply as ``'radiation'``. Thus,
 .. code-block:: bash
 
    ./concept \
-       -p param/tutorial \
+       -p param/tutorial-7.1 \
        -c "_lin = 'radiation + metric'"
 
 works just as well. You are encouraged to run at least one of the above and
@@ -560,7 +553,7 @@ necessary linear corrections;
 .. code-block:: bash
 
    ./concept \
-       -p param/tutorial \
+       -p param/tutorial-7.1 \
        -c "_lin = 'radiation + metric'"
 
 After updating the plot yet again, you should find that you are able to obtain
@@ -607,12 +600,12 @@ fact that neutrinos do have some mass, we shall make use of the below
 parameter file:
 
 .. code-block:: python3
-   :caption: param/tutorial :math:`\,` (massive neutrinos)
+   :caption: param/tutorial-7.2 :math:`\,` (massive neutrinos)
    :name: param-massive-neutrinos
    :emphasize-lines: 50, 52-59, 63
 
    # Non-parameter helper variable used to control the size of the simulation
-   _size = 128
+   _size = 80
 
    # Input/output
    initial_conditions = [
@@ -648,7 +641,7 @@ parameter file:
    }
 
    # Numerics
-   boxsize = 2*Gpc
+   boxsize = 1.4*Gpc
    potential_options = {
        'gridsize': {
            'gravity': {
@@ -676,12 +669,12 @@ parameter file:
    _mass = 0   # sum of neutrino masses in eV
    _lin  = ''  # linear species to include
 
-You may want to save this as e.g. ``param/tutorial`` and get a simulation
+You may want to save this as e.g. ``param/tutorial-7.2`` and get a simulation
 going --- of course using
 
 .. code-block:: bash
 
-    ./concept -p param/tutorial
+    ./concept -p param/tutorial-7.2
 
 --- while you read on.
 
@@ -746,14 +739,14 @@ neutrinos of zero mass --- is done, run a simulation with e.g.
 .. code-block:: bash
 
     ./concept \
-       -p param/tutorial \
+       -p param/tutorial-7.2 \
        -c "_mass = 0.1"
 
 With both simulations done, we can plot their relative power spectrum. To do
 this, you should make use of the following script:
 
 .. code-block:: python3
-   :caption: output/tutorial/plot.py :math:`\,` (massive neutrinos)
+   :caption: output/tutorial-7.2/plot.py :math:`\,` (massive neutrinos)
    :name: plot-massive-neutrinos
 
    import glob, os, re
@@ -803,14 +796,14 @@ this, you should make use of the following script:
    fig.tight_layout()
    fig.savefig(f'{this_dir}/plot.png', dpi=150)
 
-As usual, to run the script, save it as e.g. ``output/tutorial/plot.py`` and
-invoke
+As usual, to run the script, save it as e.g. ``output/tutorial-7.2/plot.py``
+and invoke
 
 .. code-block:: bash
 
-   ./concept -m output/tutorial/plot.py
+   ./concept -m output/tutorial-7.2/plot.py
 
-The resulting ``output/tutorial/plot.png`` should show that letting the
+The resulting ``output/tutorial-7.2/plot.png`` should show that letting the
 neutrinos have mass results in a few percent suppression of the matter power
 spectrum. At intermediary :math:`k` the simulation and linear relative power
 spectra agree, whereas they do not for the smallest and largest :math:`k`.
@@ -841,7 +834,7 @@ a Bash for-loop:
 
    for mass in 0 0.1; do
        ./concept \
-           -p param/tutorial \
+           -p param/tutorial-7.2 \
            -c "_mass = $mass" \
            -c "_lin = 'photon + neutrino + metric'"
    done
@@ -857,11 +850,10 @@ small-scale behaviour intact.
    <h3>Tweaking the CLASS computation</h3>
 
 Though better agreement with linear theory is achieved after the inclusion of
-the linear species, the plot also shows that this inclusion leads to a less
-smooth relative spectrum. The added noise stems from the massive neutrinos,
-the evolution of which is not solved perfectly by CLASS. A large set of
-general and massive neutrino specific CLASS precision parameters exist, which
-can remedy this problem.
+the linear species, the relative spectrum is now also more jagged. This added
+noise stems from the massive neutrinos, the evolution of which is not solved
+perfectly by CLASS. A large set of general and massive neutrino specific CLASS
+precision parameters exist, which can remedy this problem.
 
 Here we shall look at just one such CLASS parameter; ``'evolver'``. This sets
 the ODE solver to be used by CLASS, and may be either ``0`` (Runge-Kutta
@@ -965,10 +957,10 @@ total, specifying dynamical dark energy could then look like
 To test the effect on the matter from switching from :math:`\Lambda` to
 dynamical dark energy (here :math:`w_0 = -1\, \rightarrow\, w_0 = -0.7`), we
 shall make use of the following parameter file, which you should save as e.g.
-``param/tutorial``:
+``param/tutorial-7.3``:
 
 .. code-block:: python3
-   :caption: param/tutorial :math:`\,` (dynamical dark energy)
+   :caption: param/tutorial-7.3 :math:`\,` (dynamical dark energy)
    :name: param-dynamical-dark-energy
    :emphasize-lines: 52-60, 63-65, 69
 
@@ -1052,7 +1044,7 @@ Perform a simulation using both types of dark energy using
 
    for de in Lambda dynamical; do
        ./concept \
-           -p param/tutorial \
+           -p param/tutorial-7.3 \
            -c "_de = '$de'"
    done
 
@@ -1090,7 +1082,7 @@ the matter spectrum within a cosmology with a cosmological constant
 we shall make use of the following plotting script:
 
 .. code-block:: python3
-   :caption: output/tutorial/plot.py :math:`\,` (dynamical dark energy)
+   :caption: output/tutorial-7.3/plot.py :math:`\,` (dynamical dark energy)
    :name: plot-dynamical-dark-energy
 
    import glob, os, re
@@ -1147,11 +1139,11 @@ we shall make use of the following plotting script:
    fig.tight_layout()
    fig.savefig(f'{this_dir}/plot.png', dpi=150)
 
-Save this to e.g. ``output/tutorial/plot.py`` and run it using
+Save this to e.g. ``output/tutorial-7.3/plot.py`` and run it using
 
 .. code-block:: bash
 
-   ./concept -m output/tutorial/plot.py
+   ./concept -m output/tutorial-7.3/plot.py
 
 The generated plot should show that the matter power is reduced quite a bit
 when switching to using the dynamical dark energy. At large :math:`k`, we see
@@ -1181,7 +1173,7 @@ including all linear species, do e.g.
        lin="radiation + metric"
        [ $de == dynamical ] && lin+=" + dark energy"
        ./concept \
-           -p param/tutorial \
+           -p param/tutorial-7.3 \
            -c "_de = '$de'" \
            -c "_lin = '$lin'"
    done
@@ -1207,7 +1199,7 @@ including only dark energy as a linear species:
 .. code-block:: bash
 
    ./concept \
-       -p param/tutorial \
+       -p param/tutorial-7.3 \
        -c "_de = 'dynamical'" \
        -c "_lin = 'dark energy'"
 
@@ -1224,7 +1216,7 @@ including the metric as well,
 .. code-block:: bash
 
    ./concept \
-       -p param/tutorial \
+       -p param/tutorial-7.3 \
        -c "_de = 'dynamical'" \
        -c "_lin = 'dark energy + metric'"
 
@@ -1291,10 +1283,10 @@ the fraction of this which is of the decaying kind;
        + \widetilde{\Omega}_{\text{dcdm}}}\, .
 
 Below you'll find a parameter file set up to run simulations with dcdm, which
-you should save as e.g. ``param/tutorial``:
+you should save as e.g. ``param/tutorial-7.4``:
 
 .. code-block:: python3
-   :caption: param/tutorial :math:`\,` (decaying cold dark matter)
+   :caption: param/tutorial-7.4 :math:`\,` (decaying cold dark matter)
    :name: param-decaying-cold-dark-matter
    :emphasize-lines: 4-6, 13-17, 26-27, 30-35, 60, 76, 78-83, 90-94, 102-103
 
@@ -1406,7 +1398,7 @@ Begin by running this without any additional command-line parameters;
 
 .. code-block:: bash
 
-   ./concept -p param/tutorial
+   ./concept -p param/tutorial-7.4
 
 which performs a standard simulation with just stable matter (baryons and cold
 dark matter).
@@ -1427,7 +1419,7 @@ specify ``_frac``:
 .. code-block:: bash
 
    ./concept \
-       -p param/tutorial \
+       -p param/tutorial-7.4 \
        -c "_frac = 0.7"
 
 This new simulation still consists of just a single particle component, now
@@ -1451,7 +1443,7 @@ To plot the usual relative power spectrum, this time between a cosmology with
 and without decaying cold dark matter, make use of the below script:
 
 .. code-block:: python3
-   :caption: output/tutorial/plot.py :math:`\,` (decaying cold dark matter)
+   :caption: output/tutorial-7.4/plot.py :math:`\,` (decaying cold dark matter)
    :name: plot-decaying-cold-dark-matter
 
    import glob, os, re
@@ -1535,11 +1527,11 @@ and without decaying cold dark matter, make use of the below script:
    fig.tight_layout()
    fig.savefig(f'{this_dir}/plot.png', dpi=150)
 
-Save this script as e.g. ``output/tutorial/plot.py`` and run it using
+Save this script as e.g. ``output/tutorial-7.4/plot.py`` and run it using
 
 .. code-block:: bash
 
-   ./concept -m output/tutorial/plot.py
+   ./concept -m output/tutorial-7.4/plot.py
 
 The resulting ``plot.png`` should show prominently the familiar non-linear
 suppression dip on top of an already substantial drop in power due to the
@@ -1560,7 +1552,7 @@ the simulation:
 
    for frac in 0 0.7; do
        ./concept \
-           -p param/tutorial \
+           -p param/tutorial-7.4 \
            -c "_lin = 'photon + neutrino + metric'" \
            -c "_frac = $frac"
    done
@@ -1575,7 +1567,7 @@ radiation, of course only applicable for the dcdm simulation:
 .. code-block:: bash
 
    ./concept \
-       -p param/tutorial \
+       -p param/tutorial-7.4 \
        -c "_lin = 'photon + neutrino + decay radiation + metric'" \
        -c "_frac = 0.7"
 
@@ -1603,7 +1595,7 @@ rerunning both the dcdm and the reference simulation using simply
 
    for frac in 0 0.7; do
        ./concept \
-           -p param/tutorial \
+           -p param/tutorial-7.4 \
            -c "_lin = 'radiation + metric'" \
            -c "_frac = $frac"
    done
@@ -1629,7 +1621,7 @@ reference simulation as before, but in a much larger box:
 
    for frac in 0 0.7; do
        ./concept \
-           -p param/tutorial \
+           -p param/tutorial-7.4 \
            -c "boxsize = 30*Gpc" \
            -c "_lin = 'radiation + metric'" \
            -c "_frac = $frac"
@@ -1674,7 +1666,7 @@ included then, simply do
 .. code-block:: bash
 
    ./concept \
-       -p param/tutorial \
+       -p param/tutorial-7.4 \
        -c "boxsize = 30*Gpc" \
        -c "_lin = 'radiation + metric, lapse'" \
        -c "_frac = 0.7"
@@ -1738,7 +1730,7 @@ two-particle-component simulation is then as simple as
 .. code-block:: bash
 
    ./concept \
-       -p param/tutorial \
+       -p param/tutorial-7.4 \
        -c "boxsize = 30*Gpc" \
        -c "_lin = 'radiation + metric, lapse'" \
        -c "_frac = 0.7" \
@@ -1766,7 +1758,7 @@ particles for the ``'total matter'`` component within the parameter file from
 .. code-block:: bash
 
    ./concept \
-       -p param/tutorial \
+       -p param/tutorial-7.4 \
        -c "boxsize = 30*Gpc" \
        -c "_lin = 'radiation + metric'"
 
@@ -1801,10 +1793,10 @@ before carrying on with this subsection.
 The goal of this subsection is to upgrade the massive neutrinos within the
 simulations from being a simple linear density field to be a non-linearly
 evolved fluid. For this we shall make use of the below parameter file, which
-you should save as e.g. ``param/tutorial``:
+you should save as e.g. ``param/tutorial-7.5``:
 
 .. code-block:: python3
-   :caption: param/tutorial :math:`\,` (non-linear massive neutrinos)
+   :caption: param/tutorial-7.5 :math:`\,` (non-linear massive neutrinos)
    :name: param-nonlinear-massive-neutrinos
    :emphasize-lines: 19-35, 75-79, 83-88, 96-97
 
@@ -1853,8 +1845,8 @@ you should save as e.g. ``param/tutorial``:
        'powerspec': 1,
    }
    powerspec_select = {
-       'matter'             : True,
-       'non-linear neutrino': True,
+       'matter'             : {'data': True, 'linear': True, 'plot': True},
+       'non-linear neutrino': ...,
    }
 
    # Numerics
@@ -1910,7 +1902,7 @@ Start by running this parameter file as is,
 
 .. code-block:: bash
 
-   ./concept -p param/tutorial
+   ./concept -p param/tutorial-7.5
 
 which will perform a simulation with three mass\ *less* neutrinos, with these
 as well as photons and the metric included in a combined, linear component.
@@ -1924,14 +1916,14 @@ parameter:
 .. code-block:: bash
 
    ./concept \
-       -p param/tutorial \
+       -p param/tutorial-7.5 \
        -c "_mass = 0.5"
 
 With both the linear massless and the linear massive neutrino run done, plot
 the results using the following plotting script:
 
 .. code-block:: python3
-   :caption: output/tutorial/plot.py :math:`\,` (non-linear massive neutrinos)
+   :caption: output/tutorial-7.5/plot.py :math:`\,` (non-linear massive neutrinos)
    :name: plot-nonlinear-massive-neutrinos
 
    import collections, glob, os, re
@@ -2062,11 +2054,12 @@ the results using the following plotting script:
    fig.tight_layout()
    fig.savefig(f'{this_dir}/plot.png', dpi=150)
 
-Save the plotting script to e.g. ``output/tutorial/plot.py`` and run it using
+Save the plotting script to e.g. ``output/tutorial-7.5/plot.py`` and run
+it using
 
 .. code-block:: bash
 
-   ./concept -m output/tutorial/plot.py
+   ./concept -m output/tutorial-7.5/plot.py
 
 The resulting ``plot.png`` shows the relative matter power spectrum between
 the massive and massless neutrino cosmology on the left. You should see the
@@ -2104,7 +2097,7 @@ for the linear massive neutrino run:
 .. code-block:: bash
 
    ./concept \
-       -p param/tutorial \
+       -p param/tutorial-7.5 \
        -c "_mass = 0.5" \
        -c "_nunonlin = True"
 
@@ -2209,7 +2202,7 @@ neutrinos for :math:`a < a_{\nu\text{trans}} = 0.1`, do
 .. code-block:: bash
 
    ./concept \
-       -p param/tutorial \
+       -p param/tutorial-7.5 \
        -c "_mass = 0.5" \
        -c "_nunonlin = True" \
        -c "_nutrans = 0.1"
@@ -2259,7 +2252,7 @@ beginning, and to apply this time-stepping to the simulation using the linear
 
    for nutrans in 0 0.1; do
        ./concept \
-           -p param/tutorial \
+           -p param/tutorial-7.5 \
            -c "_mass = 0.5" \
            -c "_nunonlin = True" \
            -c "_nutrans = $nutrans" \
