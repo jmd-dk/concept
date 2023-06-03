@@ -360,7 +360,7 @@ to our heart’s desire.</p>
 some sample simulations. The parameter specifications below are very similar
 to the ones encountered in the previous section.</p>
 <div class="literal-block-wrapper docutils container" id="param-gravity">
-<div class="code-block-caption"><span class="caption-text">param/tutorial</span><a class="headerlink" href="#param-gravity" title="Permalink to this code"></a></div>
+<div class="code-block-caption"><span class="caption-text">param/tutorial-4</span><a class="headerlink" href="#param-gravity" title="Permalink to this code"></a></div>
 <div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="c1"># Non-parameter helper variable used to control the size of the simulation</span>
 <span class="n">_size</span> <span class="o">=</span> <span class="mi">64</span>
 
@@ -387,25 +387,11 @@ to the ones encountered in the previous section.</p>
 <span> </span><span class="hll"><span class="c1"># Physics</span></span><span class="hll"><span class="n">select_forces</span> <span class="o">=</span> <span class="p">{</span></span><span class="hll">    <span class="s1">&#39;matter&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;gravity&#39;</span><span class="p">:</span> <span class="s1">&#39;pm&#39;</span><span class="p">},</span></span><span class="hll"><span class="p">}</span></span></pre></div>
 </div>
 </div>
-<p>Save these parameters to e.g. <code class="docutils literal notranslate"><span class="pre">param/tutorial</span></code>.</p>
-<div class="admonition tip">
-<p class="admonition-title">Tip</p>
-<p>If the file <code class="docutils literal notranslate"><span class="pre">param/tutorial</span></code> already exists due to previous tutorial
-work, you may safely overwrite the old content. Similarly, it’s best to
-clean up (or remove entirely) the <code class="docutils literal notranslate"><span class="pre">output/tutorial</span></code> directory before
-continuing. If you wish to keep the old content, you can do e.g.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>mv<span class="w"> </span>output/tutorial<span class="w"> </span>output/tutorial_3
-</pre></div>
-</div>
-<p>If you wish to store the outputs of each tutorial section separately, you
-can also name the parameter file(s) something more imaginative than just
-‘<code class="docutils literal notranslate"><span class="pre">tutorial</span></code>’. The output directories are set up to reflect the parameter
-file name.</p>
-</div>
+<p>Save these parameters to e.g. <code class="docutils literal notranslate"><span class="pre">param/tutorial-4</span></code>.</p>
 <p>Now run a simulation using the <a class="reference internal" href="#param-gravity"><span class="std std-ref">tutorial</span></a> parameter file
 by executing</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>-p<span class="w"> </span>param/tutorial<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-p<span class="w"> </span>param/tutorial-4<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-c<span class="w"> </span><span class="s2">&quot;_sim = &#39;A&#39;&quot;</span>
 </pre></div>
 </div>
@@ -417,9 +403,9 @@ for power spectrum output. This is set up to depend on a helper variable
 simulations without having their outputs overwrite each other, by supplying
 different values for <code class="docutils literal notranslate"><span class="pre">_sim</span></code>.</p>
 <p>The result of the simulation will be a data file
-<code class="docutils literal notranslate"><span class="pre">output/tutorial/powerspec_A_a=1.00</span></code> of the matter power spectrum at
+<code class="docutils literal notranslate"><span class="pre">output/tutorial-4/powerspec_A_a=1.00</span></code> of the matter power spectrum at
 <span class="math notranslate nohighlight">\(a = 1\)</span>, along with the corresponding plot
-<code class="docutils literal notranslate"><span class="pre">output/tutorial/powerspec_A_a=1.00.png</span></code>.</p>
+<code class="docutils literal notranslate"><span class="pre">output/tutorial-4/powerspec_A_a=1.00.png</span></code>.</p>
 <section id="the-pm-method">
 <h2><span class="section-number">4.1. </span>The PM method<a class="headerlink" href="#the-pm-method" title="Permalink to this heading"></a></h2>
 <p>A new parameter appearing in the <a class="reference internal" href="#param-gravity"><span class="std std-ref">tutorial</span></a> parameter
@@ -438,9 +424,9 @@ To try this out, update <code class="docutils literal notranslate"><span class="
 <div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">potential_options</span> <span class="o">=</span> <span class="mi">2</span><span class="o">*</span><span class="n">_size</span>
 </pre></div>
 </div>
-<p>in <code class="docutils literal notranslate"><span class="pre">param/tutorial</span></code> and run a new simulation, this time using</p>
+<p>in <code class="docutils literal notranslate"><span class="pre">param/tutorial-4</span></code> and run a new simulation, this time using</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>-p<span class="w"> </span>param/tutorial<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-p<span class="w"> </span>param/tutorial-4<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-c<span class="w"> </span><span class="s2">&quot;_sim = &#39;B&#39;&quot;</span>
 </pre></div>
 </div>
@@ -452,9 +438,9 @@ the grid size, i.e. switch to using</p>
 <div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">potential_options</span> <span class="o">=</span> <span class="mi">3</span><span class="o">*</span><span class="n">_size</span>
 </pre></div>
 </div>
-<p>in <code class="docutils literal notranslate"><span class="pre">param/tutorial</span></code> and execute</p>
+<p>in <code class="docutils literal notranslate"><span class="pre">param/tutorial-4</span></code> and execute</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>-p<span class="w"> </span>param/tutorial<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-p<span class="w"> </span>param/tutorial-4<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-c<span class="w"> </span><span class="s2">&quot;_sim = &#39;C&#39;&quot;</span>
 </pre></div>
 </div>
@@ -464,7 +450,7 @@ single plot, using the information in the data files. You may do this using
 your favourite plotting tool, or — for your convenience — using the
 script below:</p>
 <div class="literal-block-wrapper docutils container" id="plot-gravity">
-<div class="code-block-caption"><span class="caption-text">output/tutorial/plot.py</span><a class="headerlink" href="#plot-gravity" title="Permalink to this code"></a></div>
+<div class="code-block-caption"><span class="caption-text">output/tutorial-4/plot.py</span><a class="headerlink" href="#plot-gravity" title="Permalink to this code"></a></div>
 <div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">glob</span><span class="o">,</span> <span class="nn">os</span><span class="o">,</span> <span class="nn">re</span>
 <span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
 <span class="kn">import</span> <span class="nn">matplotlib</span><span class="p">;</span> <span class="n">matplotlib</span><span class="o">.</span><span class="n">use</span><span class="p">(</span><span class="s1">&#39;agg&#39;</span><span class="p">)</span>
@@ -512,9 +498,9 @@ script below:</p>
 </div>
 <p>Do not feel bad about using this plotting script — and others to come later
 on in the tutorial — without studying it in any detail. To run the script,
-save the <a class="reference internal" href="#plot-gravity"><span class="std std-ref">above code</span></a> to a file in the <code class="docutils literal notranslate"><span class="pre">output/tutorial</span></code>
-directory, say <code class="docutils literal notranslate"><span class="pre">output/tutorial/plot.py</span></code>, then do</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>-m<span class="w"> </span>output/tutorial/plot.py
+save the <a class="reference internal" href="#plot-gravity"><span class="std std-ref">above code</span></a> to a file in the
+<code class="docutils literal notranslate"><span class="pre">output/tutorial-4</span></code> directory, say <code class="docutils literal notranslate"><span class="pre">output/tutorial-4/plot.py</span></code>, then do</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>-m<span class="w"> </span>output/tutorial-4/plot.py
 </pre></div>
 </div>
 <div class="admonition note">
@@ -525,10 +511,11 @@ case, this is almost equivalent to just running the script using Python
 directly, but using <code class="docutils literal notranslate"><span class="pre">./concept</span> <span class="pre">-m</span></code> we are guaranteed that the environment
 is set up correctly, according to the CO<em>N</em>CEPT installation.</p>
 </div>
-<p>The script will produce the output <code class="docutils literal notranslate"><span class="pre">output/tutorial/plot.png</span></code>. Investigating
-this comparison plot, we see that in fact simulation B — the one with the
-“in-between” potential grid size — has the most power. It’s then unclear
-which of the three power spectra to trust, if any.</p>
+<p>The script will produce the output <code class="docutils literal notranslate"><span class="pre">output/tutorial-4/plot.png</span></code>.
+Investigating this comparison plot, we see that in fact simulation
+B — the one with the “in-between” potential grid size — has the
+most power. It’s then unclear which of the three power spectra to trust,
+if any.</p>
 <p>Though inadequate for precision simulations, the PM method remains a valuable
 tool due to its unprecedented efficiency, as sometimes the benefits of rapid
 simulations outweigh the drawbacks from the loss of precision. Also, as we

@@ -19,10 +19,10 @@ many of the tricks to come are not exclusively related to GADGET-2.
    <h3>CONCEPT</h3>
 
 As always, we start with a CO\ *N*\ CEPT parameter file, which you should save
-as e.g. ``param/tutorial``:
+as e.g. ``param/tutorial-9``:
 
 .. code-block:: python3
-   :caption: param/tutorial
+   :caption: param/tutorial-9
    :name: param-gadget
    :emphasize-lines: 4, 21, 34-38, 41
 
@@ -76,7 +76,7 @@ snapshot when ``_gen`` is ``True``. To create the snapshot then, do
 .. code-block:: bash
 
    ./concept \
-       -p param/tutorial \
+       -p param/tutorial-9 \
        -c "_gen = True"
 
 (as always, feel free to tack on the number of processes you want
@@ -96,13 +96,13 @@ simply by
 
 .. code-block:: bash
 
-   ./concept -p param/tutorial
+   ./concept -p param/tutorial-9
 
 Note that the ``initial_conditions`` is set to the path of the generated
 snapshot when ``_gen`` is ``False``.
 
 The power spectrum outputs of the CO\ *N*\ CEPT simulation will be dumped to
-``output/tutorial`` as usual.
+``output/tutorial-9`` as usual.
 
 
 
@@ -116,9 +116,9 @@ just for use with this tutorial:
 
 .. code-block:: bash
 
-   (source concept && cp -r "${Gadget2_dir}" "${output_dir}"/tutorial/)
+   (source concept && cp -r "${Gadget2_dir}" "${output_dir}"/tutorial-9/)
 
-You now have the complete GADGET-2 code in ``output/tutorial/Gadget2``.
+You now have the complete GADGET-2 code in ``output/tutorial-9/Gadget2``.
 
 The ``Makefile`` of GADGET-2 needs to be set up with correct path information
 for its dependencies. Furthermore, various options need to be set in order
@@ -130,13 +130,13 @@ conveniently achieved using the *gadget utility* included with CO\ *N*\ CEPT:
 .. code-block:: bash
 
    ./concept \
-       -u gadget output/tutorial/Gadget2 \
-       -p param/tutorial
+       -u gadget output/tutorial-9/Gadget2 \
+       -p param/tutorial-9
 
-The ``output/tutorial/Gadget2`` directory now has a properly set up
+The ``output/tutorial-9/Gadget2`` directory now has a properly set up
 ``Makefile`` and a parameter file called ``param``. The output times of the
 :ref:`original parameter file <param-gadget>` have also been copied to an
-``outputlist`` file, similarly placed in ``output/tutorial/Gadget2``.
+``outputlist`` file, similarly placed in ``output/tutorial-9/Gadget2``.
 
 .. note::
    The parameters specified in the GADGET-2 ``Makefile`` and ``param`` file
@@ -162,21 +162,21 @@ the simulation:
 .. code-block:: bash
 
    (source concept \
-       && cd output/tutorial/Gadget2 \
+       && cd output/tutorial-9/Gadget2 \
        && make clean \
        && make \
-       && mpiexec -n 4 ./Gadget2 param)
+       && $mpiexec -n 4 ./Gadget2 param)
 
 where you may wish to change the specified number of processes deployed.
 
 As GADGET-2 is not able to produce power spectra, the results from the
 simulation are raw snapshots, placed along with other files in
-``output/tutorial/Gadget2/output``. To investigate these snapshots, we can
+``output/tutorial-9/Gadget2/output``. To investigate these snapshots, we can
 make use of the info utility:
 
 .. code-block:: bash
 
-   ./concept -u info output/tutorial/Gadget2/output
+   ./concept -u info output/tutorial-9/Gadget2/output
 
 You should find that the snapshots indeed have the same values of the scale
 factor :math:`a` as specified in the :ref:`parameter file <param-gadget>`
@@ -188,8 +188,8 @@ the snapshots, we may make use of the *powerspec utility*:
 .. code-block:: bash
 
    ./concept \
-       -u powerspec output/tutorial/Gadget2/output \
-       -p param/tutorial
+       -u powerspec output/tutorial-9/Gadget2/output \
+       -p param/tutorial-9
 
 (as always, you may choose to throw more processes at the task with ``-n``).
 
@@ -199,20 +199,27 @@ the snapshots, we may make use of the *powerspec utility*:
 
    <h3>Comparison and adjustments</h3>
 
-You should now have CO\ *N*\ CEPT power spectra in ``output/tutorial`` and
-corresponding GADGET-2 power spectra in ``/output/tutorial/Gadget2/output``.
+You should now have CO\ *N*\ CEPT power spectra in ``output/tutorial-9`` and
+corresponding GADGET-2 power spectra in ``/output/tutorial-9/Gadget2/output``.
 We can of course look at each pair of plots, but for a proper comparison we
 should plot the power spectra together in a single plot. You may use the
 script below:
 
 .. code-block:: python3
-   :caption: output/tutorial/plot.py
+   :caption: output/tutorial-9/plot.py
    :name: plot-gadget
 
    import glob, os, re
    import numpy as np
    import matplotlib; matplotlib.use('agg')
    import matplotlib.pyplot as plt
+
+   # Particle Nyquist frequency
+   Mpc = 1
+   h = 0.67
+   boxsize = 512*Mpc/h
+   num_particles = 64**3
+   k_nyquist = 2*np.pi/boxsize*np.cbrt(num_particles)/2
 
    # Read in CO𝘕CEPT data
    def read(dirname):
@@ -238,6 +245,16 @@ script below:
        if a in P_gadget:
            axes[0].loglog(k, P_gadget[a], 'k--')
            axes[1].semilogx(k, 100*(P/P_gadget[a] - 1))
+   for ax in axes:
+       ylim = ax.get_ylim()
+       ax.plot([k_nyquist]*2, ylim, ':', color='grey')
+       ax.set_ylim(ylim)
+   ax.text(
+       k_nyquist,
+       ylim[0] + 0.15*np.diff(ylim),
+       r'$k_{\mathrm{Nyquist}}\rightarrow$',
+       ha='right',
+   )
    axes[0].set_xlim(k[0], k[-1])
    axes[1].set_xlabel(r'$k\, [\mathrm{Mpc}^{-1}]$')
    axes[0].set_ylabel(r'$P\, [\mathrm{Mpc}^3]$')
@@ -249,14 +266,14 @@ script below:
    fig.subplots_adjust(hspace=0)
    fig.savefig(f'{this_dir}/plot.png', dpi=150)
 
-Store the script as e.g. ``output/tutorial/plot.py`` and run it using
+Store the script as e.g. ``output/tutorial-9/plot.py`` and run it using
 
 .. code-block:: bash
 
-   ./concept -m output/tutorial/plot.py
+   ./concept -m output/tutorial-9/plot.py
 
 The upper subplot --- with absolute power spectra --- of the generated
-``output/tutorial/plot.png`` should show a good qualitative match between the
+``output/tutorial-9/plot.png`` should show a good qualitative match between the
 two codes, whereas the lower subplot --- with relative power spectra ---
 should reveal a disagreement of several percent. This disagreement stems from
 both physical and numerical differences between the codes, which we will now
@@ -269,15 +286,15 @@ alleviate by adjusting the CO\ *N*\ CEPT simulation.
    <h4>Cell-centred vs. cell-vertex discretisation</h4>
 
 The initial particle distribution, stored within the generated initial
-snapshot file ``ic/tutorial_a=0.02``, should ideally be close to homogeneous
+snapshot file ``ic/tutorial-9_a=0.02``, should ideally be close to homogeneous
 and isotropic. We can check this qualitatively by plotting the distribution
 in 3D. For this, let's use the *render3D utility*:
 
 .. code-block:: bash
 
    ./concept \
-       -u render3D ic/tutorial_a=0.02 \
-       -p param/tutorial \
+       -u render3D ic/tutorial-9_a=0.02 \
+       -p param/tutorial-9 \
        -c "render3D_options = { \
            'interpolation': 0, \
            'color': 'black', \
@@ -289,9 +306,9 @@ corners of the box, it should be clear that while we do have a close to
 homogeneous system, it is far from isotropic.
 
 .. note::
-   The reason for the ``-c`` command-line options above is to produce a render
-   which more clearly shows what we're after. Playing around with the given
-   values is encouraged. Their function should quickly become apparent.
+   Adding the ``render3D_options`` parameter above tunes the render so that it
+   more clearly shows what we're after. Indeed, a more interesting render is
+   obtained by not adding this parameter.
 
 The strong anisotropy of the particles is inherited from the grid on which
 they are (pre-)initialised. This grid-like structure of the particle
@@ -405,7 +422,7 @@ For still better agreement, you may try similarly upgrading
 :math:`x_{\text{r}}` to :math:`5.5x_{\text{s}}` in GADGET-2 (either by
 including the updated ``shortrange_params`` when running the CO\ *N*\ CEPT
 ``gadget`` utility or by manually setting ``RCUT`` in
-``output/tutorial/Gadget2/Makefile``) and then re-compiling and -running
+``output/tutorial-9/Gadget2/Makefile``) and then re-compiling and -running
 GADGET-2 and computing the power spectra from the new snapshots. Improved
 agreement between the two codes is also achieved by increasing the
 simulation size.

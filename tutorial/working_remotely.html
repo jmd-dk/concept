@@ -369,9 +369,9 @@ the directives at the top of the job script.</p>
 <p>To automatically submit a complete job script, you need to specify the <em>queue</em>
 (called <em>partition</em> in Slurm) in which to submit the job using the <code class="docutils literal notranslate"><span class="pre">-q</span></code>
 option to <code class="docutils literal notranslate"><span class="pre">concept</span></code>. Submitting a simulation using e.g. a parameter file
-named <code class="docutils literal notranslate"><span class="pre">param/tutorial</span></code> using 8 cores then looks like</p>
+named <code class="docutils literal notranslate"><span class="pre">param/tutorial-6</span></code> using 8 cores then looks like</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>-p<span class="w"> </span>param/tutorial<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-p<span class="w"> </span>param/tutorial-6<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-n<span class="w"> </span><span class="m">8</span><span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-q<span class="w"> </span>&lt;queue&gt;<span class="w">  </span><span class="c1"># replace &lt;queue&gt; with queue name</span>
 </pre></div>
@@ -396,7 +396,7 @@ Examples of legal wall time specifications include <code class="docutils literal
 <code class="docutils literal notranslate"><span class="pre">-w</span> <span class="pre">1hr</span></code>, <code class="docutils literal notranslate"><span class="pre">-w</span> <span class="pre">1h</span></code>, which all request one hour of wall time.</p>
 <p>A complete CO<em>N</em>CEPT job submission could then look like</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>-p<span class="w"> </span>param/tutorial<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-p<span class="w"> </span>param/tutorial-6<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-n<span class="w"> </span><span class="m">8</span><span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-q<span class="w"> </span>&lt;queue&gt;<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--mem<span class="w"> </span>8G<span class="w"> </span><span class="se">\</span>

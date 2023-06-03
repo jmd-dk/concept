@@ -29,12 +29,12 @@ the directives at the top of the job script.
 To automatically submit a complete job script, you need to specify the *queue*
 (called *partition* in Slurm) in which to submit the job using the ``-q``
 option to ``concept``. Submitting a simulation using e.g. a parameter file
-named ``param/tutorial`` using 8 cores then looks like
+named ``param/tutorial-6`` using 8 cores then looks like
 
 .. code-block:: bash
 
    ./concept \
-       -p param/tutorial \
+       -p param/tutorial-6 \
        -n 8 \
        -q <queue>  # replace <queue> with queue name
 
@@ -63,7 +63,7 @@ A complete CO\ *N*\ CEPT job submission could then look like
 .. code-block:: bash
 
    ./concept \
-       -p param/tutorial \
+       -p param/tutorial-6 \
        -n 8 \
        -q <queue> \
        --mem 8G \

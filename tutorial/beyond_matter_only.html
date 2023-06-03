@@ -393,7 +393,7 @@ refer to the paper on
 <p>We begin our exploration by performing a standard matter-only simulation, as
 specified by the below parameter file:</p>
 <div class="literal-block-wrapper docutils container" id="param-radiation">
-<div class="code-block-caption"><span class="caption-text">param/tutorial <span class="math notranslate nohighlight">\(\,\)</span> (radiation)</span><a class="headerlink" href="#param-radiation" title="Permalink to this code"></a></div>
+<div class="code-block-caption"><span class="caption-text">param/tutorial-7.1 <span class="math notranslate nohighlight">\(\,\)</span> (radiation)</span><a class="headerlink" href="#param-radiation" title="Permalink to this code"></a></div>
 <div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="c1"># Non-parameter helper variable used to control the size of the simulation</span>
 <span class="n">_size</span> <span class="o">=</span> <span class="mi">192</span>
 
@@ -427,17 +427,9 @@ specified by the below parameter file:</p>
 <span class="c1"># Should be supplied as a command-line parameter.</span><span class="hll"><span class="n">_lin</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span></span></pre></div>
 </div>
 </div>
-<p>As usual, save the parameters as e.g. <code class="docutils literal notranslate"><span class="pre">param/tutorial</span></code>.</p>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>Before running simulations, it’s best to ensure that the output directory
-(<code class="docutils literal notranslate"><span class="pre">output/tutorial</span></code>) is empty (or non-existent), so that old output does
-not get mixed in with the new. The various plotting scripts of this
-tutorial may not function correctly if run from a directory containing
-“old” output.</p>
-</div>
-<p>With a clean <code class="docutils literal notranslate"><span class="pre">output/tutorial</span></code> directory, run the simulation:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>-p<span class="w"> </span>param/tutorial
+<p>As usual, save the parameters as e.g. <code class="docutils literal notranslate"><span class="pre">param/tutorial-7.1</span></code>, then run the
+simulation:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>-p<span class="w"> </span>param/tutorial-7.1
 </pre></div>
 </div>
 <p>possibly with the addition of <code class="docutils literal notranslate"><span class="pre">-n</span> <span class="pre">4</span></code> or some other number of processes.</p>
@@ -465,9 +457,9 @@ those to come further down in this section — looks complicated. They
 parameter file is designed to be used for several different simulations,
 necessitating parameter definitions being dependent on various flags.</p>
 </div>
-<h3>The hunt for high precision</h3><p>Investigating the resulting <code class="docutils literal notranslate"><span class="pre">output/tutorial/powerspec_lin=_a=0.02.png</span></code> you
-should see a familiar looking simulation power spectrum: decently looking at
-intermediary <span class="math notranslate nohighlight">\(k\)</span>, inaccurate at small <span class="math notranslate nohighlight">\(k\)</span> and with obvious
+<h3>The hunt for high precision</h3><p>Investigating the resulting <code class="docutils literal notranslate"><span class="pre">output/tutorial-7.1/powerspec_lin=_a=0.02.png</span></code>
+you should see a familiar looking simulation power spectrum: decently looking
+at intermediary <span class="math notranslate nohighlight">\(k\)</span>, inaccurate at small <span class="math notranslate nohighlight">\(k\)</span> and with obvious
 numerical artefacts at large <span class="math notranslate nohighlight">\(k\)</span>. As we are interested in fine details
 at low <span class="math notranslate nohighlight">\(k\)</span>, we need to improve the precision here. We can do so by
 adding</p>
@@ -489,7 +481,7 @@ the simulation and linear power spectrum as a measure for the error in the
 simulation. To better see this difference, we shall make use of the below
 plotting script:</p>
 <div class="literal-block-wrapper docutils container" id="plot-radiation">
-<div class="code-block-caption"><span class="caption-text">output/tutorial/plot.py <span class="math notranslate nohighlight">\(\,\)</span> (radiation)</span><a class="headerlink" href="#plot-radiation" title="Permalink to this code"></a></div>
+<div class="code-block-caption"><span class="caption-text">output/tutorial-7.1/plot.py <span class="math notranslate nohighlight">\(\,\)</span> (radiation)</span><a class="headerlink" href="#plot-radiation" title="Permalink to this code"></a></div>
 <div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">glob</span><span class="o">,</span> <span class="nn">os</span><span class="o">,</span> <span class="nn">re</span>
 <span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
 <span class="kn">import</span> <span class="nn">matplotlib</span><span class="p">;</span> <span class="n">matplotlib</span><span class="o">.</span><span class="n">use</span><span class="p">(</span><span class="s1">&#39;agg&#39;</span><span class="p">)</span>
@@ -571,16 +563,17 @@ plotting script:</p>
 </pre></div>
 </div>
 </div>
-<p>Save the script as e.g. <code class="docutils literal notranslate"><span class="pre">output/tutorial/plot.py</span></code> and run it using</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>-m<span class="w"> </span>output/tutorial/plot.py
+<p>Save the script as e.g. <code class="docutils literal notranslate"><span class="pre">output/tutorial-7.1/plot.py</span></code> and run it using</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>-m<span class="w"> </span>output/tutorial-7.1/plot.py
 </pre></div>
 </div>
-<p>This will produce <code class="docutils literal notranslate"><span class="pre">output/tutorial/plot.png</span></code>, where the bottom panel shows
-the relative error between the simulated power spectrum and that computed
-using purely linear theory. They should agree to within a percent at the
-lowest <span class="math notranslate nohighlight">\(k\)</span>. At higher <span class="math notranslate nohighlight">\(k\)</span> the agreement is worse. Though this can
-be remedied by increasing the resolution of the simulation (e.g. by increasing
-<code class="docutils literal notranslate"><span class="pre">_size</span></code>), we shall not do so here, as we focus on the lower <span class="math notranslate nohighlight">\(k\)</span> only.</p>
+<p>This will produce <code class="docutils literal notranslate"><span class="pre">output/tutorial-7.1/plot.png</span></code>, where the bottom panel
+shows the relative error between the simulated power spectrum and that
+computed using purely linear theory. They should agree to within a percent at
+the lowest <span class="math notranslate nohighlight">\(k\)</span>. At higher <span class="math notranslate nohighlight">\(k\)</span> the agreement is worse. Though this
+can be remedied by increasing the resolution of the simulation (e.g. by
+increasing <code class="docutils literal notranslate"><span class="pre">_size</span></code>), we shall not do so here, as we focus on the lower
+<span class="math notranslate nohighlight">\(k\)</span> only.</p>
 <p>The power spectra outputted by the simulation are binned logarithmically in
 <span class="math notranslate nohighlight">\(k\)</span>. This is usually desirable, though higher precision at the lowest
 <span class="math notranslate nohighlight">\(k\)</span> can be achieved by leaving out this binning. The number of bins per
@@ -598,7 +591,7 @@ observe better agreement with linear theory at low <span class="math notranslate
 <h3>Including linear species</h3><p>With our high-precision setup established, we are ready to start experimenting
 with adding in the missing species to the simulation, hopefully leading to
 better agreement with linear theory on the largest scales. To keep the clutter
-within <code class="docutils literal notranslate"><span class="pre">output/tutorial</span></code> to a minimum, go ahead and add</p>
+within <code class="docutils literal notranslate"><span class="pre">output/tutorial-7.1</span></code> to a minimum, go ahead and add</p>
 <div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">powerspec_select</span> <span class="o">=</span> <span class="p">{</span>
     <span class="s1">&#39;matter&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;data&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span> <span class="s1">&#39;linear&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span> <span class="s1">&#39;plot&#39;</span><span class="p">:</span> <span class="kc">False</span><span class="p">},</span>
 <span class="p">}</span>
@@ -686,7 +679,7 @@ size <code class="docutils literal notranslate"><span class="pre">_size</span></
 components, using the <code class="docutils literal notranslate"><span class="pre">_lin</span></code> command-line parameter. To perform a simulation
 with the inclusion of linear photons, run</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>-p<span class="w"> </span>param/tutorial<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-p<span class="w"> </span>param/tutorial-7.1<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-c<span class="w"> </span><span class="s2">&quot;_lin = &#39;photon&#39;&quot;</span>
 </pre></div>
 </div>
@@ -710,7 +703,7 @@ parameters are used, which in addition to baryons, cold dark matter and photons
 also contain massless neutrinos. With our hope renewed, let’s run a simulation
 which includes both linear photons and linear massless neutrinos:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>-p<span class="w"> </span>param/tutorial<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-p<span class="w"> </span>param/tutorial-7.1<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-c<span class="w"> </span><span class="s2">&quot;_lin = &#39;photon, massless neutrino&#39;&quot;</span>
 </pre></div>
 </div>
@@ -747,7 +740,7 @@ at very large scales.</p>
 <p>To finally run a simulation which includes the gravitational effects from
 photons and neutrinos in their entirety, run</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>-p<span class="w"> </span>param/tutorial<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-p<span class="w"> </span>param/tutorial-7.1<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-c<span class="w"> </span><span class="s2">&quot;_lin = &#39;photon, massless neutrino, metric&#39;&quot;</span>
 </pre></div>
 </div>
@@ -776,7 +769,7 @@ normally write e.g.</p>
 <p>Using <a class="reference internal" href="#param-radiation"><span class="std std-ref">our clever parameter file</span></a> however, we may
 specify this directly at the command-line using</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>-p<span class="w"> </span>param/tutorial<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-p<span class="w"> </span>param/tutorial-7.1<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-c<span class="w"> </span><span class="s2">&quot;_lin = &#39;photon + massless neutrino + metric&#39;&quot;</span>
 </pre></div>
 </div>
@@ -784,7 +777,7 @@ specify this directly at the command-line using</p>
 the species <code class="docutils literal notranslate"><span class="pre">'photon</span> <span class="pre">+</span> <span class="pre">massless</span> <span class="pre">neutrino'</span></code> may be collectively referred to
 simply as <code class="docutils literal notranslate"><span class="pre">'radiation'</span></code>. Thus,</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>-p<span class="w"> </span>param/tutorial<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-p<span class="w"> </span>param/tutorial-7.1<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-c<span class="w"> </span><span class="s2">&quot;_lin = &#39;radiation + metric&#39;&quot;</span>
 </pre></div>
 </div>
@@ -814,7 +807,7 @@ linear power spectra to the desired output, by changing
 <p>inside the parameter file. Now perform one last simulation including the
 necessary linear corrections;</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>-p<span class="w"> </span>param/tutorial<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-p<span class="w"> </span>param/tutorial-7.1<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-c<span class="w"> </span><span class="s2">&quot;_lin = &#39;radiation + metric&#39;&quot;</span>
 </pre></div>
 </div>
@@ -847,9 +840,9 @@ CO<em>N</em>CEPT, we refer to the paper on
 fact that neutrinos do have some mass, we shall make use of the below
 parameter file:</p>
 <div class="literal-block-wrapper docutils container" id="param-massive-neutrinos">
-<div class="code-block-caption"><span class="caption-text">param/tutorial <span class="math notranslate nohighlight">\(\,\)</span> (massive neutrinos)</span><a class="headerlink" href="#param-massive-neutrinos" title="Permalink to this code"></a></div>
+<div class="code-block-caption"><span class="caption-text">param/tutorial-7.2 <span class="math notranslate nohighlight">\(\,\)</span> (massive neutrinos)</span><a class="headerlink" href="#param-massive-neutrinos" title="Permalink to this code"></a></div>
 <div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="c1"># Non-parameter helper variable used to control the size of the simulation</span>
-<span class="n">_size</span> <span class="o">=</span> <span class="mi">128</span>
+<span class="n">_size</span> <span class="o">=</span> <span class="mi">80</span>
 
 <span class="c1"># Input/output</span>
 <span class="n">initial_conditions</span> <span class="o">=</span> <span class="p">[</span>
@@ -885,7 +878,7 @@ parameter file:</p>
 <span class="p">}</span>
 
 <span class="c1"># Numerics</span>
-<span class="n">boxsize</span> <span class="o">=</span> <span class="mi">2</span><span class="o">*</span><span class="n">Gpc</span>
+<span class="n">boxsize</span> <span class="o">=</span> <span class="mf">1.4</span><span class="o">*</span><span class="n">Gpc</span>
 <span class="n">potential_options</span> <span class="o">=</span> <span class="p">{</span>
     <span class="s1">&#39;gridsize&#39;</span><span class="p">:</span> <span class="p">{</span>
         <span class="s1">&#39;gravity&#39;</span><span class="p">:</span> <span class="p">{</span>
@@ -902,9 +895,9 @@ parameter file:</p>
 </pre></div>
 </div>
 </div>
-<p>You may want to save this as e.g. <code class="docutils literal notranslate"><span class="pre">param/tutorial</span></code> and get a simulation
+<p>You may want to save this as e.g. <code class="docutils literal notranslate"><span class="pre">param/tutorial-7.2</span></code> and get a simulation
 going — of course using</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>-p<span class="w"> </span>param/tutorial
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>-p<span class="w"> </span>param/tutorial-7.2
 </pre></div>
 </div>
 <p>— while you read on.</p>
@@ -964,14 +957,14 @@ simulation.</p></li>
 neutrinos of zero mass — is done, run a simulation with e.g.
 <span class="math notranslate nohighlight">\(\sum m_\nu = 0.1\, \text{eV}\)</span>:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span><span class="se">\</span>
-<span class="w">   </span>-p<span class="w"> </span>param/tutorial<span class="w"> </span><span class="se">\</span>
+<span class="w">   </span>-p<span class="w"> </span>param/tutorial-7.2<span class="w"> </span><span class="se">\</span>
 <span class="w">   </span>-c<span class="w"> </span><span class="s2">&quot;_mass = 0.1&quot;</span>
 </pre></div>
 </div>
 <p>With both simulations done, we can plot their relative power spectrum. To do
 this, you should make use of the following script:</p>
 <div class="literal-block-wrapper docutils container" id="plot-massive-neutrinos">
-<div class="code-block-caption"><span class="caption-text">output/tutorial/plot.py <span class="math notranslate nohighlight">\(\,\)</span> (massive neutrinos)</span><a class="headerlink" href="#plot-massive-neutrinos" title="Permalink to this code"></a></div>
+<div class="code-block-caption"><span class="caption-text">output/tutorial-7.2/plot.py <span class="math notranslate nohighlight">\(\,\)</span> (massive neutrinos)</span><a class="headerlink" href="#plot-massive-neutrinos" title="Permalink to this code"></a></div>
 <div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">glob</span><span class="o">,</span> <span class="nn">os</span><span class="o">,</span> <span class="nn">re</span>
 <span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
 <span class="kn">import</span> <span class="nn">matplotlib</span><span class="p">;</span> <span class="n">matplotlib</span><span class="o">.</span><span class="n">use</span><span class="p">(</span><span class="s1">&#39;agg&#39;</span><span class="p">)</span>
@@ -1021,12 +1014,12 @@ this, you should make use of the following script:</p>
 </pre></div>
 </div>
 </div>
-<p>As usual, to run the script, save it as e.g. <code class="docutils literal notranslate"><span class="pre">output/tutorial/plot.py</span></code> and
-invoke</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>-m<span class="w"> </span>output/tutorial/plot.py
+<p>As usual, to run the script, save it as e.g. <code class="docutils literal notranslate"><span class="pre">output/tutorial-7.2/plot.py</span></code>
+and invoke</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>-m<span class="w"> </span>output/tutorial-7.2/plot.py
 </pre></div>
 </div>
-<p>The resulting <code class="docutils literal notranslate"><span class="pre">output/tutorial/plot.png</span></code> should show that letting the
+<p>The resulting <code class="docutils literal notranslate"><span class="pre">output/tutorial-7.2/plot.png</span></code> should show that letting the
 neutrinos have mass results in a few percent suppression of the matter power
 spectrum. At intermediary <span class="math notranslate nohighlight">\(k\)</span> the simulation and linear relative power
 spectra agree, whereas they do not for the smallest and largest <span class="math notranslate nohighlight">\(k\)</span>.
@@ -1047,7 +1040,7 @@ cosmologies with all linear species included, we might call <code class="docutil
 a Bash for-loop:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="k">for</span><span class="w"> </span>mass<span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="m">0</span><span class="w"> </span><span class="m">0</span>.1<span class="p">;</span><span class="w"> </span><span class="k">do</span>
 <span class="w">    </span>./concept<span class="w"> </span><span class="se">\</span>
-<span class="w">        </span>-p<span class="w"> </span>param/tutorial<span class="w"> </span><span class="se">\</span>
+<span class="w">        </span>-p<span class="w"> </span>param/tutorial-7.2<span class="w"> </span><span class="se">\</span>
 <span class="w">        </span>-c<span class="w"> </span><span class="s2">&quot;_mass = </span><span class="nv">$mass</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
 <span class="w">        </span>-c<span class="w"> </span><span class="s2">&quot;_lin = &#39;photon + neutrino + metric&#39;&quot;</span>
 <span class="k">done</span>
@@ -1057,11 +1050,10 @@ a Bash for-loop:</p>
 species did indeed correct the large-scale behaviour while leaving the
 small-scale behaviour intact.</p>
 <h3>Tweaking the CLASS computation</h3><p>Though better agreement with linear theory is achieved after the inclusion of
-the linear species, the plot also shows that this inclusion leads to a less
-smooth relative spectrum. The added noise stems from the massive neutrinos,
-the evolution of which is not solved perfectly by CLASS. A large set of
-general and massive neutrino specific CLASS precision parameters exist, which
-can remedy this problem.</p>
+the linear species, the relative spectrum is now also more jagged. This added
+noise stems from the massive neutrinos, the evolution of which is not solved
+perfectly by CLASS. A large set of general and massive neutrino specific CLASS
+precision parameters exist, which can remedy this problem.</p>
 <p>Here we shall look at just one such CLASS parameter; <code class="docutils literal notranslate"><span class="pre">'evolver'</span></code>. This sets
 the ODE solver to be used by CLASS, and may be either <code class="docutils literal notranslate"><span class="pre">0</span></code> (Runge-Kutta
 Cash-Karp) or <code class="docutils literal notranslate"><span class="pre">1</span></code> (ndf15, the default). For high-precision CLASS
@@ -1136,9 +1128,9 @@ total, specifying dynamical dark energy could then look like</p>
 <p>To test the effect on the matter from switching from <span class="math notranslate nohighlight">\(\Lambda\)</span> to
 dynamical dark energy (here <span class="math notranslate nohighlight">\(w_0 = -1\, \rightarrow\, w_0 = -0.7\)</span>), we
 shall make use of the following parameter file, which you should save as e.g.
-<code class="docutils literal notranslate"><span class="pre">param/tutorial</span></code>:</p>
+<code class="docutils literal notranslate"><span class="pre">param/tutorial-7.3</span></code>:</p>
 <div class="literal-block-wrapper docutils container" id="param-dynamical-dark-energy">
-<div class="code-block-caption"><span class="caption-text">param/tutorial <span class="math notranslate nohighlight">\(\,\)</span> (dynamical dark energy)</span><a class="headerlink" href="#param-dynamical-dark-energy" title="Permalink to this code"></a></div>
+<div class="code-block-caption"><span class="caption-text">param/tutorial-7.3 <span class="math notranslate nohighlight">\(\,\)</span> (dynamical dark energy)</span><a class="headerlink" href="#param-dynamical-dark-energy" title="Permalink to this code"></a></div>
 <div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="c1"># Non-parameter helper variable used to control the size of the simulation</span>
 <span class="n">_size</span> <span class="o">=</span> <span class="mi">128</span>
 
@@ -1202,7 +1194,7 @@ can also supply <code class="docutils literal notranslate"><span class="pre">-c<
 Perform a simulation using both types of dark energy using</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="k">for</span><span class="w"> </span>de<span class="w"> </span><span class="k">in</span><span class="w"> </span>Lambda<span class="w"> </span>dynamical<span class="p">;</span><span class="w"> </span><span class="k">do</span>
 <span class="w">    </span>./concept<span class="w"> </span><span class="se">\</span>
-<span class="w">        </span>-p<span class="w"> </span>param/tutorial<span class="w"> </span><span class="se">\</span>
+<span class="w">        </span>-p<span class="w"> </span>param/tutorial-7.3<span class="w"> </span><span class="se">\</span>
 <span class="w">        </span>-c<span class="w"> </span><span class="s2">&quot;_de = &#39;</span><span class="nv">$de</span><span class="s2">&#39;&quot;</span>
 <span class="k">done</span>
 </pre></div>
@@ -1241,7 +1233,7 @@ the matter spectrum within a cosmology with a cosmological constant
 (<span class="math notranslate nohighlight">\(w = -1\)</span>) to one with dynamical dark energy (here <span class="math notranslate nohighlight">\(w = -0.7\)</span>) —
 we shall make use of the following plotting script:</p>
 <div class="literal-block-wrapper docutils container" id="plot-dynamical-dark-energy">
-<div class="code-block-caption"><span class="caption-text">output/tutorial/plot.py <span class="math notranslate nohighlight">\(\,\)</span> (dynamical dark energy)</span><a class="headerlink" href="#plot-dynamical-dark-energy" title="Permalink to this code"></a></div>
+<div class="code-block-caption"><span class="caption-text">output/tutorial-7.3/plot.py <span class="math notranslate nohighlight">\(\,\)</span> (dynamical dark energy)</span><a class="headerlink" href="#plot-dynamical-dark-energy" title="Permalink to this code"></a></div>
 <div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">glob</span><span class="o">,</span> <span class="nn">os</span><span class="o">,</span> <span class="nn">re</span>
 <span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
 <span class="kn">import</span> <span class="nn">matplotlib</span><span class="p">;</span> <span class="n">matplotlib</span><span class="o">.</span><span class="n">use</span><span class="p">(</span><span class="s1">&#39;agg&#39;</span><span class="p">)</span>
@@ -1298,8 +1290,8 @@ we shall make use of the following plotting script:</p>
 </pre></div>
 </div>
 </div>
-<p>Save this to e.g. <code class="docutils literal notranslate"><span class="pre">output/tutorial/plot.py</span></code> and run it using</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>-m<span class="w"> </span>output/tutorial/plot.py
+<p>Save this to e.g. <code class="docutils literal notranslate"><span class="pre">output/tutorial-7.3/plot.py</span></code> and run it using</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>-m<span class="w"> </span>output/tutorial-7.3/plot.py
 </pre></div>
 </div>
 <p>The generated plot should show that the matter power is reduced quite a bit
@@ -1320,7 +1312,7 @@ including all linear species, do e.g.</p>
 <span class="w">    </span><span class="nv">lin</span><span class="o">=</span><span class="s2">&quot;radiation + metric&quot;</span>
 <span class="w">    </span><span class="o">[</span><span class="w"> </span><span class="nv">$de</span><span class="w"> </span><span class="o">==</span><span class="w"> </span>dynamical<span class="w"> </span><span class="o">]</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nv">lin</span><span class="o">+=</span><span class="s2">&quot; + dark energy&quot;</span>
 <span class="w">    </span>./concept<span class="w"> </span><span class="se">\</span>
-<span class="w">        </span>-p<span class="w"> </span>param/tutorial<span class="w"> </span><span class="se">\</span>
+<span class="w">        </span>-p<span class="w"> </span>param/tutorial-7.3<span class="w"> </span><span class="se">\</span>
 <span class="w">        </span>-c<span class="w"> </span><span class="s2">&quot;_de = &#39;</span><span class="nv">$de</span><span class="s2">&#39;&quot;</span><span class="w"> </span><span class="se">\</span>
 <span class="w">        </span>-c<span class="w"> </span><span class="s2">&quot;_lin = &#39;</span><span class="nv">$lin</span><span class="s2">&#39;&quot;</span>
 <span class="k">done</span>
@@ -1341,7 +1333,7 @@ from radiation to be completely negligible for the relative power
 spectrum. To test this, perform a simulation with dynamical dark energy,
 including only dark energy as a linear species:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>-p<span class="w"> </span>param/tutorial<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-p<span class="w"> </span>param/tutorial-7.3<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-c<span class="w"> </span><span class="s2">&quot;_de = &#39;dynamical&#39;&quot;</span><span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-c<span class="w"> </span><span class="s2">&quot;_lin = &#39;dark energy&#39;&quot;</span>
 </pre></div>
@@ -1355,7 +1347,7 @@ gravity from the rather large pressure perturbations in the dark energy, which
 is accounted for by the fictitious metric species. Performing a simulation
 including the metric as well,</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>-p<span class="w"> </span>param/tutorial<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-p<span class="w"> </span>param/tutorial-7.3<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-c<span class="w"> </span><span class="s2">&quot;_de = &#39;dynamical&#39;&quot;</span><span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-c<span class="w"> </span><span class="s2">&quot;_lin = &#39;dark energy + metric&#39;&quot;</span>
 </pre></div>
@@ -1409,9 +1401,9 @@ the fraction of this which is of the decaying kind;</p>
       \frac{\widetilde{\Omega}_{\text{dcdm}}}{\Omega_{\text{cdm}}
     + \widetilde{\Omega}_{\text{dcdm}}}\, .\]</div>
 <p>Below you’ll find a parameter file set up to run simulations with dcdm, which
-you should save as e.g. <code class="docutils literal notranslate"><span class="pre">param/tutorial</span></code>:</p>
+you should save as e.g. <code class="docutils literal notranslate"><span class="pre">param/tutorial-7.4</span></code>:</p>
 <div class="literal-block-wrapper docutils container" id="param-decaying-cold-dark-matter">
-<div class="code-block-caption"><span class="caption-text">param/tutorial <span class="math notranslate nohighlight">\(\,\)</span> (decaying cold dark matter)</span><a class="headerlink" href="#param-decaying-cold-dark-matter" title="Permalink to this code"></a></div>
+<div class="code-block-caption"><span class="caption-text">param/tutorial-7.4 <span class="math notranslate nohighlight">\(\,\)</span> (decaying cold dark matter)</span><a class="headerlink" href="#param-decaying-cold-dark-matter" title="Permalink to this code"></a></div>
 <div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="c1"># Non-parameter helper variable used to control the size of the simulation</span>
 <span class="n">_size</span> <span class="o">=</span> <span class="mi">96</span>
 <span> </span><span class="hll"><span class="c1"># Non-parameter helper variables used to control the dcdm cosmology</span></span><span class="hll"><span class="n">_Ω_cdm_plus_dcdm</span> <span class="o">=</span> <span class="mf">0.27</span>  <span class="c1"># total amount of stable and decaying cold dark matter</span></span><span class="hll"><span class="n">_Γ</span> <span class="o">=</span> <span class="mi">80</span><span class="o">*</span><span class="n">km</span><span class="o">/</span><span class="p">(</span><span class="n">s</span><span class="o">*</span><span class="n">Mpc</span><span class="p">)</span>       <span class="c1"># decay rate</span></span>
@@ -1479,7 +1471,7 @@ you should save as e.g. <code class="docutils literal notranslate"><span class="
 </div>
 </div>
 <p>Begin by running this without any additional command-line parameters;</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>-p<span class="w"> </span>param/tutorial
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>-p<span class="w"> </span>param/tutorial-7.4
 </pre></div>
 </div>
 <p>which performs a standard simulation with just stable matter (baryons and cold
@@ -1496,7 +1488,7 @@ that the majority of the primordial dcdm population has decayed away at
 <p>To run a simulation where some of the cold dark matter is decaying, say 70%,
 specify <code class="docutils literal notranslate"><span class="pre">_frac</span></code>:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>-p<span class="w"> </span>param/tutorial<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-p<span class="w"> </span>param/tutorial-7.4<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-c<span class="w"> </span><span class="s2">&quot;_frac = 0.7&quot;</span>
 </pre></div>
 </div>
@@ -1517,7 +1509,7 @@ decay rate” used is</p>
 <p>To plot the usual relative power spectrum, this time between a cosmology with
 and without decaying cold dark matter, make use of the below script:</p>
 <div class="literal-block-wrapper docutils container" id="plot-decaying-cold-dark-matter">
-<div class="code-block-caption"><span class="caption-text">output/tutorial/plot.py <span class="math notranslate nohighlight">\(\,\)</span> (decaying cold dark matter)</span><a class="headerlink" href="#plot-decaying-cold-dark-matter" title="Permalink to this code"></a></div>
+<div class="code-block-caption"><span class="caption-text">output/tutorial-7.4/plot.py <span class="math notranslate nohighlight">\(\,\)</span> (decaying cold dark matter)</span><a class="headerlink" href="#plot-decaying-cold-dark-matter" title="Permalink to this code"></a></div>
 <div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">glob</span><span class="o">,</span> <span class="nn">os</span><span class="o">,</span> <span class="nn">re</span>
 <span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
 <span class="kn">import</span> <span class="nn">matplotlib</span><span class="p">;</span> <span class="n">matplotlib</span><span class="o">.</span><span class="n">use</span><span class="p">(</span><span class="s1">&#39;agg&#39;</span><span class="p">)</span>
@@ -1601,8 +1593,8 @@ and without decaying cold dark matter, make use of the below script:</p>
 </pre></div>
 </div>
 </div>
-<p>Save this script as e.g. <code class="docutils literal notranslate"><span class="pre">output/tutorial/plot.py</span></code> and run it using</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>-m<span class="w"> </span>output/tutorial/plot.py
+<p>Save this script as e.g. <code class="docutils literal notranslate"><span class="pre">output/tutorial-7.4/plot.py</span></code> and run it using</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>-m<span class="w"> </span>output/tutorial-7.4/plot.py
 </pre></div>
 </div>
 <p>The resulting <code class="docutils literal notranslate"><span class="pre">plot.png</span></code> should show prominently the familiar non-linear
@@ -1614,7 +1606,7 @@ try to fix this by including the missing species as linear components during
 the simulation:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="k">for</span><span class="w"> </span>frac<span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="m">0</span><span class="w"> </span><span class="m">0</span>.7<span class="p">;</span><span class="w"> </span><span class="k">do</span>
 <span class="w">    </span>./concept<span class="w"> </span><span class="se">\</span>
-<span class="w">        </span>-p<span class="w"> </span>param/tutorial<span class="w"> </span><span class="se">\</span>
+<span class="w">        </span>-p<span class="w"> </span>param/tutorial-7.4<span class="w"> </span><span class="se">\</span>
 <span class="w">        </span>-c<span class="w"> </span><span class="s2">&quot;_lin = &#39;photon + neutrino + metric&#39;&quot;</span><span class="w"> </span><span class="se">\</span>
 <span class="w">        </span>-c<span class="w"> </span><span class="s2">&quot;_frac = </span><span class="nv">$frac</span><span class="s2">&quot;</span>
 <span class="k">done</span>
@@ -1626,7 +1618,7 @@ large-scale power needed to reach agreement with the linear prediction.</p>
 <p>The remaining missing power should be supplied by further including the decay
 radiation, of course only applicable for the dcdm simulation:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>-p<span class="w"> </span>param/tutorial<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-p<span class="w"> </span>param/tutorial-7.4<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-c<span class="w"> </span><span class="s2">&quot;_lin = &#39;photon + neutrino + decay radiation + metric&#39;&quot;</span><span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-c<span class="w"> </span><span class="s2">&quot;_frac = 0.7&quot;</span>
 </pre></div>
@@ -1651,7 +1643,7 @@ the aforementioned change to
 rerunning both the dcdm and the reference simulation using simply</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="k">for</span><span class="w"> </span>frac<span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="m">0</span><span class="w"> </span><span class="m">0</span>.7<span class="p">;</span><span class="w"> </span><span class="k">do</span>
 <span class="w">    </span>./concept<span class="w"> </span><span class="se">\</span>
-<span class="w">        </span>-p<span class="w"> </span>param/tutorial<span class="w"> </span><span class="se">\</span>
+<span class="w">        </span>-p<span class="w"> </span>param/tutorial-7.4<span class="w"> </span><span class="se">\</span>
 <span class="w">        </span>-c<span class="w"> </span><span class="s2">&quot;_lin = &#39;radiation + metric&#39;&quot;</span><span class="w"> </span><span class="se">\</span>
 <span class="w">        </span>-c<span class="w"> </span><span class="s2">&quot;_frac = </span><span class="nv">$frac</span><span class="s2">&quot;</span>
 <span class="k">done</span>
@@ -1667,7 +1659,7 @@ show up, which one might wish to include in the simulations.</p>
 reference simulation as before, but in a much larger box:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="k">for</span><span class="w"> </span>frac<span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="m">0</span><span class="w"> </span><span class="m">0</span>.7<span class="p">;</span><span class="w"> </span><span class="k">do</span>
 <span class="w">    </span>./concept<span class="w"> </span><span class="se">\</span>
-<span class="w">        </span>-p<span class="w"> </span>param/tutorial<span class="w"> </span><span class="se">\</span>
+<span class="w">        </span>-p<span class="w"> </span>param/tutorial-7.4<span class="w"> </span><span class="se">\</span>
 <span class="w">        </span>-c<span class="w"> </span><span class="s2">&quot;boxsize = 30*Gpc&quot;</span><span class="w"> </span><span class="se">\</span>
 <span class="w">        </span>-c<span class="w"> </span><span class="s2">&quot;_lin = &#39;radiation + metric&#39;&quot;</span><span class="w"> </span><span class="se">\</span>
 <span class="w">        </span>-c<span class="w"> </span><span class="s2">&quot;_frac = </span><span class="nv">$frac</span><span class="s2">&quot;</span>
@@ -1707,7 +1699,7 @@ lapse force is already being assigned whenever <code class="docutils literal not
 <code class="docutils literal notranslate"><span class="pre">'lapse'</span></code>. To run the large-box dcdm simulation with the lapse force
 included then, simply do</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>-p<span class="w"> </span>param/tutorial<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-p<span class="w"> </span>param/tutorial-7.4<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-c<span class="w"> </span><span class="s2">&quot;boxsize = 30*Gpc&quot;</span><span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-c<span class="w"> </span><span class="s2">&quot;_lin = &#39;radiation + metric, lapse&#39;&quot;</span><span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-c<span class="w"> </span><span class="s2">&quot;_frac = 0.7&quot;</span>
@@ -1768,7 +1760,7 @@ within <a class="reference internal" href="#param-decaying-cold-dark-matter"><sp
 <a class="reference internal" href="#param-decaying-cold-dark-matter"><span class="std std-ref">the parameter file</span></a>, running the
 two-particle-component simulation is then as simple as</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>-p<span class="w"> </span>param/tutorial<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-p<span class="w"> </span>param/tutorial-7.4<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-c<span class="w"> </span><span class="s2">&quot;boxsize = 30*Gpc&quot;</span><span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-c<span class="w"> </span><span class="s2">&quot;_lin = &#39;radiation + metric, lapse&#39;&quot;</span><span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-c<span class="w"> </span><span class="s2">&quot;_frac = 0.7&quot;</span><span class="w"> </span><span class="se">\</span>
@@ -1793,7 +1785,7 @@ within a single component when its number of particles <span class="math notrans
 particles for the <code class="docutils literal notranslate"><span class="pre">'total</span> <span class="pre">matter'</span></code> component within the parameter file from
 <code class="docutils literal notranslate"><span class="pre">_size**3</span></code> to <code class="docutils literal notranslate"><span class="pre">2*_size**3</span></code>, then rerun the large-box reference simulation:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>-p<span class="w"> </span>param/tutorial<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-p<span class="w"> </span>param/tutorial-7.4<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-c<span class="w"> </span><span class="s2">&quot;boxsize = 30*Gpc&quot;</span><span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-c<span class="w"> </span><span class="s2">&quot;_lin = &#39;radiation + metric&#39;&quot;</span>
 </pre></div>
@@ -1819,9 +1811,9 @@ before carrying on with this subsection.</p>
 <h3>Linear neutrinos</h3><p>The goal of this subsection is to upgrade the massive neutrinos within the
 simulations from being a simple linear density field to be a non-linearly
 evolved fluid. For this we shall make use of the below parameter file, which
-you should save as e.g. <code class="docutils literal notranslate"><span class="pre">param/tutorial</span></code>:</p>
+you should save as e.g. <code class="docutils literal notranslate"><span class="pre">param/tutorial-7.5</span></code>:</p>
 <div class="literal-block-wrapper docutils container" id="param-nonlinear-massive-neutrinos">
-<div class="code-block-caption"><span class="caption-text">param/tutorial <span class="math notranslate nohighlight">\(\,\)</span> (non-linear massive neutrinos)</span><a class="headerlink" href="#param-nonlinear-massive-neutrinos" title="Permalink to this code"></a></div>
+<div class="code-block-caption"><span class="caption-text">param/tutorial-7.5 <span class="math notranslate nohighlight">\(\,\)</span> (non-linear massive neutrinos)</span><a class="headerlink" href="#param-nonlinear-massive-neutrinos" title="Permalink to this code"></a></div>
 <div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="c1"># Non-parameter helper variable used to control the size of the simulation</span>
 <span class="n">_size</span> <span class="o">=</span> <span class="mi">80</span>
 
@@ -1849,8 +1841,8 @@ you should save as e.g. <code class="docutils literal notranslate"><span class="
     <span class="s1">&#39;powerspec&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
 <span class="p">}</span>
 <span class="n">powerspec_select</span> <span class="o">=</span> <span class="p">{</span>
-    <span class="s1">&#39;matter&#39;</span>             <span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
-    <span class="s1">&#39;non-linear neutrino&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="s1">&#39;matter&#39;</span>             <span class="p">:</span> <span class="p">{</span><span class="s1">&#39;data&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span> <span class="s1">&#39;linear&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span> <span class="s1">&#39;plot&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">},</span>
+    <span class="s1">&#39;non-linear neutrino&#39;</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span>
 <span class="p">}</span>
 
 <span class="c1"># Numerics</span>
@@ -1889,7 +1881,7 @@ you should save as e.g. <code class="docutils literal notranslate"><span class="
 </div>
 </div>
 <p>Start by running this parameter file as is,</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>-p<span class="w"> </span>param/tutorial
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>-p<span class="w"> </span>param/tutorial-7.5
 </pre></div>
 </div>
 <p>which will perform a simulation with three mass<em>less</em> neutrinos, with these
@@ -1900,14 +1892,14 @@ neutrinos, say with <span class="math notranslate nohighlight">\(\sum m_\nu = 0.
 so that this can be achieved by supplying <code class="docutils literal notranslate"><span class="pre">_mass</span></code> as a command-line
 parameter:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>-p<span class="w"> </span>param/tutorial<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-p<span class="w"> </span>param/tutorial-7.5<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-c<span class="w"> </span><span class="s2">&quot;_mass = 0.5&quot;</span>
 </pre></div>
 </div>
 <p>With both the linear massless and the linear massive neutrino run done, plot
 the results using the following plotting script:</p>
 <div class="literal-block-wrapper docutils container" id="plot-nonlinear-massive-neutrinos">
-<div class="code-block-caption"><span class="caption-text">output/tutorial/plot.py <span class="math notranslate nohighlight">\(\,\)</span> (non-linear massive neutrinos)</span><a class="headerlink" href="#plot-nonlinear-massive-neutrinos" title="Permalink to this code"></a></div>
+<div class="code-block-caption"><span class="caption-text">output/tutorial-7.5/plot.py <span class="math notranslate nohighlight">\(\,\)</span> (non-linear massive neutrinos)</span><a class="headerlink" href="#plot-nonlinear-massive-neutrinos" title="Permalink to this code"></a></div>
 <div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">collections</span><span class="o">,</span> <span class="nn">glob</span><span class="o">,</span> <span class="nn">os</span><span class="o">,</span> <span class="nn">re</span>
 <span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
 <span class="kn">import</span> <span class="nn">matplotlib</span><span class="p">;</span> <span class="n">matplotlib</span><span class="o">.</span><span class="n">use</span><span class="p">(</span><span class="s1">&#39;agg&#39;</span><span class="p">)</span>
@@ -2038,8 +2030,9 @@ the results using the following plotting script:</p>
 </pre></div>
 </div>
 </div>
-<p>Save the plotting script to e.g. <code class="docutils literal notranslate"><span class="pre">output/tutorial/plot.py</span></code> and run it using</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>-m<span class="w"> </span>output/tutorial/plot.py
+<p>Save the plotting script to e.g. <code class="docutils literal notranslate"><span class="pre">output/tutorial-7.5/plot.py</span></code> and run
+it using</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>-m<span class="w"> </span>output/tutorial-7.5/plot.py
 </pre></div>
 </div>
 <p>The resulting <code class="docutils literal notranslate"><span class="pre">plot.png</span></code> shows the relative matter power spectrum between
@@ -2067,7 +2060,7 @@ paper
 <p>Run a simulation with non-linear massive neutrinos with the same mass as used
 for the linear massive neutrino run:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>-p<span class="w"> </span>param/tutorial<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-p<span class="w"> </span>param/tutorial-7.5<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-c<span class="w"> </span><span class="s2">&quot;_mass = 0.5&quot;</span><span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-c<span class="w"> </span><span class="s2">&quot;_nunonlin = True&quot;</span>
 </pre></div>
@@ -2179,7 +2172,7 @@ exactly this by specifying <span class="math notranslate nohighlight">\(a_{\nu\t
 variable. To rerun the non-linear neutrino simulation, though using linear
 neutrinos for <span class="math notranslate nohighlight">\(a &lt; a_{\nu\text{trans}} = 0.1\)</span>, do</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>-p<span class="w"> </span>param/tutorial<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-p<span class="w"> </span>param/tutorial-7.5<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-c<span class="w"> </span><span class="s2">&quot;_mass = 0.5&quot;</span><span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-c<span class="w"> </span><span class="s2">&quot;_nunonlin = True&quot;</span><span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-c<span class="w"> </span><span class="s2">&quot;_nutrans = 0.1&quot;</span>
@@ -2219,7 +2212,7 @@ beginning, and to apply this time-stepping to the simulation using the linear
 <span class="math notranslate nohighlight">\(\rightarrow\)</span> non-linear transition:</p>
 <div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="k">for</span> <span class="n">nutrans</span> <span class="ow">in</span> <span class="mi">0</span> <span class="mf">0.1</span><span class="p">;</span> <span class="n">do</span>
     <span class="o">./</span><span class="n">concept</span> \
-        <span class="o">-</span><span class="n">p</span> <span class="n">param</span><span class="o">/</span><span class="n">tutorial</span> \
+        <span class="o">-</span><span class="n">p</span> <span class="n">param</span><span class="o">/</span><span class="n">tutorial</span><span class="o">-</span><span class="mf">7.5</span> \
         <span class="o">-</span><span class="n">c</span> <span class="s2">&quot;_mass = 0.5&quot;</span> \
         <span class="o">-</span><span class="n">c</span> <span class="s2">&quot;_nunonlin = True&quot;</span> \
         <span class="o">-</span><span class="n">c</span> <span class="s2">&quot;_nutrans = $nutrans&quot;</span> \

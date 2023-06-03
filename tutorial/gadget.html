@@ -361,9 +361,9 @@ that are truly equivalent to those of GADGET-2.</p>
 equivalent simulations with CO<em>N</em>CEPT, you may skip this section. However,
 many of the tricks to come are not exclusively related to GADGET-2.</p>
 <h3>CO<em>N</em> CEPT</h3><p>As always, we start with a CO<em>N</em>CEPT parameter file, which you should save
-as e.g. <code class="docutils literal notranslate"><span class="pre">param/tutorial</span></code>:</p>
+as e.g. <code class="docutils literal notranslate"><span class="pre">param/tutorial-9</span></code>:</p>
 <div class="literal-block-wrapper docutils container" id="param-gadget">
-<div class="code-block-caption"><span class="caption-text">param/tutorial</span><a class="headerlink" href="#param-gadget" title="Permalink to this code"></a></div>
+<div class="code-block-caption"><span class="caption-text">param/tutorial-9</span><a class="headerlink" href="#param-gadget" title="Permalink to this code"></a></div>
 <div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="c1"># Input/output</span>
 <span class="k">if</span> <span class="n">_gen</span><span class="p">:</span>
     <span class="n">initial_conditions</span> <span class="o">=</span> <span class="p">{</span><span class="hll">        <span class="s1">&#39;name&#39;</span>   <span class="p">:</span> <span class="s1">&#39;GADGET halo&#39;</span><span class="p">,</span></span>        <span class="s1">&#39;species&#39;</span><span class="p">:</span> <span class="s1">&#39;matter&#39;</span><span class="p">,</span>
@@ -401,7 +401,7 @@ want to start from a common initial snapshot. The
 <a class="reference internal" href="#param-gadget"><span class="std std-ref">parameter file</span></a> is set up to produce this initial
 snapshot when <code class="docutils literal notranslate"><span class="pre">_gen</span></code> is <code class="docutils literal notranslate"><span class="pre">True</span></code>. To create the snapshot then, do</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>-p<span class="w"> </span>param/tutorial<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-p<span class="w"> </span>param/tutorial-9<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-c<span class="w"> </span><span class="s2">&quot;_gen = True&quot;</span>
 </pre></div>
 </div>
@@ -417,20 +417,20 @@ ensures that this component gets mapped to GADGET particle type 1
 running with <code class="docutils literal notranslate"><span class="pre">-c</span> <span class="pre">&quot;_gen</span> <span class="pre">=</span> <span class="pre">False&quot;</span></code>. As this is also the value set in the
 <a class="reference internal" href="#param-gadget"><span class="std std-ref">parameter file</span></a>, we may in fact start the simulation
 simply by</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>-p<span class="w"> </span>param/tutorial
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>-p<span class="w"> </span>param/tutorial-9
 </pre></div>
 </div>
 <p>Note that the <code class="docutils literal notranslate"><span class="pre">initial_conditions</span></code> is set to the path of the generated
 snapshot when <code class="docutils literal notranslate"><span class="pre">_gen</span></code> is <code class="docutils literal notranslate"><span class="pre">False</span></code>.</p>
 <p>The power spectrum outputs of the CO<em>N</em>CEPT simulation will be dumped to
-<code class="docutils literal notranslate"><span class="pre">output/tutorial</span></code> as usual.</p>
+<code class="docutils literal notranslate"><span class="pre">output/tutorial-9</span></code> as usual.</p>
 <h3>GADGET-2</h3><p>For GADGET-2, the first thing we need is the source code itself. If you have
 installed CO<em>N</em>CEPT the easy way, you already have it! Let’s make a copy
 just for use with this tutorial:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="o">(</span><span class="nb">source</span><span class="w"> </span>concept<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>cp<span class="w"> </span>-r<span class="w"> </span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">Gadget2_dir</span><span class="si">}</span><span class="s2">&quot;</span><span class="w"> </span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">output_dir</span><span class="si">}</span><span class="s2">&quot;</span>/tutorial/<span class="o">)</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="o">(</span><span class="nb">source</span><span class="w"> </span>concept<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>cp<span class="w"> </span>-r<span class="w"> </span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">Gadget2_dir</span><span class="si">}</span><span class="s2">&quot;</span><span class="w"> </span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">output_dir</span><span class="si">}</span><span class="s2">&quot;</span>/tutorial-9/<span class="o">)</span>
 </pre></div>
 </div>
-<p>You now have the complete GADGET-2 code in <code class="docutils literal notranslate"><span class="pre">output/tutorial/Gadget2</span></code>.</p>
+<p>You now have the complete GADGET-2 code in <code class="docutils literal notranslate"><span class="pre">output/tutorial-9/Gadget2</span></code>.</p>
 <p>The <code class="docutils literal notranslate"><span class="pre">Makefile</span></code> of GADGET-2 needs to be set up with correct path information
 for its dependencies. Furthermore, various options need to be set in order
 for the GADGET-2 simulation to come to be equivalent to the CO<em>N</em>CEPT
@@ -438,14 +438,14 @@ simulation. Last but not least, we need a GADGET-2 parameter file equivalent
 to the <a class="reference internal" href="#param-gadget"><span class="std std-ref">CO<em>N</em>CEPT parameter file</span></a>. All of this can be
 conveniently achieved using the <em>gadget utility</em> included with CO<em>N</em>CEPT:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>-u<span class="w"> </span>gadget<span class="w"> </span>output/tutorial/Gadget2<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>-p<span class="w"> </span>param/tutorial
+<span class="w">    </span>-u<span class="w"> </span>gadget<span class="w"> </span>output/tutorial-9/Gadget2<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-p<span class="w"> </span>param/tutorial-9
 </pre></div>
 </div>
-<p>The <code class="docutils literal notranslate"><span class="pre">output/tutorial/Gadget2</span></code> directory now has a properly set up
+<p>The <code class="docutils literal notranslate"><span class="pre">output/tutorial-9/Gadget2</span></code> directory now has a properly set up
 <code class="docutils literal notranslate"><span class="pre">Makefile</span></code> and a parameter file called <code class="docutils literal notranslate"><span class="pre">param</span></code>. The output times of the
 <a class="reference internal" href="#param-gadget"><span class="std std-ref">original parameter file</span></a> have also been copied to an
-<code class="docutils literal notranslate"><span class="pre">outputlist</span></code> file, similarly placed in <code class="docutils literal notranslate"><span class="pre">output/tutorial/Gadget2</span></code>.</p>
+<code class="docutils literal notranslate"><span class="pre">outputlist</span></code> file, similarly placed in <code class="docutils literal notranslate"><span class="pre">output/tutorial-9/Gadget2</span></code>.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>The parameters specified in the GADGET-2 <code class="docutils literal notranslate"><span class="pre">Makefile</span></code> and <code class="docutils literal notranslate"><span class="pre">param</span></code> file
@@ -466,18 +466,18 @@ source code have been patched to match the values used by CO<em>N</em>CEPT.</p>
 <p>With the various GADGET-2 files in place, let’s build the code and launch
 the simulation:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="o">(</span><span class="nb">source</span><span class="w"> </span>concept<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">cd</span><span class="w"> </span>output/tutorial/Gadget2<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">cd</span><span class="w"> </span>output/tutorial-9/Gadget2<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w"> </span>clean<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span><span class="o">&amp;&amp;</span><span class="w"> </span>mpiexec<span class="w"> </span>-n<span class="w"> </span><span class="m">4</span><span class="w"> </span>./Gadget2<span class="w"> </span>param<span class="o">)</span>
+<span class="w">    </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nv">$mpiexec</span><span class="w"> </span>-n<span class="w"> </span><span class="m">4</span><span class="w"> </span>./Gadget2<span class="w"> </span>param<span class="o">)</span>
 </pre></div>
 </div>
 <p>where you may wish to change the specified number of processes deployed.</p>
 <p>As GADGET-2 is not able to produce power spectra, the results from the
 simulation are raw snapshots, placed along with other files in
-<code class="docutils literal notranslate"><span class="pre">output/tutorial/Gadget2/output</span></code>. To investigate these snapshots, we can
+<code class="docutils literal notranslate"><span class="pre">output/tutorial-9/Gadget2/output</span></code>. To investigate these snapshots, we can
 make use of the info utility:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>-u<span class="w"> </span>info<span class="w"> </span>output/tutorial/Gadget2/output
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>-u<span class="w"> </span>info<span class="w"> </span>output/tutorial-9/Gadget2/output
 </pre></div>
 </div>
 <p>You should find that the snapshots indeed have the same values of the scale
@@ -486,22 +486,29 @@ factor <span class="math notranslate nohighlight">\(a\)</span> as specified in t
 <p>To measure the power spectra of the particle distributions contained within
 the snapshots, we may make use of the <em>powerspec utility</em>:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>-u<span class="w"> </span>powerspec<span class="w"> </span>output/tutorial/Gadget2/output<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>-p<span class="w"> </span>param/tutorial
+<span class="w">    </span>-u<span class="w"> </span>powerspec<span class="w"> </span>output/tutorial-9/Gadget2/output<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-p<span class="w"> </span>param/tutorial-9
 </pre></div>
 </div>
 <p>(as always, you may choose to throw more processes at the task with <code class="docutils literal notranslate"><span class="pre">-n</span></code>).</p>
-<h3>Comparison and adjustments</h3><p>You should now have CO<em>N</em>CEPT power spectra in <code class="docutils literal notranslate"><span class="pre">output/tutorial</span></code> and
-corresponding GADGET-2 power spectra in <code class="docutils literal notranslate"><span class="pre">/output/tutorial/Gadget2/output</span></code>.
+<h3>Comparison and adjustments</h3><p>You should now have CO<em>N</em>CEPT power spectra in <code class="docutils literal notranslate"><span class="pre">output/tutorial-9</span></code> and
+corresponding GADGET-2 power spectra in <code class="docutils literal notranslate"><span class="pre">/output/tutorial-9/Gadget2/output</span></code>.
 We can of course look at each pair of plots, but for a proper comparison we
 should plot the power spectra together in a single plot. You may use the
 script below:</p>
 <div class="literal-block-wrapper docutils container" id="plot-gadget">
-<div class="code-block-caption"><span class="caption-text">output/tutorial/plot.py</span><a class="headerlink" href="#plot-gadget" title="Permalink to this code"></a></div>
+<div class="code-block-caption"><span class="caption-text">output/tutorial-9/plot.py</span><a class="headerlink" href="#plot-gadget" title="Permalink to this code"></a></div>
 <div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">glob</span><span class="o">,</span> <span class="nn">os</span><span class="o">,</span> <span class="nn">re</span>
 <span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
 <span class="kn">import</span> <span class="nn">matplotlib</span><span class="p">;</span> <span class="n">matplotlib</span><span class="o">.</span><span class="n">use</span><span class="p">(</span><span class="s1">&#39;agg&#39;</span><span class="p">)</span>
 <span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
+
+<span class="c1"># Particle Nyquist frequency</span>
+<span class="n">Mpc</span> <span class="o">=</span> <span class="mi">1</span>
+<span class="n">h</span> <span class="o">=</span> <span class="mf">0.67</span>
+<span class="n">boxsize</span> <span class="o">=</span> <span class="mi">512</span><span class="o">*</span><span class="n">Mpc</span><span class="o">/</span><span class="n">h</span>
+<span class="n">num_particles</span> <span class="o">=</span> <span class="mi">64</span><span class="o">**</span><span class="mi">3</span>
+<span class="n">k_nyquist</span> <span class="o">=</span> <span class="mi">2</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="o">/</span><span class="n">boxsize</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">cbrt</span><span class="p">(</span><span class="n">num_particles</span><span class="p">)</span><span class="o">/</span><span class="mi">2</span>
 
 <span class="c1"># Read in CO𝘕CEPT data</span>
 <span class="k">def</span> <span class="nf">read</span><span class="p">(</span><span class="n">dirname</span><span class="p">):</span>
@@ -527,6 +534,16 @@ script below:</p>
     <span class="k">if</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">P_gadget</span><span class="p">:</span>
         <span class="n">axes</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">loglog</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">P_gadget</span><span class="p">[</span><span class="n">a</span><span class="p">],</span> <span class="s1">&#39;k--&#39;</span><span class="p">)</span>
         <span class="n">axes</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">semilogx</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="mi">100</span><span class="o">*</span><span class="p">(</span><span class="n">P</span><span class="o">/</span><span class="n">P_gadget</span><span class="p">[</span><span class="n">a</span><span class="p">]</span> <span class="o">-</span> <span class="mi">1</span><span class="p">))</span>
+<span class="k">for</span> <span class="n">ax</span> <span class="ow">in</span> <span class="n">axes</span><span class="p">:</span>
+    <span class="n">ylim</span> <span class="o">=</span> <span class="n">ax</span><span class="o">.</span><span class="n">get_ylim</span><span class="p">()</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">([</span><span class="n">k_nyquist</span><span class="p">]</span><span class="o">*</span><span class="mi">2</span><span class="p">,</span> <span class="n">ylim</span><span class="p">,</span> <span class="s1">&#39;:&#39;</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s1">&#39;grey&#39;</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_ylim</span><span class="p">(</span><span class="n">ylim</span><span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">text</span><span class="p">(</span>
+    <span class="n">k_nyquist</span><span class="p">,</span>
+    <span class="n">ylim</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="mf">0.15</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">ylim</span><span class="p">),</span>
+    <span class="sa">r</span><span class="s1">&#39;$k_{\mathrm</span><span class="si">{Nyquist}</span><span class="s1">}\rightarrow$&#39;</span><span class="p">,</span>
+    <span class="n">ha</span><span class="o">=</span><span class="s1">&#39;right&#39;</span><span class="p">,</span>
+<span class="p">)</span>
 <span class="n">axes</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">set_xlim</span><span class="p">(</span><span class="n">k</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">k</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
 <span class="n">axes</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;$k\, [\mathrm</span><span class="si">{Mpc}</span><span class="s1">^{-1}]$&#39;</span><span class="p">)</span>
 <span class="n">axes</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;$P\, [\mathrm</span><span class="si">{Mpc}</span><span class="s1">^3]$&#39;</span><span class="p">)</span>
@@ -540,23 +557,23 @@ script below:</p>
 </pre></div>
 </div>
 </div>
-<p>Store the script as e.g. <code class="docutils literal notranslate"><span class="pre">output/tutorial/plot.py</span></code> and run it using</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>-m<span class="w"> </span>output/tutorial/plot.py
+<p>Store the script as e.g. <code class="docutils literal notranslate"><span class="pre">output/tutorial-9/plot.py</span></code> and run it using</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>-m<span class="w"> </span>output/tutorial-9/plot.py
 </pre></div>
 </div>
 <p>The upper subplot — with absolute power spectra — of the generated
-<code class="docutils literal notranslate"><span class="pre">output/tutorial/plot.png</span></code> should show a good qualitative match between the
+<code class="docutils literal notranslate"><span class="pre">output/tutorial-9/plot.png</span></code> should show a good qualitative match between the
 two codes, whereas the lower subplot — with relative power spectra —
 should reveal a disagreement of several percent. This disagreement stems from
 both physical and numerical differences between the codes, which we will now
 alleviate by adjusting the CO<em>N</em>CEPT simulation.</p>
 <h4>Cell-centred vs. cell-vertex discretisation</h4><p>The initial particle distribution, stored within the generated initial
-snapshot file <code class="docutils literal notranslate"><span class="pre">ic/tutorial_a=0.02</span></code>, should ideally be close to homogeneous
+snapshot file <code class="docutils literal notranslate"><span class="pre">ic/tutorial-9_a=0.02</span></code>, should ideally be close to homogeneous
 and isotropic. We can check this qualitatively by plotting the distribution
 in 3D. For this, let’s use the <em>render3D utility</em>:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>-u<span class="w"> </span>render3D<span class="w"> </span>ic/tutorial_a<span class="o">=</span><span class="m">0</span>.02<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>-p<span class="w"> </span>param/tutorial<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-u<span class="w"> </span>render3D<span class="w"> </span>ic/tutorial-9_a<span class="o">=</span><span class="m">0</span>.02<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-p<span class="w"> </span>param/tutorial-9<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-c<span class="w"> </span><span class="s2">&quot;render3D_options = { \</span>
 <span class="s2">        &#39;interpolation&#39;: 0, \</span>
 <span class="s2">        &#39;color&#39;: &#39;black&#39;, \</span>
@@ -569,9 +586,9 @@ corners of the box, it should be clear that while we do have a close to
 homogeneous system, it is far from isotropic.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>The reason for the <code class="docutils literal notranslate"><span class="pre">-c</span></code> command-line options above is to produce a render
-which more clearly shows what we’re after. Playing around with the given
-values is encouraged. Their function should quickly become apparent.</p>
+<p>Adding the <code class="docutils literal notranslate"><span class="pre">render3D_options</span></code> parameter above tunes the render so that it
+more clearly shows what we’re after. Indeed, a more interesting render is
+obtained by not adding this parameter.</p>
 </div>
 <p>The strong anisotropy of the particles is inherited from the grid on which
 they are (pre-)initialised. This grid-like structure of the particle
@@ -659,7 +676,7 @@ well within 1%.</p>
 <span class="math notranslate nohighlight">\(x_{\text{r}}\)</span> to <span class="math notranslate nohighlight">\(5.5x_{\text{s}}\)</span> in GADGET-2 (either by
 including the updated <code class="docutils literal notranslate"><span class="pre">shortrange_params</span></code> when running the CO<em>N</em>CEPT
 <code class="docutils literal notranslate"><span class="pre">gadget</span></code> utility or by manually setting <code class="docutils literal notranslate"><span class="pre">RCUT</span></code> in
-<code class="docutils literal notranslate"><span class="pre">output/tutorial/Gadget2/Makefile</span></code>) and then re-compiling and -running
+<code class="docutils literal notranslate"><span class="pre">output/tutorial-9/Gadget2/Makefile</span></code>) and then re-compiling and -running
 GADGET-2 and computing the power spectra from the new snapshots. Improved
 agreement between the two codes is also achieved by increasing the
 simulation size.</p>

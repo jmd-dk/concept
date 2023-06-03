@@ -358,9 +358,9 @@ text file.</p>
 <p>The <code class="docutils literal notranslate"><span class="pre">param</span></code> directory is meant as a dedicated place to store your
 parameter files. It comes with a few example parameter files included.</p>
 </div>
-<p>Copy the content below to a file named e.g. <code class="docutils literal notranslate"><span class="pre">param/tutorial</span></code>:</p>
+<p>Copy the content below to a file named e.g. <code class="docutils literal notranslate"><span class="pre">param/tutorial-3</span></code>:</p>
 <div class="literal-block-wrapper docutils container" id="param-parameter-files">
-<div class="code-block-caption"><span class="caption-text">param/tutorial</span><a class="headerlink" href="#param-parameter-files" title="Permalink to this code"></a></div>
+<div class="code-block-caption"><span class="caption-text">param/tutorial-3</span><a class="headerlink" href="#param-parameter-files" title="Permalink to this code"></a></div>
 <div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="c1"># Non-parameter helper variable used to control the size of the simulation</span>
 <span class="n">_size</span> <span class="o">=</span> <span class="mi">64</span>
 
@@ -390,7 +390,7 @@ parameter files. It comes with a few example parameter files included.</p>
 </div>
 <p>To run CO<em>N</em>CEPT using this parameter file, do</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>-p<span class="w"> </span>param/tutorial<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-p<span class="w"> </span>param/tutorial-3<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-n<span class="w"> </span><span class="m">4</span>
 </pre></div>
 </div>
@@ -422,10 +422,10 @@ If you want to take a look at this <code class="docutils literal notranslate"><s
 <code class="docutils literal notranslate"><span class="pre">output_dir</span></code> in the <code class="docutils literal notranslate"><span class="pre">.path</span></code> file, which will be
 <code class="docutils literal notranslate"><span class="pre">'/path/to/concept/output'</span></code>. When used as is, the <code class="docutils literal notranslate"><span class="pre">param</span></code> variable
 maps to the file name of the parameter file in which it is used, in this
-case <code class="docutils literal notranslate"><span class="pre">'tutorial'</span></code>. In total, the power spectrum output directory then gets
-set to <code class="docutils literal notranslate"><span class="pre">'/path/to/concept/output/tutorial'</span></code>. We could have gotten away
-with just writing <code class="docutils literal notranslate"><span class="pre">'output/tutorial'</span></code> out statically. Such relative paths
-in parameter files should be given with respect to the
+case <code class="docutils literal notranslate"><span class="pre">'tutorial-3'</span></code>. In total, the power spectrum output directory then
+gets set to <code class="docutils literal notranslate"><span class="pre">'/path/to/concept/output/tutorial-3'</span></code>. We could have gotten
+away with just writing <code class="docutils literal notranslate"><span class="pre">'output/tutorial-3'</span></code> out statically. Such relative
+paths in parameter files should be given with respect to the
 installation directory.</p>
 </li>
 <li><p>We’ve specified multiple times at which to dump power spectra in
@@ -459,7 +459,7 @@ parameter) option. As an example, consider leaving out the definition of
 <code class="docutils literal notranslate"><span class="pre">_size</span></code> from the parameter file and instead supplying it when running the
 code:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>-p<span class="w"> </span>param/tutorial<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-p<span class="w"> </span>param/tutorial-3<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-c<span class="w"> </span><span class="s2">&quot;_size = 64&quot;</span><span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-n<span class="w"> </span><span class="m">4</span>
 </pre></div>

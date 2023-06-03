@@ -11,10 +11,10 @@ bispectrum of the particle distribution.
    <h3>Equilateral bispectra</h3>
 
 We shall make use of the following parameter file throughout this section.
-Save it as e.g. ``param/tutorial``:
+Save it as e.g. ``param/tutorial-8``:
 
 .. code-block:: python3
-   :caption: param/tutorial
+   :caption: param/tutorial-8
    :name: param-bispec
    :emphasize-lines: 12, 16, 23-25, 30-34, 43-45, 48-50, 52, 56-59
 
@@ -82,19 +82,19 @@ We start by running this parameter file as is:
 
 .. code-block:: bash
 
-   ./concept -p param/tutorial
+   ./concept -p param/tutorial-8
 
 (feel free to run this in parallel by further supplying ``-n``). This will run
 a simple simulation and measure the matter bispectrum (as well as the power
 spectrum) at three different times along the evolution, as specified in
 ``output_times``. The bispectra (data files and plots) are dumped into a
-nested set of subdirectories within ``output/tutorial`` (for organisational
+nested set of subdirectories within ``output/tutorial-8`` (for organisational
 purposes, as many more bispectrum measurements are to come). You can have a
 look at these, but what we really want is to plot the different bispectra
 together in a single plot, for which we make use of the plotting script below:
 
 .. code-block:: python3
-   :caption: output/tutorial/plot.py
+   :caption: output/tutorial-8/plot.py
    :name: plot-bispec
 
    import collections, glob, os, re, sys
@@ -337,15 +337,15 @@ together in a single plot, for which we make use of the plotting script below:
 
 Do not worry about the large size of the plotting script; though we shall make
 use of it, we shall not study its content in any detail. Store the plotting
-script as e.g. ``output/tutorial/plot.py``. With the first simulation
+script as e.g. ``output/tutorial-8/plot.py``. With the first simulation
 completed, run this script using
 
 .. code-block:: bash
 
-   ./concept -m output/tutorial/plot.py
+   ./concept -m output/tutorial-8/plot.py
 
 This will produce a file named ``plot_equilateral.png`` in the
-``output/tutorial`` directory. Here, 'equilateral' refers to the particular
+``output/tutorial-8`` directory. Here, 'equilateral' refers to the particular
 bispectrum configuration measured within the simulation, as specified within
 the ``bispec_options`` parameter. In our :ref:`parameter file <param-bispec>`
 this value is set through the helper variable ``_conf``, which indeed is given
@@ -395,13 +395,13 @@ in the :ref:`parameter file above <param-bispec>` is controlled through the
 .. code-block:: bash
 
    ./concept \
-       -p param/tutorial \
+       -p param/tutorial-8 \
        -c "_shift = π"
 
 Running the above does not overwrite the existing results, but dumps the new
 output into a separate subdirectory in accordance with the shift. If you now
 compare the *automatically generated* bispectrum plot at the initial time
-(``output/tutorial/1LPT/seed0_shift0/equilateral/bispec_a=0.02.png``) of the
+(``output/tutorial-8/1LPT/seed0_shift0/equilateral/bispec_a=0.02.png``) of the
 non-shifted simulation with that of the shifted simulation, you will find that
 the two bispectra almost look like each others negative (dashed pieces of the
 coloured line indicate negative :math:`B`). Averaging them together will thus
@@ -431,7 +431,7 @@ such seed:
    for seed in 1 2 3; do
        for shift in 0 π; do
            ./concept \
-               -p param/tutorial \
+               -p param/tutorial-8 \
                -c "_seed = $seed" \
                -c "_shift = $shift"
        done
@@ -471,7 +471,7 @@ this time with ``_lpt = 2``:
    for seed in 0 1 2 3; do
        for shift in 0 π; do
            ./concept \
-               -p param/tutorial \
+               -p param/tutorial-8 \
                -c "_seed = $seed" \
                -c "_shift = $shift" \
                -c "_lpt = 2"
@@ -494,8 +494,8 @@ up until rather late times, before outgrowing it at the larger
 Since using 1LPT lands us on the desired linear *power* spectrum at the
 initial time, we might fear that opting for 2LPT ruins this behaviour. We can
 check this by comparing the automatically generated ``powerspec_a=0.02.png``
-plot within any of the subdirectories of ``output/tutorial/1LPT`` with one
-from the subdirectories of ``output/tutorial/2LPT`` (the seed and shift does
+plot within any of the subdirectories of ``output/tutorial-8/1LPT`` with one
+from the subdirectories of ``output/tutorial-8/2LPT`` (the seed and shift does
 not matter much for the initial power spectrum, due to
 ``primordial_amplitude_fixed = True``). They should appear completely
 indistinguishable, demonstrating that the 2LPT corrections leaves the 1LPT
@@ -532,9 +532,9 @@ of the *bispec utility*:
 
    ./concept \
        -u bispec \
-       -p param/tutorial \
+       -p param/tutorial-8 \
        -c "_conf = 'squeezed'" \
-       output/tutorial/2LPT/*
+       output/tutorial-8/2LPT/*
 
 (possibly with the inclusion of ``-n``). Note that the above will compute the
 squeezed bispectrum for all snapshots produced by the 2LPT runs. For a given
@@ -548,7 +548,7 @@ appropriately ourselves, then:
 
    organise() {
        (
-           cd output/tutorial/2LPT \
+           cd output/tutorial-8/2LPT \
            && for d in *; do \
                cd $d \
                && mkdir -p $1 \
@@ -559,7 +559,7 @@ appropriately ourselves, then:
    }
    organise squeezed
 
-If you now take a look at the contents of the ``output/tutorial/2LPT``
+If you now take a look at the contents of the ``output/tutorial-8/2LPT``
 directory, each subdirectory should have equilateral and squeezed bispectrum
 files neatly sorted into separate further subdirectories.
 
@@ -570,12 +570,11 @@ at the lower :math:`Q` panel, the agreement between the simulation measurements
 and the tree-level predictions does not appear to be as good as for the
 equilateral configurations. From this it is clear that we cannot generally
 expect our simulations to be initialized with a bispectrum matching the
-tree-level prediction, even when using 2LPT. As tree-level and 2LPT are in
-fact not equivalent perturbative methods, the striking agreement we found for
-equilateral configurations appears even more incredible. Looking at the
-upper :math:`B` panel of ``plot_squeezed.png``, we see that the simulation and
-theory results *do* manage to closely follow each other over many orders
-of magnitude.
+tree-level prediction for a general triangle configuration, even when
+using 2LPT. The striking agreement we found for the equilateral configurations
+then appears even more incredible. Looking at the upper :math:`B` panel of
+``plot_squeezed.png``, we see that the simulation and theory results *do*
+manage to closely follow each other over many orders of magnitude.
 
 .. note::
    To specify a given triangle configuration, CO\ *N*\ CEPT uses the
@@ -613,11 +612,11 @@ another class of configurations. Let's choose "S-isosceles":
    conf=S-isosceles
    ./concept \
        -u bispec \
-       -p param/tutorial \
+       -p param/tutorial-8 \
        -c "_conf = '$conf'" \
-       output/tutorial/2LPT/* \
+       output/tutorial-8/2LPT/* \
    && organise $conf \
-   && ./concept -m output/tutorial/plot.py
+   && ./concept -m output/tutorial-8/plot.py
 
 Note that the above includes the bispectrum measurements, file organisation
 and subsequent plotting. Once completed, ``plot_S-isosceles.png`` will have
@@ -657,11 +656,11 @@ Perform the bispectrum measurements in the usual manner:
    conf=elongated
    ./concept \
        -u bispec \
-       -p param/tutorial \
+       -p param/tutorial-8 \
        -c "_conf = '$conf'" \
-       output/tutorial/2LPT/* \
+       output/tutorial-8/2LPT/* \
    && organise $conf \
-   && ./concept -m output/tutorial/plot.py
+   && ./concept -m output/tutorial-8/plot.py
 
 The resulting ``plot_elongated.png`` will again show two-dimensional subplots,
 though this time with :math:`t` as the second independent variable. We again

@@ -354,7 +354,7 @@
 other types of output are available, as exemplified by the below parameter
 file:</p>
 <div class="literal-block-wrapper docutils container" id="param-output-types">
-<div class="code-block-caption"><span class="caption-text">param/tutorial</span><a class="headerlink" href="#param-output-types" title="Permalink to this code"></a></div>
+<div class="code-block-caption"><span class="caption-text">param/tutorial-5</span><a class="headerlink" href="#param-output-types" title="Permalink to this code"></a></div>
 <div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="c1"># Non-parameter variable used to control the size of the simulation</span>
 <span class="n">_size</span> <span class="o">=</span> <span class="mi">64</span>
 
@@ -378,9 +378,9 @@ file:</p>
 </div>
 </div>
 <p>Run a simulation using the <a class="reference internal" href="#param-output-types"><span class="std std-ref">above</span></a> parameters, e.g.
-by saving them to <code class="docutils literal notranslate"><span class="pre">param/tutorial</span></code> and executing</p>
+by saving them to <code class="docutils literal notranslate"><span class="pre">param/tutorial-5</span></code> and executing</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>-p<span class="w"> </span>param/tutorial<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-p<span class="w"> </span>param/tutorial-5<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-n<span class="w"> </span><span class="m">4</span>
 </pre></div>
 </div>
@@ -423,8 +423,8 @@ though the number of columns contained within them is usually much greater.</p>
 <div class="admonition tip">
 <p class="admonition-title">Tip</p>
 <p>One way to comfortably view wide text files (e.g.
-<code class="docutils literal notranslate"><span class="pre">output/tutorial/bispec_a=1.00</span></code>) in the terminal is to use</p>
-<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">less</span> <span class="o">-</span><span class="n">S</span> <span class="n">output</span><span class="o">/</span><span class="n">tutorial</span><span class="o">/</span><span class="n">bispec_a</span><span class="o">=</span><span class="mf">1.00</span>
+<code class="docutils literal notranslate"><span class="pre">output/tutorial-5/bispec_a=1.00</span></code>) in the terminal is to use</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">less</span> <span class="o">-</span><span class="n">S</span> <span class="n">output</span><span class="o">/</span><span class="n">tutorial</span><span class="o">-</span><span class="mi">5</span><span class="o">/</span><span class="n">bispec_a</span><span class="o">=</span><span class="mf">1.00</span>
 </pre></div>
 </div>
 <p>You can then scroll both horizontally and vertically with the arrow keys.
@@ -482,7 +482,7 @@ know its job ID.</p>
 <p class="admonition-title">Tip</p>
 <p>To grab the job ID from a power spectrum (or bispectrum) data file, you can
 do e.g.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>grep<span class="w"> </span>-o<span class="w"> </span><span class="s2">&quot;job [0-9]*&quot;</span><span class="w"> </span>output/tutorial/powerspec_a<span class="o">=</span><span class="m">1</span>.00
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>grep<span class="w"> </span>-o<span class="w"> </span><span class="s2">&quot;job [0-9]*&quot;</span><span class="w"> </span>output/tutorial-5/powerspec_a<span class="o">=</span><span class="m">1</span>.00
 </pre></div>
 </div>
 </div>
@@ -582,7 +582,7 @@ to hold such initial condition snapshots. To dump snapshots to this directory,
 set the <code class="docutils literal notranslate"><span class="pre">'snapshot'</span></code> entry in <code class="docutils literal notranslate"><span class="pre">output_dirs</span></code> to <code class="docutils literal notranslate"><span class="pre">path.ic_dir</span></code>. We can
 achieve both without even altering the parameter file:</p>
 <div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="o">./</span><span class="n">concept</span> \
-    <span class="o">-</span><span class="n">p</span> <span class="n">param</span><span class="o">/</span><span class="n">tutorial</span> \
+    <span class="o">-</span><span class="n">p</span> <span class="n">param</span><span class="o">/</span><span class="n">tutorial</span><span class="o">-</span><span class="mi">5</span> \
     <span class="o">-</span><span class="n">c</span> <span class="s2">&quot;output_times = {&#39;snapshot&#39;: a_begin}&quot;</span> \
     <span class="o">-</span><span class="n">c</span> <span class="s2">&quot;output_dirs = {&#39;snapshot&#39;: path.ic_dir}&quot;</span> \
     <span class="o">-</span><span class="n">n</span> <span class="mi">4</span>
@@ -601,7 +601,7 @@ the default CO<em>N</em>CEPT (HDF5) snapshots. It would be nice to have a genera
 tool which worked for the supported GADGET snapshots as well. Luckily,
 CO<em>N</em>CEPT comes with just such a tool: the <em>info utility</em>. To try it out,
 simply do</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>-u<span class="w"> </span>info<span class="w"> </span>output/tutorial
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>-u<span class="w"> </span>info<span class="w"> </span>output/tutorial-5
 </pre></div>
 </div>
 <p>or</p>

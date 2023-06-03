@@ -354,9 +354,9 @@
 shall also see how using 2LPT initial conditions improves the initial
 bispectrum of the particle distribution.</p>
 <h3>Equilateral bispectra</h3><p>We shall make use of the following parameter file throughout this section.
-Save it as e.g. <code class="docutils literal notranslate"><span class="pre">param/tutorial</span></code>:</p>
+Save it as e.g. <code class="docutils literal notranslate"><span class="pre">param/tutorial-8</span></code>:</p>
 <div class="literal-block-wrapper docutils container" id="param-bispec">
-<div class="code-block-caption"><span class="caption-text">param/tutorial</span><a class="headerlink" href="#param-bispec" title="Permalink to this code"></a></div>
+<div class="code-block-caption"><span class="caption-text">param/tutorial-8</span><a class="headerlink" href="#param-bispec" title="Permalink to this code"></a></div>
 <div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="c1"># Non-parameter helper variable used to control the size of the simulation</span>
 <span class="n">_size</span> <span class="o">=</span> <span class="mi">64</span>
 
@@ -391,19 +391,19 @@ Save it as e.g. <code class="docutils literal notranslate"><span class="pre">par
 </div>
 </div>
 <p>We start by running this parameter file as is:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>-p<span class="w"> </span>param/tutorial
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>-p<span class="w"> </span>param/tutorial-8
 </pre></div>
 </div>
 <p>(feel free to run this in parallel by further supplying <code class="docutils literal notranslate"><span class="pre">-n</span></code>). This will run
 a simple simulation and measure the matter bispectrum (as well as the power
 spectrum) at three different times along the evolution, as specified in
 <code class="docutils literal notranslate"><span class="pre">output_times</span></code>. The bispectra (data files and plots) are dumped into a
-nested set of subdirectories within <code class="docutils literal notranslate"><span class="pre">output/tutorial</span></code> (for organisational
+nested set of subdirectories within <code class="docutils literal notranslate"><span class="pre">output/tutorial-8</span></code> (for organisational
 purposes, as many more bispectrum measurements are to come). You can have a
 look at these, but what we really want is to plot the different bispectra
 together in a single plot, for which we make use of the plotting script below:</p>
 <div class="literal-block-wrapper docutils container" id="plot-bispec">
-<div class="code-block-caption"><span class="caption-text">output/tutorial/plot.py</span><a class="headerlink" href="#plot-bispec" title="Permalink to this code"></a></div>
+<div class="code-block-caption"><span class="caption-text">output/tutorial-8/plot.py</span><a class="headerlink" href="#plot-bispec" title="Permalink to this code"></a></div>
 <div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">collections</span><span class="o">,</span> <span class="nn">glob</span><span class="o">,</span> <span class="nn">os</span><span class="o">,</span> <span class="nn">re</span><span class="o">,</span> <span class="nn">sys</span>
 <span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
 <span class="kn">import</span> <span class="nn">matplotlib</span><span class="p">;</span> <span class="n">matplotlib</span><span class="o">.</span><span class="n">use</span><span class="p">(</span><span class="s1">&#39;agg&#39;</span><span class="p">)</span>
@@ -646,13 +646,13 @@ together in a single plot, for which we make use of the plotting script below:</
 </div>
 <p>Do not worry about the large size of the plotting script; though we shall make
 use of it, we shall not study its content in any detail. Store the plotting
-script as e.g. <code class="docutils literal notranslate"><span class="pre">output/tutorial/plot.py</span></code>. With the first simulation
+script as e.g. <code class="docutils literal notranslate"><span class="pre">output/tutorial-8/plot.py</span></code>. With the first simulation
 completed, run this script using</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>-m<span class="w"> </span>output/tutorial/plot.py
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>-m<span class="w"> </span>output/tutorial-8/plot.py
 </pre></div>
 </div>
 <p>This will produce a file named <code class="docutils literal notranslate"><span class="pre">plot_equilateral.png</span></code> in the
-<code class="docutils literal notranslate"><span class="pre">output/tutorial</span></code> directory. Here, ‘equilateral’ refers to the particular
+<code class="docutils literal notranslate"><span class="pre">output/tutorial-8</span></code> directory. Here, ‘equilateral’ refers to the particular
 bispectrum configuration measured within the simulation, as specified within
 the <code class="docutils literal notranslate"><span class="pre">bispec_options</span></code> parameter. In our <a class="reference internal" href="#param-bispec"><span class="std std-ref">parameter file</span></a>
 this value is set through the helper variable <code class="docutils literal notranslate"><span class="pre">_conf</span></code>, which indeed is given
@@ -691,14 +691,14 @@ the <code class="docutils literal notranslate"><span class="pre">primordial_phas
 in the <a class="reference internal" href="#param-bispec"><span class="std std-ref">parameter file above</span></a> is controlled through the
 <code class="docutils literal notranslate"><span class="pre">_shift</span></code> helper variable:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>-p<span class="w"> </span>param/tutorial<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-p<span class="w"> </span>param/tutorial-8<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-c<span class="w"> </span><span class="s2">&quot;_shift = π&quot;</span>
 </pre></div>
 </div>
 <p>Running the above does not overwrite the existing results, but dumps the new
 output into a separate subdirectory in accordance with the shift. If you now
 compare the <em>automatically generated</em> bispectrum plot at the initial time
-(<code class="docutils literal notranslate"><span class="pre">output/tutorial/1LPT/seed0_shift0/equilateral/bispec_a=0.02.png</span></code>) of the
+(<code class="docutils literal notranslate"><span class="pre">output/tutorial-8/1LPT/seed0_shift0/equilateral/bispec_a=0.02.png</span></code>) of the
 non-shifted simulation with that of the shifted simulation, you will find that
 the two bispectra almost look like each others negative (dashed pieces of the
 coloured line indicate negative <span class="math notranslate nohighlight">\(B\)</span>). Averaging them together will thus
@@ -724,7 +724,7 @@ such seed:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="k">for</span><span class="w"> </span>seed<span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="m">2</span><span class="w"> </span><span class="m">3</span><span class="p">;</span><span class="w"> </span><span class="k">do</span>
 <span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="nb">shift</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="m">0</span><span class="w"> </span>π<span class="p">;</span><span class="w"> </span><span class="k">do</span>
 <span class="w">        </span>./concept<span class="w"> </span><span class="se">\</span>
-<span class="w">            </span>-p<span class="w"> </span>param/tutorial<span class="w"> </span><span class="se">\</span>
+<span class="w">            </span>-p<span class="w"> </span>param/tutorial-8<span class="w"> </span><span class="se">\</span>
 <span class="w">            </span>-c<span class="w"> </span><span class="s2">&quot;_seed = </span><span class="nv">$seed</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
 <span class="w">            </span>-c<span class="w"> </span><span class="s2">&quot;_shift = </span><span class="nv">$shift</span><span class="s2">&quot;</span>
 <span class="w">    </span><span class="k">done</span>
@@ -754,7 +754,7 @@ this time with <code class="docutils literal notranslate"><span class="pre">_lpt
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="k">for</span><span class="w"> </span>seed<span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="m">0</span><span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="m">2</span><span class="w"> </span><span class="m">3</span><span class="p">;</span><span class="w"> </span><span class="k">do</span>
 <span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="nb">shift</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="m">0</span><span class="w"> </span>π<span class="p">;</span><span class="w"> </span><span class="k">do</span>
 <span class="w">        </span>./concept<span class="w"> </span><span class="se">\</span>
-<span class="w">            </span>-p<span class="w"> </span>param/tutorial<span class="w"> </span><span class="se">\</span>
+<span class="w">            </span>-p<span class="w"> </span>param/tutorial-8<span class="w"> </span><span class="se">\</span>
 <span class="w">            </span>-c<span class="w"> </span><span class="s2">&quot;_seed = </span><span class="nv">$seed</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
 <span class="w">            </span>-c<span class="w"> </span><span class="s2">&quot;_shift = </span><span class="nv">$shift</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
 <span class="w">            </span>-c<span class="w"> </span><span class="s2">&quot;_lpt = 2&quot;</span>
@@ -776,8 +776,8 @@ up until rather late times, before outgrowing it at the larger
 <p>Since using 1LPT lands us on the desired linear <em>power</em> spectrum at the
 initial time, we might fear that opting for 2LPT ruins this behaviour. We can
 check this by comparing the automatically generated <code class="docutils literal notranslate"><span class="pre">powerspec_a=0.02.png</span></code>
-plot within any of the subdirectories of <code class="docutils literal notranslate"><span class="pre">output/tutorial/1LPT</span></code> with one
-from the subdirectories of <code class="docutils literal notranslate"><span class="pre">output/tutorial/2LPT</span></code> (the seed and shift does
+plot within any of the subdirectories of <code class="docutils literal notranslate"><span class="pre">output/tutorial-8/1LPT</span></code> with one
+from the subdirectories of <code class="docutils literal notranslate"><span class="pre">output/tutorial-8/2LPT</span></code> (the seed and shift does
 not matter much for the initial power spectrum, due to
 <code class="docutils literal notranslate"><span class="pre">primordial_amplitude_fixed</span> <span class="pre">=</span> <span class="pre">True</span></code>). They should appear completely
 indistinguishable, demonstrating that the 2LPT corrections leaves the 1LPT
@@ -802,9 +802,9 @@ snapshots as well!).</p>
 of the <em>bispec utility</em>:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-u<span class="w"> </span>bispec<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>-p<span class="w"> </span>param/tutorial<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-p<span class="w"> </span>param/tutorial-8<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-c<span class="w"> </span><span class="s2">&quot;_conf = &#39;squeezed&#39;&quot;</span><span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>output/tutorial/2LPT/*
+<span class="w">    </span>output/tutorial-8/2LPT/*
 </pre></div>
 </div>
 <p>(possibly with the inclusion of <code class="docutils literal notranslate"><span class="pre">-n</span></code>). Note that the above will compute the
@@ -816,7 +816,7 @@ existing <code class="docutils literal notranslate"><span class="pre">equilatera
 appropriately ourselves, then:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>organise<span class="o">()</span><span class="w"> </span><span class="o">{</span>
 <span class="w">    </span><span class="o">(</span>
-<span class="w">        </span><span class="nb">cd</span><span class="w"> </span>output/tutorial/2LPT<span class="w"> </span><span class="se">\</span>
+<span class="w">        </span><span class="nb">cd</span><span class="w"> </span>output/tutorial-8/2LPT<span class="w"> </span><span class="se">\</span>
 <span class="w">        </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="k">for</span><span class="w"> </span>d<span class="w"> </span><span class="k">in</span><span class="w"> </span>*<span class="p">;</span><span class="w"> </span><span class="k">do</span><span class="w"> </span><span class="se">\</span>
 <span class="w">            </span><span class="nb">cd</span><span class="w"> </span><span class="nv">$d</span><span class="w"> </span><span class="se">\</span>
 <span class="w">            </span><span class="o">&amp;&amp;</span><span class="w"> </span>mkdir<span class="w"> </span>-p<span class="w"> </span><span class="nv">$1</span><span class="w"> </span><span class="se">\</span>
@@ -828,7 +828,7 @@ appropriately ourselves, then:</p>
 organise<span class="w"> </span>squeezed
 </pre></div>
 </div>
-<p>If you now take a look at the contents of the <code class="docutils literal notranslate"><span class="pre">output/tutorial/2LPT</span></code>
+<p>If you now take a look at the contents of the <code class="docutils literal notranslate"><span class="pre">output/tutorial-8/2LPT</span></code>
 directory, each subdirectory should have equilateral and squeezed bispectrum
 files neatly sorted into separate further subdirectories.</p>
 <p>Rerunning the plotting script, we now additionally get <code class="docutils literal notranslate"><span class="pre">plot_squeezed.png</span></code>,
@@ -838,12 +838,11 @@ at the lower <span class="math notranslate nohighlight">\(Q\)</span> panel, the 
 and the tree-level predictions does not appear to be as good as for the
 equilateral configurations. From this it is clear that we cannot generally
 expect our simulations to be initialized with a bispectrum matching the
-tree-level prediction, even when using 2LPT. As tree-level and 2LPT are in
-fact not equivalent perturbative methods, the striking agreement we found for
-equilateral configurations appears even more incredible. Looking at the
-upper <span class="math notranslate nohighlight">\(B\)</span> panel of <code class="docutils literal notranslate"><span class="pre">plot_squeezed.png</span></code>, we see that the simulation and
-theory results <em>do</em> manage to closely follow each other over many orders
-of magnitude.</p>
+tree-level prediction for a general triangle configuration, even when
+using 2LPT. The striking agreement we found for the equilateral configurations
+then appears even more incredible. Looking at the upper <span class="math notranslate nohighlight">\(B\)</span> panel of
+<code class="docutils literal notranslate"><span class="pre">plot_squeezed.png</span></code>, we see that the simulation and theory results <em>do</em>
+manage to closely follow each other over many orders of magnitude.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>To specify a given triangle configuration, CO<em>N</em>CEPT uses the
@@ -873,11 +872,11 @@ another class of configurations. Let’s choose “S-isosceles”:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">conf</span><span class="o">=</span>S-isosceles
 ./concept<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-u<span class="w"> </span>bispec<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>-p<span class="w"> </span>param/tutorial<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-p<span class="w"> </span>param/tutorial-8<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-c<span class="w"> </span><span class="s2">&quot;_conf = &#39;</span><span class="nv">$conf</span><span class="s2">&#39;&quot;</span><span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>output/tutorial/2LPT/*<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>output/tutorial-8/2LPT/*<span class="w"> </span><span class="se">\</span>
 <span class="o">&amp;&amp;</span><span class="w"> </span>organise<span class="w"> </span><span class="nv">$conf</span><span class="w"> </span><span class="se">\</span>
-<span class="o">&amp;&amp;</span><span class="w"> </span>./concept<span class="w"> </span>-m<span class="w"> </span>output/tutorial/plot.py
+<span class="o">&amp;&amp;</span><span class="w"> </span>./concept<span class="w"> </span>-m<span class="w"> </span>output/tutorial-8/plot.py
 </pre></div>
 </div>
 <p>Note that the above includes the bispectrum measurements, file organisation
@@ -914,11 +913,11 @@ as “flattened”, “folded” or “linear”.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">conf</span><span class="o">=</span>elongated
 ./concept<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-u<span class="w"> </span>bispec<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>-p<span class="w"> </span>param/tutorial<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-p<span class="w"> </span>param/tutorial-8<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-c<span class="w"> </span><span class="s2">&quot;_conf = &#39;</span><span class="nv">$conf</span><span class="s2">&#39;&quot;</span><span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>output/tutorial/2LPT/*<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>output/tutorial-8/2LPT/*<span class="w"> </span><span class="se">\</span>
 <span class="o">&amp;&amp;</span><span class="w"> </span>organise<span class="w"> </span><span class="nv">$conf</span><span class="w"> </span><span class="se">\</span>
-<span class="o">&amp;&amp;</span><span class="w"> </span>./concept<span class="w"> </span>-m<span class="w"> </span>output/tutorial/plot.py
+<span class="o">&amp;&amp;</span><span class="w"> </span>./concept<span class="w"> </span>-m<span class="w"> </span>output/tutorial-8/plot.py
 </pre></div>
 </div>
 <p>The resulting <code class="docutils literal notranslate"><span class="pre">plot_elongated.png</span></code> will again show two-dimensional subplots,
