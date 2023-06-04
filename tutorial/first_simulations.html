@@ -427,11 +427,28 @@ run with e.g. 4 CPU cores, execute</p>
 by <span class="math notranslate nohighlight">\(3\)</span>. Further such restrictions exist. If an illegal number of
 processes is chosen, CO<em>N</em>CEPT exits with a helpful error message.</p>
 </div>
-<p>To see a complete list of possible options to the <code class="docutils literal notranslate"><span class="pre">concept</span></code> script, invoke</p>
+<h2>Other command-line options</h2><p>The <code class="docutils literal notranslate"><span class="pre">concept</span></code> script accepts quite a few command-line options in addition
+to the ones we’ve seen so far. To see a complete list of possible options,
+invoke</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>-h
 </pre></div>
 </div>
-<p>For full documentation on each option, consult
+<p>We shall explore some of these in later parts of this tutorial. For now, let’s
+try out the interesting (though typically not recommendable)
+<code class="docutils literal notranslate"><span class="pre">--pure-python</span></code>, which runs the CO<em>N</em>CEPT Python source code as is,
+rather than making use of the transpiled and optimized build. Simply rerun the
+previous simulation, now with <code class="docutils literal notranslate"><span class="pre">--pure-python</span></code> added as an option
+to <code class="docutils literal notranslate"><span class="pre">concept</span></code>.</p>
+<p>You should find that running in pure Python mode is unbearably slow, even if
+running with multiple cores. In fact, comparing some of the timing
+measurements printed to the screen to those of the previous run, you should
+find the difference in performance to be <span class="math notranslate nohighlight">\(\gtrsim 10^3\)</span>.</p>
+<p>Waiting for the pure Python simulation to finish is not worth it. You may
+cancel (<code class="docutils literal notranslate"><span class="pre">Ctrl</span></code>+<code class="docutils literal notranslate"><span class="pre">C</span></code>) it now. Though not essential for using the code,
+being aware that CO<em>N</em>CEPT is a Python code, drastically sped up through
+transpiler magic, gives some appreciation of what sets CO<em>N</em>CEPT apart
+from other cosmological simulation codes.</p>
+<p>For full documentation on each option to <code class="docutils literal notranslate"><span class="pre">concept</span></code>, consult
 <a class="reference internal" href="../command_line_options.html"><span class="doc">Command-line options</span></a>.</p>
 </section>
 
