@@ -107,12 +107,38 @@ run with e.g. 4 CPU cores, execute
    by :math:`3`. Further such restrictions exist. If an illegal number of
    processes is chosen, CO\ *N*\ CEPT exits with a helpful error message.
 
-To see a complete list of possible options to the ``concept`` script, invoke
+
+
+.. raw:: html
+
+   <h2>Other command-line options</h2>
+
+The ``concept`` script accepts quite a few command-line options in addition
+to the ones we've seen so far. To see a complete list of possible options,
+invoke
 
 .. code-block:: bash
 
    ./concept -h
 
-For full documentation on each option, consult
+We shall explore some of these in later parts of this tutorial. For now, let's
+try out the interesting (though typically not recommendable)
+``--pure-python``, which runs the CO\ *N*\ CEPT Python source code as is,
+rather than making use of the transpiled and optimized build. Simply rerun the
+previous simulation, now with ``--pure-python`` added as an option
+to ``concept``.
+
+You should find that running in pure Python mode is unbearably slow, even if
+running with multiple cores. In fact, comparing some of the timing
+measurements printed to the screen to those of the previous run, you should
+find the difference in performance to be :math:`\gtrsim 10^3`.
+
+Waiting for the pure Python simulation to finish is not worth it. You may
+cancel (``Ctrl``\ +\ ``C``) it now. Though not essential for using the code,
+being aware that CO\ *N*\ CEPT is a Python code, drastically sped up through
+transpiler magic, gives some appreciation of what sets CO\ *N*\ CEPT apart
+from other cosmological simulation codes.
+
+For full documentation on each option to ``concept``, consult
 :doc:`Command-line options </command_line_options>`.
 
