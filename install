@@ -6092,7 +6092,7 @@ fftw_install_func() {
         done
         ./configure ${enable_shared} ${enable_mpi} ${precision_flags} \
             ${fftw_configure_options} ${with_pic} ${simd_instructions} \
-            --prefix="${fftw_dir}" 2>&1 || return 1
+            --prefix="${fftw_dir}" --libdir="${fftw_dir}/lib" 2>&1 || return 1
         make         2>&1 || return 1  # Parallel builds fail on some systems
         make install 2>&1 || return 1  # Parallel builds fail on some systems
     fi
@@ -9616,8 +9616,8 @@ fftw_for_gadget_install_func() {
         precision_flags="--enable-float --enable-type-prefix"
         make clean || :
         ./configure ${enable_shared} ${enable_mpi} ${precision_flags} \
-            ${fftw_configure_options} ${with_pic} \
-            --prefix="${fftw_for_gadget_dir}" 2>&1 || return 1
+            ${fftw_configure_options} ${with_pic} --prefix="${fftw_for_gadget_dir}" \
+            --libdir="${fftw_for_gadget_dir}/lib" 2>&1 || return 1
         make         2>&1 || return 1  # Parallel builds fail on some systems
         make install 2>&1 || return 1  # Parallel builds fail on some systems
     fi
