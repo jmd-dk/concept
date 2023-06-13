@@ -6331,6 +6331,11 @@ python_install_func() {
         export CPPFLAGS="-I${ncurses_dir}/include -I${ncurses_dir}/include/ncurses ${CPPFLAGS}"
         export LD_LIBRARY_PATH="${ncurses_dir}/lib:${LD_LIBRARY_PATH}"
         export LDFLAGS="-L${ncurses_dir}/lib -Wl,-rpath=${ncurses_dir}/lib ${LDFLAGS}"
+        # Python searches for ncursesw prior to ncurses.
+        # If ncursesw is found on the system it may cause trouble
+        # with our ncurses installation. Avoid this.
+        sed -i "s/ncursesw ncurses/ncurses ncursesw/" configure || :
+        sed -i "s/\(find_library_file *(.*ncursesw.*) *\):/\1 and False:/" setup.py || :
     fi
     with_openssl=""
     if [ -n "${openssl_dir}" ] && [ -d "${openssl_dir}" ]; then
