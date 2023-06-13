@@ -5600,6 +5600,25 @@ install "GSL" compiler "${compiler_possibilities[@]}"
 
 # Perl
 perl_install_func() {
+    if [ "${use_system_perl}" == "True" ]; then
+        # If all attempts of building Perl fails,
+        # try using the system Perl, if available.
+        perl_executable="$(get_command "perl")" || return 1
+        if [ -f "${perl_executable}" ]; then
+            perl_dir_sys="$(dirname "${perl_executable}")"
+            if [ "$(basename "${perl_dir_sys}")" == "bin" ]; then
+                perl_dir_sys="$(dirname "${perl_dir_sys}")"
+            fi
+            mkdir -p "${perl_dir}"
+            ln -s "${perl_dir_sys}/"*  "${perl_dir}/" 2>/dev/null || :
+            ln -s "${perl_dir_sys}/".* "${perl_dir}/" 2>/dev/null || :
+            printf "\nWill use system Perl at ${perl_dir_sys}\n\n"
+            return
+        fi
+        # Failed finding system Perl as well. Give up.
+        error "Failed to install Perl"
+        exit 1
+    fi
     if [ "${dump_libimf}" == "False" ] && [ "${libimf_dumped}" == "False" ]; then
         # libimf was not found, so dump_libimf == True is equivalent
         # to dump_libimf == False.
@@ -5761,6 +5780,7 @@ perl_install_func() {
 }
 libimf_dumped="False"
 install "Perl"                                  \
+    use_system_perl "False" "True"          ";" \
     compiler "${compiler_possibilities[@]}" ";" \
     define_float_macros "False" "True"      ";" \
     without_then_with_cc "False" "True"     ";" \
