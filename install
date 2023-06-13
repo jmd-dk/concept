@@ -583,7 +583,6 @@ env_var_names=(       \
     MPICC             \
     MPILIBS           \
     MPLSETUPCFG       \
-    OPT               \
     PATH              \
     PERL              \
     PKG_CONFIG_PATH   \
@@ -7383,12 +7382,6 @@ runtime_library_dirs = ${blas_dir}/lib
         fi
         export CFLAGS="${CFLAGS} ${cstd}"
         export CXXFLAGS="${CXXFLAGS} ${cxxstd}"
-        if [ -n "${cstd}" ]; then
-            export OPT="${OPT} ${cstd}"
-        fi
-        if [ -n "${cxxstd}" ]; then
-            export OPT="${OPT} ${cxxstd}"
-        fi
         export TMPDIR="${tmp_pip_dir}_tmp"
         export TEMP="${TMPDIR}"
         export TMP="${TMPDIR}"
@@ -7484,7 +7477,7 @@ extra_argv=['-q', '--color=yes'])" 2>&1 | tee "test_log"; \
         compiler "${compiler_possibilities_specified_mpi_last[@]}" ";" \
         setuppy_mode "wheel" "install"                             ";" \
         cstd "-std=c99" ""                                         ";" \
-        cxxstd "-std=c++11" ""                                     ";" \
+        cxxstd "-std=c++11" "-std=c++14" ""                        ";" \
         fcompiler "gnu95" ""                                       ";" \
         extra_FCFLAGS "" "-fPIC"                                   ";" \
         extra_LDFLAGS "" "-shared"                                 ";" \
