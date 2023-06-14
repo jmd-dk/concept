@@ -111,9 +111,10 @@ Supported platforms
       .. tip::
          All available
          `Docker images <https://hub.docker.com/r/jmddk/concept/>`__ are based
-         on `Debian <https://hub.docker.com/_/debian>`__. If you want access to
-         additional software (e.g. Git or a text editor) within a Docker
-         container, first run
+         on `Debian <https://hub.docker.com/_/debian>`__. Newer images will
+         have the `nano text editor <https://www.nano-editor.org/>`__
+         installed. If you would like access to additional software (e.g. your
+         text editor of choice or Git) within a Docker container, first run
 
          .. code-block:: bash
 

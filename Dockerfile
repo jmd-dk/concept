@@ -16,6 +16,9 @@ ARG make_jobs
 RUN : \
     # Update APT cache
     && apt-get update \
+    # Install and set up simple text editor
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends nano-tiny \
+    && ln -s "$(which nano-tiny)" /bin/nano \
     # Install and set up less
     && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends less \
     && echo "[ ! -t 0 ] || alias less='less -r -f'" >> ~/.bashrc \
