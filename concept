@@ -1765,6 +1765,13 @@ launch_utility() {
             2>/dev/null                                                          \
         || :
     }
+    # Apply the CONCEPT_local variable
+    if [ -n "${CONCEPT_local}" ]; then
+        local="${CONCEPT_local}"
+    fi
+    if [ "${local}" == "True" ]; then
+        remote="False"
+    fi
     # Read in user-supplied parameters
     user_params=""
     if [ "${param}" != "${param_default}" ]; then
