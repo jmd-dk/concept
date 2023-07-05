@@ -757,7 +757,7 @@ one can extract and use (some of) the data within this file:
    ax = axes[0, 1]
    z_values = [0, 0.5, 1, 2, 5, 10]
    for z in z_values:
-       ax.loglog(k_pt/h, P_m(z), label=rf'$z = {z}$')
+       ax.loglog(k_pt/h, h**3*P_m(z), label=rf'$z = {z}$')
    ax.set_xlim(k_pt[0]/h, k_pt[-1]/h)
    ax.legend(fontsize=8)
    unit_length = units['unit length']

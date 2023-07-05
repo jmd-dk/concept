@@ -393,6 +393,14 @@ when invoking the <code class="docutils literal notranslate"><span class="pre">i
 dependency programs after/during their individual installation. Carefully
 looking through the installation log files for failed tests may then
 reveal something.</p>
+<p>If several compilers are found on the system, different compilers may be used
+for building different dependencies, which can cause issues. For the best
+chances for a successful installation, try setting GNU (GCC) as the
+<a class="reference internal" href="installation.html#choosing-compiler-precedence"><span class="std std-ref">preferred compiler</span></a>,</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">compiler_precedence</span><span class="o">=</span><span class="s2">&quot;gnu&quot;</span>
+</pre></div>
+</div>
+<p>and then redo the CO<em>N</em>CEPT installation from scratch.</p>
 </section>
 <section id="compilation-failed">
 <h2><a class="toc-backref" href="#id6" role="doc-backlink">Compilation failed</a><a class="headerlink" href="#compilation-failed" title="Permalink to this heading"></a></h2>
