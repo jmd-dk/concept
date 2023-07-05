@@ -233,8 +233,10 @@ doc:
 	@$(MAKE) -C "$(doc_dir)" --no-print-directory
 .PHONY: doc
 # For printing makefile variables
+not-containing = $(foreach var,$2,$(if $(findstring $1,$(var)),,$(var)))
+open_paren = (
 print-vars:
-	$(foreach var, $(.VARIABLES), $(info $(var) = $($(var))))
+	$(foreach var, $(call not-containing,$(open_paren),$(.VARIABLES)),$(info $(var) = $($(var))))
 .PHONY: print-vars
 
 

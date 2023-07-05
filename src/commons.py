@@ -1806,8 +1806,9 @@ cython.declare(
     ထ='double',
     NaN='double',
 )
-machine_ϵ = float(np.finfo(C2np['double']).eps)
-machine_ϵ_32 = np.finfo(C2np['float']).eps
+with warnings.catch_warnings(action='ignore', category=UserWarning):
+    machine_ϵ = float(np.finfo(C2np['double']).eps)
+    machine_ϵ_32 = np.finfo(C2np['float']).eps
 π = float(np.pi)
 τ = 2*π
 ρ_vacuum = float(1e+2*machine_ϵ)

@@ -188,6 +188,12 @@ release versions, or use ``concept_version=master`` for the absolute newest
    connection without stopping the installation process.
 
 .. note::
+   It is recommended to have `GCC <https://gcc.gnu.org/>`__ 6.5 or later
+   installed. If you are installing CO\ *N*\ CEPT on a cluster, various
+   versions of GCC may be available, e.g. through the
+   `module system <https://hpc-wiki.info/hpc/Modules>`__.
+
+.. note::
    For the remainder of this page, we shall make use of the shorter
    ``bash install`` syntax, but here the local file '``install``' may
    always be substituted with the online '``<(wget ...)``' version.
@@ -688,6 +694,8 @@ non-standard version of a given dependency, you can provide the corresponding
 ``python_url``, ``zlib_url``.
 
 
+
+.. _choosing_compiler_precedence:
 
 Choosing compiler precedence
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~

@@ -168,7 +168,15 @@ export HDF5_USE_FILE_LOCKING=FALSE
 # The MPI executables and libraries should be
 # on the PATH and LD_LIBRARY_PATH, respectively.
 export PATH="${mpi_bindir}:${PATH}"
-export LD_LIBRARY_PATH="${mpi_libdir}:${LD_LIBRARY_PATH}"
+if [ "$(basename "${mpi_libdir}")" == "merged_lib_specified" ]; then
+    if [ -d "${mpi_symlinkdir}" ]; then
+        # Let mpi_symlinkdir go before merged_lib_specified
+        export LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:${mpi_symlinkdir}"
+    fi
+    export LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:${mpi_libdir}"
+else
+    export LD_LIBRARY_PATH="${mpi_libdir}:${LD_LIBRARY_PATH}"
+fi
 # Additional symlinks to MPI libraries might be placed in mpi_symlinkdir
 if [ -d "${mpi_symlinkdir}" ]; then
     export LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:${mpi_symlinkdir}"

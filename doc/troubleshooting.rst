@@ -39,6 +39,17 @@ dependency programs after/during their individual installation. Carefully
 looking through the installation log files for failed tests may then
 reveal something.
 
+If several compilers are found on the system, different compilers may be used
+for building different dependencies, which can cause issues. For the best
+chances for a successful installation, try setting GNU (GCC) as the
+:ref:`preferred compiler <choosing_compiler_precedence>`,
+
+.. code-block:: bash
+
+   export compiler_precedence="gnu"
+
+and then redo the CO\ *N*\ CEPT installation from scratch.
+
 
 
 Compilation failed

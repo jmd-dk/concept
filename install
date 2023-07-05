@@ -302,7 +302,7 @@ set_version "class"             "2.7.2"
 set_version "fftw"              "3.3.10"  "3.3.10"
 set_version "fftw_for_gadget"   "2.1.5"   "2.1.5"   # Do not change
 set_version "gadget"            "2.0.7"   "2.0.7"   # Do not change
-set_version "gsl"               "2.7"     "2.7"
+set_version "gsl"               "2.7.1"   "2.7.1"
 set_version "hdf5"              "1.14.0"
 set_version "libffi"            "3.4.4"   "3.4.3"
 if [ "${mpi}" == "mpich" ]; then
@@ -557,6 +557,27 @@ if [ "${slim}" == "True" ]; then
     export LDFLAGS="${LDFLAGS} -Wl,-s"
 fi
 
+# The possible values for $pyuser to try for installation of Python
+# packages. To first attempt global installation, then user specific
+# installation, set pyuser_possibilities="global user"
+if [ -z "${pyuser_possibilities}" ]; then
+    pyuser_possibilities="global"
+fi
+pyuser_possibilities_in="${pyuser_possibilities}"
+pyuser_possibilities=()
+for pyuser in ${pyuser_possibilities_in}; do
+    if [ "${pyuser}" == "global" ]; then
+        pyuser=""
+    elif [ "${pyuser}" == "user" ]; then
+        pyuser="--user"
+    fi
+    if [ -n "${pyuser}" ] && [ "${pyuser}" != "--user" ]; then
+        echo "Unknown value for pyuser: \"${pyuser}\"" >&2
+        exit 1
+    fi
+    pyuser_possibilities=("${pyuser_possibilities[@]}" "${pyuser}")
+done
+
 # Backup of initial environment variables
 env_var_names=(       \
     BLAS              \
@@ -580,9 +601,12 @@ env_var_names=(       \
     LIBFFI_CFLAGS     \
     LIBFFI_LIBS       \
     LIBS              \
+    MATHLIB           \
     MPICC             \
     MPILIBS           \
     MPLSETUPCFG       \
+    NPY_BLAS_ORDER    \
+    NPY_LAPACK_ORDER  \
     PATH              \
     PERL              \
     PKG_CONFIG_PATH   \
@@ -1565,6 +1589,79 @@ int main(void){
 We need to make sure that these are installed."         \
     "${linux_headers_package}"
 
+# Warn about the GCC version being too old
+gcc_version_info=""
+if gcc --version >/dev/null 2>&1; then
+    gcc_version_info="$(gcc --version 2>&1 | head -n 1)"
+fi
+gcc_version=""
+for ((i = 0; i < ${#gcc_version_info}; i += 1)); do
+    c="${gcc_version_info:$i:1}"
+    include_c="False"
+    for ((d = 0; d < 10; d += 1)); do
+        if [ "${c}" == "${d}" ]; then
+            gcc_version="${gcc_version}${c}"
+            include_c="True"
+            break
+        fi
+    done
+    if [ -n "${gcc_version}" ] && [ "${c}" == "." ]; then
+        gcc_version="${gcc_version}${c}"
+        include_c="True"
+    fi
+    if [ -n "${gcc_version}" ] && [ "${include_c}" == "False" ]; then
+        break
+    fi
+done
+if [ -z "${gcc_version}" ]; then
+    printf "\nCould not detect GCC version!\n\n"
+    sleep ${sleep_time}
+else
+    gcc_version_major="${gcc_version%%.*}"
+    n="${#gcc_version_major}"
+    ((n += 1))
+    gcc_version_minor="${gcc_version:${n}}"
+    gcc_version_minor="${gcc_version_minor%%.*}"
+    if [ -z "${gcc_version_minor}" ]; then
+        gcc_version_minor=0
+    fi
+    # GCC >= 6.5 is recommended by NumPy
+    #   https://numpy.org/doc/stable/user/building.html
+    gcc_version_major_min=6
+    gcc_version_minor_min=5
+    if [ "${gcc_version_major}" -lt ${gcc_version_major_min} ] || \
+        (      [ "${gcc_version_major}" -eq ${gcc_version_major_min} ] \
+            && [ "${gcc_version_minor}" -lt ${gcc_version_minor_min} ] \
+        ); then
+        printf "\nGCC version ${gcc_version} detected, though version \
+${gcc_version_major_min}.${gcc_version_minor_min} or later is highly recommended.\n"
+        if [ "${yes_to_defaults}" == "True" ]; then
+            echo "Will continue with the installation regardless, hoping for the best"
+        else
+            while :; do
+                read -p "Do you want to continue regardless and hope for the best? [Y/n] " yn
+                case "${yn}" in
+                    [Yy]*)
+                        break
+                        ;;
+                    [Nn]*)
+                        echo "Aborting"
+                        trap : 0
+                        exit 0
+                        ;;
+                    "")
+                        break
+                        ;;
+                    *)
+                        ;;
+                esac
+            done
+            echo "Continuing with the installation"
+        fi
+        echo
+    fi
+fi
+
 # Change default versions if they are known not to work
 # with the present versions of the system dependencies.
 :
@@ -1628,6 +1725,17 @@ find_recursive() {
             echo "${shortest_result}"
         fi
     fi
+}
+
+# Function for removing single and double quotes
+# from the beginning and end of a string.
+strip_quote() {
+    local s="$1"
+    s="${s%\'}"
+    s="${s#\'}"
+    s="${s%\"}"
+    s="${s#\"}"
+    echo "${s}"
 }
 
 # Replace "__concept_dir__" in paths with the user specified concept_dir.
@@ -1757,6 +1865,7 @@ for ${1/CONCEPT/$esc_concept} does not exist!"
         n_mpi_libdirs=$(echo "${mpi_libdirs}" | wc -l)
         if [ ${n_mpi_libdirs} -eq 1 ]; then
             mpi_libdir="${mpi_libdirs:2}"
+            mpi_libdir="$(strip_quote "${mpi_libdir}")"
             mpi_libdirs_parsed=("${mpi_libdir}")
         else
             # Several lib directories exist. Merge them via symlinking.
@@ -1765,6 +1874,7 @@ for ${1/CONCEPT/$esc_concept} does not exist!"
             mpi_libdirs_parsed=()
             while read mpi_libdir; do
                 mpi_libdir="${mpi_libdir:2}"
+                mpi_libdir="$(strip_quote "${mpi_libdir}")"
                 if [ -d "${mpi_libdir}" ]; then
                     mpi_libdirs_parsed=("${mpi_libdirs_parsed[@]}" "${mpi_libdir}")
                     for f in "${mpi_libdir}/"*; do
@@ -1787,6 +1897,7 @@ for ${1/CONCEPT/$esc_concept} does not exist!"
         n_mpi_includedirs=$(echo "${mpi_includedirs}" | wc -l)
         if [ ${n_mpi_includedirs} -eq 1 ]; then
             mpi_includedir="${mpi_includedirs:2}"
+            mpi_includedir="$(strip_quote "${mpi_includedir}")"
             mpi_includedirs_parsed=("${mpi_includedir}")
         else
             # Several include directories exist.
@@ -1796,6 +1907,7 @@ for ${1/CONCEPT/$esc_concept} does not exist!"
             mpi_includedirs_parsed=()
             while read mpi_includedir; do
                 mpi_includedir="${mpi_includedir:2}"
+                mpi_includedir="$(strip_quote "${mpi_includedir}")"
                 if [ -d "${mpi_includedir}" ]; then
                     mpi_includedirs_parsed=("${mpi_includedirs_parsed[@]}" "${mpi_includedir}")
                     for f in "${mpi_includedir}/"*; do
@@ -2159,8 +2271,8 @@ if     [ "${openssl_preinstalled}" == "True" ] \
     assume_preinstalled "perl"
 fi
 
-# Do not let Python produce .pyc files
-export PYTHONDONTWRITEBYTECODE=1
+# Ensure that Python is allowed to produce .pyc files
+unset PYTHONDONTWRITEBYTECODE
 
 # Function that checks whether a given Python package
 # is installed or not.
@@ -2218,6 +2330,10 @@ try:
     elif '${pypackage}' == 'fonttools':
         # fontTools is written in dromedary case
         import fontTools
+    elif '${pypackage}' == 'h5py':
+        import h5py
+        if '${HDF5_MPI}' == 'ON' and not h5py.get_config().mpi:
+            raise ValueError
     elif '${pypackage}' == 'matplotlib':
         # For Matplotlib we do a more thorough test
         import matplotlib
@@ -3065,7 +3181,7 @@ fi
 # GSL
 if [ "${gsl_install}" == "True" ]; then
     if [ -z "${gsl_url}" ]; then
-        gsl_url="ftp://ftp.gnu.org/gnu/gsl/gsl-${gsl_version}.tar.gz"
+        gsl_url="https://ftp.gnu.org/gnu/gsl/gsl-${gsl_version}.tar.gz"
     fi
     # Check if already installed and/or downloaded
     check_progress "GSL"
@@ -3904,6 +4020,26 @@ compiler_possibilities=()
 for compiler in "${compiler_precedence[@]}"; do
     eval "discover_${compiler}_compilers"
 done
+compiler_possibilities_gnu_first=()
+compiler_possibilities_gnu=""
+for compiler in "${compiler_possibilities[@]}"; do
+    if     [ "${compiler_precedence_supplied}" == "False" ] \
+        && [ "${compiler}"                     == "gnu"   ] \
+    ; then
+        compiler_possibilities_gnu="${compiler}"
+    else
+        compiler_possibilities_gnu_first=(           \
+            "${compiler_possibilities_gnu_first[@]}" \
+            "${compiler}"                            \
+        )
+    fi
+done
+if [ -n "${compiler_possibilities_gnu}" ]; then
+    compiler_possibilities_gnu_first=(           \
+        "${compiler_possibilities_gnu}"          \
+        "${compiler_possibilities_gnu_first[@]}" \
+    )
+fi
 compiler_possibilities_specified_mpi_last=()
 compiler_possibilities_specified_mpi=""
 for compiler in "${compiler_possibilities[@]}"; do
@@ -3924,6 +4060,19 @@ if [ -n "${compiler_possibilities_specified_mpi}" ]; then
         "${compiler_possibilities_specified_mpi}"         \
     )
 fi
+compiler_possibilities_gnu_first_specified_mpi_last=()
+for compiler in "${compiler_possibilities_gnu_first[@]}"; do
+    compiler_possibilities_gnu_first_specified_mpi_last=(           \
+        "${compiler_possibilities_gnu_first_specified_mpi_last[@]}" \
+        "${compiler}"                                               \
+    )
+done
+if [ -n "${compiler_possibilities_specified_mpi}" ]; then
+    compiler_possibilities_gnu_first_specified_mpi_last=(           \
+        "${compiler_possibilities_gnu_first_specified_mpi_last[@]}" \
+        "${compiler_possibilities_specified_mpi}"         \
+    )
+fi
 printf "\n${esc_bold}Compiler precedence${esc_normal}\n"
 printf "${compiler_possibilities[0]}"
 for ((i = 1; i < ${#compiler_possibilities[@]}; i += 1)); do
@@ -3936,12 +4085,26 @@ if [ "${install_anything}" == "True" ]; then
     sleep ${sleep_time}
     enable_status
 fi
+add_compiler_symlink() {
+    # Arguments: compiler_symlinkdir, program_path, name1, name2, ...
+    local compiler_symlinkdir="$1"
+    local program_path="$2"
+    local exe
+    mkdir -p "${compiler_symlinkdir}" || :
+    for ((i = 3; i <= $#; i += 1)); do
+        eval "exe=\"\$${i}\""
+        rm -f "${compiler_symlinkdir}/${exe}" || :
+        ln -s "${program_path}" "${compiler_symlinkdir}/${exe}" >/dev/null 2>&1 || :
+    done
+    export PATH="${compiler_symlinkdir}:${PATH}"
+}
 use_default_compilers() {
     # This dummy function must exist
     :
 }
 use_specified_mpi_compilers() {
     local program program_path bin_path include_path lib_path
+    local compiler_symlinkdir="${tmp_dir}/compiler_symlinkdir/specified_mpi"
     if [ -n "${mpi_dir}" ] && [ -d "${mpi_dir}" ]; then
         compiler_path="${mpi_compilerdir}"
         bin_path="${mpi_bindir}"
@@ -3951,11 +4114,13 @@ use_specified_mpi_compilers() {
             program_path="${compiler_path}/${program}"
             if [ -f "${program_path}" ]; then
                 export CC="${program_path}"
+                add_compiler_symlink "${compiler_symlinkdir}" "${program_path}" "cc"
                 break
             fi
             program_path="${bin_path}/${program}"
             if [ -f "${program_path}" ]; then
                 export CC="${program_path}"
+                add_compiler_symlink "${compiler_symlinkdir}" "${program_path}" "cc"
                 break
             fi
         done
@@ -3963,11 +4128,13 @@ use_specified_mpi_compilers() {
             program_path="${compiler_path}/${program}"
             if [ -f "${program_path}" ]; then
                 export CXX="${program_path}"
+                add_compiler_symlink "${compiler_symlinkdir}" "${program_path}" "c++" "CC"
                 break
             fi
             program_path="${bin_path}/${program}"
             if [ -f "${program_path}" ]; then
                 export CXX="${program_path}"
+                add_compiler_symlink "${compiler_symlinkdir}" "${program_path}" "c++" "CC"
                 break
             fi
         done
@@ -4233,6 +4400,7 @@ int main(int argc, char *argv[]) {
 }
 use_gnu_compilers() {
     local program_path bin_path include_path lib_path
+    local compiler_symlinkdir="${tmp_dir}/compiler_symlinkdir/gnu"
     program_path="$(get_command "gcc")" || :
     if [ -n "${program_path}" ]; then
         export CC="${program_path}"
@@ -4252,6 +4420,7 @@ use_gnu_compilers() {
             export LDFLAGS="-L${lib_path} ${LDFLAGS}"
             export LD_LIBRARY_PATH="${lib_path}:${LD_LIBRARY_PATH}"
         fi
+        add_compiler_symlink "${compiler_symlinkdir}" "${program_path}" "cc"
     fi
     program_path="$(get_command "g++")" || :
     if [ -n "${program_path}" ]; then
@@ -4270,6 +4439,7 @@ use_gnu_compilers() {
             export LDFLAGS="-L${lib_path} ${LDFLAGS}"
             export LD_LIBRARY_PATH="${lib_path}:${LD_LIBRARY_PATH}"
         fi
+        add_compiler_symlink "${compiler_symlinkdir}" "${program_path}" "c++" "CC"
     fi
     program_path="$(get_command "gfortran")" || :
     if [ -n "${program_path}" ]; then
@@ -4295,6 +4465,7 @@ use_gnu_compilers() {
 }
 use_clang_compilers() {
     local program_path bin_path include_path lib_path
+    local compiler_symlinkdir="${tmp_dir}/compiler_symlinkdir/clang"
     program_path="$(get_command "clang")" || :
     if [ -n "${program_path}" ]; then
         export CC="${program_path}"
@@ -4312,6 +4483,7 @@ use_clang_compilers() {
             export LDFLAGS="-L${lib_path} ${LDFLAGS}"
             export LD_LIBRARY_PATH="${lib_path}:${LD_LIBRARY_PATH}"
         fi
+        add_compiler_symlink "${compiler_symlinkdir}" "${program_path}" "cc"
     fi
     program_path="$(get_command "clang++")" || :
     if [ -n "${program_path}" ]; then
@@ -4330,11 +4502,13 @@ use_clang_compilers() {
             export LDFLAGS="-L${lib_path} ${LDFLAGS}"
             export LD_LIBRARY_PATH="${lib_path}:${LD_LIBRARY_PATH}"
         fi
+        add_compiler_symlink "${compiler_symlinkdir}" "${program_path}" "c++" "CC"
     fi
     # Clang does not have a Fortran compiler
 }
 use_mpi_compilers() {
     local program program_path bin_path include_path lib_path
+    local compiler_symlinkdir="${tmp_dir}/compiler_symlinkdir/mpi"
     for program in "mpicc" "mpiCC"; do
         program_path="$(get_command "${program}")" || :
         if [ -n "${program_path}" ]; then
@@ -4345,6 +4519,7 @@ use_mpi_compilers() {
             n_lib_paths=$(echo "${lib_paths}" | wc -l)
             if [ ${n_lib_paths} -eq 1 ]; then
                 lib_path="${lib_paths:2}"
+                lib_path="$(strip_quote "${lib_path}")"
             else
                 # Several lib directories exist.
                 # Merge them via symlinking.
@@ -4352,6 +4527,7 @@ use_mpi_compilers() {
                 mkdir -p "${lib_path_merged}"
                 while read lib_path; do
                     lib_path="${lib_path:2}"
+                    lib_path="$(strip_quote "${lib_path}")"
                     if [ -d "${lib_path}" ]; then
                         for f in "${lib_path}/"*; do
                             f_base="$(basename "${f}")"
@@ -4372,6 +4548,7 @@ use_mpi_compilers() {
             n_include_paths=$(echo "${include_paths}" | wc -l)
             if [ ${n_include_paths} -eq 1 ]; then
                 include_path="${include_paths:2}"
+                include_path="$(strip_quote "${include_path}")"
             else
                 # Several include directories exist.
                 # Merge them via symlinking.
@@ -4379,6 +4556,7 @@ use_mpi_compilers() {
                 mkdir -p "${include_path_merged}"
                 while read include_path; do
                     include_path="${include_path:2}"
+                    include_path="$(strip_quote "${include_path}")"
                     if [ -d "${include_path}" ]; then
                         for f in "${include_path}/"*; do
                             f_base="$(basename "${f}")"
@@ -4406,6 +4584,7 @@ use_mpi_compilers() {
                 export LDFLAGS="-L${lib_path} ${LDFLAGS}"
                 export LD_LIBRARY_PATH="${lib_path}:${LD_LIBRARY_PATH}"
             fi
+            add_compiler_symlink "${compiler_symlinkdir}" "${program_path}" "cc"
             break
         fi
     done
@@ -4427,6 +4606,7 @@ use_mpi_compilers() {
                 export LDFLAGS="-L${lib_path} ${LDFLAGS}"
                 export LD_LIBRARY_PATH="${lib_path}:${LD_LIBRARY_PATH}"
             fi
+            add_compiler_symlink "${compiler_symlinkdir}" "${program_path}" "c++" "CC"
             break
         fi
     done
@@ -4475,6 +4655,7 @@ use_mpi_compilers() {
 }
 use_intel_compilers() {
     local program_path bin_path include_path lib_path
+    local compiler_symlinkdir="${tmp_dir}/compiler_symlinkdir/intel"
     program_path="$(get_command "icc")" || :
     if [ -n "${program_path}" ]; then
         export CC="${program_path}"
@@ -4492,6 +4673,7 @@ use_intel_compilers() {
             export LDFLAGS="-L${lib_path} ${LDFLAGS}"
             export LD_LIBRARY_PATH="${lib_path}:${LD_LIBRARY_PATH}"
         fi
+        add_compiler_symlink "${compiler_symlinkdir}" "${program_path}" "cc"
     fi
     program_path="$(get_command "icpc")" || :
     if [ -n "${program_path}" ]; then
@@ -4510,6 +4692,7 @@ use_intel_compilers() {
             export LDFLAGS="-L${lib_path} ${LDFLAGS}"
             export LD_LIBRARY_PATH="${lib_path}:${LD_LIBRARY_PATH}"
         fi
+        add_compiler_symlink "${compiler_symlinkdir}" "${program_path}" "c++" "CC"
     fi
     program_path="$(get_command "ifort")" || :
     if [ -n "${program_path}" ]; then
@@ -4535,6 +4718,7 @@ use_intel_compilers() {
 }
 use_cray_compilers() {
     local program_path bin_path include_path lib_path
+    local compiler_symlinkdir="${tmp_dir}/compiler_symlinkdir/cray"
     program_path="$(get_command "craycc")" || :
     if [ -n "${program_path}" ]; then
         export CC="${program_path}"
@@ -4552,6 +4736,7 @@ use_cray_compilers() {
             export LDFLAGS="-L${lib_path} ${LDFLAGS}"
             export LD_LIBRARY_PATH="${lib_path}:${LD_LIBRARY_PATH}"
         fi
+        add_compiler_symlink "${compiler_symlinkdir}" "${program_path}" "cc"
     fi
     program_path="$(get_command "crayCC")" || :
     if [ -n "${program_path}" ]; then
@@ -4570,6 +4755,7 @@ use_cray_compilers() {
             export LDFLAGS="-L${lib_path} ${LDFLAGS}"
             export LD_LIBRARY_PATH="${lib_path}:${LD_LIBRARY_PATH}"
         fi
+        add_compiler_symlink "${compiler_symlinkdir}" "${program_path}" "c++" "CC"
     fi
     program_path="$(get_command "crayftn")" || :
     if [ -n "${program_path}" ]; then
@@ -4595,6 +4781,7 @@ use_cray_compilers() {
 }
 use_portland_compilers() {
     local program_path bin_path include_path lib_path
+    local compiler_symlinkdir="${tmp_dir}/compiler_symlinkdir/portland"
     program_path="$(get_command "pgcc")" || :
     if [ -n "${program_path}" ]; then
         export CC="${program_path}"
@@ -4612,6 +4799,7 @@ use_portland_compilers() {
             export LDFLAGS="-L${lib_path} ${LDFLAGS}"
             export LD_LIBRARY_PATH="${lib_path}:${LD_LIBRARY_PATH}"
         fi
+        add_compiler_symlink "${compiler_symlinkdir}" "${program_path}" "cc"
     fi
     program_path="$(get_command "pgCC")" || :
     if [ -n "${program_path}" ]; then
@@ -4630,6 +4818,7 @@ use_portland_compilers() {
             export LDFLAGS="-L${lib_path} ${LDFLAGS}"
             export LD_LIBRARY_PATH="${lib_path}:${LD_LIBRARY_PATH}"
         fi
+        add_compiler_symlink "${compiler_symlinkdir}" "${program_path}" "c++" "CC"
     fi
     program_path="$(get_command "pgf77")" || :
     if [ -n "${program_path}" ]; then
@@ -4673,6 +4862,7 @@ use_portland_compilers() {
 }
 use_generic_compilers() {
     local program program_path bin_path include_path lib_path
+    local compiler_symlinkdir="${tmp_dir}/compiler_symlinkdir/generic"
     for program in "cc" "c89" "c99"; do
         program_path="$(get_command "${program}")" || :
         if [ -n "${program_path}" ]; then
@@ -4691,6 +4881,7 @@ use_generic_compilers() {
                 export LDFLAGS="-L${lib_path} ${LDFLAGS}"
                 export LD_LIBRARY_PATH="${lib_path}:${LD_LIBRARY_PATH}"
             fi
+            add_compiler_symlink "${compiler_symlinkdir}" "${program_path}" "cc"
             break
         fi
     done
@@ -4712,6 +4903,7 @@ use_generic_compilers() {
                 export LDFLAGS="-L${lib_path} ${LDFLAGS}"
                 export LD_LIBRARY_PATH="${lib_path}:${LD_LIBRARY_PATH}"
             fi
+            add_compiler_symlink "${compiler_symlinkdir}" "${program_path}" "c++" "CC"
             break
         fi
     done
@@ -4760,6 +4952,7 @@ use_generic_compilers() {
 }
 use_unset_compilers() {
     unset CC CXX FC F90 F9X CFLAGS CXXFLAGS CPPFLAGS FCFLAGS FFLAGS LDFLAGS
+    rm -rf "${tmp_dir}/compiler_symlinkdir" || :
 }
 
 
@@ -5295,30 +5488,32 @@ install() {
     else
         eval "program_dir=\"\${${progname}_dir}\""
     fi
-    mkdir -p "${program_dir}"  2>/dev/null || :
-    for copy_dir in "." "doc" "docs"; do
-        if [ "${copy_dir}" != "." ]; then
-            if [ -d "${copy_dir}" ]; then
-                cd "${copy_dir}"
-            else
-                continue
-            fi
-        fi
-        for f in *; do
-            if [ -d "${f}" ] || [ -f "${program_dir}/$(basename "${f}")" ]; then
-                continue
-            fi
-            f_canonical="$(echo "${f%.*}" | tr '[:upper:]' '[:lower:]')"
-            for file_to_copy in "${files_to_copy[@]}"; do
-                if [ "${f_canonical}" == "${file_to_copy}" ]; then
-                    cp "${f}" "${program_dir}/" || :
+    if [ -n "${program_dir}" ]; then
+        mkdir -p "${program_dir}"  2>/dev/null || :
+        for copy_dir in "." "doc" "docs"; do
+            if [ "${copy_dir}" != "." ]; then
+                if [ -d "${copy_dir}" ]; then
+                    cd "${copy_dir}"
+                else
+                    continue
                 fi
+            fi
+            for f in *; do
+                if [ -d "${f}" ] || [ -f "${program_dir}/$(basename "${f}")" ]; then
+                    continue
+                fi
+                f_canonical="$(echo "${f%.*}" | tr '[:upper:]' '[:lower:]')"
+                for file_to_copy in "${files_to_copy[@]}"; do
+                    if [ "${f_canonical}" == "${file_to_copy}" ]; then
+                        cp "${f}" "${program_dir}/" || :
+                    fi
+                done
             done
+            if [ "${copy_dir}" != "." ]; then
+                cd ..
+            fi
         done
-        if [ "${copy_dir}" != "." ]; then
-            cd ..
-        fi
-    done
+    fi
     # Final cleanup and install notices
     cd "${concept_dir}"
     rm -rf "${tmp_dir}/${progname}" || :
@@ -5599,6 +5794,62 @@ gsl_install_func() {
 install "GSL" compiler "${compiler_possibilities[@]}"
 
 # Perl
+define_float_macros() {
+    local filename="$1"
+    if [ -z "${filename}" ] || [ ! -f "${filename}" ]; then
+        return 1
+    fi
+    # Various float definitions from float.h. Below we following the
+    # IEEE standard for 128-bit (not 80-bit) floats.
+    FLOAT_VARS=(
+        FLT_RADIX       "(2)"                                             \
+        FLT_MANT_DIG    "(24)"                                            \
+        FLT_EPSILON     "(1.192092896E-07F)"                              \
+        FLT_DIG         "(6)"                                             \
+        FLT_MIN_EXP     "(-125)"                                          \
+        FLT_MIN         "(1.175494351E-38F)"                              \
+        FLT_MIN_10_EXP  "(-37)"                                           \
+        FLT_MAX_EXP     "(+128)"                                          \
+        FLT_MAX         "(3.402823466E+38F)"                              \
+        FLT_MAX_10_EXP  "(+38)"                                           \
+        DBL_MANT_DIG    "(53)"                                            \
+        DBL_EPSILON     "(2.2204460492503131E-16)"                        \
+        DBL_DIG         "(15)"                                            \
+        DBL_MIN_EXP     "(-1021)"                                         \
+        DBL_MIN         "(2.2250738585072014E-308)"                       \
+        DBL_MIN_10_EXP  "(-307)"                                          \
+        DBL_MAX_EXP     "(+1024)"                                         \
+        DBL_MAX         "(1.7976931348623157E+308)"                       \
+        DBL_MAX_10_EXP  "(+308)"                                          \
+        LDBL_MANT_DIG   "(113)"                                           \
+        LDBL_EPSILON    "(1.925929944387235853055977942584927319E-34L)"   \
+        LDBL_DIG        "(33)"                                            \
+        LDBL_MIN_EXP    "(-16381)"                                        \
+        LDBL_MIN        "(3.362103143112093506262677817321752603E-4932L)" \
+        LDBL_MIN_10_EXP "(-4931)"                                         \
+        LDBL_MAX_EXP    "(+16384)"                                        \
+        LDBL_MAX        "(1.189731495357231765085759326628007016E+4932L)" \
+        LDBL_MAX_10_EXP "(+4932)"                                         \
+    )
+    pattern_0='#include *<float\\.h>'
+    pattern_1='#include *<limits\\.h>'
+    linenr_0=$(awk "\$0 ~ \"${pattern_0}\" {print NR}" "${filename}" | head -n 1)
+    linenr_1=$(awk "\$0 ~ \"${pattern_1}\" {print NR}" "${filename}" | head -n 1)
+    linenr=0
+    if [ -n "${linenr_0}" ] && [ "${linenr_0}" -gt ${linenr} ]; then
+        linenr=${linenr_0}
+    fi
+    if [ -n "${linenr_1}" ] && [ "${linenr_1}" -gt ${linenr} ]; then
+        linenr=${linenr_1}
+    fi
+    ((linenr += 1))
+    for ((i = 0; i < ${#FLOAT_VARS[@]}; i += 2)); do
+        ((j = i + 1))
+        name="${FLOAT_VARS[$i]}"
+        val=${FLOAT_VARS[$j]}
+        sed -i "${linenr}s/^/#ifndef ${name}\n    #define ${name} ${val}\n#endif\n/" "${filename}"
+    done
+}
 perl_install_func() {
     if [ "${use_system_perl}" == "True" ]; then
         # If all attempts of building Perl fails,
@@ -5674,64 +5925,10 @@ perl_install_func() {
     if [ -n "${perl_cflags}" ]; then
         perl_config_options="${perl_config_options} -Accflags=${perl_cflags}"
     fi
-    # Some times, various macros from float.h end up not being defined.
+    # Sometimes, various macros from float.h end up not being defined.
     # This can happen if several compilers are in use simultaneously.
-    # Below we following the IEEE standard for 128-bit
-    # (not 80-bit) floats.
-    if [ "${define_float_macros}" == "True" ]; then
-        FLOAT_VARS=(
-            FLT_RADIX       "(2)"                                             \
-            FLT_MANT_DIG    "(24)"                                            \
-            FLT_EPSILON     "(1.192092896E-07F)"                              \
-            FLT_DIG         "(6)"                                             \
-            FLT_MIN_EXP     "(-125)"                                          \
-            FLT_MIN         "(1.175494351E-38F)"                              \
-            FLT_MIN_10_EXP  "(-37)"                                           \
-            FLT_MAX_EXP     "(+128)"                                          \
-            FLT_MAX         "(3.402823466E+38F)"                              \
-            FLT_MAX_10_EXP  "(+38)"                                           \
-            DBL_MANT_DIG    "(53)"                                            \
-            DBL_EPSILON     "(2.2204460492503131E-16)"                        \
-            DBL_DIG         "(15)"                                            \
-            DBL_MIN_EXP     "(-1021)"                                         \
-            DBL_MIN         "(2.2250738585072014E-308)"                       \
-            DBL_MIN_10_EXP  "(-307)"                                          \
-            DBL_MAX_EXP     "(+1024)"                                         \
-            DBL_MAX         "(1.7976931348623157E+308)"                       \
-            DBL_MAX_10_EXP  "(+308)"                                          \
-            LDBL_MANT_DIG   "(113)"                                           \
-            LDBL_EPSILON    "(1.925929944387235853055977942584927319E-34L)"   \
-            LDBL_DIG        "(33)"                                            \
-            LDBL_MIN_EXP    "(-16381)"                                        \
-            LDBL_MIN        "(3.362103143112093506262677817321752603E-4932L)" \
-            LDBL_MIN_10_EXP "(-4931)"                                         \
-            LDBL_MAX_EXP    "(+16384)"                                        \
-            LDBL_MAX        "(1.189731495357231765085759326628007016E+4932L)" \
-            LDBL_MAX_10_EXP "(+4932)"                                         \
-        )
-        if [ ! -f "perl.h" ]; then
-            return 1
-        fi
-        pattern_0='#include *<float\\.h>'
-        pattern_1='#include *<limits\\.h>'
-        linenr_0=$(awk "\$0 ~ \"${pattern_0}\" {print NR}" "perl.h" | head -n 1)
-        linenr_1=$(awk "\$0 ~ \"${pattern_1}\" {print NR}" "perl.h" | head -n 1)
-        linenr=0
-        if [ -n "${linenr_0}" ] && [ "${linenr_0}" -gt ${linenr} ]; then
-            linenr=${linenr_0}
-        fi
-        if [ -n "${linenr_1}" ] && [ "${linenr_1}" -gt ${linenr} ]; then
-            linenr=${linenr_1}
-        fi
-        if [ "${linenr}" -gt 0 ]; then
-            ((linenr += 1))
-        fi
-        for ((i = 0; i < ${#FLOAT_VARS[@]}; i += 2)); do
-            ((j = i + 1))
-            name="${FLOAT_VARS[$i]}"
-            val=${FLOAT_VARS[$j]}
-            sed -i "${linenr}s/^/#ifndef ${name}\n    #define ${name} ${val}\n#endif\n/" perl.h
-        done
+    if [ "${perl_define_float_macros}" == "True" ]; then
+        define_float_macros "perl.h" || return 1
     fi
     ./Configure ${perl_config_options} 2>&1 || return 1
     # Sometimes make fails to build due to #include of poll.h from a
@@ -5782,7 +5979,7 @@ libimf_dumped="False"
 install "Perl"                                  \
     use_system_perl "False" "True"          ";" \
     compiler "${compiler_possibilities[@]}" ";" \
-    define_float_macros "False" "True"      ";" \
+    perl_define_float_macros "False" "True" ";" \
     without_then_with_cc "False" "True"     ";" \
     dump_libimf "True" "False"              ";" \
     perl_poll_fix "False" "True"            ";" \
@@ -5902,6 +6099,11 @@ hdf5_install_func() {
     if [ -n "${hdf5_arch}" ]; then
         export CFLAGS="${CFLAGS} -march=${hdf5_arch}"
     fi
+    # Sometimes, various macros from float.h end up not being defined.
+    # This can happen if several compilers are in use simultaneously.
+    if [ "${hdf5_define_float_macros}" == "True" ]; then
+        define_float_macros "src/H5private.h" || return 1
+    fi
     # A bug in HDF5 makes the code crash on certain file systems.
     # A workaround is to set an environment variable as below.
     export HDF5_USE_FILE_LOCKING=FALSE
@@ -6016,6 +6218,7 @@ if [ -n "${mpi_dir}" ] && [ -d "${mpi_dir}" ]; then
 fi
 install "HDF5"                                             \
     compiler "${compiler_possibilities_hdf5[@]}"       ";" \
+    hdf5_define_float_macros "False" "True"            ";" \
     buildmode "production" "debug"                     ";" \
     fix_attributes_declarator_order "False" "True"     ";" \
     hdf5_arch "" "x86-64"                              ";" \
@@ -6199,8 +6402,29 @@ install "libffi" compiler "${compiler_possibilities[@]}"
 # OpenBLAS
 blas_install_func() {
     openblas_make_options=""
-    # Compile for multiple CPU architectures
-    openblas_make_options="${openblas_make_options} DYNAMIC_ARCH=1 DYNAMIC_OLDER=1"
+    # Compile for multiple CPU architectures.
+    # However, a bug in GNU Binutils 2.38/2.39 will cause trouble with
+    # NumPy later on if we build OpenBLAS with DYNAMIC_ARCH=1.
+    # See https://github.com/xianyi/OpenBLAS/issues/3708
+    binutils_info="$(ld -v 2>&1 || :)"
+    binutils_info="$(echo "${binutils_info}" | tr '[:upper:]' '[:lower:]')"
+    binutils_versions_bad="2.38 2.39"
+    binutils_version_discovered=""
+    for binutils_version_bad in ${binutils_versions_bad}; do
+        if [[ "${binutils_info}" == *"${binutils_version_bad}"* ]]; then
+            binutils_version_discovered="${binutils_version_bad}"
+            break
+        fi
+    done
+    if [ -n "${binutils_version_discovered}" ]; then
+        printf "\nYou are using GNU Binutils ${binutils_version_discovered} which contains \
+a bug that affecets OpenBLAS. To overcome this, OpenBLAS will be built without DYNAMIC_ARCH=1 \
+and DYNAMIC_OLDER=1.
+For details see https://github.com/xianyi/OpenBLAS/issues/3708
+"
+    else
+        openblas_make_options="${openblas_make_options} DYNAMIC_ARCH=1 DYNAMIC_OLDER=1"
+    fi
     # Due to the threading behaviour of Python,
     # we install a non-threaded version of OpenBLAS.
     openblas_singlethread="USE_THREAD=0 USE_OPENMP=0"
@@ -6221,9 +6445,6 @@ blas_install_func() {
     fi
     if [ -d "${perl_dir}" ]; then
         export PATH="${perl_dir}/bin:${PATH}"
-    fi
-    if [ -n "${openblas_BINARY}" ]; then
-        openblas_make_options="${openblas_make_options} BINARY=${openblas_BINARY}"
     fi
     if [ -n "${openblas_TARGET}" ]; then
         openblas_make_options="${openblas_make_options} TARGET=${openblas_TARGET}"
@@ -6251,12 +6472,11 @@ NO_AVX_possibilities=(               \
              "NO_AVX2=1 NO_AVX512=1" \
     "NO_AVX=1 NO_AVX2=1 NO_AVX512=1" \
 )
-install "BLAS"                                       \
-    openblas_gfortran "True" "False"             ";" \
-    openblas_BINARY "" "32"                      ";" \
-    compiler "${compiler_possibilities[@]}"      ";" \
-    openblas_TARGET "${TARGET_possibilities[@]}" ";" \
-    openblas_NO_AVX "${NO_AVX_possibilities[@]}" ";" \
+install "BLAS"                                            \
+    openblas_gfortran "True" "False"                  ";" \
+    compiler "${compiler_possibilities_gnu_first[@]}" ";" \
+    openblas_TARGET "${TARGET_possibilities[@]}"      ";" \
+    openblas_NO_AVX "${NO_AVX_possibilities[@]}"      ";" \
 
 # Python
 if [ "${python_install}" == "True" ]; then
@@ -6331,11 +6551,13 @@ python_install_func() {
         export CPPFLAGS="-I${ncurses_dir}/include -I${ncurses_dir}/include/ncurses ${CPPFLAGS}"
         export LD_LIBRARY_PATH="${ncurses_dir}/lib:${LD_LIBRARY_PATH}"
         export LDFLAGS="-L${ncurses_dir}/lib -Wl,-rpath=${ncurses_dir}/lib ${LDFLAGS}"
-        # Python searches for ncursesw prior to ncurses.
+        # Python preferably links to ncursesw over ncurses.
         # If ncursesw is found on the system it may cause trouble
         # with our ncurses installation. Avoid this.
-        sed -i "s/ncursesw ncurses/ncurses ncursesw/" configure || :
-        sed -i "s/\(find_library_file *(.*ncursesw.*) *\):/\1 and False:/" setup.py || :
+        sed -i "s/tinfo ncursesw ncurses curses termcap/ncurses tinfo curses termcap/" configure || :
+        sed -i "s/ curses_library = .*/ curses_library = 'ncurses'/" setup.py setup.py || :
+        sed -i "s/if \(.*find_library_file *(.*curses.*) *\):/if False and \1:/" setup.py || :
+        sed -i "s/if \(MACOS and curses_library *== *.*\):/if False and \1:/" setup.py || :
     fi
     with_openssl=""
     if [ -n "${openssl_dir}" ] && [ -d "${openssl_dir}" ]; then
@@ -6439,11 +6661,12 @@ python_install_func() {
         mv "${python_dir}/share/.terminfo" "${python_dir}/share/terminfo" || :
     fi
 }
-install "Python"                                                   \
-    compiler "${compiler_possibilities_specified_mpi_last[@]}" ";" \
-    inteloptimizations "" "-O1"              ";"                   \
-    disable_atomic_operations "False" "True" ";"                   \
-    pyoptimizations "pgo lto" "pgo" "lto" "" ";"                   \
+install "Python"                                                             \
+    compiler "${compiler_possibilities_gnu_first_specified_mpi_last[@]}" ";" \
+    inteloptimizations "" "-O1"              ";"                             \
+    disable_atomic_operations "False" "True" ";"                             \
+    pyoptimizations "pgo lto" "pgo" "lto" "" ";"                             \
+
 # Create a python variable, storing the path to the Python interpreter
 set_python
 
@@ -6880,6 +7103,7 @@ pip_install_pypackage() {
     pypackage_nodashes="${pypackage//-/}"
     pypackage_nodashes="${pypackage_nodashes//_/}"
     pip_download "${1}" "${2}"
+    rm_gently -rf "${tmp_pip_dir}_tmp" || :
     rm_gently -rf "${tmp_pip_dir}_cp" || :
     cp_gently -r "${tmp_pip_dir}" "${tmp_pip_dir}_cp"
     # Install Python package from source
@@ -6959,7 +7183,7 @@ pip_install_pypackage() {
                 export PATH="${python_dir}/bin:${PATH}"
             fi
         fi
-        for pyuser in "" "--user"; do
+        for pyuser in "${pyuser_possibilities[@]}"; do
             # After the adoption of PEP 518 (pip 10), some packages
             # require wheels (not bare source) when building. This can
             # be disabled by supplying --no-build-isolation. We try
@@ -6987,17 +7211,49 @@ pyuser=${pyuser}, extra_pip_arg=${extra_pip_arg}\n\n"
                     "${python}" -m pip uninstall "${pypackage}" -y >/dev/null 2>&1 || :
                     sleep ${sleep_gently}
                 fi
-                "${python}" -m pip install            \
-                    ${pyuser}                         \
-                    -v                                \
-                    ${extra_pip_arg}                  \
-                    ${upgrade_flag}                   \
-                    --no-index                        \
-                    --find-links="${tmp_pip_dir}"     \
-                    "${pypackage}${command_end}" 2>&1 \
-                    & pip_install_pid=$!
-                soothe ${pip_install_pid}
-                pypackage_installed=$(check_pypackage_installed ${pypackage} True)
+                setuppy_modes="pip"
+                if [ "${extra_pip_arg}" == "--no-cache-dir" ]; then  # first option for extra_pip_arg
+                    setuppy_modes="${setuppy_modes} install"
+                fi
+                pypackage_installed="False"
+                for setuppy_mode in ${setuppy_modes}; do
+                    if [ "${setuppy_modes}" != "pip" ]; then
+                        printf "\nAttempting to install ${pypackage} build with setuppy_mode=${setuppy_mode}\n\n"
+                    fi
+                    if [ "${setuppy_mode}" == "pip" ]; then
+                        "${python}" -m pip install            \
+                            ${pyuser}                         \
+                            -v                                \
+                            ${extra_pip_arg}                  \
+                            ${upgrade_flag}                   \
+                            --no-index                        \
+                            --find-links="${tmp_pip_dir}"     \
+                            "${pypackage}${command_end}" 2>&1 \
+                            & pip_install_pid=$!
+                    elif [ "${setuppy_mode}" == "install" ]; then
+                        wd="$(pwd)"
+                        cd "${tmp_pip_dir}"
+                        for f in *; do
+                            if [ -f "${f}" ]; then
+                                extract "${f}" "True" || :
+                                break
+                            fi
+                        done
+                        for d in *; do
+                            if [ -d "${d}" ] && [ -f "${d}/setup.py" ]; then
+                                cd "${d}"
+                                "${python}" setup.py install ${pyuser} 2>&1 & pip_install_pid=$!
+                                break
+                            fi
+                        done
+                        cd "${wd}"
+                    fi
+                    soothe ${pip_install_pid}
+                    pypackage_installed=$(check_pypackage_installed ${pypackage} True)
+                    if [ "${pypackage_installed}" == "True" ]; then
+                        break
+                    fi
+                done
                 if [ "${pypackage_installed}" == "True" ]; then
                     break
                 fi
@@ -7090,10 +7346,15 @@ print(name, vreq)
         dependency_vrec="$(echo "${dependency}" | awk '{print $2}')"
         dependency_installed="$(check_pypackage_installed "${dependency_name}")"
         if [ "${dependency_installed}" == "False" ]; then
-            if [ "${exit_on_error}" == "False" ]; then
-                pip_install_pypackage "${dependency_name}" ${dependency_vrec} || :
-            else
-                pip_install_pypackage "${dependency_name}" ${dependency_vrec}
+            # Prefer standard pip installation
+            "${python}" -m pip install "${dependency_name}${dependency_vrec}" || :
+            dependency_installed="$(check_pypackage_installed "${dependency_name}")"
+            if [ "${dependency_installed}" == "False" ]; then
+                if [ "${exit_on_error}" == "False" ]; then
+                    pip_install_pypackage "${dependency_name}" ${dependency_vrec} || :
+                else
+                    pip_install_pypackage "${dependency_name}" ${dependency_vrec}
+                fi
             fi
         fi
     done
@@ -7235,7 +7496,7 @@ fi
 if [ "${cython_install}" == "True" ] && [ "${cython_installed}" == "False" ] \
     && [ "$(check_pypackage_installed cython)" == "False" ]; then
     install_success="False"
-    for compiler in "${compiler_possibilities_specified_mpi_last[@]}"; do
+    for compiler in "${compiler_possibilities_gnu_first_specified_mpi_last[@]}"; do
         "use_${compiler}_compilers" || continue
         printf "
 Attempting to install Cython with compiler=${compiler}\n\n"
@@ -7257,7 +7518,7 @@ fi
 if [ "${cythongsl_install}" == "True" ] && [ "${cythongsl_installed}" == "False" ] \
     && [ "$(check_pypackage_installed cythongsl)" == "False" ]; then
     install_success="False"
-    for compiler in "${compiler_possibilities_specified_mpi_last[@]}"; do
+    for compiler in "${compiler_possibilities_gnu_first_specified_mpi_last[@]}"; do
         reset_environment
         "use_${compiler}_compilers" || continue
         printf "
@@ -7327,6 +7588,7 @@ if [ "${numpy_install}" == "True" ] && [ "${numpy_installed}" == "False" ] \
     export TEMP="${TMPDIR}"
     export TMP="${TMPDIR}"
     pip_download "NumPy" "${numpy_version}"
+    rm_gently -rf "${tmp_pip_dir}_tmp" || :
     cd "${tmp_pip_dir}"
     # It can happen that an archive format different from tar.gz is
     # downloaded, in which case the extraction will fail if the
@@ -7360,7 +7622,8 @@ v${numpy_version}/numpy-${numpy_version}.tar.gz"
         done
     fi
     # Create a site.cfg file containing information about OpenBLAS
-    echo "[DEFAULT]
+    echo "
+[DEFAULT]
 library_dirs = ${blas_dir}/lib
 include_dirs = ${blas_dir}/include
 
@@ -7368,9 +7631,9 @@ include_dirs = ${blas_dir}/include
 library_dirs = ${blas_dir}/lib
 include_dirs = ${blas_dir}/include
 
-[atlas]
-atlas_libs = openblas
-libraries = openblas
+# [atlas]
+# atlas_libs = openblas
+# libraries = openblas
 
 [openblas]
 libraries = openblas
@@ -7378,6 +7641,7 @@ library_dirs = ${blas_dir}/lib
 include_dirs = ${blas_dir}/include
 runtime_library_dirs = ${blas_dir}/lib
 " > "${numpy_build_dir}/site.cfg"
+    cp_gently "${numpy_build_dir}/site.cfg" "${numpy_build_dir}/numpy/distutils/" 2>/dev/null || :
     cp_gently -r "${numpy_build_dir}" "${numpy_build_dir}_cp"
     # Build and install NumPy with OpenBLAS support.
     # We wish to use the gfortran Fortran compiler. We try out all the
@@ -7410,10 +7674,19 @@ runtime_library_dirs = ${blas_dir}/lib
         export TMPDIR="${tmp_pip_dir}_tmp"
         export TEMP="${TMPDIR}"
         export TMP="${TMPDIR}"
+        export NPY_BLAS_ORDER=
+        export NPY_LAPACK_ORDER=
         if [ -d "${blas_dir}" ]; then
-            export BLAS="${blas_dir}/lib/libopenblas.a"
-            export LAPACK="${blas_dir}/lib/libopenblas.a"
+            export BLAS="${blas_dir}/lib/libopenblas.so"
+            export LAPACK="${blas_dir}/lib/libopenblas.so"
             export LD_LIBRARY_PATH="${blas_dir}/lib:${LD_LIBRARY_PATH}"
+            export NPY_BLAS_ORDER="openblas"
+            export NPY_LAPACK_ORDER="openblas"
+        fi
+        if [ -n "${numpy_MATHLIB}" ]; then
+            export MATHLIB="${numpy_MATHLIB}"
+        else
+            unset MATHLIB
         fi
         export FCFLAGS="${extra_FCFLAGS} ${FCFLAGS}"
         export FFLAGS="${extra_FCFLAGS} ${FFLAGS}"
@@ -7443,19 +7716,27 @@ runtime_library_dirs = ${blas_dir}/lib
             done
             return 1
         fi
-        if [ "${setuppy_mode}" == "wheel" ]; then
-            rm_gently -rf concept_wheel || :
-            ("${python}" setup.py bdist_wheel -d concept_wheel   \
-                && cd "${concept_dir}"                           \
-                && "${python}" -m pip install                    \
-                    ${numpy_pyuser} --no-deps --ignore-installed \
-                    "${numpy_build_dir}/concept_wheel/"*.whl     \
-            ) & setuppy_pid=$!
-        elif [ "${setuppy_mode}" == "install" ]; then
-            "${python}" setup.py install ${numpy_pyuser} & setuppy_pid=$!
-        fi
-        soothe ${setuppy_pid}
-        if [ "$(check_pypackage_installed numpy True)" == "False" ]; then
+        numpy_success="False"
+        for setuppy_mode in "wheel" "install"; do
+            printf "\nAttempting to install NumPy build with setuppy_mode=${setuppy_mode}\n\n"
+            if [ "${setuppy_mode}" == "wheel" ]; then
+                rm_gently -rf concept_wheel || :
+                ("${python}" setup.py bdist_wheel -d concept_wheel   \
+                    && cd "${concept_dir}"                           \
+                    && "${python}" -m pip install                    \
+                        ${numpy_pyuser} --no-deps --ignore-installed \
+                        "${numpy_build_dir}/concept_wheel/"*.whl     \
+                ) & setuppy_pid=$!
+            elif [ "${setuppy_mode}" == "install" ]; then
+                "${python}" setup.py install ${numpy_pyuser} & setuppy_pid=$!
+            fi
+            soothe ${setuppy_pid}
+            if [ "$(check_pypackage_installed numpy True)" == "True" ]; then
+                numpy_success="True"
+                break
+            fi
+        done
+        if [ "${numpy_success}" == "False" ]; then
             # Cleanup before retrying
             cd "${concept_dir}"
             while [ -d "${numpy_build_dir}" ]; do
@@ -7495,17 +7776,17 @@ extra_argv=['-q', '--color=yes'])" 2>&1 | tee "test_log"; \
             fi
         fi
     }
-    install "NumPy" "no_init_install"                                  \
-        use_pip_install_pypackage "False" "True"                   ";" \
-        numpy_pyuser "" "--user"                                   ";" \
-        numpy_gfortran "True" "False"                              ";" \
-        compiler "${compiler_possibilities_specified_mpi_last[@]}" ";" \
-        setuppy_mode "wheel" "install"                             ";" \
-        cstd "-std=c99" ""                                         ";" \
-        cxxstd "-std=c++11" "-std=c++14" ""                        ";" \
-        fcompiler "gnu95" ""                                       ";" \
-        extra_FCFLAGS "" "-fPIC"                                   ";" \
-        extra_LDFLAGS "" "-shared"                                 ";" \
+    install "NumPy" "no_init_install"                                            \
+        use_pip_install_pypackage "False" "True"                             ";" \
+        numpy_pyuser "${pyuser_possibilities[@]}"                            ";" \
+        numpy_MATHLIB "" "m"                                                 ";" \
+        numpy_gfortran "True" "False"                                        ";" \
+        compiler "${compiler_possibilities_gnu_first_specified_mpi_last[@]}" ";" \
+        cstd "-std=c99" ""                                                   ";" \
+        cxxstd "-std=c++11" "-std=c++14" ""                                  ";" \
+        fcompiler "gnu95" ""                                                 ";" \
+        extra_FCFLAGS "" "-fPIC"                                             ";" \
+        extra_LDFLAGS "" "-shared"                                           ";" \
 
 fi
 
@@ -7562,6 +7843,7 @@ if [ "${scipy_install}" == "True" ] && [ "${scipy_installed}" == "False" ] \
     export TEMP="${TMPDIR}"
     export TMP="${TMPDIR}"
     pip_download "SciPy" "${scipy_version}" "" "True False"
+    rm_gently -rf "${tmp_pip_dir}_tmp" || :
     cd "${tmp_pip_dir}"
     extract "scipy"* "True"
     for f in *; do
@@ -7572,7 +7854,8 @@ if [ "${scipy_install}" == "True" ] && [ "${scipy_installed}" == "False" ] \
         fi
     done
     # Create a site.cfg file containing information about OpenBLAS
-    echo "[DEFAULT]
+    echo "
+[DEFAULT]
 library_dirs = ${blas_dir}/lib
 include_dirs = ${blas_dir}/include
 
@@ -7580,9 +7863,9 @@ include_dirs = ${blas_dir}/include
 library_dirs = ${blas_dir}/lib
 include_dirs = ${blas_dir}/include
 
-[atlas]
-atlas_libs = openblas
-libraries = openblas
+# [atlas]
+# atlas_libs = openblas
+# libraries = openblas
 
 [openblas]
 libraries = openblas
@@ -7590,6 +7873,7 @@ library_dirs = ${blas_dir}/lib
 include_dirs = ${blas_dir}/include
 runtime_library_dirs = ${blas_dir}/lib
 " > "${scipy_build_dir}/site.cfg"
+    cp_gently "${scipy_build_dir}/site.cfg" "${scipy_build_dir}/scipy/distutils/" 2>/dev/null || :
     cp_gently -r "${scipy_build_dir}" "${scipy_build_dir}_cp"
     # Build and install SciPy with OpenBLAS support.
     # We wish to use the gfortran Fortran compiler. We try out all the
@@ -7625,10 +7909,14 @@ runtime_library_dirs = ${blas_dir}/lib
         export TMPDIR="${tmp_pip_dir}_tmp"
         export TEMP="${TMPDIR}"
         export TMP="${TMPDIR}"
+        export NPY_BLAS_ORDER=
+        export NPY_LAPACK_ORDER=
         if [ -d "${blas_dir}" ]; then
-            export BLAS="${blas_dir}/lib/libopenblas.a"
-            export LAPACK="${blas_dir}/lib/libopenblas.a"
+            export BLAS="${blas_dir}/lib/libopenblas.so"
+            export LAPACK="${blas_dir}/lib/libopenblas.so"
             export LD_LIBRARY_PATH="${blas_dir}/lib:${LD_LIBRARY_PATH}"
+            export NPY_BLAS_ORDER="openblas"
+            export NPY_LAPACK_ORDER="openblas"
         fi
         export FCFLAGS="${extra_FCFLAGS} ${FCFLAGS}"
         export FFLAGS="${extra_FCFLAGS} ${FFLAGS}"
@@ -7664,24 +7952,31 @@ runtime_library_dirs = ${blas_dir}/lib
             done
             return 1
         fi
-        if [ "${setuppy_mode}" == "wheel" ]; then
-            rm_gently -rf concept_wheel || :
-            ("${python}" setup.py bdist_wheel -d concept_wheel   \
-                && cd "${concept_dir}"                           \
-                && "${python}" -m pip install                    \
-                    ${scipy_pyuser} --no-deps --ignore-installed \
-                    "${scipy_build_dir}/concept_wheel/"*.whl     \
-            ) & setuppy_pid=$!
-        elif [ "${setuppy_mode}" == "install" ]; then
-            "${python}" setup.py install ${scipy_pyuser} & setuppy_pid=$!
-        fi
-        soothe ${setuppy_pid}
-        if [ "$(check_pypackage_installed scipy True)" == "False" ]; then
+        scipy_success="False"
+        for setuppy_mode in "wheel" "install"; do
+            printf "\nAttempting to install SciPy build with setuppy_mode=${setuppy_mode}\n\n"
+            if [ "${setuppy_mode}" == "wheel" ]; then
+                rm_gently -rf concept_wheel || :
+                ("${python}" setup.py bdist_wheel -d concept_wheel   \
+                    && cd "${concept_dir}"                           \
+                    && "${python}" -m pip install                    \
+                        ${scipy_pyuser} --no-deps --ignore-installed \
+                        "${scipy_build_dir}/concept_wheel/"*.whl     \
+                ) & setuppy_pid=$!
+            elif [ "${setuppy_mode}" == "install" ]; then
+                "${python}" setup.py install ${scipy_pyuser} & setuppy_pid=$!
+            fi
+            soothe ${setuppy_pid}
+            if [ "$(check_pypackage_installed scipy True)" == "True" ]; then
+                scipy_success="True"
+                break
+            fi
+        done
+        if [ "${scipy_success}" == "False" ]; then
             # Cleanup before retrying
             cd "${concept_dir}"
             while [ -d "${scipy_build_dir}" ]; do
                 rm_gently -rf "${scipy_build_dir}" || :
-                sleep ${sleep_gently}
             done
             return 1
         fi
@@ -7729,7 +8024,7 @@ extra_argv=['-q', '--color=yes', '-k not test_face'])" 2>&1 | tee "test_log"; \
             )
             # The pybind11 package can also be removed, but we need it
             # again for installing Matplotlib. To save some time,
-            # only remove it if we are not goint to install Matplotlib.
+            # only remove it if we are not going to install Matplotlib.
             if [ "${matplotlib_install}" != "True" ] || [ "${matplotlib_installed}" != "False" ] \
                 || [ "$(check_pypackage_installed matplotlib)" == "True" ]; then
                 removable_dependencies=("${removable_dependencies[@]}" "pybind11")
@@ -7742,19 +8037,18 @@ extra_argv=['-q', '--color=yes', '-k not test_face'])" 2>&1 | tee "test_log"; \
             done
         fi
     }
-    install "SciPy" "no_init_install"                                  \
-        use_pip_install_pypackage "False" "True"                   ";" \
-        scipy_pyuser "" "--user"                                   ";" \
-        scipy_gfortran "True" "False"                              ";" \
-        compiler "${compiler_possibilities_specified_mpi_last[@]}" ";" \
-        setuppy_mode "wheel" "install"                             ";" \
-        zip_safe "False" ""                                        ";" \
-        cstd "-std=c99" ""                                         ";" \
-        cxxstd "-std=c++11" "-std=c++14" ""                        ";" \
-        fcompiler "gnu95" ""                                       ";" \
-        extra_FCFLAGS "" "-fPIC"                                   ";" \
-        extra_LDFLAGS "" "-shared"                                 ";" \
-        scipy_pythran "" "0"                                       ";" \
+    install "SciPy" "no_init_install"                                            \
+        use_pip_install_pypackage "False" "True"                             ";" \
+        scipy_pyuser "${pyuser_possibilities[@]}"                            ";" \
+        scipy_gfortran "True" "False"                                        ";" \
+        compiler "${compiler_possibilities_gnu_first_specified_mpi_last[@]}" ";" \
+        zip_safe "False" ""                                                  ";" \
+        cstd "-std=c99" ""                                                   ";" \
+        cxxstd "-std=c++11" "-std=c++14" ""                                  ";" \
+        fcompiler "gnu95" ""                                                 ";" \
+        extra_FCFLAGS "" "-fPIC"                                             ";" \
+        extra_LDFLAGS "" "-shared"                                           ";" \
+        scipy_pythran "" "0"                                                 ";" \
 
 fi
 
@@ -7832,6 +8126,7 @@ if [ "${matplotlib_install}" == "True" ] && [ "${matplotlib_installed}" == "Fals
         export TEMP="${TMPDIR}"
         export TMP="${TMPDIR}"
         pip_download "pillow"
+        rm_gently -rf "${tmp_pip_dir}_tmp" || :
         cd "${tmp_pip_dir}"
         for f in *; do
             f_lower="$(echo "${f}" | tr '[:upper:]' '[:lower:]')"
@@ -7893,9 +8188,9 @@ print(inspect.getfile(bdist_egg))
             rm_gently -rf "${tmp_pip_dir}" "${tmp_pip_dir}_tmp" "${tmp_dir}/pillow" || :
             reset_environment
         }
-        install "pillow" "no_init_install"  \
-            pyuser "" "--user"          ";" \
-            zip_1980_fix "False" "True" ";" \
+        install "pillow" "no_init_install"          \
+            pyuser "${pyuser_possibilities[@]}" ";" \
+            zip_1980_fix "False" "True"         ";" \
 
     fi
     # Download Matplotlib
@@ -7915,6 +8210,7 @@ print(inspect.getfile(bdist_egg))
         export LD_LIBRARY_PATH="${blas_dir}/lib:${LD_LIBRARY_PATH}"
     fi
     pip_download "Matplotlib" "${matplotlib_version}"
+    rm_gently -rf "${tmp_pip_dir}_tmp" || :
     cd "${tmp_pip_dir}"
     extract "matplotlib"* "True"
     for f in *; do
@@ -7998,15 +8294,34 @@ print(inspect.getfile(bdist_egg))
         cd "${concept_dir}"
         extra_pip_arg="$(echo ${extra_pip_arg} | awk '{$1=$1};1')"
         "${python}" -m pip uninstall "matplotlib" -y >/dev/null 2>&1 || :
-        "${python}" -m pip install        \
-            ${pyuser}                     \
-            -v                            \
-            ${extra_pip_arg}              \
-            --no-index                    \
-            --find-links="${tmp_dir}/pip" \
-            "${matplotlib_build_dir}" 2>&1 & pip_install_pid=$!
-        soothe ${pip_install_pid}
-        if [ "$(check_pypackage_installed matplotlib True)" == "False" ]; then
+        setuppy_modes="pip"
+        if [ "${extra_pip_arg}" == "--no-cache-dir" ]; then  # first option for extra_pip_arg
+            setuppy_modes="${setuppy_modes} install"
+        fi
+        matplotlib_success="False"
+        for setuppy_mode in ${setuppy_modes}; do
+            if [ "${setuppy_modes}" != "pip" ]; then
+                printf "\nAttempting to install Matplotlib build with setuppy_mode=${setuppy_mode}\n\n"
+            fi
+            if [ "${setuppy_mode}" == "pip" ]; then
+                "${python}" -m pip install        \
+                    ${pyuser}                     \
+                    -v                            \
+                    ${extra_pip_arg}              \
+                    --no-index                    \
+                    --find-links="${tmp_dir}/pip" \
+                    "${matplotlib_build_dir}" 2>&1 & pip_install_pid=$!
+            elif [ "${setuppy_mode}" == "install" ]; then
+                cd "${matplotlib_build_dir}"
+                "${python}" setup.py install ${pyuser} & pip_install_pid=$!
+            fi
+            soothe ${pip_install_pid}
+            if [ "$(check_pypackage_installed matplotlib True)" == "True" ]; then
+                matplotlib_success="True"
+                break
+            fi
+        done
+        if [ "${matplotlib_success}" == "False" ]; then
             return 1
         fi
         # Clean up
@@ -8090,21 +8405,21 @@ for clib in '${matplotlib_clibs}'.split():
             done
         done
     }
-    install "Matplotlib" "no_init_install"                             \
-        use_pip_install_pypackage "False" "True"                   ";" \
-        compiler "${compiler_possibilities_specified_mpi_last[@]}" ";" \
-        pyuser "" "--user"                                         ";" \
-        use_predownloaded_clibs "True" "False"                     ";" \
-        extra_pip_arg                                                  \
-            "--no-cache-dir                                     "      \
-            "--no-cache-dir --no-build-isolation                "      \
-            "               --no-build-isolation                "      \
-            "--no-cache-dir                      --no-use-pep517"      \
-            "--no-cache-dir --no-build-isolation --no-use-pep517"      \
-            "               --no-build-isolation --no-use-pep517"      \
-            "                                    --no-use-pep517"      \
-            "                                                   "      \
-                                                                   ";" \
+    install "Matplotlib" "no_init_install"                                       \
+        use_pip_install_pypackage "False" "True"                             ";" \
+        compiler "${compiler_possibilities_gnu_first_specified_mpi_last[@]}" ";" \
+        pyuser "${pyuser_possibilities[@]}"                                  ";" \
+        use_predownloaded_clibs "True" "False"                               ";" \
+        extra_pip_arg                                                            \
+            "--no-cache-dir                                     "                \
+            "--no-cache-dir --no-build-isolation                "                \
+            "               --no-build-isolation                "                \
+            "--no-cache-dir                      --no-use-pep517"                \
+            "--no-cache-dir --no-build-isolation --no-use-pep517"                \
+            "               --no-build-isolation --no-use-pep517"                \
+            "                                    --no-use-pep517"                \
+            "                                                   "                \
+                                                                             ";" \
 
 fi
 
@@ -8118,6 +8433,9 @@ if [ "${mpi4py_install}" == "True" ] && [ "${mpi4py_installed}" == "False" ] \
         printf "
 Attempting to install MPI4Py with compiler=${compiler}\n\n"
         export PATH="${mpi_bindir}:${mpi_compilerdir}:${PATH}"
+        if [ -n "${mpicc}" ] && [ -f "${mpicc}" ]; then
+            export MPICC="${mpicc}"
+        fi
         pip_install_pypackage "MPI4Py" "${mpi4py_version}" || continue
         install_success="True"
         break
@@ -8132,45 +8450,59 @@ fi
 # H5Py
 if [ "${h5py_install}" == "True" ] && [ "${h5py_installed}" == "False" ] \
     && [ "$(check_pypackage_installed h5py)" == "False" ]; then
-    install_success="False"
-    for compiler in "${compiler_possibilities[@]}"; do
-        reset_environment
-        "use_${compiler}_compilers" || continue
-        printf "
-Attempting to install H5Py with compiler=${compiler}\n\n"
+    current_step="installation of H5Py ${h5py_version}"
+    heading "Installing H5Py ${h5py_version}"
+    set_status "Installing H5Py ${h5py_version}"
+    h5py_install_func() {
         export LD_LIBRARY_PATH="${hdf5_dir}/lib:${LD_LIBRARY_PATH}"
         if [ -d "${blas_dir}/lib" ]; then
             export LD_LIBRARY_PATH="${blas_dir}/lib:${LD_LIBRARY_PATH}"
         fi
         export HDF5_DIR="${hdf5_dir}"
-        export HDF5_MPI="ON"
-        if [ -n "${mpicc}" ]; then
+        if ([ -n "${mpi_dir}" ] && [ -d "${mpi_dir}" ]) \
+            || ([ -n "${mpicc}" ] && [ -f "${mpicc}" ]); then
+            export HDF5_MPI="ON"
+        fi
+        if [ -n "${mpicc}" ] && [ -f "${mpicc}" ]; then
             export CC="${mpicc}"
         fi
-        pip_install_pypackage "H5Py" "${h5py_version}" || continue
-        install_success="True"
-        break
-    done
-    if [ "${install_success}" == "False" ]; then
-        error "Failed to install H5Py"
-        exit 1
-    fi
-    reset_environment
+        "${python}" -m pip uninstall "h5py" -y >/dev/null 2>&1 || :
+        if [ "${use_pip_install_pypackage}" == "True" ]; then
+            pip_install_pypackage "H5Py" "${h5py_version}" || return 1
+        else
+            "${python}" -m pip install -v --no-cache-dir --no-build-isolation \
+                --no-binary=h5py h5py=="${h5py_version}" || :
+        fi
+        if [ "$(check_pypackage_installed h5py True)" == "False" ]; then
+            return 1
+        fi
+    }
+    install "H5Py" "no_init_install"                 \
+        use_pip_install_pypackage "False" "True" ";" \
+        compiler "${compiler_possibilities[@]}"  ";" \
+
 fi
 
 # Sphinx
 sphinx_install_success="True"
 if [ "${sphinx_install}" == "True" ] && [ "${sphinx_installed}" == "False" ] \
     && [ "$(check_pypackage_installed sphinx)" == "False" ]; then
-    # As Sphinx is not a critical dependency (it is only used for
-    # building the documentation), we continue past failure
-    # to install it.
-    install_success="True"
-    pip_install_pypackage "Sphinx" "${sphinx_version}" || install_success="False"
-    if [ "${install_success}" == "False" ]; then
-        sphinx_install_success="False"
-        error "Failed to install Sphinx. The installation will continue regardless."
-        sphinx_install="False"  # Flag as not to be installed
+    # Prefer standard pip installation
+    current_step="installation of Sphinx ${sphinx_version}"
+    heading "Installing Sphinx ${sphinx_version}"
+    set_status "Installing Sphinx ${sphinx_version}"
+    "${python}" -m pip install "sphinx==${sphinx_version}" || :
+    if [ "$(check_pypackage_installed sphinx)" == "False" ]; then
+        install_success="True"
+        pip_install_pypackage "Sphinx" "${sphinx_version}" || install_success="False"
+        if [ "${install_success}" == "False" ]; then
+            # As Sphinx is not a critical dependency (it is only used
+            # for building the documentation), we continue past failure
+            # to install it.
+            sphinx_install_success="False"
+            error "Failed to install Sphinx. The installation will continue regardless."
+            sphinx_install="False"  # flag as not to be installed
+        fi
     fi
 fi
 
@@ -8179,48 +8511,86 @@ if     [ "${sphinx_copybutton_install}"                   == "True"  ] \
     && [ "${sphinx_copybutton_installed}"                 == "False" ] \
     && [ "${sphinx_install_success}"                      == "True"  ] \
     && [ "$(check_pypackage_installed sphinx_copybutton)" == "False" ]; then
-    # As Sphinx_copybutton is not a critical dependency (it is only used
-    # for building the documentation), we continue past failure
-    # to install it.
-    install_success="True"
-    pip_install_pypackage "Sphinx_copybutton" "${sphinx_copybutton_version}" \
-        || install_success="False"
-    if [ "${install_success}" == "False" ]; then
-        error "Failed to install Sphinx_copybutton. The installation will continue regardless."
-        sphinx_copybutton_install="False"  # Flag as not to be installed
+    # Prefer standard pip installation
+    current_step="installation of Sphinx_copybutton ${sphinx_copybutton_version}"
+    heading "Installing Sphinx_copybutton ${sphinx_copybutton_version}"
+    set_status "Installing Sphinx_copybutton ${sphinx_copybutton_version}"
+    "${python}" -m pip install "sphinx_copybutton==${sphinx_copybutton_version}" || :
+    if [ "$(check_pypackage_installed sphinx_copybutton)" == "False" ]; then
+        install_success="True"
+        pip_install_pypackage "Sphinx_copybutton" "${sphinx_copybutton_version}" \
+            || install_success="False"
+        if [ "${install_success}" == "False" ]; then
+            # As Sphinx_copybutton is not a critical dependency (it is
+            # only used for building the documentation), we continue
+            # past failure to install it.
+            error "Failed to install Sphinx_copybutton. The installation will continue regardless."
+            sphinx_copybutton_install="False"  # flag as not to be installed
+        fi
     fi
 fi
 
-# sphinx_rtd_theme
+# Sphinx_rtd_theme
 if     [ "${sphinx_rtd_theme_install}"                   == "True"  ] \
     && [ "${sphinx_rtd_theme_installed}"                 == "False" ] \
     && [ "${sphinx_install_success}"                     == "True"  ] \
     && [ "$(check_pypackage_installed sphinx_rtd_theme)" == "False" ]; then
-    # As sphinx_rtd_theme is not a critical dependency (it is only used
-    # for building the documentation), we continue past failure
-    # to install it.
-    install_success="True"
-    pip_install_pypackage "Sphinx_rtd_theme" "${sphinx_rtd_theme_version}" \
-        || install_success="False"
-    if [ "${install_success}" == "False" ]; then
-        error "Failed to install Sphinx_rtd_theme. The installation will continue regardless."
-        sphinx_rtd_theme_install="False"  # Flag as not to be installed
+    # Prefer standard pip installation
+    current_step="installation of Sphinx_rtd_theme ${sphinx_rtd_theme_version}"
+    heading "Installing Sphinx_rtd_theme ${sphinx_rtd_theme_version}"
+    set_status "Installing Sphinx_rtd_theme ${sphinx_rtd_theme_version}"
+    "${python}" -m pip install "sphinx_rtd_theme==${sphinx_rtd_theme_version}" || :
+    if [ "$(check_pypackage_installed sphinx_rtd_theme)" == "False" ]; then
+        install_success="True"
+        pip_install_pypackage "Sphinx_rtd_theme" "${sphinx_rtd_theme_version}" \
+            || install_success="False"
+        if [ "${install_success}" == "False" ]; then
+            # As sphinx_rtd_theme is not a critical dependency (it is
+            # only used for building the documentation), we continue
+            # past failure to install it.
+            error "Failed to install Sphinx_rtd_theme. The installation will continue regardless."
+            sphinx_rtd_theme_install="False"  # flag as not to be installed
+        fi
     fi
+    # It may happen that sphinxcontrib_jquery, used by sphinx_rtd_theme,
+    # is not getting installed. Ensure that it is.
+    "${python}" -m pip install "sphinxcontrib_jquery" || :
 fi
 
-# sphinx_tabs
+# Sphinx_tabs
 if     [ "${sphinx_tabs_install}"                   == "True"  ] \
     && [ "${sphinx_tabs_installed}"                 == "False" ] \
     && [ "${sphinx_install_success}"                == "True"  ] \
     && [ "$(check_pypackage_installed sphinx_tabs)" == "False" ]; then
-    # As sphinx_tabs is not a critical dependency (it is only used
-    # for building the documentation), we continue past failure
-    # to install it.
-    install_success="True"
-    pip_install_pypackage "Sphinx_tabs" "${sphinx_tabs_version}" || install_success="False"
-    if [ "${install_success}" == "False" ]; then
-        error "Failed to install Sphinx_tabs. The installation will continue regardless."
-        sphinx_tabs_install="False"  # Flag as not to be installed
+    # Prefer standard pip installation
+    current_step="installation of Sphinx_tabs ${sphinx_tabs_version}"
+    heading "Installing Sphinx_tabs ${sphinx_tabs_version}"
+    set_status "Installing Sphinx_tabs ${sphinx_tabs_version}"
+    "${python}" -m pip install "sphinx_tabs==${sphinx_tabs_version}" || :
+    if [ "$(check_pypackage_installed sphinx_tabs)" == "False" ]; then
+        install_success="True"
+        pip_install_pypackage "Sphinx_tabs" "${sphinx_tabs_version}" || install_success="False"
+        if [ "${install_success}" == "False" ]; then
+            # As sphinx_tabs is not a critical dependency (it is only
+            # used for building the documentation), we continue past
+            # failure to install it.
+            error "Failed to install Sphinx_tabs. The installation will continue regardless."
+            sphinx_tabs_install="False"  # flag as not to be installed
+        fi
+    fi
+fi
+
+# Silence all warnings from the deprecated pkg_resources module
+if [ "${python_install}" == "True" ]; then
+    pkg_resources_init="$("${python}" -c "import pkg_resources; print(pkg_resources.__file__)" || :)"
+    if [ "$(basename "${pkg_resources_init}")" == "__init__.py" ] \
+        && [ -f "${pkg_resources_init}" ]; then
+        pkg_resources_hack_success="True"
+        sed -i "s/import warnings/import warnings; _warnings_warn = lambda \*args, \*\*kwargs: None/" \
+            "${pkg_resources_init}" || pkg_resources_hack_success="False"
+        if [ "${pkg_resources_hack_success}" == "True" ]; then
+            sed -i "s/warnings\.warn(/_warnings_warn(/" "${pkg_resources_init}" || :
+        fi
     fi
 fi
 
@@ -9476,9 +9846,7 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
                 sed -i "${linenr}iliblist += ['mvec', 'm']" "python/setup.py"
             fi
         fi
-        unset PYTHONDONTWRITEBYTECODE  # temporarily allow Python to produce .pyc files
         PYTHON="${python}" make ${make_jobs} 2>&1 || return 1
-        export PYTHONDONTWRITEBYTECODE=1
         "${python}" -c "import classy; classy.Class().compute()" || return 1
         # Test CLASS
         if [ "${do_tests}" == "True" ]; then
@@ -9518,8 +9886,6 @@ sys.exit(int(cosmo.get_background()['proper time [Gyr]'][-1]) != 13)
         fast_math "True" "False"                ";" \
 
 fi
-# Do not let Python produce .pyc files
-export PYTHONDONTWRITEBYTECODE=1
 
 
 
