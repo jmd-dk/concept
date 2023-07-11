@@ -2623,6 +2623,7 @@ cosmoresults_cache = {}
     backscale_factor='double',
     class_species=str,
     cosmoresults=object,  # CosmoResults
+    gauge_str=str,
     k='Py_ssize_t',
     k_gridsize='Py_ssize_t',
     k_magnitudes='double[::1]',
@@ -2674,19 +2675,15 @@ def compute_transfer(
     # Compute the cosmology via CLASS. As the 𝘕-body gauge is not
     # implemented in CLASS, the synchronous gauge is used in its place.
     # We do the transformation from synchronous to 𝘕-body gauge later.
+    gauge_str = {
+        'nbody'      : '𝘕-body',
+        'synchronous': 'synchronous',
+        'newtonian'  : 'Newtonian',
+    }.get(gauge, gauge)
     cosmoresults = compute_cosmo(
         gridsize_or_k_magnitudes,
         'synchronous' if gauge == 'nbody' else gauge,
-        class_call_reason=(
-            f'in order to get {{}} gauge perturbations of {component.name}'
-            .format(
-                {
-                    'nbody'      : '𝘕-body',
-                    'synchronous': 'synchronous',
-                    'newtonian'  : 'Newtonian',
-                }.get(gauge, gauge)
-            )
-        ),
+        class_call_reason=f'in order to get {gauge_str} gauge perturbations of {component.name}',
     )
     k_magnitudes = cosmoresults.k_magnitudes
     k_gridsize = k_magnitudes.shape[0]
