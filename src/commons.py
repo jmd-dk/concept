@@ -1944,6 +1944,9 @@ def construct_user_params_namespace(params_iteration):
         'master'         : master,
         'nprocs'         : nprocs,
         'rank'           : rank,
+        'node'           : node,
+        'node_master'    : node_master,
+        'nprocs_node'    : nprocs_node,
         'bcast'          : bcast,
         'call_openmp_lib': call_openmp_lib,
         # Constants
