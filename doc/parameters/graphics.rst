@@ -23,7 +23,6 @@ The 'graphics' parameter category contains parameters specifying the look of
 \  **Default**     \  .. code-block:: python3
 
                          80
-
 -- --------------- -- -
 \  **Elaboration** \  Long lines of terminal output from CO\ *N*\ CEPT is
                       generally wrapped into multiple lines before they are
@@ -39,7 +38,6 @@ The 'graphics' parameter category contains parameters specifying the look of
                       .. code-block:: python3
 
                          terminal_width = 120
-
 == =============== == =
 
 
@@ -59,7 +57,6 @@ The 'graphics' parameter category contains parameters specifying the look of
 \  **Default**     \  .. code-block:: python3
 
                          True
-
 -- --------------- -- -
 \  **Elaboration** \  By default, CO\ *N*\ CEPT makes use of various
                       formatting when printing to the terminal, e.g. bold red
@@ -78,7 +75,6 @@ The 'graphics' parameter category contains parameters specifying the look of
                       .. note::
                          Though this disables the majority of the terminal
                          formatting, a few bits and pieces remain
-
 == =============== == =
 
 
@@ -125,7 +121,6 @@ The 'graphics' parameter category contains parameters specifying the look of
                                  'default': True,
                              },
                          }
-
 -- --------------- -- -
 \  **Elaboration** \  This is a ``dict`` of several individual sub-parameters,
                       specifying details of how to compute 2D renders. All
@@ -218,7 +213,6 @@ The 'graphics' parameter category contains parameters specifying the look of
 
                       * ``'enhance'``: Specifies whether to apply non-linear
                         contrast enhancement to the image.
-
 -- --------------- -- -
 \  **Example 0**   \  Do the projection along the ``'x'`` axis and include a
                       quarter of the simulation box in the projection, for
@@ -241,7 +235,6 @@ The 'graphics' parameter category contains parameters specifying the look of
                          When only specifying a single number (the slab
                          thickness) for ``'extent'`` as above, the actual
                          extent will be ``(0, boxsize/4)``
-
 -- --------------- -- -
 \  **Example 1**   \  Apply different colormaps to the two components with
                       names/species of ``'matter'`` and ``'neutrino'``,
@@ -339,7 +332,6 @@ The 'graphics' parameter category contains parameters specifying the look of
                                  'default': 1080,
                              },
                          }
-
 -- --------------- -- -
 \  **Elaboration** \  This is a ``dict`` of several individual sub-parameters,
                       specifying details of how to compute 3D renders. All
@@ -593,7 +585,6 @@ The 'graphics' parameter category contains parameters specifying the look of
                       associated (relative) brightness across all renders, the
                       total brightness of multi-component renders may be
                       specified as well.
-
 -- --------------- -- -
 \  **Example 0**   \  Give the component with a name/species of ``'matter'``
                       the ``'lawngreen'`` colour, while using the ``'cool'``
@@ -629,7 +620,6 @@ The 'graphics' parameter category contains parameters specifying the look of
 
                            python -c "import matplotlib; \
                                print(matplotlib.colors.ColorConverter().to_rgb('lawngreen'))"
-
 -- --------------- -- -
 \  **Example 1**   \  Use a white background:
 

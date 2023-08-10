@@ -24,7 +24,6 @@ CO\ *N*\ CEPT run.
 \  **Default**     \  .. code-block:: python3
 
                          ''  # no initial conditions
-
 -- --------------- -- -
 \  **Elaboration** \  There are two kinds of initial condition specifications:
 
@@ -49,7 +48,6 @@ CO\ *N*\ CEPT run.
                             'species': 'matter',
                             'N'      : 128**3,
                          }
-
 -- --------------- -- -
 \  **Example 1**   \  Load initial conditions from the snapshot ``snapshot``
                       in the ``ic`` directory:
@@ -63,7 +61,6 @@ CO\ *N*\ CEPT run.
                          use the path to either the first file, the directory
                          containing the files (and nothing else) or use
                          globbing as in ``f'{path.ic}/snapshot*'``.
-
 -- --------------- -- -
 \  **Example 2**   \  Generate initial conditions where baryonic and cold dark
                       matter particles are realised separately as individual
@@ -115,7 +112,6 @@ CO\ *N*\ CEPT run.
                          for referencing by other parameters and may generally
                          be omitted. If so, this will be set equal to the
                          value of ``'species'``.
-
 -- --------------- -- -
 \  **Example 4**   \  Use combined initial conditions from the two snapshots
                       ``snapshot_b`` and ``snapshot_cdm`` in the ``ic``
@@ -133,7 +129,6 @@ CO\ *N*\ CEPT run.
                                  'boltzmann order': +1,  # non-linear
                              },
                          ]
-
 -- --------------- -- -
 \  **Example 5**   \  Generate initial conditions consisting of a single
                       component comprised of :math:`2\times 64^3` matter
@@ -180,7 +175,6 @@ CO\ *N*\ CEPT run.
                              'render3D' : path.output_dir,
                              'autosave' : f'{path.ic_dir}/autosave',
                          }
-
 -- --------------- -- -
 \  **Elaboration** \  This is a ``dict`` with the keys ``'snapshot'``,
                       ``'powerspec'``, ``'bispec'``, ``'render2D'``,
@@ -201,7 +195,6 @@ CO\ *N*\ CEPT run.
                       .. note::
                          Unspecified entries will take on their
                          default values
-
 -- --------------- -- -
 \  **Example 1**   \  Use the same directory for all output, and let its name
                       reflect the ID of the running job:
@@ -215,7 +208,6 @@ CO\ *N*\ CEPT run.
                              'render2D' : ...,
                              'render3D' : ...,
                          }
-
 -- --------------- -- -
 \  **Example 2**   \  Dump all output (even autosaves) to the directory
                       containing the parameter file currently in use:
@@ -261,7 +253,6 @@ CO\ *N*\ CEPT run.
                              'render2D' : 'render2D',
                              'render3D' : 'render3D',
                          }
-
 -- --------------- -- -
 \  **Elaboration** \  This is a ``dict`` with the keys ``'snapshot'``,
                       ``'powerspec'``, ``'bispec'``, ``'render2D'`` and
@@ -273,7 +264,6 @@ CO\ *N*\ CEPT run.
                       ``output_bases['powerspec'] + '_a=1.0'``. The directory
                       of this file is :ref:`controlled by <output_dirs>`
                       ``output_dirs['powerspec']``.
-
 -- --------------- -- -
 \  **Example 0**   \  Use a shorter name for power spectrum files:
 
@@ -303,7 +293,6 @@ CO\ *N*\ CEPT run.
 \  **Default**     \  .. code-block:: python3
 
                          {}  # no output times
-
 -- --------------- -- -
 \  **Elaboration** \  In its simplest form this is a ``dict`` with the keys
                       ``'snapshot'``, ``'powerspec'``, ``'bispec'``,
@@ -315,7 +304,6 @@ CO\ *N*\ CEPT run.
                       within an outer ``dict`` with keys ``'a'`` and ``'t'``,
                       for specifying output times at either scale factor
                       values :math:`a` or cosmic times :math:`t`.
-
 -- --------------- -- -
 \  **Example 0**   \  Specify a single power spectrum output at :math:`a = 1`:
 
@@ -324,7 +312,6 @@ CO\ *N*\ CEPT run.
                          output_times = {
                              'powerspec': 1,
                          }
-
 -- --------------- -- -
 \  **Example 1**   \  Specify snapshot outputs at :math:`a = 0.1`,
                       :math:`a = 0.3` and :math:`a = 1`:
@@ -334,7 +321,6 @@ CO\ *N*\ CEPT run.
                          output_times = {
                              'snapshot': [0.1, 0.3, 1],
                          }
-
 -- --------------- -- -
 \  **Example 2**   \  Specify 8 power spectrum outputs between the initial
                       :math:`a = a_{\text{begin}}` and final :math:`a = 1`,
@@ -345,7 +331,6 @@ CO\ *N*\ CEPT run.
                          output_times = {
                              'powerspec': logspace(log10(a_begin), log10(1), 8),
                          }
-
 -- --------------- -- -
 \  **Example 3**   \  Specify a series of power spectrum outputs and use these
                       same values for 2D renders:
@@ -356,7 +341,6 @@ CO\ *N*\ CEPT run.
                              'powerspec': [0.03, 0.1, 0.3, 1],
                              'render2D' : ...,
                          }
-
 -- --------------- -- -
 \  **Example 4**   \  Specify snapshots at cosmic times
                       :math:`t = 1729\,\text{Myr}` and
@@ -391,7 +375,6 @@ CO\ *N*\ CEPT run.
 \  **Default**     \  .. code-block:: python3
 
                          ထ  # never autosave
-
 -- --------------- -- -
 \  **Elaboration** \  Setting this to some finite time will periodically dump
                       a snapshot, intended for use with restarting the
@@ -412,14 +395,12 @@ CO\ *N*\ CEPT run.
                       .. code-block:: python3
 
                          autosave_interval = 1*hr
-
 -- --------------- -- -
 \  **Example 1**   \  Autosave 5 times a day:
 
                       .. code-block:: python3
 
                          autosave_interval = day/5
-
 -- --------------- -- -
 \  **Example 2**   \  Disabling autosaving, including starting from an
                       existing autosave on disk:
@@ -474,7 +455,6 @@ CO\ *N*\ CEPT run.
                                  },
                              },
                          }
-
 -- --------------- -- -
 \  **Elaboration** \  The sub\ ``dict``\ s ``snapshot_select['save']`` and
                       ``snapshot_select['load']`` are
@@ -542,7 +522,6 @@ CO\ *N*\ CEPT run.
                          snapshot_select = {
                              'matter': True,
                          }
-
 -- --------------- -- -
 \  **Example 1**   \  Exclude any (and only) fluid components when
                       writing snapshots:
@@ -566,7 +545,6 @@ CO\ *N*\ CEPT run.
                                  'fluid': False,
                              },
                          }
-
 -- --------------- -- -
 \  **Example 2**   \  Only read in positions when loading particles,
                       i.e. ignore momenta:
@@ -607,7 +585,6 @@ CO\ *N*\ CEPT run.
                       The usefulness of this example is found when using e.g.
                       the :doc:`/utilities/powerspec` utility, where reading
                       in the momentum information only wastes time and memory.
-
 == =============== == =
 
 
@@ -634,7 +611,6 @@ CO\ *N*\ CEPT run.
                                  'plot'            : True,
                              },
                          }
-
 -- --------------- -- -
 \  **Elaboration** \  This is a
                       :ref:`component selection <components_and_selections>`
@@ -673,7 +649,6 @@ CO\ *N*\ CEPT run.
                                  'plot'  : False,
                              },
                          }
-
 -- --------------- -- -
 \  **Example 1**   \  Leave out the linear power spectrum for every component
                       except the one with a name/species of ``'matter'``,
@@ -693,7 +668,6 @@ CO\ *N*\ CEPT run.
 
                       .. note::
                          Unspecified values are assigned ``False``
-
 -- --------------- -- -
 \  **Example 2**   \  Do not create any power spectrum outputs except plots
                       of the component with a name/species of ``'matter'``:
@@ -706,7 +680,6 @@ CO\ *N*\ CEPT run.
                                  'plot': True,
                              },
                          }
-
 -- --------------- -- -
 \  **Example 3**   \  Output imprinted linear power spectra rather than pure
                       linear power spectra, for all components:
@@ -730,7 +703,6 @@ CO\ *N*\ CEPT run.
                          spectrum, ratios between non-linear and linear power
                          spectra become less noisy when using imprinted
                          linear spectra.
-
 -- --------------- -- -
 \  **Example 4**   \  Create full (auto) power spectrum outputs for
                       all components, as well as for the combined
@@ -769,7 +741,6 @@ CO\ *N*\ CEPT run.
                                  'plot'      : True,
                              },
                          }
-
 -- --------------- -- -
 \  **Elaboration** \  This is a
                       :ref:`component selection <components_and_selections>`
@@ -832,7 +803,6 @@ CO\ *N*\ CEPT run.
                                  'plot'      : False,
                              },
                          }
-
 -- --------------- -- -
 \  **Example 1**   \  Leave out the reduced bispectrum for every component
                       except the one with a name/species of ``'matter'``.
@@ -853,7 +823,6 @@ CO\ *N*\ CEPT run.
 
                       .. note::
                          Unspecified values are assigned ``False``
-
 -- --------------- -- -
 \  **Example 2**   \  Do not create any bispectrum outputs except plots
                       of the component with a name/species of ``'matter'``.
@@ -870,7 +839,6 @@ CO\ *N*\ CEPT run.
                                  'plot'      : True,
                              },
                          }
-
 -- --------------- -- -
 \  **Example 3**   \  Create full (auto) bispectrum outputs for all
                       components, as well as for the combined
@@ -908,7 +876,6 @@ CO\ *N*\ CEPT run.
                                  'terminal image': True,
                              },
                          }
-
 -- --------------- -- -
 \  **Elaboration** \  This is a
                       :ref:`component selection <components_and_selections>`
@@ -940,7 +907,6 @@ CO\ *N*\ CEPT run.
                                  'terminal image': True,
                              },
                          }
-
 -- --------------- -- -
 \  **Example 1**   \  Dump 2D render images for all components, but only show
                       the ones for the component with a name/species of
@@ -960,7 +926,6 @@ CO\ *N*\ CEPT run.
 
                       .. note::
                          Unspecified values are assigned ``False``
-
 -- --------------- -- -
 \  **Example 2**   \  Create full 2D render outputs for the combined
                       ``'matter'`` and ``'neutrino'`` components,
@@ -1021,7 +986,6 @@ CO\ *N*\ CEPT run.
                          render3D_select = {
                              'matter': {'image': True},
                          }
-
 -- --------------- -- -
 \  **Example 1**   \  Create 3D render outputs for the combined
                       ``'matter'`` and ``'neutrino'`` components,
@@ -1052,7 +1016,6 @@ CO\ *N*\ CEPT run.
 \  **Default**     \  .. code-block:: python3
 
                          'concept'
-
 -- --------------- -- -
 \  **Elaboration**  \ CO\ *N*\ CEPT understands two snapshot
                       formats; ``'concept'``, which is its own,
@@ -1140,7 +1103,6 @@ CO\ *N*\ CEPT run.
                                  'mass'    : '10¹⁰ m☉/h',
                              },
                          }
-
 -- --------------- -- -
 \  **Elaboration**  \ This parameter is a ``dict`` of several individual
                       sub-parameters, each of which is described below.
@@ -1290,7 +1252,6 @@ CO\ *N*\ CEPT run.
                                  'length': 'Mpc/h',
                              },
                          }
-
 -- --------------- -- -
 \  **Example 1**   \  Fill each GADGET snapshot file with at most
                       :math:`420^3` particles when writing snapshot files to
@@ -1321,7 +1282,6 @@ CO\ *N*\ CEPT run.
 \  **Default**     \  .. code-block:: python3
 
                          False
-
 -- --------------- -- -
 \  **Elaboration** \  All particles should have positions
                       :math:`0 \leq x, y, z < L_{\text{box}}`, with
@@ -1350,7 +1310,6 @@ CO\ *N*\ CEPT run.
                       .. code-block:: python3
 
                          snapshot_wrap = True
-
 == =============== == =
 
 
@@ -1372,7 +1331,6 @@ CO\ *N*\ CEPT run.
                          {
                              'default': False,
                          }
-
 -- --------------- -- -
 \  **Elaboration** \  This is a
                       :ref:`component selection <components_and_selections>`
@@ -1384,7 +1342,6 @@ CO\ *N*\ CEPT run.
                       snapshot, the IDs are saved as well.
 
                       .. note::
-
                          When writing GADGET snapshots, IDs will be written
                          even for components that do not make use of paticle
                          IDs. In this case, some IDs are simply made up when
@@ -1402,7 +1359,6 @@ CO\ *N*\ CEPT run.
                       When a component that should use particle IDs are loaded
                       from a CO\ *N*\ CEPT snapshot that does not contain such
                       IDs, new IDs are assigned.
-
 -- --------------- -- -
 \  **Example 0**   \  Use particle IDs for all particle components:
 
@@ -1411,7 +1367,6 @@ CO\ *N*\ CEPT run.
                          select_particle_id = {
                              'particles': True,
                          }
-
 == =============== == =
 
 
@@ -1431,7 +1386,6 @@ CO\ *N*\ CEPT run.
 \  **Default**     \  .. code-block:: python3
 
                          False
-
 -- --------------- -- -
 \  **Elaboration** \  When enabled, all `CLASS <http://class-code.net/>`__
                       perturbations used within the CO\ *N*\ CEPT run will be
@@ -1471,7 +1425,6 @@ CO\ *N*\ CEPT run.
                       .. note::
                          This feature is primarily meant to be used with the
                          :doc:`class utility </utilities/class>`.
-
 -- --------------- -- -
 \  **Example 0**   \  Plot all CLASS perturbations used within the
                       CO\ *N*\ CEPT run:
@@ -1479,7 +1432,6 @@ CO\ *N*\ CEPT run.
                       .. code-block:: python3
 
                          class_plot_perturbations = True
-
 == =============== == =
 
 
@@ -1499,7 +1451,6 @@ CO\ *N*\ CEPT run.
 \  **Default**     \  .. code-block:: python3
 
                          set()
-
 -- --------------- -- -
 \  **Elaboration** \  Only a subset of the available
                       `CLASS <http://class-code.net/>`__ background quantities
@@ -1539,7 +1490,6 @@ CO\ *N*\ CEPT run.
                          .. code-block:: python3
 
                             {'tau', 'D', 'f', 'D2', 'f2'}
-
 -- --------------- -- -
 \  **Example 0**   \  Include the conformal time :math:`\tau` among the
                       CLASS background quantities when dumping these to disk,
@@ -1555,7 +1505,6 @@ CO\ *N*\ CEPT run.
                       .. code-block:: python3
 
                          class_extra_background = 'conf. time [Mpc]'
-
 -- --------------- -- -
 \  **Example 1**   \  Include the linear growth factor :math:`D` and rate
                       :math:`f` among the background quantities when dumping
@@ -1585,7 +1534,6 @@ CO\ *N*\ CEPT run.
 \  **Default**     \  .. code-block:: python3
 
                          set()
-
 -- --------------- -- -
 \  **Elaboration** \  Only a subset of the available
                       `CLASS <http://class-code.net/>`__ perturbations are
@@ -1618,7 +1566,6 @@ CO\ *N*\ CEPT run.
                         trace-free component of the spatial metric in *N*-body
                         gauge, :math:`\partial_{\tau} H_{\text{T}}` (in CLASS
                         called ``H_T_prime``).
-
 -- --------------- -- -
 \  **Example 0**   \  Include the two conformal Newtonian metric potentials
                       :math:`\phi` and :math:`\psi` among the CLASS

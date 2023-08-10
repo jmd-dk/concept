@@ -24,7 +24,6 @@ cosmology, as well as the starting time for the simulation.
 \  **Default**     \  .. code-block:: python3
 
                          67*km/(s*Mpc)
-
 -- --------------- -- -
 \  **Elaboration** \  Setting ``H0`` also defines the *inferred* parameter
                       ``h`` as ``h = H0/(100*km/(s*Mpc))``. With e.g.
@@ -41,7 +40,6 @@ cosmology, as well as the starting time for the simulation.
 
                          The value of ``h`` will not be properly set unless
                          you explicitly define ``H0``.
-
 -- --------------- -- -
 \  **Example 0**   \  Use a value of
                       :math:`H_0 = 74\,\text{km}\, \text{s}^{-1}\, \text{Mpc}^{-1}`
@@ -50,7 +48,6 @@ cosmology, as well as the starting time for the simulation.
                       .. code-block:: python3
 
                          H0 = 74*km/(s*Mpc)
-
 == =============== == =
 
 
@@ -71,7 +68,6 @@ cosmology, as well as the starting time for the simulation.
 \  **Default**     \  .. code-block:: python3
 
                          0.049
-
 -- --------------- -- -
 \  **Elaboration** \  Within a simulation CO\ *N*\ CEPT treats baryonic matter
                       as though it were cold dark matter, i.e. it has no gas
@@ -89,7 +85,6 @@ cosmology, as well as the starting time for the simulation.
                       .. code-block:: python3
 
                          Ωb = 0.05
-
 -- --------------- -- -
 \  **Example 1**   \  Specify :math:`\Omega_{\text{b}}` via known value of
                       :math:`h^2\Omega_{\text{b}} \equiv \omega_{\text{b}} = 0.022`:
@@ -97,7 +92,6 @@ cosmology, as well as the starting time for the simulation.
                       .. code-block:: python3
 
                          Ωb = 0.022/h**2
-
 == =============== == =
 
 
@@ -118,7 +112,6 @@ cosmology, as well as the starting time for the simulation.
 \  **Default**     \  .. code-block:: python3
 
                          0.27
-
 -- --------------- -- -
 \  **Elaboration** \  Typically, the species used for the particles in a
                       simulation is (total) 'matter', meaning combined
@@ -129,7 +122,6 @@ cosmology, as well as the starting time for the simulation.
                       .. code-block:: python3
 
                          Ωcdm = 0.28
-
 -- --------------- -- -
 \  **Example 1**   \  Specify :math:`\Omega_{\text{cdm}}` via known value of
                       :math:`h^2\Omega_{\text{cdm}} \equiv \omega_{\text{cdm}} = 0.12`:
@@ -137,7 +129,6 @@ cosmology, as well as the starting time for the simulation.
                       .. code-block:: python3
 
                          Ωcdm = 0.12/h**2
-
 -- --------------- -- -
 \  **Example 2**   \  Specify :math:`\Omega_{\text{cdm}}` such that
                       :math:`\Omega_{\text{m}} \equiv \Omega_{\text{b}} + \Omega_{\text{cdm}} + \Omega_{\nu} = 0.30`:
@@ -186,7 +177,6 @@ cosmology, as well as the starting time for the simulation.
                       .. code-block:: python3
 
                          a_begin = 0.01
-
 == =============== == =
 
 
@@ -218,7 +208,6 @@ cosmology, as well as the starting time for the simulation.
                       .. code-block:: python3
 
                          t_begin = 10*Myr
-
 == =============== == =
 
 
@@ -243,7 +232,6 @@ cosmology, as well as the starting time for the simulation.
                              'α_s'  : 0,         # tilt running
                              'pivot': 0.05/Mpc,  # pivot scale
                          }
-
 -- --------------- -- -
 \  **Elaboration** \  Linear power spectra can be written as
                       :math:`P_{\text{lin}}(a, k) = \zeta^2(k) T^2(a, k)`,
@@ -268,7 +256,6 @@ cosmology, as well as the starting time for the simulation.
                       :ref:`class_params`. CLASS is only responsible for the
                       transfer functions :math:`T(a, k)`, with CO\ *N*\ CEPT
                       performing the scaling by :math:`\zeta(k)`.
-
 -- --------------- -- -
 \  **Example 0**   \  Enhance the primordial perturbations, leading to
                       stronger clustering:
@@ -282,7 +269,6 @@ cosmology, as well as the starting time for the simulation.
                       .. note::
                          Non-specified items in ``primordial_spectrum`` will
                          be set to their default values.
-
 == =============== == =
 
 
@@ -301,7 +287,6 @@ cosmology, as well as the starting time for the simulation.
 \  **Default**     \  .. code-block:: python3
 
                          {}  # default CLASS parameters except H0, Omega_b, Omega_cdm
-
 -- --------------- -- -
 \  **Elaboration** \  CO\ *N*\ CEPT relies on the
                       `CLASS <http://class-code.net/>`__ code for computing the
@@ -341,7 +326,6 @@ cosmology, as well as the starting time for the simulation.
                          cosmological constant. If you want to run simulations
                          with no radiation included in the background,
                          see the :ref:`enable_class_background` parameter.
-
 -- --------------- -- -
 \  **Example 0**   \  Use a cosmology with a slightly warmer CMB:
 
@@ -357,7 +341,6 @@ cosmology, as well as the starting time for the simulation.
                          As the ``class_params`` are fed more or less directly
                          to CLASS as is, these unit conventions must be
                          respected when adding items to ``class_params``.
-
 -- --------------- -- -
 \  **Example 1**   \  Use a cosmology with three massive neutrinos with a
                       total mass of :math:`\sum m_\nu = 0.1\, \text{eV}`:
@@ -437,7 +420,6 @@ cosmology, as well as the starting time for the simulation.
                          multiple neutrinos with equal mass in ``_mν`` here is
                          picked up and used to properly set the
                          degeneracy ``'deg_ncdm'``.
-
 -- --------------- -- -
 \  **Example 3**   \  By default, CLASS adjusts the density parameter
                       :math:`\Omega_{\Lambda}` of the cosmological constant

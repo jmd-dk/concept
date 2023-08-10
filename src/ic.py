@@ -38,17 +38,18 @@ cimport(
     '    get_primordial_curvature_perturbation, '
 )
 cimport(
-    'from mesh import         '
-    '    Lattice,             '
-    '    domain_decompose,    '
-    '    domain_loop,         '
-    '    fft,                 '
-    '    fourier_curve_loop,  '
-    '    fourier_loop,        '
-    '    get_fftw_slab,       '
-    '    get_gridshape_local, '
-    '    nullify_modes,       '
-    '    slab_decompose,      '
+    'from mesh import              '
+    '    Lattice,                  '
+    '    domain_decompose,         '
+    '    domain_loop,              '
+    '    fft,                      '
+    '    fourier_curve_loop,       '
+    '    fourier_curve_slice_loop, '
+    '    fourier_loop,             '
+    '    get_fftw_slab,            '
+    '    get_gridshape_local,      '
+    '    nullify_modes,            '
+    '    slab_decompose,           '
 )
 
 # Pure Python imports
@@ -77,17 +78,18 @@ class PseudoRandomNumberGenerator:
     # Initialisation method
     @cython.pheader(
         # Arguments
-        seed=object,  # Python int or None
+        seed=object,  # None or Python int or numpy.random.SeedSequence
         stream=str,
         cache_size='Py_ssize_t',
+        salt='bint',
     )
-    def __init__(self, seed=None, stream=random_generator, cache_size=2**12):
+    def __init__(self, seed=None, stream=random_generator, cache_size=2**12, salt=True):
         # The triple quoted string below serves as the type declaration
         # for the data attributes of the RandomNumberGenerator type.
         # It will get picked up by the pyxpp script
         # and included in the .pxd file.
         """
-        public object seed  # Python int or None
+        public object seed  # numpy.random.SeedSequence
         public str stream
         Py_ssize_t cache_size
         object bit_generator  # np.random.BitGenerator
@@ -99,10 +101,17 @@ class PseudoRandomNumberGenerator:
         Py_ssize_t index_gaussian
         Py_ssize_t index_rayleigh
         """
-        if seed is not None:
+        if salt and isinstance(seed, int):
             # Sprincle in magic number to avoid issues
             # with seed containing many zero bits.
             seed += int(π*1e+8)
+            # Hand-picked offset leading to only small effects
+            # of cosmic variance when using the default seeds
+            # for the primordial noise.
+            lucky_seed_offset = 137
+            seed += lucky_seed_offset
+        if not isinstance(seed, np.random.SeedSequence):
+            seed = np.random.SeedSequence(seed)
         self.seed = seed
         self.stream = stream
         self.cache_size = cache_size
@@ -133,6 +142,25 @@ class PseudoRandomNumberGenerator:
         self.index_uniform  = self.cache_size - 1
         self.index_gaussian = self.cache_size - 1
         self.index_rayleigh = self.cache_size - 1
+
+    # Method for spawning a child instance,
+    # inheriting the seed but with an additional key mixed in.
+    @cython.header(
+        # Arguments
+        spawn_key=object,  # int or tuple of ints
+        # Locals
+        child='PseudoRandomNumberGenerator',
+        seed=object,  # numpy.random.SeedSequence
+        returns='PseudoRandomNumberGenerator',
+    )
+    def spawn(self, spawn_key=0):
+        spawn_key = tuple(any2list(spawn_key))
+        seed = np.random.SeedSequence(
+            self.seed.entropy,
+            spawn_key=(self.seed.spawn_key + spawn_key),
+        )
+        child = type(self)(seed, self.stream, self.cache_size)
+        return child
 
     # Uniform distribution over the half-open interval [low, high)
     @cython.header(
@@ -847,27 +875,40 @@ slab_structure_infos = {}
     gridsize='Py_ssize_t',
     i_conj='Py_ssize_t',
     im='double',
+    im_conj='double',
     imprint='bint',
     imprint_conj='bint',
     index='Py_ssize_t',
     index_conj='Py_ssize_t',
     inside_slab='bint',
+    j='Py_ssize_t',
     j_conj='Py_ssize_t',
+    j_global='Py_ssize_t',
     j_global_conj='Py_ssize_t',
     ki='Py_ssize_t',
+    ki_conj='Py_ssize_t',
     kj='Py_ssize_t',
+    kj_conj='Py_ssize_t',
     kk='Py_ssize_t',
     lower_x_zdc='bint',
+    lower_x_zdc_conj='bint',
     msg=list,
+    nyquist='Py_ssize_t',
     prng_ampliudes='PseudoRandomNumberGenerator',
+    prng_ampliudes_common='PseudoRandomNumberGenerator',
     prng_phases='PseudoRandomNumberGenerator',
+    prng_phases_common='PseudoRandomNumberGenerator',
     r='double',
+    r_conj='double',
     re='double',
+    re_conj='double',
+    slab_ptr='double*',
     slab_size_i='Py_ssize_t',
     slab_size_j='Py_ssize_t',
     slab_size_k='Py_ssize_t',
-    slab_ptr='double*',
+    spawn_key_offset='Py_ssize_t',
     θ='double',
+    θ_conj='double',
     θ_str=str,
     returns='void',
 )
@@ -894,31 +935,67 @@ def generate_primordial_noise(slab):
     the same. This has the effect that enlarging the grid leaves the
     large-scale structure invariant; one merely adds information at
     smaller scales. Additionally, the sequence of random numbers should
-    be independent on the number of processes. To achieve all of this,
-    all processes makes use of the same random streams (i.e. they all
-    use the same seed for r and the same seed for θ, though the two
-    seeds should be different). The random numbers are imprinted onto
-    the slab in the order in which they are drawn, so the iteration must
-    be one that starts at the origin and visits every mode
-    k⃗ = (ki, kj, kk) in order according to max(|ki|, |kj|, |kk|).
-    This iteration is implemented by a (Fourier) space-filling curve.
-    Every process must traverse the entire grid, drawing every random
-    number, though of course only imprint the drawn random numbers onto
-    their local slab.
-    The z DC plane (kk = 0) needs to satisfy the Hermitian symmetry of a
-    Fourier transformed real field, here
+    be independent on the number of processes. Two different schemes for
+    imprinting the primordial noise while satisfying all of the above
+    are implemented:
+    - The 'simple' scheme: All processes makes use of the same random
+      streams (i.e. they all use the same seed for r and the same seed
+      for θ, though the two seeds should be different). The random
+      numbers are imprinted onto the slab in the order in which they are
+      drawn, so the iteration must be one that starts at the origin and
+      visits every mode k⃗ = (ki, kj, kk) in order according to
+      max(|ki|, |kj|, |kk|). This iteration is implemented by a
+      (Fourier) space-filling curve. Every process traverses the
+      entire grid, drawing every random number, though of course only
+      imprint the drawn random numbers which fall into their local slab.
+      - The z DC plane (kk = 0) needs to satisfy the Hermitian symmetry
+        of a Fourier transformed real field,
         grid[+kj, +ki, kk = 0] = grid[-kj, -ki, kk = 0]*,
-    where * means complex conjugation. When we visit a point
-    ( ki < 0,  kj,     kk = 0), we imprint the conjugated value onto
-    (-ki > 0, -kj,     kk = 0), and similarly when visiting
-    ( ki = 0,  kj < 0, kk = 0). We refer to this ~half of th z DC plane
-    as the 'lower x' part. We thus choose to copy the lower x part of
-    the z DC plane onto the upper x part of the z DC plane.
-    Note that neither the origin nor the Nyquist planes will be touched
-    by this function.
+        where * means complex conjugation. When we visit a point
+        ( ki < 0,  kj,     kk = 0), we imprint the conjugated value onto
+        (-ki > 0, -kj,    -kk = 0), and similarly when visiting
+        ( ki = 0,  kj < 0, kk = 0). We refer to this ~half of the z DC
+        plane as the 'lower x' part. We thus choose to copy the lower x
+        part of the z DC plane onto the upper x part of the z DC plane.
+    - The 'distributed' scheme: Each process only visits the grid points
+      belonging to its local slab. The iteration is done in j-slices,
+      with each slab being made up of a number of such slices, each of
+      thickness 1. Within each slice, the grid points are visited in the
+      same order as they would be visited in the simple scheme. Each
+      slice now has its own dedicated streams for r and θ, which are
+      spawned from the common r and θ streams, depending on the value of
+      kj for the slice.
+      - The Hermitian symmetry is implemented by simultaneously drawing
+        the random numbers for the slice at kj as well as for the slice
+        at -kj. Note that the points in the slice at -kj are visited in
+        the same order as those in the slice at kj (not the reflected
+        order). As in the simple strategy, we choose to copy the lower x
+        part of the z DC plane onto the upper x part of the z DC plane.
+        Note that the value of any point in the slice at kj residing
+        within the upper x part should be obtained exactly from a point
+        in the slice at -kj. Whenever such a point is hit in the -kj
+        slice, the value is conjugated and imprinted onto the reflected
+        point in the slice at kj.
+    Note that the two schemes provide different realisations.
+    The origin will be nullified but the Nyquist planes will be left
+    untouched (these should be nullified beforehand or elsewhere).
+    Both schemes visit the grid points in order of the Fourier
+    space-filling curve, from the origin outwards. This enables us to
+    simply use the random numbers in the order they are drawn, but at
+    the cost of writing to the grid points in an order that is not
+    contiguous (except for small clusters of contiguous points).
+    A different technique would be to loop contiguously over the slab,
+    while jumping around in the random streams. While many pseudo-random
+    number generators do allow for such jumps, this cannot be used in a
+    consistent fashion here, as the generation of e.g. Rayleigh
+    distributed random numbers involves rejection, leading to the
+    generation of one Rayleigh number really jumping the state of the
+    generator two (or more) numbers ahead, which cannot be predicted
+    without actually drawning the number.
     """
     slab_size_j, slab_size_i, slab_size_k = asarray(slab).shape
     gridsize = slab_size_i
+    nyquist = gridsize//2
     slab_ptr = cython.address(slab[:, :, :])
     # Progress message
     msg = ['Generating primordial']
@@ -936,59 +1013,145 @@ def generate_primordial_noise(slab):
     masterprint(''.join(msg), '...')
     # Initialize individual pseudo-random number generators for the
     # amplitudes and phases, using the same seeds on all processes.
-    prng_ampliudes = PseudoRandomNumberGenerator(random_seeds['primordial amplitudes'])
-    prng_phases    = PseudoRandomNumberGenerator(random_seeds['primordial phases'])
-    # Burn the first random number for both generators, corresponding to
-    # the origin of the grid. As the grid points are visited in the
-    # order given by the Fourier space-filling curve, the sequence of
-    # drawn random numbers are then perfectly copied onto the grid
-    # in this same order.
-    prng_ampliudes.rayleigh()
-    prng_phases.uniform()
-    # Traverse Fourier space from the inside out, drawing random
-    # Gaussian numbers as we go and store them in the slabs.
-    for index, ki, kj, kk, inside_slab in fourier_curve_loop(gridsize, skip_origin=True):
-        # Draw random numbers
-        r = 1
-        with unswitch:
-            if not primordial_amplitude_fixed:
-                r = prng_ampliudes.rayleigh(1/sqrt(2))
-        θ = prng_phases.uniform(-π, π)
-        # Check whether the random numbers should be imprinted onto the
-        # local slab, either at the current grid point (ki, kj, kk)
-        # or its conjugate (-ki, -kj, -kk) in case of kk = 0.
-        imprint = inside_slab
-        imprint_conj = False
-        if kk == 0:
-            lower_x_zdc = (ki < 0) | ((ki == 0) & (kj < 0))
-            imprint &= lower_x_zdc
-            if lower_x_zdc:
-                j_global_conj = -kj + (-(kj > 0) & gridsize)
-                j_conj = j_global_conj - ℤ[slab_size_j*rank]
-                imprint_conj = (0 <= j_conj < slab_size_j)
-        if not imprint and not imprint_conj:
-            continue
-        # Finalize random noise
-        with unswitch:
-            if primordial_phase_shift:
-                θ += primordial_phase_shift
-        re = r*cos(θ)
-        im = r*sin(θ)
-        # Imprint onto grid point
-        if imprint:
-            slab_ptr[index    ] = re
-            slab_ptr[index + 1] = im
-        # Imprint onto conjugate grid pint
-        if imprint_conj:
-            i_conj = -ki + (-(ki > 0) & gridsize)
-            index_conj = (j_conj*slab_size_i + i_conj)*slab_size_k  # k = 0
-            slab_ptr[index_conj    ] = +re
-            slab_ptr[index_conj + 1] = -im
+    prng_ampliudes_common = PseudoRandomNumberGenerator(random_seeds['primordial amplitudes'])
+    prng_phases_common    = PseudoRandomNumberGenerator(random_seeds['primordial phases'])
+    # Draw random numbers and imprint as noise.
+    # Two possible schemes are implemented for this.
+    if primordial_noise_imprinting == 'simple':
+        # All processes loop over the entire Fourier space,
+        # drawing random numbers at each grid point. The random numbers
+        # are only imprinted onto local grid points, of course.
+        # When a grid point is visited which should act as the conjugate
+        # source of noise for another grid point, the conjugated noise
+        # is imprinted onto this other grid point.
+        for index, ki, kj, kk, inside_slab in fourier_curve_loop(gridsize, skip_origin=False):
+            # Draw random numbers
+            r = 1
+            with unswitch:
+                if not primordial_amplitude_fixed:
+                    r = prng_ampliudes_common.rayleigh(1/sqrt(2))
+            θ = prng_phases_common.uniform(-π, π)
+            # Check whether the random numbers should be imprinted onto
+            # the local slab, either at the current grid point
+            # (ki, kj, kk) or its conjugate (-ki, -kj, -kk)
+            # in case of kk = 0.
+            imprint = inside_slab
+            imprint_conj = False
+            if kk == 0:
+                lower_x_zdc = (ki < 0) | ((ki == 0) & (kj < 0))
+                imprint &= lower_x_zdc
+                if lower_x_zdc:
+                    j_global_conj = -kj + (-(kj > 0) & gridsize)
+                    j_conj = j_global_conj - ℤ[slab_size_j*rank]
+                    imprint_conj = (0 <= j_conj < slab_size_j)
+            if not imprint and not imprint_conj:
+                continue
+            # Finalize random noise
+            with unswitch:
+                if primordial_phase_shift:
+                    θ += primordial_phase_shift
+            re = r*cos(θ)
+            im = r*sin(θ)
+            # Imprint onto grid point
+            if imprint:
+                slab_ptr[index    ] = re
+                slab_ptr[index + 1] = im
+            # Imprint onto conjugate grid pint
+            if imprint_conj:
+                i_conj = -ki + (-(ki > 0) & gridsize)
+                index_conj = (j_conj*slab_size_i + i_conj)*slab_size_k  # k = 0
+                slab_ptr[index_conj    ] = +re
+                slab_ptr[index_conj + 1] = -im
+    elif primordial_noise_imprinting == 'distributed':
+        # Each process iterates over its own slab only. This is done one
+        # j-slice at a time, a slice being a slab of thickness 1.
+        # When a point in the conjugate slice which should be copied
+        # onto the primary slice is visited, the conjugated noise is
+        # imprinted onto the reflected point in the main slice, which
+        # generally is different from the current point (ki, kj, kk).
+        spawn_key_offset = 2**32  # negative seeds not allowed
+        if nyquist > spawn_key_offset + 1:
+            # We do not expect to ever hit grids this large
+            masterwarn(
+                f'Primordial noise is to be imprinted on a grid of gridsize {gridsize} '
+                f'using the {primordial_noise_imprinting} scheme. For grids this large, '
+                f'the hard-coded spawn_key_offset of {spawn_key_offset} is too small.'
+            )
+        for j in range(slab_size_j):
+            j_global = ℤ[slab_size_j*rank] + j
+            kj = j_global - (-(j_global >= nyquist) & gridsize)
+            # Skip Nyquist plane
+            if kj == ℤ[-nyquist]:
+                continue
+            # Spawn off child pseudo-random number generators
+            prng_ampliudes      = prng_ampliudes_common.spawn(spawn_key_offset + kj)
+            prng_ampliudes_conj = prng_ampliudes_common.spawn(spawn_key_offset - kj)
+            prng_phases         = prng_phases_common   .spawn(spawn_key_offset + kj)
+            prng_phases_conj    = prng_phases_common   .spawn(spawn_key_offset - kj)
+            # Traverse (ki, kk) Fourier space slice at current kj.
+            # We include the origin, just to keep the order in which the
+            # random numbers are drawn consistent across processes.
+            kj_conj = -kj
+            for index, ki, kk in fourier_curve_slice_loop(gridsize, j, skip_origin=False):
+                ki_conj = +ki
+                # Draw random numbers
+                r = r_conj = 1
+                with unswitch:
+                    if not primordial_amplitude_fixed:
+                        r      = prng_ampliudes     .rayleigh(1/sqrt(2))
+                        r_conj = prng_ampliudes_conj.rayleigh(1/sqrt(2))
+                θ      = prng_phases     .uniform(-π, π)
+                θ_conj = prng_phases_conj.uniform(-π, π)
+                # Check whether this grid point (ki, kj, kk) should be
+                # set from the conjugate of grid point (-ki, -kj, -kk)
+                # (will be done whenever we visit this point), in which
+                # case imprint will be False. Also check whether the
+                # noise from the point (ki_conj, kj_conj, kk_conj)
+                # within the conjugate slice should be conjugated and
+                # imprinted onto its reflection point in the main slice,
+                # in which case imprint_conj will be True.
+                imprint = True
+                imprint_conj = False
+                if kk == 0:
+                    lower_x_zdc      = (ki      < 0) | ((ki      == 0) & (kj      < 0))
+                    lower_x_zdc_conj = (ki_conj > 0) | ((ki_conj == 0) & (kj_conj > 0))
+                    imprint      =     lower_x_zdc
+                    imprint_conj = not lower_x_zdc_conj
+                # Handle direct imprinting
+                if imprint:
+                    # Finalize random noise
+                    with unswitch:
+                        if primordial_phase_shift:
+                            θ += primordial_phase_shift
+                    re = r*cos(θ)
+                    im = r*sin(θ)
+                    # Imprint random noise onto grid point
+                    slab_ptr[index    ] = re
+                    slab_ptr[index + 1] = im
+                # Handle conjugate imprinting
+                if imprint_conj:
+                    # Finalize conjugate random noise
+                    with unswitch:
+                        if primordial_phase_shift:
+                            θ_conj += primordial_phase_shift
+                    re_conj = r_conj*cos(θ_conj)
+                    im_conj = r_conj*sin(θ_conj)
+                    # Imprint conjugate random noise onto grid point
+                    i_conj        = -ki_conj + (-(ki_conj > 0) & gridsize)
+                    j_global_conj = -kj_conj + (-(kj_conj > 0) & gridsize)
+                    j_conj = j_global_conj - ℤ[slab_size_j*rank]
+                    index_conj = (j_conj*slab_size_i + i_conj)*slab_size_k  # k = 0
+                    slab_ptr[index_conj    ] = +re_conj
+                    slab_ptr[index_conj + 1] = -im_conj
+    else:
+        abort(f'primordial_noise_imprinting = "{primordial_noise_imprinting}" not implemented')
+    # Nullify origin (random number was imprinted onto it in the above)
+    nullify_modes(slab, 'origin')
     masterprint('done')
 
 # Function for realising particle components
 @cython.header(
-    # Argumetns
+    # Arguments
     component='Component',
     a='double',
     # Locals

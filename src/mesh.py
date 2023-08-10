@@ -2893,12 +2893,11 @@ def fourier_loop(
                         yield index, ki, kj, kk, factor, θ
 
 # Iterator implementing looping over Fourier space, using the
-# space-filling curve implemented by get_fourier_curve_key() and
-# get_fourier_curve_coords(). The iteration will be over the full
-# Fourier space (i.e. all slabs) on all processes.
-# The yielded values are the linear index into the slab, the physical
-# ki, kj, kk (in grid units) and a Boolean inside_slab, specifying
-# whether the current point is within the local slab or not.
+# space-filling curve implemented by get_fourier_curve_coords().
+# The iteration will be over the full Fourier space (i.e. all slabs) on
+# all processes. The yielded values are the linear index into the slab,
+# the physical ki, kj, kk (in grid units) and a Boolean inside_slab,
+# specifying whether the current point is within the local slab or not.
 # The iteration is determined from the passed gridsize.
 # All points except those on Nyquist planes are included in
 # the iteration.
@@ -2964,6 +2963,88 @@ def fourier_curve_loop(
         inside_slab = (0 <= _j < _slab_size_j)
         # Yield the needed variables
         yield index, ki, kj, kk, inside_slab
+
+# Iterator implementing looping over a single j-slice of thickness 1 of
+# Fourier space, with the iteration order being that of the
+# space-filling curve implemented by get_fourier_curve_coords(), though
+# for the slice with kj = 0 regardless of the j provided. This means
+# that the visiting order is the same for all slices.
+# The yielded values are the linear index into the slab, as well as the
+# physical ki and kk (in grid units). Note that
+# kj = j_global - (-(j_global >= nyquist) & gridsize) with
+# j_global = slab_size_j*rank + j is constant during the iteration over
+# the slice and so is not yielded. The iteration is determined from the
+# passed gridsize. All points except those on Nyquist planes are
+# included in the iteration.
+# If skip_origin is True, the ki = kj = kk = 0 point will be excluded
+# from the iteration.
+@cython.iterator(
+    depends=(
+        # Functions used by fourier_curve_slice_loop()
+        'get_fourier_curve_coords',
+    ),
+)
+def fourier_curve_slice_loop(
+    gridsize, j=0,
+    *,
+    skip_origin=False,
+):
+    # Cython declarations for variables used for the iteration,
+    # including all arguments and variables to yield.
+    # Do not write these using the decorator syntax above this function.
+    cython.declare(
+        # Arguments
+        gridsize='Py_ssize_t',
+        j='Py_ssize_t',
+        skip_origin='bint',
+        # Locals
+        _coords='Py_ssize_t*',
+        _f='Py_ssize_t',
+        _g='Py_ssize_t',
+        _i='Py_ssize_t',
+        _k='Py_ssize_t',
+        _key='Py_ssize_t',
+        _key_bgn='Py_ssize_t',
+        _num='Py_ssize_t',
+        _nyquist='Py_ssize_t',
+        _s='Py_ssize_t',
+        _slab_size_i='Py_ssize_t',
+        _slab_size_k='Py_ssize_t',
+        _step='Py_ssize_t',
+        # Yielded
+        index='Py_ssize_t',
+        ki='Py_ssize_t',
+        kk='Py_ssize_t',
+    )
+    # Set up slab shape
+    _nyquist = gridsize//2
+    _slab_size_i = gridsize
+    _slab_size_k = gridsize + 2
+    # Iterate over Fourier space using slice of space-filling curve
+    for _s in range(_nyquist):
+        for _f in range(1 + (-(_s < ℤ[_nyquist - 1]) & 2)):  # avoids Nyquist planes
+            _key_bgn = (
+                + _f**2 + (_f == 2)
+                + (1 + 6*_f - (_f == 1))*_s
+                + (5 + 4*_f - (_f == 2))*ℤ[_s**2]
+                + ℤ[4*_s**3]
+            )
+            _num = -(
+                𝔹[𝔹[not (skip_origin and master and j == 0)] | (_s != 0)] | (_f != 0)
+            ) & (ℤ[_s + 1]*(1 + (_f == 2)))
+            _step = 1 + (-(_f == 2) & (_num - 1))
+            _key = _key_bgn - _step
+            for _g in range(_num):
+                _key += _step
+                # Lookup Fourier curve key
+                _coords = get_fourier_curve_coords(_key)
+                ki, kk = _coords[0], _coords[2]  # kj == 0
+                # Convert (ki, kk) to slab index
+                _i = ki + (-(ki < 0) & gridsize)
+                _k = 2*kk
+                index = (ℤ[j*_slab_size_i] + _i)*_slab_size_k + _k
+                # Yield the needed variables
+                yield index, ki, kk
 
 # Functions implementing a 3D Fourier space-filling curve,
 # with get_fourier_curve_key() and get_fourier_curve_coords() being

@@ -1,6 +1,6 @@
 # Fake parameter used to control number of particles/fluid
 # elements and PM gridsize.
-_size = 4*8  # Must be a multiple of 4
+_size = 4*12  # must be a multiple of 4
 
 # Input/output
 initial_conditions = f'{param.dir}/ic.hdf5'
@@ -24,7 +24,7 @@ powerspec_select = {
 }
 
 # Numerics
-boxsize = 128*Mpc
+boxsize = 200*Mpc
 potential_options = {
     'gridsize': {
         'gravity': {

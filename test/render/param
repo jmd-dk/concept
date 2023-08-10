@@ -21,10 +21,11 @@ select_forces = {'matter': {'gravity': 'pm'}}
 
 # Simulation
 random_generator = 'PCG64DXSM'
-random_seeds = {  # the seeds below (with PCG64DXSM) result in nice looking 2D renders
-    'primordial amplitudes': 1_034,
-    'primordial phases'    : 2_034,
+random_seeds = {  # the seeds below result in nice looking 2D renders
+    'primordial amplitudes': 1_013,
+    'primordial phases'    : 2_013,
 }
+primordial_noise_imprinting = 'distributed'
 
 # Graphics
 terminal_width = 80

@@ -24,7 +24,6 @@ some numerical resolutions and length scales.
 \  **Default**     \  .. code-block:: python3
 
                          512*Mpc
-
 -- --------------- -- -
 \  **Elaboration** \  All CO\ *N*\ CEPT simulations take place within a cubic
                       box of constant comoving side length
@@ -35,7 +34,6 @@ some numerical resolutions and length scales.
                       .. code-block:: python3
 
                          boxsize = 1024*Mpc
-
 -- --------------- -- -
 \  **Example 1**   \  Use a box size of
                       :math:`1\,\text{Gpc} = 1000\,\text{Mpc}`:
@@ -43,7 +41,6 @@ some numerical resolutions and length scales.
                       .. code-block:: python3
 
                          boxsize = 1*Gpc
-
 -- --------------- -- -
 \  **Example 2**   \  Use a box size of :math:`1024\,\text{Mpc}/h`:
 
@@ -62,7 +59,6 @@ some numerical resolutions and length scales.
                       .. note::
                          See the ``H0`` :ref:`parameter <H0>` for details on
                          ``h``
-
 == =============== == =
 
 
@@ -140,7 +136,6 @@ some numerical resolutions and length scales.
                                  },
                              },
                          }
-
 -- --------------- -- -
 \  **Elaboration** \  This parameter is a ``dict`` of several individual
                       sub-parameters, specifying the details of how
@@ -419,7 +414,6 @@ some numerical resolutions and length scales.
                         for details). If instead you wish to make use of
                         Fourier-space differentiation, set the order to either
                         ``'Fourier'`` or ``0``.
-
 -- --------------- -- -
 \  **Example 0**   \  Use default potential options, but set the global
                       gravitational P³M potential grid size to :math:`128`:
@@ -481,7 +475,6 @@ some numerical resolutions and length scales.
                       .. code-block:: python3
 
                          potential_options = 128
-
 -- --------------- -- -
 \  **Example 1**   \  Use default potential options, but set the
                       gravitational P³M potential grid size to :math:`128`,
@@ -535,7 +528,6 @@ some numerical resolutions and length scales.
                          This further assigns ``64`` as the upstream and
                          downstream gravity PM grid sizes for all components
                          for which these are unset, including ``'matter'``.
-
 -- --------------- -- -
 \  **Example 2**   \  For the gravitational interaction, be it PM or P³M, make
                       use of the highest available order for particle
@@ -554,7 +546,6 @@ some numerical resolutions and length scales.
                                  'gravity': (True, True),  # or ('bcc', 'bcc')
                              }
                          }
-
 -- --------------- -- -
 \  **Example 3**   \  Use :math:`128` as the size of all potential grids, use
                       order-6 real-space finite differencing to obtain the
@@ -575,7 +566,6 @@ some numerical resolutions and length scales.
                                  },
                              },
                          }
-
 == =============== == =
 
 
@@ -602,7 +592,6 @@ some numerical resolutions and length scales.
                                  'tablesize': 4096,
                              },
                          }
-
 -- --------------- -- -
 \  **Elaboration** \  This parameter is a ``dict`` which maps
                       short-range interactions to sub-parameter ``dict``\ s,
@@ -668,7 +657,6 @@ some numerical resolutions and length scales.
                         not even use linear interpolation, this table needs to
                         be rather large. Exactly how large is controlled by
                         the ``'tablesize'`` sub-parameter.
-
 -- --------------- -- -
 \  **Example 0**   \  Extend :math:`x_{\text{r}}` all the way to
                       :math:`5.5 x_{\text{s}}`, for the gravitational
@@ -699,7 +687,6 @@ some numerical resolutions and length scales.
                       .. note::
                          In both cases, the remaining sub-parameters will
                          receive default values
-
 -- --------------- -- -
 \  **Example 1**   \  Use a fixed subtile decomposition of
                       :math:`(3, 3, 3)` for the gravitational short-range
@@ -783,7 +770,6 @@ some numerical resolutions and length scales.
                                  'default': 8,
                              },
                          }
-
 -- --------------- -- -
 \  **Elaboration** \  This is a ``dict`` of several individual sub-parameters,
                       specifying details of how to compute and save power
@@ -913,7 +899,6 @@ some numerical resolutions and length scales.
                          component or a combination of components. In the case
                          of the latter, this designates a combined (auto)
                          power spectrum.
-
 -- --------------- -- -
 \  **Example 0**   \  Use an upstream grid size of :math:`256` for the
                       component with a name/species of ``'matter'``:
@@ -962,7 +947,6 @@ some numerical resolutions and length scales.
                          powerspec_options = {
                              'bins per decade': 100,
                          }
-
 -- --------------- -- -
 \  **Example 2**   \  Use CIC interpolation and disable interlacing for power
                       spectra of the component with a name/species of
@@ -1035,7 +1019,6 @@ some numerical resolutions and length scales.
                                  'default': 8,
                              },
                          }
-
 -- --------------- -- -
 \  **Elaboration** \  This is a ``dict`` of several individual sub-parameters,
                       specifying details of how to compute and save bispectra.
@@ -1222,7 +1205,6 @@ some numerical resolutions and length scales.
                          component or a combination of components. In the case
                          of the latter, this designates a combined (auto)
                          bispectrum.
-
 -- --------------- -- -
 \  **Example 0**   \  Use the equilateral configurations for bispectra of the
                       component with a name/species of ``'matter'``:
@@ -1314,7 +1296,6 @@ some numerical resolutions and length scales.
                                  ],
                              },
                          }
-
 -- --------------- -- -
 \  **Example 1**   \  Use a constant shell thickness equal to three times the
                       fundamental frequency, for shell :math:`k_1`,
@@ -1345,7 +1326,6 @@ some numerical resolutions and length scales.
                          bispec_options = {
                              'shellthickness': '3*k_f',
                          }
-
 -- --------------- -- -
 \  **Example 2**   \  Use the equilateral configurations for bispectra of the
                       component with a name/species of ``'matter'``, with 30
@@ -1483,7 +1463,6 @@ some numerical resolutions and length scales.
                          bispectrum data file can easily be located as the row
                          where :math:`k` *de*\ creases in relation to the
                          previous row.
-
 -- --------------- -- -
 \  **Example 4**   \  Use a squeezed configurations for bispectra of the
                       component with a name/species of ``'matter'``:
@@ -1554,7 +1533,6 @@ some numerical resolutions and length scales.
                                  'matter': ['3*k_f', '3*k_f', '1.5*k_f'],
                              },
                          }
-
 -- --------------- -- -
 \  **Example 5**   \  Imitate the way
                       `Pylians <https://pylians3.readthedocs.io/>`__ computes
@@ -1604,7 +1582,6 @@ some numerical resolutions and length scales.
                            ``bispec_options['interlace']``).
                          * Switch to :ref:`cell-vertex <cell_centered>` grid
                            discretisation.
-
 -- --------------- -- -
 \  **Example 6**   \  Sample the full configuration space for the component
                       with a name/species of ``'matter'``:
@@ -1672,7 +1649,6 @@ some numerical resolutions and length scales.
 \  **Default**     \  .. code-block:: python3
 
                          True
-
 -- --------------- -- -
 \  **Elaboration** \  Numerically, each bispectrum shell is a collection of
                       Fourier grid cells, each positioned a distance (measured
@@ -1716,7 +1692,6 @@ some numerical resolutions and length scales.
                          instead so that the average of the logarithm of the
                          radial coordinates of the cells results in
                          :math:`\log k`.
-
 -- --------------- -- -
 \  **Example 0**   \  Turn off bispectrum shell anti-aliasing:
 
@@ -1747,7 +1722,6 @@ some numerical resolutions and length scales.
 \  **Default**     \  .. code-block:: python3
 
                          False
-
 -- --------------- -- -
 \  **Elaboration** \  When ``False`` (the default), rather than running CLASS,
                       already obtained CLASS results are reused whenever a
@@ -1763,7 +1737,6 @@ some numerical resolutions and length scales.
                          in power spectrum and bispectrum data files; the
                          CLASS data used internally for simulation purposes
                          will always be complete.
-
 -- --------------- -- -
 \  **Example 0**   \  Always rerun CLASS as necessary, ensuring fully
                       populated perturbation theory data in spectral output:
@@ -1771,7 +1744,6 @@ some numerical resolutions and length scales.
                       .. code-block:: python3
 
                          class_dedicated_spectra = True
-
 == =============== == =
 
 
@@ -1796,7 +1768,6 @@ some numerical resolutions and length scales.
                              3e-1/Mpc: 30,
                                 1/Mpc: 10,
                          }
-
 -- --------------- -- -
 \  **Elaboration** \  This parameter determines the number of CLASS
                       perturbations to compute, by specifying the density
@@ -1825,7 +1796,6 @@ some numerical resolutions and length scales.
                       .. code-block:: python3
 
                          class_modes_per_decade = 20
-
 -- --------------- -- -
 \  **Example 1**   \  Use :math:`50` modes per decade around
                       :math:`k = 10^{-4}\,\text{Mpc}^{-1}` and :math:`10`

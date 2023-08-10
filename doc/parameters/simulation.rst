@@ -24,7 +24,6 @@ random numbers used for the primordial noise.
 \  **Default**     \  .. code-block:: python3
 
                          1
-
 -- --------------- -- -
 \  **Elaboration** \  The global time step size :math:`\Delta t` within
                       CO\ *N*\ CEPT depends on various *limiters* as described
@@ -41,7 +40,6 @@ random numbers used for the primordial noise.
                       .. code-block:: python3
 
                          Δt_base_background_factor = 0.5
-
 == =============== == =
 
 
@@ -60,7 +58,6 @@ random numbers used for the primordial noise.
 \  **Default**     \  .. code-block:: python3
 
                          1
-
 -- --------------- -- -
 \  **Elaboration** \  The global time step size :math:`\Delta t` within
                       CO\ *N*\ CEPT depends on various *limiters* as described
@@ -77,7 +74,6 @@ random numbers used for the primordial noise.
                       .. code-block:: python3
 
                          Δt_base_nonlinear_factor = 1/3
-
 -- --------------- -- -
 \  **Example 1**   \  Effectively remove the non-linear limiters by scaling
                       them by :math:`\infty`, so that the global time step size
@@ -87,7 +83,6 @@ random numbers used for the primordial noise.
                       .. code-block:: python3
 
                          Δt_base_nonlinear_factor = ထ
-
 == =============== == =
 
 
@@ -105,7 +100,6 @@ random numbers used for the primordial noise.
 \  **Default**     \  .. code-block:: python3
 
                          ထ  # no limit
-
 -- --------------- -- -
 \  **Elaboration** \  As described in the paper on
                       ':ref:`The cosmological simulation code CO𝘕CEPT 1.0<the_cosmological_simulation_code_concept_10>`',
@@ -120,7 +114,6 @@ random numbers used for the primordial noise.
                       .. code-block:: python3
 
                          Δt_increase_max_factor = 1.15
-
 == =============== == =
 
 
@@ -140,7 +133,6 @@ random numbers used for the primordial noise.
 \  **Default**     \  .. code-block:: python3
 
                          1
-
 -- --------------- -- -
 \  **Elaboration** \  As described in the paper on
                       ':ref:`The cosmological simulation code CO𝘕CEPT 1.0<the_cosmological_simulation_code_concept_10>`',
@@ -157,7 +149,6 @@ random numbers used for the primordial noise.
 
                       with the proportionality scaled on the right by this
                       parameter.
-
 -- --------------- -- -
 \  **Example 0**   \  Decrease the rung time step sizes by a factor of
                       :math:`2`, effectively pushing the particles up one
@@ -167,7 +158,6 @@ random numbers used for the primordial noise.
                       .. code-block:: python3
 
                          Δt_rung_factor = 0.5
-
 == =============== == =
 
 
@@ -187,7 +177,6 @@ random numbers used for the primordial noise.
 \  **Default**     \  .. code-block:: python3
 
                          0.00153
-
 -- --------------- -- -
 \  **Elaboration** \  As described in the paper on
                       ':ref:`The cosmological simulation code CO𝘕CEPT 1.0<the_cosmological_simulation_code_concept_10>`',
@@ -204,7 +193,6 @@ random numbers used for the primordial noise.
                       .. code-block:: python3
 
                          Δa_max_early = 0.0008
-
 -- --------------- -- -
 \  **Example 1**   \  Effectively disregard this limiter completely by setting
                       it equal to its
@@ -226,7 +214,6 @@ random numbers used for the primordial noise.
                          ':ref:`The cosmological simulation code CO𝘕CEPT 1.0<the_cosmological_simulation_code_concept_10>`'),
                          this also removes any explicit limitation of the
                          global time step size due to :math:`H^{-1}`.
-
 == =============== == =
 
 
@@ -246,7 +233,6 @@ random numbers used for the primordial noise.
 \  **Default**     \  .. code-block:: python3
 
                          0.022
-
 -- --------------- -- -
 \  **Elaboration** \  As described in the paper on
                       ':ref:`The cosmological simulation code CO𝘕CEPT 1.0<the_cosmological_simulation_code_concept_10>`',
@@ -265,7 +251,6 @@ random numbers used for the primordial noise.
                       .. code-block:: python3
 
                          Δa_max_late = 0.01
-
 -- --------------- -- -
 \  **Example 1**   \  Effectively disregard this limiter by setting it equal
                       to :math:`\infty`:
@@ -273,7 +258,6 @@ random numbers used for the primordial noise.
                       .. code-block:: python3
 
                          Δa_max_late = ထ
-
 == =============== == =
 
 
@@ -293,7 +277,6 @@ random numbers used for the primordial noise.
 \  **Default**     \  .. code-block:: python3
 
                          None
-
 -- --------------- -- -
 \  **Elaboration** \  This parameter is used to overrule the default global
                       time-stepping within CO\ *N*\ CEPT. It can be specified
@@ -317,7 +300,6 @@ random numbers used for the primordial noise.
                       .. code-block:: python3
 
                          static_timestepping = lambda a: 0.025*a
-
 -- --------------- -- -
 \  **Example 1**   \  Write/read global time-stepping information
                       to/from file:
@@ -346,7 +328,6 @@ random numbers used for the primordial noise.
 \  **Default**     \  .. code-block:: python3
 
                          8
-
 -- --------------- -- -
 \  **Elaboration** \  As described in the paper on
                       ':ref:`The cosmological simulation code CO𝘕CEPT 1.0<the_cosmological_simulation_code_concept_10>`',
@@ -383,7 +364,6 @@ random numbers used for the primordial noise.
                          increasing ``N_rungs``. It does however come with a
                          hefty performance penalty if ``N_rungs`` is increased
                          significantly.
-
 == =============== == =
 
 
@@ -403,7 +383,6 @@ random numbers used for the primordial noise.
 \  **Default**     \  .. code-block:: python3
 
                          'measure'
-
 -- --------------- -- -
 \  **Elaboration** \  The FFTW library used by CO\ *N*\ CEPT to compute
                       distributed FFTs knows of a multitude of different
@@ -433,7 +412,6 @@ random numbers used for the primordial noise.
                          ``fftw_wisdom_share`` :ref:`parameter
                          <fftw_wisdom_share>`) you can still reliably have
                          deterministic simulations.
-
 -- --------------- -- -
 \  **Example 0**   \  Run with the highest possible level of FFTW wisdom
                       rigour, producing optimal FFTW plans at the cost of
@@ -442,7 +420,6 @@ random numbers used for the primordial noise.
                       .. code-block:: python3
 
                          fftw_wisdom_rigor = 'exhaustive'
-
 == =============== == =
 
 
@@ -462,7 +439,6 @@ random numbers used for the primordial noise.
 \  **Default**     \  .. code-block:: python3
 
                          True
-
 -- --------------- -- -
 \  **Elaboration** \  The gathered FFTW wisdom (see the ``fftw_wisdom_rigor``
                       :ref:`parameter <fftw_wisdom_rigor>`) can be reused
@@ -484,7 +460,6 @@ random numbers used for the primordial noise.
                          process. When not reusing wisdom between simulations,
                          they may then end up with different FFTW plans for
                          the same problem, introducing indeterminism.
-
 -- --------------- -- -
 \  **Example 0**   \  Always gather FFTW wisdom anew, disregarding available
                       stored wisdom:
@@ -514,7 +489,6 @@ random numbers used for the primordial noise.
 \  **Default**     \  .. code-block:: python3
 
                          False
-
 -- --------------- -- -
 \  **Elaboration** \  The gathered FFTW wisdom (see the ``fftw_wisdom_rigor``
                       :ref:`parameter <fftw_wisdom_rigor>`) can be reused
@@ -536,7 +510,6 @@ random numbers used for the primordial noise.
                          price of indeterminism, as different simulations
                          might now end up using different plans for the same
                          problem.
-
 -- --------------- -- -
 \  **Example 0**   \  Allow sharing of FFTW wisdom between simulations running
                       on different nodes, guaranteeing deterministic behaviour
@@ -551,7 +524,6 @@ random numbers used for the primordial noise.
                          This does not have any effect if the FFTW wisdom is
                          not :ref:`shared <fftw_wisdom_share>` in the first
                          place.
-
 == =============== == =
 
 
@@ -575,7 +547,6 @@ random numbers used for the primordial noise.
                              'primordial amplitudes': 1_000,
                              'primordial phases'    : 2_000,
                          }
-
 -- --------------- -- -
 \  **Elaboration** \  Several aspects of CO\ *N*\ CEPT requires the use of
                       (pseudo-)random numbers, with each such aspect having
@@ -640,7 +611,6 @@ random numbers used for the primordial noise.
                          available in the lower-resolution simulations. This
                          allows for e.g. convergence tests without fear of
                          changes to the random realisation.
-
 -- --------------- -- -
 \  **Example 0**   \  Use some particular random sequences for the initial
                       conditions:
@@ -651,8 +621,6 @@ random numbers used for the primordial noise.
                              'primordial amplitudes': 123,
                              'primordial phases'    : 456,
                          }
-
-
 -- --------------- -- -
 \  **Example 1**   \  Have each successive simulation use a unique
                       random realisation of the primordial noise:
@@ -663,7 +631,66 @@ random numbers used for the primordial noise.
                              'primordial amplitudes': 1_000 + jobid,
                              'primordial phases'    : 2_000 + jobid,
                          }
+== =============== == =
 
+
+
+------------------------------------------------------------------------------
+
+
+
+``primordial_noise_imprinting``
+...............................
+== =============== == =
+\  **Description** \  Specifies the scheme to use for imprinting
+                      primordial noise
+-- --------------- -- -
+\  **Default**     \  .. code-block:: python3
+
+                         'distributed'
+-- --------------- -- -
+\  **Elaboration** \  See the ``random_seeds`` :ref:`parameter <random_seeds>`
+                      for how the primordial noise is defined. The random
+                      amplitudes and phases may be drawn and imprinted using
+                      either of two schemes, namely the 'simple' or the
+                      'distributed' scheme, as specified through this
+                      parameter. Both schemes satisfy the following
+                      properties:
+
+                      * The realisation (random numbers drawn and imprinted)
+                        will be independent on the number of processes.
+                      * Increasing the resolution will add additional, higher
+                        modes :math:`\boldsymbol{k}`, but the smaller modes
+                        shared with simulations of less resolution will remain
+                        the same. That is, increasing the resolution leaves
+                        the large-scale noise (cosmic variance) intact.
+
+                      Both schemes are based on a Fourier space-filling curve,
+                      which walks through each point in Fourier space in the
+                      order of :math:`|\boldsymbol{k}|`, starting from the
+                      origin. In the simple scheme, all processes iterates
+                      through the entirety of Fourier space, though imprinting
+                      only the drawn random numbers at local grid points.
+                      In the distributed scheme, only local grid points are
+                      ever visited. This makes the distributed scheme much
+                      faster in the case of many processes, why this scheme is
+                      generally preferable. The only real benefit of the
+                      simple scheme is precisely its simplicity, making it
+                      easy to port to other simulation codes, for easy
+                      construction of identical realisations across
+                      different codes.
+-- --------------- -- -
+\  **Example 0**   \  Use the simple scheme when imprinting the
+                      primordial noise:
+
+                      .. code-block:: python3
+
+                         primordial_noise_imprinting = 'simple'
+
+                      .. note::
+                         Note that this will result in a realisation different
+                         from that obtained with the distributed (default)
+                         scheme, even when identical random seeds are used.
 == =============== == =
 
 
@@ -682,7 +709,6 @@ random numbers used for the primordial noise.
 \  **Default**     \  .. code-block:: python3
 
                          False
-
 -- --------------- -- -
 \  **Elaboration** \  See the ``random_seeds`` :ref:`parameter <random_seeds>`
                       for how the primordial noise is usually defined. For
@@ -707,7 +733,6 @@ random numbers used for the primordial noise.
                          same value for the
                          ``random_seeds['primordial amplitudes']``
                          :ref:`parameter <random_seeds>`).
-
 -- --------------- -- -
 \  **Example 0**   \  Use fixed primordial amplitudes, leading to improved
                       (e.g. smoother) power spectra and bispectra:
@@ -715,7 +740,6 @@ random numbers used for the primordial noise.
                       .. code-block:: python3
 
                          primordial_amplitude_fixed = True
-
 == =============== == =
 
 
@@ -735,7 +759,6 @@ random numbers used for the primordial noise.
 \  **Default**     \  .. code-block:: python3
 
                          0
-
 -- --------------- -- -
 \  **Elaboration** \  See the ``random_seeds`` :ref:`parameter <random_seeds>`
                       for how the primordial noise is usually defined. The
@@ -746,7 +769,6 @@ random numbers used for the primordial noise.
                          This is typically used together with
                          :ref:`fixed amplitudes <primordial_amplitude_fixed>`,
                          but it does not have to be.
-
 -- --------------- -- -
 \  **Example 0**   \  Use completely out-of-phase primordial noise compared to
                       the default:
@@ -783,7 +805,6 @@ random numbers used for the primordial noise.
 \  **Default**     \  .. code-block:: python3
 
                          True
-
 -- --------------- -- -
 \  **Elaboration** \  The geometry of a CO\ *N*\ CEPT simulation is that of a
                       fixed (in comoving coordinates), periodic, cubic box of
@@ -827,7 +848,6 @@ random numbers used for the primordial noise.
                       strategy should not alter the simulation results
                       noticeably, but for low-resolution simulations
                       :doc:`this is not so </tutorial/gadget>`.
-
 -- --------------- -- -
 \  **Example 0**   \  Swap out the default cell-centred grid discretisation
                       strategy for cell-vertex, as used by e.g. GADGET:
@@ -835,7 +855,6 @@ random numbers used for the primordial noise.
                       .. code-block:: python3
 
                          cell_centered = False
-
 == =============== == =
 
 
@@ -856,7 +875,6 @@ random numbers used for the primordial noise.
 \  **Default**     \  .. code-block:: python3
 
                          {}
-
 -- --------------- -- -
 \  **Elaboration** \  CO\ *N*\ CEPT uses `CLASS <http://class-code.net/>`__ for
                       computing linear perturbations, for use with e.g.
@@ -875,7 +893,6 @@ random numbers used for the primordial noise.
                       addition to CLASS perturbation names, the key ``'all'``
                       may be used to apply the same maximum :math:`k` to all
                       perturbations.
-
 -- --------------- -- -
 \  **Example 0**   \  Do not trust any CLASS perturbations above
                       :math:`k = 10\, \text{Mpc}^{-1}`:
@@ -883,7 +900,6 @@ random numbers used for the primordial noise.
                       .. code-block:: python3
 
                          class_k_max = {'all': 10/Mpc}
-
 -- --------------- -- -
 \  **Example 1**   \  Do not trust the velocity divergence :math:`\theta`
                       perturbations for baryons beyond
@@ -897,7 +913,6 @@ random numbers used for the primordial noise.
                              'theta_b': 10*h/Mpc,
                              'h_prime':  5*h/Mpc,
                          }
-
 -- --------------- -- -
 \  **Example 2**   \  Do not trust any perturbations in any ``ncdm`` species
                       above :math:`k = 8\, \text{Mpc}^{-1}`:
@@ -905,7 +920,6 @@ random numbers used for the primordial noise.
                       .. code-block:: python3
 
                          class_k_max = {r'.*ncdm.*': 8/Mpc}
-
 == =============== == =
 
 
@@ -925,7 +939,6 @@ random numbers used for the primordial noise.
 \  **Default**     \  .. code-block:: python3
 
                          True
-
 -- --------------- -- -
 \  **Elaboration** \  CO\ *N*\ CEPT delegates the computation of background
                       quantities (unless the ``enable_class_background``
@@ -953,6 +966,5 @@ random numbers used for the primordial noise.
                          new CLASS runs will still be cached to disk. Existing
                          cache content will not be overwritten by results from
                          a new CLASS computation.
-
 == =============== == =
 

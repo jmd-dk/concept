@@ -2515,6 +2515,7 @@ cython.declare(
     fftw_wisdom_share='bint',
     random_generator=str,
     random_seeds=dict,
+    primordial_noise_imprinting=str,
     primordial_amplitude_fixed='bint',
     primordial_phase_shift='double',
     cell_centered='bint',
@@ -3891,6 +3892,15 @@ for key, val in random_seeds_default.items():
 for key in random_seeds.keys():
     if key not in random_seeds_default:
         abort(f'Key {key} in random_seeds not understood')
+primordial_noise_imprinting = str(
+    user_params.get('primordial_noise_imprinting', 'distributed')
+).lower()
+if primordial_noise_imprinting not in {'simple', 'distributed'}:
+    abort(
+        f'primordial_noise_imprinting = "{primordial_noise_imprinting}" '
+        f'∉ {{"simple", "distributed"}}'
+    )
+user_params['primordial_noise_imprinting'] = primordial_noise_imprinting
 primordial_amplitude_fixed = bool(user_params.get('primordial_amplitude_fixed', False))
 user_params['primordial_amplitude_fixed'] = primordial_amplitude_fixed
 primordial_phase_shift = np.mod(float(user_params.get('primordial_phase_shift', 0)), τ)

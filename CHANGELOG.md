@@ -35,6 +35,8 @@
   specify explicit scale factor values to use.
 
 #### ⚡ Optimizations
+- The random numbers used for the primordial noise are now drawn in a
+  distributed fashion.
 - Snapshot data can now be saved and loaded partially (e.g. only particle
   positions).
 - Multi-file GADGET snapshots can now be written in parallel.

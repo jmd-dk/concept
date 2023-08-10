@@ -385,10 +385,11 @@ random_seeds = {                    # Seeds for pseudo-random numbers
     'primordial amplitudes': 1_000,
     'primordial phases'    : 2_000,
 }
-primordial_amplitude_fixed = False  # Replace Gaussian noise with noise of fixed amplitude and uniform random phase?
-primordial_phase_shift = 0          # Phase shift when using fixed amplitude (set to π for paired simulations)
-cell_centered = True                # Use cell centre (as opposed to vertex) locations for grid variables?
-fourier_structure_caching = {       # Cache and reuse primordial and component-specific Fourier grids?
+primordial_noise_imprinting = 'distributed'  # Scheme to use for imprinting primordial noise
+primordial_amplitude_fixed = False           # Replace Gaussian noise with noise of fixed amplitude and uniform random phase?
+primordial_phase_shift = 0                   # Phase shift when using fixed amplitude (set to π for paired simulations)
+cell_centered = True                         # Use cell centre (as opposed to vertex) locations for grid variables?
+fourier_structure_caching = {                # Cache and reuse primordial and component-specific Fourier grids?
     'primordial': True,
     'all'       : True,
 }
