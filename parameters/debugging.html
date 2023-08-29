@@ -227,6 +227,7 @@
 <li class="toctree-l3"><a class="reference internal" href="simulation.html#fftw-wisdom-reuse"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_reuse</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="simulation.html#fftw-wisdom-share"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_share</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="simulation.html#random-seeds"><code class="docutils literal notranslate"><span class="pre">random_seeds</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="simulation.html#primordial-noise-imprinting"><code class="docutils literal notranslate"><span class="pre">primordial_noise_imprinting</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="simulation.html#primordial-amplitude-fixed"><code class="docutils literal notranslate"><span class="pre">primordial_amplitude_fixed</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="simulation.html#primordial-phase-shift"><code class="docutils literal notranslate"><span class="pre">primordial_phase_shift</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="simulation.html#cell-centered"><code class="docutils literal notranslate"><span class="pre">cell_centered</span></code></a></li>
@@ -510,13 +511,16 @@ can be <a class="reference internal" href="#enable-class-background"><span class
 <tr class="row-even"><td><p></p></td>
 <td><p><strong>Example 0</strong></p></td>
 <td><p></p></td>
-<td><p>Turn off the Hubble expansion of:</p>
+<td><p>Turn off the Hubble expansion:</p>
 <div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">enable_Hubble</span> <span class="o">=</span> <span class="kc">False</span>
 </pre></div>
 </div>
-<p>Note that this is really only intended for use with
-internal testing. A lot basic functionality will not
-work in this mode.</p>
+<div class="admonition caution">
+<p class="admonition-title">Caution</p>
+<p>This is really only intended for use with internal
+testing. A lot of basic functionality will not work
+in this mode.</p>
+</div>
 </td>
 </tr>
 </tbody>

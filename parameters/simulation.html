@@ -227,6 +227,7 @@
 <li class="toctree-l3"><a class="reference internal" href="#fftw-wisdom-reuse"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_reuse</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#fftw-wisdom-share"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_share</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#random-seeds"><code class="docutils literal notranslate"><span class="pre">random_seeds</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#primordial-noise-imprinting"><code class="docutils literal notranslate"><span class="pre">primordial_noise_imprinting</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#primordial-amplitude-fixed"><code class="docutils literal notranslate"><span class="pre">primordial_amplitude_fixed</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#primordial-phase-shift"><code class="docutils literal notranslate"><span class="pre">primordial_phase_shift</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#cell-centered"><code class="docutils literal notranslate"><span class="pre">cell_centered</span></code></a></li>
@@ -367,11 +368,12 @@ random numbers used for the primordial noise.</p>
 <li><p><a class="reference internal" href="#fftw-wisdom-reuse" id="id20"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_reuse</span></code></a></p></li>
 <li><p><a class="reference internal" href="#fftw-wisdom-share" id="id21"><code class="docutils literal notranslate"><span class="pre">fftw_wisdom_share</span></code></a></p></li>
 <li><p><a class="reference internal" href="#random-seeds" id="id22"><code class="docutils literal notranslate"><span class="pre">random_seeds</span></code></a></p></li>
-<li><p><a class="reference internal" href="#primordial-amplitude-fixed" id="id23"><code class="docutils literal notranslate"><span class="pre">primordial_amplitude_fixed</span></code></a></p></li>
-<li><p><a class="reference internal" href="#primordial-phase-shift" id="id24"><code class="docutils literal notranslate"><span class="pre">primordial_phase_shift</span></code></a></p></li>
-<li><p><a class="reference internal" href="#cell-centered" id="id25"><code class="docutils literal notranslate"><span class="pre">cell_centered</span></code></a></p></li>
-<li><p><a class="reference internal" href="#class-k-max" id="id26"><code class="docutils literal notranslate"><span class="pre">class_k_max</span></code></a></p></li>
-<li><p><a class="reference internal" href="#class-reuse" id="id27"><code class="docutils literal notranslate"><span class="pre">class_reuse</span></code></a></p></li>
+<li><p><a class="reference internal" href="#primordial-noise-imprinting" id="id23"><code class="docutils literal notranslate"><span class="pre">primordial_noise_imprinting</span></code></a></p></li>
+<li><p><a class="reference internal" href="#primordial-amplitude-fixed" id="id24"><code class="docutils literal notranslate"><span class="pre">primordial_amplitude_fixed</span></code></a></p></li>
+<li><p><a class="reference internal" href="#primordial-phase-shift" id="id25"><code class="docutils literal notranslate"><span class="pre">primordial_phase_shift</span></code></a></p></li>
+<li><p><a class="reference internal" href="#cell-centered" id="id26"><code class="docutils literal notranslate"><span class="pre">cell_centered</span></code></a></p></li>
+<li><p><a class="reference internal" href="#class-k-max" id="id27"><code class="docutils literal notranslate"><span class="pre">class_k_max</span></code></a></p></li>
+<li><p><a class="reference internal" href="#class-reuse" id="id28"><code class="docutils literal notranslate"><span class="pre">class_reuse</span></code></a></p></li>
 </ul>
 </nav>
 <hr class="docutils" />
@@ -1130,10 +1132,83 @@ random realisation of the primordial noise:</p>
 </tr>
 </tbody>
 </table>
+</section>
+<hr class="docutils" />
+<section id="primordial-noise-imprinting">
+<h2><a class="toc-backref" href="#id23" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">primordial_noise_imprinting</span></code></a><a class="headerlink" href="#primordial-noise-imprinting" title="Permalink to this heading"></a></h2>
+<table>
+<tbody>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Description</strong></p></td>
+<td><p></p></td>
+<td><p>Specifies the scheme to use for imprinting
+primordial noise</p></td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Default</strong></p></td>
+<td><p></p></td>
+<td><div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="s1">&#39;distributed&#39;</span>
+</pre></div>
+</div>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Elaboration</strong></p></td>
+<td><p></p></td>
+<td><p>See the <code class="docutils literal notranslate"><span class="pre">random_seeds</span></code> <a class="reference internal" href="#random-seeds"><span class="std std-ref">parameter</span></a>
+for how the primordial noise is defined. The random
+amplitudes and phases may be drawn and imprinted using
+either of two schemes, namely the ‘simple’ or the
+‘distributed’ scheme, as specified through this
+parameter. Both schemes satisfy the following
+properties:</p>
+<ul class="simple">
+<li><p>The realisation (random numbers drawn and imprinted)
+will be independent on the number of processes.</p></li>
+<li><p>Increasing the resolution will add additional, higher
+modes <span class="math notranslate nohighlight">\(\boldsymbol{k}\)</span>, but the smaller modes
+shared with simulations of less resolution will remain
+the same. That is, increasing the resolution leaves
+the large-scale noise (cosmic variance) intact.</p></li>
+</ul>
+<p>Both schemes are based on a Fourier space-filling curve,
+which walks through each point in Fourier space in the
+order of <span class="math notranslate nohighlight">\(|\boldsymbol{k}|\)</span>, starting from the
+origin. In the simple scheme, all processes iterates
+through the entirety of Fourier space, though imprinting
+only the drawn random numbers at local grid points.
+In the distributed scheme, only local grid points are
+ever visited. This makes the distributed scheme much
+faster in the case of many processes, why this scheme is
+generally preferable. The only real benefit of the
+simple scheme is precisely its simplicity, making it
+easy to port to other simulation codes, for easy
+construction of identical realisations across
+different codes.</p>
+</td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Example 0</strong></p></td>
+<td><p></p></td>
+<td><p>Use the simple scheme when imprinting the
+primordial noise:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">primordial_noise_imprinting</span> <span class="o">=</span> <span class="s1">&#39;simple&#39;</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Note that this will result in a realisation different
+from that obtained with the distributed (default)
+scheme, even when identical random seeds are used.</p>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
 <hr class="docutils" />
 </section>
 <section id="primordial-amplitude-fixed">
-<span id="id6"></span><h2><a class="toc-backref" href="#id23" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">primordial_amplitude_fixed</span></code></a><a class="headerlink" href="#primordial-amplitude-fixed" title="Permalink to this heading"></a></h2>
+<span id="id6"></span><h2><a class="toc-backref" href="#id24" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">primordial_amplitude_fixed</span></code></a><a class="headerlink" href="#primordial-amplitude-fixed" title="Permalink to this heading"></a></h2>
 <table>
 <tbody>
 <tr class="row-odd"><td><p></p></td>
@@ -1193,7 +1268,7 @@ same value for the
 <hr class="docutils" />
 </section>
 <section id="primordial-phase-shift">
-<span id="id7"></span><h2><a class="toc-backref" href="#id24" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">primordial_phase_shift</span></code></a><a class="headerlink" href="#primordial-phase-shift" title="Permalink to this heading"></a></h2>
+<span id="id7"></span><h2><a class="toc-backref" href="#id25" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">primordial_phase_shift</span></code></a><a class="headerlink" href="#primordial-phase-shift" title="Permalink to this heading"></a></h2>
 <table>
 <tbody>
 <tr class="row-odd"><td><p></p></td>
@@ -1249,7 +1324,7 @@ simulations’.</p>
 <hr class="docutils" />
 </section>
 <section id="cell-centered">
-<span id="id8"></span><h2><a class="toc-backref" href="#id25" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">cell_centered</span></code></a><a class="headerlink" href="#cell-centered" title="Permalink to this heading"></a></h2>
+<span id="id8"></span><h2><a class="toc-backref" href="#id26" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">cell_centered</span></code></a><a class="headerlink" href="#cell-centered" title="Permalink to this heading"></a></h2>
 <table>
 <tbody>
 <tr class="row-odd"><td><p></p></td>
@@ -1327,7 +1402,7 @@ strategy for cell-vertex, as used by e.g. GADGET:</p>
 <hr class="docutils" />
 </section>
 <section id="class-k-max">
-<span id="id9"></span><h2><a class="toc-backref" href="#id26" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">class_k_max</span></code></a><a class="headerlink" href="#class-k-max" title="Permalink to this heading"></a></h2>
+<span id="id9"></span><h2><a class="toc-backref" href="#id27" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">class_k_max</span></code></a><a class="headerlink" href="#class-k-max" title="Permalink to this heading"></a></h2>
 <table>
 <tbody>
 <tr class="row-odd"><td><p></p></td>
@@ -1407,7 +1482,7 @@ above <span class="math notranslate nohighlight">\(k = 8\, \text{Mpc}^{-1}\)</sp
 <hr class="docutils" />
 </section>
 <section id="class-reuse">
-<span id="id10"></span><h2><a class="toc-backref" href="#id27" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">class_reuse</span></code></a><a class="headerlink" href="#class-reuse" title="Permalink to this heading"></a></h2>
+<span id="id10"></span><h2><a class="toc-backref" href="#id28" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">class_reuse</span></code></a><a class="headerlink" href="#class-reuse" title="Permalink to this heading"></a></h2>
 <table>
 <tbody>
 <tr class="row-odd"><td><p></p></td>

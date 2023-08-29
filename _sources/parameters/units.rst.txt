@@ -22,7 +22,6 @@ for output.
 \  **Default**     \  .. code-block:: python3
 
                          'Mpc'
-
 -- --------------- -- -
 \  **Elaboration** \  Internally, all dimensional values (be it lengths or
                       otherwise) are represented as bare floating-point
@@ -42,7 +41,6 @@ for output.
                          'kiloparsec', whereas in other places what we are
                          after is its numeric value (which really is not
                          defined prior to specifying ``unit_length``).
-
 -- --------------- -- -
 \  **Example 1**   \  Many other codes make use of units like
                       :math:`\text{Mpc}/h` or :math:`\text{kpc}/h`, where
@@ -60,7 +58,6 @@ for output.
 
                       given that ``h = 0.67``, corresponding to
                       ``H0 = 67*km/(s*Mpc)``.
-
 == =============== == =
 
 
@@ -77,7 +74,6 @@ for output.
 \  **Default**     \  .. code-block:: python3
 
                          'Gyr'
-
 -- --------------- -- -
 \  **Elaboration** \  Internally, all dimensional values (be it times or
                       otherwise) are represented as bare floating-point
@@ -89,7 +85,6 @@ for output.
                       .. code-block:: python3
 
                          unit_time = 's'
-
 -- --------------- -- -
 \  **Example 1**   \  Use the same base time unit as is (implicitly) used in
                       CLASS:
@@ -97,7 +92,6 @@ for output.
                       .. code-block:: python3
 
                          unit_time = 'Mpc/c'
-
 == =============== == =
 
 
@@ -114,7 +108,6 @@ for output.
 \  **Default**     \  .. code-block:: python3
 
                          '10¹⁰ m☉'
-
 -- --------------- -- -
 \  **Elaboration** \  Internally, all dimensional values (be it masses or
                       otherwise) are represented as bare floating-point
@@ -135,6 +128,5 @@ for output.
                          .. code-block:: python3
 
                             unit_mass = '119366.2073189215*light_speed**2*pc/G_Newton'
-
 == =============== == =
 

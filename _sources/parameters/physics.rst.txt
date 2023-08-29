@@ -23,7 +23,6 @@ physical models and schemes to be used.
 \  **Default**     \  .. code-block:: python3
 
                          {}  # no forces enabled
-
 -- --------------- -- -
 \  **Elaboration** \  This is a
                       :ref:`component selection <components_and_selections>`
@@ -114,7 +113,6 @@ physical models and schemes to be used.
                       walk-through of how to specify forces and methods within
                       CO\ *N*\ CEPT, see the
                       :doc:`tutorial </tutorial/gravity>`.
-
 -- --------------- -- -
 \  **Example 0**   \  Explicitly specify the component with a name/species of
                       ``'matter`` to be under the influence of gravity, using
@@ -142,7 +140,6 @@ physical models and schemes to be used.
                       the parameter file, provided that a global grid size is
                       set within the ``potential_options``
                       :ref:`parameter <potential_options>`.
-
 -- --------------- -- -
 \  **Example 1**   \  Explicitly specify the component with a name/species of
                       ``'matter`` to be under the influence of gravity, using
@@ -155,7 +152,6 @@ physical models and schemes to be used.
                                  'gravity': 'pm',
                              },
                          }
-
 == =============== == =
 
 
@@ -175,7 +171,6 @@ physical models and schemes to be used.
                          {
                              'default': 'matter',
                          }
-
 -- --------------- -- -
 \  **Elaboration** \  This is a
                       :ref:`component selection <components_and_selections>`
@@ -199,7 +194,6 @@ physical models and schemes to be used.
                          component within a ``'concept'`` snapshot, the species
                          to use within a simulation may be overruled by
                          setting this parameter
-
 -- --------------- -- -
 \  **Example 0**   \  Explicitly map the GADGET particle type 1 (``halo``) to
                       correspond to the ``'matter'`` species within
@@ -217,7 +211,6 @@ physical models and schemes to be used.
                          type 1. See table 3 of the
                          `user guide for GADGET-2 <https://wwwmpa.mpa-garching.mpg.de/gadget/users-guide.pdf>`__
                          for other names.
-
 -- --------------- -- -
 \  **Example 1**   \  Map the GADGET particle type 2 (``disk``) to the
                       ``'neutrino'`` species within CO\ *N*\ CEPT, while
@@ -229,7 +222,6 @@ physical models and schemes to be used.
                              'GADGET disk': 'neutrino',
                              'all'        : 'matter',
                          }
-
 == =============== == =
 
 
@@ -267,7 +259,6 @@ physical models and schemes to be used.
                                  'default': 'linear',
                              },
                          }
-
 -- --------------- -- -
 \  **Elaboration** \  This is a ``dict`` of several individual sub-parameters,
                       specifying how individual components are to be
@@ -399,7 +390,6 @@ physical models and schemes to be used.
                         which can be desirable. See the paper on
                         ':ref:`νCO𝘕CEPT: Cosmological neutrino simulations from the non-linear Boltzmann hierarchy <nuconcept_cosmological_neutrino_simulations_from_the_nonlinear_boltzmann_hierarchy>`'
                         for further details.
-
 -- --------------- -- -
 \  **Example 0**   \  Do all realisations in synchronous gauge. Also, use
                       back-scaling when realising components with a
@@ -424,7 +414,6 @@ physical models and schemes to be used.
                          using the synchronous gauge, as the velocity transfer
                          function in this gauge is not well suited for
                          :math:`N`-body initial conditions.
-
 -- --------------- -- -
 \  **Example 1**   \  Make use of second-order Lagrangian perturbation
                       theory (2LPT) when realising particle components:
@@ -455,7 +444,6 @@ physical models and schemes to be used.
                          realization_options = {
                              'LPT': 2,
                          }
-
 -- --------------- -- -
 \  **Example 2**   \  Always perform realisations using the primordial noise
                       as the underlying source of structure, regardless of the
@@ -468,7 +456,6 @@ physical models and schemes to be used.
                                  'all': 'primordial',
                              },
                          }
-
 == =============== == =
 
 
@@ -487,7 +474,6 @@ physical models and schemes to be used.
                          {
                              'default': (0, ထ),
                          }
-
 -- --------------- -- -
 \  **Elaboration** \  This is a
                       :ref:`component selection <components_and_selections>`
@@ -509,7 +495,6 @@ physical models and schemes to be used.
                       parameter ensures that --- by default --- all components
                       are active from the beginning to the end of the
                       simulation.
-
 -- --------------- -- -
 \  **Example 0**   \  Let the component with the name ``'linear neutrino'``
                       participate actively in the simulation until
@@ -549,7 +534,6 @@ physical models and schemes to be used.
 \  **Default**     \  .. code-block:: python3
 
                          'spline'
-
 -- --------------- -- -
 \  **Elaboration** \  For direct particle-particle forces (PP gravity,
                       short-range P³M gravity), the force needs to be
@@ -601,7 +585,6 @@ physical models and schemes to be used.
                         :math:`\epsilon` being the specified
                         "Plummer-equivalent"
                         :ref:`softening length <select_softening_length>`.
-
 -- --------------- -- -
 \  **Example 0**   \  Use simple Plummer softening:
 
@@ -629,7 +612,6 @@ physical models and schemes to be used.
                          {
                              'default': '0.025*boxsize/cbrt(N)',
                          }
-
 -- --------------- -- -
 \  **Elaboration** \  Direct particle-particle forces are softened according
                       to the chosen
@@ -650,7 +632,6 @@ physical models and schemes to be used.
 
                       .. note::
                          The specified softening lengths are always comoving
-
 -- --------------- -- -
 \  **Example 0**   \  Use a softening length of :math:`10\,\mathrm{kpc}/h` for
                       all components:
@@ -660,7 +641,6 @@ physical models and schemes to be used.
                          select_softening_length = {
                              'all': 10*kpc/h,
                          }
-
 -- --------------- -- -
 \  **Example 1**   \  Use a softening length of :math:`1/10\,000` of the box
                       size for the component with a name/species of

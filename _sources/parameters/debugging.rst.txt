@@ -22,7 +22,6 @@ features as well as additional information on or off.
 \  **Default**     \  .. code-block:: python3
 
                          True
-
 -- --------------- -- -
 \  **Elaboration** \  As described in the paper on
                       ':ref:`The cosmological simulation code CO𝘕CEPT 1.0<the_cosmological_simulation_code_concept_10>`',
@@ -40,14 +39,12 @@ features as well as additional information on or off.
                       .. code-block:: python3
 
                          print_load_imbalance = False
-
 -- --------------- -- -
 \  **Example 1**   \  Print out load imbalance for all CPU cores:
 
                       .. code-block:: python3
 
                          print_load_imbalance = 'full'
-
 == =============== == =
 
 
@@ -67,7 +64,6 @@ features as well as additional information on or off.
 \  **Default**     \  .. code-block:: python3
 
                          True
-
 -- --------------- -- -
 \  **Elaboration** \  After a reordering, the particle data in memory is
                       sorted so that it mimics the particle visiting order
@@ -80,7 +76,6 @@ features as well as additional information on or off.
                       .. code-block:: python3
 
                          particle_reordering = False
-
 -- --------------- -- -
 \  **Example 1**   \  In case of several tilings, the reordering will be done
                       with respect to the tiling belong to the short-range
@@ -102,7 +97,6 @@ features as well as additional information on or off.
                          .. code-block:: python3
 
                             particle_reordering = True
-
 == =============== == =
 
 
@@ -121,7 +115,6 @@ features as well as additional information on or off.
 \  **Default**     \  .. code-block:: python3
 
                          True
-
 -- --------------- -- -
 \  **Elaboration** \  With ``enable_Hubble = True`` (the default), the Hubble
                       expansion is turned on, so that the scale factor
@@ -131,15 +124,16 @@ features as well as additional information on or off.
                       provide CO\ *N*\ CEPT with :math:`a(t)`, though this
                       can be :ref:`disabled <enable_class_background>`.
 -- --------------- -- -
-\  **Example 0**   \  Turn off the Hubble expansion of:
+\  **Example 0**   \  Turn off the Hubble expansion:
 
                       .. code-block:: python3
 
                          enable_Hubble = False
 
-                      Note that this is really only intended for use with
-                      internal testing. A lot basic functionality will not
-                      work in this mode.
+                      .. caution::
+                         This is really only intended for use with internal
+                         testing. A lot of basic functionality will not work
+                         in this mode.
 == =============== == =
 
 
@@ -159,7 +153,6 @@ features as well as additional information on or off.
 \  **Default**     \  .. code-block:: python3
 
                          True
-
 -- --------------- -- -
 \  **Elaboration** \  The `CLASS <http://class-code.net/>`__ code is fully
                       integrated within CO\ *N*\ CEPT and provides the
