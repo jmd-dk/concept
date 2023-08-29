@@ -12,7 +12,9 @@ on:
 
 jobs:
     test_doc:
-        runs-on: [self-hosted, linux]
+        runs-on:
+          group: private
+          labels: [self-hosted, ubuntu-22.04]
         steps:
           - name: 🛎️ Checkout
             uses: actions/checkout@v3

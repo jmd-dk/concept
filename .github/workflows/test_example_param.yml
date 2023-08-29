@@ -14,7 +14,9 @@ on:
 
 jobs:
     test_example_param:
-        runs-on: [self-hosted, linux, heavy]
+        runs-on:
+          group: private
+          labels: [self-hosted, ubuntu-22.04, heavy]
         steps:
           - name: 🛎️ Checkout
             uses: actions/checkout@v3
