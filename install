@@ -265,6 +265,7 @@ set_dir "openssl"         "${python_dir}"
 set_dir "libffi"          "${python_dir}"
 set_dir "zlib"            "__concept_dir__/dep/zlib"
 tmp_dir="__concept_dir__/.tmp"
+dep_dir="__concept_dir__/dep"
 log="${tmp_dir}/install_log"
 env="__concept_dir__/.env"
 path="__concept_dir__/.path"
@@ -873,8 +874,9 @@ if [ "${concept_dir_reasonable}" == "False" ]; then
 fi
 
 # Replace "__concept_dir__" with the user specified concept_dir
-# within the path to the tmp directory and the log file.
+# within the path to the tmp and dep directory and the log file.
 tmp_dir="${tmp_dir/__concept_dir__/${concept_dir}}"
+dep_dir="${dep_dir/__concept_dir__/${concept_dir}}"
 log="${log/__concept_dir__/${concept_dir}}"
 # Create the tmp directory.
 # This will not be removed until the end,
@@ -2828,11 +2830,11 @@ check_progress() {
     eval "progdir=\"\${${progname}_dir}\""
     # CO𝘕CEPT itself will not have a .installation_finished file in its
     # directory. Instead it uses the .installation_finished in the
-    # GADGET directory.
+    # dep directory.
     if [ "${progname}" == "concept" ]; then
-        progdir="${gadget_dir}"
+        progdir="${dep_dir}"
         # If the CO𝘕CEPT source is missing (e.g. manually deleted),
-        # info about CO𝘕CEPT from ${gadget_dir}/.installation_finished
+        # info about CO𝘕CEPT from ${dep_dir}/.installation_finished
         # should not be used. Remove such info if present, and if
         # the CO𝘕CEPT source indeed is missing.
         if [ ! -d "${concept_dir}/src" ] && [ -f "${progdir}/.installation_finished" ]; then
@@ -3172,7 +3174,20 @@ if [ "${gadget_install}" == "True" ]; then
             check_progress "GADGET"
             # If not yet downloaded, validate the URL
             if [ "${gadget_downloaded}" != "True" ]; then
-                validate_url "GADGET"
+                validate_url "GADGET" "False"
+            fi
+            # If none of the GADGET URL works, skip GADGET,
+            # unless tests are explicitly asked for.
+            if [ "${validate_url_status}" != "success" ]; then
+                error "Error: Could not locate GADGET online."
+                if [ "${do_tests}" == "True" ]; then
+                    error "Gadget is needed for running tests"
+                    exit 1
+                else
+                    error "GADGET will be skipped"
+                    gadget_install="False"
+                    fftw_for_gadget_install="False"
+                fi
             fi
         fi
     fi
@@ -5618,6 +5633,11 @@ install_notice() {
             test_results="Failure"
         fi
     fi
+    if [ -z "${progdir}" ]; then
+        error "install_notice(): No progdir specified"
+        exit 1
+    fi
+    mkdir -p "${progdir}"
     echo "The following has been fully installed:
 Program:      ${progname_formatted}
 Version:      ${progversion}
@@ -10176,9 +10196,9 @@ if [ "${concept_install}" == "True" ] && [ "${concept_installed}" == "False" ]; 
         fi
         cd "${concept_dir}"
     fi
-    # Place the installation notice in the GADGET directory in order
+    # Place the installation notice in the dep directory in order
     # to minimize the number of files in the CO𝘕CEPT directory.
-    install_notice "CONCEPT" "${gadget_dir}"
+    install_notice "CONCEPT" "${dep_dir}"
 fi
 export make_jobs="${make_jobs_backup}"
 
@@ -10335,6 +10355,7 @@ site-packages/scipy/misc/face.dat" || :
     for dependency in "${removable_dependencies[@]}"; do
         eval "dependency_install=\"\${${dependency}_install}\""
         eval "dependency_installed=\"\${${dependency}_installed}\""
+        eval "install_${dependency}=\"False\""  # avoid print in copyright_notice()
         if [ "${dependency_install}" == "True" ] && [ "${dependency_installed}" == "False" ]; then
             eval "dependency_dir=\"\${${dependency}_dir}\""
             rm -rf "${dependency_dir}" || :
