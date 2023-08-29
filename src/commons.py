@@ -4388,14 +4388,15 @@ if not enable_class_background:
 # layers, order 6: 3 ghost layers, order 8: 4 ghost layers).
 # One additional ghost layer is required for odd order interpolations in
 # the case of grid interlacing (as the particles are shifted by half a
-# grid cell). Finally, second-order differentiation is used to compute
+# grid cell), or if cell-vertex discretisation is used while applying
+# interlacing. Finally, second-order differentiation is used to compute
 # fluid source terms, and so nghosts should always be at least 1.
 nghosts = 0
 for options in (powerspec_options, bispec_options, render2D_options, render3D_options):
     interpolation_order_option = np.max(list(options['interpolation'].values()))
     interlace_option = any([val != 'sc' for val in options['interlace'].values()])
     nghosts_option = interpolation_order_option//2
-    if interlace_option and interpolation_order_option%2 != 0:
+    if interlace_option and (interpolation_order_option%2 != 0 or not cell_centered):
         nghosts_option += 1
     nghosts = np.max([nghosts, nghosts_option])
 for force, d in potential_options['interpolation'].items():
