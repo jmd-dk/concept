@@ -3168,7 +3168,7 @@ if [ "${gadget_install}" == "True" ]; then
         if [ "${validate_url_status}" != "success" ]; then
             echo "Primary GADGET link broken: ${gadget_url}"
             fallback "GADGET"
-            gadget_url="https://www.mpa-garching.mpg.de/gadget/gadget-${gadget_version}.tar.gz"
+            gadget_url="https://www.mpa-garching.mpg.de/~volker/gadget/gadget-${gadget_version}.tar.gz"
             echo "Using secondary GADGET link: ${gadget_url}"
             # Check if already installed and/or downloaded
             check_progress "GADGET"
