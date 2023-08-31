@@ -13,7 +13,7 @@ jobs:
     test_build:
         runs-on:
           group: private
-          labels: [self-hosted, ubuntu-22.04]
+          labels: self-hosted-ubuntu-22.04
         steps:
           - name: Pass
             run: exit 0
@@ -21,7 +21,7 @@ jobs:
     test_update:
         runs-on:
           group: private
-          labels: [self-hosted, ubuntu-22.04]
+          labels: self-hosted-ubuntu-22.04
         steps:
           - name: Pass
             run: exit 0
@@ -29,7 +29,7 @@ jobs:
     test_example_param:
         runs-on:
           group: private
-          labels: [self-hosted, ubuntu-22.04]
+          labels: self-hosted-ubuntu-22.04
         steps:
           - name: Pass
             run: exit 0
@@ -37,7 +37,7 @@ jobs:
     test_doc:
         runs-on:
           group: private
-          labels: [self-hosted, ubuntu-22.04]
+          labels: self-hosted-ubuntu-22.04
         steps:
           - name: Pass
             run: exit 0
@@ -45,231 +45,231 @@ jobs:
     test_basic:
         runs-on:
           group: private
-          labels: [self-hosted, ubuntu-22.04]
+          labels: self-hosted-ubuntu-22.04
         steps:
           - name: Pass
             run: exit 0
     test_friedmann:
         runs-on:
           group: private
-          labels: [self-hosted, ubuntu-22.04]
+          labels: self-hosted-ubuntu-22.04
         steps:
           - name: Pass
             run: exit 0
     test_realize:
         runs-on:
           group: private
-          labels: [self-hosted, ubuntu-22.04]
+          labels: self-hosted-ubuntu-22.04
         steps:
           - name: Pass
             run: exit 0
     test_powerspec:
         runs-on:
           group: private
-          labels: [self-hosted, ubuntu-22.04]
+          labels: self-hosted-ubuntu-22.04
         steps:
           - name: Pass
             run: exit 0
     test_bispec:
         runs-on:
           group: private
-          labels: [self-hosted, ubuntu-22.04]
+          labels: self-hosted-ubuntu-22.04
         steps:
           - name: Pass
             run: exit 0
     test_gadget:
         runs-on:
           group: private
-          labels: [self-hosted, ubuntu-22.04]
+          labels: self-hosted-ubuntu-22.04
         steps:
           - name: Pass
             run: exit 0
     test_drift_nohubble:
         runs-on:
           group: private
-          labels: [self-hosted, ubuntu-22.04]
+          labels: self-hosted-ubuntu-22.04
         steps:
           - name: Pass
             run: exit 0
     test_drift:
         runs-on:
           group: private
-          labels: [self-hosted, ubuntu-22.04]
+          labels: self-hosted-ubuntu-22.04
         steps:
           - name: Pass
             run: exit 0
     test_kick_pp_without_ewald:
         runs-on:
           group: private
-          labels: [self-hosted, ubuntu-22.04]
+          labels: self-hosted-ubuntu-22.04
         steps:
           - name: Pass
             run: exit 0
     test_kick_pp_with_ewald:
         runs-on:
           group: private
-          labels: [self-hosted, ubuntu-22.04]
+          labels: self-hosted-ubuntu-22.04
         steps:
           - name: Pass
             run: exit 0
     test_nprocs_pp:
         runs-on:
           group: private
-          labels: [self-hosted, ubuntu-22.04]
+          labels: self-hosted-ubuntu-22.04
         steps:
           - name: Pass
             run: exit 0
     test_pure_python_pp:
         runs-on:
           group: private
-          labels: [self-hosted, ubuntu-22.04]
+          labels: self-hosted-ubuntu-22.04
         steps:
           - name: Pass
             run: exit 0
     test_concept_vs_gadget_pp:
         runs-on:
           group: private
-          labels: [self-hosted, ubuntu-22.04]
+          labels: self-hosted-ubuntu-22.04
         steps:
           - name: Pass
             run: exit 0
     test_nprocs_pm:
         runs-on:
           group: private
-          labels: [self-hosted, ubuntu-22.04]
+          labels: self-hosted-ubuntu-22.04
         steps:
           - name: Pass
             run: exit 0
     test_pure_python_pm:
         runs-on:
           group: private
-          labels: [self-hosted, ubuntu-22.04]
+          labels: self-hosted-ubuntu-22.04
         steps:
           - name: Pass
             run: exit 0
     test_concept_vs_class_pm:
         runs-on:
           group: private
-          labels: [self-hosted, ubuntu-22.04]
+          labels: self-hosted-ubuntu-22.04
         steps:
           - name: Pass
             run: exit 0
     test_nprocs_p3m:
         runs-on:
           group: private
-          labels: [self-hosted, ubuntu-22.04]
+          labels: self-hosted-ubuntu-22.04
         steps:
           - name: Pass
             run: exit 0
     test_pure_python_p3m:
         runs-on:
           group: private
-          labels: [self-hosted, ubuntu-22.04]
+          labels: self-hosted-ubuntu-22.04
         steps:
           - name: Pass
             run: exit 0
     test_concept_vs_gadget_p3m:
         runs-on:
           group: private
-          labels: [self-hosted, ubuntu-22.04]
+          labels: self-hosted-ubuntu-22.04
         steps:
           - name: Pass
             run: exit 0
     test_multicomponent:
         runs-on:
           group: private
-          labels: [self-hosted, ubuntu-22.04]
+          labels: self-hosted-ubuntu-22.04
         steps:
           - name: Pass
             run: exit 0
     test_ids:
         runs-on:
           group: private
-          labels: [self-hosted, ubuntu-22.04]
+          labels: self-hosted-ubuntu-22.04
         steps:
           - name: Pass
             run: exit 0
     test_multigrid:
         runs-on:
           group: private
-          labels: [self-hosted, ubuntu-22.04]
+          labels: self-hosted-ubuntu-22.04
         steps:
           - name: Pass
             run: exit 0
     test_fluid_drift_rigid_nohubble:
         runs-on:
           group: private
-          labels: [self-hosted, ubuntu-22.04]
+          labels: self-hosted-ubuntu-22.04
         steps:
           - name: Pass
             run: exit 0
     test_fluid_drift_rigid:
         runs-on:
           group: private
-          labels: [self-hosted, ubuntu-22.04]
+          labels: self-hosted-ubuntu-22.04
         steps:
           - name: Pass
             run: exit 0
     test_fluid_gravity_nohubble:
         runs-on:
           group: private
-          labels: [self-hosted, ubuntu-22.04]
+          labels: self-hosted-ubuntu-22.04
         steps:
           - name: Pass
             run: exit 0
     test_fluid_gravity:
         runs-on:
           group: private
-          labels: [self-hosted, ubuntu-22.04]
+          labels: self-hosted-ubuntu-22.04
         steps:
           - name: Pass
             run: exit 0
     test_fluid_vacuum:
         runs-on:
           group: private
-          labels: [self-hosted, ubuntu-22.04]
+          labels: self-hosted-ubuntu-22.04
         steps:
           - name: Pass
             run: exit 0
     test_fluid_vs_particles:
         runs-on:
           group: private
-          labels: [self-hosted, ubuntu-22.04]
+          labels: self-hosted-ubuntu-22.04
         steps:
           - name: Pass
             run: exit 0
     test_fluid_pressure:
         runs-on:
           group: private
-          labels: [self-hosted, ubuntu-22.04]
+          labels: self-hosted-ubuntu-22.04
         steps:
           - name: Pass
             run: exit 0
     test_neutrino:
         runs-on:
           group: private
-          labels: [self-hosted, ubuntu-22.04]
+          labels: self-hosted-ubuntu-22.04
         steps:
           - name: Pass
             run: exit 0
     test_optimizations:
         runs-on:
           group: private
-          labels: [self-hosted, ubuntu-22.04]
+          labels: self-hosted-ubuntu-22.04
         steps:
           - name: Pass
             run: exit 0
     test_classutil:
         runs-on:
           group: private
-          labels: [self-hosted, ubuntu-22.04]
+          labels: self-hosted-ubuntu-22.04
         steps:
           - name: Pass
             run: exit 0
     test_render:
         runs-on:
           group: private
-          labels: [self-hosted, ubuntu-22.04]
+          labels: self-hosted-ubuntu-22.04
         steps:
           - name: Pass
             run: exit 0

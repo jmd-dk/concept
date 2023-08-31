@@ -19,7 +19,7 @@ jobs:
     test_build:
         runs-on:
           group: private
-          labels: [self-hosted, ubuntu-22.04, heavy]
+          labels: [self-hosted-ubuntu-22.04, heavy]
         steps:
           - name: 🛎️ Checkout
             uses: actions/checkout@v3
