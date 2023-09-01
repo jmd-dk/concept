@@ -510,8 +510,8 @@ using e.g. 8 processes:</p>
 <p>If not specified, this defaults to 1.</p>
 <p>You may write the number of processes as a (Python 3) expression. All of these
 specifies that 8 processes should be used:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>-n<span class="w"> </span><span class="m">2</span>*4
-./concept<span class="w"> </span>-n<span class="w"> </span><span class="m">2</span>**3
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>-n<span class="w"> </span><span class="s2">&quot;2*4&quot;</span>
+./concept<span class="w"> </span>-n<span class="w"> </span><span class="s2">&quot;2**3&quot;</span>
 ./concept<span class="w"> </span>-n<span class="w"> </span><span class="s2">&quot;3 + 5&quot;</span>
 </pre></div>
 </div>
@@ -521,7 +521,7 @@ specifies that 8 processes should be used:</p>
 the number of nodes to be used. The following examples all specify 8 MPI
 processes distributed over 2 nodes each with 4 CPU cores:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>-n<span class="w"> </span><span class="m">2</span>:4
-./concept<span class="w"> </span>-n<span class="w"> </span><span class="m">2</span>:2*2
+./concept<span class="w"> </span>-n<span class="w"> </span><span class="s2">&quot;2:2*2&quot;</span>
 ./concept<span class="w"> </span>-n<span class="w"> </span><span class="s2">&quot;2 2*2&quot;</span>
 ./concept<span class="w"> </span>-n<span class="w"> </span><span class="s2">&quot;1 + 1 : 2**2&quot;</span>
 </pre></div>
@@ -617,11 +617,11 @@ insufficient memory to a job, it will be killed (usually with a somewhat
 cryptic error message) by the system once its memory needs exceed the
 specified amount.</p>
 <p>Examples of memory specifications:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>--memory<span class="w"> </span>4GB<span class="w">     </span><span class="c1">#   4 gigabytes</span>
-./concept<span class="w"> </span>--memory<span class="w"> </span>2048MB<span class="w">  </span><span class="c1">#   2 gigabytes</span>
-./concept<span class="w"> </span>--memory<span class="w"> </span><span class="m">8</span>*2GB<span class="w">   </span><span class="c1">#  16 gigabytes</span>
-./concept<span class="w"> </span>--memory<span class="w"> </span><span class="m">0</span>.5*TB<span class="w">  </span><span class="c1"># 512 gigabytes</span>
-./concept<span class="w"> </span>--mem<span class="w"> </span>8G<span class="w">         </span><span class="c1">#   8 gigabytes</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>--memory<span class="w"> </span>4GB<span class="w">       </span><span class="c1">#   4 gigabytes</span>
+./concept<span class="w"> </span>--memory<span class="w"> </span>2048MB<span class="w">    </span><span class="c1">#   2 gigabytes</span>
+./concept<span class="w"> </span>--memory<span class="w"> </span><span class="s2">&quot;8*2GB&quot;</span><span class="w">   </span><span class="c1">#  16 gigabytes</span>
+./concept<span class="w"> </span>--memory<span class="w"> </span><span class="s2">&quot;0.5*TB&quot;</span><span class="w">  </span><span class="c1"># 512 gigabytes</span>
+./concept<span class="w"> </span>--mem<span class="w"> </span>8G<span class="w">           </span><span class="c1">#   8 gigabytes</span>
 </pre></div>
 </div>
 <p>Note that the specified memory is the total memory available to the job, to be

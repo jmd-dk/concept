@@ -632,7 +632,7 @@ something like
 
    ./concept \
        -u class \
-           --kmin 1e-3*0.67/Mpc --kmax 1*0.67/Mpc --modes 128 \
+           --kmin "1e-3*0.67/Mpc" --kmax "1*0.67/Mpc" --modes 128 \
            --times 512 \
            "b+cdm:1, g, ncdm[0], ncdm[1], ncdm[2]:2, metric" \
        -p /path/to/class-param \

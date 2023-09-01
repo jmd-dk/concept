@@ -389,8 +389,9 @@ nodes each with 4 cores.</p>
 <p>To specify a memory requirement, further supply <code class="docutils literal notranslate"><span class="pre">--memory</span> <span class="pre">&lt;memory&gt;</span></code>, where
 <code class="docutils literal notranslate"><span class="pre">&lt;memory&gt;</span></code> is the <em>total</em> memory required collectively by all cores on all
 nodes. Examples of legal memory specifications include <code class="docutils literal notranslate"><span class="pre">--memory</span> <span class="pre">8192MB</span></code>,
-<code class="docutils literal notranslate"><span class="pre">--memory</span> <span class="pre">8192M</span></code>, <code class="docutils literal notranslate"><span class="pre">--memory</span> <span class="pre">8G</span></code>, <code class="docutils literal notranslate"><span class="pre">--memory</span> <span class="pre">2*4G</span></code>, all of which specifies
-8 gigabytes, i.e. 1 gigabyte per core if running with a total of 8 cores.</p>
+<code class="docutils literal notranslate"><span class="pre">--memory</span> <span class="pre">8192M</span></code>, <code class="docutils literal notranslate"><span class="pre">--memory</span> <span class="pre">8G</span></code>, <code class="docutils literal notranslate"><span class="pre">--memory</span> <span class="pre">&quot;2*4G&quot;</span></code>, all of which
+specifies 8 gigabytes, i.e. 1 gigabyte per core if running with a total
+of 8 cores.</p>
 <p>To specify a wall time limit, i.e. a maximum time within which the simulation
 is expected to be completed, further supply the <code class="docutils literal notranslate"><span class="pre">-w</span> <span class="pre">&lt;wall-time&gt;</span></code> option.
 Examples of legal wall time specifications include <code class="docutils literal notranslate"><span class="pre">-w</span> <span class="pre">60min</span></code>, <code class="docutils literal notranslate"><span class="pre">-w</span> <span class="pre">60m</span></code>,
