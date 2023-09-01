@@ -85,8 +85,18 @@ parser = argparse.ArgumentParser(
 parser.add_argument(
     'jobid',
     default='${jobid_unspecified}',
-    help='job ID or name of the submitted ${esc_concept} Slurm or TORQUE/PBS job to watch',
-    nargs='?',
+    help=(
+        'job ID or name of the submitted ${esc_concept} Slurm or TORQUE/PBS job '
+        'to watch. Multiple values may be given. If none is given, '
+        'the most recent running job will be watched.'
+    ),
+    nargs='*',
+)
+parser.add_argument(
+    '--indefinite',
+    help='watch indefinitely, even with no jobs submitted',
+    default=False,
+    action='store_true',
 )
 # Enables Python to write directly to screen (stderr)
 # in case of help request.
@@ -137,6 +147,32 @@ fi
 if [ "${ssh}" != "True" ]; then
     colorprint "Error: Cannot watch remote job as you are working on a local machine" "red"
     exit 1
+fi
+
+# If multiple jobs are to be watched, do so one at a time
+if [ ${#jobid[@]} -gt 1 ] || ([ ${#jobid[@]} -eq 1 ] && [ "${jobid}" != "${jobid_unspecified}" ] \
+    && [ "${indefinite}" == "True" ]); then
+    for jobid_i in "${jobid[@]}"; do
+        colorprint "\nJob ${jobid_i}" "yellow"
+        "${concept}" -u="${this_file}" "${jobid_i}" || :
+    done
+    if [ "${indefinite}" != "True" ]; then
+        trap : 0
+        exit 0
+    fi
+    echo
+fi
+
+# If we are to watch indefinitely, do so by calling
+# this utility anew upon completion.
+if [ "${indefinite}" == "True" ] && [ "${indefinite_call}" != "True" ]; then
+    export indefinite_call="True"
+    while :; do
+        "${concept}" -u="${this_file}" --indefinite || :
+        echo
+    done
+    trap : 0
+    exit 0
 fi
 
 # Detect what resource manager is used
@@ -254,6 +290,7 @@ update_job_info() {
         state="${state_candidate}"
         queue="${queue_candidate}"
         if [ ${Njobs} -gt 1 ]; then
+            new_eta
             printf "Found ${Njobs} submitted jobs named \"${job_name}\" submitted\n"
             if [ "${state}" == "${state_running}" ]; then
                 echo "The latest running job (${jobid}) will be watched"
@@ -283,7 +320,7 @@ display() {
 # If the job ID was not given as an argument, find the CO𝘕CEPT job
 # which were submitted last. If an argument (the job ID) is given,
 # find information about the job.
-if [ "${jobid}" == "${jobid_unspecified}" ]; then
+search_job() {
     # Acquire information about all submitted jobs
     info="$(get_info | grep "${username}" || :)"
     # Find all submitted CO𝘕CEPT jobs.
@@ -298,7 +335,7 @@ if [ "${jobid}" == "${jobid_unspecified}" ]; then
         job_name="$(echo "${line}" | awk '{print $2}')"
         # Only count job as a CO𝘕CEPT job if its name
         # is the default CO𝘕CEPT job name.
-        if [ "${job_name}" != "${job_name_default}" ]; then
+        if [[ "${job_name}" != "${job_name_default}"* ]]; then
             continue
         fi
         # Submitted CO𝘕CEPT job found
@@ -324,11 +361,46 @@ if [ "${jobid}" == "${jobid_unspecified}" ]; then
     done <<< "${info}"
     # Remove possible suffix on job ID
     jobid="${jobid%%.*}"
-    # Print out message for Njobs != 1
+}
+sleep_barely=5
+sleep_little=30
+sleep_much=300
+if [ "${jobid}" == "${jobid_unspecified}" ]; then
+    # Search for submitted job(s). If none is found, error out.
+    # If we should search indefinitely, do so using exponential backoff.
+    search_job
     if [ ${Njobs} -eq 0 ]; then
-        colorprint "Error: Could not find any submitted ${esc_concept} jobs" "red"
-        exit 1
-    elif [ ${Njobs} -gt 1 ]; then
+        if [ "${indefinite}" == "True" ]; then
+            echo "Waiting for ${esc_concept} job to be submitted"
+        else
+            colorprint "Error: Could not find any submitted ${esc_concept} jobs" "red"
+            exit 1
+        fi
+    fi
+    slept=0
+    while [ ${slept} -lt $((2*sleep_little)) ]; do
+        if [ ${Njobs} -ne 0 ]; then
+            break
+        fi
+        sleep ${sleep_barely}
+        ((slept += ${sleep_barely}))
+        search_job
+    done
+    slept=0
+    while [ ${slept} -lt $((2*sleep_much)) ]; do
+        if [ ${Njobs} -ne 0 ]; then
+            break
+        fi
+        sleep ${sleep_little}
+        ((slept += ${sleep_little}))
+        search_job
+    done
+    while [ ${Njobs} -eq 0 ]; do
+        sleep ${sleep_much}
+        search_job
+    done
+    # One or more submitted jobs found
+    if [ ${Njobs} -gt 1 ]; then
         printf "Found ${Njobs} submitted ${esc_concept} jobs\n"
         if [ "${state}" == "${state_running}" ]; then
             echo "The latest running job (${jobid}) will be watched"
@@ -338,18 +410,17 @@ if [ "${jobid}" == "${jobid_unspecified}" ]; then
     fi
 else
     # Parse passed job ID
-    jobid="${jobid%%.*}"  # remove possible suffix
-    if [ "${jobid}" == "${job_name_default}" ]; then
-        # Passed job ID is really the job name
-        :
-    elif [ -f "${job_dir}/${jobid}/log" ]; then
-        jobid="${jobid}"
-    elif [ -f "${jobid}" ] || [ -f "${job_dir}/${jobid}" ]; then
-        jobid="$(basename "$(dirname "${jobid}")")"
-    elif [ -f "${jobid}/log" ]; then
-        jobid="$(basename "${jobid}")"
+    if [[ "${jobid}" != "${job_name_default}"* ]]; then
+        # Passed job ID is really the job ID, not the job name
+        jobid="${jobid%%.*}"  # remove possible suffix
+        if [ -f "${job_dir}/${jobid}/log" ]; then
+            jobid="${jobid}"
+        elif [ -f "${jobid}" ] || [ -f "${job_dir}/${jobid}" ]; then
+            jobid="$(basename "$(dirname "${jobid}")")"
+        elif [ -f "${jobid}/log" ]; then
+            jobid="$(basename "${jobid}")"
+        fi
     fi
-    jobid="$(basename "${jobid}")"
     update_job_info
     if [ "${state}" == "${state_notexist}" ]; then
         # Job not in progress
@@ -368,6 +439,7 @@ fi
 state_last=""
 inform_on_new_state() {
     if [ "${state}" != "${state_last}" ]; then
+        new_eta
         if [ "${resource_manager}" == "slurm" ]; then
             case "${state}" in
                 "BF") echo "Job ${jobid} terminated due to launch failure";;
@@ -414,13 +486,14 @@ check_suddenly_finished() {
     inform_on_new_state
     # If the job is already finished, printout the entire log and exit
     if [ "${state}" == "C" ] || [ "${state}" == "${state_notexist}" ]; then
+        new_eta
         if [ -f "${job_dir}/${jobid}/log" ]; then
             display "${job_dir}/${jobid}/log"
             trap : 0
             exit 0
         else
             echo "Job ${jobid} has finished running, but no log file is to be found" >&2
-            if [ "${job_name}" != "${job_name_default}" ]; then
+            if [[ "${job_name}" != "${job_name_default}"* ]]; then
                 printf "Are you certain that job ${jobid} was a ${esc_concept} job?\n" >&2
             fi
             exit 1
@@ -428,13 +501,54 @@ check_suddenly_finished() {
     fi
 }
 
+# Functions for printing out when a pending job will begin
+print_eta() {
+    if [ "${resource_manager}" != "slurm" ]; then
+        return
+    fi
+    start_time="$(${info_command} -j ${jobid} --format='%.19S' 2>/dev/null | tail -n 1)"
+    time_left="$("${mpiexec}" -n 1 "${python}" -c "
+from commons import *
+try:
+    eta = datetime.datetime.strptime('${start_time}', '%Y-%m-%dT%H:%M:%S')
+    now = datetime.datetime.now()
+except Exception:
+    pass
+else:
+    diff = int(round((eta - now).total_seconds()))
+    if diff > 60**2 and float('0${slept}') > 60:
+        diff = int(round(diff/60))*60
+    if diff > 0:
+        print(nice_time_interval(diff))
+    else:
+        print(0)
+" 2>/dev/null)"
+    if [ -n "${time_left}" ]; then
+        erase_eta
+        if [ "${time_left}" == "0" ]; then
+            text_eta="Job ${jobid} will start running soon"
+        else
+            text_eta="Job ${jobid} will start running in ~ ${time_left}"
+        fi
+        printf "${text_eta}\n"
+    fi
+}
+erase_eta() {
+    if [ -z "${text_eta}" ]; then
+        return
+    fi
+    new_eta
+    printf "${esc_up}${esc_erase}"
+}
+new_eta(){
+    text_eta=""
+}
+new_eta
+
 # Print initial state of job
 inform_on_new_state
 
 # Wait until job is running, using exponential backoff
-sleep_barely=5
-sleep_little=30
-sleep_much=300
 if [ "${state}" != "${state_running}" ]; then
     check_suddenly_finished
     slept=0
@@ -442,6 +556,7 @@ if [ "${state}" != "${state_running}" ]; then
         if [ "${state}" == "${state_running}" ]; then
             break
         fi
+        print_eta
         sleep ${sleep_barely}
         ((slept += ${sleep_barely}))
         check_suddenly_finished
@@ -451,16 +566,19 @@ if [ "${state}" != "${state_running}" ]; then
         if [ "${state}" == "${state_running}" ]; then
             break
         fi
+        print_eta
         sleep ${sleep_little}
         ((slept += ${sleep_little}))
         check_suddenly_finished
     done
-    while [ "${state}" != "${state_running}" ] ; do
+    while [ "${state}" != "${state_running}" ]; do
+        print_eta
         sleep ${sleep_much}
         check_suddenly_finished
     done
 fi
 state_last="${state_running}"
+erase_eta
 
 # Job running. Wait for log file to be created.
 if [ ! -f "${job_dir}/${jobid}/log" ]; then
@@ -478,7 +596,7 @@ while [ ! -f "${job_dir}/${jobid}/log" ]; do
         slept=0
         if [ "${message_printed}" == "False" ]; then
             echo "Can't find log file of job ${jobid}" >&2
-            if [ "${job_name}" != "${job_name_default}" ]; then
+            if [[ "${job_name}" != "${job_name_default}"* ]]; then
                 printf "Are you certain that job ${jobid} is a ${esc_concept} job?\n" >&2
             fi
             message_printed="True"

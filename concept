@@ -95,6 +95,9 @@ esc_bold="${esc}[1m"
 esc_italic="${esc}[3m"
 esc_no_italic="${esc}[23m"
 esc_red="${esc}[91m"
+# Cursor movement
+esc_up="${esc}[1A"
+esc_erase="${esc}[K"
 # The name of the program, nicely typeset
 if [ -z "${esc_concept}" ]; then
     esc_concept="CO${esc_italic}N${esc_no_italic}CEPT"
@@ -1999,7 +2002,10 @@ if [ "${utility}" != "${utility_default}" ]; then
         utility_args=""
     fi
     # Run utility and exit
-    colorprint "\nRunning the $(basename "${utility}") utility" "yellow"
+    if [ "${utility_heading_printed}" != "True" ]; then
+        colorprint "\nRunning the $(basename "${utility}") utility" "yellow"
+        export utility_heading_printed="True"
+    fi
     trap : 0
     if [ -z "${utility_args[0]}" ] && [ ${#utility_args[@]} == 1 ]; then
         called_from_concept="True" "${utility}"

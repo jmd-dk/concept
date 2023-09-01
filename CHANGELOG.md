@@ -33,6 +33,9 @@
 - The `class` utility is easier to work with, owing to the new `--kmin`,
   `--kmax` and `--modes` options. The `--times` option can now also be used to
   specify explicit scale factor values to use.
+- The `watch` utility will now state the approximate time a job has to wait in
+  the queue. Also, multiple job IDs can now be supplied. Finally, the option
+  ``--indefinite`` is added, allowing the `watch` utility to run forever.
 
 #### ⚡ Optimizations
 - The random numbers used for the primordial noise are now drawn in a
