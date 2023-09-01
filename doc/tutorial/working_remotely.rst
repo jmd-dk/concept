@@ -50,8 +50,9 @@ nodes each with 4 cores.
 To specify a memory requirement, further supply ``--memory <memory>``, where
 ``<memory>`` is the *total* memory required collectively by all cores on all
 nodes. Examples of legal memory specifications include ``--memory 8192MB``,
-``--memory 8192M``, ``--memory 8G``, ``--memory 2*4G``, all of which specifies
-8 gigabytes, i.e. 1 gigabyte per core if running with a total of 8 cores.
+``--memory 8192M``, ``--memory 8G``, ``--memory "2*4G"``, all of which
+specifies 8 gigabytes, i.e. 1 gigabyte per core if running with a total
+of 8 cores.
 
 To specify a wall time limit, i.e. a maximum time within which the simulation
 is expected to be completed, further supply the ``-w <wall-time>`` option.

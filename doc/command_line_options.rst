@@ -166,8 +166,8 @@ specifies that 8 processes should be used:
 
 .. code-block:: bash
 
-   ./concept -n 2*4
-   ./concept -n 2**3
+   ./concept -n "2*4"
+   ./concept -n "2**3"
    ./concept -n "3 + 5"
 
 
@@ -183,7 +183,7 @@ processes distributed over 2 nodes each with 4 CPU cores:
 .. code-block:: bash
 
    ./concept -n 2:4
-   ./concept -n 2:2*2
+   ./concept -n "2:2*2"
    ./concept -n "2 2*2"
    ./concept -n "1 + 1 : 2**2"
 
@@ -318,11 +318,11 @@ Examples of memory specifications:
 
 .. code-block:: bash
 
-   ./concept --memory 4GB     #   4 gigabytes
-   ./concept --memory 2048MB  #   2 gigabytes
-   ./concept --memory 8*2GB   #  16 gigabytes
-   ./concept --memory 0.5*TB  # 512 gigabytes
-   ./concept --mem 8G         #   8 gigabytes
+   ./concept --memory 4GB       #   4 gigabytes
+   ./concept --memory 2048MB    #   2 gigabytes
+   ./concept --memory "8*2GB"   #  16 gigabytes
+   ./concept --memory "0.5*TB"  # 512 gigabytes
+   ./concept --mem 8G           #   8 gigabytes
 
 Note that the specified memory is the total memory available to the job, to be
 shared amongst all MPI processes / CPU cores, even when running on multiple
