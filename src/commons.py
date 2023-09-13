@@ -5763,6 +5763,9 @@ def open_hdf5(filename, raise_exception=False, **kwargs):
     # The file was very recently available
     try:
         hdf5_file = h5py.File(filename, **kwargs)
+        # For some reason, adding a sleep here helps to avoid two
+        # processes opening the same file in write mode simultaneously.
+        sleep(0.1)
     except OSError:
         # We did not make it. Try again.
         return open_hdf5(filename, **kwargs)
