@@ -194,8 +194,14 @@ if [ "${resource_manager}" == "slurm" ]; then
     get_info() {
         ${info_command} --format='%i %j %u %M %t %P'
     }
+    # States designating a job waiting to be executed
+    states_waiting="CF PD SE"
     # State designating a running job
     state_running="R"
+    # States designating a job waiting to be executed
+    states_waiting="CF PD SE"
+    # States designating a finished job
+    states_done="BF CA CD CG F NF PR ST TO"
 elif [ "${resource_manager}" == "torque" ]; then
     # Torque/PBS is used. Check for the qstat command.
     info_command="qstat"
@@ -208,8 +214,12 @@ elif [ "${resource_manager}" == "torque" ]; then
     get_info() {
         ${info_command}
     }
+    # States designating a job waiting to be executed
+    states_waiting="Q T W"
     # State designating a running job
     state_running="R"
+    # States designating a finished job
+    states_done="C E"
 else
     colorprint "Error: Unrecognised resource manager \"${resource_manager}\"" "red"
     exit 1
@@ -468,7 +478,7 @@ inform_on_new_state() {
                 "Q") echo "Job ${jobid} is queued in ${queue}";;
                 "R") echo "Job ${jobid} is running in ${queue}";;
                 "T") echo "Job ${jobid} is being moved to a new location";;
-                "W") echo "Job ${jobid} is waiting for its executing time to be reached";;
+                "W") echo "Job ${jobid} is waiting for its execution time to be reached";;
                 "S") echo "Job ${jobid} is suspend";;
 "${state_notexist}") echo "Job ${jobid} has finished running";;
                 "" ) echo "Job ${jobid} is in an unspecified state";;
@@ -485,7 +495,7 @@ check_suddenly_finished() {
     update_job_info
     inform_on_new_state
     # If the job is already finished, printout the entire log and exit
-    if [ "${state}" == "C" ] || [ "${state}" == "${state_notexist}" ]; then
+    if [[ " ${states_done} " == *" ${state} "* ]] || [ "${state}" == "${state_notexist}" ]; then
         new_eta
         if [ -f "${job_dir}/${jobid}/log" ]; then
             display "${job_dir}/${jobid}/log"
@@ -555,8 +565,9 @@ if [ "${state}" != "${state_running}" ]; then
     while [ ${slept} -lt $((2*sleep_little)) ]; do
         if [ "${state}" == "${state_running}" ]; then
             break
+        elif [[ " ${states_waiting} " == *" ${state} "* ]]; then
+            print_eta
         fi
-        print_eta
         sleep ${sleep_barely}
         ((slept += ${sleep_barely}))
         check_suddenly_finished
@@ -565,14 +576,17 @@ if [ "${state}" != "${state_running}" ]; then
     while [ ${slept} -lt $((2*sleep_much)) ]; do
         if [ "${state}" == "${state_running}" ]; then
             break
+        elif [[ " ${states_waiting} " == *" ${state} "* ]]; then
+            print_eta
         fi
-        print_eta
         sleep ${sleep_little}
         ((slept += ${sleep_little}))
         check_suddenly_finished
     done
     while [ "${state}" != "${state_running}" ]; do
-        print_eta
+        if [[ " ${states_waiting} " == *" ${state} "* ]]; then
+            print_eta
+        fi
         sleep ${sleep_much}
         check_suddenly_finished
     done
