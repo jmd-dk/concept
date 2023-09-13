@@ -297,6 +297,8 @@ def plot_bispec(declaration, filename):
         label_treelevel = f'tree-level ({gauge} gauge{backscale_str})'
     # Helper functions
     def add_param_text(ax, *param_names):
+        if degenerate_3D:
+            return
         text = []
         for other_param_name, other_param_vals in bins_data.items():
             if other_param_name in param_names:
@@ -359,6 +361,7 @@ def plot_bispec(declaration, filename):
         return f'${ticklabel}$'
     # Determine what to plot
     dimensions = []
+    degenerate_3D = False
     if bpower.shape[0] > 1:
         if not np.all(np.isclose(k, k[0], 1e-4, 0)):
             dimensions.append('k')
@@ -366,6 +369,20 @@ def plot_bispec(declaration, filename):
             dimensions.append('t')
         if not np.all(np.isclose(μ, μ[0], 1e-4, 0)):
             dimensions.append('μ')
+        # Though all of k, t, μ vary, t and μ might be strictly related,
+        # in which case we should not treat both as independent.
+        if bpower.shape[0] > 2 and len(dimensions) == 3 and np.min(t) >= 0 and np.min(μ) >= 0:
+            tμ_pos_mask = (t > 0) & (μ > 0)
+            if np.sum(tμ_pos_mask) > 2:
+                t_pos = t[tμ_pos_mask]
+                μ_pos = μ[tμ_pos_mask]
+                poly_coeffs = np.polyfit(np.log(t_pos), np.log(μ_pos), 1)
+                if np.max(np.abs(np.exp(poly_coeffs[0]*np.log(t_pos) + poly_coeffs[1]) - μ_pos)) < 1e-4:
+                    degenerate_3D = True
+                    if bispec_plot_prefer == 't':
+                        dimensions.remove('μ')
+                    else:
+                        dimensions.remove('t')
     # Plot bispectrum in new figure
     ticklabelsizefac = 1
     if len(dimensions) == 0:

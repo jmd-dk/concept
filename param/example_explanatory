@@ -431,6 +431,7 @@ suppress_output = {                # Suppress terminal output matching these reg
     'err': (),
     'all': (),
 }
+bispec_plot_prefer = 't'  # Prefer t or μ as the independent variable for bispectrum plots?
 render2D_options = {  # Specifications of 2D renders for individual and sets of components
     'upstream gridsize': {  # Linear upstream grid sizes
         'particles': 'cbrt(N)',

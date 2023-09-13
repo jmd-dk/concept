@@ -2528,6 +2528,7 @@ cython.declare(
     terminal_width='int',
     enable_terminal_formatting='bint',
     suppress_output=dict,
+    bispec_plot_prefer=str,
     render2D_options=dict,
     render3D_options=dict,
     # Debugging options
@@ -4052,6 +4053,13 @@ for key, val in suppress_output.copy().items():
 suppress_output['out'] |= suppress_output['all']
 suppress_output['err'] |= suppress_output['all']
 user_params['suppress_output'] = suppress_output
+bispec_plot_prefer = str(user_params.get('bispec_plot_prefer', 't'))
+if bispec_plot_prefer.lower() == 'mu':
+    bispec_plot_prefer = 'μ'
+bispec_plot_prefer = unicode(bispec_plot_prefer)
+if bispec_plot_prefer not in ('t', unicode('μ')):
+    abort(f'bispec_plot_prefer = "{bispec_plot_prefer}" ∉ {{"t", "μ"}}')
+user_params['bispec_plot_prefer'] = bispec_plot_prefer
 render2D_options_defaults = {
     'upstream gridsize': {
         'default': -1,
@@ -5763,9 +5771,6 @@ def open_hdf5(filename, raise_exception=False, **kwargs):
     # The file was very recently available
     try:
         hdf5_file = h5py.File(filename, **kwargs)
-        # For some reason, adding a sleep here helps to avoid two
-        # processes opening the same file in write mode simultaneously.
-        sleep(0.1)
     except OSError:
         # We did not make it. Try again.
         return open_hdf5(filename, **kwargs)
