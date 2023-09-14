@@ -381,7 +381,7 @@ if [ "${jobid}" == "${jobid_unspecified}" ]; then
     search_job
     if [ ${Njobs} -eq 0 ]; then
         if [ "${indefinite}" == "True" ]; then
-            echo "Waiting for ${esc_concept} job to be submitted"
+            printf "Waiting for ${esc_concept} job to be submitted\n"
         else
             colorprint "Error: Could not find any submitted ${esc_concept} jobs" "red"
             exit 1
