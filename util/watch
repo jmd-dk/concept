@@ -300,8 +300,8 @@ update_job_info() {
         state="${state_candidate}"
         queue="${queue_candidate}"
         if [ ${Njobs} -gt 1 ]; then
-            new_eta
-            printf "Found ${Njobs} submitted jobs named \"${job_name}\" submitted\n"
+            new_eta 2>/dev/null || :  # possibly not yet defined
+            printf "Found ${Njobs} submitted jobs named \"${job_name}\"\n"
             if [ "${state}" == "${state_running}" ]; then
                 echo "The latest running job (${jobid}) will be watched"
             else
@@ -550,7 +550,7 @@ erase_eta() {
     new_eta
     printf "${esc_up}${esc_erase}"
 }
-new_eta(){
+new_eta() {
     text_eta=""
 }
 new_eta
