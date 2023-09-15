@@ -582,6 +582,7 @@ done
 # Backup of initial environment variables
 env_var_names=(       \
     BLAS              \
+    BUILD_ZLIB        \
     CC                \
     CFLAGS            \
     CPPFLAGS          \
@@ -615,6 +616,8 @@ env_var_names=(       \
     TEMP              \
     TMP               \
     TMPDIR            \
+    ZLIB_INCLUDE      \
+    ZLIB_LIB          \
 )
 for env_var_name in "${env_var_names[@]}"; do
     # Save initial state (set/unset) of the environment variable
@@ -5950,6 +5953,18 @@ perl_install_func() {
     if [ "${perl_define_float_macros}" == "True" ]; then
         define_float_macros "perl.h" || return 1
     fi
+    # Perl installs its own internal copy of zlib, which may fail.
+    # If we have already installed zlib ourselves,
+    # we may try to use this installation instead.
+    if [ "${use_installed_zlib}" == "True" ]; then
+        if [ -z "${zlib_dir}" ] || [ ! -d "${zlib_dir}/include" ] || [ ! -d "${zlib_dir}/lib" ]; then
+            # No installed zlib found
+            return 1
+        fi
+        export BUILD_ZLIB=0
+        export ZLIB_INCLUDE="${zlib_dir}/include"
+        export ZLIB_LIB="${zlib_dir}/lib"
+    fi
     ./Configure ${perl_config_options} 2>&1 || return 1
     # Sometimes make fails to build due to #include of poll.h from a
     # wrong location. A fix for this is implemented below.
@@ -6001,6 +6016,7 @@ install "Perl"                                  \
     compiler "${compiler_possibilities[@]}" ";" \
     perl_define_float_macros "False" "True" ";" \
     without_then_with_cc "False" "True"     ";" \
+    use_installed_zlib "False" "True"       ";" \
     dump_libimf "True" "False"              ";" \
     perl_poll_fix "False" "True"            ";" \
     perl_cflags "" "-fPIC"                  ";" \
