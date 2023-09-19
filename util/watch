@@ -25,8 +25,8 @@
 # Running this script after submitting a remote CO𝘕CEPT job
 # via Slurm/TORQUE/PBS will print out the output of the code
 # as it is being run. If multiple jobs are running or in queue,
-# the latest will be watched. Alternatively, the job ID can be
-# passed as the first argument.
+# the latest will be watched. Alternatively, the job ID or name
+# can be passed as the first argument.
 
 
 
@@ -186,7 +186,7 @@ if [ "${resource_manager}" == "slurm" ]; then
     # Slurm is used. Check for the squeue command.
     info_command="squeue"
     if ! get_command "${info_command}" >/dev/null; then
-        colorprint "Error: Could not find the slurm '${info_command}' command" "red"
+        colorprint "Error: Could not find the Slurm '${info_command}' command" "red"
         exit 1
     fi
     # Function which lists information about all jobs in standard
@@ -198,8 +198,6 @@ if [ "${resource_manager}" == "slurm" ]; then
     states_waiting="CF PD SE"
     # State designating a running job
     state_running="R"
-    # States designating a job waiting to be executed
-    states_waiting="CF PD SE"
     # States designating a finished job
     states_done="BF CA CD CG F NF PR ST TO"
 elif [ "${resource_manager}" == "torque" ]; then
@@ -374,7 +372,7 @@ search_job() {
 }
 sleep_barely=5
 sleep_little=30
-sleep_much=300
+sleep_much=120
 if [ "${jobid}" == "${jobid_unspecified}" ]; then
     # Search for submitted job(s). If none is found, error out.
     # If we should search indefinitely, do so using exponential backoff.
@@ -388,7 +386,7 @@ if [ "${jobid}" == "${jobid_unspecified}" ]; then
         fi
     fi
     slept=0
-    while [ ${slept} -lt $((2*sleep_little)) ]; do
+    while [ ${slept} -lt $((5*sleep_little)) ]; do
         if [ ${Njobs} -ne 0 ]; then
             break
         fi
@@ -397,7 +395,7 @@ if [ "${jobid}" == "${jobid_unspecified}" ]; then
         search_job
     done
     slept=0
-    while [ ${slept} -lt $((2*sleep_much)) ]; do
+    while [ ${slept} -lt $((5*sleep_much)) ]; do
         if [ ${Njobs} -ne 0 ]; then
             break
         fi
@@ -528,7 +526,7 @@ else:
     diff = int(round((eta - now).total_seconds()))
     if diff > 60**2 and float('0${slept}') > 60:
         diff = int(round(diff/60))*60
-    if diff > 0:
+    if diff > ${sleep_barely}:
         print(nice_time_interval(diff))
     else:
         print(0)
@@ -562,7 +560,7 @@ inform_on_new_state
 if [ "${state}" != "${state_running}" ]; then
     check_suddenly_finished
     slept=0
-    while [ ${slept} -lt $((2*sleep_little)) ]; do
+    while [ ${slept} -lt $((5*sleep_little)) ]; do
         if [ "${state}" == "${state_running}" ]; then
             break
         elif [[ " ${states_waiting} " == *" ${state} "* ]]; then
@@ -573,7 +571,7 @@ if [ "${state}" != "${state_running}" ]; then
         check_suddenly_finished
     done
     slept=0
-    while [ ${slept} -lt $((2*sleep_much)) ]; do
+    while [ ${slept} -lt $((5*sleep_much)) ]; do
         if [ "${state}" == "${state_running}" ]; then
             break
         elif [[ " ${states_waiting} " == *" ${state} "* ]]; then
@@ -601,19 +599,21 @@ fi
 slept=0
 message_printed="False"
 while [ ! -f "${job_dir}/${jobid}/log" ]; do
-    sleep ${sleep_little}
-    ((slept += ${sleep_little}))
-    # After having slept for a long time, check that the job
-    # has not just finished without producing a log file.
-    if [ ${slept} -ge ${sleep_much} ]; then
-        check_suddenly_finished
-        slept=0
-        if [ "${message_printed}" == "False" ]; then
-            echo "Can't find log file of job ${jobid}" >&2
-            if [[ "${job_name}" != "${job_name_default}"* ]]; then
-                printf "Are you certain that job ${jobid} is a ${esc_concept} job?\n" >&2
-            fi
-            message_printed="True"
+    check_suddenly_finished
+    if [ ${slept} -lt $((5*sleep_little)) ]; then
+        sleep ${sleep_barely}
+        ((slept += ${sleep_barely}))
+    elif [ ${slept} -lt $((5*sleep_much)) ]; then
+        sleep ${sleep_little}
+        ((slept += ${sleep_little}))
+    else
+        sleep ${sleep_much}
+    fi
+    if [ ${slept} -ge ${sleep_much} ] && [ "${message_printed}" == "False" ]; then
+        message_printed="True"
+        echo "Can't find log file of job ${jobid}" >&2
+        if [[ "${job_name}" != "${job_name_default}"* ]]; then
+            printf "Are you certain that job ${jobid} is a ${esc_concept} job?\n" >&2
         fi
     fi
 done
@@ -624,21 +624,29 @@ tail -n 0 -f -s ${sleep_barely} "${job_dir}/${jobid}/log" &
 tail_pid=$!
 update_job_info
 inform_on_new_state
-slept=0
-if [ "${state}" != "${state_notexist}" ]; then
-    # Wait a small time before re-querying the job state
-    sleep ${sleep_little}
-    update_job_info
-    inform_on_new_state
-    while [ "${state}" != "${state_notexist}" ]; do
-        # Wait a long time before re-querying the job state
-        if [ ${slept} -gt ${sleep_much} ]; then
-            sleep ${sleep_much}
-            ((slept += ${sleep_much}))
-        else
-            sleep ${sleep_little}
-            ((slept += ${sleep_little}))
+if [[ " ${states_done} " != *" ${state} "* ]] && [ "${state}" != "${state_notexist}" ]; then
+    slept=0
+    while [ ${slept} -lt $((5*sleep_little)) ]; do
+        if [[ " ${states_done} " == *" ${state} "* ]] || [ "${state}" == "${state_notexist}" ]; then
+            break
         fi
+        sleep ${sleep_barely}
+        ((slept += ${sleep_barely}))
+        update_job_info
+        inform_on_new_state
+    done
+    slept=0
+    while [ ${slept} -lt $((5*sleep_much)) ]; do
+        if [[ " ${states_done} " == *" ${state} "* ]] || [ "${state}" == "${state_notexist}" ]; then
+            break
+        fi
+        sleep ${sleep_little}
+        ((slept += ${sleep_little}))
+        update_job_info
+        inform_on_new_state
+    done
+    while [[ " ${states_done} " != *" ${state} "* ]] && [ "${state}" != "${state_notexist}" ]; do
+        sleep ${sleep_much}
         update_job_info
         inform_on_new_state
     done
@@ -646,7 +654,7 @@ fi
 
 # Kill the tail command silently before exiting
 if [ -n "${tail_pid}" ]; then
-    sleep ${sleep_little}
+    sleep 0.1
     exec 3>&2
     exec 2>/dev/null
     kill -SIGKILL ${tail_pid} >/dev/null 2>&1 || :
