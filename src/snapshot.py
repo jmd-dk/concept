@@ -1020,6 +1020,10 @@ class GadgetSnapshot:
             msg_list.append(f'{component.name} ({N_str} {component.species}) particle{plural}')
         msg = ', '.join(msg_list)
         masterprint(f'Writing out {msg} ...')
+        if num_files > 1:
+            # Ensure correct printout
+            masterprint(ensure_newline_after_ellipsis=False)
+            Barrier()
         # Determine whether to save positions and/or velocities
         save_pos = save_vel = True
         if not save_all:
@@ -1324,6 +1328,7 @@ class GadgetSnapshot:
                 fancyprint(
                     f'{indentation}Writing snapshot file {file_index}/{num_files - 1}',
                     indent=-1,
+                    ensure_newline_after_ellipsis=False,
                 )
             self.write_header(filename, num_write_files_tot[file_index])
         # Extract block specifics

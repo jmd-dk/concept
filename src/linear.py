@@ -38,6 +38,7 @@ cimport(
     '    cosmic_time,          '
     '    hubble,               '
     '    remove_doppelgängers, '
+    '    scale_factor,         '
     '    Ḣ,                    '
     '    ȧ,                    '
     '    ä,                    '
@@ -1422,11 +1423,12 @@ class CosmoResults:
 @cython.cclass
 class TransferFunction:
     # Initialisation method
-    @cython.header(# Arguments
-                   cosmoresults=object,  # CosmoResults
-                   component='Component',
-                   var_name=str,
-                   )
+    @cython.header(
+        # Arguments
+        cosmoresults=object,  # CosmoResults
+        component='Component',
+        var_name=str,
+    )
     def __init__(self, cosmoresults, component, var_name):
         # The triple quoted string below serves as the type declaration
         # for the data attributes of the TransferFunction type.
@@ -2230,25 +2232,16 @@ class TransferFunction:
         a_next='double',
         weight=str,
         # Locals
-        a_i='double',
-        a_values='double[::1]',
-        a_values_list=list,
-        fac_density='int',
-        i='Py_ssize_t',
-        index_min='Py_ssize_t',
-        index_max='Py_ssize_t',
         k_local='Py_ssize_t',
-        n_side_points='int',
-        size='Py_ssize_t',
-        spline='Spline',
+        spline_weighted_transfer='Spline',
+        spline_weighted_transfer_name=str,
+        spline_weights='Spline',
+        spline_weights_name=str,
         t='double',
         t_next='double',
         t_values='double[::1]',
-        w_eff_i='double',
         weighted_transfer='double[::1]',
-        weighted_transfer_arr=object,  # np.ndarray
         weights='double[::1]',
-        weights_arr=object,  # np.ndarray
         returns='double[::1]',
     )
     def as_function_of_k(self, a, a_next=-1, weight=None):
@@ -2277,75 +2270,34 @@ class TransferFunction:
                     f'as_function_of_k() was called with a_next = {a_next}, weight = "{weight}". '
                     f'When using a weight you must also specify a_next.'
                 )
-            # Number of additional tabulated points to include on both
-            # sides of the interval [a, a_next]. Should not exceed
-            # "crossover" set in TransferFunction.process.
-            n_side_points = 1
-            # Number of points in the averaging integrands between each
-            # pair of points in the tabulated transfer functions.
-            fac_density = 10
-            # Grab buffers for the integrands
-            weights_arr           = self.as_function_of_k_buffers['weights']
-            weighted_transfer_arr = self.as_function_of_k_buffers['weighted_transfer']
-            weights, weighted_transfer = weights_arr, weighted_transfer_arr
             # The averaging integrals are over cosmic time,
             # not scale factor.
             t, t_next = cosmic_time(a), cosmic_time(a_next)
-            # For each k, compute and store the averaged transfer
-            # function over the time step, and also the averaged
-            # weight by itself.
+            # For each k, compute and store the averaged weighted
+            # transfer function
+            # (ᔑ weight(t) dt)⁻¹ (ᔑ weight(t)*transfer(t) dt) over the
+            # time step, and also the averaged weight (ᔑ weight(t) dt)
+            # by itself.
+            spline_weights_name = f'k={{}}: {weight}(t)'
+            spline_weighted_transfer_name = (
+                f'k={{}}: {weight}(t)*{unicode(self.var_name)}_{self.class_species}(t)'
+            )
             for k_local in range(self.k_gridsize_local):
-                # Get array of a values between a and a_next at which
-                # the k'th transfer function is tabulated.
-                a_values = self.a_values[k_local]
-                index_min = np.searchsorted(a_values, a, 'right')
-                index_max = np.searchsorted(a_values, a_next, 'left')
-                index_min -= n_side_points + 1
-                index_max += n_side_points
-                if index_min < 0:
-                    index_min = 0
-                if index_max > a_values.shape[0] - 1:
-                    index_max = a_values.shape[0] - 1
-                a_values = linspace(
-                    a_values[index_min], a_values[index_max], (index_max - index_min)*fac_density,
+                t_values, weights, weighted_transfer = self.get_integrand(
+                    k_local, a, a_next, weight,
                 )
-                size = a_values.shape[0]
-                # Compute weighted transfer function values
-                # at the tabulated times.
-                if size > weighted_transfer.shape[0]:
-                    weights_arr          .resize(size, refcheck=False)
-                    weighted_transfer_arr.resize(size, refcheck=False)
-                    weights, weighted_transfer = weights_arr, weighted_transfer_arr
-                for i in range(size):
-                    a_i = a_values[i]
-                    with unswitch:
-                        if weight == '1':
-                            weights[i] = 1.0
-                        elif weight == 'a**(-3*w_eff-1)':
-                            w_eff_i = self.component.w_eff(a=a_i)
-                            weights[i] = a_i**(-3*w_eff_i - 1)
-                        elif weight == 'a**(3*w_eff-2)':
-                            w_eff_i = self.component.w_eff(a=a_i)
-                            weights[i] = a_i**(3*w_eff_i - 2)
-                        elif weight == 'a**(-3*w_eff)':
-                            w_eff_i = self.component.w_eff(a=a_i)
-                            weights[i] = a_i**(-3*w_eff_i)
-                        else:
-                            abort(f'weight "{weight}" not implemented in as_function_of_k()')
-                    weighted_transfer[i] = weights[i]*self.eval(k_local, a_i)
-                    # Replace the i'th scale factor value with the
-                    # corresponding cosmic time.
-                    a_values[i] = cosmic_time(a_i)
-                # All scale factor values have now been replaced
-                # with cosmic times.
-                t_values = a_values
-                # Compute and store the weighted transfer function
-                # 1/(ᔑ weight(t) dt) * ᔑ weight(t)*transfer(t) dt.
-                spline_weights           = Spline(t_values, weights[:size], 'weight(t)')
+                spline_weights = Spline(
+                    t_values,
+                    weights,
+                    spline_weights_name.format(k_local),
+                )
                 spline_weighted_transfer = Spline(
-                    t_values, weighted_transfer[:size], 'weight(t)*transfer(t)'
+                    t_values,
+                    weighted_transfer,
+                    spline_weighted_transfer_name.format(k_local)
                 )
-                self.data_local[k_local] = (spline_weighted_transfer.integrate(t, t_next)
+                self.data_local[k_local] = (
+                    spline_weighted_transfer.integrate(t, t_next)
                     /spline_weights.integrate(t, t_next)
                 )
         else:
@@ -2357,7 +2309,87 @@ class TransferFunction:
         smart_mpi(self.data_local, self.data, mpifun='allgatherv')
         self.data = asarray(self.data)[self.k_indices_all]
         return self.data
-    # Persistent buffers used by the as_function_of_k() method,
+
+    # Helper method for constructing integrands
+    # of transfer functions over time.
+    @cython.pheader(
+        # Arguments
+        k_local='Py_ssize_t',
+        a='double',
+        a_next='double',
+        weight=str,
+        # Locals
+        a_i='double',
+        a_values='double[::1]',
+        fac_density='int',
+        i='Py_ssize_t',
+        index_max='Py_ssize_t',
+        index_min='Py_ssize_t',
+        n_side_points='int',
+        size='Py_ssize_t',
+        t_values='double[::1]',
+        w_eff_i='double',
+        weighted_transfer='double[::1]',
+        weighted_transfer_arr=object,  # np.ndarray
+        weights='double[::1]',
+        weights_arr=object,  # np.ndarray
+        returns=tuple,
+    )
+    def get_integrand(self, k_local, a, a_next, weight):
+        # Number of additional tabulated points to include on both
+        # sides of the interval [a, a_next]. Should not exceed
+        # "crossover" set in TransferFunction.process.
+        n_side_points = 1
+        # Number of points in the averaging integrands between each
+        # pair of points in the tabulated transfer functions.
+        fac_density = 10
+        # Grab buffers for the integrands
+        weights_arr           = self.as_function_of_k_buffers['weights']
+        weighted_transfer_arr = self.as_function_of_k_buffers['weighted_transfer']
+        weights, weighted_transfer = weights_arr, weighted_transfer_arr
+        # Get array of a values between a and a_next at which
+        # the k'th transfer function is tabulated.
+        a_values = self.a_values[k_local]
+        index_min = np.searchsorted(a_values, a, 'right')
+        index_max = np.searchsorted(a_values, a_next, 'left')
+        index_min -= n_side_points + 1
+        index_max += n_side_points
+        if index_min < 0:
+            index_min = 0
+        if index_max > a_values.shape[0] - 1:
+            index_max = a_values.shape[0] - 1
+        # Create new tabulation, equidistantly spaced in cosmic time
+        size = (index_max - index_min)*fac_density
+        t_values = linspace(
+            cosmic_time(a_values[index_min]),
+            cosmic_time(a_values[index_max]),
+            size,
+        )
+        # Compute weighted transfer function values on new tabulation
+        if size > weighted_transfer.shape[0]:
+            weights_arr          .resize(size, refcheck=False)
+            weighted_transfer_arr.resize(size, refcheck=False)
+            weights, weighted_transfer = weights_arr, weighted_transfer_arr
+        for i in range(size):
+            a_i = scale_factor(t_values[i])
+            with unswitch:
+                if weight == '1':
+                    weights[i] = 1.0
+                elif weight == 'a**(-3*w_eff-1)':
+                    w_eff_i = self.component.w_eff(a=a_i)
+                    weights[i] = a_i**(-3*w_eff_i - 1)
+                elif weight == 'a**(3*w_eff-2)':
+                    w_eff_i = self.component.w_eff(a=a_i)
+                    weights[i] = a_i**(3*w_eff_i - 2)
+                elif weight == 'a**(-3*w_eff)':
+                    w_eff_i = self.component.w_eff(a=a_i)
+                    weights[i] = a_i**(-3*w_eff_i)
+                else:
+                    abort(f'weight "{weight}" not implemented in get_integrand()')
+            weighted_transfer[i] = weights[i]*self.eval(k_local, a_i)
+        # Return new tabulation
+        return t_values, weights[:size], weighted_transfer[:size]
+    # Persistent buffers used by the get_integrand() method,
     # shared among all instances.
     as_function_of_k_buffers = {
         'weights'          : empty(1, dtype=C2np['double']),

@@ -1319,14 +1319,12 @@ def realize_particles(component, a):
             # using the Zel'dovich approximation.
             for dim in range(3):
                 slab = realize_grid(gridsize, component, a, amplitudes, 1, dim, lattice)
-                displace_particles(component, slab, a, n_particles, indexᵖ_bgn, variable, dim)
+                displace_particles(component, slab, a, indexᵖ_bgn, variable, dim)
                 if backscale:
                     # Assign momenta using the displacement field
                     # if using back-scaling.
                     velocity_factor = a*hubble(a)*growth_fac_f
-                    displace_particles(
-                        component, slab, a, n_particles, indexᵖ_bgn, 1, dim, velocity_factor,
-                    )
+                    displace_particles(component, slab, a, indexᵖ_bgn, 1, dim, velocity_factor)
             masterprint('done')
             # Done with both positions and momenta if using back-scaling
             if backscale:
@@ -1357,12 +1355,8 @@ def realize_particles(component, a):
                     gridsize, component, a, amplitude, 1, dim, lattice,
                     slab_structure=slab_nongaussian,
                 )
-                displace_particles(
-                    component, slab, a, n_particles, indexᵖ_bgn, 0, dim,
-                )
-                displace_particles(
-                    component, slab, a, n_particles, indexᵖ_bgn, 1, dim, velocity_factor,
-                )
+                displace_particles(component, slab, a, indexᵖ_bgn, 0, dim)
+                displace_particles(component, slab, a, indexᵖ_bgn, 1, dim, velocity_factor)
             masterprint('done')
         # Add second-order (2LPT) contributions to positions and momenta
         if do_2lpt:
@@ -1412,12 +1406,8 @@ def realize_particles(component, a):
                     gridsize, component, a, amplitude, 1, dim, lattice,
                     slab_structure=slab_2lpt,
                 )
-                displace_particles(
-                    component, slab, a, n_particles, indexᵖ_bgn, 0, dim,
-                )
-                displace_particles(
-                    component, slab, a, n_particles, indexᵖ_bgn, 1, dim, velocity_factor,
-                )
+                displace_particles(component, slab, a, indexᵖ_bgn, 0, dim)
+                displace_particles(component, slab, a, indexᵖ_bgn, 1, dim, velocity_factor)
             masterprint('done')
         # Prepare for next lattice
         id_bgn += n_particles
@@ -1567,7 +1557,6 @@ def preinitialize_particles(component, n_particles=-1, indexᵖ_bgn=0, id_bgn=0,
     component='Component',
     slab='double[:, :, ::1]',
     a='double',
-    n_particles='Py_ssize_t',
     indexᵖ_bgn='Py_ssize_t',
     variable='int',
     dim='int',
@@ -1585,7 +1574,7 @@ def preinitialize_particles(component, n_particles=-1, indexᵖ_bgn=0, id_bgn=0,
     ψⁱ_ptr='double*',
     returns='void',
 )
-def displace_particles(component, slab, a, n_particles, indexᵖ_bgn, variable, dim, factor=1):
+def displace_particles(component, slab, a, indexᵖ_bgn, variable, dim, factor=1):
     if component.representation != 'particles':
         abort(f'displace_particles() called with non-particle component {component.name}')
     # Domain-decompose realised real-space grid.

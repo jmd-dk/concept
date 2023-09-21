@@ -304,6 +304,12 @@ class Spline:
             acc_store.pop(digest, None)
             acc_counter.pop(digest, None)
 
+    # String representation
+    def __repr__(self):
+        return f'<Spline "{self.name}">'
+    def __str__(self):
+        return self.__repr__()
+
 # Container class for storing GSL interpolation accelerator objects
 @cython.cclass
 class AcceleratorContainer:

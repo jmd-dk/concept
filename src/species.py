@@ -107,6 +107,7 @@ class Tensor:
         self.additional_dofs = ('trace', )
         for additional_dof in self.additional_dofs:
             self.data[additional_dof] = None
+
     # Method for processing multi_indices.
     # This is where the symmetry of the indices is implemented.
     def process_multi_index(self, multi_index):
@@ -126,6 +127,7 @@ class Tensor:
             # The tensor has been indexed with a non-existing index
             raise KeyError(f'An attempt was made to index {self} using {multi_index}')
         return multi_index
+
     # Methods for indexing and membership testing
     def __getitem__(self, multi_index):
         multi_index = self.process_multi_index(multi_index)
@@ -148,6 +150,7 @@ class Tensor:
         except (IndexError, KeyError):
             return False
         return multi_index in self.data
+
     # Iteration
     def __iter__(self):
         """By default, iteration yields all elements, except for
@@ -195,6 +198,7 @@ class Tensor:
                         yield values[0]
                     else:
                         yield tuple(values)
+
     # String representation
     def __repr__(self):
         return f'<Tensor({self.component}, {self.varnum}, {self.shape}>'
