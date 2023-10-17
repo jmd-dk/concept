@@ -2736,6 +2736,7 @@ def get_bispec_overlap_blockball(x_bgn, y_bgn, z_bgn, r, Δx, y_bgn2, z_bgn2, r2
     arctan_xyz='double',
     arctan_xz='double',
     arctan_yz='double',
+    r8='double',
     sqrt_y='double',
     sqrt_z='double',
     x2='double',
@@ -2744,12 +2745,14 @@ def get_bispec_overlap_blockball(x_bgn, y_bgn, z_bgn, r, Δx, y_bgn2, z_bgn2, r2
     xx_zero='bint',
     yy='double',
     yy_zero='bint',
+    ϵ='double',
     returns='double',
 )
 def get_bispec_overlap_blockball_indefinite(x, y_bgn, z_bgn, r, y_bgn2, z_bgn2, r2):
     x = x*(x <= r) + r*(x > r)
     x2 = x**2
     x4 = x2**2
+    r8 = r2**4
     sqrt_y = ℝ[r2 - x2] - y_bgn2
     sqrt_y = sqrt(sqrt_y*(sqrt_y > 0))
     sqrt_z = ℝ[r2 - x2] - z_bgn2
@@ -2774,10 +2777,10 @@ def get_bispec_overlap_blockball_indefinite(x, y_bgn, z_bgn, r, y_bgn2, z_bgn2, 
                 + r2*(
                     - ℝ[2*x2]
                     - ℝ[y_bgn2 + z_bgn2]
-                    + r2
                 )
             )
         )
+        + r8
     )
     yy = 2*x*r*(
         - x2*(
@@ -2789,8 +2792,9 @@ def get_bispec_overlap_blockball_indefinite(x, y_bgn, z_bgn, r, y_bgn2, z_bgn2, 
             + ℝ[z_bgn*sqrt_z]*(ℝ[r2 - x2] - y_bgn2)
         )
     )
-    xx_zero = (-1e-4 < xx) & (xx < 1e-4)
-    yy_zero = (-1e-4 < yy) & (yy < 1e-4)
+    ϵ = 1e-14*(r8 + 1)
+    xx_zero = (-ϵ < xx) & (xx < ϵ)
+    yy_zero = (-ϵ < yy) & (yy < ϵ)
     xx = xx*(not xx_zero) - 1e-100*xx_zero
     yy = yy*(not yy_zero) + 1e-200*yy_zero
     arctan_xyz = arctan2(yy, xx)
