@@ -127,8 +127,13 @@ special_params = {
 }
 # Input/output
 powerspec_select = {
-    'all'             : {'data': True, 'linear': False, 'plot': True},
-    'all combinations': {'data': True, 'linear': False, 'plot': True},
+    'all': {
+        'data'     : True,
+        'corrected': False,
+        'linear'   : False,
+        'plot'     : True,
+    },
+    'all combinations': ...,
 }
 snapshot_select = {
     'load': {

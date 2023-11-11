@@ -244,23 +244,24 @@ print-vars:
 ###################
 # Cleanup targets #
 ###################
-.PHONY:                   \
-    clean                 \
-    clean-autosave        \
-    clean-doc             \
-    clean-ic              \
-    clean-job             \
-    clean-output          \
-    clean-reusable        \
-    clean-bispec-reusable \
-    clean-class-reusable  \
-    clean-ewald-reusable  \
-    clean-fftw-reusable   \
-    clean-test            \
-    clean-tmp             \
-    clean-util            \
-    distclean             \
-    distclean-except-tmp  \
+.PHONY:                      \
+    clean                    \
+    clean-autosave           \
+    clean-doc                \
+    clean-ic                 \
+    clean-job                \
+    clean-output             \
+    clean-reusable           \
+    clean-bispec-reusable    \
+    clean-class-reusable     \
+    clean-ewald-reusable     \
+    clean-fftw-reusable      \
+    clean-powerspec-reusable \
+    clean-test               \
+    clean-tmp                \
+    clean-util               \
+    distclean                \
+    distclean-except-tmp     \
 
 # Remove build files
 clean:
@@ -291,6 +292,8 @@ clean-ewald-reusable:
 	$(RM) -r "$(reusable_dir)/ewald"
 clean-fftw-reusable:
 	$(RM) -r "$(reusable_dir)/fftw"
+clean-powerspec-reusable:
+	$(RM) -r "$(reusable_dir)/powerspec"
 # Remove files produced by running tests
 clean-test:
 	$(RM) -r "${test_dir}"/*/artifact

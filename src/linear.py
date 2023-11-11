@@ -2844,23 +2844,26 @@ def compute_transfer(
 @cython.header(
     # Arguments
     gridsize='Py_ssize_t',
+    n_pad='int',
     use_cache='bint',
     # Locals
-    k_magnitudes_str=str,
+    i='Py_ssize_t',
     k_gridsize='Py_ssize_t',
     k_magnitudes='double[::1]',
+    k_magnitudes_str=str,
     k_max='double',
     k_min='double',
     k_safety_factor='double',
     logk='double',
-    logk_magnitudes=object,  # list, np.ndarray
-    logk_modes_per_decade_interp=object,  # scipy.interpolate.interp1d
+    logk_magnitudes=list,
     logk_max='double',
     logk_min='double',
+    logk_modes_per_decade_interp=object,  # scipy.interpolate.interp1d
     nyquist='Py_ssize_t',
+    scaling='double',
     returns=tuple,
 )
-def get_k_magnitudes(gridsize, use_cache=True):
+def get_k_magnitudes(gridsize, n_pad=3, use_cache=True):
     # Cache lookup
     if use_cache:
         cached = k_magnitudes_cache.get(gridsize)
@@ -2871,22 +2874,36 @@ def get_k_magnitudes(gridsize, use_cache=True):
     if gridsize < 4:
         abort(f'get_k_magnitudes() got gridsize = {gridsize} < 4')
     # Minimum and maximum k
+    k_safety_factor = 1e-2
+    logk_modes_per_decade_interp = get_controlpoint_spline(class_modes_per_decade, np.log10)
     k_min = ℝ[2*π/boxsize]
     nyquist = gridsize//2
     k_max = k_min*sqrt(3*(nyquist - 1)**2)
-    k_safety_factor = 2*10**float(-np.max([get_k_str_n_decimals(), 1]))
-    k_min *= ℝ[1 - k_safety_factor]
-    k_max *= ℝ[1 + k_safety_factor]
     logk_min = log10(k_min)
     logk_max = log10(k_max)
-    # Starting from log10(k_min), append new log10(k)
-    # using a running number of modes/decade.
+    logk_min -= k_safety_factor/logk_modes_per_decade_interp(logk_min)
+    logk_max += k_safety_factor/logk_modes_per_decade_interp(logk_max)
+    # Starting from log10(k_min), add n_pad smaller padding modes,
+    # using a running number of modes/decade. These padding modes
+    # increases the accuracy of future splines.
     logk = logk_min
     logk_magnitudes = [logk]
-    logk_modes_per_decade_interp = get_controlpoint_spline(class_modes_per_decade, np.log10)
+    for i in range(n_pad):
+        logk -= 1/logk_modes_per_decade_interp(logk)
+        logk_magnitudes.append(logk)
+    logk_magnitudes = logk_magnitudes[::-1]
+    # Now add the main modes
+    logk = logk_min
     while logk <= logk_max:
         logk += 1/logk_modes_per_decade_interp(logk)
         logk_magnitudes.append(logk)
+    # Add n_pad larger padding modes.
+    # As perturbations at large modes are expensive to compute,
+    # we squeeze them to fit within one normal bin width.
+    for i in range(n_pad):
+        logk += 1/(n_pad*logk_modes_per_decade_interp(logk))
+        logk_magnitudes.append(logk)
+    # Check if we are constructing too many modes for CLASS to handle
     k_gridsize = len(logk_magnitudes)
     if k_gridsize > k_gridsize_max:
         abort(
@@ -2894,15 +2911,13 @@ def get_k_magnitudes(gridsize, use_cache=True):
             f'To allow for more k modes, you may increase the CLASS macro '
             f'_ARGUMENT_LENGTH_MAX_ in include/parser.h.'
         )
-    logk_magnitudes = asarray(logk_magnitudes)
-    # The last log10(k) is guaranteed to be slightly larger
-    # than logk_max. Scale the tabulated log10(k) so that they exactly
-    # span [log10(k_min), log10(k_max)].
-    logk_magnitudes -= logk_min
-    logk_magnitudes *= (logk_max - logk_min)/logk_magnitudes[k_gridsize - 1]
-    logk_magnitudes += logk_min
-    # Construct the k array
-    k_magnitudes = 10**logk_magnitudes
+    # The last non-padding mode will be slightly larger than k_max.
+    # Scale the tabulation so that this mode exactly equals k_max,
+    # while pinning the mode at k_min. Also transform to linear space.
+    scaling = (logk_max - logk_min)/(logk_magnitudes[k_gridsize - 1 - n_pad] - logk_min)
+    k_magnitudes = asarray(logk_magnitudes)
+    for i in range(k_gridsize):
+        k_magnitudes[i] = 10**(scaling*k_magnitudes[i] + ℝ[logk_min*(1 - scaling)])
     # Make the exact k values suitable for CLASS
     # and produce a str representation.
     k_magnitudes, k_magnitudes_str = prepare_class_k(k_magnitudes)
@@ -2914,6 +2929,15 @@ def get_k_magnitudes(gridsize, use_cache=True):
 cython.declare(k_magnitudes_cache=dict)
 k_magnitudes_cache = {}
 def prepare_class_k(k_magnitudes, n_extra=0):
+    def next_number(num, n, direction):
+        base, e, exponent = num.partition('e')
+        num = '{}{}{}'.format(
+            float(base) + direction*float(re.sub(r'\d', '0', base)[:-1] + '1'),
+            e,
+            exponent,
+        )
+        num = k_float2str(float(num), n)
+        return num
     # Convert to CLASS units, i.e. Mpc⁻¹, which shall be the unit
     # used for the str representation of k_magnitudes.
     k_magnitudes = asarray(k_magnitudes)/units.Mpc**(-1)
@@ -2921,15 +2945,27 @@ def prepare_class_k(k_magnitudes, n_extra=0):
     # str representation. Increase the number of decimals until each
     # mode has a unique str representation.
     n = get_k_str_n_decimals() + n_extra
+    sep = ','
     while True:
         with disable_numpy_summarization():
             k_magnitudes_str = np.array2string(
                 k_magnitudes,
                 max_line_width=ထ,
                 formatter={'float': functools.partial(k_float2str, n=n)},
-                separator=',',
+                separator=sep,
             ).strip('[]')
-        k_magnitudes = np.fromstring(k_magnitudes_str, sep=',')
+        k_magnitudes_list = [num.strip() for num in k_magnitudes_str.split(sep)]
+        # Ensure that the first k is rounded down
+        # and that the last k is rounded up.
+        num = k_magnitudes_list[0]
+        if float(num) > k_magnitudes[0]:
+            k_magnitudes_list[0] = next_number(num, n, -1)
+        num = k_magnitudes_list[-1]
+        if float(num) < k_magnitudes[-1]:
+            k_magnitudes_list[-1] = next_number(num, n, +1)
+        # Formatting complete
+        k_magnitudes_str = sep.join(k_magnitudes_list)
+        k_magnitudes = np.fromstring(k_magnitudes_str, sep=sep)
         if len(set(k_magnitudes)) == len(k_magnitudes):
             break
         if n > 18:
@@ -2952,7 +2988,7 @@ def k_float2str(k_float, n=-1):
     )
     return k_str
 def get_k_str_n_decimals():
-    return np.max([1, int(ceil(log10(1 + np.max(tuple(class_modes_per_decade.values())))))])
+    return int(np.max([1, ceil(log10(1 + np.max(tuple(class_modes_per_decade.values()))))]))
 
 # Function returning the linear power spectrum of a given component
 @cython.pheader(
@@ -3120,7 +3156,7 @@ def get_treelevel_bispec(
         for index in range(size):
             indices_2_ptr[index] = np.searchsorted(k_magnitudes, k_magnitudes_2[index])
     # Compute linear power spectrum at all k
-    power = get_linear_powerspec(component_or_components, k_magnitudes, None, a)
+    power = get_linear_powerspec(component_or_components, k_magnitudes, a=a)
     # Get α used in bispectrum kernel
     if eds_limit:
         α = 2./7.

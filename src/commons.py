@@ -2624,8 +2624,8 @@ if 'powerspec_select' in user_params:
         'default',
         {
             'data': False,
+            'corrected': False,
             'linear': False,
-            'linearimprinted': False,
             'plot': False,
         },
     )
@@ -2633,8 +2633,8 @@ else:
     powerspec_select = {
         'default': {
             'data': True,
+            'corrected': False,
             'linear': True,
-            'linearimprinted': False,
             'plot': True,
         },
     }
@@ -2642,20 +2642,20 @@ replace_ellipsis(powerspec_select)
 for key, val in powerspec_select.copy().items():
     if isinstance(val, dict):
         val.setdefault('data', False)
+        val.setdefault('corrected', False)
         val.setdefault('linear', False)
-        val.setdefault('linearimprinted', False)
         val.setdefault('plot', False)
         unknown = ', '.join([
             f'"{do}"'
-            for do in set(val.keys()) - {'data', 'linear', 'linearimprinted', 'plot'}
+            for do in set(val.keys()) - {'data', 'corrected', 'linear', 'plot'}
         ])
         if unknown:
             abort(f'Unknown selections in powerspec_select["{key}"]: {unknown}')
     else:
         powerspec_select[key] = {
             'data': bool(val),
+            'corrected': bool(val),
             'linear': bool(val),
-            'linearimprinted': bool(val),
             'plot': bool(val),
         }
 user_params['powerspec_select'] = powerspec_select
@@ -3363,6 +3363,9 @@ powerspec_options_defaults = {
     'interlace': {
         'default': True,
     },
+    'realization correction': {
+        'default': True,
+    },
     'k_max': {
         'default': 'Nyquist',
     },
@@ -3406,6 +3409,10 @@ for key, val in d.copy().items():
 d = powerspec_options['interlace']
 for key, val in d.copy().items():
     d[key] = interlace2latticekind(val)
+d = powerspec_options['realization correction']
+for key, val in d.copy().items():
+    if isinstance(val, str):
+        d[key] = bool(val)
 d = powerspec_options['k_max']
 for key, val in d.copy().items():
     if isinstance(val, str):
@@ -4382,7 +4389,7 @@ output_times = {
 if not enable_class_background:
     for d in powerspec_select.values():
         d['linear'] = False
-        d['linearimprinted'] = False
+        d['corrected'] = False
     for d in bispec_select.values():
         d['treelevel'] = False
 # The number of ghost point layers around the domain grids (so that the
@@ -5561,23 +5568,35 @@ def eval_func_of_t_and_a(f):
     ])
 
 # Function for generating file names for reusable data
-def get_reusable_filename(kind, *objects, extension='', sha_length=10):
-    """This function will generate a file name based on the hash of the
-    passed objects. The number of characters of the sha to include in
-    the file name is set through sha_length. With a sha_length of 10
-    there is a 50% chance of a single hash collision after ~10⁶ hashes.
-    """
+def get_reusable_filename(kind, *objects, extension=''):
+    # The file name file name will be generated based on the hash of the
+    # passed objects. The hahs will be expressed using all lowercase
+    # alphanumeric ASCII characters, of which there are 36. A 50% chance
+    # of a single hash collision will then occur after ~ 36**(l/2)
+    # hashes, l being the length of the 36-character hash.
+    algorithm = 'sha512'
+    size = 2**4  # with 2⁴: 50% chance of a single hash collision after ~ 10¹² hashes
+    table = '0123456789abcdefghijklmnopqrstuvwxyz'
+    # Transform non-ordered containers to sorted lists
     objects = list(objects)
     for i, obj in enumerate(objects):
         if isinstance(obj, set):
             objects[i] = sorted(obj)
         elif isinstance(obj, dict):
             objects[i] = sorted(obj.items())
-    sha = hashlib.sha1(str(objects).encode('utf-8')).hexdigest()
-    sha = sha[:sha_length]
+    # Compute the hash
+    hexdigest = getattr(hashlib, algorithm)(str(objects).encode('utf-8')).hexdigest()
+    # Shorten hexdigest using the table
+    chunk_size = len(hexdigest)//size
+    digest = []
+    for i in range(size):
+        chunk = hexdigest[chunk_size*i:chunk_size*(i + 1)]
+        s = np.sum([int(c, base=16) for c in chunk])
+        digest.append(table[s%len(table)])
+    digest = ''.join(digest)
     if extension:
-        extension = f'.{extension}'
-    filename = f'{path.reusable_dir}/{kind}/{sha}{extension}'
+        extension = '.' + extension.lstrip('.')
+    filename = f'{path.reusable_dir}/{kind}/{digest}{extension}'
     return filename
 
 # Function for doing lookup into shortrange_params which depend on the

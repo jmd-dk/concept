@@ -605,10 +605,10 @@ CO\ *N*\ CEPT run.
 
                          {
                              'default': {
-                                 'data'            : True,
-                                 'linear'          : True,
-                                 'linear imprinted': False,
-                                 'plot'            : True,
+                                 'data'     : True,
+                                 'corrected': False
+                                 'linear'   : True,
+                                 'plot'     : True,
                              },
                          }
 -- --------------- -- -
@@ -621,16 +621,12 @@ CO\ *N*\ CEPT run.
                       Here ``'data'`` refers to text files containing
                       tabulated values of the (auto) power spectrum
                       :math:`P(k)`. A separate column within these files
-                      containing the corresponding linear-theory power
-                      spectrum is added if ``'linear'`` is also selected.
-                      The ``'linear imprinted'`` output is again the
-                      linear-theory power spectrum, but computed by first
-                      realising a full 3D density field and then computing its
-                      power spectrum, leaving the
-                      :ref:`primordial noise <random_seeds>` imprinted on
-                      the spectrum.
-                      Selecting ``'plot'`` results in a plot of the specified
-                      data, stored as a PNG file.
+                      containing a noise-corrected version of the power
+                      spectrum may be enabled through ``'corrected'``.
+                      A column for the linear-theory power spectrum is added
+                      if ``'linear'`` is selected. Selecting ``'plot'``
+                      results in a plot of the specified data, stored as a
+                      PNG file.
 
                       To tune the specifics of how power spectra are computed,
                       see the ``powerspec_options``
@@ -681,28 +677,49 @@ CO\ *N*\ CEPT run.
                              },
                          }
 -- --------------- -- -
-\  **Example 3**   \  Output imprinted linear power spectra rather than pure
-                      linear power spectra, for all components:
+\  **Example 3**   \  Besides the standard, "raw" simulation power spectra,
+                      further output noise-corrected versions, for all
+                      components:
 
                       .. code-block:: python3
 
                          powerspec_select = {
                              'all': {
-                                 'data'            : True,
-                                 'linear'          : False,
-                                 'linear imprinted': True,
-                                 'plot'            : True,
+                                 'data'     : True,
+                                 'corrected': True,
+                                 'plot'     : True,
                              },
                          }
 
-                      .. tip::
-                         As the "imprinted" version of the linear power
-                         spectrum shares both the
-                         :ref:`primordial random noise <random_seeds>` and the
-                         binning with the non-linear simulation power
-                         spectrum, ratios between non-linear and linear power
-                         spectra become less noisy when using imprinted
-                         linear spectra.
+                      .. note::
+                         Noise-corrected simulation power spectra are obtained
+                         from their "raw" counterparts together with a
+                         correction factor unique to each bin. This correction
+                         factor is computed by performing a full 3D, linear,
+                         Eulerian (fluid) realisation of the component in
+                         question, and then measuring its power spectrum. The
+                         ratio between the measured spectrum and the
+                         linear-theory prediction (used as input for the
+                         Eulerian realisation) gives the correction. This
+                         corrects for noise due to the binning procedure as
+                         well as cosmic variance from the given realisation in
+                         use. To only correct for the former, disable
+                         ``'realization correction'`` within the
+                         ``powerspec_options``
+                         :ref:`parameter <powerspec_options>`, in which case
+                         the Eulerian realisation used for the correction will
+                         employ fixed primordial amplitudes, instead of
+                         imprinting the actual realisation noise.
+
+                         While the correction factors do depend on cosmology,
+                         they are very nearly time-independent. In practice,
+                         we always carry out the temporary Eulerian
+                         realisation used for the correction factors at
+                         :math:`a = 1`, meaning that the same correction
+                         factors are used for all power spectra computed
+                         throughout a given simulation. Furthermore, the
+                         correction factors are cached to disk, allowing them
+                         to be reused between simulations.
 -- --------------- -- -
 \  **Example 4**   \  Create full (auto) power spectrum outputs for
                       all components, as well as for the combined

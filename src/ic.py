@@ -803,6 +803,7 @@ def realize_grid(
     gridname='str',
     info=dict,
     name=str,
+    options=dict,
     reuse='bint',
     slab_structure='double[:, :, ::1]',
     use_primordial='bint',
@@ -817,11 +818,12 @@ def get_slab_structure(gridsize, component, a, variable, use_gridˣ=False):
     anything else in the program. The existence of such reusable slabs
     are recorded, so that they can be reused as is in future calls.
     """
+    options = component.realization_options
     # Figure out what name to use for the structure slab
     use_primordial = (
         variable == 0
         or variable <= component.boltzmann_order
-        or component.realization_options['structure'] == 'primordial'
+        or options['structure'] == 'primordial'
     )
     name = None
     info = {'primordial': use_primordial}
@@ -848,7 +850,11 @@ def get_slab_structure(gridsize, component, a, variable, use_gridˣ=False):
     if not reuse:
         if use_primordial:
             # Populate slab_structure with primordial noise ℛ(k⃗)
-            generate_primordial_noise(slab_structure)
+            generate_primordial_noise(
+                slab_structure,
+                options['fixedamplitude'],
+                options['phaseshift'],
+            )
         else:
             # Populate slab_structure with ℱₓ[ϱ(x⃗)]
             gridname = 'ϱ' + 'ˣ'*use_gridˣ
@@ -871,6 +877,8 @@ slab_structure_infos = {}
 @cython.header(
     # Arguments
     slab='double[:, :, ::1]',
+    fixed_amplitude='bint',
+    phase_shift='double',
     # Locals
     gridsize='Py_ssize_t',
     i_conj='Py_ssize_t',
@@ -912,7 +920,7 @@ slab_structure_infos = {}
     θ_str=str,
     returns='void',
 )
-def generate_primordial_noise(slab):
+def generate_primordial_noise(slab, fixed_amplitude=False, phase_shift=0):
     """Given an already allocated slab, this function will populate it
     with Gaussian pseudo-random numbers, corresponding to primordial
     white noise. The slab grid is thought of as being in Fourier space,
@@ -999,16 +1007,16 @@ def generate_primordial_noise(slab):
     slab_ptr = cython.address(slab[:, :, :])
     # Progress message
     msg = ['Generating primordial']
-    if not primordial_amplitude_fixed:
+    if not fixed_amplitude:
         msg.append(' Gaussian')
     msg.append(f' noise of grid size {gridsize}')
-    if primordial_amplitude_fixed:
+    if fixed_amplitude:
         msg.append(', fixed amplitude')
-    if primordial_phase_shift != 0:
-        if isclose(primordial_phase_shift, π):
+    if phase_shift != 0:
+        if isclose(phase_shift, π):
             θ_str = 'π'
         else:
-            θ_str = str(primordial_phase_shift)
+            θ_str = str(phase_shift)
         msg.append(f', phase shift {θ_str}')
     masterprint(''.join(msg), '...')
     # Initialize individual pseudo-random number generators for the
@@ -1028,7 +1036,7 @@ def generate_primordial_noise(slab):
             # Draw random numbers
             r = 1
             with unswitch:
-                if not primordial_amplitude_fixed:
+                if not fixed_amplitude:
                     r = prng_ampliudes_common.rayleigh(1/sqrt(2))
             θ = prng_phases_common.uniform(-π, π)
             # Check whether the random numbers should be imprinted onto
@@ -1048,8 +1056,8 @@ def generate_primordial_noise(slab):
                 continue
             # Finalize random noise
             with unswitch:
-                if primordial_phase_shift:
-                    θ += primordial_phase_shift
+                if phase_shift:
+                    θ += phase_shift
             re = r*cos(θ)
             im = r*sin(θ)
             # Imprint onto grid point
@@ -1097,7 +1105,7 @@ def generate_primordial_noise(slab):
                 # Draw random numbers
                 r = r_conj = 1
                 with unswitch:
-                    if not primordial_amplitude_fixed:
+                    if not fixed_amplitude:
                         r      = prng_ampliudes     .rayleigh(1/sqrt(2))
                         r_conj = prng_ampliudes_conj.rayleigh(1/sqrt(2))
                 θ      = prng_phases     .uniform(-π, π)
@@ -1121,8 +1129,8 @@ def generate_primordial_noise(slab):
                 if imprint:
                     # Finalize random noise
                     with unswitch:
-                        if primordial_phase_shift:
-                            θ += primordial_phase_shift
+                        if phase_shift:
+                            θ += phase_shift
                     re = r*cos(θ)
                     im = r*sin(θ)
                     # Imprint random noise onto grid point
@@ -1132,8 +1140,8 @@ def generate_primordial_noise(slab):
                 if imprint_conj:
                     # Finalize conjugate random noise
                     with unswitch:
-                        if primordial_phase_shift:
-                            θ_conj += primordial_phase_shift
+                        if phase_shift:
+                            θ_conj += phase_shift
                     re_conj = r_conj*cos(θ_conj)
                     im_conj = r_conj*sin(θ_conj)
                     # Imprint conjugate random noise onto grid point

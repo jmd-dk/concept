@@ -81,15 +81,15 @@ def plot_powerspec(declaration, filename):
     if not filename.endswith('.png'):
         filename += '.png'
     # Extract variables
-    components             = declaration.components
-    k_bin_centers          = asarray(declaration.k_bin_centers)
-    power                  = asarray(declaration.power)
-    power_linear           = declaration.power_linear
-    power_linear_imprinted = declaration.power_linear_imprinted
+    components      = declaration.components
+    k_bin_centers   = asarray(declaration.k_bin_centers)
+    power           = asarray(declaration.power)
+    power_corrected = declaration.power_corrected
+    power_linear    = declaration.power_linear
+    if power_corrected is not None:
+        power_corrected = asarray(power_corrected)
     if power_linear is not None:
         power_linear = asarray(power_linear)
-    if power_linear_imprinted is not None:
-        power_linear_imprinted = asarray(power_linear_imprinted)
     # Begin progress message
     if len(components) == 1:
         components_str = components[0].name
@@ -108,12 +108,21 @@ def plot_powerspec(declaration, filename):
     else:
         # The odd case of no power at all
         ax.semilogx(k_bin_centers, power, '-', label=label)
-    # Also plot linear power spectra, if specified
-    def plot_linear(power, linestyle, label_attrs=None):
-        if label_attrs is None:
-            label_attrs = []
+    nlines = 1
+    # Also plot corrected power spectrum, if specified
+    if power_corrected is not None:
+        nlines += 1
+        label = 'corrected'
+        if np.any(power_corrected) and np.any(~np.isnan(power_corrected)):
+            ax.loglog(k_bin_centers, power_corrected, '--', label=label)
         else:
-            label_attrs = any2list(label_attrs)
+            # The odd case of no corrected power at all
+            ax.semilogx(k_bin_centers, power_corrected, '--', label=label)
+    # Also plot linear power spectra, if specified
+    if power_linear is not None:
+        nlines += 1
+        label = 'linear'
+        label_attrs = []
         gauge = collections.Counter(
             [component.realization_options['gauge'] for component in components]
         ).most_common(1)[0][0]
@@ -128,23 +137,15 @@ def plot_powerspec(declaration, filename):
         ).most_common(1)[0][0]
         if backscale:
             label_attrs.append('back-scaled')
-        label = 'linear'
         if label_attrs:
             label += ' ({})'.format(', '.join(label_attrs))
         ylim = ax.get_ylim()
-        if np.any(power) and np.any(~np.isnan(power)):
-            ax.loglog(k_bin_centers, power, f'k{linestyle}', label=label)
+        if np.any(power_linear) and np.any(~np.isnan(power_linear)):
+            ax.loglog(k_bin_centers, power_linear, 'k--', lw=1, label=label)
         else:
-            # The odd case of no power at all
-            ax.semilogx(k_bin_centers, power, f'k{linestyle}', label=label)
+            # The odd case of no linear power at all
+            ax.semilogx(k_bin_centers, power_linear, 'k--', lw=1, label=label)
         ax.set_ylim(ylim)
-    nlines = 1
-    if power_linear is not None:
-        nlines += 1
-        plot_linear(power_linear, '--')
-    if power_linear_imprinted is not None:
-        nlines += 1
-        plot_linear(power_linear_imprinted, ':', 'imprinted')
     if nlines > 1:
         ax.legend(fontsize=14)
     ax.set_xlim(k_bin_centers[0], k_bin_centers[-1])
@@ -1130,8 +1131,6 @@ def get_output_declarations(output_type, components, selections, options, Declar
             for key, option in options.items()
             if key not in {'upstream gridsize', 'global gridsize'}
         }
-        # If the terminal resolution is present but not set,
-        # assign it a value based on the grid size and terminal width.
         # Instantiate declaration
         declaration = Declaration(
             components=component_combination,

@@ -34,6 +34,7 @@ cimport('from graphics import get_output_declarations')
 cimport('from ic import realize')
 cimport(
     'from linear import        '
+    '    compute_cosmo,        '
     '    get_linear_powerspec, '
     '    get_treelevel_bispec, '
 )
@@ -79,12 +80,13 @@ def powerspec(components, filename):
         # If specified, also compute the linear power spectrum.
         # The result is stored in declaration.power_linear.
         # Only the master process holds the linear power spectrum.
+        # Note that we should compute the linear power spectrum before
+        # the corrected power spectrum.
         compute_powerspec_linear(declaration)
-        # If specified, also compute the linear imprinted
-        # power spectrum. The result is stored in
-        # declaration.power_linear_imprinted. Only the master process
-        # holds the full linear imprinted power spectrum.
-        compute_powerspec_linear_imprinted(declaration)
+        # If specified, also compute the corrected power spectrum.
+        # The result is stored in declaration.power_corrected. Only the
+        # master process holds the full corrected power spectrum.
+        compute_powerspec_corrected(declaration)
     # Dump power spectra to collective data file
     save_powerspec(declarations, filename)
     # Dump power spectra to individual image files
@@ -97,16 +99,19 @@ def powerspec(components, filename):
     components=list,
     # Locals
     cache_key=tuple,
+    components_str=str,
     declaration=object,  # PowerspecDeclaration
     declarations=list,
+    do_attr=str,
+    do_data='bint',
     i='Py_ssize_t',
     k2_max='Py_ssize_t',
     k_bin_centers='double[::1]',
     k_bin_indices='Py_ssize_t[::1]',
     n_modes='Py_ssize_t[::1]',
     power='double[::1]',
+    power_corrected='double[::1]',
     power_linear='double[::1]',
-    power_linear_imprinted='double[::1]',
     size='Py_ssize_t',
     returns=list,
 )
@@ -126,6 +131,23 @@ def get_powerspec_declarations(components):
     )
     # Add missing declaration fields
     for i, declaration in enumerate(declarations):
+        # Enable do_data if any of the other "do attributes" are enabled
+        do_data = declaration.do_data
+        if not do_data:
+            for do_attr in ['corrected', 'linear', 'plot']:
+                if not getattr(declaration, f'do_{do_attr}'):
+                    continue
+                components_str = ', '.join([
+                    component.name for component in declaration.components
+                ])
+                if len(declaration.components) > 1:
+                    components_str = f'{{{components_str}}}'
+                masterprint(
+                    f'Enabling \'data\' for power spectra of {components_str} '
+                    f'because \'{do_attr}\' is enabled'
+                )
+                do_data = True
+                break
         # Get bin information
         k2_max, k_bin_indices, k_bin_centers, n_modes = get_powerspec_bins(
             declaration.gridsize,
@@ -135,25 +157,26 @@ def get_powerspec_declarations(components):
         # Allocate arrays for storing the power
         size = bcast(k_bin_centers.shape[0] if master else None)
         power = empty(size, dtype=C2np['double'])
+        power_corrected = (
+            empty(size, dtype=C2np['double'])
+            if declaration.do_corrected
+            else None
+        )
         power_linear = (
             empty(size, dtype=C2np['double'])
             if master and declaration.do_linear
             else None
         )
-        power_linear_imprinted = (
-            empty(size, dtype=C2np['double'])
-            if declaration.do_linearimprinted
-            else None
-        )
         # Replace old declaration with a new, fully populated one
         declaration = declaration._replace(
+            do_data=do_data,
             k2_max=k2_max,
             k_bin_indices=k_bin_indices,
             k_bin_centers=k_bin_centers,
             n_modes=n_modes,
             power=power,
+            power_corrected=power_corrected,
             power_linear=power_linear,
-            power_linear_imprinted=power_linear_imprinted,
         )
         declarations[i] = declaration
     # Store declarations in cache and return
@@ -164,10 +187,10 @@ cython.declare(powerspec_declarations_cache=dict)
 powerspec_declarations_cache = {}
 # Create the PowerspecDeclaration type
 fields = (
-    'components', 'do_data', 'do_linear', 'do_linearimprinted', 'do_plot', 'gridsize',
-    'interpolation', 'deconvolve', 'interlace',
+    'components', 'do_data', 'do_corrected', 'do_linear', 'do_plot', 'gridsize',
+    'interpolation', 'deconvolve', 'interlace', 'realization_correction',
     'k2_max', 'k_max', 'bins_per_decade', 'tophat', 'significant_figures',
-    'k_bin_indices', 'k_bin_centers', 'n_modes', 'power', 'power_linear', 'power_linear_imprinted',
+    'k_bin_indices', 'k_bin_centers', 'n_modes', 'power', 'power_corrected', 'power_linear',
 )
 PowerspecDeclaration = collections.namedtuple(
     'PowerspecDeclaration', fields, defaults=[None]*len(fields),
@@ -486,12 +509,10 @@ def compute_powerspec(declaration):
     n_modes       = declaration.n_modes
     power         = declaration.power
     # Begin progress message
-    if len(components) == 1:
-        component = components[0]
-        masterprint(f'Computing power spectrum of {component.name} ...')
-    else:
-        components_str = ', '.join([component.name for component in components])
-        masterprint(f'Computing power spectrum of {{{components_str}}} ...')
+    components_str = ', '.join([component.name for component in components])
+    if len(components) > 1:
+        components_str = f'{{{components_str}}}'
+    masterprint(f'Computing power spectrum of {components_str} ...')
     # Interpolate the physical density of all components onto a global
     # grid by first interpolating onto individual upstream grids,
     # transforming to Fourier space and then adding them together.
@@ -558,6 +579,185 @@ def compute_powerspec(declaration):
     masterprint('done')
 
 # Function which given a power spectrum declaration correctly populated
+# with all fields will compute its corrected power spectrum.
+@cython.header(
+    # Arguments
+    declaration=object,  # PowerspecDeclaration
+    # Locals
+    a_backup='double',
+    a_correction='double',
+    cache_key=tuple,
+    components=list,
+    components_str=str,
+    cosmoresults=object,  # CosmoResults
+    correction='double[::1]',
+    declaration_corrected=object,  # PowerspecDeclaration
+    declaration_linear=object,  # PowerspecDeclaration
+    filename=str,
+    gridsize='Py_ssize_t',
+    k_bin_centers='double[::1]',
+    k_bin_index='Py_ssize_t',
+    linear_component='Component',
+    name=str,
+    power='double[::1]',
+    power_corrected='double[::1]',
+    power_linear='double[::1]',
+    size='Py_ssize_t',
+    species_str=str,
+    unit='double',
+    returns='void',
+)
+def compute_powerspec_corrected(declaration):
+    if not declaration.do_corrected:
+        return
+    # Time at which to evaluate the correction factor
+    a_correction = 1
+    # Extract some variables from the power spectrum declaration
+    components      = declaration.components
+    gridsize        = declaration.gridsize
+    power           = declaration.power
+    power_corrected = declaration.power_corrected
+    # Begin progress message
+    components_str = ', '.join([component.name for component in components])
+    if len(components) > 1:
+        components_str = f'{{{components_str}}}'
+    masterprint(f'Computing corrected power spectrum of {components_str} ...')
+    # Look up corrections in cache
+    cache_key = tuple(components)
+    if master:
+        correction = power_corrected_cache.get(cache_key)
+        if correction is not None:
+            apply_powerspec_correction(declaration, correction)
+    if bcast(correction is not None if master else None):
+        masterprint('done')
+        return
+    # Get linear component
+    linear_component = get_linear_component(components, gridsize)
+    if not declaration.realization_correction:
+        # Do not correct for the realization noise (cosmic variance),
+        # i.e. only correct for the binning. That is, we ignore the
+        # realization by using fixed amplitudes.
+        # Note that the phases are unimportant.
+        linear_component.realization_options['fixedamplitude'] = True
+    # Check if corrections are available from the disk cache
+    cosmoresults = compute_cosmo()
+    if master:
+        k_bin_centers = declaration.k_bin_centers
+        unit = units.Mpc**(-1)  # some definite inverse length unit
+        filename = get_reusable_filename(
+            'powerspec',
+            # Time of evaluation of correction factor
+            a_correction,
+            # Cosmology
+            cosmoresults.id,
+            {
+                key: val
+                for key, val in primordial_spectrum.items()
+                if key != 'A_s'  # absolute scale does not matter
+            },
+            # Species
+            set(linear_component.class_species.split('+')),
+            enable_warm_dark_matter,
+            # Modes
+            gridsize,
+            [f'{k_bin_center/unit:.11e}' for k_bin_center in k_bin_centers],
+            class_dedicated_spectra,
+            class_modes_per_decade,
+            # Realization
+            random_generator,
+            random_seeds['primordial amplitudes'],
+            primordial_noise_imprinting,
+            linear_component.realization_options['fixedamplitude'],
+            linear_component.realization_options['gauge'],
+            linear_component.realization_options['backscale'],
+            linear_component.realization_options['nongaussianity'],
+        )
+        if os.path.exists(filename):
+            correction = np.loadtxt(filename)
+            apply_powerspec_correction(declaration, correction)
+    if bcast(correction is not None if master else None):
+        masterprint('done')
+        return
+    # Temporarily substitute universals.a for a_correction
+    a_backup = universals.a
+    universals.a = a_correction
+    # Realize linear component
+    realize(linear_component, variables=0)
+    # Compute power spectrum of linear imprinted component
+    declaration_corrected = declaration._replace(
+        do_data=True,
+        components=[linear_component],
+        power=power_corrected,
+    )
+    name = linear_component.name
+    linear_component.name = f'{components_str} (linear imprint)'
+    compute_powerspec(declaration_corrected)
+    linear_component.name = name
+    # Compute linear power spectrum
+    if declaration.do_linear and a_backup == a_correction:
+        # Linear power spectrum already computed
+        declaration_linear = declaration
+    else:
+        declaration_linear = declaration._replace(
+            do_linear=True,
+            power_linear=(
+                empty(power.shape[0], dtype=C2np['double'])
+                if master else None
+            ),
+        )
+        compute_powerspec_linear(declaration_linear)
+    power_linear = declaration_linear.power_linear
+    # Substitute back the original value for universals.a
+    universals.a = a_backup
+    # All data is now held by master
+    if not master:
+        return
+    # Create array of corrections
+    size = power.shape[0]
+    correction = empty(size, dtype=C2np['double'])
+    for k_bin_index in range(size):
+        correction[k_bin_index] = power_linear[k_bin_index]/power_corrected[k_bin_index]
+    # Apply corrections
+    apply_powerspec_correction(declaration, correction)
+    # Cache corrections to memory
+    power_corrected_cache[cache_key] = correction
+    # Cache corrections to disk
+    os.makedirs(os.path.dirname(filename), exist_ok=True)
+    species_str = ', '.join(linear_component.species.split('+'))
+    if len(linear_component.species.split('+')) > 1:
+        species_str = f'{{{species_str}}}'
+    np.savetxt(
+        filename,
+        asarray(correction),
+        header=unicode(
+            f'Power spectrum corrections for {species_str} at '
+            f'k ∈ [{k_bin_centers[0]} {unit_length}⁻¹, {k_bin_centers[size - 1]} {unit_length}⁻¹]'
+        ),
+    )
+    masterprint('done')
+# Cache used for power spectrum correction factors
+cython.declare(power_corrected_cache=dict)
+power_corrected_cache = {}
+
+# Helper function for applying already computed corrections
+# to power spectra.
+@cython.header(
+    # Arguments
+    declaration=object,  # PowerspecDeclaration
+    correction='double[::1]',
+    # Locals
+    k_bin_index='Py_ssize_t',
+    power='double[::1]',
+    power_corrected='double[::1]',
+    returns='void',
+)
+def apply_powerspec_correction(declaration, correction):
+    power           = declaration.power
+    power_corrected = declaration.power_corrected
+    for k_bin_index in range(power.shape[0]):
+        power_corrected[k_bin_index] = power[k_bin_index]*correction[k_bin_index]
+
+# Function which given a power spectrum declaration correctly populated
 # with all fields will compute its linear power spectrum.
 @cython.header(
     # Arguments
@@ -578,59 +778,15 @@ def compute_powerspec_linear(declaration):
     k_bin_centers = declaration.k_bin_centers
     power_linear  = declaration.power_linear
     # Begin progress message
-    if len(components) == 1:
-        component = components[0]
-        masterprint(f'Computing linear power spectrum of {component.name} ...')
-    else:
-        components_str = ', '.join([component.name for component in components])
-        masterprint(f'Computing linear power spectrum of {{{components_str}}} ...')
+    components_str = ', '.join([component.name for component in components])
+    if len(components) > 1:
+        components_str = f'{{{components_str}}}'
+    masterprint(f'Computing linear power spectrum of {components_str} ...')
     # Fill power_linear with values of the linear power spectrum.
     # Only the master will hold the values.
     get_linear_powerspec(components, k_bin_centers, power_linear)
     # Done with the linear power spectrum computation
     masterprint('done')
-
-# Function which given a power spectrum declaration correctly populated
-# with all fields will compute its linear imprinted power spectrum.
-@cython.header(
-    # Arguments
-    declaration=object,  # PowerspecDeclaration
-    # Locals
-    component='Component',
-    components=list,
-    components_str=str,
-    declaration_linear_imprinted=object,  # PowerspecDeclaration
-    gridsize='Py_ssize_t',
-    linear_component='Component',
-    name=str,
-    power_linear_imprinted='double[::1]',
-    returns='void',
-)
-def compute_powerspec_linear_imprinted(declaration):
-    if not declaration.do_linearimprinted:
-        return
-    # Extract some variables from the power spectrum declaration
-    components             = declaration.components
-    gridsize               = declaration.gridsize
-    power_linear_imprinted = declaration.power_linear_imprinted
-    # Realise linear component
-    if len(components) == 1:
-        component = components[0]
-        components_str = component.name
-    else:
-        components_str = '{{{}}}'.format(', '.join([component.name for component in components]))
-    linear_component = get_linear_component(components, gridsize)
-    name = linear_component.name
-    linear_component.name = f'linear imprint ({components_str})'
-    realize(linear_component, variables=0)
-    # Compute power spectrum of linear imprinted component
-    declaration_linear_imprinted = declaration._replace(
-        do_data=True,
-        components=[linear_component],
-        power=power_linear_imprinted,
-    )
-    compute_powerspec(declaration_linear_imprinted)
-    linear_component.name = name
 
 # Function for saving power spectra
 def save_powerspec(declarations, filename):
@@ -639,9 +795,9 @@ def save_powerspec(declarations, filename):
         ('do_data', 'modes',                'n_modes'),
     ]
     column_headings_components = [
-        ('do_data'  ,          'component',    f'P [{unit_length}³]', 'power'),
-        ('do_linear',          '(linear)',     f'P [{unit_length}³]', 'power_linear'),
-        ('do_linearimprinted', '(imprinted)',  f'P [{unit_length}³]', 'power_linear_imprinted'),
+        ('do_data'  ,    'component',   f'P [{unit_length}³]', 'power'),
+        ('do_corrected', '(corrected)', f'P [{unit_length}³]', 'power_corrected'),
+        ('do_linear',    '(linear)',    f'P [{unit_length}³]', 'power_linear'),
     ]
     grouping_func = lambda declaration: (
         len(declaration.k_bin_centers),
@@ -686,6 +842,7 @@ def save_powerspec(declarations, filename):
     k_bin_index='Py_ssize_t',
     k_magnitude='double',
     kR='double',
+    mask=object,  # np.ndarray
     power='double[::1]',
     tophat='double',
     σ2='double',
@@ -698,19 +855,21 @@ def compute_powerspec_σ(declaration, kind='data'):
     power         = declaration.power
     # Change power array according to the requested kind
     kind = kind.lower().replace(' ', '').replace('-', '').replace('_', '')
-    if kind == 'linear':
+    if kind == 'corrected':
+        power = declaration.power_corrected
+    elif kind == 'linear':
         power = declaration.power_linear
-        # We need to truncate power and k_bin_centers
-        # so that they do not contain NaNs.
-        power = asarray(power)[~np.isnan(power)]
-        k_bin_centers = k_bin_centers[:power.shape[0]]
-    elif 'imprint' in kind:
-        power = declaration.power_linear_imprinted
     elif kind != 'data':
         abort(
             f'compute_powerspec_σ() called with kind = "{kind}" '
-            f'∉ {{"data", "linear", "linear imprinted"}}'
+            f'∉ {{"data", "corrected", "linear"}}'
         )
+    # We need to truncate power and k_bin_centers
+    # so that they do not contain NaNs.
+    mask = np.isnan(power)
+    if mask.any():
+        power = asarray(power)[~mask]
+        k_bin_centers = asarray(k_bin_centers)[~mask]
     # We cannot compute the integral if we have less than two points
     size = k_bin_centers.shape[0]
     if size < 2:
@@ -803,9 +962,12 @@ def bispec(components, filename):
     cache_key=tuple,
     component='Component',
     component_class_species_set=set,
+    components_str=str,
     computation_order='Py_ssize_t[::1]',
     declaration=object,  # BispecDeclaration
     declarations=list,
+    do_treelevel='bint',
+    do_data='bint',
     i='Py_ssize_t',
     matter_like='bint',
     matter_class_species_set=set,
@@ -835,6 +997,18 @@ def get_bispec_declarations(components):
         components_str = ', '.join([component.name for component in declaration.components])
         if len(declaration.components) > 1:
             components_str = f'{{{components_str}}}'
+        # Enable do_data if any of the other "do attributes" are enabled
+        do_data = declaration.do_data
+        if not do_data:
+            for do_attr in ['reduced', 'treelevel', 'plot']:
+                if not getattr(declaration, f'do_{do_attr}'):
+                    continue
+                masterprint(
+                    f'Enabling \'data\' for bispectra of {components_str} '
+                    f'because \'{do_attr}\' is enabled'
+                )
+                do_data = True
+                break
         # Get bin information
         (
             bins,
@@ -867,6 +1041,14 @@ def get_bispec_declarations(components):
                 break
         else:
             matter_like = False
+        do_treelevel = declaration.do_treelevel
+        if do_treelevel and not matter_like:
+            plural = 'this is' if len(declaration.components) == 1 else 'these are'
+            masterprint(
+                f'Disabling \'tree-level\' for bispectra of {components_str} '
+                f'because {plural} not matter-like'
+            )
+            do_treelevel = False
         # Allocate arrays for storing the data
         size = bcast(n_modes.shape[0] if master else None)
         bpower = empty(size, dtype=C2np['double'])
@@ -885,17 +1067,18 @@ def get_bispec_declarations(components):
         ])
         bpower_treelevel = (
             empty(size, dtype=C2np['double'])
-            if master and declaration.do_treelevel and matter_like
+            if master and do_treelevel
             else None
         )
         bpower_reduced_treelevel = (
             empty(size, dtype=C2np['double'])
-            if master and declaration.do_reduced and declaration.do_treelevel and matter_like
+            if master and declaration.do_reduced and do_treelevel
             else None
         )
         # Replace old declaration with a new, fully populated one
         declaration = declaration._replace(
-            do_treelevel=(declaration.do_treelevel and matter_like),
+            do_data=do_data,
+            do_treelevel=do_treelevel,
             bins=bins,
             n_modes=n_modes,
             n_modes_expected=n_modes_expected,
@@ -1009,12 +1192,10 @@ def get_bispec_bins(declaration):
     if bispec_bins:
         return bispec_bins
     # Begin progress message
-    if len(components) == 1:
-        component = components[0]
-        masterprint(f'Preprocessing bispectrum modes for {component.name} ...')
-    else:
-        components_str = ', '.join([component.name for component in components])
-        masterprint(f'Preprocessing bispectrum modes for {{{components_str}}} ...')
+    components_str = ', '.join([component.name for component in components])
+    if len(components) > 1:
+        components_str = f'{{{components_str}}}'
+    masterprint(f'Preprocessing bispectrum modes for {components_str} ...')
     # Parse shell thicknesses
     k_fundamental = ℝ[2*π/boxsize]
     nyquist = gridsize//2
@@ -2857,6 +3038,8 @@ def get_bispec_overlap_blockball_indefinite(x, y_bgn, z_bgn, r, y_bgn2, z_bgn2, 
     returns='void',
 )
 def compute_bispec(declaration):
+    if not declaration.do_data:
+        return
     # Extract some variables from the bispectrum declaration
     components        = declaration.components
     gridsize          = declaration.gridsize
@@ -2872,12 +3055,10 @@ def compute_bispec(declaration):
     bpower_reduced    = declaration.bpower_reduced
     computation_order = declaration.computation_order
     # Begin progress message
-    if len(components) == 1:
-        component = components[0]
-        masterprint(f'Computing bispectrum of {component.name} ...')
-    else:
-        components_str = ', '.join([component.name for component in components])
-        masterprint(f'Computing bispectrum of {{{components_str}}} ...')
+    components_str = ', '.join([component.name for component in components])
+    if len(components) > 1:
+        components_str = f'{{{components_str}}}'
+    masterprint(f'Computing bispectrum of {components_str} ...')
     # Interpolate the physical density of all components onto a global
     # grid by first interpolating onto individual upstream grids,
     # transforming to Fourier space and then adding them together.
@@ -3029,12 +3210,10 @@ def compute_bispec_treelevel(declaration):
     bpower_treelevel         = declaration.bpower_treelevel
     bpower_reduced_treelevel = declaration.bpower_reduced_treelevel
     # Begin progress message
-    if len(components) == 1:
-        component = components[0]
-        masterprint(f'Computing tree-level bispectrum of {component.name} ...')
-    else:
-        components_str = ', '.join([component.name for component in components])
-        masterprint(f'Computing tree-level bispectrum of {{{components_str}}} ...')
+    components_str = ', '.join([component.name for component in components])
+    if len(components) > 1:
+        components_str = f'{{{components_str}}}'
+    masterprint(f'Computing tree-level bispectrum of {components_str} ...')
     # Create three arrays of k values corresponding to the bins.
     # As only the master process will compute and store the tree-level
     # bispectrum, only this process needs to know the k values.

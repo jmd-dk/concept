@@ -964,7 +964,7 @@ def class_():
         k_min = float(special_params['kmin'])
         k_max = float(special_params['kmax'])
         while k_max != -1:
-            k_magnitudes, _ = get_k_magnitudes(gridsize, use_cache=False)
+            k_magnitudes, _ = get_k_magnitudes(gridsize, n_pad=0, use_cache=False)
             if k_magnitudes[k_magnitudes.shape[0] - 1] >= k_max:
                 break
             gridsize += 2
@@ -996,7 +996,7 @@ def class_():
                         dtype=C2np['double'],
                     )
                 else:
-                    k_magnitudes, _ = get_k_magnitudes(gridsize)
+                    k_magnitudes, _ = get_k_magnitudes(gridsize, n_pad=0, use_cache=False)
                     gridsize_or_k_magnitudes = asarray(
                         [np.prod(k_magnitudes)**(1/k_magnitudes.size)],
                         dtype=C2np['double'],
@@ -1006,25 +1006,25 @@ def class_():
                 # class_modes_per_decade so that the exact requested
                 # number of k modes is obtained.
                 class_modes_per_decade_ori = class_modes_per_decade.copy()
-                k_magnitudes, _ = get_k_magnitudes(gridsize, use_cache=False)
+                k_magnitudes, _ = get_k_magnitudes(gridsize, n_pad=0, use_cache=False)
                 fac = 1
                 while k_magnitudes.shape[0] < modes:
                     fac *= 1.1
                     for k_magnitude, val in class_modes_per_decade_ori.items():
                         class_modes_per_decade[k_magnitude] = fac*val
-                    k_magnitudes, _ = get_k_magnitudes(gridsize, use_cache=False)
+                    k_magnitudes, _ = get_k_magnitudes(gridsize, n_pad=0, use_cache=False)
                 fac_max = fac
                 while k_magnitudes.shape[0] > modes:
                     fac *= 0.9
                     for k_magnitude, val in class_modes_per_decade_ori.items():
                         class_modes_per_decade[k_magnitude] = fac*val
-                    k_magnitudes, _ = get_k_magnitudes(gridsize, use_cache=False)
+                    k_magnitudes, _ = get_k_magnitudes(gridsize, n_pad=0, use_cache=False)
                 fac_min = fac
                 while True:
                     fac = sqrt(fac_min*fac_max)
                     for k_magnitude, val in class_modes_per_decade_ori.items():
                         class_modes_per_decade[k_magnitude] = fac*val
-                    k_magnitudes, _ = get_k_magnitudes(gridsize, use_cache=False)
+                    k_magnitudes, _ = get_k_magnitudes(gridsize, n_pad=0, use_cache=False)
                     if isclose(fac_min, fac_max):
                         break
                     if k_magnitudes.shape[0] < modes:
@@ -1033,6 +1033,7 @@ def class_():
                         fac_max = fac
                     else:
                         break
+                gridsize_or_k_magnitudes = k_magnitudes
     # Do CLASS computation
     if compute_perturbations:
         gauge = special_params['gauge'].replace('-', '').lower()

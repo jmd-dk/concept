@@ -754,6 +754,9 @@ some numerical resolutions and length scales.
                              'interlace': {
                                  'default': True,
                              },
+                             'realization correction': {
+                                 'default': True,
+                             },
                              'k_max': {
                                  'default': 'nyquist',
                              },
@@ -830,6 +833,14 @@ some numerical resolutions and length scales.
                         interpolations) or ``'fcc'`` for a face-centered cubic
                         lattice (meaning interlacing involving four relatively
                         shifted particle interpolations).
+
+                      * ``'realization correction'``: Specifies whether to
+                        also correct for the current realisation
+                        (cosmic variance) when computing *corrected* power
+                        spectra (see the ``powerspec_select``
+                        :ref:`parameter <powerspec_select>`), as opposed to
+                        only correcting for noise stemming from the binning
+                        procedure.
 
                       * ``'k_max'``: Specifies the largest :math:`k` mode to
                         include in the power spectrum output files (data files

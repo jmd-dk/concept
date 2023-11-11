@@ -82,30 +82,30 @@ snapshot_select = {  # Select which components to save to and load from snapshot
 }
 powerspec_select = {  # Toggle power spectra computation for individual and sets of components
     'all': {
-        'data'            : True,
-        'linear'          : True,
-        'linear imprinted': True,
-        'plot'            : True,
+        'data'     : True,
+        'corrected': True,
+        'linear'   : True,
+        'plot'     : True,
     },
     'all combinations': {
-        'data'            : True,
-        'linear'          : True,
-        'linear imprinted': False,
-        'plot'            : False,
+        'data'     : True,
+        'corrected': False,
+        'linear'   : True,
+        'plot'     : False,
     },
 }
 bispec_select = {  # Toggle bispectra computation for individual and sets of components
     'all': {
-        'data'                : True,
-        'reduced'             : True,
-        'tree-level'          : True,
-        'plot'                : True,
+        'data'      : True,
+        'reduced'   : True,
+        'tree-level': True,
+        'plot'      : True,
     },
     'all combinations': {
-        'data'                : True,
-        'reduced'             : True,
-        'tree-level'          : True,
-        'plot'                : False,
+        'data'      : True,
+        'reduced'   : True,
+        'tree-level': True,
+        'plot'      : False,
     },
 }
 render2D_select = {  # Toggle 2D rendering for individual and sets of components
@@ -231,6 +231,9 @@ powerspec_options = {  # Specifications of power spectra for individual and sets
         'default': True,
     },
     'interlace': {  # Use interlaced grids for particles?
+        'default': True,
+    },
+    'realization correction': {  # Correct for the given realization when computing 'corrected' spectra?
         'default': True,
     },
     'k_max': {  # Maximum frequency to include

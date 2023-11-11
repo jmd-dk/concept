@@ -1536,6 +1536,8 @@ class Component:
             or self.boltzmann_closure == 'truncate'
         ):
             self.realization_options['structure'] = 'primordial'
+        self.realization_options['fixedamplitude'] = primordial_amplitude_fixed
+        self.realization_options['phaseshift'] = primordial_phase_shift
         # Set snapshot variables
         varnames_all = {
             'particles': ('pos', 'mom'),
