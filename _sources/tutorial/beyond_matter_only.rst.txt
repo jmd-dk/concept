@@ -190,17 +190,17 @@ plotting script:
    this_dir = os.path.dirname(os.path.realpath(__file__))
    ks = {}
    P_sims = {}
+   P_cors = {}
    P_lins = {}
-   P_lins_imprinted = {}
    for filename in sorted(glob.glob(f'{this_dir}/powerspec*'), key=os.path.getmtime):
        matches = re.findall(r'(?=_(.*?)=(.*?)_)', os.path.basename(filename))
        if not matches or filename.endswith('.png'):
            continue
        for var, val in matches:
            exec(f'{var} = "{val}"')
-       P_lin_imprinted = None
+       P_cor = None
        try:
-           k, P_sim, P_lin, P_lin_imprinted = np.loadtxt(
+           k, P_sim, P_cor, P_lin = np.loadtxt(
                filename, usecols=(0, 2, 3, 4), unpack=True,
            )
        except ValueError:
@@ -208,8 +208,8 @@ plotting script:
        mask = ~np.isnan(P_lin)
        ks[len(k)] = k[mask]
        P_lins[len(k)] = P_lin[mask]
-       if P_lin_imprinted is not None:
-           P_lins_imprinted[len(k)] = P_lin_imprinted[mask]
+       if P_cor is not None:
+           P_cors[len(k), lin] = P_cor[mask]
        P_sims[len(k), lin] = P_sim[mask]
    # Plot
    fig, axes = plt.subplots(2, sharex=True)
@@ -225,12 +225,9 @@ plotting script:
        P_lin = P_lins[lenk]
        axes[0].loglog(k, P_sim, linestyle, color=f'C{i}', label=f'simulation: {lin = }')
        axes[1].semilogx(k, (P_sim/P_lin - 1)*100, linestyle, color=f'C{i}')
-       P_lin_imprinted = P_lins_imprinted.get(lenk)
-       if P_lin_imprinted is not None:
-           axes[1].semilogx(
-               k, (P_sim/P_lin_imprinted - 1)*100, linestyle,
-               color=darken(f'C{i}'),
-           )
+       P_cor = P_cors.get((lenk, lin))
+       if P_cor is not None:
+           axes[1].semilogx(k, (P_cor/P_lin - 1)*100, linestyle, color=darken(f'C{i}'))
    lenk = max(ks)
    k = ks[lenk]
    P_lin = P_lins[lenk]
@@ -240,14 +237,14 @@ plotting script:
    axes[0].set_xlim(k[0], k_max)
    axes[0].set_ylim(0.95*min(P_lin[k < k_max]), 1.05*max(P_lin[k < k_max]))
    axes[1].set_ylim(-1, 1)
-   if P_lins_imprinted:
+   if P_cors:
        axes[1].plot(
            0.5, 0.5, '-',
-           color='grey', label='raw linear', transform=axes[1].transAxes,
+           color='grey', label='raw', transform=axes[1].transAxes,
        )
        axes[1].plot(
            0.5, 0.5, '-',
-           color=darken('grey'), label='imprinted linear', transform=axes[1].transAxes,
+           color=darken('grey'), label='corrected', transform=axes[1].transAxes,
        )
        axes[1].legend()
    axes[1].set_xlabel(r'$k\, [\mathrm{Mpc}^{-1}]$')
@@ -533,21 +530,21 @@ You are in fact already familiar with the idea of combining species, as
 
 .. raw:: html
 
-   <h3>Imprinted linear power spectra</h3>
+   <h3>Noise-corrected power spectra</h3>
 
 With confidence in the linear corrections, let us now go back to using binned
-power spectra. That is, remove the ``powerspec_options`` parameter --- which
-you introduced earlier --- from the parameter file. Further add imprinted
-linear power spectra to the desired output, by changing
-``powerspec_select`` to
+power spectra (the standard). That is, remove the ``powerspec_options``
+parameter --- which you introduced earlier --- from the parameter file.
+Further add *corrected* non-linear power spectra to the desired output, by
+changing ``powerspec_select`` to
 
 .. code-block:: python3
 
    powerspec_select = {
-       'matter': {'data': True, 'linear': True, 'linear imprinted': True, 'plot': False},
+       'matter': {'data': True, 'corrected': True, 'linear': True, 'plot': False},
    }
 
-inside the parameter file. Now perform one last simulation including the
+inside the parameter file. Now perform one last simulation, including the
 necessary linear corrections;
 
 .. code-block:: bash
@@ -558,11 +555,17 @@ necessary linear corrections;
 
 After updating the plot yet again, you should find that you are able to obtain
 excellent agreement with linear theory with the binned spectra as well, when
-using the "imprinted" version of the linear theory prediction.
+using the noise-corrected version of the power spectrum.
+
+.. note::
+   The corrected simulation power spectrum is obtained from the "raw"
+   simulation power spectrum, with noise due to the binning as well as noise
+   due the current realization (cosmic variance) reduced.
 
 To better disentangle the effects of the linear corrections from those of the
-imprinted linear power spectrum, you may further wish to rerun the simulation
-with\ *out* any linear corrections, keeping the imprinted linear output enabled.
+corrected power spectrum, you may further wish to rerun the simulation
+with\ *out* any linear corrections, keeping the corrected power spectrum
+output enabled.
 
 
 

@@ -1139,6 +1139,9 @@ and dumps</p></td>
     <span class="s1">&#39;interlace&#39;</span><span class="p">:</span> <span class="p">{</span>
         <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
     <span class="p">},</span>
+    <span class="s1">&#39;realization correction&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="p">},</span>
     <span class="s1">&#39;k_max&#39;</span><span class="p">:</span> <span class="p">{</span>
         <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="s1">&#39;nyquist&#39;</span><span class="p">,</span>
     <span class="p">},</span>
@@ -1219,6 +1222,13 @@ interlacing involving two relatively shifted particle
 interpolations) or <code class="docutils literal notranslate"><span class="pre">'fcc'</span></code> for a face-centered cubic
 lattice (meaning interlacing involving four relatively
 shifted particle interpolations).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'realization</span> <span class="pre">correction'</span></code>: Specifies whether to
+also correct for the current realisation
+(cosmic variance) when computing <em>corrected</em> power
+spectra (see the <code class="docutils literal notranslate"><span class="pre">powerspec_select</span></code>
+<a class="reference internal" href="input_output.html#powerspec-select"><span class="std std-ref">parameter</span></a>), as opposed to
+only correcting for noise stemming from the binning
+procedure.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">'k_max'</span></code>: Specifies the largest <span class="math notranslate nohighlight">\(k\)</span> mode to
 include in the power spectrum output files (data files
 and plots). If given as a <code class="docutils literal notranslate"><span class="pre">str</span></code>, <code class="docutils literal notranslate"><span class="pre">'nyquist'</span></code> is

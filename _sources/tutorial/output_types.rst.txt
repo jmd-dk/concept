@@ -32,7 +32,7 @@ file:
        'render2D' : logspace(log10(a_begin), log10(1), 15),
    }
    powerspec_select = {
-       'matter': {'data': True, 'linear': True, 'linear imprinted': True, 'plot': True},
+       'matter': {'data': True, 'corrected': True, 'linear': True, 'plot': True},
    }
    bispec_select = {
        'matter': {'data': True, 'reduced': True, 'tree-level': True, 'plot': True},
@@ -102,14 +102,12 @@ specified 15 outputs spaced logarithmically equidistant between
 
 Among the new parameters introduced are ``powerspec_select``, in which we have
 specified that we want the usual data files and plots, including the linear
-theory predictions. A new kind of power spectrum output,
-``'linear imprinted'``, is also specified. This is once again the linear
-theory prediction, but with the random realisation noise imprinted onto it,
-effectively incorporating cosmic variance. From the power spectrum plots, it
-is clear that this kind of linear power spectrum is a much closer match to
-the simulation power spectrum at the lower :math:`k`. For taking ratios of
-non-linear and linear power spectra, such "imprinted" linear spectra are thus
-to be preferred.
+theory predictions. A new kind of power spectrum output, ``'corrected'``, is
+also specified. This is the non-linear simulation power spectrum, but
+corrected for noise stemming from the current realisation (cosmic variance) as
+well as from the binning procedure of the spectrum. The power spectrum plots
+should show that the corrected non-linear power spectrum is a closer match to
+the linear power spectrum at the lower :math:`k`, at least at early times.
 
 
 
