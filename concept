@@ -1761,7 +1761,8 @@ fi
 # typically involving some processing of snapshots.
 launch_utility() {
     # Arguments: Product name (singular), product name (plural),
-    # yes to defaults, default utility parameters, paths.
+    # yes to defaults, default utility parameters,
+    # final utility parameter specifications, paths.
     local product_singular="$1"
     local product_plural="$2"
     local yes_to_defaults="$3"

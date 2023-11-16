@@ -229,6 +229,21 @@ special_params = {
 class_extra_background = {'tau', 'D', 'f', 'D2', 'f2'}
 "             \
 "
+# If explicit times are given, set a_begin to the minimum such time
+try:
+    _times = eval(special_params['times'])
+    if not isinstance(_times, (int, np.integer)):
+        if isinstance(_times, (float, np.floating)) and a_begin > _times:
+            a_begin = _times
+        else:
+            try:
+                _times = min(_times)
+                if a_begin > _times:
+                    a_begin = _times
+            except Exception:
+                pass
+except Exception:
+    pass
 # Apply minimum and maximum k, if given
 if ${kmin} != -1:
     _kmin = ${kmin}

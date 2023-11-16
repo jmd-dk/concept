@@ -1461,8 +1461,10 @@ def handle_class_arg(arg, kind, vmin=0, vmax=ထ):
         if is_pure_number:
             if values == ထ:
                 values = -1
-            else:
+            elif np.isclose(values, round(values), atol=10*machine_ϵ):
                 values = int(round(values))
+            else:
+                values = [float(values)]
         else:
             values = [values]
     if not isinstance(values, (int, float, np.integer, np.floating)):
