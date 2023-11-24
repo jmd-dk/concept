@@ -203,6 +203,7 @@
 <li class="toctree-l3"><a class="reference internal" href="../parameters/cosmology.html#t-begin"><code class="docutils literal notranslate"><span class="pre">t_begin</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/cosmology.html#primordial-spectrum"><code class="docutils literal notranslate"><span class="pre">primordial_spectrum</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/cosmology.html#class-params"><code class="docutils literal notranslate"><span class="pre">class_params</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../parameters/cosmology.html#enable-class-background"><code class="docutils literal notranslate"><span class="pre">enable_class_background</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="../parameters/physics.html">Physics</a><ul>
@@ -252,7 +253,6 @@
 <li class="toctree-l3"><a class="reference internal" href="../parameters/debugging.html#print-load-imbalance"><code class="docutils literal notranslate"><span class="pre">print_load_imbalance</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/debugging.html#particle-reordering"><code class="docutils literal notranslate"><span class="pre">particle_reordering</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../parameters/debugging.html#enable-hubble"><code class="docutils literal notranslate"><span class="pre">enable_Hubble</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="../parameters/debugging.html#enable-class-background"><code class="docutils literal notranslate"><span class="pre">enable_class_background</span></code></a></li>
 </ul>
 </li>
 </ul>
@@ -704,6 +704,15 @@ The <code class="docutils literal notranslate"><span class="pre">realization_opt
 back-scaling should be used when generating the initial conditions, and also
 that this should be done within the synchronous gauge (as opposed to the
 default <em>N</em>-body gauge), as is typically used with back-scaling.</p>
+<p>In the above, we eventually disabled the CLASS background within CO<em>N</em>CEPT
+simulations by setting <code class="docutils literal notranslate"><span class="pre">enable_class_background</span> <span class="pre">=</span> <span class="pre">False</span></code>, which then instead
+makes use of a simplified matter + Λ background, similar to what is used
+within GADGET-2. Note however that we did this after creating the initial
+conditions, meaning that the back-scaling was done in a background that
+includes radiation, causing a slight inconsistency. For the comparison between
+CO<em>N</em>CEPT and GADGET-2, this is not relevant, but for physically accurate
+results, the same value of <code class="docutils literal notranslate"><span class="pre">enable_class_background</span></code> should be used when
+generating the initial conditions as used within the simulation itself.</p>
 <p>When using back-scaling, the particle velocities are obtained from the same
 (<span class="math notranslate nohighlight">\(\delta\)</span>) transfer function as the positions, using a Newtonian
 approximation. The velocities are thus not the actual synchronous gauge

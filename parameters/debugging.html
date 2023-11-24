@@ -203,6 +203,7 @@
 <li class="toctree-l3"><a class="reference internal" href="cosmology.html#t-begin"><code class="docutils literal notranslate"><span class="pre">t_begin</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="cosmology.html#primordial-spectrum"><code class="docutils literal notranslate"><span class="pre">primordial_spectrum</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="cosmology.html#class-params"><code class="docutils literal notranslate"><span class="pre">class_params</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="cosmology.html#enable-class-background"><code class="docutils literal notranslate"><span class="pre">enable_class_background</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="physics.html">Physics</a><ul>
@@ -252,7 +253,6 @@
 <li class="toctree-l3"><a class="reference internal" href="#print-load-imbalance"><code class="docutils literal notranslate"><span class="pre">print_load_imbalance</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#particle-reordering"><code class="docutils literal notranslate"><span class="pre">particle_reordering</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#enable-hubble"><code class="docutils literal notranslate"><span class="pre">enable_Hubble</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="#enable-class-background"><code class="docutils literal notranslate"><span class="pre">enable_class_background</span></code></a></li>
 </ul>
 </li>
 </ul>
@@ -355,15 +355,14 @@
 features as well as additional information on or off.</p>
 <nav class="contents local" id="contents">
 <ul class="simple">
-<li><p><a class="reference internal" href="#print-load-imbalance" id="id4"><code class="docutils literal notranslate"><span class="pre">print_load_imbalance</span></code></a></p></li>
-<li><p><a class="reference internal" href="#particle-reordering" id="id5"><code class="docutils literal notranslate"><span class="pre">particle_reordering</span></code></a></p></li>
-<li><p><a class="reference internal" href="#enable-hubble" id="id6"><code class="docutils literal notranslate"><span class="pre">enable_Hubble</span></code></a></p></li>
-<li><p><a class="reference internal" href="#enable-class-background" id="id7"><code class="docutils literal notranslate"><span class="pre">enable_class_background</span></code></a></p></li>
+<li><p><a class="reference internal" href="#print-load-imbalance" id="id3"><code class="docutils literal notranslate"><span class="pre">print_load_imbalance</span></code></a></p></li>
+<li><p><a class="reference internal" href="#particle-reordering" id="id4"><code class="docutils literal notranslate"><span class="pre">particle_reordering</span></code></a></p></li>
+<li><p><a class="reference internal" href="#enable-hubble" id="id5"><code class="docutils literal notranslate"><span class="pre">enable_Hubble</span></code></a></p></li>
 </ul>
 </nav>
 <hr class="docutils" />
 <section id="print-load-imbalance">
-<h2><a class="toc-backref" href="#id4" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">print_load_imbalance</span></code></a><a class="headerlink" href="#print-load-imbalance" title="Permalink to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id3" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">print_load_imbalance</span></code></a><a class="headerlink" href="#print-load-imbalance" title="Permalink to this heading"></a></h2>
 <table>
 <tbody>
 <tr class="row-odd"><td><p></p></td>
@@ -417,7 +416,7 @@ imbalance between all CPU cores is shown.</p></td>
 <hr class="docutils" />
 </section>
 <section id="particle-reordering">
-<span id="id1"></span><h2><a class="toc-backref" href="#id5" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">particle_reordering</span></code></a><a class="headerlink" href="#particle-reordering" title="Permalink to this heading"></a></h2>
+<span id="id1"></span><h2><a class="toc-backref" href="#id4" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">particle_reordering</span></code></a><a class="headerlink" href="#particle-reordering" title="Permalink to this heading"></a></h2>
 <table>
 <tbody>
 <tr class="row-odd"><td><p></p></td>
@@ -481,7 +480,7 @@ is — for the moment — equivalent to the default</p>
 <hr class="docutils" />
 </section>
 <section id="enable-hubble">
-<span id="id2"></span><h2><a class="toc-backref" href="#id6" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">enable_Hubble</span></code></a><a class="headerlink" href="#enable-hubble" title="Permalink to this heading"></a></h2>
+<span id="id2"></span><h2><a class="toc-backref" href="#id5" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">enable_Hubble</span></code></a><a class="headerlink" href="#enable-hubble" title="Permalink to this heading"></a></h2>
 <table>
 <tbody>
 <tr class="row-odd"><td><p></p></td>
@@ -506,7 +505,7 @@ expansion is turned on, so that the scale factor
 cosmology. For standard cosmological simulations,
 this is what we want. By default, CLASS is used to
 provide CO<em>N</em>CEPT with <span class="math notranslate nohighlight">\(a(t)\)</span>, though this
-can be <a class="reference internal" href="#enable-class-background"><span class="std std-ref">disabled</span></a>.</p></td>
+can be <a class="reference internal" href="cosmology.html#enable-class-background"><span class="std std-ref">disabled</span></a>.</p></td>
 </tr>
 <tr class="row-even"><td><p></p></td>
 <td><p><strong>Example 0</strong></p></td>
@@ -521,60 +520,6 @@ can be <a class="reference internal" href="#enable-class-background"><span class
 testing. A lot of basic functionality will not work
 in this mode.</p>
 </div>
-</td>
-</tr>
-</tbody>
-</table>
-<hr class="docutils" />
-</section>
-<section id="enable-class-background">
-<span id="id3"></span><h2><a class="toc-backref" href="#id7" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">enable_class_background</span></code></a><a class="headerlink" href="#enable-class-background" title="Permalink to this heading"></a></h2>
-<table>
-<tbody>
-<tr class="row-odd"><td><p></p></td>
-<td><p><strong>Description</strong></p></td>
-<td><p></p></td>
-<td><p>Specifies whether to use CLASS to solve the cosmological
-background evolution</p></td>
-</tr>
-<tr class="row-even"><td><p></p></td>
-<td><p><strong>Default</strong></p></td>
-<td><p></p></td>
-<td><div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="kc">True</span>
-</pre></div>
-</div>
-</td>
-</tr>
-<tr class="row-odd"><td><p></p></td>
-<td><p><strong>Elaboration</strong></p></td>
-<td><p></p></td>
-<td><p>The <a class="reference external" href="http://class-code.net/">CLASS</a> code is fully
-integrated within CO<em>N</em>CEPT and provides the
-cosmological background (e.g. <span class="math notranslate nohighlight">\(a(t)\)</span>) as well as
-linear perturbations, the latter used for e.g.
-generation of initial conditions. The background
-computation within CLASS takes all species into account.
-Even in the most basic case of not specifying any
-<a class="reference internal" href="cosmology.html#class-params"><span class="std std-ref">CLASS parameters</span></a>, this includes
-radiation (photons and massless neutrinos), matter
-(baryons and cold dark matter) and a cosmological
-constant. Alternatively, CO<em>N</em>CEPT implements a
-simplified background containing just matter and a
-cosmological constant.</p></td>
-</tr>
-<tr class="row-even"><td><p></p></td>
-<td><p><strong>Example 0</strong></p></td>
-<td><p></p></td>
-<td><p>Swap the full CLASS background with a simplified
-background containing just matter and a cosmological
-constant:</p>
-<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">enable_class_background</span> <span class="o">=</span> <span class="kc">False</span>
-</pre></div>
-</div>
-<p>This is useful when seeking compatibility with other
-simulation codes which use this simplified background,
-but note that some features (e.g. initial condition
-generation) require the proper CLASS background.</p>
 </td>
 </tr>
 </tbody>
