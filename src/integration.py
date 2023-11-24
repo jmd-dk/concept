@@ -549,6 +549,8 @@ accepted_indices_ptr = malloc(accepted_indices_size*sizeof('Py_ssize_t'))
     # Arguments
     a='double',
     # Locals
+    spline='Spline',
+    ΩΛ='double',
     returns='double',
 )
 def hubble(a=-1):
@@ -563,18 +565,16 @@ def hubble(a=-1):
     # Friedmann equation, just as when CLASS is not being used for the
     # background computation.
     if enable_class_background and a <= 1:
-        if spline_a_H is None:
+        spline = temporal_splines.a_H
+        if spline is None:
             abort('The function H(a) has not been tabulated. Have you called init_time?')
-        return spline_a_H.eval(a)
+        return spline.eval(a)
     # CLASS not enabled. Assume that the universe is flat
     # and consists purely of matter and Λ.
     # If we write a**(±3) directly,
     # -ffast-math degrades the power computation.
+    ΩΛ = 1 - Ωm
     return H0*sqrt(Ωm*np.power(a, -3) + ΩΛ)
-# ΩΛ for a flat universe consisting purely of matter and Λ.
-# This will only be used when the CLASS background is disabled.
-cython.declare(ΩΛ='double')
-ΩΛ = 1 - Ωm
 
 # Function for computing the scale factor a,
 # given a value for the cosmic time.
@@ -582,6 +582,7 @@ cython.declare(ΩΛ='double')
     # Arguments
     t='double',
     # Locals
+    spline='Spline',
     returns='double',
 )
 def scale_factor(t=-1):
@@ -589,9 +590,10 @@ def scale_factor(t=-1):
         return 1
     if t == -1:
         t = universals.t
-    if spline_t_a is None:
+    spline = temporal_splines.t_a
+    if spline is None:
         abort('The function a(t) has not been tabulated. Have you called init_time?')
-    return spline_t_a.eval(t)
+    return spline.eval(t)
 
 # Function for computing the cosmic time t,
 # given a value for the scale factor.
@@ -599,6 +601,7 @@ def scale_factor(t=-1):
     # Arguments
     a='double',
     # Locals
+    spline='Spline',
     returns='double',
 )
 def cosmic_time(a=-1):
@@ -609,9 +612,10 @@ def cosmic_time(a=-1):
         )
     if a == -1:
         a = universals.a
-    if spline_a_t is None:
+    spline = temporal_splines.a_t
+    if spline is None:
         abort('The function t(a) has not been tabulated. Have you called init_time?')
-    return spline_a_t.eval(a)
+    return spline.eval(a)
 
 # Function returning the proper time differentiated scale factor,
 # given a value for the scale factor.
@@ -649,6 +653,7 @@ def ä(a=-1):
     # Arguments
     a='double',
     # Locals
+    spline='Spline',
     returns='double',
 )
 def Ḣ(a=-1):
@@ -656,26 +661,10 @@ def Ḣ(a=-1):
         return 0
     if a == -1:
         a = universals.a
-    if spline_a_H is None:
+    spline = temporal_splines.a_H
+    if spline is None:
         abort('The function H(a) has not been tabulated. Have you called init_time?')
-    return ȧ(a)*spline_a_H.eval_deriv(a)
-
-# Function returning ∂log(a)/∂log(t), given both log(t) and log(a).
-# The function is written as to be
-# plugged into scipy.integrate.solve_ivp().
-@cython.pheader(
-    # Arguments
-    logt='double',
-    loga='double[::1]',
-    # Locals
-    a='double',
-    t='double',
-    returns='double',
-)
-def dloga_dlogt(logt, loga):
-    t = exp(logt)
-    a = exp(loga[0])
-    return t*hubble(a)
+    return ȧ(a)*spline.eval_deriv(a)
 
 # Function for calculating integrals of the sort
 # ᔑ_t_start^t_end integrand(a(t)) dt.
@@ -740,11 +729,11 @@ def scalefactor_integral(key, t_start, t_end, all_components):
         for component in components:
             if component is not None and component.w_eff_type != 'constant':
                 a_tab_spline = component.w_eff_spline.x
-                t_tab_spline = asarray([spline_a_t.eval(a) for a in a_tab_spline])
+                t_tab_spline = asarray([temporal_splines.a_t.eval(a) for a in a_tab_spline])
                 break
         else:
-            a_tab_spline = spline_a_t.x
-            t_tab_spline = spline_a_t.y
+            a_tab_spline = temporal_splines.a_t.x
+            t_tab_spline = temporal_splines.a_t.y
     else:
         # Construct dummy a(t) table
         t_tab_spline = linspace(t_start, t_end, Spline.size_min)
@@ -829,31 +818,39 @@ spline_t_integrands = {}
 # Function which sets the value of universals.a and universals.t
 # based on the user parameters a_begin and t_begin together with the
 # cosmology if enable_Hubble is True. The functions t(a), a(t) and H(a)
-# will also be tabulated and stored in the module namespace in the
-# form of spline_a_t, spline_t_a and spline_a_H.
+# will also be tabulated and stored as spline attributes on the module
+# level temporal_splines object. If enable_class_background is False,
+# D(a), f(a), D2(a) and f2(a) will be added as well.
+@cython.pheader(
+    # Arguments
+    reinitialize='bint',
+    # Locals
+    a_begin_correct='double',
+    a_today='double',
+    a_values='double[::1]',
+    background=dict,
+    cosmo=object,  # classy.Class
+    D2_values='double[::1]',
+    D_values='double[::1]',
+    f2_values='double[::1]',
+    f_values='double[::1]',
+    H_values='double[::1]',
+    n_bg='Py_ssize_t',
+    t_begin_correct='double',
+    t_values='double[::1]',
+    returns='void',
+)
 def init_time(reinitialize=False):
-    global time_initialized, spline_a_t, spline_t_a, spline_a_H
-    # This is a pure function as it contains a closure.
-    # Some type information is necessary.
-    cython.declare(
-        H_values='double[::1]',
-        a_begin_correct='double',
-        a_today='double',
-        a_values='double[::1]',
-        t_values='double[::1]',
-        t_begin_correct='double',
-    )
-    if time_initialized and not reinitialize:
+    if temporal_splines.initialized and not reinitialize:
         return
-    time_initialized = True
+    a_today = 1
     if enable_Hubble:
         # Hubble expansion enabled.
         # If CLASS should be used to compute the evolution of the
         # background throughout time, we run CLASS now.
         # Otherwise we solve the simplified background implemented
         # by hubble() ourselves.
-        a_values = t_values = H_values = None
-        a_today = 1
+        a_values = t_values = H_values = D_values = f_values = D2_values = f2_values = None
         if enable_class_background:
             # Ideally we would call CLASS via compute_cosmo() from the
             # linear module, as this would preserve all results for any
@@ -869,70 +866,54 @@ def init_time(reinitialize=False):
             a_values = 1/(background['z'] + 1)
             t_values = background['proper time [Gyr]']*units.Gyr
             H_values = background['H [1/Mpc]']*(light_speed/units.Mpc)
-        elif master:
-            masterprint('Solving matter + Λ background ...')
-            # Get the age of the universe t(a=1)
-            import scipy.integrate
-            a_begin_bg = 1e-14  # as in CLASS
-            t_begin_bg = 2/(3*hubble(a_begin_bg))  # assume matter domination as hubble() neglects radiation
-            rtol = 1e-12
-            atol = machine_ϵ  # 0 is not OK
-            def event(logt, loga):
-                return loga[0] - ℝ[log(a_today)]
-            event.terminal = True
-            t_today = exp(
-                scipy.integrate.solve_ivp(
-                    dloga_dlogt,
-                    (log(t_begin_bg), ထ),
-                    asarray([log(a_begin_bg)]),
-                    rtol=rtol,
-                    atol=atol,
-                    events=event,
-                ).t_events[0][0]
-            )
-            # Tabulate a(t) from t_begin_bg to today
-            n_bg = int(log(a_today/a_begin_bg)/7e-3)  # as in CLASS
-            logt_values = linspace(log(t_begin_bg), log(t_today), n_bg)
-            t_values = np.exp(logt_values)
-            a_values = np.exp(
-                scipy.integrate.solve_ivp(
-                    dloga_dlogt,
-                    (log(t_begin_bg), log(t_today)),
-                    asarray([log(a_begin_bg)]),
-                    t_eval=logt_values,
-                    rtol=rtol,
-                    atol=atol,
-                ).y[0, :]
-            )
-            # Tabulate H on the same interval
-            H_values = asarray([hubble(a) for a in a_values])
-            masterprint('done')
+        else:
+            # Use the simplified matter + Λ background.
+            # Here we futher compute the growth factors (normally
+            # computed within CLASS using the full background and
+            # handled within the linear module;
+            # see e.g. linear.CosmoResults.growth_fac_D()).
+            (
+                a_values, t_values, H_values,
+                D_values, f_values, D2_values, f2_values,
+            ) = solve_matterΛ_background(a_today)
         # Ensure that the last scale factor and Hubble value
         # are set to their current values.
         if master:
-            index = len(a_values) - 1
-            if not isclose(a_values[index], a_today, rel_tol=1e-9):
+            n_bg = a_values.shape[0]
+            if not np.isclose(a_values[n_bg - 1], a_today, rtol=1e-9, atol=0):
                 abort(
                     f'Expected the last scale factor value in the '
                     f'tabulated background to be {a_today}, '
-                    f'but found {a_values[index]}.'
+                    f'but found {a_values[n_bg - 1]}.'
                 )
-            a_values[index] = a_today
-            unit = units.km/(units.s*units.Mpc)
-            if not isclose(H_values[index], H0, rel_tol=1e-6):
+            a_values[n_bg - 1] = a_today
+            if not np.isclose(H_values[n_bg - 1], H0, rtol=1e-9, atol=0):
+                unit = units.km/(units.s*units.Mpc)
                 abort(
                     f'Expected the last Hubble value in the '
                     f'tabulated background to be {H0/unit} km s⁻¹ Mpc⁻¹, '
-                    f'but found {H_values[index]/unit} km s⁻¹ Mpc⁻¹.'
+                    f'but found {H_values[n_bg - 1]/unit} km s⁻¹ Mpc⁻¹.'
                 )
-            a_values[index] = a_today
+            H_values[n_bg - 1] = H0
         # Communicate results and create splines
-        a_values = smart_mpi(a_values, 0, mpifun='bcast')
-        t_values = smart_mpi(t_values, 1, mpifun='bcast')
-        H_values = smart_mpi(H_values, 2, mpifun='bcast')
-        spline_a_t = Spline(a_values, t_values, 't(a)', logx=True, logy=True)
-        spline_t_a = Spline(t_values, a_values, 'a(t)', logx=True, logy=True)
-        spline_a_H = Spline(a_values, H_values, 'H(a)', logx=True, logy=True)
+        a_values = smart_mpi(a_values, mpifun='bcast').copy()
+        t_values = smart_mpi(t_values, mpifun='bcast')
+        temporal_splines.a_t = Spline(a_values, t_values, 't(a)', logx=True, logy=True)
+        temporal_splines.t_a = Spline(t_values, a_values, 'a(t)', logx=True, logy=True)
+        H_values = smart_mpi(H_values, mpifun='bcast')
+        temporal_splines.a_H = Spline(a_values, H_values, 'H(a)', logx=True, logy=True)
+        if not enable_class_background:
+            # Growth factors computed with the simplified background
+            D_values = smart_mpi(D_values, mpifun='bcast')
+            temporal_splines.a_D = Spline(a_values, D_values, 'D(a)', logx=True, logy=True)
+            f_values = smart_mpi(f_values, mpifun='bcast')
+            temporal_splines.a_f = Spline(a_values, f_values, 'f(a)', logx=False, logy=True)
+            D2_values = smart_mpi(D2_values, mpifun='bcast')
+            temporal_splines.a_D2 = Spline(
+                a_values, D2_values, 'D2(a)', logx=True, logy=True, negativey=True,
+            )
+            f2_values = smart_mpi(f2_values, mpifun='bcast')
+            temporal_splines.a_f2 = Spline(a_values, f2_values, 'f2(a)', logx=False, logy=True)
         # A specification of initial scale factor or
         # cosmic time is needed.
         if 'a_begin' in user_params_keys_raw:
@@ -978,13 +959,186 @@ def init_time(reinitialize=False):
     # Initiate the current universal time and scale factor
     universals.t = t_begin_correct
     universals.a = a_begin_correct
-cython.declare(
-    time_initialized='bint',
-    spline_a_t='Spline',
-    spline_t_a='Spline',
-    spline_a_H='Spline',
+
+# Container class storing background splines to be set by init_time()
+@cython.cclass
+class TemporalSplines:
+    # Initialisation method
+    @cython.header()
+    def __init__(self):
+        """
+        Spline a_t
+        Spline t_a
+        Spline a_H
+        Spline a_D
+        Spline a_f
+        Spline a_D2
+        Spline a_f2
+        """
+        self.a_t = None
+        self.t_a = None
+        self.a_H = None
+        self.a_D = None
+        self.a_f = None
+        self.a_D2 = None
+        self.a_f2 = None
+    @property
+    def initialized(self):
+        return self.a_t is not None
+cython.declare(temporal_splines='TemporalSplines')
+temporal_splines = TemporalSplines()
+
+# Function for solving the simplified matter + Λ background
+def solve_matterΛ_background(a_today=1):
+    """Note that the results are only returned by the master process"""
+    a_values = t_values = H_values = D_values = f_values = D2_values = f2_values = None
+    if not master:
+        return a_values, t_values, H_values, D_values, f_values, D2_values, f2_values
+    # Load from cache
+    filename = get_reusable_filename('background', Ωm, a_today, unit_time)
+    if os.path.exists(filename):
+        return tuple(map(np.ascontiguousarray, np.loadtxt(filename, unpack=True)))
+    # Solve matter + Λ background
+    masterprint('Solving matter + Λ background ...')
+    import scipy.integrate
+    # Get the age of the universe t(a=1)
+    a_begin_bg = 1e-14  # as in CLASS
+    solve_ivp_kwargs = dict(
+        method='DOP853',
+        rtol=1e-12,
+        atol=0,
+    )
+    t_begin_bg = 2/(3*hubble(a_begin_bg))  # assumes matter domination
+    def event(logt, loga):
+        return loga[0] - ℝ[log(a_today)]
+    event.terminal = True
+    t_today = exp(
+        scipy.integrate.solve_ivp(
+            dloga_dlogt,
+            (log(t_begin_bg), ထ),
+            asarray([log(a_begin_bg)]),
+            events=event,
+            **solve_ivp_kwargs,
+        ).t_events[0][0]
+    )
+    # Tabulate a(t) from t_begin_bg to today
+    n_bg = int(log(a_today/a_begin_bg)/7e-3)  # as in CLASS
+    logt_values = linspace(log(t_begin_bg), log(t_today), n_bg)
+    t_values = np.exp(logt_values)
+    a_values = np.exp(
+        scipy.integrate.solve_ivp(
+            dloga_dlogt,
+            (log(t_begin_bg), log(t_today)),
+            [log(a_begin_bg)],
+            t_eval=logt_values,
+            **solve_ivp_kwargs,
+        ).y[0]
+    )
+    t_values[0], t_values[-1] = t_begin_bg, t_today
+    a_values[0], a_values[-1] = a_begin_bg, a_today
+    # Tabulate H on the same interval
+    H_values = asarray([hubble(a) for a in a_values])
+    # Solve growth factors
+    C = 1  # arbitrary
+    D_begin_bg = C*a_begin_bg
+    dD_da_begin_bg = C
+    D2_begin_bg = -3./7.*C**2*a_begin_bg**2
+    dD2_da_begin_bg = -6./7.*C**2*a_begin_bg
+    growth_solution = scipy.integrate.solve_ivp(
+        dgrowth_da,
+        (a_begin_bg, a_today),
+        [D_begin_bg, dD_da_begin_bg, D2_begin_bg, dD2_da_begin_bg],
+        t_eval=a_values,
+        **solve_ivp_kwargs,
+    )
+    # Extract growth rates f = a/D*dD/da
+    # and normalize growth factors to D(a=1) = 1.
+    f_values = np.ascontiguousarray(growth_solution.y[1])
+    f_values *= a_values/growth_solution.y[0]
+    f2_values = np.ascontiguousarray(growth_solution.y[3])
+    f2_values *= a_values/growth_solution.y[2]
+    D_values = np.ascontiguousarray(growth_solution.y[0])
+    D2_values = np.ascontiguousarray(growth_solution.y[2])
+    D_normalization = 1/D_values[-1]
+    D_values *= D_normalization
+    D_values[-1] = 1
+    D2_values *= D_normalization**2
+    # Cache background to disk
+    results = (a_values, t_values, H_values, D_values, f_values, D2_values, f2_values)
+    os.makedirs(os.path.dirname(filename), exist_ok=True)
+    np.savetxt(
+        filename,
+        asarray(results).T,
+        fmt='%.18e',
+        header=unicode(
+            '\n'.join([
+                f'Matter + Λ background with Ωm = {Ωm}, ΩΛ = 1 - Ωm = {1 - Ωm}',
+                '',
+                ' '.join([
+                    f'{title:<24}'
+                    for title in [
+                        'a', f't [{unit_time}]', f'H [{unit_time}⁻¹]',
+                        'D⁽¹⁾', 'f⁽¹⁾', 'D⁽²⁾', 'f⁽²⁾',
+                    ]
+                ]).rstrip(),
+            ])
+        ),
+        encoding='utf-8',
+    )
+    masterprint('done')
+    return results
+
+# Function returning ∂log(a)/∂log(t), given both log(t) and log(a).
+# The function is written as to be
+# plugged into scipy.integrate.solve_ivp().
+@cython.pheader(
+    # Arguments
+    logt='double',
+    loga='double[::1]',
+    # Locals
+    a='double',
+    t='double',
+    returns='double',
 )
-time_initialized = False
-spline_a_t = None
-spline_t_a = None
-spline_a_H = None
+def dloga_dlogt(logt, loga):
+    t = exp(logt)
+    a = exp(loga[0])
+    return t*hubble(a)
+
+# Function that takes in a and the vector
+#   [D⁽¹⁾, ∂D⁽¹⁾/∂a, D⁽²⁾, ∂D⁽²⁾/∂a]
+# and returns the derivative of this vector with respect to a.
+# The function is written as to be
+# plugged into scipy.integrate.solve_ivp().
+@cython.pheader(
+    # Arguments
+    a='double',
+    y='double[::1]',
+    # Locals
+    D='double',
+    D2='double',
+    d2D_da2='double',
+    d2D2_da2='double',
+    dD_da='double',
+    dD2_da='double',
+    dH_da_over_H='double',
+    returns='double[::1]',
+)
+def dgrowth_da(a, y):
+    # Extract
+    D, dD_da, D2, dD2_da = y[0], y[1], y[2], y[3]
+    # Compute derivatives.
+    # Here we assume the simplified matter + Λ Hubble parameter
+    # H(a) = H0*sqrt(Ωm/a**3 + (1 - Ωm)), as also used in hubble()
+    # when enable_class_background is False.
+    dH_da_over_H = -1.5*Ωm*(H0/hubble(a))**2/a**4
+    d2D_da2  = -(3/a + dH_da_over_H)*dD_da  - dH_da_over_H/a*D
+    d2D2_da2 = -(3/a + dH_da_over_H)*dD2_da - dH_da_over_H/a*(D2 - D**2)
+    # Pack and return
+    dgrowth_da_returnvec[0] = y[1]
+    dgrowth_da_returnvec[1] = d2D_da2
+    dgrowth_da_returnvec[2] = y[3]
+    dgrowth_da_returnvec[3] = d2D2_da2
+    return dgrowth_da_returnvec
+cython.declare(dgrowth_da_returnvec='double[::1]')
+dgrowth_da_returnvec = empty(4, dtype=C2np['double'])

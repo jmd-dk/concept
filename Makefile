@@ -244,24 +244,25 @@ print-vars:
 ###################
 # Cleanup targets #
 ###################
-.PHONY:                      \
-    clean                    \
-    clean-autosave           \
-    clean-doc                \
-    clean-ic                 \
-    clean-job                \
-    clean-output             \
-    clean-reusable           \
-    clean-bispec-reusable    \
-    clean-class-reusable     \
-    clean-ewald-reusable     \
-    clean-fftw-reusable      \
-    clean-powerspec-reusable \
-    clean-test               \
-    clean-tmp                \
-    clean-util               \
-    distclean                \
-    distclean-except-tmp     \
+.PHONY:                       \
+    clean                     \
+    clean-autosave            \
+    clean-doc                 \
+    clean-ic                  \
+    clean-job                 \
+    clean-output              \
+    clean-reusable            \
+    clean-background-reusable \
+    clean-bispec-reusable     \
+    clean-class-reusable      \
+    clean-ewald-reusable      \
+    clean-fftw-reusable       \
+    clean-powerspec-reusable  \
+    clean-test                \
+    clean-tmp                 \
+    clean-util                \
+    distclean                 \
+    distclean-except-tmp      \
 
 # Remove build files
 clean:
@@ -284,6 +285,8 @@ clean-output:
 # Remove reusable dumps
 clean-reusable:
 	$(RM) -r "$(reusable_dir)"
+clean-background-reusable:
+	$(RM) -r "$(reusable_dir)/background"
 clean-bispec-reusable:
 	$(RM) -r "$(reusable_dir)/bispec"
 clean-class-reusable:

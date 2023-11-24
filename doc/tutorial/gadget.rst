@@ -458,6 +458,16 @@ back-scaling should be used when generating the initial conditions, and also
 that this should be done within the synchronous gauge (as opposed to the
 default *N*-body gauge), as is typically used with back-scaling.
 
+In the above, we eventually disabled the CLASS background within CO\ *N*\ CEPT
+simulations by setting ``enable_class_background = False``, which then instead
+makes use of a simplified matter + Λ background, similar to what is used
+within GADGET-2. Note however that we did this after creating the initial
+conditions, meaning that the back-scaling was done in a background that
+includes radiation, causing a slight inconsistency. For the comparison between
+CO\ *N*\ CEPT and GADGET-2, this is not relevant, but for physically accurate
+results, the same value of ``enable_class_background`` should be used when
+generating the initial conditions as used within the simulation itself.
+
 When using back-scaling, the particle velocities are obtained from the same
 (:math:`\delta`) transfer function as the positions, using a Newtonian
 approximation. The velocities are thus not the actual synchronous gauge

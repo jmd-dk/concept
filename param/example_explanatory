@@ -318,6 +318,7 @@ class_params = {  # CLASS parameters. See the CLASS documentation for details.
     # General precision parameters
     'evolver': 0,
 }
+enable_class_background = True   # Use CLASS to compute the evolution of the background?
 enable_warm_dark_matter = False  # If True, interprets the last ncdm species as wdm
 
 # Physics
@@ -536,5 +537,4 @@ print_load_imbalance = True                  # Print the CPU load imbalance afte
 allow_snapshot_multifile_singleload = False  # Allow loading just a single file of multi-file snapshots?
 particle_reordering = True                   # Allow in-memory particle reordering?
 enable_Hubble = True                         # Enable Hubble expansion?
-enable_class_background = True               # Use CLASS to compute the evolution of the background?
 

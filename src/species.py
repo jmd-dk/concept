@@ -1791,33 +1791,51 @@ class Component:
     # ϱ_bar = a**(3*(1 + w_eff(a)))*ρ_bar(a).
     @property
     def ϱ_bar(self):
-        if self._ϱ_bar == -1:
-            if enable_class_background:
-                cosmoresults = compute_cosmo(
-                    class_call_reason=f'in order to determine ̅ϱ of {self.name}',
+        # If already set
+        if self._ϱ_bar != -1:
+            return self._ϱ_bar
+        # If the CLASS background is available
+        if enable_class_background:
+            cosmoresults = compute_cosmo(
+                class_call_reason=f'in order to determine ̅ϱ of {self.name}',
+            )
+            self._ϱ_bar = cosmoresults.ρ_bar(1, self.class_species)
+            return self._ϱ_bar
+        # Handle simple matter species
+        if not (set(self.class_species.split('+')) - {'b', 'cdm'}):
+            self._ϱ_bar = 0
+            for class_species in self.class_species.split('+'):
+                self._ϱ_bar += {'b': Ωb, 'cdm': Ωcdm}[class_species]*ρ_crit
+            return self._ϱ_bar
+        # Set from assigned particle mass
+        if self.representation == 'particles':
+            if self.mass == -1:
+                abort(
+                    f'Cannot determine ϱ_bar for {self.name} '
+                    f'with CLASS species {self.class_species} because its (particle) '
+                    f'mass is not (yet?) set and enable_class_background is False'
                 )
-                self._ϱ_bar = cosmoresults.ρ_bar(1, self.class_species)
-            elif self.representation == 'particles':
-                if self.mass == -1:
-                    abort(
-                        f'Cannot determine ϱ_bar for {self.name} because its (particle) '
-                        f'mass is not (yet?) set and enable_class_background is False'
+            self._ϱ_bar = self.N*self.mass/boxsize**3
+            return self._ϱ_bar
+        # Set from assigned fluid densities
+        if self.representation == 'fluid':
+            if self.mass == -1:
+                self._ϱ_bar = (
+                    allreduce(np.sum(self.ϱ.grid_noghosts), op=MPI.SUM)
+                    /self.gridsize**3
+                )
+                if self._ϱ_bar == 0:
+                    masterwarn(
+                        f'Failed to measure ̅ϱ of {self.name}. '
+                        f'Try specifying the (fluid element) mass.'
                     )
-                self._ϱ_bar = self.N*self.mass/boxsize**3
-            elif self.representation == 'fluid':
-                if self.mass == -1:
-                    self._ϱ_bar = (
-                        allreduce(np.sum(self.ϱ.grid_noghosts), op=MPI.SUM)
-                        /self.gridsize**3
-                    )
-                    if self._ϱ_bar == 0:
-                        masterwarn(
-                            f'Failed to measure ̅ϱ of {self.name}. '
-                            f'Try specifying the (fluid element) mass.'
-                        )
-                else:
-                    self._ϱ_bar = (self.gridsize/boxsize)**3*self.mass
-        return self._ϱ_bar
+            else:
+                self._ϱ_bar = (self.gridsize/boxsize)**3*self.mass
+            return self._ϱ_bar
+        abort(
+            f'Cannot determine ϱ_bar for {self.name} '
+            f'with CLASS species {self.class_species}'
+        )
 
     # Method which returns the decay rate of this component
     @cython.header(
@@ -2902,6 +2920,19 @@ class Component:
                     f'the "{scheme}" scheme, which is not implemented.'
                 )
 
+    # Method for testing whether this component is
+    # constituted solely of matter-like species.
+    def is_matter_like(self):
+        return not (
+            {
+                class_species.strip()
+                for class_species in self.class_species.split('+')
+            } - {
+                class_species.strip()
+                for class_species in matter_class_species.split('+')
+            }
+        )
+
     # Method for computing the equation of state parameter w
     # at a certain time t or value of the scale factor a.
     # This has to be a pure Python function, otherwise it cannot
@@ -3162,41 +3193,47 @@ class Component:
             self.w_constant = w
         elif isinstance(w, str) and w.lower() == 'class':
             # Get w as P_bar/ρ_bar from CLASS
-            if not enable_class_background:
+            if enable_class_background:
+                self.w_type = 'tabulated (a)'
+                cosmoresults = compute_cosmo(
+                    class_call_reason=f'in order to determine w(a) of {self.name}',
+                )
+                background = cosmoresults.background
+                i_tabulated = background['a']
+                # For combination species it is still true that
+                # w = c⁻²P_bar/ρ_bar, with P_bar and ρ_bar the sum of
+                # individual background pressures and densities.
+                # Note that the quantities in the background dict is
+                # given in CLASS units, specifically c = 1.
+                ρ_tabulated = 0
+                p_tabulated = 0
+                for class_species in self.class_species.split('+'):
+                    key = f'(.)rho_{class_species}'
+                    if key not in background:
+                        abort(
+                            f'No background density {key} for CLASS species "{class_species}" '
+                            f'present in the CLASS background.'
+                        )
+                    ρ_tabulated += background[key]
+                    key = f'(.)p_{class_species}'
+                    if key not in background:
+                        abort(
+                            f'No background pressure {key} for CLASS species "{class_species}" '
+                            f'present in the CLASS background.'
+                        )
+                    p_tabulated += background[key]
+                w_tabulated = p_tabulated/ρ_tabulated
+            elif self.is_matter_like():
+                # Directly assign w = 0 for matter-like components
+                # when not using the CLASS background.
+                self.w_type = 'constant'
+                self.w_constant = 0
+            else:
                 abort(
                     f'Attempted to call CLASS to get the equation of state parameter w for '
                     f'{self.name} with CLASS species "{self.class_species}", '
                     f'but enable_class_background is False.'
                 )
-            self.w_type = 'tabulated (a)'
-            cosmoresults = compute_cosmo(
-                class_call_reason=f'in order to determine w(a) of {self.name}',
-            )
-            background = cosmoresults.background
-            i_tabulated = background['a']
-            # For combination species it is still true that
-            # w = c⁻²P_bar/ρ_bar, with P_bar and ρ_bar the sum of
-            # individual background pressures and densities. Note that
-            # the quantities in the background dict is given in CLASS
-            # units, specifically c = 1.
-            ρ_tabulated = 0
-            p_tabulated = 0
-            for class_species in self.class_species.split('+'):
-                key = f'(.)rho_{class_species}'
-                if key not in background:
-                    abort(
-                        f'No background density {key} for CLASS species "{class_species}" '
-                        f'present in the CLASS background.'
-                    )
-                ρ_tabulated += background[key]
-                key = f'(.)p_{class_species}'
-                if key not in background:
-                    abort(
-                        f'No background pressure {key} for CLASS species "{class_species}" '
-                        f'present in the CLASS background.'
-                    )
-                p_tabulated += background[key]
-            w_tabulated = p_tabulated/ρ_tabulated
         elif isinstance(w, str) and w.lower() == 'default':
             # Assign w a constant value based on the species.
             # For combination species, the combined w is a weighted sum

@@ -38,6 +38,7 @@ H0      = 70*km/s/Mpc
 Ωcdm    = 0.25
 Ωb      = 0.05
 a_begin = 0.02
+enable_class_background = False  # Use the same simplified Friedmann equation as GADGET-2
 
 # Physics
 select_forces           = {'matter': {'gravity': 'p3m'}}
@@ -45,7 +46,4 @@ select_softening_length = {'matter': '0.03*boxsize/cbrt(N)'}
 
 # Simulation
 class_reuse = False
-
-# Debugging
-enable_class_background = False  # Use the same simplified Friedmann equation as GADGET-2
 

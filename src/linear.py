@@ -39,6 +39,7 @@ cimport(
     '    hubble,               '
     '    remove_doppelgängers, '
     '    scale_factor,         '
+    '    temporal_splines,     '
     '    Ḣ,                    '
     '    ȧ,                    '
     '    ä,                    '
@@ -1156,19 +1157,31 @@ class CosmoResults:
     # corresponding growth rates f⁽¹⁾, f⁽²⁾, with f⁽ⁱ⁾= H⁻¹Ḋ⁽ⁱ⁾/D⁽ⁱ⁾.
     @lru_cache()
     def growth_fac_D(self, a):
-        spline = self.splines('gr.fac. D')
+        if enable_class_background:
+            spline = self.splines('gr.fac. D')
+        else:
+            spline = temporal_splines.a_D
         return spline.eval(a)
     @lru_cache()
     def growth_fac_f(self, a):
-        spline = self.splines('gr.fac. f')
+        if enable_class_background:
+            spline = self.splines('gr.fac. f')
+        else:
+            spline = temporal_splines.a_f
         return spline.eval(a)
     @lru_cache()
     def growth_fac_D2(self, a):
-        spline = self.splines('gr.fac. D2')
+        if enable_class_background:
+            spline = self.splines('gr.fac. D2')
+        else:
+            spline = temporal_splines.a_D2
         return spline.eval(a)
     @lru_cache()
     def growth_fac_f2(self, a):
-        spline = self.splines('gr.fac. f2')
+        if enable_class_background:
+            spline = self.splines('gr.fac. f2')
+        else:
+            spline = temporal_splines.a_f2
         return spline.eval(a)
     # Method for appending a piece of raw CLASS data to the dump file
     def save(self, element):
@@ -2465,10 +2478,6 @@ def find_critical_times():
     import scipy.signal
     # List storing the critical scale factor values
     a_criticals = []
-    # If the CLASS background is disabled,
-    # we give up computing any critical times.
-    if not enable_class_background:
-        return asarray(a_criticals)
     # Get the CLASS background
     cosmoresults = compute_cosmo(class_call_reason=f'in order to find critical times')
     background = cosmoresults.background

@@ -487,6 +487,7 @@ np.savetxt(
     '${gadget_outputlist}',
     outputlist,
     fmt='%.15e',
+    encoding='utf-8',
 )
 # The snapshot format to use for output
 print('SnapFormat =', gadget_snapshot_params['snapformat'])

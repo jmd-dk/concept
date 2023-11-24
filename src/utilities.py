@@ -32,6 +32,7 @@ cimport('import graphics')
 cimport(
     'from integration import   '
     '    cosmic_time,          '
+    '    init_time,            '
     '    remove_doppelgängers, '
 )
 cimport(
@@ -56,9 +57,6 @@ cimport(
     '    load,                   '
     '    save,                   '
 )
-
-# Pure Python imports
-from integration import init_time
 
 
 

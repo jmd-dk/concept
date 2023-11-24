@@ -9387,15 +9387,15 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
         echo ${linenr}
     }
     linenr=$(new_class_perturbation_linenr "perturb_prepare_output")
-    new_lines=(                                                                       \
-        "/* Include fld in perturbation output */"                                    \
-        "class_store_columntitle(ppt->scalar_titles, \"delta_fld\", pba->has_fld);"   \
-        "class_store_columntitle(ppt->scalar_titles, \"theta_fld\", pba->has_fld);"   \
-        "/**"                                                                         \
-        " * We choose to store cs2_fld = delta_p_fld/delta_rho_fld rather than"       \
-        " * simply delta_p_fld itself, as is done for massive neutrinos."             \
-        " */"                                                                         \
-        "class_store_columntitle(ppt->scalar_titles, \"cs2_fld\", pba->has_fld);"     \
+    new_lines=(                                                                     \
+        "/* Include fld in perturbation output */"                                  \
+        "class_store_columntitle(ppt->scalar_titles, \"delta_fld\", pba->has_fld);" \
+        "class_store_columntitle(ppt->scalar_titles, \"theta_fld\", pba->has_fld);" \
+        "/**"                                                                       \
+        " * We choose to store cs2_fld = delta_p_fld/delta_rho_fld rather than"     \
+        " * simply delta_p_fld itself, as is done for massive neutrinos."           \
+        " */"                                                                       \
+        "class_store_columntitle(ppt->scalar_titles, \"cs2_fld\", pba->has_fld);"   \
     )
     patch_class "${class_dir}/source/perturbations.c" ${linenr} "insert" "below" "${new_lines[@]}"
     linenr=$(new_class_perturbation_linenr "perturb_print_variables")

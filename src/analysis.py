@@ -728,11 +728,12 @@ def compute_powerspec_corrected(declaration):
         species_str = f'{{{species_str}}}'
     np.savetxt(
         filename,
-        asarray(correction),
+        correction,
         header=unicode(
             f'Power spectrum corrections for {species_str} at '
             f'k ∈ [{k_bin_centers[0]} {unit_length}⁻¹, {k_bin_centers[size - 1]} {unit_length}⁻¹]'
         ),
+        encoding='utf-8',
     )
     masterprint('done')
 # Cache used for power spectrum correction factors
@@ -1027,20 +1028,7 @@ def get_bispec_declarations(components):
             continue
         # Only do tree-level bispectrum computation if at least some of
         # the components are matter-like.
-        matter_like = True
-        matter_class_species_set = {
-            class_species.strip()
-            for class_species in matter_class_species.split('+')
-        }
-        for component in declaration.components:
-            component_class_species_set = {
-                class_species.strip()
-                for class_species in component.class_species.split('+')
-            }
-            if component_class_species_set & matter_class_species_set:
-                break
-        else:
-            matter_like = False
+        matter_like = any([component.is_matter_like() for component in declaration.components])
         do_treelevel = declaration.do_treelevel
         if do_treelevel and not matter_like:
             plural = 'this is' if len(declaration.components) == 1 else 'these are'
@@ -3394,6 +3382,7 @@ def save_polyspec(
             fmt=txt_info.fmt,
             delimiter=txt_info.delimiter,
             header=f'{topline}\n{header}',
+            encoding='utf-8',
         )
         file_content = f.getvalue()
     # Remove possible sign on NaN

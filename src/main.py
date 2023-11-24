@@ -40,6 +40,7 @@ cimport(
     'from integration import   '
     '    cosmic_time,          '
     '    hubble,               '
+    '    init_time,            '
     '    remove_doppelgängers, '
     '    scale_factor,         '
     '    scalefactor_integral, '
@@ -53,7 +54,6 @@ cimport('from utilities import delegate')
 
 # Pure Python imports
 from communication import get_domain_info
-from integration import init_time
 import interactions
 
 

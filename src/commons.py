@@ -4383,15 +4383,6 @@ output_times = {
     }
     for time_param in ('a', 't')
 }
-# We never include linear power spectra in power spectrum output
-# nor tree-level bispectra in bispectrum output if the
-# CLASS background is disabled.
-if not enable_class_background:
-    for d in powerspec_select.values():
-        d['linear'] = False
-        d['corrected'] = False
-    for d in bispec_select.values():
-        d['treelevel'] = False
 # The number of ghost point layers around the domain grids (so that the
 # full shape of each grid is (nghosts + shape[0] + nghosts,
 # nghosts + shape[1] + nghosts, nghosts + shape[2] + nghosts). This is

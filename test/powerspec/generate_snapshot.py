@@ -42,13 +42,15 @@ component.populate(momz, 'momz')
 save(component, initial_conditions)
 
 # Expand particle locations by a factor of 2
+fac = 2
 posx = component.posx
 posy = component.posy
 posz = component.posz
 for i in range(N):
-    posx[i] *= 2
-    posy[i] *= 2
-    posz[i] *= 2
+    posx[i] *= fac
+    posy[i] *= fac
+    posz[i] *= fac
+component.mass *= fac**3
 
 # Save another snapshot, this time with an enlarged boxsize,
 # matching the expanded particle locations.

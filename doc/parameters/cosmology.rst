@@ -443,3 +443,47 @@ cosmology, as well as the starting time for the simulation.
                       energy.
 == =============== == =
 
+
+
+------------------------------------------------------------------------------
+
+
+
+.. _enable_class_background:
+
+``enable_class_background``
+...........................
+== =============== == =
+\  **Description** \  Specifies whether to use CLASS to solve the cosmological
+                      background evolution
+-- --------------- -- -
+\  **Default**     \  .. code-block:: python3
+
+                         True
+-- --------------- -- -
+\  **Elaboration** \  The `CLASS <http://class-code.net/>`__ code is fully
+                      integrated within CO\ *N*\ CEPT and provides the
+                      cosmological background (e.g. :math:`a(t)`) as well as
+                      linear perturbations, the latter used for e.g.
+                      generation of initial conditions. The background
+                      computation within CLASS takes all species into account.
+                      Even in the most basic case of not specifying any
+                      :ref:`CLASS parameters <class_params>`, this includes
+                      radiation (photons and massless neutrinos), matter
+                      (baryons and cold dark matter) and a cosmological
+                      constant. Alternatively, CO\ *N*\ CEPT implements a
+                      simplified background containing just matter and a
+                      cosmological constant.
+-- --------------- -- -
+\  **Example 0**   \  Swap the full CLASS background with a simplified
+                      background containing just matter and a cosmological
+                      constant:
+
+                      .. code-block:: python3
+
+                         enable_class_background = False
+
+                      This is useful when seeking compatibility with other
+                      simulation codes which use this simplified background.
+== =============== == =
+

@@ -28,7 +28,7 @@ cosmic_times = [cosmic_time(a) for a in scale_factors]
 # Save the computed cosmic times
 compiled = not ast.literal_eval(os.environ['CONCEPT_pure_python'])
 mode = f'class={enable_class_background}_compiled={compiled}'
-np.savetxt(f'{this_dir}/t_{mode}.dat', cosmic_times)
+np.savetxt(f'{this_dir}/t_{mode}.dat', cosmic_times, encoding='utf-8')
 
 # If all four data files exist, plot and analyse these
 data_filenames = glob(f'{this_dir}/*.dat')
