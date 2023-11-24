@@ -528,24 +528,11 @@ def get_matplotlib():
         'ytick.direction': 'out',
     })
     # Monkey patch I/O functions so that exceptions trigger abort
-    def patch_matplotlib(obj_names, func_names, wrapper, *args, matplotlib=matplotlib, plt=plt):
-        for obj_name in obj_names:
-            obj = eval(obj_name)
-            for func_name in func_names:
-                func = getattr(obj, func_name, None)
-                if func is None:
-                    continue
-                extra_args = [
-                    arg.format(obj_name=obj_name, func_name=func_name)
-                    if isinstance(arg, str) else arg
-                    for arg in args
-                ]
-                setattr(obj, func_name, wrapper(func, *extra_args))
-    patch_matplotlib(
-        ['plt', 'matplotlib.figure.Figure'],
+    wrap_method(
+        [plt, matplotlib.figure.Figure],
         ['imread', 'imsave', 'savefig'],
         tryexcept_wrapper,
-        '{obj_name}.{func_name}() failed',
+        '{obj}.{func}() failed',
     )
     # Patch a bug about automatic minor tick labels by monkey patching
     # tight_layout() and savefig().
@@ -582,8 +569,8 @@ def get_matplotlib():
                 fix_minor_tick_labels(fig)
                 return func(*args, **kwargs)
         return wrapper
-    patch_matplotlib(
-        ['plt', 'matplotlib.figure.Figure'],
+    wrap_method(
+        [plt, matplotlib.figure.Figure],
         ['tight_layout', 'savefig'],
         fix_minor_tick_labels_decorator,
     )
@@ -619,8 +606,8 @@ def get_matplotlib():
             ensure_finite_bbox(fig)
             return func(*args, **kwargs)
         return wrapper
-    patch_matplotlib(
-        ['plt', 'matplotlib.figure.Figure'],
+    wrap_method(
+        [plt, matplotlib.figure.Figure],
         ['draw'],
         ensure_finite_bbox_decorator,
     )
@@ -631,8 +618,8 @@ def get_matplotlib():
             with warnings.catch_warnings(action='ignore', category=RuntimeWarning):
                 return func(*args, **kwargs)
         return wrapper
-    patch_matplotlib(
-        ['plt.Axes', 'matplotlib.tri'],
+    wrap_method(
+        [plt.Axes, matplotlib.tri],
         ['tricontour', 'tricontourf', 'tripcolor', 'triplot'],
         suppress_runtime_warning,
     )
@@ -642,14 +629,13 @@ def get_matplotlib():
     return matplotlib
 # Global store for the matplotlib module
 matplotlib_cache = []
-# The relaxed attitude of Cython towards exceptions means that many of
-# these are ignored. This is a problem for I/O errors, as these then
-# cause CO𝘕CEPT to hang when running with multiple processes.
-# Monkey patch various functions for I/O with explicit exception
-# handling and MPI abort on error.
+# Function wrapper for enabling MPI abort() on error. This is useful as
+# Cython often ignores errors (error messages are produced but the
+# program continues in an erroneous state).
 def tryexcept_wrapper(func, abort_msg=''):
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
+        val = None
         try:
             val = func(*args, **kwargs)
         except BaseException:
@@ -657,6 +643,22 @@ def tryexcept_wrapper(func, abort_msg=''):
             abort(abort_msg)
         return val
     return wrapper
+# Function for applying wrappers to methods of objects
+def wrap_method(objects, func_names, wrapper, *args):
+    for obj in any2list(objects):
+        for func_name in any2list(func_names):
+            func = getattr(obj, func_name, None)
+            if func is None:
+                continue
+            extra_args = [
+                arg.format(
+                    obj=str(getattr(obj, '__name__', obj)),
+                    func=str(getattr(func, '__name__', func)),
+                )
+                if isinstance(arg, str) else arg
+                for arg in args
+            ]
+            setattr(obj, func_name, wrapper(func, *extra_args))
 
 
 
@@ -5575,8 +5577,11 @@ def get_reusable_filename(kind, *objects, extension=''):
             objects[i] = sorted(obj)
         elif isinstance(obj, dict):
             objects[i] = sorted(obj.items())
+    # Create str representation. We convert integer-valued floats to
+    # integers directly on the str representation.
+    objects_str = (str(objects)[1:-1] + ',').replace('.0,', ',')
     # Compute the hash
-    hexdigest = getattr(hashlib, algorithm)(str(objects).encode('utf-8')).hexdigest()
+    hexdigest = getattr(hashlib, algorithm)(objects_str.encode('utf-8')).hexdigest()
     # Shorten hexdigest using the table
     chunk_size = len(hexdigest)//size
     digest = []
@@ -5711,12 +5716,18 @@ if not enable_terminal_formatting:
 
 # As already done for some pyplot methods, monkey patch I/O functions
 # so that exceptions lead to abort.
-open_file   = tryexcept_wrapper(open,        'open() failed')  # must not overwrite the standard "open"
-os.makedirs = tryexcept_wrapper(os.makedirs, 'os.makedirs() failed')
-np.load     = tryexcept_wrapper(np.load,     'np.load() failed')
-np.save     = tryexcept_wrapper(np.save,     'np.save() failed')
-np.loadtxt  = tryexcept_wrapper(np.loadtxt,  'np.loadtxt() failed')
-np.savetxt  = tryexcept_wrapper(np.savetxt,  'np.savetxt() failed')
+open_file = tryexcept_wrapper(open, 'open() failed')  # must not overwrite the standard "open"
+wrap_method(os, 'makedirs', tryexcept_wrapper, '{obj}.{func}() failed')
+wrap_method(
+    np,
+    ['load', 'save', 'loadtxt', 'savetxt'],
+    tryexcept_wrapper,
+    '{obj}.{func}() failed',
+)
+# NumPy's savetxt has fmt='%.18e' by default. This is wasteful as %.16e
+# can encode any double-precision number without loss of precision.
+# We change this default accordingly.
+np.savetxt = functools.partial(np.savetxt, fmt='%.16e')
 # For h5py.File the monkey patch is more involved
 def open_hdf5(filename, raise_exception=False, **kwargs):
     """This function is equivalent to just doing

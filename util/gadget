@@ -483,12 +483,7 @@ if not outputlist:
     # Default to one output at a = 1
     outputlist.append(1)
 TimeMax = outputlist.pop()
-np.savetxt(
-    '${gadget_outputlist}',
-    outputlist,
-    fmt='%.15e',
-    encoding='utf-8',
-)
+np.savetxt('${gadget_outputlist}', outputlist, encoding='utf-8')
 # The snapshot format to use for output
 print('SnapFormat =', gadget_snapshot_params['snapformat'])
 # Instantiate snapshot with components,

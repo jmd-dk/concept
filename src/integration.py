@@ -963,7 +963,6 @@ def init_time(reinitialize=False):
 # Container class storing background splines to be set by init_time()
 @cython.cclass
 class TemporalSplines:
-    # Initialisation method
     @cython.header()
     def __init__(self):
         """
@@ -1069,20 +1068,20 @@ def solve_matterΛ_background(a_today=1):
     np.savetxt(
         filename,
         asarray(results).T,
-        fmt='%.18e',
-        header=unicode(
-            '\n'.join([
-                f'Matter + Λ background with Ωm = {Ωm}, ΩΛ = 1 - Ωm = {1 - Ωm}',
-                '',
-                ' '.join([
-                    f'{title:<24}'
-                    for title in [
+        header='\n'.join([
+            unicode(f'Matter + Λ background with Ωm = {Ωm}, ΩΛ = 1 - Ωm = {1 - Ωm}'),
+            '',
+            ' '.join([
+                f'{title:<22}'
+                for title in map(
+                    unicode,
+                    [
                         'a', f't [{unit_time}]', f'H [{unit_time}⁻¹]',
                         'D⁽¹⁾', 'f⁽¹⁾', 'D⁽²⁾', 'f⁽²⁾',
-                    ]
-                ]).rstrip(),
-            ])
-        ),
+                    ],
+                )
+            ]).rstrip(),
+        ]),
         encoding='utf-8',
     )
     masterprint('done')
