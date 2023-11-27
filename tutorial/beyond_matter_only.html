@@ -1265,14 +1265,7 @@ we shall make use of the following plotting script:</p>
 <span class="k">for</span> <span class="p">(</span><span class="n">de</span><span class="p">,</span> <span class="n">lin</span><span class="p">),</span> <span class="n">P_sim</span> <span class="ow">in</span> <span class="n">P_sims</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
     <span class="k">if</span> <span class="n">de</span> <span class="o">==</span> <span class="s1">&#39;Lambda&#39;</span><span class="p">:</span>
         <span class="k">continue</span>
-    <span class="n">lin_ref</span> <span class="o">=</span> <span class="n">lin</span>
-    <span class="k">for</span> <span class="n">lin_ignore</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;darkenergy&#39;</span><span class="p">,</span> <span class="s1">&#39;fld&#39;</span><span class="p">):</span>
-        <span class="n">lin_ref</span> <span class="o">=</span> <span class="p">(</span><span class="n">lin_ref</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">lin_ignore</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">)</span>
-            <span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;++&#39;</span><span class="p">,</span> <span class="s1">&#39;+&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;,,&#39;</span><span class="p">,</span> <span class="s1">&#39;,&#39;</span><span class="p">)</span>
-            <span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;+,&#39;</span><span class="p">,</span> <span class="s1">&#39;,&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;,+&#39;</span><span class="p">,</span> <span class="s1">&#39;,&#39;</span><span class="p">)</span>
-            <span class="o">.</span><span class="n">strip</span><span class="p">(</span><span class="s1">&#39;+,&#39;</span><span class="p">)</span>
-        <span class="p">)</span>
-    <span class="n">P_sim_ref</span> <span class="o">=</span> <span class="n">P_sims</span><span class="o">.</span><span class="n">get</span><span class="p">((</span><span class="s1">&#39;Lambda&#39;</span><span class="p">,</span> <span class="n">lin_ref</span><span class="p">))</span>
+    <span class="n">P_sim_ref</span> <span class="o">=</span> <span class="n">P_sims</span><span class="o">.</span><span class="n">get</span><span class="p">((</span><span class="s1">&#39;Lambda&#39;</span><span class="p">,</span> <span class="n">lin</span><span class="p">))</span>
     <span class="n">label</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;simulation: </span><span class="si">{</span><span class="n">lin</span><span class="w"> </span><span class="si">= }</span><span class="s1">&#39;</span>
     <span class="k">if</span> <span class="n">P_sim_ref</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
         <span class="n">P_sim_ref</span> <span class="o">=</span> <span class="n">P_sims</span><span class="p">[</span><span class="s1">&#39;Lambda&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">]</span>
@@ -1314,19 +1307,25 @@ parameter file has once again been set up to be able to do this via the
 <code class="docutils literal notranslate"><span class="pre">_lin</span></code> command-line parameter. To run both cosmologies again, this time
 including all linear species, do e.g.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="k">for</span><span class="w"> </span>de<span class="w"> </span><span class="k">in</span><span class="w"> </span>Lambda<span class="w"> </span>dynamical<span class="p">;</span><span class="w"> </span><span class="k">do</span>
-<span class="w">    </span><span class="nv">lin</span><span class="o">=</span><span class="s2">&quot;radiation + metric&quot;</span>
-<span class="w">    </span><span class="o">[</span><span class="w"> </span><span class="nv">$de</span><span class="w"> </span><span class="o">==</span><span class="w"> </span>dynamical<span class="w"> </span><span class="o">]</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nv">lin</span><span class="o">+=</span><span class="s2">&quot; + dark energy&quot;</span>
 <span class="w">    </span>./concept<span class="w"> </span><span class="se">\</span>
 <span class="w">        </span>-p<span class="w"> </span>param/tutorial-7.3<span class="w"> </span><span class="se">\</span>
 <span class="w">        </span>-c<span class="w"> </span><span class="s2">&quot;_de = &#39;</span><span class="nv">$de</span><span class="s2">&#39;&quot;</span><span class="w"> </span><span class="se">\</span>
-<span class="w">        </span>-c<span class="w"> </span><span class="s2">&quot;_lin = &#39;</span><span class="nv">$lin</span><span class="s2">&#39;&quot;</span>
+<span class="w">        </span>-c<span class="w"> </span><span class="s2">&quot;_lin = &#39;radiation + dark energy + metric&#39;&quot;</span>
 <span class="k">done</span>
 </pre></div>
 </div>
 <p>where ‘radiation’ includes the photons and massless neutrinos supplied by
 CLASS by default.</p>
-<p>Notice that we do not include ‘dark energy’ when running with <span class="math notranslate nohighlight">\(\Lambda\)</span>,
-as here there are no dark energy perturbations.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>In the above, we include dark energy as part of the linear species even
+when we run with <span class="math notranslate nohighlight">\(\Lambda\)</span>. Here there are no dark energy
+perturbations, and so this does not make a difference. It is allowed
+because in CO<em>N</em>CEPT, <code class="docutils literal notranslate"><span class="pre">'dark</span> <span class="pre">energy'</span></code> maps to whatever kind of dark
+energy is available within the current simulation; <span class="math notranslate nohighlight">\(\Lambda\)</span> or
+dynamical dark energy (or both). Their individual names are
+<code class="docutils literal notranslate"><span class="pre">'cosmological</span> <span class="pre">constant'</span></code> and <code class="docutils literal notranslate"><span class="pre">'dark</span> <span class="pre">energy</span> <span class="pre">fluid'</span></code>, respectively.</p>
+</div>
 <p>After re-plotting, you should see that the simulation spectrum now matches
 the linear prediction at low <span class="math notranslate nohighlight">\(k\)</span>.</p>
 <p>Though including all species — i.e. also photons and neutrinos — is what
