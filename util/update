@@ -193,9 +193,12 @@ Check out https://github.com/jmd-dk/concept/ for available versions." "red"
 fi
 
 # Get and print out update information
-current_version="$("${concept}" -v || :)"
+current_version="$("${concept}" -v 2>/dev/null || :)"
 if [[ "${current_version}" == *"."* ]] && [[ "${current_version}" != "v"* ]]; then
     current_version="v${current_version}"
+fi
+if [ -z "${current_version}" ]; then
+    current_version="???"
 fi
 if [ "${class}" == "False" ]; then
     printf "Update ${esc_concept} \"${current_version}\" → \"${version}\"\n"

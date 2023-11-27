@@ -1376,10 +1376,20 @@ fi
 
 # Print version info and exit, if requested
 if [ "${version}" == "True" ]; then
-    "${concept}" -m 'import commons; print(commons.__version__)' \
-        --pure-python --local | tail -n 1
-    trap : 0
-    exit 0
+    version_printout="$(
+        "${concept}" -m "import commons; print('version', commons.__version__)" \
+            --pure-python --local 2>/dev/null | tail -n 1
+    )"
+    if [[ "${version_printout}" == "version "* ]]; then
+        version_printout="$(echo "${version_printout}" | awk '{print $NF}')"
+        if [ "${version_printout}" != "version" ] && [ -n "${version_printout}" ]; then
+            echo "${version_printout}"
+            trap : 0
+            exit 0
+        fi
+    fi
+    colorprint "Could not determine ${esc_concept} version!" "red"
+    exit 1
 fi
 
 # Export command-line arguments as environment variables
