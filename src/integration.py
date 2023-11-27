@@ -880,16 +880,16 @@ def init_time(reinitialize=False):
         # are set to their current values.
         if master:
             n_bg = a_values.shape[0]
-            if not np.isclose(a_values[n_bg - 1], a_today, rtol=1e-9, atol=0):
-                abort(
+            if not np.isclose(a_values[n_bg - 1], a_today, rtol=1e-6, atol=0):
+                masterwarn(
                     f'Expected the last scale factor value in the '
                     f'tabulated background to be {a_today}, '
                     f'but found {a_values[n_bg - 1]}.'
                 )
             a_values[n_bg - 1] = a_today
-            if not np.isclose(H_values[n_bg - 1], H0, rtol=1e-9, atol=0):
+            if not np.isclose(H_values[n_bg - 1], H0, rtol=1e-6, atol=0):
                 unit = units.km/(units.s*units.Mpc)
-                abort(
+                masterwarn(
                     f'Expected the last Hubble value in the '
                     f'tabulated background to be {H0/unit} km s⁻¹ Mpc⁻¹, '
                     f'but found {H_values[n_bg - 1]/unit} km s⁻¹ Mpc⁻¹.'

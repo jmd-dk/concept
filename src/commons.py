@@ -4358,6 +4358,7 @@ cython.declare(
     radiation_class_species=str,
     neutrino_class_species=str,
     massive_neutrino_class_species=str,
+    dark_energy_class_species=str,
 )
 # Output times not explicitly written as either of type 'a' or 't'
 # is understood as being of type 'a' when Hubble expansion is enabled
@@ -4502,6 +4503,24 @@ if Ωdcdm > 1e-9 and class_params.get('Gamma_dcdm', 0) > 0:
 radiation_class_species = radiation_class_species.strip('+')
 neutrino_class_species = neutrino_class_species.strip('+')
 massive_neutrino_class_species = massive_neutrino_class_species.strip('+')
+# Specification of which CLASS species together constitute
+# "dark energy" in the current simulation.
+dark_energy_class_species = ''
+if 'Omega_Lambda' in class_params:
+    if class_params['Omega_Lambda'] == 0:
+        dark_energy_class_species += '+fld'
+    else:
+        dark_energy_class_species += '+lambda'
+        dark_energy_class_species += '+fld'
+if 'Omega_fld' in class_params:
+    if class_params['Omega_fld'] == 0:
+        dark_energy_class_species += '+lambda'
+    else:
+        dark_energy_class_species += '+lambda'
+        dark_energy_class_species += '+fld'
+if not dark_energy_class_species:
+    dark_energy_class_species = 'lambda'
+dark_energy_class_species = '+'.join(set(dark_energy_class_species.strip('+').split('+')))
 
 
 

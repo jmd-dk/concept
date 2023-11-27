@@ -84,26 +84,29 @@ class CosmoResults:
                     f'Non-existing perturbation "{key}" required. The CLASS species '
                     f'"{species_info}" is not registered with linear.register_species().'
                 )
+            value = None
             # If this perturbation can be inferred, add it
-            if key.startswith('cs2_'):
-                # The cs2 perturbation is zero for w = 0 and 1/3 for
-                # w = 1/3. For other values of w this cannot be
-                # easily determined.
-                if species_info.w == 0:
+            if key.startswith('delta_'):
+                # For w = -1 we have no perturbations
+                if species_info.w == -1:
                     value = zeros(self['a'].size, dtype=C2np['double'])
-                elif species_info.w == 1/3:
+            elif key.startswith('theta_'):
+                # For w = -1 we have no perturbations
+                if species_info.w == -1:
+                    value = zeros(self['a'].size, dtype=C2np['double'])
+            elif key.startswith('cs2_'):
+                # The cs2 perturbation is zero for w ∈ {0, -1}
+                # and 1/3 for w = 1/3. For other values of w
+                # this cannot be easily determined.
+                if species_info.w in {0, -1}:
+                    value = zeros(self['a'].size, dtype=C2np['double'])
+                elif np.isclose(species_info.w, 1/3, rtol=1e-9, atol=0):
                     value = 1/3*ones(self['a'].size, dtype=C2np['double'])
-                else:
-                    abort(
-                        f'Non-existing perturbation "{key}" required. The CLASS species '
-                        f'"{species_info}" is registered to have w = {species_info.w}, '
-                        f'from which with "{key}" cannot be inferred.'
-                    )
             elif key.startswith('shear_'):
                 # Missing shear perturbations typically imply that this
                 # is zero. Assume so hear.
                 value = zeros(self['a'].size, dtype=C2np['double'])
-            else:
+            if value is None:
                 abort(
                     f'Non-existing perturbation "{key}" required. '
                     f'This perturbation could not be inferred.'
@@ -3518,8 +3521,16 @@ register_species(
     logs={'rho': (True, False), 'p': (True, False)},
 )
 register_species(
-    'dark energy', 'fld', ['dark energy fluid', 'dynamical dark energy'],
+    'dark energy fluid', 'fld', ['dark energy fluid', 'dynamical dark energy'],
     logs={'rho': (False, False), 'p': (False, False)},
+)
+register_species(
+    'dark energy', dark_energy_class_species, ['dark energy', 'de'],
+    w=(-1 if dark_energy_class_species == 'lambda' else None),
+    logs={
+        'rho': (dark_energy_class_species == 'lambda', False),
+        'p': (dark_energy_class_species == 'lambda', False),
+    },
 )
 register_species(
     'decaying cold dark matter', 'dcdm', ['decaying dark matter', 'decaying matter', 'ddm'], w=0,

@@ -1114,14 +1114,7 @@ we shall make use of the following plotting script:
    for (de, lin), P_sim in P_sims.items():
        if de == 'Lambda':
            continue
-       lin_ref = lin
-       for lin_ignore in ('darkenergy', 'fld'):
-           lin_ref = (lin_ref.replace(lin_ignore, '')
-               .replace('++', '+').replace(',,', ',')
-               .replace('+,', ',').replace(',+', ',')
-               .strip('+,')
-           )
-       P_sim_ref = P_sims.get(('Lambda', lin_ref))
+       P_sim_ref = P_sims.get(('Lambda', lin))
        label = f'simulation: {lin = }'
        if P_sim_ref is None:
            P_sim_ref = P_sims['Lambda', '']
@@ -1173,19 +1166,23 @@ including all linear species, do e.g.
 .. code-block:: bash
 
    for de in Lambda dynamical; do
-       lin="radiation + metric"
-       [ $de == dynamical ] && lin+=" + dark energy"
        ./concept \
            -p param/tutorial-7.3 \
            -c "_de = '$de'" \
-           -c "_lin = '$lin'"
+           -c "_lin = 'radiation + dark energy + metric'"
    done
 
 where 'radiation' includes the photons and massless neutrinos supplied by
 CLASS by default.
 
-Notice that we do not include 'dark energy' when running with :math:`\Lambda`,
-as here there are no dark energy perturbations.
+.. note::
+   In the above, we include dark energy as part of the linear species even
+   when we run with :math:`\Lambda`. Here there are no dark energy
+   perturbations, and so this does not make a difference. It is allowed
+   because in CO\ *N*\ CEPT, ``'dark energy'`` maps to whatever kind of dark
+   energy is available within the current simulation; :math:`\Lambda` or
+   dynamical dark energy (or both). Their individual names are
+   ``'cosmological constant'`` and ``'dark energy fluid'``, respectively.
 
 After re-plotting, you should see that the simulation spectrum now matches
 the linear prediction at low :math:`k`.
