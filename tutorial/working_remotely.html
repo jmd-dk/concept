@@ -134,6 +134,7 @@
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="../command_line_options.html#remote-job-submission">Remote job submission</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#submit-submit">Submit: <code class="docutils literal notranslate"><span class="pre">--submit</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#queue-q-queue">Queue: <code class="docutils literal notranslate"><span class="pre">-q</span></code>, <code class="docutils literal notranslate"><span class="pre">--queue</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#wall-time-w-walltime">Wall time: <code class="docutils literal notranslate"><span class="pre">-w</span></code>, <code class="docutils literal notranslate"><span class="pre">--walltime</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../command_line_options.html#memory-memory">Memory: <code class="docutils literal notranslate"><span class="pre">--memory</span></code></a></li>
@@ -354,23 +355,44 @@
 you should skip this section.</p>
 <p>If you are running CO<em>N</em>CEPT on a remote machine, i.e. logged in to a
 server/cluster via <code class="docutils literal notranslate"><span class="pre">ssh</span></code>, you’ve so far had to supply the additional
-<code class="docutils literal notranslate"><span class="pre">--local</span></code> option to the <code class="docutils literal notranslate"><span class="pre">concept</span></code> script. This is because CO<em>N</em>CEPT
-has built-in support for submission of jobs to a job scheduler / queueing system
-/ resource manager (specifically Slurm, TORQUE and PBS), and this is the
-default behaviour when working remotely. If you are working remotely but do not
-intend to use a job scheduler, keep using <code class="docutils literal notranslate"><span class="pre">--local</span></code> and skip the rest of this
-section.</p>
+<code class="docutils literal notranslate"><span class="pre">--local</span></code> option (or set <code class="docutils literal notranslate"><span class="pre">CONCEPT_local=True</span></code>) to the <code class="docutils literal notranslate"><span class="pre">concept</span></code> script.
+This is because CO<em>N</em>CEPT has built-in support for submission of jobs to a
+job scheduler / queueing system / resource manager (specifically Slurm, TORQUE
+and PBS). If you are working remotely but do not intend to use a job
+scheduler, keep using <code class="docutils literal notranslate"><span class="pre">--local</span></code> and skip the rest of this section.</p>
 <h3>Submitting jobs</h3><p>If you try to run a simulation <em>without</em> the <code class="docutils literal notranslate"><span class="pre">--local</span></code> option while logged
 into a remote server, CO<em>N</em>CEPT will exit immediately, letting you know
-that it has created an almost complete <em>job script</em> named
-<code class="docutils literal notranslate"><span class="pre">job/.jobscript_&lt;date&gt;</span></code>, where <code class="docutils literal notranslate"><span class="pre">&lt;date&gt;</span></code> is a string of numbers labelling
-the creation time. This job script is a great starting point if you want to
-control the job submission yourself. All that needs to be changed/added are
-the directives at the top of the job script.</p>
-<p>To automatically submit a complete job script, you need to specify the <em>queue</em>
-(called <em>partition</em> in Slurm) in which to submit the job using the <code class="docutils literal notranslate"><span class="pre">-q</span></code>
-option to <code class="docutils literal notranslate"><span class="pre">concept</span></code>. Submitting a simulation using e.g. a parameter file
+that it has created a <em>job script</em> named <code class="docutils literal notranslate"><span class="pre">job/.jobscript_&lt;date&gt;</span></code>, where
+<code class="docutils literal notranslate"><span class="pre">&lt;date&gt;</span></code> is a string of numbers labelling the creation time. This job script
+is a great starting point if you want to control the job submission yourself.
+It can be used as is, though you might want to edit/add directives at the top
+of the job script.</p>
+<p>To automatically submit a given CO<em>N</em>CEPT run, simply supply <code class="docutils literal notranslate"><span class="pre">--submit</span></code>
+to the <code class="docutils literal notranslate"><span class="pre">concept</span></code> script. Submitting a simulation using a parameter file
 named <code class="docutils literal notranslate"><span class="pre">param/tutorial-6</span></code> using 8 cores then looks like</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-p<span class="w"> </span>param/tutorial-6<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-n<span class="w"> </span><span class="m">8</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--submit
+</pre></div>
+</div>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>If remote CO<em>N</em>CEPT jobs mysteriously fail, check out the
+‘<a class="reference internal" href="../troubleshooting.html#problems-when-running-remotely"><span class="std std-ref">Problems when running remotely</span></a>’ troubleshooting entry.</p>
+</div>
+<p>Typically you will need to specify a <em>queue</em> (called <em>partition</em> in Slurm) for
+which you wish to submit the job. To do this, use the <code class="docutils literal notranslate"><span class="pre">-q</span></code> option:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-p<span class="w"> </span>param/tutorial-6<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-n<span class="w"> </span><span class="m">8</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--submit<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-q<span class="w"> </span>&lt;queue&gt;<span class="w">  </span><span class="c1"># replace &lt;queue&gt; with queue name</span>
+</pre></div>
+</div>
+<p>As queue specification is only meaningful when submitting the job (local runs
+do not run within a queue), specifying <code class="docutils literal notranslate"><span class="pre">-q</span></code> in fact implies <code class="docutils literal notranslate"><span class="pre">--submit</span></code>.
+That is, the above can be shortened to just</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-p<span class="w"> </span>param/tutorial-6<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-n<span class="w"> </span><span class="m">8</span><span class="w"> </span><span class="se">\</span>
@@ -383,8 +405,12 @@ e.g. <code class="docutils literal notranslate"><span class="pre">-n</span> <spa
 nodes each with 4 cores.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>If remote CO<em>N</em>CEPT jobs mysteriously fail, check out the
-‘<a class="reference internal" href="../troubleshooting.html#problems-when-running-remotely"><span class="std std-ref">Problems when running remotely</span></a>’ troubleshooting entry.</p>
+<p>As for queue specification, specification of the number of nodes to use is
+only meaningful when running the job remotely, so <code class="docutils literal notranslate"><span class="pre">--submit</span></code> is implied
+whenever a number of nodes is specified. Similarly, <code class="docutils literal notranslate"><span class="pre">--memory</span></code> and <code class="docutils literal notranslate"><span class="pre">-w</span></code>
+(see below) also implies <code class="docutils literal notranslate"><span class="pre">--submit</span></code>. Should you wish to not submit the
+job but just generate the job script — with the information from e.g.
+<code class="docutils literal notranslate"><span class="pre">-q</span></code> contained within it — use <code class="docutils literal notranslate"><span class="pre">--submit</span> <span class="pre">False</span></code>.</p>
 </div>
 <p>To specify a memory requirement, further supply <code class="docutils literal notranslate"><span class="pre">--memory</span> <span class="pre">&lt;memory&gt;</span></code>, where
 <code class="docutils literal notranslate"><span class="pre">&lt;memory&gt;</span></code> is the <em>total</em> memory required collectively by all cores on all
@@ -412,7 +438,8 @@ as long as no conflict occurs with other options, you may shorten any
 option to <code class="docutils literal notranslate"><span class="pre">concept</span></code> in this manner. Also, the order in which the options
 are supplied does not matter.</p>
 </div>
-<p>A copy of the job script will be placed in the <code class="docutils literal notranslate"><span class="pre">job/&lt;ID&gt;</span></code> directory.</p>
+<p>A copy of the generated and submitted job script will be placed in the
+<code class="docutils literal notranslate"><span class="pre">job/&lt;ID&gt;</span></code> directory.</p>
 <h3>The watch utility</h3><p>Once a job is submitted, CO<em>N</em>CEPT will notify you that you may now kill
 (<code class="docutils literal notranslate"><span class="pre">Ctrl</span></code>+<code class="docutils literal notranslate"><span class="pre">C</span></code>) the running process. If you don’t, the submitted job is
 continually monitored, and its output will be printed to the screen once it

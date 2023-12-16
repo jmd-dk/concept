@@ -191,8 +191,12 @@ Note that inhomogeneous layouts are not describable. If you leave out the node
 specification (i.e. only supply a single number to ``-n``) and the cluster is
 running Slurm, the specified total number of CPU cores may be distributed in
 any which way between the available nodes. If the cluster is running
-TORQUE/PBS, you must always explicitly specify the number of nodes as well as
-the number of CPU cores/node.
+TORQUE/PBS, you should always explicitly specify the number of nodes as well
+as the number of CPU cores/node.
+
+.. note::
+   Specifying a number of nodes will enable
+   :ref:`automatic job submission <submit>` unless explicitly disabled.
 
 
 
@@ -248,15 +252,45 @@ simulations.
 Remote job submission
 ---------------------
 When running CO\ *N*\ CEPT on a cluster with a job scheduler (Slurm and
-TORQUE/PBS supported), each invocation of ``concept`` submits the work to be
-done as a remote job (unless this behaviour is :ref:`overruled <local>`). If
-running locally, none of these options have any effect.
+TORQUE/PBS supported), directly running simulations (on the front-end) is
+disabled by default (but can be :ref:`overruled <local>`). Instead, a job
+script is generated. To automatically submit the job to the scheduler, supply
+the ``--submit`` :ref:`option <submit>`. If running locally, none of these
+options have any effect.
 
 On top of the :ref:`basic <basics>` options, the options below are used for
 additional resource specification when submitting remote jobs. Note that
 additional possibilities arise for the ``-n`` option when running on a cluster
 with multiple compute nodes, as documented
 :ref:`above <specifying_multiple_nodes>`.
+
+
+
+.. _submit:
+
+Submit: ``--submit``
+....................
+Automatic job submission will be requested by using
+
+.. code-block:: bash
+
+   ./concept --submit
+   # or
+   ./concept --submit True
+
+Conversely, job submission can be held back by specifying
+
+.. code-block:: bash
+
+   ./concept --submit False
+
+This is almost a Boolean command-line option, with the caveat that its default
+value ("unset") is neither ``True`` nor ``False``. When left unset, no
+submission occurs unless other options from the
+:ref:`remote job submission <remote_job_submission>` category are specified.
+See the note in the description of the
+``--watch`` :ref:`option <watch_cmdoption>` for details on Boolean
+command-line options.
 
 
 
@@ -276,9 +310,6 @@ If using Slurm, you can specify multiple queues:
 .. code-block:: bash
 
    ./concept -q <queue1>,<queue2>,<queue3>
-
-No remote job will be submitted if you do not supply this option. A job script
-will however be produced, which you may edit and submit manually.
 
 
 

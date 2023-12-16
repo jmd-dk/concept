@@ -134,6 +134,7 @@
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="#remote-job-submission">Remote job submission</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#submit-submit">Submit: <code class="docutils literal notranslate"><span class="pre">--submit</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#queue-q-queue">Queue: <code class="docutils literal notranslate"><span class="pre">-q</span></code>, <code class="docutils literal notranslate"><span class="pre">--queue</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#wall-time-w-walltime">Wall time: <code class="docutils literal notranslate"><span class="pre">-w</span></code>, <code class="docutils literal notranslate"><span class="pre">--walltime</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#memory-memory">Memory: <code class="docutils literal notranslate"><span class="pre">--memory</span></code></a></li>
@@ -384,32 +385,33 @@ value set by <code class="docutils literal notranslate"><span class="pre">CONCEP
 </li>
 <li><p><a class="reference internal" href="#remote-job-submission" id="id12">Remote job submission</a></p>
 <ul>
-<li><p><a class="reference internal" href="#queue-q-queue" id="id13">Queue: <code class="docutils literal notranslate"><span class="pre">-q</span></code>, <code class="docutils literal notranslate"><span class="pre">--queue</span></code></a></p></li>
-<li><p><a class="reference internal" href="#wall-time-w-walltime" id="id14">Wall time: <code class="docutils literal notranslate"><span class="pre">-w</span></code>, <code class="docutils literal notranslate"><span class="pre">--walltime</span></code></a></p></li>
-<li><p><a class="reference internal" href="#memory-memory" id="id15">Memory: <code class="docutils literal notranslate"><span class="pre">--memory</span></code></a></p></li>
-<li><p><a class="reference internal" href="#job-name-job-name" id="id16">Job name: <code class="docutils literal notranslate"><span class="pre">--job-name</span></code></a></p></li>
-<li><p><a class="reference internal" href="#job-directive-j-job-directive" id="id17">Job directive: <code class="docutils literal notranslate"><span class="pre">-j</span></code>, <code class="docutils literal notranslate"><span class="pre">--job-directive</span></code></a></p></li>
-<li><p><a class="reference internal" href="#watch-watch" id="id18">Watch: <code class="docutils literal notranslate"><span class="pre">--watch</span></code></a></p></li>
+<li><p><a class="reference internal" href="#submit-submit" id="id13">Submit: <code class="docutils literal notranslate"><span class="pre">--submit</span></code></a></p></li>
+<li><p><a class="reference internal" href="#queue-q-queue" id="id14">Queue: <code class="docutils literal notranslate"><span class="pre">-q</span></code>, <code class="docutils literal notranslate"><span class="pre">--queue</span></code></a></p></li>
+<li><p><a class="reference internal" href="#wall-time-w-walltime" id="id15">Wall time: <code class="docutils literal notranslate"><span class="pre">-w</span></code>, <code class="docutils literal notranslate"><span class="pre">--walltime</span></code></a></p></li>
+<li><p><a class="reference internal" href="#memory-memory" id="id16">Memory: <code class="docutils literal notranslate"><span class="pre">--memory</span></code></a></p></li>
+<li><p><a class="reference internal" href="#job-name-job-name" id="id17">Job name: <code class="docutils literal notranslate"><span class="pre">--job-name</span></code></a></p></li>
+<li><p><a class="reference internal" href="#job-directive-j-job-directive" id="id18">Job directive: <code class="docutils literal notranslate"><span class="pre">-j</span></code>, <code class="docutils literal notranslate"><span class="pre">--job-directive</span></code></a></p></li>
+<li><p><a class="reference internal" href="#watch-watch" id="id19">Watch: <code class="docutils literal notranslate"><span class="pre">--watch</span></code></a></p></li>
 </ul>
 </li>
-<li><p><a class="reference internal" href="#building-and-running" id="id19">Building and running</a></p>
+<li><p><a class="reference internal" href="#building-and-running" id="id20">Building and running</a></p>
 <ul>
-<li><p><a class="reference internal" href="#local-local" id="id20">Local: <code class="docutils literal notranslate"><span class="pre">--local</span></code></a></p></li>
-<li><p><a class="reference internal" href="#pure-python-pure-python" id="id21">Pure Python: <code class="docutils literal notranslate"><span class="pre">--pure-python</span></code></a></p></li>
-<li><p><a class="reference internal" href="#build-b-build" id="id22">Build: <code class="docutils literal notranslate"><span class="pre">-b</span></code>, <code class="docutils literal notranslate"><span class="pre">--build</span></code></a></p></li>
-<li><p><a class="reference internal" href="#rebuild-rebuild" id="id23">Rebuild: <code class="docutils literal notranslate"><span class="pre">--rebuild</span></code></a></p></li>
-<li><p><a class="reference internal" href="#optimizations-optimizations" id="id24">Optimizations: <code class="docutils literal notranslate"><span class="pre">--optimizations</span></code></a></p></li>
-<li><p><a class="reference internal" href="#link-time-optimizations-linktime-optimizations" id="id25">Link time optimizations: <code class="docutils literal notranslate"><span class="pre">--linktime-optimizations</span></code></a></p></li>
-<li><p><a class="reference internal" href="#native-optimizations-native-optimizations" id="id26">Native optimizations: <code class="docutils literal notranslate"><span class="pre">--native-optimizations</span></code></a></p></li>
-<li><p><a class="reference internal" href="#safe-build-safe-build" id="id27">Safe build: <code class="docutils literal notranslate"><span class="pre">--safe-build</span></code></a></p></li>
+<li><p><a class="reference internal" href="#local-local" id="id21">Local: <code class="docutils literal notranslate"><span class="pre">--local</span></code></a></p></li>
+<li><p><a class="reference internal" href="#pure-python-pure-python" id="id22">Pure Python: <code class="docutils literal notranslate"><span class="pre">--pure-python</span></code></a></p></li>
+<li><p><a class="reference internal" href="#build-b-build" id="id23">Build: <code class="docutils literal notranslate"><span class="pre">-b</span></code>, <code class="docutils literal notranslate"><span class="pre">--build</span></code></a></p></li>
+<li><p><a class="reference internal" href="#rebuild-rebuild" id="id24">Rebuild: <code class="docutils literal notranslate"><span class="pre">--rebuild</span></code></a></p></li>
+<li><p><a class="reference internal" href="#optimizations-optimizations" id="id25">Optimizations: <code class="docutils literal notranslate"><span class="pre">--optimizations</span></code></a></p></li>
+<li><p><a class="reference internal" href="#link-time-optimizations-linktime-optimizations" id="id26">Link time optimizations: <code class="docutils literal notranslate"><span class="pre">--linktime-optimizations</span></code></a></p></li>
+<li><p><a class="reference internal" href="#native-optimizations-native-optimizations" id="id27">Native optimizations: <code class="docutils literal notranslate"><span class="pre">--native-optimizations</span></code></a></p></li>
+<li><p><a class="reference internal" href="#safe-build-safe-build" id="id28">Safe build: <code class="docutils literal notranslate"><span class="pre">--safe-build</span></code></a></p></li>
 </ul>
 </li>
-<li><p><a class="reference internal" href="#specials" id="id28">Specials</a></p>
+<li><p><a class="reference internal" href="#specials" id="id29">Specials</a></p>
 <ul>
-<li><p><a class="reference internal" href="#test-t-tests" id="id29">Test: <code class="docutils literal notranslate"><span class="pre">-t</span></code>, <code class="docutils literal notranslate"><span class="pre">--tests</span></code></a></p></li>
-<li><p><a class="reference internal" href="#main-entry-point-m-main" id="id30">Main entry point: <code class="docutils literal notranslate"><span class="pre">-m</span></code>, <code class="docutils literal notranslate"><span class="pre">--main</span></code></a></p></li>
-<li><p><a class="reference internal" href="#interactive-i-interactive" id="id31">Interactive: <code class="docutils literal notranslate"><span class="pre">-i</span></code>, <code class="docutils literal notranslate"><span class="pre">--interactive</span></code></a></p></li>
-<li><p><a class="reference internal" href="#version-v-version" id="id32">Version: <code class="docutils literal notranslate"><span class="pre">-v</span></code>, <code class="docutils literal notranslate"><span class="pre">--version</span></code></a></p></li>
+<li><p><a class="reference internal" href="#test-t-tests" id="id30">Test: <code class="docutils literal notranslate"><span class="pre">-t</span></code>, <code class="docutils literal notranslate"><span class="pre">--tests</span></code></a></p></li>
+<li><p><a class="reference internal" href="#main-entry-point-m-main" id="id31">Main entry point: <code class="docutils literal notranslate"><span class="pre">-m</span></code>, <code class="docutils literal notranslate"><span class="pre">--main</span></code></a></p></li>
+<li><p><a class="reference internal" href="#interactive-i-interactive" id="id32">Interactive: <code class="docutils literal notranslate"><span class="pre">-i</span></code>, <code class="docutils literal notranslate"><span class="pre">--interactive</span></code></a></p></li>
+<li><p><a class="reference internal" href="#version-v-version" id="id33">Version: <code class="docutils literal notranslate"><span class="pre">-v</span></code>, <code class="docutils literal notranslate"><span class="pre">--version</span></code></a></p></li>
 </ul>
 </li>
 </ul>
@@ -530,8 +532,13 @@ processes distributed over 2 nodes each with 4 CPU cores:</p>
 specification (i.e. only supply a single number to <code class="docutils literal notranslate"><span class="pre">-n</span></code>) and the cluster is
 running Slurm, the specified total number of CPU cores may be distributed in
 any which way between the available nodes. If the cluster is running
-TORQUE/PBS, you must always explicitly specify the number of nodes as well as
-the number of CPU cores/node.</p>
+TORQUE/PBS, you should always explicitly specify the number of nodes as well
+as the number of CPU cores/node.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Specifying a number of nodes will enable
+<a class="reference internal" href="#submit"><span class="std std-ref">automatic job submission</span></a> unless explicitly disabled.</p>
+</div>
 </section>
 </section>
 <section id="utility-u-utility">
@@ -572,16 +579,38 @@ simulations.</p>
 <section id="remote-job-submission">
 <span id="id3"></span><h2><a class="toc-backref" href="#id12" role="doc-backlink">Remote job submission</a><a class="headerlink" href="#remote-job-submission" title="Permalink to this heading"></a></h2>
 <p>When running CO<em>N</em>CEPT on a cluster with a job scheduler (Slurm and
-TORQUE/PBS supported), each invocation of <code class="docutils literal notranslate"><span class="pre">concept</span></code> submits the work to be
-done as a remote job (unless this behaviour is <a class="reference internal" href="#local"><span class="std std-ref">overruled</span></a>). If
-running locally, none of these options have any effect.</p>
+TORQUE/PBS supported), directly running simulations (on the front-end) is
+disabled by default (but can be <a class="reference internal" href="#local"><span class="std std-ref">overruled</span></a>). Instead, a job
+script is generated. To automatically submit the job to the scheduler, supply
+the <code class="docutils literal notranslate"><span class="pre">--submit</span></code> <a class="reference internal" href="#submit"><span class="std std-ref">option</span></a>. If running locally, none of these
+options have any effect.</p>
 <p>On top of the <a class="reference internal" href="#basics"><span class="std std-ref">basic</span></a> options, the options below are used for
 additional resource specification when submitting remote jobs. Note that
 additional possibilities arise for the <code class="docutils literal notranslate"><span class="pre">-n</span></code> option when running on a cluster
 with multiple compute nodes, as documented
 <a class="reference internal" href="#specifying-multiple-nodes"><span class="std std-ref">above</span></a>.</p>
+<section id="submit-submit">
+<span id="submit"></span><h3><a class="toc-backref" href="#id13" role="doc-backlink">Submit: <code class="docutils literal notranslate"><span class="pre">--submit</span></code></a><a class="headerlink" href="#submit-submit" title="Permalink to this heading"></a></h3>
+<p>Automatic job submission will be requested by using</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>--submit
+<span class="c1"># or</span>
+./concept<span class="w"> </span>--submit<span class="w"> </span>True
+</pre></div>
+</div>
+<p>Conversely, job submission can be held back by specifying</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>--submit<span class="w"> </span>False
+</pre></div>
+</div>
+<p>This is almost a Boolean command-line option, with the caveat that its default
+value (“unset”) is neither <code class="docutils literal notranslate"><span class="pre">True</span></code> nor <code class="docutils literal notranslate"><span class="pre">False</span></code>. When left unset, no
+submission occurs unless other options from the
+<a class="reference internal" href="#remote-job-submission"><span class="std std-ref">remote job submission</span></a> category are specified.
+See the note in the description of the
+<code class="docutils literal notranslate"><span class="pre">--watch</span></code> <a class="reference internal" href="#watch-cmdoption"><span class="std std-ref">option</span></a> for details on Boolean
+command-line options.</p>
+</section>
 <section id="queue-q-queue">
-<span id="queue"></span><h3><a class="toc-backref" href="#id13" role="doc-backlink">Queue: <code class="docutils literal notranslate"><span class="pre">-q</span></code>, <code class="docutils literal notranslate"><span class="pre">--queue</span></code></a><a class="headerlink" href="#queue-q-queue" title="Permalink to this heading"></a></h3>
+<span id="queue"></span><h3><a class="toc-backref" href="#id14" role="doc-backlink">Queue: <code class="docutils literal notranslate"><span class="pre">-q</span></code>, <code class="docutils literal notranslate"><span class="pre">--queue</span></code></a><a class="headerlink" href="#queue-q-queue" title="Permalink to this heading"></a></h3>
 <p>Specifies the name of the queue (called ‘partition’ in Slurm) to which the
 remote job is to be submitted:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>-q<span class="w"> </span>&lt;queue&gt;
@@ -591,11 +620,9 @@ remote job is to be submitted:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>-q<span class="w"> </span>&lt;queue1&gt;,&lt;queue2&gt;,&lt;queue3&gt;
 </pre></div>
 </div>
-<p>No remote job will be submitted if you do not supply this option. A job script
-will however be produced, which you may edit and submit manually.</p>
 </section>
 <section id="wall-time-w-walltime">
-<span id="walltime"></span><h3><a class="toc-backref" href="#id14" role="doc-backlink">Wall time: <code class="docutils literal notranslate"><span class="pre">-w</span></code>, <code class="docutils literal notranslate"><span class="pre">--walltime</span></code></a><a class="headerlink" href="#wall-time-w-walltime" title="Permalink to this heading"></a></h3>
+<span id="walltime"></span><h3><a class="toc-backref" href="#id15" role="doc-backlink">Wall time: <code class="docutils literal notranslate"><span class="pre">-w</span></code>, <code class="docutils literal notranslate"><span class="pre">--walltime</span></code></a><a class="headerlink" href="#wall-time-w-walltime" title="Permalink to this heading"></a></h3>
 <p>Specifies the maximum wall time (total computation time) within which the
 remote job has to have completed. If the job runs for the entire specified
 maximum wall time, it will be killed by the job scheduler.</p>
@@ -611,7 +638,7 @@ maximum wall time, it will be killed by the job scheduler.</p>
 <p>If not specified, the system typically sets some default wall time.</p>
 </section>
 <section id="memory-memory">
-<span id="memory"></span><h3><a class="toc-backref" href="#id15" role="doc-backlink">Memory: <code class="docutils literal notranslate"><span class="pre">--memory</span></code></a><a class="headerlink" href="#memory-memory" title="Permalink to this heading"></a></h3>
+<span id="memory"></span><h3><a class="toc-backref" href="#id16" role="doc-backlink">Memory: <code class="docutils literal notranslate"><span class="pre">--memory</span></code></a><a class="headerlink" href="#memory-memory" title="Permalink to this heading"></a></h3>
 <p>Specifies the amount of memory allocated for the remote job. If you assign
 insufficient memory to a job, it will be killed (usually with a somewhat
 cryptic error message) by the system once its memory needs exceed the
@@ -630,7 +657,7 @@ compute nodes.</p>
 <p>If not specified, the system typically sets some default memory limit.</p>
 </section>
 <section id="job-name-job-name">
-<h3><a class="toc-backref" href="#id16" role="doc-backlink">Job name: <code class="docutils literal notranslate"><span class="pre">--job-name</span></code></a><a class="headerlink" href="#job-name-job-name" title="Permalink to this heading"></a></h3>
+<h3><a class="toc-backref" href="#id17" role="doc-backlink">Job name: <code class="docutils literal notranslate"><span class="pre">--job-name</span></code></a><a class="headerlink" href="#job-name-job-name" title="Permalink to this heading"></a></h3>
 <p>Specify a name for the job, used by the job scheduler:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>--job-name<span class="w"> </span><span class="s2">&quot;my job&quot;</span>
 </pre></div>
@@ -641,7 +668,7 @@ Slurm and via <code class="docutils literal notranslate"><span class="pre">qstat
 problem, as this name is not a replacement for the job ID.</p>
 </section>
 <section id="job-directive-j-job-directive">
-<h3><a class="toc-backref" href="#id17" role="doc-backlink">Job directive: <code class="docutils literal notranslate"><span class="pre">-j</span></code>, <code class="docutils literal notranslate"><span class="pre">--job-directive</span></code></a><a class="headerlink" href="#job-directive-j-job-directive" title="Permalink to this heading"></a></h3>
+<h3><a class="toc-backref" href="#id18" role="doc-backlink">Job directive: <code class="docutils literal notranslate"><span class="pre">-j</span></code>, <code class="docutils literal notranslate"><span class="pre">--job-directive</span></code></a><a class="headerlink" href="#job-directive-j-job-directive" title="Permalink to this heading"></a></h3>
 <p>The specifications of system resources — the designated
 <a class="reference internal" href="#queue"><span class="std std-ref">queue(s)</span></a>, the
 <a class="reference internal" href="#number-of-processes"><span class="std std-ref">number of nodes and processes</span></a>, the allowed
@@ -677,7 +704,7 @@ option to the <code class="docutils literal notranslate"><span class="pre">conce
 <p>The <code class="docutils literal notranslate"><span class="pre">-j</span></code> option may be specified multiple times.</p>
 </section>
 <section id="watch-watch">
-<span id="watch-cmdoption"></span><h3><a class="toc-backref" href="#id18" role="doc-backlink">Watch: <code class="docutils literal notranslate"><span class="pre">--watch</span></code></a><a class="headerlink" href="#watch-watch" title="Permalink to this heading"></a></h3>
+<span id="watch-cmdoption"></span><h3><a class="toc-backref" href="#id19" role="doc-backlink">Watch: <code class="docutils literal notranslate"><span class="pre">--watch</span></code></a><a class="headerlink" href="#watch-watch" title="Permalink to this heading"></a></h3>
 <p>After submitting a remote job, rather than put you back at the system prompt,
 CO<em>N</em>CEPT will run the <a class="reference internal" href="utilities/watch.html"><span class="doc">watch utility</span></a> in order
 for you to follow the progression of the job. This have no effect on the job
@@ -703,7 +730,7 @@ Boolean command-line options which default to <code class="docutils literal notr
 </section>
 </section>
 <section id="building-and-running">
-<span id="id4"></span><h2><a class="toc-backref" href="#id19" role="doc-backlink">Building and running</a><a class="headerlink" href="#building-and-running" title="Permalink to this heading"></a></h2>
+<span id="id4"></span><h2><a class="toc-backref" href="#id20" role="doc-backlink">Building and running</a><a class="headerlink" href="#building-and-running" title="Permalink to this heading"></a></h2>
 <p>The following options change the way that CO<em>N</em>CEPT is built or run.</p>
 <p>While the Python source code for CO<em>N</em>CEPT lives in the <code class="docutils literal notranslate"><span class="pre">scr</span></code> directory,
 default invocation of the <code class="docutils literal notranslate"><span class="pre">concept</span></code> script launches a job that runs off of
@@ -713,7 +740,7 @@ the compiled code ready, the requested CO<em>N</em>CEPT run is performed.
 In addition, when working on a remote server/cluster (through SSH),
 rather than starting the run directly, it is submitted as a remote job.</p>
 <section id="local-local">
-<span id="local"></span><h3><a class="toc-backref" href="#id20" role="doc-backlink">Local: <code class="docutils literal notranslate"><span class="pre">--local</span></code></a><a class="headerlink" href="#local-local" title="Permalink to this heading"></a></h3>
+<span id="local"></span><h3><a class="toc-backref" href="#id21" role="doc-backlink">Local: <code class="docutils literal notranslate"><span class="pre">--local</span></code></a><a class="headerlink" href="#local-local" title="Permalink to this heading"></a></h3>
 <p>Supply this option to disregard the fact that you are running on a remote
 server/cluster. That is, do not submit the CO<em>N</em>CEPT run as a remote job
 using the job scheduler, but run it directly as if you were running locally.</p>
@@ -727,7 +754,7 @@ in the description of the <code class="docutils literal notranslate"><span class
 for details.</p>
 </section>
 <section id="pure-python-pure-python">
-<span id="pure-python"></span><h3><a class="toc-backref" href="#id21" role="doc-backlink">Pure Python: <code class="docutils literal notranslate"><span class="pre">--pure-python</span></code></a><a class="headerlink" href="#pure-python-pure-python" title="Permalink to this heading"></a></h3>
+<span id="pure-python"></span><h3><a class="toc-backref" href="#id22" role="doc-backlink">Pure Python: <code class="docutils literal notranslate"><span class="pre">--pure-python</span></code></a><a class="headerlink" href="#pure-python-pure-python" title="Permalink to this heading"></a></h3>
 <p>When this option is supplied, CO<em>N</em>CEPT is run directly off of the Python
 source files in <code class="docutils literal notranslate"><span class="pre">src</span></code>, disregarding the presence of
 any <a class="reference internal" href="#build"><span class="std std-ref">build</span></a>:</p>
@@ -743,7 +770,7 @@ in the description of the <code class="docutils literal notranslate"><span class
 for details.</p>
 </section>
 <section id="build-b-build">
-<span id="build"></span><h3><a class="toc-backref" href="#id22" role="doc-backlink">Build: <code class="docutils literal notranslate"><span class="pre">-b</span></code>, <code class="docutils literal notranslate"><span class="pre">--build</span></code></a><a class="headerlink" href="#build-b-build" title="Permalink to this heading"></a></h3>
+<span id="build"></span><h3><a class="toc-backref" href="#id23" role="doc-backlink">Build: <code class="docutils literal notranslate"><span class="pre">-b</span></code>, <code class="docutils literal notranslate"><span class="pre">--build</span></code></a><a class="headerlink" href="#build-b-build" title="Permalink to this heading"></a></h3>
 <p>Specifies a build directory to use:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>-b<span class="w"> </span>my_build
 </pre></div>
@@ -787,7 +814,7 @@ really corresponds to a separate directory on each node.</p>
 </div>
 </section>
 <section id="rebuild-rebuild">
-<span id="rebuild"></span><h3><a class="toc-backref" href="#id23" role="doc-backlink">Rebuild: <code class="docutils literal notranslate"><span class="pre">--rebuild</span></code></a><a class="headerlink" href="#rebuild-rebuild" title="Permalink to this heading"></a></h3>
+<span id="rebuild"></span><h3><a class="toc-backref" href="#id24" role="doc-backlink">Rebuild: <code class="docutils literal notranslate"><span class="pre">--rebuild</span></code></a><a class="headerlink" href="#rebuild-rebuild" title="Permalink to this heading"></a></h3>
 <p>Even if the compiled code in the <a class="reference internal" href="#build"><span class="std std-ref">build</span></a> directory is up-to-date
 with the source in <code class="docutils literal notranslate"><span class="pre">src</span></code>, a rebuild can be triggered by using</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>--rebuild
@@ -807,7 +834,7 @@ up-to-date with the source. See the note in the description of the
 command-line options.</p>
 </section>
 <section id="optimizations-optimizations">
-<span id="optimizations"></span><h3><a class="toc-backref" href="#id24" role="doc-backlink">Optimizations: <code class="docutils literal notranslate"><span class="pre">--optimizations</span></code></a><a class="headerlink" href="#optimizations-optimizations" title="Permalink to this heading"></a></h3>
+<span id="optimizations"></span><h3><a class="toc-backref" href="#id25" role="doc-backlink">Optimizations: <code class="docutils literal notranslate"><span class="pre">--optimizations</span></code></a><a class="headerlink" href="#optimizations-optimizations" title="Permalink to this heading"></a></h3>
 <p>During compilation of CO<em>N</em>CEPT, a lot of optimizations are performed.
 These include source code transformations performed by <code class="docutils literal notranslate"><span class="pre">pyxpp.py</span></code> as well
 as standard C compiler optimizations (including
@@ -832,7 +859,7 @@ in the description of the <code class="docutils literal notranslate"><span class
 for details.</p>
 </section>
 <section id="link-time-optimizations-linktime-optimizations">
-<span id="link-time-optimizations"></span><h3><a class="toc-backref" href="#id25" role="doc-backlink">Link time optimizations: <code class="docutils literal notranslate"><span class="pre">--linktime-optimizations</span></code></a><a class="headerlink" href="#link-time-optimizations-linktime-optimizations" title="Permalink to this heading"></a></h3>
+<span id="link-time-optimizations"></span><h3><a class="toc-backref" href="#id26" role="doc-backlink">Link time optimizations: <code class="docutils literal notranslate"><span class="pre">--linktime-optimizations</span></code></a><a class="headerlink" href="#link-time-optimizations-linktime-optimizations" title="Permalink to this heading"></a></h3>
 <p>Link time optimizations (LTO) are on by default when compiling CO<em>N</em>CEPT,
 if supported by the compiler. Though usually preferable, the associated
 increase in build time and especially memory may be undesirable. To build
@@ -857,7 +884,7 @@ in the description of the <code class="docutils literal notranslate"><span class
 for details.</p>
 </section>
 <section id="native-optimizations-native-optimizations">
-<span id="native-optimizations"></span><h3><a class="toc-backref" href="#id26" role="doc-backlink">Native optimizations: <code class="docutils literal notranslate"><span class="pre">--native-optimizations</span></code></a><a class="headerlink" href="#native-optimizations-native-optimizations" title="Permalink to this heading"></a></h3>
+<span id="native-optimizations"></span><h3><a class="toc-backref" href="#id27" role="doc-backlink">Native optimizations: <code class="docutils literal notranslate"><span class="pre">--native-optimizations</span></code></a><a class="headerlink" href="#native-optimizations-native-optimizations" title="Permalink to this heading"></a></h3>
 <p>The default optimizations performed during compilation are all portable, so
 that the compiled code may be run on different hardware (within reason).</p>
 <p>Supply this option if you are willing to use non-portable optimizations native
@@ -889,7 +916,7 @@ in the description of the <code class="docutils literal notranslate"><span class
 for details.</p>
 </section>
 <section id="safe-build-safe-build">
-<h3><a class="toc-backref" href="#id27" role="doc-backlink">Safe build: <code class="docutils literal notranslate"><span class="pre">--safe-build</span></code></a><a class="headerlink" href="#safe-build-safe-build" title="Permalink to this heading"></a></h3>
+<h3><a class="toc-backref" href="#id28" role="doc-backlink">Safe build: <code class="docutils literal notranslate"><span class="pre">--safe-build</span></code></a><a class="headerlink" href="#safe-build-safe-build" title="Permalink to this heading"></a></h3>
 <p>By default the compilation process is carried out in a safe manner, meaning
 that changes within a file triggers recompilation of all other files which
 rely on the specific file in question. If you know that a change is entirely
@@ -916,14 +943,14 @@ for details.</p>
 </section>
 </section>
 <section id="specials">
-<span id="id5"></span><h2><a class="toc-backref" href="#id28" role="doc-backlink">Specials</a><a class="headerlink" href="#specials" title="Permalink to this heading"></a></h2>
+<span id="id5"></span><h2><a class="toc-backref" href="#id29" role="doc-backlink">Specials</a><a class="headerlink" href="#specials" title="Permalink to this heading"></a></h2>
 <p>The following options are mostly useful for development. As demonstrated by
 the below examples though, “development” does not have to be restricted to the
 CO<em>N</em>CEPT code itself. That is, these special options come in handy should
 you wish to hook into the code, or simply check that the code is in a working
 state.</p>
 <section id="test-t-tests">
-<span id="test"></span><h3><a class="toc-backref" href="#id29" role="doc-backlink">Test: <code class="docutils literal notranslate"><span class="pre">-t</span></code>, <code class="docutils literal notranslate"><span class="pre">--tests</span></code></a><a class="headerlink" href="#test-t-tests" title="Permalink to this heading"></a></h3>
+<span id="test"></span><h3><a class="toc-backref" href="#id30" role="doc-backlink">Test: <code class="docutils literal notranslate"><span class="pre">-t</span></code>, <code class="docutils literal notranslate"><span class="pre">--tests</span></code></a><a class="headerlink" href="#test-t-tests" title="Permalink to this heading"></a></h3>
 <p>CO<em>N</em>CEPT comes with an integration test suite, located in the
 <code class="docutils literal notranslate"><span class="pre">test</span></code> directory. Each subdirectory within this directory implements a given
 test, with the test name given by the name of the subdirectory. You may use
@@ -967,7 +994,7 @@ behaviour is not present if starting from a non-empty <code class="docutils lite
 </div>
 </section>
 <section id="main-entry-point-m-main">
-<span id="main-entry-point"></span><h3><a class="toc-backref" href="#id30" role="doc-backlink">Main entry point: <code class="docutils literal notranslate"><span class="pre">-m</span></code>, <code class="docutils literal notranslate"><span class="pre">--main</span></code></a><a class="headerlink" href="#main-entry-point-m-main" title="Permalink to this heading"></a></h3>
+<span id="main-entry-point"></span><h3><a class="toc-backref" href="#id31" role="doc-backlink">Main entry point: <code class="docutils literal notranslate"><span class="pre">-m</span></code>, <code class="docutils literal notranslate"><span class="pre">--main</span></code></a><a class="headerlink" href="#main-entry-point-m-main" title="Permalink to this heading"></a></h3>
 <p>The responsibilities of the <code class="docutils literal notranslate"><span class="pre">concept</span></code> script are to set up the environment,
 build the actual CO<em>N</em>CEPT code (if not running in
 <a class="reference internal" href="#pure-python"><span class="std std-ref">pure Python mode</span></a>) and then launch a job (or submit a
@@ -1025,7 +1052,7 @@ we can do</p>
 </div>
 </section>
 <section id="interactive-i-interactive">
-<span id="interactive"></span><h3><a class="toc-backref" href="#id31" role="doc-backlink">Interactive: <code class="docutils literal notranslate"><span class="pre">-i</span></code>, <code class="docutils literal notranslate"><span class="pre">--interactive</span></code></a><a class="headerlink" href="#interactive-i-interactive" title="Permalink to this heading"></a></h3>
+<span id="interactive"></span><h3><a class="toc-backref" href="#id32" role="doc-backlink">Interactive: <code class="docutils literal notranslate"><span class="pre">-i</span></code>, <code class="docutils literal notranslate"><span class="pre">--interactive</span></code></a><a class="headerlink" href="#interactive-i-interactive" title="Permalink to this heading"></a></h3>
 <p>Normally when running <code class="docutils literal notranslate"><span class="pre">concept</span></code>, you are sent back to the system prompt once
 the run has completed. You can use this option to instead end up in a live
 Python prompt, with the <a class="reference internal" href="#main-entry-point"><span class="std std-ref">main</span></a> scope available for
@@ -1087,7 +1114,7 @@ in the description of the <code class="docutils literal notranslate"><span class
 for details.</p>
 </section>
 <section id="version-v-version">
-<h3><a class="toc-backref" href="#id32" role="doc-backlink">Version: <code class="docutils literal notranslate"><span class="pre">-v</span></code>, <code class="docutils literal notranslate"><span class="pre">--version</span></code></a><a class="headerlink" href="#version-v-version" title="Permalink to this heading"></a></h3>
+<h3><a class="toc-backref" href="#id33" role="doc-backlink">Version: <code class="docutils literal notranslate"><span class="pre">-v</span></code>, <code class="docutils literal notranslate"><span class="pre">--version</span></code></a><a class="headerlink" href="#version-v-version" title="Permalink to this heading"></a></h3>
 <p>Prints out the version of CO<em>N</em>CEPT that is installed:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./concept<span class="w"> </span>-v
 </pre></div>
