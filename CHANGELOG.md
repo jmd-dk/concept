@@ -29,6 +29,7 @@
   we can now use either BCC (standard) or FCC interlacing. For potentials,
   we now have independent upstream and downstream interlacing.
 - Support for loading of TIPSY snapshots.
+- New remote job submission system, with the explicit `--submit` option.
 - `CONCEPT_*` environment variables corresponding to command-line options.
 - The `class` utility is easier to work with, owing to the new `--kmin`,
   `--kmax` and `--modes` options. The `--times` option can now also be used to
