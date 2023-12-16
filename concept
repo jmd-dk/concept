@@ -589,6 +589,7 @@ pure_python_default="False"
 queue_default=""
 rebuild_default=""  # empty implies that a rebuild is triggered by changes to the source
 safe_build_default="True"
+submit_default=""  # empty implies submission if other remote job options are specified
 tests_default=""
 utility_default=""
 walltime_default="00:00:00"  # 00:00:00 implies unset
@@ -1096,6 +1097,19 @@ def get_parser(*, add_help=True):
     # Remote job submission
     group_job = parser.add_argument_group('remote job submission')
     add_parser_argument(
+        'submit',
+        group_job,
+        help=(
+            'if True, submits the run as a remote job. '
+            'By default submission takes place if other '
+            'remote job submission options are specified.'
+        ),
+        default='${submit_default}',
+        nargs='?',
+        type=bool_or_empty,
+        const='True',
+    )
+    add_parser_argument(
         'queue',
         group_job,
         help='queue/partition for submission of the remote job',
@@ -1186,7 +1200,7 @@ def get_parser(*, add_help=True):
         group_build,
         help=(
             'specify whether to rebuild the code before running it. '
-            'By default the code is build if any of the source files '
+            'By default the code is built if any of the source files '
             'have been changed since the last build.'
         ),
         default='${rebuild_default}',
@@ -1350,6 +1364,7 @@ print(' ;:; '.join([
     \"walltime={}\".format(args.walltime),
     \"job_name='{}'\".format(args.job_name),
     \"local={}\".format(args.local),
+    \"submit={}\".format(args.submit),
     \"optimizations={}\".format(args.optimizations),
     \"linktime_optimizations={}\".format(args.linktime_optimizations),
     \"native_optimizations={}\".format(args.native_optimizations),
@@ -1378,7 +1393,7 @@ fi
 if [ "${version}" == "True" ]; then
     version_printout="$(
         "${concept}" -m "import commons; print('version', commons.__version__)" \
-            --pure-python --local 2>/dev/null | tail -n 1
+            --pure-python --local --submit=False 2>/dev/null | tail -n 1
     )"
     if [[ "${version_printout}" == "version "* ]]; then
         version_printout="$(echo "${version_printout}" | awk '{print $NF}')"
@@ -1578,6 +1593,80 @@ if     [ "${local}" == "False"            ] \
     && [ "${ssh}"   == "True"             ]; then
     remote="True"
 fi
+if [ "${remote}" == "True" ] && [ "${interactive}" == "True" ]; then
+    colorprint "Cannot use interactive mode when running remotely" "red"
+    exit 1
+fi
+
+# Determine whehter to actually submit remote job
+if [ "${remote}" == "False" ] && [ "${submit}" == "True" ]; then
+    colorprint "Cannot submit job when running locally" "red"
+    exit 1
+fi
+if [ -z "${submit_actual}" ]; then
+    submit_actual="False"
+fi
+if [ -n "${submit}" ]; then
+    submit_actual="${submit}"
+elif [ "${called_from_concept}" != "True" ]; then
+    if [ "${queue}" != "${queue_default}" ]; then
+        if [ "${remote}" == "True" ]; then
+            submit_actual="True"
+        else
+            colorprint "Queue (${queue}) specified while running locally. \
+This will be ignored" "red"
+        fi
+    fi
+    if [[ "${nprocs}" == *':'* ]]; then
+        if [ "${remote}" == "True" ]; then
+            submit_actual="True"
+        else
+            nnodes=$("${python}" -c "print('${nprocs}'[:'${nprocs}'.index(':')])")
+            colorprint "Number of nodes (${nnodes}) specified while running locally. \
+This will be ignored" "red"
+        fi
+    fi
+    if [ "${walltime}" != "${walltime_default}" ]; then
+        if [ "${remote}" == "True" ]; then
+            submit_actual="True"
+        else
+            colorprint "Wall time (${walltime}) specified while running locally. \
+This will be ignored" "red"
+        fi
+    fi
+    if [ "${memory}" != "${memory_default}" ]; then
+        if [ "${remote}" == "True" ]; then
+            submit_actual="True"
+        else
+            colorprint "Memory (${memory}) specified while running locally. \
+This will be ignored" "red"
+        fi
+    fi
+    if [ "${job_name}" != "${job_name_default}" ]; then
+        if [ "${remote}" == "True" ]; then
+            submit_actual="True"
+        else
+            colorprint "Job name (${job_name}) specified while running locally. \
+This will be ignored" "red"
+        fi
+    fi
+    if [ "${job_directive}" != "${job_directive_default}" ]; then
+        if [ "${remote}" == "True" ]; then
+            submit_actual="True"
+        else
+            colorprint "Job directive(s) (${job_directive}) specified while running locally. \
+This will be ignored" "red"
+        fi
+    fi
+    if [ "${watch}" != "${watch_default}" ]; then
+        if [ "${remote}" == "True" ]; then
+            submit_actual="True"
+        else
+            colorprint "Watch (${watch}) specified while running locally. \
+This will be ignored" "red"
+        fi
+    fi
+fi
 
 # If tests are to be run, run them and exit
 if [ "${tests}" != "${tests_default}" ]; then
@@ -1710,7 +1799,7 @@ except NameError:
     print('param_var =', user_params['''${1}'''])
 "                                                 \
             --pure-python                         \
-            --local                               \
+            --local --submit=False                \
         | grep "param_var"                        \
         | tail -n 1                               \
         | sed 's/^.\{12\}//'
@@ -1738,6 +1827,7 @@ This is counted as a test failure." "red"
     unset CONCEPT_tests
     # Ensure that the testing is carried out locally
     export CONCEPT_local="True"
+    export CONCEPT_submit="False"
     # Enable warnings that are ignored by default.
     # We do this in order to get notified about deprecated code usage.
     # Due to the above test_check_err_logs(), any such warning will
@@ -1761,12 +1851,6 @@ print('Total execution time: {}'.format(time_since(${start_time_epoch})))"
     exit 0
 fi
 
-# Cannot run in interactive mode when running remotely
-if [ "${remote}" == "True" ] && [ "${interactive}" == "True" ]; then
-    colorprint "Cannot run in interactive mode when run remotely" "red"
-    exit 1
-fi
-
 # Function implementing functionality common to many utilities,
 # typically involving some processing of snapshots.
 launch_utility() {
@@ -1787,12 +1871,16 @@ launch_utility() {
             2>/dev/null                                                          \
         || :
     }
-    # Apply the CONCEPT_local variable
+    # Apply the CONCEPT_local and CONCEPT_submit variables
     if [ -n "${CONCEPT_local}" ]; then
         local="${CONCEPT_local}"
     fi
     if [ "${local}" == "True" ]; then
         remote="False"
+    fi
+    if [ -n "${CONCEPT_submit}" ]; then
+        submit="${CONCEPT_submit}"
+        submit_actual="${submit}"
     fi
     # Read in user-supplied parameters
     user_params=""
@@ -1813,7 +1901,7 @@ launch_utility() {
                 -u=info                                                                \
                     "$(bash_array2python_list "${paths[@]}")"                          \
                     --generate-param="${tmp_dir}/param/${start_time_human_nosep}/info" \
-                --local                                                                \
+                --local --submit=False                                                 \
         )"
         snapshot_filenames="$(echo "${info}" | grep -x 'Parameters.*' | grep -o '".*"')"
         snapshot_param_filenames="$(                                 \
@@ -1834,7 +1922,9 @@ launch_utility() {
         # can put the file system under a lot of stress.
         # If several snapshots are to be processed remotely,
         # prompt the user for confirmation.
-        if [ "${remote}" == "True" ] && [ ${n_snapshots} -gt 1 ]; then
+        if [ "${remote}" == "True" ] && [ ${n_snapshots} -gt 1 ] \
+            && [ "${submit_actual}" == "True" ] \
+        ; then
             if [ "${yes_to_defaults}" == "True" ]; then
                 printf "\nA job will be submitted for each snapshot\n"
             else
@@ -1933,6 +2023,9 @@ ${utility_params_closing}
         # Run CO𝘕CEPT to process the snapshot.
         # Submitted jobs should not be watched at this time.
         # Capture the jobid and exit code.
+        if [ "${remote}" == "True" ] && [ "${submit_actual}" == "False" ]; then
+            echo
+        fi
         exec 4>&1
         jobid_and_exit_code="$(                \
             "${concept}"                       \
@@ -1970,11 +2063,11 @@ ${utility_params_closing}
             break
         fi
     done
+    plural=""
+    if [ ${n_snapshots} -gt 1 ]; then
+        plural="s"
+    fi
     if [ "${remote}" == "True" ] && [ "${CONCEPT_watch}" == "True" ] && [ "${any_jobs}" == "True" ]; then
-        plural=""
-        if [ ${n_snapshots} -gt 1 ]; then
-            plural="s"
-        fi
         printf "\nYou can now kill (Ctrl+C) this script without cancelling the job${plural}\n"
         printf "\nWill now watch the submitted job${plural}\n"
         for jobid in "${jobids[@]}"; do
@@ -2071,11 +2164,20 @@ with open('${job_dir}/${jobid}/param', mode='a', encoding='utf-8') as f:
 # Either stop doing further actions, submit job or run it locally
 if [ "${remote}" == "True" ]; then
     # Running remotely.
-    # Detect what resource manager is used
+    # Detect what resource manager is used.
     resource_manager="$(get_resource_manager)"
+    resource_manager_nice=""
+    if [ "${resource_manager}" == "slurm" ]; then
+        resource_manager_nice="Slurm"
+    elif [ "${resource_manager}" == "torque" ]; then
+        resource_manager_nice="TORQUE/PBS"
+    fi
     # Prepare job script header dependent on the resource manager.
     # If no resource manager is used, default to slurm.
-    if [ "${resource_manager}" == "slurm" ] || [ -z "${resource_manager}" ]; then
+    if [ -z "${resource_manager}" ]; then
+        resource_manager="slurm"
+    fi
+    if [ "${resource_manager}" == "slurm" ]; then
         # Split the 'nprocs' variable up into the number of nodes
         # and the number of processes per node, if both are given.
         if [[ "${nprocs}" == *':'* ]]; then
@@ -2095,8 +2197,10 @@ if [ "${remote}" == "True" ]; then
         jobscript_header="$(${python} -c "
 directive_prefix = '#SBATCH'
 lines = []
-lines.append(f'{directive_prefix} --job-name=${job_name}')
-lines.append(f'{directive_prefix} --partition=${queue}')
+if '${job_name}':
+    lines.append(f'{directive_prefix} --job-name=${job_name}')
+if '${queue}':
+    lines.append(f'{directive_prefix} --partition=${queue}')
 if ${nnodes}:
     lines.append(f'{directive_prefix} --nodes=${nnodes}')
     lines.append(f'{directive_prefix} --ntasks-per-node=${nprocs_per_node}')
@@ -2134,9 +2238,9 @@ print('\n'.join(lines))
         # Split the 'nprocs' variable up into the number of nodes
         # and the number of processes per node.
         if [[ "${nprocs}" != *':'* ]]; then
-            colorprint "Error: When using TORQUE or PBS you need to specify the number of nodes \
-and the number of processes per node" "red"
-            exit 1
+            colorprint "Warning: You are using TORQUE/PBS but did not specify \
+the number of nodes. A single node will be used." "red"
+            nprocs="1:${nprocs}"
         fi
         nnodes=$("${python}" -c "print('${nprocs}'[:'${nprocs}'.index(':')])")
         nprocs_per_node=$("${python}" -c "print('${nprocs}'[('${nprocs}'.index(':') + 1):])")
@@ -2147,8 +2251,10 @@ and the number of processes per node" "red"
         jobscript_header="$(${python} -c "
 directive_prefix = '#PBS'
 lines = []
-lines.append(f'{directive_prefix} -N ${job_name}')
-lines.append(f'{directive_prefix} -q ${queue}')
+if '${job_name}':
+    lines.append(f'{directive_prefix} -N ${job_name}')
+if '${queue}':
+    lines.append(f'{directive_prefix} -q ${queue}')
 lines.append(f'{directive_prefix} -l nodes=${nnodes}:ppn=${nprocs_per_node}')
 if ${memory} > 0:
     lines.append(f'{directive_prefix} -l pmem=${mb_per_process}mb')
@@ -2216,7 +2322,7 @@ print(walltime_str)
     # If the mpi_executor variable is already defined, we use this.
     if [ -z "${mpi_executor}" ]; then
         mpi_executor="${mpiexec}${mpiexec_args}"
-        if [ "${resource_manager}" == "slurm" ]; then
+        if [ "$(get_resource_manager)" == "slurm" ]; then
             if get_command "srun" >/dev/null; then
                 # Use the Slurm srun command as the MPI executor.
                 # We further disable process binding/affinity in Slurm.
@@ -2325,9 +2431,9 @@ prepare_python_options
 # Print start messages
 pure_python_msg=\"\"
 [ \"\${pure_python}\" != \"True\" ] || pure_python_msg=\" in pure Python mode\"
-colorprint                                                                                                       \\
+colorprint                                                                                                           \\
     \"\\\nRunning \${esc_concept} job \${jobid}\${pure_python_msg} remotely on \$(hostname -f) (\${queue_display})\" \\
-    \"yellow\"                                                                                                   \\
+    \"yellow\"                                                                                                       \\
     >> \"\${job_dir}/\${jobid}/log\"
 print_info
 
@@ -2366,21 +2472,22 @@ fi
     # Though not essential, make the job script executable,
     # reflecting the fact that it is a runnable script.
     chmod u+x "${jobscript}" 2>/dev/null || :
-    # Exit now if no resource manager was found
-    if [ -z "${resource_manager}" ]; then
-        colorprint "Could not find any resource manager.\n\
-Is Slurm/TORQUE/PBS installed and on the PATH?\n\
-An almost complete job script has been saved to\n\
-\"${jobscript}\"" "red"
-        exit 1
-    fi
-    # Only submit if a queue is specified
-    if [ "${queue}" == "${queue_default}" ]; then
-        printf "\nJob not submitted as no queue is specified.\n\
-An almost complete job script has been saved to\n\
-\"${jobscript}\"\n"
+    # Exit now if we are not to submit
+    if [ "${submit_actual}" == "False" ]; then
+        printf "A ${resource_manager_nice} job script has been written to\n\"${jobscript}\"\n"
+        if [ -z "${submit}" ]; then
+            printf "Run with --submit for automatic submission\n"
+        fi
         trap : 0
         exit 0
+    fi
+    # Exit now if no resource manager was found
+    if [ -z "$(get_resource_manager)" ]; then
+        colorprint "Could not find any resource manager.\n\
+Is Slurm/TORQUE/PBS installed and on the PATH?\n\
+A ${resource_manager_nice} job script has been saved to\n\
+\"${jobscript}\"" "red"
+        exit 1
     fi
     # Submit the remote job from within the job directory,
     # so that any auto-generated files will be dumped there.
@@ -2417,7 +2524,7 @@ else
         if [ "${nnodes}" == "1" ]; then
             nprocs=$("${python}" -c "print('${nprocs}'[('${nprocs}'.index(':') + 1):])")
         else
-            colorprint "You may not specify a number of nodes when running locally" "red"
+            colorprint "You may not specify a number of nodes ≠ 1 when running locally" "red"
             exit 1
         fi
     fi
@@ -2496,7 +2603,7 @@ Check the following error log for more information:\n\
         fi
     fi
     # If the CO𝘕CEPT run exited erroneously, exit now
-    if [ "${exit_code}" != "0" ]; then
+    if [ ${exit_code} -ne 0 ]; then
         # Note that the real exit will be handled by the abort function
         exit ${exit_code}
     fi

@@ -5,12 +5,11 @@ you should skip this section.
 
 If you are running CO\ *N*\ CEPT on a remote machine, i.e. logged in to a
 server/cluster via ``ssh``, you've so far had to supply the additional
-``--local`` option to the ``concept`` script. This is because CO\ *N*\ CEPT
-has built-in support for submission of jobs to a job scheduler / queueing system
-/ resource manager (specifically Slurm, TORQUE and PBS), and this is the
-default behaviour when working remotely. If you are working remotely but do not
-intend to use a job scheduler, keep using ``--local`` and skip the rest of this
-section.
+``--local`` option (or set ``CONCEPT_local=True``) to the ``concept`` script.
+This is because CO\ *N*\ CEPT has built-in support for submission of jobs to a
+job scheduler / queueing system / resource manager (specifically Slurm, TORQUE
+and PBS). If you are working remotely but do not intend to use a job
+scheduler, keep using ``--local`` and skip the rest of this section.
 
 
 
@@ -20,16 +19,41 @@ section.
 
 If you try to run a simulation *without* the ``--local`` option while logged
 into a remote server, CO\ *N*\ CEPT will exit immediately, letting you know
-that it has created an almost complete *job script* named
-``job/.jobscript_<date>``, where ``<date>`` is a string of numbers labelling
-the creation time. This job script is a great starting point if you want to
-control the job submission yourself. All that needs to be changed/added are
-the directives at the top of the job script.
+that it has created a *job script* named ``job/.jobscript_<date>``, where
+``<date>`` is a string of numbers labelling the creation time. This job script
+is a great starting point if you want to control the job submission yourself.
+It can be used as is, though you might want to edit/add directives at the top
+of the job script.
 
-To automatically submit a complete job script, you need to specify the *queue*
-(called *partition* in Slurm) in which to submit the job using the ``-q``
-option to ``concept``. Submitting a simulation using e.g. a parameter file
+To automatically submit a given CO\ *N*\ CEPT run, simply supply ``--submit``
+to the ``concept`` script. Submitting a simulation using a parameter file
 named ``param/tutorial-6`` using 8 cores then looks like
+
+.. code-block:: bash
+
+   ./concept \
+       -p param/tutorial-6 \
+       -n 8 \
+       --submit
+
+.. tip::
+   If remote CO\ *N*\ CEPT jobs mysteriously fail, check out the
+   ':ref:`problems_when_running_remotely`' troubleshooting entry.
+
+Typically you will need to specify a *queue* (called *partition* in Slurm) for
+which you wish to submit the job. To do this, use the ``-q`` option:
+
+.. code-block:: bash
+
+   ./concept \
+       -p param/tutorial-6 \
+       -n 8 \
+       --submit \
+       -q <queue>  # replace <queue> with queue name
+
+As queue specification is only meaningful when submitting the job (local runs
+do not run within a queue), specifying ``-q`` in fact implies ``--submit``.
+That is, the above can be shortened to just
 
 .. code-block:: bash
 
@@ -44,8 +68,12 @@ e.g. ``-n 1:8`` to request 1 node with 8 cores, or ``-n 2:4`` to request 2
 nodes each with 4 cores.
 
 .. note::
-   If remote CO\ *N*\ CEPT jobs mysteriously fail, check out the
-   ':ref:`problems_when_running_remotely`' troubleshooting entry.
+   As for queue specification, specification of the number of nodes to use is
+   only meaningful when running the job remotely, so ``--submit`` is implied
+   whenever a number of nodes is specified. Similarly, ``--memory`` and ``-w``
+   (see below) also implies ``--submit``. Should you wish to not submit the
+   job but just generate the job script --- with the information from e.g.
+   ``-q`` contained within it --- use ``--submit False``.
 
 To specify a memory requirement, further supply ``--memory <memory>``, where
 ``<memory>`` is the *total* memory required collectively by all cores on all
@@ -76,7 +104,8 @@ A complete CO\ *N*\ CEPT job submission could then look like
    option to ``concept`` in this manner. Also, the order in which the options
    are supplied does not matter.
 
-A copy of the job script will be placed in the ``job/<ID>`` directory.
+A copy of the generated and submitted job script will be placed in the
+``job/<ID>`` directory.
 
 
 

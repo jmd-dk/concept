@@ -8868,7 +8868,7 @@ from commons import *
 sys.stdout.flush()
 sleep(0.1)
 print(correct_float(${expression}))
-" --pure-python --local 2>/dev/null | tail -n 1
+" --pure-python --local --submit=False 2>/dev/null | tail -n 1
         cd "${current_dir}"
     }
     result="$(concept_print "π")"
@@ -10238,14 +10238,14 @@ if [ "${concept_install}" == "True" ] && [ "${concept_installed}" == "False" ]; 
     export make_jobs="${make_jobs}"
     cd "${concept_dir}"
     build_concept_success="True"
-    logo_printed=True "${concept}" --local 2>&1 || build_concept_success="False"
+    logo_printed=True "${concept}" --local --submit=False 2>&1 || build_concept_success="False"
     if [ "${build_concept_success}" == "False" ]; then
         error "Failed to build ${esc_concept}"
         echo "Will now try without link time optimizations"
         (source "${concept}" && make clean) || :
         build_concept_success="True"
         logo_printed=True "${concept}"     \
-            --local                        \
+            --local --submit=False         \
             --linktime-optimizations False \
             2>&1 || build_concept_success="False"
     fi

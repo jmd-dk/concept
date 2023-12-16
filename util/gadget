@@ -224,10 +224,10 @@ ASMTH = correct_float(shortrange_params['gravity']['scale']/(boxsize/PMGRID))
 print('ASMTH =', ASMTH)
 RCUT = correct_float(shortrange_params['gravity']['range']/shortrange_params['gravity']['scale'])
 print('RCUT =', RCUT)
-"                             \
-        -p="${utility_param}" \
-        --pure-python         \
-        --local               \
+"                              \
+        -p="${utility_param}"  \
+        --pure-python          \
+        --local --submit=False \
 )"
 get_gadget_param() {
     varname="$1"
@@ -439,10 +439,10 @@ if isinstance(initial_conditions, str) and initial_conditions:
     print(os.path.abspath(filename))
 else:
     print('${ic_unspecified}')
-"                         \
-            --pure-python \
-            --local       \
-        | tail -n 1       \
+"                                  \
+            --pure-python          \
+            --local --submit=False \
+        | tail -n 1                \
 )"
     # Extract information from snapshot
     if [ "${gadget_ic}" == "${ic_unspecified}" ]; then
@@ -450,13 +450,13 @@ else:
         ((N_all = 128**3))
         ICFormat=2
     else
-        gadget_ic_info="$(         \
-            "${concept}"           \
-                -n 1               \
-                -u info            \
-                    "${gadget_ic}" \
-                --pure-python      \
-                --local            \
+        gadget_ic_info="$(             \
+            "${concept}"               \
+                -n 1                   \
+                -u info                \
+                    "${gadget_ic}"     \
+                --pure-python          \
+                --local --submit=False \
             )"
         N_all="$(echo "${gadget_ic_info}" | grep " N " | awk '{print $2}')"
         ICFormat="$(echo "${gadget_ic_info}" | grep "SnapFormat " \
@@ -527,9 +527,9 @@ else:
 print(f'TreeAllocFactor = {TreeAllocFactor:.1f}')
 # Determine appropriate number of files per output snapshot
 print('NumFilesPerSnapshot =', snapshot.get_num_files())
-"                         \
-            --pure-python \
-            --local       \
+"                                  \
+            --pure-python          \
+            --local --submit=False \
 )"
     # Write out GADGET-2 parameter file
     echo "$(printf "${header}")

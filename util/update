@@ -217,7 +217,7 @@ else
             "${concept}"                                          \
                 -m "import linear; print(linear.class__VERSION_)" \
                 --pure-python                                     \
-                --local                                           \
+                --local --submit=False                            \
             2>/dev/null                                           \
             || echo "error"                                       \
         ) | tail -n 1                                             \
@@ -423,7 +423,7 @@ if ! "${concept}" -c "H0 = 72*km/(s*Mpc)" -m "
 from commons import *
 h = H0/(100*units.km/(units.s*units.Mpc))
 sys.exit(not isclose(h, 0.72))
-" --pure-python --local >/dev/null 2>&1; then
+" --pure-python --local --submit=False >/dev/null 2>&1; then
     test_success="False"
 fi
 # Exit on failure

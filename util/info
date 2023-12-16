@@ -143,13 +143,14 @@ fi
 if [ "${stats}" == "False" ]; then
     export CONCEPT_nprocs="1"
     export CONCEPT_local="True"
+    export CONCEPT_submit="False"
 fi
 
 # Extract information from the given snapshot(s)
-launch_utility     \
-    ""             \
-    ""             \
-    ""             \
+launch_utility \
+    ""         \
+    ""         \
+    ""         \
     "
 # The special_params dict, specifying details of the utility run
 special_params = {
