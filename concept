@@ -197,14 +197,14 @@ fi
 # The time before any computation begins.
 # This time is saved both in seconds after the Unix epoch
 # and in a human readable format.
-start_time_epoch="$("${python}" -c "
+start_time="$("${python}" -c "
 import datetime
-print(datetime.datetime.now().timestamp())
+start_time_epoch = datetime.datetime.now().timestamp()
+start_time_human = str(datetime.datetime.fromtimestamp(start_time_epoch))[:-3]
+print(f'{start_time_epoch}_{start_time_human}')
 ")"
-start_time_human="$("${python}" -c "
-import datetime
-print(str(datetime.datetime.fromtimestamp(${start_time_epoch}))[:-3])
-")"
+start_time_epoch="${start_time%%_*}"
+start_time_human="${start_time#*_}"
 # Further transform the human readable version
 start_time_human_sec="${start_time_human%.*}"
 start_time_human_nosep="${start_time_human//-/}"
@@ -1621,7 +1621,7 @@ This will be ignored" "red"
         if [ "${remote}" == "True" ]; then
             submit_actual="True"
         else
-            nnodes=$("${python}" -c "print('${nprocs}'[:'${nprocs}'.index(':')])")
+            nnodes="${nprocs%:*}"
             colorprint "Number of nodes (${nnodes}) specified while running locally. \
 This will be ignored" "red"
         fi
@@ -2171,6 +2171,21 @@ if [ "${remote}" == "True" ]; then
         resource_manager_nice="Slurm"
     elif [ "${resource_manager}" == "torque" ]; then
         resource_manager_nice="TORQUE/PBS"
+        # Try to detect whether we are using
+        # - pbs_pro=False: TORQUE or the original OpenPBS.
+        # - pbs_pro=True: PBS Pro(fessional) or OpenPBS,
+        #   from Altair Engineering.
+        pbs_pro="False"
+        for pbs_cmd in qsub qstat qdel; do
+            pbs_version="$(${pbs_cmd} --version 2>&1 | head -n 1 | awk '{print $NF}' || :)"
+            pbs_version="${pbs_version%%.*}"
+            if [[ "${pbs_version}" =~ ^[0-9]+$ ]]; then
+                break
+            fi
+        done
+        if [ "${pbs_version}" -ge 14 2>/dev/null ]; then
+            pbs_pro="True"
+        fi
     fi
     # Prepare job script header dependent on the resource manager.
     # If no resource manager is used, default to slurm.
@@ -2181,17 +2196,17 @@ if [ "${remote}" == "True" ]; then
         # Split the 'nprocs' variable up into the number of nodes
         # and the number of processes per node, if both are given.
         if [[ "${nprocs}" == *':'* ]]; then
-            nnodes=$("${python}" -c "print('${nprocs}'[:'${nprocs}'.index(':')])")
-            nprocs_per_node=$("${python}" -c "print('${nprocs}'[('${nprocs}'.index(':') + 1):])")
+            nnodes="${nprocs%:*}"
+            nprocs_per_node="${nprocs#*:}"
             ((nprocs = nnodes*nprocs_per_node))
         else
-            nnodes=0  # Has to be 0, not 1
+            nnodes=0  # has to be 0, not 1
             nprocs_per_node=${nprocs}
         fi
         # Compute dedicated memory per process and node in megabytes
-        mb_per_process=$("${python}" -c "print(int(${memory}/(2**20*${nprocs})))")
-        if [ "${nnodes}" -gt 0 ]; then
-            mb_per_node=$("${python}" -c "print(int(${memory}/(2**20*${nnodes})))")
+        ((mb_per_process = memory/(2**20*nprocs))) || :
+        if [ ${nnodes} -gt 0 ]; then
+            ((mb_per_node = memory/(2**20*nnodes))) || :
         fi
         # Construct Slurm header
         jobscript_header="$(${python} -c "
@@ -2242,11 +2257,12 @@ print('\n'.join(lines))
 the number of nodes. A single node will be used." "red"
             nprocs="1:${nprocs}"
         fi
-        nnodes=$("${python}" -c "print('${nprocs}'[:'${nprocs}'.index(':')])")
-        nprocs_per_node=$("${python}" -c "print('${nprocs}'[('${nprocs}'.index(':') + 1):])")
+        nnodes="${nprocs%:*}"
+        nprocs_per_node="${nprocs#*:}"
         ((nprocs = nnodes*nprocs_per_node))
-        # Compute dedicated memory per process in megabytes
-        mb_per_process=$("${python}" -c "print(int(${memory}/(2**20*${nprocs})))")
+        # Compute dedicated memory per process and node in megabytes
+        ((mb_per_process = memory/(2**20*nprocs))) || :
+        ((mb_per_node    = memory/(2**20*nnodes))) || :
         # Construct TORQUE header
         jobscript_header="$(${python} -c "
 directive_prefix = '#PBS'
@@ -2255,11 +2271,21 @@ if '${job_name}':
     lines.append(f'{directive_prefix} -N ${job_name}')
 if '${queue}':
     lines.append(f'{directive_prefix} -q ${queue}')
-lines.append(f'{directive_prefix} -l nodes=${nnodes}:ppn=${nprocs_per_node}')
-if ${memory} > 0:
-    lines.append(f'{directive_prefix} -l pmem=${mb_per_process}mb')
-elif ${memory} == 0:
-    lines.append(f'{directive_prefix} -l mem=0')
+if '${pbs_pro}' == 'True':
+    lines.append(
+        f'{directive_prefix} -l select=${nnodes}:ncpus=${nprocs_per_node}'
+        + ':mem=${mb_per_node}mb'*(${memory} > 0)
+    )
+    if ${memory} == 0:
+        lines.append(f'{directive_prefix} -l mem=0')
+    if ${nnodes} > 1:
+        lines.append(f'{directive_prefix} -l place=scatter')
+else:
+    lines.append(f'{directive_prefix} -l nodes=${nnodes}:ppn=${nprocs_per_node}')
+    if ${memory} > 0:
+        lines.append(f'{directive_prefix} -l pmem=${mb_per_process}mb')
+    elif ${memory} == 0:
+        lines.append(f'{directive_prefix} -l mem=0')
 if '${walltime}' != '${walltime_default}':
     lines.append(f'{directive_prefix} -l walltime=${walltime}')
 lines.append(f'{directive_prefix} -o /dev/null')
@@ -2277,7 +2303,7 @@ lines.append('jobid=\"\${PBS_JOBID%%%%.*}\"')
 print('\n'.join(lines))
         ")"
         # The TORQUE/PBS queue in which the job is running
-        queue_display="${queue}"
+        queue_display='${PBS_QUEUE}'
     fi
     # Prepare display texts with the total memory consumption
     # and maximum allowed wall time.
@@ -2520,10 +2546,10 @@ A ${resource_manager_nice} job script has been saved to\n\
 else
     # Run locally
     if [[ "${nprocs}" == *':'* ]]; then
-        nnodes=$("${python}" -c "print('${nprocs}'[:'${nprocs}'.index(':')])")
-        if [ "${nnodes}" == "1" ]; then
-            nprocs=$("${python}" -c "print('${nprocs}'[('${nprocs}'.index(':') + 1):])")
-        else
+        nnodes="${nprocs%:*}"
+        nprocs_per_node="${nprocs#*:}"
+        ((nprocs = nnodes*nprocs_per_node))
+        if [ ${nnodes} -ne 1 ]; then
             colorprint "You may not specify a number of nodes ≠ 1 when running locally" "red"
             exit 1
         fi

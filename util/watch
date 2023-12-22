@@ -192,7 +192,11 @@ if [ "${resource_manager}" == "slurm" ]; then
     # Function which lists information about all jobs in standard
     # PBS format (jobid, job_name, username, time, state, queue).
     get_info() {
-        ${info_command} --format='%i %j %u %M %t %P'
+        for extra_arg in "--" ""; do
+            info="$(${info_command} --format='%i %j %u %M %t %P' ${extra_arg} 2>/dev/null)" || continue
+            break
+        done
+        echo "${info}"
     }
     # States designating a job waiting to be executed
     states_waiting="CF PD SE"
@@ -210,7 +214,11 @@ elif [ "${resource_manager}" == "torque" ]; then
     # Function which lists information about all jobs in standard
     # PBS format (jobid, job_name, username, time, state, queue).
     get_info() {
-        ${info_command}
+        for extra_arg in "--" ""; do
+            info="$(${info_command} ${extra_arg} 2>/dev/null)" || continue
+            break
+        done
+        echo "${info}"
     }
     # States designating a job waiting to be executed
     states_waiting="Q T W"
