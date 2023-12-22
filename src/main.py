@@ -1726,7 +1726,7 @@ def activate_terminate(components, a, Δt, act='activate terminate'):
     """This function mutates the passed list of components
     as well as the global passive_components, keeping their
     collective contents constant.
-    The return value is a boolean signalling
+    The return value is a Boolean signalling
     whether any component was activated.
     """
     # Terminations

@@ -994,29 +994,28 @@ def time(value):
         s = '0' + s
     value = f'{h}:{m}:{s}'
     return value
-# Function which checks whether input is a boolean or is empty
-def bool_or_empty(value):
-    value = str(value)
+# Function which checks whether input is a Boolean
+def bool_from_str(value):
     value_raw = value
     value = str(value).lower()
-    if value == '':
-        return value
-    if value in {'true',  't', 'y', 'yes', '1'}:
+    if value.startswith('y') or value in {'true',  't', 'on',  'enable',  '1', '1.0'}:
         return 'True'
-    if value in {'false', 'f', 'n', 'no',  '0'}:
+    if value.startswith('n') or value in {'false', 'f', 'off', 'disable', '0', '0.0'}:
         return 'False'
     raise argparse.ArgumentTypeError(f\"invalid bool value: '{value_raw}'\")
-# Function which checks whether input is a boolean,
+# Function which checks whether input is a Boolean or is empty
+def bool_or_empty(value):
+    value = str(value).strip()
+    if not value:
+        return value
+    return bool_from_str(value)
+# Function which checks whether input is a Boolean,
 # with empty input defaulting to True.
 def bool_truebydefault(value):
-    value = str(value)
-    value_raw = value
-    value = str(value).lower()
-    if value in {'', 'true',  't', 'y', 'yes', '1'}:
+    value = str(value).strip()
+    if not value:
         return 'True'
-    if value in {    'false', 'f', 'n', 'no',  '0'}:
-        return 'False'
-    raise argparse.ArgumentTypeError(f\"invalid bool value: '{value_raw}'\")
+    return bool_from_str(value)
 # Function for setting up a parser for command-line arguments
 def get_parser(*, add_help=True):
     def add_parser_argument(name, group, help, default, useenv=True, shortname=False, **kwargs):

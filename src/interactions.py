@@ -442,7 +442,7 @@ def domain_domain(
     # "only_supply_communication".
     only_supply_communication = (only_supply if 𝔹[receiver is supplier] else True)
     ranks_send, ranks_recv = domain_domain_communication(pairing_level, only_supply_communication)
-    # Backup of the passed only_supply boolean
+    # Backup of the passed only_supply Boolean
     only_supply_passed = only_supply
     # Pair this process/domain with whichever other
     # processes/domains are needed. This process is paired

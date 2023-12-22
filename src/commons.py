@@ -3123,7 +3123,7 @@ for key, val in replace_ellipsis(dict(potential_options.get('deconvolve', {}))).
         else:
             abort(
                 f'potential_options["deconvolve"]["{key}"]["{key2}"] = {val2} '
-                f'but should to be a tuple of two booleans, corresponding to the upstream '
+                f'but should to be a tuple of two Booleans, corresponding to the upstream '
                 f'and downstream deconvolution'
             )
         force_deconvolutions[key][key2] = val2
@@ -3173,7 +3173,7 @@ for key, val in replace_ellipsis(dict(potential_options.get('interlace', {}))).i
         else:
             abort(
                 f'potential_options["interlace"]["{key}"]["{key2}"] = {val2} '
-                f'but should to be a tuple of two booleans or strs, corresponding to the upstream '
+                f'but should to be a tuple of two Booleans or strs, corresponding to the upstream '
                 f'and downstream interlacing'
             )
         force_interlacings[key][key2] = val2
@@ -5385,7 +5385,7 @@ def correct_float(val_raw):
     rel_tol='double',
     abs_tol='double',
     # Locals
-    mask='unsigned char[::1]',  # really boolean np.ndarray
+    mask='unsigned char[::1]',  # really Boolean np.ndarray
     a='double',
     b='double',
     i='Py_ssize_t',

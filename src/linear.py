@@ -3320,7 +3320,7 @@ def register_species(
       negative for species which acts as a sink for a decaying species.
     - logs: Dictionary of the form
       {'rho': (logx, logy), 'p': (logx, logy)}
-      with each logx and logy a boolean specifying whether splines of
+      with each logx and logy a Boolean specifying whether splines of
       the background density and pressure (as function of the scale
       factor) should be carried out logarithmically or not.
     - source_continuity: Function taking in the arguments

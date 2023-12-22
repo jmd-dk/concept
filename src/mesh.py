@@ -3434,7 +3434,7 @@ def fourier_operate(slab, deconv_order=0, lattice=None, diff_dim=-1):
     returns='void',
 )
 def nullify_modes(slab, nullifications):
-    """The nullifications argument can be a boolean, a str of
+    """The nullifications argument can be a bool, a str of
     comma-separated words, or alternatively a list of str's, each being
     a single word. The words specify which types of modes to nullify:
     - False, None: Do not perform any nullification.
