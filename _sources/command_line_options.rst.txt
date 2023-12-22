@@ -440,14 +440,15 @@ in which case the watch utility will not be run at all.
 
 .. note::
    This is an example of a Boolean command-line option. As a value, you may
-   use any of ``False``/``f``/``no``/``n``/``0`` for signifying ``False`` and
-   any of ``True``/``t``/``yes``/``y``/``1`` for signifying ``True`` (all case
-   insensitive). In addition, specifying the command-line option alone with no
-   value is the same as setting it to ``True``, i.e. ``--watch`` is equivalent
-   to ``--watch True``. As ``True`` also happens to be the default value,
-   supplying ``--watch`` by itself then does nothing. This is not so for
-   Boolean command-line options which default to ``False``, e.g. the
-   ``--local`` :ref:`option <local>`.
+   use any of ``False``/``f``/``no``/``n``/``off``/``disable``/``0``/``0.0``
+   for signifying ``False`` and any of
+   ``True``/``t``/``yes``/``y``/``on``/``enable``/``1``/``1.0`` for signifying
+   ``True`` (all case insensitive). In addition, specifying the command-line
+   option alone with no value is the same as setting it to ``True``, i.e.
+   ``--watch`` is equivalent to ``--watch True``. As ``True`` also happens to
+   be the default value, supplying ``--watch`` by itself then does nothing.
+   This is not so for Boolean command-line options which default to ``False``,
+   e.g. the ``--local`` :ref:`option <local>`.
 
 
 
