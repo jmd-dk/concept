@@ -365,10 +365,11 @@ search_job() {
         jobid_i="${jobid_i%%.*}"
         state_i="$(echo "${line}" | awk '{print $5}')"
         queue_i="$(echo "${line}" | awk '{print $6}')"
-        if [ ${Njobs} -eq 1 ] \
+        if ([ ${Njobs} -eq 1 ] \
             || ([ "${state_i}" == "${state_running}" ] && \
                 ([ "${state}" != "${state_running}" ] || [ ${jobid_i} -gt ${jobid} ])) \
             || ([ "${state}" != "${state_running}" ] && [ ${jobid_i} -gt ${jobid} ]) \
+        ) && ([ "${indefinite}" != "True" ] || [[ " ${states_done} " != *" ${state_i} "* ]]) \
         ; then
             jobid="${jobid_i}"
             state="${state_i}"
