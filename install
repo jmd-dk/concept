@@ -2851,7 +2851,7 @@ check_progress() {
                         ((linenr_first += 1))
                         break
                     fi
-                    ((linenr_first -= 1))
+                    ((linenr_first -= 1)) || :
                     if [ ${linenr_first} -eq 0 ]; then
                         ((linenr_first += 1))
                         break
@@ -2861,7 +2861,7 @@ check_progress() {
                 while :; do
                     line="$(sed -n "${linenr_last}p" "${progdir}/.installation_finished")"
                     if [ -z "${line}" ]; then
-                        ((linenr_last -= 1))
+                        ((linenr_last -= 1)) || :
                         break
                     fi
                     ((linenr_last += 1))
@@ -3562,7 +3562,7 @@ print_table() {
     for ((i = 0; i < nelements; i += 1)); do
         s="${table_to_print[i]/†/x}"
         length=${#s}
-        nspaces[i]=$((${maxlengths[${c}]} - ${length}))
+        nspaces[i]=$((${maxlengths[${c}]} - ${length})) || :
         ((c += 1))
         [ ${c} == ${nc} ] && c=0
     done
@@ -8944,10 +8944,10 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
         indentation=""
         if [ "${belonging}" == "below" ]; then
             n_lines=$(wc -l "${filename}" | awk '{print $1}')
-            ((n_lines_down = n_lines - linenr + 1))
+            ((n_lines_down = n_lines - linenr + 1)) || :
             content="$(tail -n ${n_lines_down} "${filename}")"
         elif [ "${belonging}" == "above" ]; then
-            ((n_lines_down = linenr - 1))
+            ((n_lines_down = linenr - 1)) || :
             content="$(head -n ${n_lines_down} "${filename}" | tac)"
         fi
         local IFS=''
@@ -9203,7 +9203,7 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
     pattern='ppw *-> *S_fld *='
     linenr_2=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
         "${class_dir}/source/perturbations.c" | head -n 1)
-    ((linenr_2 -= 1))
+    ((linenr_2 -= 1)) || :
     sed -i "${linenr_1},${linenr_2}d" "${class_dir}/source/perturbations.c"
     linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
         "${class_dir}/source/perturbations.c" | head -n 1)
@@ -9368,14 +9368,14 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
             pattern='ppt *-> *number_of_scalar_titles *='
             linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
                 "${class_dir}/source/perturbations.c" | head -n 1)
-            ((linenr -= 1))
+            ((linenr -= 1)) || :
         elif [ "${1}" == "perturb_print_variables" ]; then
             pattern='class_store_double *\\( *dataptr *, *theta_scf *, *pba *-> *has_scf *, \
 *storeidx *\\)*;'
             linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" \
                 "${class_dir}/source/perturbations.c" | head -n 1)
             n_lines_total=$(wc -l "${class_dir}/source/perturbations.c" | awk '{print $1}')
-            ((n_lines_down = n_lines_total - linenr))
+            ((n_lines_down = n_lines_total - linenr)) || :
             local IFS=''
             while read -r line; do
                 ((linenr += 1))
@@ -9739,7 +9739,7 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
                 | head -n ${i} | tail -n 1)"
             linenr_2="${linenr_2%%:*}"
             while :; do
-                ((linenr_2 -= 1))
+                ((linenr_2 -= 1)) || :
                 line="$(sed "${linenr_2}!d" "${class_dir}/python/cclassy.pxd")"
                 if [ -n "${line}" ]; then
                     break

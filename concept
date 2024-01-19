@@ -2560,7 +2560,7 @@ else
         jobid=$((2*jobid + 1))
     done
     jobid_upper=${jobid}
-    jobid_lower=$(((jobid - 1)/2))
+    jobid_lower=$(((jobid - 1)/2)) || :
     while [ ${jobid_lower} -lt ${jobid_upper} ]; do
         jobid=$(((jobid_lower + jobid_upper)/2))
         if [ -d "${job_dir}/${jobid}" ]; then
