@@ -7460,7 +7460,7 @@ fi
 if [ "${python_install}" == "True" ] && [ "${python_installed}" == "False" ] \
     && [ "${upgrade_preinstalled_pypackages}" == "True" ]; then
     installed_packages_success="True"
-    installed_packages="$("${python}" -m pip list --format=colu2mns 2>/dev/null)" \
+    installed_packages="$("${python}" -m pip list --format=columns 2>/dev/null)" \
         || installed_packages_success="False"
     if [ "${installed_packages_success}" == "False" ]; then
         installed_packages_success="True"
