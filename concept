@@ -300,100 +300,6 @@ if     [ "${logo_printed}"  != "True"  ] \
     export logo_printed="True"
 fi
 
-# I wonder what this obfuscated code does?
-reverse() {
-    local s="$1"
-    local r=""
-    for ((i = 0; i < ${#s}; i += 1)); do
-        r="${s:i:1}${r}"
-    done
-    echo "${r}"
-}
-esaelp="False"
-eeffoc=0
-for arg in "$@"; do
-    arg="$(reverse "${arg}")"
-    if [ "${arg}" == "eeffoc-ekam--" ]; then
-        ((eeffoc += 1))
-    elif [ "${arg}" == "esaelp--" ]; then
-        esaelp="True"
-    fi
-done
-if [ ${eeffoc} -gt 0 ]; then
-    r="getattr(__import__('modnar'[::-1]), 'modnar'[::-1])()"
-    if [ "${esaelp}" == "False" ]; then
-        esaelp="$("${python}" -c "print(${r} < 0.15/${eeffoc}**0.5)")"
-    fi
-    if [ "${esaelp}" == "False" ]; then
-        "${python}" -c "
-print(
-    getattr(__import__('modnar'[::-1]), 'eciohc'[::-1])(
-        ['ylecin ksa uoy fi ebyaM']*10
-        + ['retal spahreP']*4
-        + ['snaeb hguone tom32[\x1bNm3[\x1b']*2
-        + ['esaelp yaS']
-    )[::-1] + ' ' + '.'*3
-)
-"
-        exit 1
-    fi
-    "${python}" -c "
-import itertools
-def primes():
-    for n in itertools.count(2):
-        for i in range(2, 1 + int(n**0.5)):
-            if n%i == 0:
-                break
-        else:
-            yield n
-getp = lambda n: list(zip(range(n), primes()))[-1][-1]
-s = lambda t=None: getattr(__import__('emit'[::-1]), 'peels'[::-1])(
-    0.2 + 1.0*${eeffoc}**0.5*${r} if t is None else t
-)
-def werb():
-    print(' gniwerB'[::-1], flush=True, end='')
-    for i in range(3):
-        s()
-        if i > 1 and ${r} < 0.1:
-            print(chr(5*getp(3*941)), end='', flush=True)
-            s(0.7)
-            print('!taht tuoba yrroS  '[::-1], end='', flush=True)
-            s(1.5)
-            print('\r\x1b[K', flush=True, end='')
-            s(0.5)
-            return werb()
-        print(chr(46), flush=True, end='')
-    s()
-print('\x1b[?25l', end='')
-werb()
-print('\r\x1b[K', flush=True, end='')
-text = ' :og uoy ereH'[::-1]
-c = chr(getp(3*401))
-v_possibilities = list(range(2, 2 + max(${eeffoc}, 8)))
-__import__('modnar'[::-1]).shuffle(v_possibilities)
-v_possibilities = sorted(v_possibilities[:${eeffoc}])
-indices = set()
-for throw in range(${eeffoc}):
-    print(f'\r{text}', flush=True, end='')
-    if throw == 0:
-        s(0.25)
-    if throw == 0:
-        s(0.2)
-    v = v_possibilities.pop()
-    for i in range(v - 1):
-        if i not in indices:
-            print(f'\x1b[1D ', end='')
-        print(c, end='', flush=True)
-        v -= 1
-        s(0.22/v)
-    indices.add(i + 1)
-print()
-print('\x1b[?12l\x1b[?25h', flush=True, end='')
-"
-    trap : 0
-    exit 0
-fi
-
 # Function for converting paths to absolute paths
 absolute_path() {
     # Arguments: Path, [working directory]
@@ -1394,11 +1300,18 @@ def get_parser(*, add_help=True):
         action='store_true',
     )
     add_parser_argument(
-        'make-coffee',
+        'eeffoc-ekam'[::-1],
         group_special,
         help='if only ...',
         default=0,
         action='count',
+    )
+    add_parser_argument(
+        'esaelp'[::-1],
+        group_special,
+        help=argparse.SUPPRESS,
+        default=False,
+        action='store_true',
     )
     return parser
 # Enables Python to write directly to screen (stderr)
@@ -1473,6 +1386,8 @@ print(' ;:; '.join([
     \"pure_python={}\".format(args.pure_python),
     \"watch={}\".format(args.watch),
     \"version={}\".format(args.version),
+    \"{}={}\".format('eeffoc_ekam', getattr(args, 'eeffoc_ekam'[::-1])),
+    \"{}={}\".format('esaelp', getattr(args, 'esaelp'[::-1])),
 ]))
 " "$@" || echo "argparse_exit_code=$?")
 # Evaluate the handled arguments into this scope
@@ -1505,6 +1420,135 @@ if [ "${version}" == "True" ]; then
     fi
     colorprint "Could not determine ${esc_concept} version!" "red"
     exit 1
+fi
+
+# I wonder what this obfuscated code does?
+reverse() {
+    local s="$1"
+    local r=""
+    for ((i = 0; i < ${#s}; i += 1)); do
+        r="${s:i:1}${r}"
+    done
+    echo "${r}"
+}
+if [ ${eeffoc_ekam} -gt 0 ]; then
+    r="getattr(__import__('modnar'[::-1]), 'modnar'[::-1])()"
+    if [ "${esaelp}" == "False" ]; then
+        esaelp="$("${python}" -c "print(${r} < 0.15/${eeffoc_ekam}**0.5)")"
+    fi
+    if [ "${esaelp}" == "False" ]; then
+        "${python}" -c "
+print(
+    getattr(__import__('modnar'[::-1]), 'eciohc'[::-1])(
+        ['ylecin ksa uoy fi ebyaM']*10
+        + ['retal spahreP']*3
+        + ['esaelp yaS']
+    )[::-1] + ' ' + '.'*3
+)
+"
+        trap : 0
+        exit 1
+    fi
+    if [ "$("${python}" -c "print(${r} < 0.05)")" == "True" ]; then
+        "${python}" -c "
+import sys
+from blessings import Terminal
+terminal = Terminal(force_styling=True)
+print(
+    terminal.bold_red(
+        ' :gnitrobA'[::-1] + getattr(__import__('modnar'[::-1]), 'eciohc'[::-1])(
+            ['knat retaw llifeR']
+            + ['snaeb hguone toN']
+            + ['spuc naelc fo tuO']
+            + ['redro fo tuo yliraropmeT']
+            + ['egatrohs rewop lacol ot eud elbaliavanu ecivreS']
+        )[::-1],
+    ),
+    file=sys.stderr,
+)
+"
+        trap : 0
+        exit 1
+    fi
+    if [ "${param}" != "${param_default}" ]; then
+        colorprint "$(reverse ".desu eb lliw epicer dradnats ehTn\.\
+\"$(reverse ${param})\" nihtiw gniwerb eeffoc rof snoitcurtsni tneiciffusnI :gninraW")" "red"
+    fi
+    if [[ "${nprocs}" == *':'* ]]; then
+        nnodes="${nprocs%:*}"
+        if [ ${nnodes} -gt 1 ]; then
+            colorprint "$(reverse "elbaliava edon eeffoc elgnis a ylnO :gninraW")" "red"
+        fi
+        nprocs="${nprocs#*:}"
+    fi
+    if [ "${submit}" == "True" ]; then
+        colorprint "$(reverse "devres eb lliw eeffoc lacol ylnO :gninraW")" "red"
+    fi
+    "${python}" -c "
+import itertools
+def primes():
+    for n in itertools.count(2):
+        for i in range(2, 1 + int(n**0.5)):
+            if n%i == 0:
+                break
+        else:
+            yield n
+getp = lambda n: list(zip(range(n), primes()))[-1][-1]
+s = lambda t=None: getattr(__import__('emit'[::-1]), 'peels'[::-1])(
+    0.15 + 1.2*${eeffoc_ekam}**0.5/${nprocs}*${r} if t is None else t
+)
+def werb():
+    print(' gniwerB'[::-1], end='', flush=True)
+    for i in range(3):
+        s()
+        if i > 1 and ${r} < 0.05:
+            print(chr(5*getp(3*941)), end='', flush=True)
+            s(0.7)
+            print('!taht tuoba yrroS  '[::-1], end='', flush=True)
+            s(1.5)
+            print('\r\x1b[K', end='', flush=True)
+            s(0.5)
+            return werb()
+        print(chr(46), end='', flush=True)
+    s()
+try:
+    print('\x1b[?25l', end='')
+    werb()
+    print('\r\x1b[K', end='', flush=True)
+    text = ' :og uoy ereH'[::-1]
+    c = chr(getp(3*401))
+    v_possibilities = []
+    for v_max in range(1, 50):
+        v_possibilities += list(range(2, 2 + 2*max(${eeffoc_ekam}, v_max//2), 2))
+    __import__('modnar'[::-1]).shuffle(v_possibilities)
+    v_values = set()
+    for v in v_possibilities:
+        v_values.add(v)
+        if len(v_values) == ${eeffoc_ekam}:
+            break
+    v_possibilities = sorted(v_values)
+    indices = set()
+    for throw in range(${eeffoc_ekam}):
+        print(f'\r{text}', end='', flush=True)
+        if throw == 0:
+            s(0.25)
+        if throw == 0:
+            s(0.2)
+        v = v_possibilities.pop()
+        for i in range(v - 1):
+            if i > 0 and i not in indices:
+                print(f'\x1b[2D ', end='')
+            print(c, end='', flush=True)
+            v -= 1
+            s(0.35/v)
+        indices.add(i + 1)
+except KeyboardInterrupt:
+    pass
+finally:
+    print('\x1b[?12l\x1b[?25h', flush=True)
+"
+    trap : 0
+    exit 0
 fi
 
 # Export command-line arguments as environment variables
