@@ -612,6 +612,25 @@ such times:</p>
 <tr class="row-odd"><td><p></p></td>
 <td><p><strong>Example 1</strong></p></td>
 <td><p></p></td>
+<td><p>Ignore this limiter by setting it equal to <span class="math notranslate nohighlight">\(0\)</span>:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">Δa_max_early</span> <span class="o">=</span> <span class="mi">0</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>As the instantaneous Hubble time <span class="math notranslate nohighlight">\(H^{-1}\)</span> is
+part of the same limiter as the early-time
+<span class="math notranslate nohighlight">\(\Delta a\)</span> (see the paper on
+‘<a class="reference internal" href="../publications.html#the-cosmological-simulation-code-concept-10"><span class="std std-ref">The cosmological simulation code CO𝘕CEPT 1.0</span></a>’),
+doing this means that <span class="math notranslate nohighlight">\(H^{-1}\)</span> will be used to
+set the global time step size at early times,
+leading to finer time-stepping at such times.</p>
+</div>
+</td>
+</tr>
+<tr class="row-even"><td><p></p></td>
+<td><p><strong>Example 2</strong></p></td>
+<td><p></p></td>
 <td><p>Effectively disregard this limiter completely by setting
 it equal to its
 <a class="reference internal" href="#deltaa-max-late"><span class="std std-ref">late-time version</span></a>:</p>
@@ -628,10 +647,11 @@ the <code class="docutils literal notranslate"><span class="pre">Δa_max_late</s
 <p class="admonition-title">Note</p>
 <p>As the instantaneous Hubble time <span class="math notranslate nohighlight">\(H^{-1}\)</span> is
 part of the same limiter as the early-time
-<span class="math notranslate nohighlight">\(\Delta a\)</span> (again, see the paper on
+<span class="math notranslate nohighlight">\(\Delta a\)</span> (see the paper on
 ‘<a class="reference internal" href="../publications.html#the-cosmological-simulation-code-concept-10"><span class="std std-ref">The cosmological simulation code CO𝘕CEPT 1.0</span></a>’),
-this also removes any explicit limitation of the
-global time step size due to <span class="math notranslate nohighlight">\(H^{-1}\)</span>.</p>
+doing this effectively also removes any explicit
+limitation of the global time step size due
+to <span class="math notranslate nohighlight">\(H^{-1}\)</span>.</p>
 </div>
 </td>
 </tr>
