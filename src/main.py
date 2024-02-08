@@ -773,12 +773,13 @@ def get_base_timestep_size(components, static_timestepping_func=None):
         Δt_hubble = fac_hubble/H
         bottleneck_hubble = 'the Hubble time'
         # Constant Δa overrule Hubble at early times
-        a_next = a + Δa_max_early
-        if a_next < 1:
-            Δt_Δa_early = Δt_base_background_factor*(cosmic_time(a_next) - t)
-            if Δt_Δa_early > Δt_hubble:
-                Δt_hubble = Δt_Δa_early
-                bottleneck_hubble = 'the maximum allowed Δa (early)'
+        if Δa_max_early > 0:
+            a_next = a + Δa_max_early
+            if a_next < 1:
+                Δt_Δa_early = Δt_base_background_factor*(cosmic_time(a_next) - t)
+                if Δt_Δa_early > Δt_hubble:
+                    Δt_hubble = Δt_Δa_early
+                    bottleneck_hubble = 'the maximum allowed Δa (early)'
         if Δt_hubble < Δt_max:
             Δt_max = Δt_hubble
             bottleneck = bottleneck_hubble

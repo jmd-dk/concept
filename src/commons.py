@@ -5891,8 +5891,8 @@ if Δt_increase_max_factor <= 1:
 # The maximum allowed Δa at late times is supposed to be bigger than the
 # maximum allowed value of Δa at early times,
 # and they must both be positive.
-if Δa_max_early <= 0:
-    abort('You must have Δa_max_early > 0')
+if Δa_max_early < 0:
+    abort('You must have Δa_max_early ≥ 0')
 if Δa_max_late <= 0:
     abort('You must have Δa_max_late > 0')
 if Δa_max_early > Δa_max_late:

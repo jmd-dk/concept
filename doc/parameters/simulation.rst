@@ -194,7 +194,22 @@ random numbers used for the primordial noise.
 
                          Δa_max_early = 0.0008
 -- --------------- -- -
-\  **Example 1**   \  Effectively disregard this limiter completely by setting
+\  **Example 1**   \  Ignore this limiter by setting it equal to :math:`0`:
+
+                      .. code-block:: python3
+
+                         Δa_max_early = 0
+
+                      .. note::
+                         As the instantaneous Hubble time :math:`H^{-1}` is
+                         part of the same limiter as the early-time
+                         :math:`\Delta a` (see the paper on
+                         ':ref:`The cosmological simulation code CO𝘕CEPT 1.0<the_cosmological_simulation_code_concept_10>`'),
+                         doing this means that :math:`H^{-1}` will be used to
+                         set the global time step size at early times,
+                         leading to finer time-stepping at such times.
+-- --------------- -- -
+\  **Example 2**   \  Effectively disregard this limiter completely by setting
                       it equal to its
                       :ref:`late-time version <Deltaa_max_late>`:
 
@@ -210,10 +225,11 @@ random numbers used for the primordial noise.
                       .. note::
                          As the instantaneous Hubble time :math:`H^{-1}` is
                          part of the same limiter as the early-time
-                         :math:`\Delta a` (again, see the paper on
+                         :math:`\Delta a` (see the paper on
                          ':ref:`The cosmological simulation code CO𝘕CEPT 1.0<the_cosmological_simulation_code_concept_10>`'),
-                         this also removes any explicit limitation of the
-                         global time step size due to :math:`H^{-1}`.
+                         doing this effectively also removes any explicit
+                         limitation of the global time step size due
+                         to :math:`H^{-1}`.
 == =============== == =
 
 
