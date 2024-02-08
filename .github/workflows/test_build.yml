@@ -22,7 +22,7 @@ jobs:
           labels: [self-hosted-ubuntu-22.04, heavy]
         steps:
           - name: 🛎️ Checkout
-            uses: actions/checkout@v3
+            uses: actions/checkout@v4
           - name: 🐋 Clean dangling Docker containers and images
             uses: ./.github/actions/docker-clean
             with:

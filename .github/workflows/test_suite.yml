@@ -21,7 +21,7 @@ jobs:
           labels: [self-hosted-ubuntu-22.04, light]
         steps:
           - name: 🛎️ Checkout
-            uses: actions/checkout@v3
+            uses: actions/checkout@v4
           - name: 🐋 Clean dangling Docker containers
             uses: ./.github/actions/docker-clean
           - name: 📝 Set Docker username
@@ -53,7 +53,7 @@ jobs:
                         && sudo su -c "chmod -R a+rwX /github/build" \
                     '
           - name: 📤 Upload build
-            uses: actions/upload-artifact@v3
+            uses: actions/upload-artifact@v4
             with:
                 name: build
                 path: build
@@ -65,7 +65,7 @@ jobs:
           labels: [self-hosted-ubuntu-22.04, light]
         steps:
           - name: 🛎️ Checkout
-            uses: actions/checkout@v3
+            uses: actions/checkout@v4
           - name: 🤖 Run test
             env:
                 docker_username: ${{ secrets.DOCKER_USERNAME }}
@@ -77,7 +77,7 @@ jobs:
           labels: [self-hosted-ubuntu-22.04, light]
         steps:
           - name: 🛎️ Checkout
-            uses: actions/checkout@v3
+            uses: actions/checkout@v4
           - name: 🤖 Run test
             env:
                 docker_username: ${{ secrets.DOCKER_USERNAME }}
@@ -89,7 +89,7 @@ jobs:
           labels: [self-hosted-ubuntu-22.04, light]
         steps:
           - name: 🛎️ Checkout
-            uses: actions/checkout@v3
+            uses: actions/checkout@v4
           - name: 🤖 Run test
             env:
                 docker_username: ${{ secrets.DOCKER_USERNAME }}
@@ -101,7 +101,7 @@ jobs:
           labels: [self-hosted-ubuntu-22.04, light]
         steps:
           - name: 🛎️ Checkout
-            uses: actions/checkout@v3
+            uses: actions/checkout@v4
           - name: 🤖 Run test
             env:
                 docker_username: ${{ secrets.DOCKER_USERNAME }}
@@ -113,7 +113,7 @@ jobs:
           labels: [self-hosted-ubuntu-22.04, light]
         steps:
           - name: 🛎️ Checkout
-            uses: actions/checkout@v3
+            uses: actions/checkout@v4
           - name: 🤖 Run test
             env:
                 docker_username: ${{ secrets.DOCKER_USERNAME }}
@@ -125,7 +125,7 @@ jobs:
           labels: [self-hosted-ubuntu-22.04, light]
         steps:
           - name: 🛎️ Checkout
-            uses: actions/checkout@v3
+            uses: actions/checkout@v4
           - name: 🤖 Run test
             env:
                 docker_username: ${{ secrets.DOCKER_USERNAME }}
@@ -137,7 +137,7 @@ jobs:
           labels: [self-hosted-ubuntu-22.04, light]
         steps:
           - name: 🛎️ Checkout
-            uses: actions/checkout@v3
+            uses: actions/checkout@v4
           - name: 🤖 Run test
             env:
                 docker_username: ${{ secrets.DOCKER_USERNAME }}
@@ -149,7 +149,7 @@ jobs:
           labels: [self-hosted-ubuntu-22.04, light]
         steps:
           - name: 🛎️ Checkout
-            uses: actions/checkout@v3
+            uses: actions/checkout@v4
           - name: 🤖 Run test
             env:
                 docker_username: ${{ secrets.DOCKER_USERNAME }}
@@ -161,7 +161,7 @@ jobs:
           labels: [self-hosted-ubuntu-22.04, light]
         steps:
           - name: 🛎️ Checkout
-            uses: actions/checkout@v3
+            uses: actions/checkout@v4
           - name: 🤖 Run test
             env:
                 docker_username: ${{ secrets.DOCKER_USERNAME }}
@@ -173,7 +173,7 @@ jobs:
           labels: [self-hosted-ubuntu-22.04, light]
         steps:
           - name: 🛎️ Checkout
-            uses: actions/checkout@v3
+            uses: actions/checkout@v4
           - name: 🤖 Run test
             env:
                 docker_username: ${{ secrets.DOCKER_USERNAME }}
@@ -185,7 +185,7 @@ jobs:
           labels: [self-hosted-ubuntu-22.04, light]
         steps:
           - name: 🛎️ Checkout
-            uses: actions/checkout@v3
+            uses: actions/checkout@v4
           - name: 🤖 Run test
             env:
                 docker_username: ${{ secrets.DOCKER_USERNAME }}
@@ -197,7 +197,7 @@ jobs:
           labels: [self-hosted-ubuntu-22.04, light]
         steps:
           - name: 🛎️ Checkout
-            uses: actions/checkout@v3
+            uses: actions/checkout@v4
           - name: 🤖 Run test
             env:
                 docker_username: ${{ secrets.DOCKER_USERNAME }}
@@ -209,7 +209,7 @@ jobs:
           labels: [self-hosted-ubuntu-22.04, light]
         steps:
           - name: 🛎️ Checkout
-            uses: actions/checkout@v3
+            uses: actions/checkout@v4
           - name: 🤖 Run test
             env:
                 docker_username: ${{ secrets.DOCKER_USERNAME }}
@@ -221,7 +221,7 @@ jobs:
           labels: [self-hosted-ubuntu-22.04, light]
         steps:
           - name: 🛎️ Checkout
-            uses: actions/checkout@v3
+            uses: actions/checkout@v4
           - name: 🤖 Run test
             env:
                 docker_username: ${{ secrets.DOCKER_USERNAME }}
@@ -233,7 +233,7 @@ jobs:
           labels: [self-hosted-ubuntu-22.04, light]
         steps:
           - name: 🛎️ Checkout
-            uses: actions/checkout@v3
+            uses: actions/checkout@v4
           - name: 🤖 Run test
             env:
                 docker_username: ${{ secrets.DOCKER_USERNAME }}
@@ -245,7 +245,7 @@ jobs:
           labels: [self-hosted-ubuntu-22.04, light]
         steps:
           - name: 🛎️ Checkout
-            uses: actions/checkout@v3
+            uses: actions/checkout@v4
           - name: 🤖 Run test
             env:
                 docker_username: ${{ secrets.DOCKER_USERNAME }}
@@ -257,7 +257,7 @@ jobs:
           labels: [self-hosted-ubuntu-22.04, light]
         steps:
           - name: 🛎️ Checkout
-            uses: actions/checkout@v3
+            uses: actions/checkout@v4
           - name: 🤖 Run test
             env:
                 docker_username: ${{ secrets.DOCKER_USERNAME }}
@@ -269,7 +269,7 @@ jobs:
           labels: [self-hosted-ubuntu-22.04, light]
         steps:
           - name: 🛎️ Checkout
-            uses: actions/checkout@v3
+            uses: actions/checkout@v4
           - name: 🤖 Run test
             env:
                 docker_username: ${{ secrets.DOCKER_USERNAME }}
@@ -281,7 +281,7 @@ jobs:
           labels: [self-hosted-ubuntu-22.04, heavy]
         steps:
           - name: 🛎️ Checkout
-            uses: actions/checkout@v3
+            uses: actions/checkout@v4
           - name: 🤖 Run test
             env:
                 docker_username: ${{ secrets.DOCKER_USERNAME }}
@@ -293,7 +293,7 @@ jobs:
           labels: [self-hosted-ubuntu-22.04, light]
         steps:
           - name: 🛎️ Checkout
-            uses: actions/checkout@v3
+            uses: actions/checkout@v4
           - name: 🤖 Run test
             env:
                 docker_username: ${{ secrets.DOCKER_USERNAME }}
@@ -305,7 +305,7 @@ jobs:
           labels: [self-hosted-ubuntu-22.04, heavy]
         steps:
           - name: 🛎️ Checkout
-            uses: actions/checkout@v3
+            uses: actions/checkout@v4
           - name: 🤖 Run test
             env:
                 docker_username: ${{ secrets.DOCKER_USERNAME }}
@@ -317,7 +317,7 @@ jobs:
           labels: [self-hosted-ubuntu-22.04, light]
         steps:
           - name: 🛎️ Checkout
-            uses: actions/checkout@v3
+            uses: actions/checkout@v4
           - name: 🤖 Run test
             env:
                 docker_username: ${{ secrets.DOCKER_USERNAME }}
@@ -329,7 +329,7 @@ jobs:
           labels: [self-hosted-ubuntu-22.04, light]
         steps:
           - name: 🛎️ Checkout
-            uses: actions/checkout@v3
+            uses: actions/checkout@v4
           - name: 🤖 Run test
             env:
                 docker_username: ${{ secrets.DOCKER_USERNAME }}
@@ -341,7 +341,7 @@ jobs:
           labels: [self-hosted-ubuntu-22.04, light]
         steps:
           - name: 🛎️ Checkout
-            uses: actions/checkout@v3
+            uses: actions/checkout@v4
           - name: 🤖 Run test
             env:
                 docker_username: ${{ secrets.DOCKER_USERNAME }}
@@ -353,7 +353,7 @@ jobs:
           labels: [self-hosted-ubuntu-22.04, light]
         steps:
           - name: 🛎️ Checkout
-            uses: actions/checkout@v3
+            uses: actions/checkout@v4
           - name: 🤖 Run test
             env:
                 docker_username: ${{ secrets.DOCKER_USERNAME }}
@@ -365,7 +365,7 @@ jobs:
           labels: [self-hosted-ubuntu-22.04, light]
         steps:
           - name: 🛎️ Checkout
-            uses: actions/checkout@v3
+            uses: actions/checkout@v4
           - name: 🤖 Run test
             env:
                 docker_username: ${{ secrets.DOCKER_USERNAME }}
@@ -377,7 +377,7 @@ jobs:
           labels: [self-hosted-ubuntu-22.04, light]
         steps:
           - name: 🛎️ Checkout
-            uses: actions/checkout@v3
+            uses: actions/checkout@v4
           - name: 🤖 Run test
             env:
                 docker_username: ${{ secrets.DOCKER_USERNAME }}
@@ -389,7 +389,7 @@ jobs:
           labels: [self-hosted-ubuntu-22.04, light]
         steps:
           - name: 🛎️ Checkout
-            uses: actions/checkout@v3
+            uses: actions/checkout@v4
           - name: 🤖 Run test
             env:
                 docker_username: ${{ secrets.DOCKER_USERNAME }}
@@ -401,7 +401,7 @@ jobs:
           labels: [self-hosted-ubuntu-22.04, heavy]
         steps:
           - name: 🛎️ Checkout
-            uses: actions/checkout@v3
+            uses: actions/checkout@v4
           - name: 🤖 Run test
             env:
                 docker_username: ${{ secrets.DOCKER_USERNAME }}
@@ -413,7 +413,7 @@ jobs:
           labels: [self-hosted-ubuntu-22.04, light]
         steps:
           - name: 🛎️ Checkout
-            uses: actions/checkout@v3
+            uses: actions/checkout@v4
           - name: 🤖 Run test
             env:
                 docker_username: ${{ secrets.DOCKER_USERNAME }}
@@ -425,7 +425,7 @@ jobs:
           labels: [self-hosted-ubuntu-22.04, light]
         steps:
           - name: 🛎️ Checkout
-            uses: actions/checkout@v3
+            uses: actions/checkout@v4
           - name: 🤖 Run test
             env:
                 docker_username: ${{ secrets.DOCKER_USERNAME }}
@@ -437,7 +437,7 @@ jobs:
           labels: [self-hosted-ubuntu-22.04, light]
         steps:
           - name: 🛎️ Checkout
-            uses: actions/checkout@v3
+            uses: actions/checkout@v4
           - name: 🤖 Run test
             env:
                 docker_username: ${{ secrets.DOCKER_USERNAME }}
