@@ -932,7 +932,7 @@ class GadgetSnapshot:
         chunk_size_max_needed='Py_ssize_t',
         component='Component',
         component_index='Py_ssize_t',
-        fake_id_max=int,  # Python int
+        fake_id_max=object,  # Python int
         file_index='Py_ssize_t',
         filename_existing=str,
         filename_existing_prefix=str,
