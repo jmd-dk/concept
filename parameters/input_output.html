@@ -1031,7 +1031,7 @@ so the above may be shortened to</p>
 <p class="admonition-title">Caution</p>
 <p>Leaving out certain data when reading in snapshots
 will result in components not being fully
-initialized, e.g. in this example all particles
+initialised, e.g. in this example all particles
 loaded from disk will not have any momenta assigned
 (not even <span class="math notranslate nohighlight">\(0\)</span>). Running a simulation with such
 a partially initialised component will result in a
@@ -2044,27 +2044,7 @@ names are provided by CO<em>N</em>CEPT:</p>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">τ</span></code> or <code class="docutils literal notranslate"><span class="pre">tau</span></code>: The conformal time <span class="math notranslate nohighlight">\(\tau\)</span> (in
 CLASS called <code class="docutils literal notranslate"><span class="pre">conf.</span> <span class="pre">time</span> <span class="pre">[Mpc]</span></code>).</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">D</span></code>: The linear growth factor <span class="math notranslate nohighlight">\(D\)</span> (in CLASS
-called <code class="docutils literal notranslate"><span class="pre">gr.fac.</span> <span class="pre">D</span></code>).</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">f</span></code>: The linear growth rate
-<span class="math notranslate nohighlight">\(f \equiv \mathrm{d}\ln D / \mathrm{d}\ln a\)</span>
-(in CLASS called <code class="docutils literal notranslate"><span class="pre">gr.fac.</span> <span class="pre">f</span></code>).</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">D2</span></code>: The second-order growth factor <span class="math notranslate nohighlight">\(D^{(2)}\)</span>
-(in CLASS called <code class="docutils literal notranslate"><span class="pre">gr.fac.</span> <span class="pre">D2</span></code>).</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">f2</span></code>: The second-order growth rate
-<span class="math notranslate nohighlight">\(f^{(2)} \equiv \mathrm{d}\ln D^{(2)} / \mathrm{d}\ln a\)</span>
-(in CLASS called <code class="docutils literal notranslate"><span class="pre">gr.fac.</span> <span class="pre">f2</span></code>).</p></li>
 </ul>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>When running the
-<a class="reference internal" href="../utilities/class.html"><span class="doc">class utility</span></a>, the
-<code class="docutils literal notranslate"><span class="pre">class_extra_background</span></code> parameter is by default
-set to</p>
-<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="p">{</span><span class="s1">&#39;tau&#39;</span><span class="p">,</span> <span class="s1">&#39;D&#39;</span><span class="p">,</span> <span class="s1">&#39;f&#39;</span><span class="p">,</span> <span class="s1">&#39;D2&#39;</span><span class="p">,</span> <span class="s1">&#39;f2&#39;</span><span class="p">}</span>
-</pre></div>
-</div>
-</div>
 </td>
 </tr>
 <tr class="row-even"><td><p></p></td>
@@ -2086,11 +2066,11 @@ e.g. when running the CO<em>N</em>CEPT
 <tr class="row-odd"><td><p></p></td>
 <td><p><strong>Example 1</strong></p></td>
 <td><p></p></td>
-<td><p>Include the linear growth factor <span class="math notranslate nohighlight">\(D\)</span> and rate
-<span class="math notranslate nohighlight">\(f\)</span> among the background quantities when dumping
+<td><p>Include the luminosity distance and the angular diameter
+distance among the background quantities when dumping
 these to disk, e.g. when running the CO<em>N</em>CEPT
 <a class="reference internal" href="../utilities/class.html"><span class="doc">class utility</span></a>:</p>
-<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">class_extra_background</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;D&#39;</span><span class="p">,</span> <span class="s1">&#39;f&#39;</span><span class="p">}</span>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">class_extra_background</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;lum. dist.&#39;</span><span class="p">,</span> <span class="s1">&#39;ang.diam.dist.&#39;</span><span class="p">}</span>
 </pre></div>
 </div>
 </td>

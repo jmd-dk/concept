@@ -648,6 +648,9 @@ mapping everything else to <code class="docutils literal notranslate"><span clas
     <span class="s1">&#39;LPT&#39;</span><span class="p">:</span> <span class="p">{</span>
         <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
     <span class="p">},</span>
+    <span class="s1">&#39;dealias&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="p">},</span>
     <span class="s1">&#39;non-Gaussianity&#39;</span><span class="p">:</span> <span class="p">{</span>
         <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="mf">0.0</span><span class="p">,</span>
     <span class="p">},</span>
@@ -710,12 +713,14 @@ only possible for particle components.</p>
 </li>
 <li><p><code class="docutils literal notranslate"><span class="pre">'LPT'</span></code>: Specifies the order of Lagrangian
 perturbation theory to use when realising particle
-components. Orders <span class="math notranslate nohighlight">\(1\)</span> and <span class="math notranslate nohighlight">\(2\)</span> are
-available. While the first order (1LPT) is carried out
-relativistically (if not using back-scaling), the
-second-order (2LPT) contributions are always
-constructed in a Newtonian fashion (though they are
-build from the (relativistic) 1LPT results).</p></li>
+components. Orders <span class="math notranslate nohighlight">\(1\)</span>, <span class="math notranslate nohighlight">\(2\)</span> and <span class="math notranslate nohighlight">\(3\)</span>
+are available. While the first order (1LPT) is carried
+out relativistically (if not using back-scaling), the
+higher order corrections are always constructed in a
+Newtonian fashion (though they are built out of the
+relativistic 1LPT results).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">'dealias'</span></code>: Specifies whether aliasing defects
+should be removed during 2LPT and 3LPT computations.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">'non-Gaussianity'</span></code>: Sets the amount of local
 non-Gaussianity to include in realisations. This is
 simply the number <span class="math notranslate nohighlight">\(f_{\text{NL}}\)</span> in the
@@ -840,6 +845,22 @@ components anyway, we can also do</p>
 </tr>
 <tr class="row-even"><td><p></p></td>
 <td><p><strong>Example 2</strong></p></td>
+<td><p></p></td>
+<td><p>Make use of dealiased third-order Lagrangian
+perturbation theory (3LPT) when realising
+particle components:</p>
+<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">realization_options</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;LPT&#39;</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span>
+    <span class="s1">&#39;dealias&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>This is the most expensive but also most accurate
+particle realisation scheme implemented.</p>
+</td>
+</tr>
+<tr class="row-odd"><td><p></p></td>
+<td><p><strong>Example 3</strong></p></td>
 <td><p></p></td>
 <td><p>Always perform realisations using the primordial noise
 as the underlying source of structure, regardless of the

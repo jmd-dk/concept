@@ -611,37 +611,43 @@ conveniently explored using a graphical tool like
 <span id="id3"></span><h3>Data layout<a class="headerlink" href="#data-layout" title="Permalink to this heading"></a></h3>
 <p>The data layout within <code class="docutils literal notranslate"><span class="pre">class_processed.hdf5</span></code> is as follows:</p>
 <ul>
-<li><p><code class="docutils literal notranslate"><span class="pre">background</span></code>: Group containing various background quantities, tabulated
-at a common 1D time grid:</p>
+<li><p><code class="docutils literal notranslate"><span class="pre">background</span></code>: Group containing data sets for various background
+quantities, tabulated at a common 1D time grid:</p>
 <ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">a</span></code>: Data set of scale factor <span class="math notranslate nohighlight">\(a\)</span> values at which all background
-quantities are tabulated.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">z</span></code>: Data set of redshift <span class="math notranslate nohighlight">\(z\)</span> values at which all background
-quantities are tabulated.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">t</span></code>: Data set of cosmic time <span class="math notranslate nohighlight">\(t\)</span> values at which all background
-quantities are tabulated.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">a</span></code>: Scale factor <span class="math notranslate nohighlight">\(a\)</span> values at which all background quantities
+are tabulated.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">z</span></code>: Redshift <span class="math notranslate nohighlight">\(z\)</span> values at which all background quantities
+are tabulated.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">t</span></code>: Cosmic time <span class="math notranslate nohighlight">\(t\)</span> values at which all background quantities
+are tabulated.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">tau</span></code>: Conformal time <span class="math notranslate nohighlight">\(\tau\)</span>. values at which all background quantities
+are tabulated.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">H</span></code>: The Hubble parameter <span class="math notranslate nohighlight">\(H\)</span>.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">rho_&lt;species&gt;</span></code> with <code class="docutils literal notranslate"><span class="pre">&lt;species&gt;</span></code> some CLASS species: The background
 energy density <span class="math notranslate nohighlight">\(\bar{\rho}\)</span> of the given species. The critical
 ‘<code class="docutils literal notranslate"><span class="pre">crit</span></code>’ and total ‘<code class="docutils literal notranslate"><span class="pre">tot</span></code>’ energy densities are present as well.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">p_&lt;species&gt;</span></code> with <code class="docutils literal notranslate"><span class="pre">&lt;species&gt;</span></code> some CLASS species: The background
 pressure <span class="math notranslate nohighlight">\(\bar{P}\)</span> of the given species.</p></li>
-</ul>
-<p>When running the CO<em>N</em>CEPT class utility, the <code class="docutils literal notranslate"><span class="pre">class_extra_background</span></code>
-<a class="reference internal" href="../parameters/input_output.html#class-extra-background"><span class="std std-ref">parameter</span></a> is by default populated with the
-following values:</p>
-<div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">class_extra_background</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;tau&#39;</span><span class="p">,</span> <span class="s1">&#39;D&#39;</span><span class="p">,</span> <span class="s1">&#39;f&#39;</span><span class="p">,</span> <span class="s1">&#39;D2&#39;</span><span class="p">,</span> <span class="s1">&#39;f2&#39;</span><span class="p">}</span>
-</pre></div>
-</div>
-<p>which then further adds the following background quantities:</p>
-<ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">tau</span></code>: The conformal time <span class="math notranslate nohighlight">\(\tau\)</span>.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">D</span></code>: First-order (linear) growth factor <span class="math notranslate nohighlight">\(D = D^{(1)}\)</span>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">D</span></code>: First-order (linear) growth factor <span class="math notranslate nohighlight">\(D = D^{(1)}\)</span>, with the
+convention <span class="math notranslate nohighlight">\(D^{(1)}(a=1) = 1\)</span>.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">f</span></code>: First-order (linear) growth rate
-<span class="math notranslate nohighlight">\(f = f^{(1)} \equiv \mathrm{d}\ln D / \mathrm{d}\ln a\)</span>.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">D2</span></code>: Second-order growth factor <span class="math notranslate nohighlight">\(D^{(2)}\)</span>.</p></li>
+<span class="math notranslate nohighlight">\(f = f^{(1)} \equiv \mathrm{d}\ln D^{(1)} / \mathrm{d}\ln a\)</span>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">D2</span></code>: Second-order growth factor <span class="math notranslate nohighlight">\(D^{(2)}\)</span>, with the
+convention <span class="math notranslate nohighlight">\(D^{(2)} &gt; 0\)</span>.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">f2</span></code>: Second-order growth rate
 <span class="math notranslate nohighlight">\(f^{(2)} \equiv \mathrm{d}\ln D^{(2)} / \mathrm{d}\ln a\)</span>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">D3a</span></code>: Third-order growth factor <span class="math notranslate nohighlight">\(D^{(3\text{a})}\)</span>, with the
+convention <span class="math notranslate nohighlight">\(D^{(3\text{a})} &gt; 0\)</span>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">f3a</span></code>: Third-order growth rate
+<span class="math notranslate nohighlight">\(f^{(3\text{a})} \equiv \mathrm{d}\ln D^{(3\text{a})} / \mathrm{d}\ln a\)</span>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">D3b</span></code>: Third-order growth factor <span class="math notranslate nohighlight">\(D^{(3\text{b})}\)</span>, with the
+convention <span class="math notranslate nohighlight">\(D^{(3\text{b})} &gt; 0\)</span>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">f3a</span></code>: Third-order growth rate
+<span class="math notranslate nohighlight">\(f^{(3\text{b})} \equiv \mathrm{d}\ln D^{(3\text{b})} / \mathrm{d}\ln a\)</span>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">D3c</span></code>: Third-order growth factor <span class="math notranslate nohighlight">\(D^{(3\text{c})}\)</span>, with the
+convention <span class="math notranslate nohighlight">\(D^{(3\text{c})} &gt; 0\)</span>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">f3c</span></code>: Third-order growth rate
+<span class="math notranslate nohighlight">\(f^{(3\text{c})} \equiv \mathrm{d}\ln D^{(3\text{c})} / \mathrm{d}\ln a\)</span>.</p></li>
 </ul>
 <p>In addition to the above datasets, this group also stores some attributes,
 namely the reduced Hubble constant <code class="docutils literal notranslate"><span class="pre">h</span></code> (given by
@@ -760,7 +766,7 @@ various data sets are expressed:</p>
 <td><p class="centered">
 <strong><span class="math notranslate nohighlight">\([\text{Gyr}^{-1}]\)</span></strong></p></td>
 </tr>
-<tr class="row-even"><td><p>Growth factors <code class="docutils literal notranslate"><span class="pre">D</span></code>, <code class="docutils literal notranslate"><span class="pre">D2</span></code> and rates <code class="docutils literal notranslate"><span class="pre">f</span></code>, <code class="docutils literal notranslate"><span class="pre">f2</span></code></p></td>
+<tr class="row-even"><td><p>Growth factors <code class="docutils literal notranslate"><span class="pre">D</span></code>, <code class="docutils literal notranslate"><span class="pre">D2</span></code>, <code class="docutils literal notranslate"><span class="pre">D3a</span></code>, <code class="docutils literal notranslate"><span class="pre">D3b</span></code>, <code class="docutils literal notranslate"><span class="pre">D3c</span></code> and rates <code class="docutils literal notranslate"><span class="pre">f</span></code>, <code class="docutils literal notranslate"><span class="pre">f2</span></code>, <code class="docutils literal notranslate"><span class="pre">f3a</span></code>, <code class="docutils literal notranslate"><span class="pre">f3b</span></code>, <code class="docutils literal notranslate"><span class="pre">f3c</span></code></p></td>
 <td><p class="centered">
 <strong><span class="math notranslate nohighlight">\([1]\)</span></strong></p></td>
 </tr>

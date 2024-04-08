@@ -249,6 +249,9 @@ physical models and schemes to be used.
                              'LPT': {
                                  'default': 1,
                              },
+                             'dealias': {
+                                 'default': False,
+                             },
                              'non-Gaussianity': {
                                  'default': 0.0,
                              },
@@ -313,12 +316,15 @@ physical models and schemes to be used.
 
                       * ``'LPT'``: Specifies the order of Lagrangian
                         perturbation theory to use when realising particle
-                        components. Orders :math:`1` and :math:`2` are
-                        available. While the first order (1LPT) is carried out
-                        relativistically (if not using back-scaling), the
-                        second-order (2LPT) contributions are always
-                        constructed in a Newtonian fashion (though they are
-                        build from the (relativistic) 1LPT results).
+                        components. Orders :math:`1`, :math:`2` and :math:`3`
+                        are available. While the first order (1LPT) is carried
+                        out relativistically (if not using back-scaling), the
+                        higher order corrections are always constructed in a
+                        Newtonian fashion (though they are built out of the
+                        relativistic 1LPT results).
+
+                      * ``'dealias'``: Specifies whether aliasing defects
+                        should be removed during 2LPT and 3LPT computations.
 
                       * ``'non-Gaussianity'``: Sets the amount of local
                         non-Gaussianity to include in realisations. This is
@@ -445,7 +451,21 @@ physical models and schemes to be used.
                              'LPT': 2,
                          }
 -- --------------- -- -
-\  **Example 2**   \  Always perform realisations using the primordial noise
+\  **Example 2**   \  Make use of dealiased third-order Lagrangian
+                      perturbation theory (3LPT) when realising
+                      particle components:
+
+                      .. code-block:: python3
+
+                         realization_options = {
+                             'LPT': 3,
+                             'dealias': True,
+                         }
+
+                      This is the most expensive but also most accurate
+                      particle realisation scheme implemented.
+-- --------------- -- -
+\  **Example 3**   \  Always perform realisations using the primordial noise
                       as the underlying source of structure, regardless of the
                       time of realisation:
 

@@ -576,7 +576,7 @@ CO\ *N*\ CEPT run.
                       .. caution::
                          Leaving out certain data when reading in snapshots
                          will result in components not being fully
-                         initialized, e.g. in this example all particles
+                         initialised, e.g. in this example all particles
                          loaded from disk will not have any momenta assigned
                          (not even :math:`0`). Running a simulation with such
                          a partially initialised component will result in a
@@ -1487,26 +1487,6 @@ CO\ *N*\ CEPT run.
 
                       * ``τ`` or ``tau``: The conformal time :math:`\tau` (in
                         CLASS called ``conf. time [Mpc]``).
-                      * ``D``: The linear growth factor :math:`D` (in CLASS
-                        called ``gr.fac. D``).
-                      * ``f``: The linear growth rate
-                        :math:`f \equiv \mathrm{d}\ln D / \mathrm{d}\ln a`
-                        (in CLASS called ``gr.fac. f``).
-                      * ``D2``: The second-order growth factor :math:`D^{(2)}`
-                        (in CLASS called ``gr.fac. D2``).
-                      * ``f2``: The second-order growth rate
-                        :math:`f^{(2)} \equiv \mathrm{d}\ln D^{(2)} / \mathrm{d}\ln a`
-                        (in CLASS called ``gr.fac. f2``).
-
-                      .. note::
-                         When running the
-                         :doc:`class utility </utilities/class>`, the
-                         ``class_extra_background`` parameter is by default
-                         set to
-
-                         .. code-block:: python3
-
-                            {'tau', 'D', 'f', 'D2', 'f2'}
 -- --------------- -- -
 \  **Example 0**   \  Include the conformal time :math:`\tau` among the
                       CLASS background quantities when dumping these to disk,
@@ -1523,15 +1503,14 @@ CO\ *N*\ CEPT run.
 
                          class_extra_background = 'conf. time [Mpc]'
 -- --------------- -- -
-\  **Example 1**   \  Include the linear growth factor :math:`D` and rate
-                      :math:`f` among the background quantities when dumping
+\  **Example 1**   \  Include the luminosity distance and the angular diameter
+                      distance among the background quantities when dumping
                       these to disk, e.g. when running the CO\ *N*\ CEPT
                       :doc:`class utility </utilities/class>`:
 
                       .. code-block:: python3
 
-                         class_extra_background = {'D', 'f'}
-
+                         class_extra_background = {'lum. dist.', 'ang.diam.dist.'}
 == =============== == =
 
 

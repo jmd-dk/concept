@@ -460,21 +460,24 @@ together in a single plot, for which we make use of the plotting script below:</
 
 <span class="c1"># Plotting functions</span>
 <span class="k">def</span> <span class="nf">plot1D</span><span class="p">(</span><span class="n">conf</span><span class="p">):</span>
-    <span class="k">def</span> <span class="nf">get_color</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">lpt</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
-        <span class="n">color</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span>
-            <span class="n">matplotlib</span><span class="o">.</span><span class="n">colors</span><span class="o">.</span><span class="n">ColorConverter</span><span class="p">()</span><span class="o">.</span><span class="n">to_rgb</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;C</span><span class="si">{</span><span class="n">a_values</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">a</span><span class="p">)</span><span class="o">%</span><span class="mi">10</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
-        <span class="p">)</span>
-        <span class="n">color</span> <span class="o">/=</span> <span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="mi">2</span><span class="o">/</span><span class="mi">3</span><span class="o">*</span><span class="p">(</span><span class="n">lpt</span> <span class="o">-</span> <span class="mi">1</span><span class="p">))</span>
+    <span class="k">def</span> <span class="nf">get_color</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">lpt</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">color</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">color</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;C</span><span class="si">{</span><span class="n">a_values</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">a</span><span class="p">)</span><span class="o">%</span><span class="mi">10</span><span class="si">}</span><span class="s1">&#39;</span>
+        <span class="n">color</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">matplotlib</span><span class="o">.</span><span class="n">colors</span><span class="o">.</span><span class="n">ColorConverter</span><span class="p">()</span><span class="o">.</span><span class="n">to_rgb</span><span class="p">(</span><span class="n">color</span><span class="p">))</span>
+        <span class="n">color</span> <span class="o">/=</span> <span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="mf">0.4</span><span class="o">*</span><span class="p">(</span><span class="n">lpt</span> <span class="o">-</span> <span class="mi">1</span><span class="p">))</span>
         <span class="k">return</span> <span class="n">color</span>
+    <span class="k">def</span> <span class="nf">get_linestyle</span><span class="p">(</span><span class="n">lpt</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">{</span><span class="mi">1</span><span class="p">:</span> <span class="s1">&#39;-&#39;</span><span class="p">,</span> <span class="mi">2</span><span class="p">:</span> <span class="s1">&#39;--&#39;</span><span class="p">,</span> <span class="mi">3</span><span class="p">:</span> <span class="s1">&#39;:&#39;</span><span class="p">}</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">lpt</span><span class="p">,</span> <span class="s1">&#39;-.&#39;</span><span class="p">)</span>
     <span class="n">fig</span><span class="p">,</span> <span class="n">axes</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="n">sharex</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
     <span class="k">for</span> <span class="n">lpt</span> <span class="ow">in</span> <span class="n">lpts</span><span class="p">:</span>
+        <span class="n">linestyle</span> <span class="o">=</span> <span class="n">get_linestyle</span><span class="p">(</span><span class="n">lpt</span><span class="p">)</span>
         <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">a_values</span><span class="p">:</span>
             <span class="n">subdata</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">((</span><span class="n">conf</span><span class="p">,</span> <span class="n">lpt</span><span class="p">,</span> <span class="n">a</span><span class="p">))</span>
             <span class="k">if</span> <span class="n">subdata</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
                 <span class="k">continue</span>
             <span class="n">k</span> <span class="o">=</span> <span class="n">subdata</span><span class="p">[</span><span class="s1">&#39;k&#39;</span><span class="p">]</span>
-            <span class="n">axes</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">loglog</span>  <span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">subdata</span><span class="p">[</span><span class="s1">&#39;B&#39;</span><span class="p">],</span> <span class="s1">&#39;-&#39;</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="n">get_color</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">lpt</span><span class="p">))</span>
-            <span class="n">axes</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">semilogx</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">subdata</span><span class="p">[</span><span class="s1">&#39;Q&#39;</span><span class="p">],</span> <span class="s1">&#39;-&#39;</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="n">get_color</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">lpt</span><span class="p">))</span>
+            <span class="n">axes</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">loglog</span>  <span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">subdata</span><span class="p">[</span><span class="s1">&#39;B&#39;</span><span class="p">],</span> <span class="n">linestyle</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="n">get_color</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">lpt</span><span class="p">))</span>
+            <span class="n">axes</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">semilogx</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">subdata</span><span class="p">[</span><span class="s1">&#39;Q&#39;</span><span class="p">],</span> <span class="n">linestyle</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="n">get_color</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">lpt</span><span class="p">))</span>
             <span class="n">axes</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">loglog</span>  <span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">subdata</span><span class="p">[</span><span class="s1">&#39;B_tree&#39;</span><span class="p">],</span> <span class="s1">&#39;k--&#39;</span><span class="p">,</span> <span class="n">linewidth</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
             <span class="n">axes</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">semilogx</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">subdata</span><span class="p">[</span><span class="s1">&#39;Q_tree&#39;</span><span class="p">],</span> <span class="s1">&#39;k--&#39;</span><span class="p">,</span> <span class="n">linewidth</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
             <span class="n">axes</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">set_xlim</span><span class="p">(</span><span class="n">k</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">k</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
@@ -492,9 +495,10 @@ together in a single plot, for which we make use of the plotting script below:</
         <span class="p">)</span>
     <span class="k">for</span> <span class="n">lpt</span> <span class="ow">in</span> <span class="n">lpts</span><span class="p">:</span>
         <span class="n">axes</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span>
-            <span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">,</span> <span class="s1">&#39;-&#39;</span><span class="p">,</span>
+            <span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">,</span> <span class="n">get_linestyle</span><span class="p">(</span><span class="n">lpt</span><span class="p">),</span>
+            <span class="n">color</span><span class="o">=</span><span class="n">get_color</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">lpt</span><span class="p">,</span> <span class="s1">&#39;grey&#39;</span><span class="p">),</span>
             <span class="n">transform</span><span class="o">=</span><span class="n">axes</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">transAxes</span><span class="p">,</span>
-            <span class="n">color</span><span class="o">=</span><span class="n">get_color</span><span class="p">(</span><span class="n">a_values</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">lpt</span><span class="p">),</span> <span class="n">label</span><span class="o">=</span><span class="sa">f</span><span class="s1">&#39;simulation: </span><span class="si">{</span><span class="n">lpt</span><span class="si">}</span><span class="s1">LPT&#39;</span><span class="p">,</span>
+            <span class="n">label</span><span class="o">=</span><span class="sa">f</span><span class="s1">&#39;simulation: </span><span class="si">{</span><span class="n">lpt</span><span class="si">}</span><span class="s1">LPT&#39;</span><span class="p">,</span>
         <span class="p">)</span>
     <span class="n">axes</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span>
         <span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">,</span> <span class="s1">&#39;k--&#39;</span><span class="p">,</span>
@@ -742,11 +746,11 @@ prediction.</p>
 <h3>Second-order Lagrangian perturbation theory initial conditions</h3><p>The reason for the mismatch between the simulation initial conditions and the
 perturbative tree-level prediction is that the former makes use of first-order
 (Lagrangian) perturbation theory while the latter is a second-order result.
-While CO<em>N</em>CEPT uses first-order Lagrangian perturbation theory (1LPT) to
-assign initial particle positions and momenta (through what is often referred
-to as the Zel’dovich approximation), a second-order (2LPT) correction can
-optionally be applied on top. The order of LPT to use is specified by the
-<code class="docutils literal notranslate"><span class="pre">'LPT'</span></code> sub-parameter of the <code class="docutils literal notranslate"><span class="pre">realization_options</span></code>
+By default, CO<em>N</em>CEPT uses first-order Lagrangian perturbation theory
+(1LPT) to assign initial particle positions and momenta (through what is often
+referred to as the Zel’dovich approximation), though second-order (2LPT)
+corrections can optionally be applied on top. The order of LPT to use is
+specified by the <code class="docutils literal notranslate"><span class="pre">'LPT'</span></code> sub-parameter of the <code class="docutils literal notranslate"><span class="pre">realization_options</span></code>
 <a class="reference internal" href="../parameters/physics.html#realization-options"><span class="std std-ref">parameter</span></a>, which defaults to <code class="docutils literal notranslate"><span class="pre">1</span></code>. In
 <a class="reference internal" href="#param-bispec"><span class="std std-ref">our parameter file</span></a>, this is controlled through the
 <code class="docutils literal notranslate"><span class="pre">_lpt</span></code> helper variable.</p>
@@ -767,7 +771,7 @@ this time with <code class="docutils literal notranslate"><span class="pre">_lpt
 <p>Once again, these new results will not overwrite any of the old. While you can
 in fact update the plot continually while the above simulations are busy being
 carried out, you should suspend any judgement until they are all complete. The
-2LPT results will be shown as darkened versions of the colours used for 1LP.</p>
+2LPT results will appear as dashed lines.</p>
 <p>With the plot updated following the completion of every simulation, we see that
 opting for 2LPT indeed leads to excellent agreement with the tree-level
 prediction at the initial time. At later times, the (relative) difference in
@@ -788,9 +792,24 @@ working with here).</p>
 <p>If you would like to see still better convergence of the bispectrum, feel free
 to run even more paired simulations with different seeds (using 2LPT, 1LPT,
 or both).</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>CO<em>N</em>CEPT further implements 3LPT, which given our
+<a class="reference internal" href="#param-bispec"><span class="std std-ref">parameter file</span></a> you can enable via <code class="docutils literal notranslate"><span class="pre">_lpt</span> <span class="pre">=</span> <span class="pre">3</span></code>.
+The changes to the bispectrum when upgrading from 2LPT to 3LPT are however
+much less dramatic than the changes from 1LPT to 2LPT. In fact, given the
+parameters set in our <a class="reference internal" href="#param-bispec"><span class="std std-ref">parameter file</span></a>, the difference
+will be virtually impossible to see from the plots generated by our
+<a class="reference internal" href="#plot-bispec"><span class="std std-ref">plotting script</span></a>. For 3LPT to be a significant
+improvement upon 2LPT, we need to initialise later and/or simulate
+smaller scales than what we have just done. For example, changing to
+<code class="docutils literal notranslate"><span class="pre">a_begin</span> <span class="pre">=</span> <span class="pre">0.08</span></code> and <code class="docutils literal notranslate"><span class="pre">boxsize</span> <span class="pre">=</span> <span class="pre">128*Mpc</span></code> and then rerunning everything
+using <code class="docutils literal notranslate"><span class="pre">_lpt</span> <span class="pre">=</span> <span class="pre">1</span></code>, <code class="docutils literal notranslate"><span class="pre">_lpt</span> <span class="pre">=</span> <span class="pre">2</span></code> and <code class="docutils literal notranslate"><span class="pre">_lpt</span> <span class="pre">=</span> <span class="pre">3</span></code>, differences between 2LPT
+and 3LPT will show up in the generated plot at high <span class="math notranslate nohighlight">\(k\)</span>.</p>
+</div>
 <h3>Other bispectrum configurations</h3><p>Let us now consider bispectrum configurations different from the equilateral
 case. Another commonly studied case is that of the “squeezed” bispectrum,
-where one of the triangle legs (one of the three <span class="math notranslate nohighlight">\(k\)</span> values) are much
+where one of the triangle legs (one of the three <span class="math notranslate nohighlight">\(k\)</span> values) is much
 smaller than the other two. The configuration to use is controlled by the
 <code class="docutils literal notranslate"><span class="pre">'configuration'</span></code> sub-parameter of the <code class="docutils literal notranslate"><span class="pre">bispec_options</span></code>
 <a class="reference internal" href="../parameters/numerics.html#bispec-options"><span class="std std-ref">parameter</span></a>, which in the
@@ -839,7 +858,7 @@ showing only the 2LPT (as we did not compute the squeezed bispectra for the
 at the lower <span class="math notranslate nohighlight">\(Q\)</span> panel, the agreement between the simulation measurements
 and the tree-level predictions does not appear to be as good as for the
 equilateral configurations. From this it is clear that we cannot generally
-expect our simulations to be initialized with a bispectrum matching the
+expect our simulations to be initialised with a bispectrum matching the
 tree-level prediction for a general triangle configuration, even when
 using 2LPT. The striking agreement we found for the equilateral configurations
 then appears even more incredible. Looking at the upper <span class="math notranslate nohighlight">\(B\)</span> panel of
