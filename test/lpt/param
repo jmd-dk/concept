@@ -1,0 +1,50 @@
+# Input/output
+_size = 128
+initial_conditions = {
+    'species': 'matter',
+    'N'      : _size**3,
+}
+output_dirs = f'{param.dir}/output/{_lpt}LPT' + '_dealias'*_dealias + '_shift'*_shift
+output_times = {'powerspec': a_begin}
+powerspec_select = {
+    'matter': {
+        'data': True,
+    },
+}
+
+# Numerics
+boxsize = 128*Mpc
+powerspec_options = {
+    'gridsize': 1*_size,
+    'bins per decade': 40,
+}
+
+# Cosmology
+H0 = 67*km/(s*Mpc)
+Ωb = 0.049
+Ωcdm = 0.27
+a_begin = 1/(1 + 14)
+primordial_spectrum = {
+    'A_s'  : 2.1e-9,
+    'n_s'  : 0.96,
+}
+
+# Physics
+realization_options = {
+    'LPT': {
+        'all': _lpt,
+    },
+    'dealias': {
+        'all': _dealias,
+    },
+}
+
+# Simulation
+primordial_amplitude_fixed = True
+primordial_phase_shift = _shift*π
+
+# Default realization options
+_lpt = 2
+_dealias = False
+_shift = False
+

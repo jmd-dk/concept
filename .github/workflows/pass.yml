@@ -112,6 +112,13 @@ jobs:
         steps:
           - name: Pass
             run: exit 0
+    test_lpt:
+        runs-on:
+          group: private
+          labels: self-hosted-ubuntu-22.04
+        steps:
+          - name: Pass
+            run: exit 0
     test_nprocs_pp:
         runs-on:
           group: private

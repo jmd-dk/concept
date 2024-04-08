@@ -316,39 +316,43 @@ Data layout
 ~~~~~~~~~~~
 The data layout within ``class_processed.hdf5`` is as follows:
 
-* ``background``: Group containing various background quantities, tabulated
-  at a common 1D time grid:
+* ``background``: Group containing data sets for various background
+  quantities, tabulated at a common 1D time grid:
 
-  * ``a``: Data set of scale factor :math:`a` values at which all background
-    quantities are tabulated.
-  * ``z``: Data set of redshift :math:`z` values at which all background
-    quantities are tabulated.
-  * ``t``: Data set of cosmic time :math:`t` values at which all background
-    quantities are tabulated.
+  * ``a``: Scale factor :math:`a` values at which all background quantities
+    are tabulated.
+  * ``z``: Redshift :math:`z` values at which all background quantities
+    are tabulated.
+  * ``t``: Cosmic time :math:`t` values at which all background quantities
+    are tabulated.
+  * ``tau``: Conformal time :math:`\tau`. values at which all background quantities
+    are tabulated.
   * ``H``: The Hubble parameter :math:`H`.
   * ``rho_<species>`` with ``<species>`` some CLASS species: The background
     energy density :math:`\bar{\rho}` of the given species. The critical
     '``crit``' and total '``tot``' energy densities are present as well.
   * ``p_<species>`` with ``<species>`` some CLASS species: The background
     pressure :math:`\bar{P}` of the given species.
-
-  When running the CO\ *N*\ CEPT class utility, the ``class_extra_background``
-  :ref:`parameter <class_extra_background>` is by default populated with the
-  following values:
-
-  .. code-block:: python3
-
-     class_extra_background = {'tau', 'D', 'f', 'D2', 'f2'}
-
-  which then further adds the following background quantities:
-
-  * ``tau``: The conformal time :math:`\tau`.
-  * ``D``: First-order (linear) growth factor :math:`D = D^{(1)}`.
+  * ``D``: First-order (linear) growth factor :math:`D = D^{(1)}`, with the
+    convention :math:`D^{(1)}(a=1) = 1`.
   * ``f``: First-order (linear) growth rate
-    :math:`f = f^{(1)} \equiv \mathrm{d}\ln D / \mathrm{d}\ln a`.
-  * ``D2``: Second-order growth factor :math:`D^{(2)}`.
+    :math:`f = f^{(1)} \equiv \mathrm{d}\ln D^{(1)} / \mathrm{d}\ln a`.
+  * ``D2``: Second-order growth factor :math:`D^{(2)}`, with the
+    convention :math:`D^{(2)} > 0`.
   * ``f2``: Second-order growth rate
     :math:`f^{(2)} \equiv \mathrm{d}\ln D^{(2)} / \mathrm{d}\ln a`.
+  * ``D3a``: Third-order growth factor :math:`D^{(3\text{a})}`, with the
+    convention :math:`D^{(3\text{a})} > 0`.
+  * ``f3a``: Third-order growth rate
+    :math:`f^{(3\text{a})} \equiv \mathrm{d}\ln D^{(3\text{a})} / \mathrm{d}\ln a`.
+  * ``D3b``: Third-order growth factor :math:`D^{(3\text{b})}`, with the
+    convention :math:`D^{(3\text{b})} > 0`.
+  * ``f3a``: Third-order growth rate
+    :math:`f^{(3\text{b})} \equiv \mathrm{d}\ln D^{(3\text{b})} / \mathrm{d}\ln a`.
+  * ``D3c``: Third-order growth factor :math:`D^{(3\text{c})}`, with the
+    convention :math:`D^{(3\text{c})} > 0`.
+  * ``f3c``: Third-order growth rate
+    :math:`f^{(3\text{c})} \equiv \mathrm{d}\ln D^{(3\text{c})} / \mathrm{d}\ln a`.
 
   In addition to the above datasets, this group also stores some attributes,
   namely the reduced Hubble constant ``h`` (given by
@@ -450,22 +454,22 @@ various data sets are expressed:
 .. table::
    :align: center
 
-   ======================================================================  ============================
-   .. centered:: Quantity                                                  .. centered:: Unit (default)
-   ======================================================================  ============================
-   Scale factor ``a`` and redshift ``z``                                   .. centered:: :math:`[1]`
-   Cosmic time ``t`` and conformal time ``tau``                            .. centered:: :math:`[\text{Gyr}]`
-   Fourier mode ``k``                                                      .. centered:: :math:`[\text{Mpc}^{-1}]`
-   Hubble parameter ``H``                                                  .. centered:: :math:`[\text{Gyr}^{-1}]`
-   Growth factors ``D``, ``D2`` and rates ``f``, ``f2``                    .. centered:: :math:`[1]`
-   Background energy density ``rho``                                       .. centered:: :math:`[10^{10}\, m_{\odot}\, \text{Mpc}^{-3}]`
-   Energy density contrast ``delta``                                       .. centered:: :math:`[1]`
-   Velocity divergence ``theta``                                           .. centered:: :math:`[\text{Gyr}^{-1}]`
-   Pressure background ``p`` and perturbation ``deltaP``                   .. centered:: :math:`[10^{10}\, m_{\odot}\, \text{Mpc}^{-1}\,\text{Gyr}^{-2}]`
-   Shear stress ``sigma``                                                  .. centered:: :math:`[\text{Mpc}^2\,\text{Gyr}^{-2}]`
-   Metric perturbations ``phi`` and ``psi``                                .. centered:: :math:`[\text{Mpc}^2\,\text{Gyr}^{-2}]`
-   Time derivatives of metric perturbations ``h_prime`` and ``H_T_prime``  .. centered:: :math:`[\text{Gyr}^{-1}]`
-   ======================================================================  ============================
+   ==========================================================================================================  ============================
+   .. centered:: Quantity                                                                                      .. centered:: Unit (default)
+   ==========================================================================================================  ============================
+   Scale factor ``a`` and redshift ``z``                                                                       .. centered:: :math:`[1]`
+   Cosmic time ``t`` and conformal time ``tau``                                                                .. centered:: :math:`[\text{Gyr}]`
+   Fourier mode ``k``                                                                                          .. centered:: :math:`[\text{Mpc}^{-1}]`
+   Hubble parameter ``H``                                                                                      .. centered:: :math:`[\text{Gyr}^{-1}]`
+   Growth factors ``D``, ``D2``, ``D3a``, ``D3b``, ``D3c`` and rates ``f``, ``f2``, ``f3a``, ``f3b``, ``f3c``  .. centered:: :math:`[1]`
+   Background energy density ``rho``                                                                           .. centered:: :math:`[10^{10}\, m_{\odot}\, \text{Mpc}^{-3}]`
+   Energy density contrast ``delta``                                                                           .. centered:: :math:`[1]`
+   Velocity divergence ``theta``                                                                               .. centered:: :math:`[\text{Gyr}^{-1}]`
+   Pressure background ``p`` and perturbation ``deltaP``                                                       .. centered:: :math:`[10^{10}\, m_{\odot}\, \text{Mpc}^{-1}\,\text{Gyr}^{-2}]`
+   Shear stress ``sigma``                                                                                      .. centered:: :math:`[\text{Mpc}^2\,\text{Gyr}^{-2}]`
+   Metric perturbations ``phi`` and ``psi``                                                                    .. centered:: :math:`[\text{Mpc}^2\,\text{Gyr}^{-2}]`
+   Time derivatives of metric perturbations ``h_prime`` and ``H_T_prime``                                      .. centered:: :math:`[\text{Gyr}^{-1}]`
+   ==========================================================================================================  ============================
 
 .. tip::
    If you need the Hubble parameter ``H`` in its canonial units of

@@ -48,11 +48,13 @@ class Spline:
         name=str,
         logx='bint',
         logy='bint',
-        negativey='bint',
         # Locals
+        contains_negative='bint',
+        contains_positive='bint',
+        contains_zero='bint',
         i='Py_ssize_t',
     )
-    def __init__(self, x, y, name='', *, logx=False, logy=False, negativey=False):
+    def __init__(self, x, y, name='', *, logx=False, logy=False):
         # Here x and y = y(x) are the tabulated data.
         # The values in x must be in increasing order.
         # If logx (logy) is True, the log will be taken of the x (y)
@@ -96,7 +98,6 @@ class Spline:
         # Note that a copy of the input data is used,
         # we do not mutate the input data.
         self.logx, self.logy = logx, logy
-        self.negativey = negativey
         if self.logx:
             for i in range(x.shape[0]):
                 if x[i] <= 0:
@@ -109,20 +110,33 @@ class Spline:
                     break
         if self.logx:
             x = np.log(x)
-        if self.logy and not self.negativey:
+        self.negativey = False  # only relevant for logy
+        if self.logy:
+            contains_negative = False
+            contains_zero     = False
+            contains_positive = False
             for i in range(y.shape[0]):
-                if y[i] <= 0:
-                    self.logy = False
-                    warn(
-                        f'Spline "{self.name}": '
-                        f'Could not take log of spline y data '
-                        f'as it contains non-positive values'
-                    )
-                    break
-        if self.negativey:
-            if not self.logy:
-                abort('Spline instances with negativey but not logy not supported')
-            y = -asarray(y)
+                contains_negative |= (y[i] <  0)
+                contains_zero     |= (y[i] == 0)
+                contains_positive |= (y[i] >  0)
+            if contains_zero:
+                self.logy = False
+                warn(
+                    f'Spline "{self.name}": '
+                    f'Could not take log of spline y data '
+                    f'as it contains a zero'
+                )
+            elif contains_negative and contains_positive:
+                self.logy = False
+                warn(
+                    f'Spline "{self.name}": '
+                    f'Could not take log of spline y data '
+                    f'as it contains both positive and negative values'
+                )
+            elif contains_negative:
+                # Purely negative
+                self.negativey = True
+                y = -asarray(y)
         if self.logy:
             y = np.log(y)
         # Check that the passed x values are strictly increasing and
@@ -820,7 +834,8 @@ spline_t_integrands = {}
 # cosmology if enable_Hubble is True. The functions t(a), a(t) and H(a)
 # will also be tabulated and stored as spline attributes on the module
 # level temporal_splines object. If enable_class_background is False,
-# D(a), f(a), D2(a) and f2(a) will be added as well.
+# D(a), f(a), D2(a), f2(a), D3a(a), f3a(a), D3b(a), f3b(a),
+# D3c(a), f3c(a), will be added as well.
 @cython.pheader(
     # Arguments
     reinitialize='bint',
@@ -831,8 +846,14 @@ spline_t_integrands = {}
     background=dict,
     cosmo=object,  # classy.Class
     D2_values='double[::1]',
+    D3a_values='double[::1]',
+    D3b_values='double[::1]',
+    D3c_values='double[::1]',
     D_values='double[::1]',
     f2_values='double[::1]',
+    f3a_values='double[::1]',
+    f3b_values='double[::1]',
+    f3c_values='double[::1]',
     f_values='double[::1]',
     H_values='double[::1]',
     n_bg='Py_ssize_t',
@@ -850,7 +871,12 @@ def init_time(reinitialize=False):
         # background throughout time, we run CLASS now.
         # Otherwise we solve the simplified background implemented
         # by hubble() ourselves.
-        a_values = t_values = H_values = D_values = f_values = D2_values = f2_values = None
+        a_values = t_values = H_values = None
+        D_values = f_values = None
+        D2_values = f2_values = None
+        D3a_values = f3a_values = None
+        D3b_values = f3b_values = None
+        D3c_values = f3c_values = None
         if enable_class_background:
             # Ideally we would call CLASS via compute_cosmo() from the
             # linear module, as this would preserve all results for any
@@ -874,7 +900,11 @@ def init_time(reinitialize=False):
             # see e.g. linear.CosmoResults.growth_fac_D()).
             (
                 a_values, t_values, H_values,
-                D_values, f_values, D2_values, f2_values,
+                D_values, f_values,
+                D2_values, f2_values,
+                D3a_values, f3a_values,
+                D3b_values, f3b_values,
+                D3c_values, f3c_values,
             ) = solve_matterΛ_background(a_today)
         # Ensure that the last scale factor and Hubble value
         # are set to their current values.
@@ -907,13 +937,23 @@ def init_time(reinitialize=False):
             D_values = smart_mpi(D_values, mpifun='bcast')
             temporal_splines.a_D = Spline(a_values, D_values, 'D(a)', logx=True, logy=True)
             f_values = smart_mpi(f_values, mpifun='bcast')
-            temporal_splines.a_f = Spline(a_values, f_values, 'f(a)', logx=False, logy=True)
+            temporal_splines.a_f = Spline(a_values, f_values, 'f(a)', logx=True, logy=False)
             D2_values = smart_mpi(D2_values, mpifun='bcast')
-            temporal_splines.a_D2 = Spline(
-                a_values, D2_values, 'D2(a)', logx=True, logy=True, negativey=True,
-            )
+            temporal_splines.a_D2 = Spline(a_values, D2_values, 'D2(a)', logx=True, logy=True)
             f2_values = smart_mpi(f2_values, mpifun='bcast')
-            temporal_splines.a_f2 = Spline(a_values, f2_values, 'f2(a)', logx=False, logy=True)
+            temporal_splines.a_f2 = Spline(a_values, f2_values, 'f2(a)', logx=True, logy=False)
+            D3a_values = smart_mpi(D3a_values, mpifun='bcast')
+            temporal_splines.a_D3a = Spline(a_values, D3a_values, 'D3a(a)', logx=True, logy=True)
+            f3a_values = smart_mpi(f3a_values, mpifun='bcast')
+            temporal_splines.a_f3a = Spline(a_values, f3a_values, 'f3a(a)', logx=True, logy=False)
+            D3b_values = smart_mpi(D3b_values, mpifun='bcast')
+            temporal_splines.a_D3b = Spline(a_values, D3b_values, 'D3b(a)', logx=True, logy=True)
+            f3b_values = smart_mpi(f3b_values, mpifun='bcast')
+            temporal_splines.a_f3b = Spline(a_values, f3b_values, 'f3b(a)', logx=True, logy=False)
+            D3c_values = smart_mpi(D3c_values, mpifun='bcast')
+            temporal_splines.a_D3c = Spline(a_values, D3c_values, 'D3c(a)', logx=True, logy=True)
+            f3c_values = smart_mpi(f3c_values, mpifun='bcast')
+            temporal_splines.a_f3c = Spline(a_values, f3c_values, 'f3c(a)', logx=True, logy=False)
         # A specification of initial scale factor or
         # cosmic time is needed.
         if 'a_begin' in user_params_keys_raw:
@@ -973,6 +1013,12 @@ class TemporalSplines:
         Spline a_f
         Spline a_D2
         Spline a_f2
+        Spline a_D3a
+        Spline a_f3a
+        Spline a_D3b
+        Spline a_f3b
+        Spline a_D3c
+        Spline a_f3c
         """
         self.a_t = None
         self.t_a = None
@@ -981,6 +1027,12 @@ class TemporalSplines:
         self.a_f = None
         self.a_D2 = None
         self.a_f2 = None
+        self.a_D3a = None
+        self.a_f3a = None
+        self.a_D3b = None
+        self.a_f3b = None
+        self.a_D3c = None
+        self.a_f3c = None
     @property
     def initialized(self):
         return self.a_t is not None
@@ -990,9 +1042,21 @@ temporal_splines = TemporalSplines()
 # Function for solving the simplified matter + Λ background
 def solve_matterΛ_background(a_today=1):
     """Note that the results are only returned by the master process"""
-    a_values = t_values = H_values = D_values = f_values = D2_values = f2_values = None
+    a_values = t_values = H_values = None
+    D_values = f_values = None
+    D2_values = f2_values = None
+    D3a_values = f3a_values = None
+    D3b_values = f3b_values = None
+    D3c_values = f3c_values = None
     if not master:
-        return a_values, t_values, H_values, D_values, f_values, D2_values, f2_values
+        return (
+            a_values, t_values, H_values,
+            D_values, f_values,
+            D2_values, f2_values,
+            D3a_values, f3a_values,
+            D3b_values, f3b_values,
+            D3c_values, f3c_values,
+        )
     # Load from cache
     filename = get_reusable_filename('background', Ωm, a_today, unit_time)
     if os.path.exists(filename):
@@ -1037,33 +1101,62 @@ def solve_matterΛ_background(a_today=1):
     a_values[0], a_values[-1] = a_begin_bg, a_today
     # Tabulate H on the same interval
     H_values = asarray([hubble(a) for a in a_values])
-    # Solve growth factors
+    # Solve growth factors in a-space,
+    # using matter dominated initial conditions.
     C = 1  # arbitrary
-    D_begin_bg = C*a_begin_bg
-    dD_da_begin_bg = C
-    D2_begin_bg = -3./7.*C**2*a_begin_bg**2
-    dD2_da_begin_bg = -6./7.*C**2*a_begin_bg
+    D_begin_bg       =  1./ 1.*C**1*a_begin_bg**1
+    dD_da_begin_bg   =  1./ 1.*C**1*a_begin_bg**0
+    D2_begin_bg      =  3./ 7.*C**2*a_begin_bg**2
+    dD2_da_begin_bg  =  6./ 7.*C**2*a_begin_bg**1
+    D3a_begin_bg     =  1./ 3.*C**3*a_begin_bg**3
+    dD3a_da_begin_bg =  1./ 1.*C**3*a_begin_bg**2
+    D3b_begin_bg     = 10./21.*C**3*a_begin_bg**3
+    dD3b_da_begin_bg = 10./ 7.*C**3*a_begin_bg**2
+    D3c_begin_bg     =  1./ 7.*C**3*a_begin_bg**3
+    dD3c_da_begin_bg =  3./ 7.*C**3*a_begin_bg**2
     growth_solution = scipy.integrate.solve_ivp(
         dgrowth_da,
         (a_begin_bg, a_today),
-        [D_begin_bg, dD_da_begin_bg, D2_begin_bg, dD2_da_begin_bg],
+        [
+            D_begin_bg, dD_da_begin_bg,
+            D2_begin_bg, dD2_da_begin_bg,
+            D3a_begin_bg, dD3a_da_begin_bg,
+            D3b_begin_bg, dD3b_da_begin_bg,
+            D3c_begin_bg, dD3c_da_begin_bg,
+        ],
         t_eval=a_values,
         **solve_ivp_kwargs,
     )
     # Extract growth rates f = a/D*dD/da
     # and normalize growth factors to D(a=1) = 1.
-    f_values = np.ascontiguousarray(growth_solution.y[1])
-    f_values *= a_values/growth_solution.y[0]
-    f2_values = np.ascontiguousarray(growth_solution.y[3])
-    f2_values *= a_values/growth_solution.y[2]
-    D_values = np.ascontiguousarray(growth_solution.y[0])
-    D2_values = np.ascontiguousarray(growth_solution.y[2])
+    (
+        D_values, f_values,
+        D2_values, f2_values,
+        D3a_values, f3a_values,
+        D3b_values, f3b_values,
+        D3c_values, f3c_values,
+    ) = map(np.ascontiguousarray, growth_solution.y)
+    f_values *= a_values/D_values
+    f2_values *= a_values/D2_values
+    f3a_values *= a_values/D3a_values
+    f3b_values *= a_values/D3b_values
+    f3c_values *= a_values/D3c_values
     D_normalization = 1/D_values[-1]
     D_values *= D_normalization
     D_values[-1] = 1
-    D2_values *= D_normalization**2
+    D2_values  *= D_normalization**2
+    D3a_values *= D_normalization**3
+    D3b_values *= D_normalization**3
+    D3c_values *= D_normalization**3
     # Cache background to disk
-    results = (a_values, t_values, H_values, D_values, f_values, D2_values, f2_values)
+    results = (
+        a_values, t_values, H_values,
+        D_values, f_values,
+        D2_values, f2_values,
+        D3a_values, f3a_values,
+        D3b_values, f3b_values,
+        D3c_values, f3c_values,
+    )
     os.makedirs(os.path.dirname(filename), exist_ok=True)
     np.savetxt(
         filename,
@@ -1077,7 +1170,11 @@ def solve_matterΛ_background(a_today=1):
                     unicode,
                     [
                         'a', f't [{unit_time}]', f'H [{unit_time}⁻¹]',
-                        'D⁽¹⁾', 'f⁽¹⁾', 'D⁽²⁾', 'f⁽²⁾',
+                        'D⁽¹⁾', 'f⁽¹⁾',
+                        'D⁽²⁾', 'f⁽²⁾',
+                        'D⁽³ᵃ⁾', 'f⁽³ᵃ⁾',
+                        'D⁽³ᵇ⁾', 'f⁽³ᵇ⁾',
+                        'D⁽³ᶜ⁾', 'f⁽³ᶜ⁾',
                     ],
                 )
             ]).rstrip(),
@@ -1105,7 +1202,7 @@ def dloga_dlogt(logt, loga):
     return t*hubble(a)
 
 # Function that takes in a and the vector
-#   [D⁽¹⁾, ∂D⁽¹⁾/∂a, D⁽²⁾, ∂D⁽²⁾/∂a]
+#   [D⁽¹⁾, ∂D⁽¹⁾/∂a, D⁽²⁾, ∂D⁽²⁾/∂a, D⁽³ᵃ⁾, ∂D⁽³ᵃ⁾/∂a, D⁽³ᵇ⁾, ∂D⁽³ᵇ⁾/∂a, D⁽³ᶜ⁾, ∂D⁽³ᶜ⁾/∂a]
 # and returns the derivative of this vector with respect to a.
 # The function is written as to be
 # plugged into scipy.integrate.solve_ivp().
@@ -1116,28 +1213,52 @@ def dloga_dlogt(logt, loga):
     # Locals
     D='double',
     D2='double',
-    d2D_da2='double',
+    D3a='double',
+    D3b='double',
+    D3c='double',
     d2D2_da2='double',
-    dD_da='double',
+    d2D3a_da2='double',
+    d2D3b_da2='double',
+    d2D3c_da2='double',
+    d2D_da2='double',
     dD2_da='double',
+    dD3a_da='double',
+    dD3b_da='double',
+    dD3c_da='double',
+    dD_da='double',
     dH_da_over_H='double',
     returns='double[::1]',
 )
 def dgrowth_da(a, y):
     # Extract
-    D, dD_da, D2, dD2_da = y[0], y[1], y[2], y[3]
+    (
+        D, dD_da,
+        D2, dD2_da,
+        D3a, dD3a_da,
+        D3b, dD3b_da,
+        D3c, dD3c_da,
+    ) = y[0], y[1], y[2], y[3], y[4], y[5], y[6], y[7], y[8], y[9]  # generates better code than implicit unpacking
     # Compute derivatives.
     # Here we assume the simplified matter + Λ Hubble parameter
     # H(a) = H0*sqrt(Ωm/a**3 + (1 - Ωm)), as also used in hubble()
     # when enable_class_background is False.
     dH_da_over_H = -1.5*Ωm*(H0/hubble(a))**2/a**4
-    d2D_da2  = -(3/a + dH_da_over_H)*dD_da  - dH_da_over_H/a*D
-    d2D2_da2 = -(3/a + dH_da_over_H)*dD2_da - dH_da_over_H/a*(D2 - D**2)
+    d2D_da2   = -(3/a + dH_da_over_H)*dD_da   - dH_da_over_H/a*D
+    d2D2_da2  = -(3/a + dH_da_over_H)*dD2_da  - dH_da_over_H/a*(D2 + D**2)
+    d2D3a_da2 = -(3/a + dH_da_over_H)*dD3a_da - dH_da_over_H/a*(D3a + 2*D**3)
+    d2D3b_da2 = -(3/a + dH_da_over_H)*dD3b_da - dH_da_over_H/a*(D3b + 2*D*D2 + 2*D**3)
+    d2D3c_da2 = -(3/a + dH_da_over_H)*dD3c_da - dH_da_over_H/a*D**3
     # Pack and return
     dgrowth_da_returnvec[0] = y[1]
     dgrowth_da_returnvec[1] = d2D_da2
     dgrowth_da_returnvec[2] = y[3]
     dgrowth_da_returnvec[3] = d2D2_da2
+    dgrowth_da_returnvec[4] = y[5]
+    dgrowth_da_returnvec[5] = d2D3a_da2
+    dgrowth_da_returnvec[6] = y[7]
+    dgrowth_da_returnvec[7] = d2D3b_da2
+    dgrowth_da_returnvec[8] = y[9]
+    dgrowth_da_returnvec[9] = d2D3c_da2
     return dgrowth_da_returnvec
 cython.declare(dgrowth_da_returnvec='double[::1]')
-dgrowth_da_returnvec = empty(4, dtype=C2np['double'])
+dgrowth_da_returnvec = empty(10, dtype=C2np['double'])

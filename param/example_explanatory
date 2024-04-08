@@ -348,6 +348,9 @@ realization_options = {  # Options for realizations of components
     'LPT': {  # Lagrangian perturbation theory order to use
         'default': 1,
     },
+    'dealias': {  # Use dealiasing for 2LPT and 3LPT?
+        'default': False,
+    },
     'non-Gaussianity': {  # Amount of local non-Gaussianity (f_NL)
         'default': 0.0,
     },

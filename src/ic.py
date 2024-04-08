@@ -45,9 +45,13 @@ cimport(
     '    fft,                      '
     '    fourier_curve_loop,       '
     '    fourier_curve_slice_loop, '
+    '    fourier_diff,             '
     '    fourier_loop,             '
+    '    free_fftw_slab,           '
     '    get_fftw_slab,            '
     '    get_gridshape_local,      '
+    '    laplacian_inverse,        '
+    '    resize_grid,              '
     '    nullify_modes,            '
     '    slab_decompose,           '
 )
@@ -407,7 +411,7 @@ def realize_fluid(component, a, a_next, variable, multi_index, use_gridˣ=False)
     # Fetch amplitudes
     amplitudes = get_amplitudes(gridsize, component, a, a_next, variable, multi_index)
     # Realise the fluid scalar variable
-    slab = realize_grid(gridsize, component, a, amplitudes, variable, multi_index)
+    slab = realize_grid(gridsize, component, a, amplitudes, variable, multi_index=multi_index)
     # Communicate the fluid realisation in the slabs to the designated
     # fluid scalar grid. This also populates the ghost points.
     fluidscalar = component.fluidvars[variable][multi_index]
@@ -594,7 +598,7 @@ def get_amplitudes(gridsize, component, a, a_next=-1, variable=-1, multi_index=N
     # Fetch grid for storing amplitudes
     nyquist = gridsize//2
     k2_max = 3*(nyquist - 1)**2
-    amplitudes = get_buffer(k2_max + 1, buffer_names['amplitudes'])
+    amplitudes = empty(k2_max + 1, dtype=C2np['double'])
     amplitudes_ptr = cython.address(amplitudes[:])
     # Fourier normalization
     if use_primordial:
@@ -621,13 +625,6 @@ def get_amplitudes(gridsize, component, a, a_next=-1, variable=-1, multi_index=N
                     *ℝ[normalization/component.ϱ_bar]
                 )
     return amplitudes
-# Names of buffers used in this module, specifically by the
-# get_amplitudes() and displace_particles() function.
-cython.declare(buffer_names='dict')
-buffer_names = {
-    'amplitudes'   : 0,
-    'displacements': 1,
-}
 
 # Function for realising a single grid. Scalar, vector and rank-2 tensor
 # realisations are supported.
@@ -636,17 +633,16 @@ buffer_names = {
     gridsize='Py_ssize_t',
     component='Component',
     a='double',
-    amplitude_or_amplitudes=object,  # double or double[::1]
+    amplitudes='double[::1]',
     variable='int',
+    buffer_or_buffer_name=object,  # double[:, :, ::1] or int or str
     multi_index=object, # int, str or tuple
     lattice='Lattice',
-    diff_dim='int',
     slab_structure='double[:, :, ::1]',
     nongaussianity='double',
+    output_space=str,
     # Locals
     amplitude='double',
-    amplitude_const='double',
-    amplitudes='double[::1]',
     amplitudes_ptr='double*',
     cosθ='double',
     factor='double',
@@ -654,6 +650,7 @@ buffer_names = {
     index='Py_ssize_t',
     index0='int',
     index1='int',
+    interlace_lattice='Lattice',
     k2='Py_ssize_t',
     k_fundamental='double',
     ki='Py_ssize_t',
@@ -671,10 +668,14 @@ buffer_names = {
     returns='double[:, :, ::1]',
 )
 def realize_grid(
-    gridsize, component, a, amplitude_or_amplitudes, variable,
-    multi_index=None, lattice=None, diff_dim=-1, slab_structure=None, nongaussianity=0,
+    gridsize, component, a, amplitudes, variable,
+    buffer_or_buffer_name=None, multi_index=None, lattice=None,
+    slab_structure=None, nongaussianity=0, output_space='real',
 ):
-    """Note that this function returns a slab in real space"""
+    output_space = output_space.lower()
+    if output_space not in ('real', 'fourier'):
+        abort(f'realize_grid() got output_space = "{output_space}" ∉ {{"real", "Fourier"}}')
+    amplitudes_ptr = cython.address(amplitudes[:])
     index0 = index1 = 0
     if variable == 0 or isinstance(multi_index, str):
         # We are realising either ϱ or 𝒫 (multi_index == 'trace')
@@ -694,36 +695,29 @@ def realize_grid(
         lattice = Lattice(lattice, negate_shifts=True)
     # Fetch slab decomposed grid for storing
     # the complete realisation information.
-    slab = get_fftw_slab(gridsize)
+    if buffer_or_buffer_name is None or isinstance(buffer_or_buffer_name, (int, np.integer, str)):
+        slab = get_fftw_slab(gridsize, buffer_or_buffer_name)
+    else:
+        slab = buffer_or_buffer_name
     slab_ptr = cython.address(slab[:, :, :])
     # Fetch slab decomposed grid for storing the underlying structure
     # (primordial noise or energy density).
     if slab_structure is None:
         slab_structure = get_slab_structure(gridsize, component, a, variable)
     slab_structure_ptr = cython.address(slab_structure[:, :, :])
-    # Handle constant or varying amplitude
-    amplitude_const = 0
-    if isinstance(amplitude_or_amplitudes, (int, float, np.integer, np.floating)):
-        amplitude_const = amplitude_or_amplitudes
-    else:
-        amplitudes = amplitude_or_amplitudes
-        amplitudes_ptr = cython.address(amplitudes[:])
     # Populate realisation slab
     k_fundamental = ℝ[2*π/boxsize]
+    interlace_lattice = lattice
     for index, ki, kj, kk, factor, θ in fourier_loop(
-        gridsize, skip_origin=True, interlace_lattice=lattice,
+        gridsize, skip_origin=True, interlace_lattice=interlace_lattice,
     ):
         k2 = ℤ[ℤ[ℤ[kj**2] + ki**2] + kk**2]
-        with unswitch:
-            if amplitude_const == 0:
-                amplitude = amplitudes_ptr[k2]
-            else:
-                amplitude = amplitude_const
+        amplitude = amplitudes_ptr[k2]
         re = slab_structure_ptr[index    ]
         im = slab_structure_ptr[index + 1]
         # Rotate the complex phase due to shift
         with unswitch:
-            if lattice.shift != (0, 0, 0):
+            if interlace_lattice.shift != (0, 0, 0):
                 cosθ = cos(θ)
                 sinθ = sin(θ)
                 re, im = (
@@ -763,42 +757,41 @@ def realize_grid(
                         | ℤ[ℤ[-(index1 == 2)] & kk]
                 )
                 amplitude *= ℝ[0.5*(index0 == index1)] - (1.5*kl*km)/k2
-        # Possible extra differentiation (multiplication by ikⁱ)
-        with unswitch:
-            if diff_dim != -1:
-                kl = (
-                    ℤ[
-                          ℤ[ℤ[-(diff_dim == 0)] & ki]
-                        | ℤ[ℤ[-(diff_dim == 1)] & kj]
-                    ]
-                        | ℤ[ℤ[-(diff_dim == 2)] & kk]
-                )
-                amplitude *= k_fundamental*kl
-                re, im = -im, re
         # Store results
         slab_ptr[index    ] = amplitude*re
         slab_ptr[index + 1] = amplitude*im
     # Nullify the origin and the Nyquist planes
     nullify_modes(slab, ['origin', 'nyquist'])
+    # Imprint non-Gaussianity if requested
+    if nongaussianity:
+        # Fourier transform the slabs to coordinate space
+        fft(slab, 'backward')
+        # Imprint non-Gaussianity
+        for index in range(slab.shape[0]*slab.shape[1]*slab.shape[2]):
+            slab_ptr[index] += nongaussianity*slab_ptr[index]**2
+        # Return slabs in real or Fourier space
+        if output_space == 'real':
+            return slab
+        fft(slab, 'forward', apply_forward_normalization=True)
+        return slab
+    # Return slabs in real or Fourier space
+    if output_space == 'fourier':
+        return slab
     # Fourier transform the slabs to coordinate space
     fft(slab, 'backward')
-    # Imprint non-Gaussianity.
-    # Note that this destroys the Gaussian part.
-    if nongaussianity:
-        for index in range(slab.shape[0]*slab.shape[1]*slab.shape[2]):
-            slab_ptr[index] = nongaussianity*slab_ptr[index]**2
     return slab
 
 # Function for fetching and populating a slab decomposed grid with the
 # underlying structure for a realisation; either primordial noise or
 # the density field of a component.
-@cython.header(
+@cython.pheader(
     # Arguments
     gridsize='Py_ssize_t',
     component='Component',
     a='double',
     variable='int',
     use_gridˣ='bint',
+    buffer_or_buffer_name=object,  # double[:, :, ::1] or int or str
     # Locals
     gridname='str',
     info=dict,
@@ -809,7 +802,10 @@ def realize_grid(
     use_primordial='bint',
     returns='double[:, :, ::1]',
 )
-def get_slab_structure(gridsize, component, a, variable, use_gridˣ=False):
+def get_slab_structure(
+    gridsize, component, a, variable,
+    use_gridˣ=False, buffer_or_buffer_name=None,
+):
     """The reusage of slabs is defined by the fourier_structure_caching
     parameter. If the given slab is not to be reused, the default slab
     is fetched. The slab is then populated with the underlying structure
@@ -817,35 +813,44 @@ def get_slab_structure(gridsize, component, a, variable, use_gridˣ=False):
     be reused, a dedicated slab is fetched, which is not used for
     anything else in the program. The existence of such reusable slabs
     are recorded, so that they can be reused as is in future calls.
+    If a buffer or buffer name is passed, the reuse system is not used.
     """
     options = component.realization_options
-    # Figure out what name to use for the structure slab
     use_primordial = (
         variable == 0
         or variable <= component.boltzmann_order
         or options['structure'] == 'primordial'
     )
-    name = None
-    info = {'primordial': use_primordial}
-    if use_primordial:
-        if fourier_structure_caching.get('primordial'):
-            name = 'slab_structure_primordial'
-    else:
-        if is_selected(component, fourier_structure_caching):
-            name = f'slab_structure_nonlinear_{component.name}'
-        info |= {
-            'component': component.name,
-            'a'        : a,
-            'use_gridˣ': use_gridˣ,
-        }
-    # Can we reuse existing slab?
     reuse = False
-    if name is not None:
-        reuse = (slab_structure_infos.get((gridsize, name)) == info)
-        # Record structure slab information for later calls
-        slab_structure_infos[gridsize, name] = info
-    # Fetch structure slab
-    slab_structure = get_fftw_slab(gridsize, name)
+    if buffer_or_buffer_name is None:
+        # Figure out what name to use for the structure slab
+        name = None
+        info = {'primordial': use_primordial}
+        if use_primordial:
+            # Do not use a dedicated grid in memory for the primordial noise
+            # if requested at a = a_begin (IC generation) or a = 1
+            # (used with corrected power spectra), saving on memory.
+            if fourier_structure_caching.get('primordial') and a not in {a_begin, 1}:
+                name = 'slab_structure_primordial'
+        else:
+            if is_selected(component, fourier_structure_caching):
+                name = f'slab_structure_nonlinear_{component.name}'
+            info |= {
+                'component': component.name,
+                'a'        : a,
+                'use_gridˣ': use_gridˣ,
+            }
+        # Can we reuse existing slab?
+        if name is not None:
+            reuse = (slab_structure_infos.get((gridsize, name)) == info)
+            # Record structure slab information for later calls
+            slab_structure_infos[gridsize, name] = info
+        # Fetch structure slab
+        slab_structure = get_fftw_slab(gridsize, name)
+    elif isinstance(buffer_or_buffer_name, (int, np.integer, str)):
+        slab_structure = get_fftw_slab(gridsize, buffer_or_buffer_name)
+    else:
+        slab_structure = buffer_or_buffer_name
     # Populate structure slab if it cannot be reused as is
     if not reuse:
         if use_primordial:
@@ -1163,54 +1168,50 @@ def generate_primordial_noise(slab, fixed_amplitude=False, phase_shift=0):
     component='Component',
     a='double',
     # Locals
-    amplitude='double',
-    amplitudes='double[::1]',
-    backscale='bint',
+    buffer_gridsize='Py_ssize_t',
+    buffer_name=object,  # int or str or None
+    buffer_number='int',
     cosmoresults=object,  # CosmoResults
-    dim='int',
-    dim0='int',
-    dim1='int',
-    do_2lpt='bint',
-    factor='double',
-    fft_factor='double',
     gridsize='Py_ssize_t',
-    growth_fac_D='double',
-    growth_fac_D2='double',
-    growth_fac_f='double',
-    growth_fac_f2='double',
+    gridsize_dealias='Py_ssize_t',
+    growth_factors=dict,
+    i='int',
     id_bgn='Py_ssize_t',
-    index='Py_ssize_t',
-    indexᵖ_bgn='Py_ssize_t',
     indexʳ='Py_ssize_t',
+    indexᵖ_bgn='Py_ssize_t',
     lattice='Lattice',
     n_different_sized='Py_ssize_t',
     n_local='Py_ssize_t',
     n_particles='Py_ssize_t',
     nongaussianity='double',
-    options=dict,
+    options=object,  # ParticleRealizationOptions
     particle_components=list,
     pos='double*',
-    slab='double[:, :, ::1]',
-    slab_2lpt='double[:, :, ::1]',
-    slab_2lpt_ptr='double*',
-    slab_nongaussian='double[:, :, ::1]',
-    slab_ptr='double*',
-    slab_xx='double[:, :, ::1]',
-    slab_xx_ptr='double*',
-    slab_yy='double[:, :, ::1]',
-    slab_yy_arr=object,  # np.ndarray
-    slab_yy_ptr='double*',
-    slab_zz='double[:, :, ::1]',
-    slab_zz_ptr='double*',
-    variable='int',
-    velocity_factor='double',
+    tmpgrid0='double[:, :, ::1]',
+    tmpgrid0_dealias='double[:, :, ::1]',
+    tmpgrid1='double[:, :, ::1]',
+    tmpgrid1_dealias='double[:, :, ::1]',
+    Φ1='double[:, :, ::1]',
+    Φ2='double[:, :, ::1]',
+    Φ3='double[:, :, ::1]',
     returns='void',
 )
 def realize_particles(component, a):
-    options = component.realization_options
+    options = ParticleRealizationOptions(
+        component.realization_options['backscale'],
+        component.realization_options['lpt'],
+        component.realization_options['dealias'],
+        component.realization_options['nongaussianity'],
+        component.realization_options['structure'],
+    )
+    if options.lpt not in {1, 2, 3}:
+        abort(
+            f'realize_particles() called with attempted {options.lpt}LPT, '
+            f'though only 1LPT, 2LPT and 3LPT are implemented'
+        )
     if component.representation != 'particles':
         abort(f'realize_particles() called with non-particle component {component.name}')
-    if options['structure'] != 'primordial':
+    if options.structure != 'primordial':
         abort('Can only realize particles using the primordial structure')
     # Resize particle data attributes
     if component.N%nprocs != 0:
@@ -1279,27 +1280,55 @@ def realize_particles(component, a):
         # For species with varying mass, this is the mass at a = 1
         component.mass = component.ϱ_bar*boxsize**3/component.N
     # Progress print
-    backscale = options['backscale']
     masterprint(
         f'Realising {{}}{gridsize}³ particles of {component.name} {{}}...'
-        .format(f'{len(lattice)}×'*(len(lattice) > 1), 'using back-scaling '*backscale)
+        .format(f'{len(lattice)}×'*(len(lattice) > 1), 'using back-scaling '*options.backscale)
     )
     # Get growth factors if needed
-    nongaussianity = options['nongaussianity']
-    do_2lpt = (options['lpt'] > 1)
-    if backscale or nongaussianity or do_2lpt:
-        cosmoresults = compute_cosmo(class_call_reason='in order to get growth factor')
-        growth_fac_D  = cosmoresults.growth_fac_D (a)
-        growth_fac_f  = cosmoresults.growth_fac_f (a)
-        growth_fac_D2 = cosmoresults.growth_fac_D2(a)
-        growth_fac_f2 = cosmoresults.growth_fac_f2(a)
+    growth_factors = {
+        'D1': NaN,
+        'f1': NaN,
+        'D2': NaN,
+        'f2': NaN,
+        'D3a': NaN,
+        'f3a': NaN,
+        'D3b': NaN,
+        'f3b': NaN,
+        'D3c': NaN,
+        'f3c': NaN,
+    }
+    if options.backscale or options.lpt > 1:
+        cosmoresults = compute_cosmo(class_call_reason='in order to get growth factors')
+        for key in growth_factors:
+            growth_factors[key] = getattr(cosmoresults, f'growth_fac_{key}')(a)
+    # For 1LPT we need 1 potential grid and one temporary grid
+    Φ1, buffer_number = get_lpt_grid(gridsize)
+    tmpgrid0, buffer_number = get_lpt_grid(gridsize, buffer_number)
+    tmpgrid1 = tmpgrid0
+    if options.lpt >= 2:
+        # For 2LPT we need 1 additional potential grid
+        # and one additional temporary grid.
+        Φ2, buffer_number = get_lpt_grid(gridsize, buffer_number)
+        tmpgrid1, buffer_number = get_lpt_grid(gridsize, buffer_number)
+    if options.lpt >= 3:
+        # For 3LPT we need 1 additional potential grid
+        Φ3, buffer_number = get_lpt_grid(gridsize, buffer_number)
+    # If dealiasing is to be used, additionally fetch
+    # two enlarged grids for use with Orszag's 3/2 rule.
+    gridsize_dealias = gridsize
+    tmpgrid0_dealias = tmpgrid0
+    tmpgrid1_dealias = tmpgrid1
+    if options.dealias:
+        gridsize_dealias = (gridsize_dealias*3)//2
+        gridsize_dealias += gridsize_dealias & 1
+        tmpgrid0_dealias, buffer_number = get_lpt_grid(gridsize_dealias, buffer_number)
+        tmpgrid1_dealias, buffer_number = get_lpt_grid(gridsize_dealias, buffer_number)
     # Realise particles, one lattice at a time
-    fft_factor = float(gridsize)**(-3)
     n_particles = gridsize**3
     indexᵖ_bgn = 0
     id_bgn = n_particles_realized['particles_tally']
     for lattice in lattice:
-        # Initialize particles on the lattice
+        # Initialise particles on the lattice
         masterprint(
             'Initializing {}particles at lattice points ...'
             .format(
@@ -1310,112 +1339,44 @@ def realize_particles(component, a):
         )
         n_local = preinitialize_particles(component, n_particles, indexᵖ_bgn, id_bgn, lattice)
         masterprint('done')
-        # Realise positions and momenta (1LPT)
-        for variable in range(2):
-            if variable == 0:
-                if backscale:
-                    masterprint('Displacing particle positions and boosting momenta ...')
-                else:
-                    masterprint('Displacing particle positions ...')
-            elif variable == 1:
-                masterprint('Boosting particle momenta ...')
-            # Fetch δ or θ amplitudes. Note that the displacement field
-            # has a sign difference relative to direct realisation of δ.
-            factor = 2*variable - 1
-            amplitudes = get_amplitudes(gridsize, component, a, variable=variable, factor=factor)
-            # Displace positions or boost velocities
-            # using the Zel'dovich approximation.
-            for dim in range(3):
-                slab = realize_grid(gridsize, component, a, amplitudes, 1, dim, lattice)
-                displace_particles(component, slab, a, indexᵖ_bgn, variable, dim)
-                if backscale:
-                    # Assign momenta using the displacement field
-                    # if using back-scaling.
-                    velocity_factor = a*hubble(a)*growth_fac_f
-                    displace_particles(component, slab, a, indexᵖ_bgn, 1, dim, velocity_factor)
+        # Regardless of LPT order, the first step is
+        # to carry out 1LPT (the Zel'dovich approximation).
+        masterprint('Carrying out 1LPT ...')
+        carryout_1lpt(
+            component, lattice, gridsize, options, a, growth_factors, indexᵖ_bgn,
+            Φ1,
+            tmpgrid0, tmpgrid1,
+        )
+        masterprint('done')
+        # We now have Φ1 in Fourier space
+        notes = {}  # for keeping track of temporary grid contents
+        if options.lpt >= 2:
+            # Carry out 2LPT
+            masterprint('Carrying out 2LPT ...')
+            carryout_2lpt(
+                component, a, growth_factors, indexᵖ_bgn,
+                Φ1, Φ2, tmpgrid0, tmpgrid0_dealias, tmpgrid1, tmpgrid1_dealias, notes,
+            )
             masterprint('done')
-            # Done with both positions and momenta if using back-scaling
-            if backscale:
-                break
-        # Add non-Gaussian contributions to positions and momenta
-        if nongaussianity:
-            masterprint(
-                'Displacing particle positions and boosting momenta '
-                '(local non-Gaussianity) ...'
+            # We now have Φ1 and Φ2 in Fourier space
+        if options.lpt >= 3:
+            masterprint('Carrying out 3LPT ...')
+            # Carry out 3LPT ('a' term)
+            carryout_3lpt_a(
+                component, a, growth_factors, indexᵖ_bgn,
+                Φ1, Φ3, tmpgrid0, tmpgrid0_dealias, tmpgrid1, tmpgrid1_dealias, notes,
             )
-            # Fetch δ amplitudes
-            factor = -1
-            amplitudes = get_amplitudes(gridsize, component, a, variable=0, factor=factor)
-            # Create purely non-Gaussian δ grid. The sign aplied to the
-            # Gaussian displacement field is applied here as well.
-            slab = realize_grid(
-                gridsize, component, a, amplitudes, 0,
-                lattice=lattice, nongaussianity=factor*nongaussianity,
+            # Carry out 3LPT ('b' term)
+            carryout_3lpt_b(
+                component, a, growth_factors, indexᵖ_bgn,
+                Φ1, Φ2, Φ3, tmpgrid0, tmpgrid0_dealias, tmpgrid1, tmpgrid1_dealias, notes,
             )
-            # Transform to Fourier space
-            fft(slab, 'forward')
-            slab_nongaussian = asarray(slab).copy()
-            # Displace positions and boost velocities
-            amplitude = fft_factor
-            velocity_factor = a*hubble(a)*growth_fac_f
-            for dim in range(3):
-                slab = realize_grid(
-                    gridsize, component, a, amplitude, 1, dim, lattice,
-                    slab_structure=slab_nongaussian,
+            # Carry out 3LPT ('c' term)
+            for i in range(3):
+                carryout_3lpt_c(
+                    component, a, growth_factors, indexᵖ_bgn,
+                    Φ1, Φ2, Φ3, i, tmpgrid0, tmpgrid0_dealias, tmpgrid1, tmpgrid1_dealias, notes,
                 )
-                displace_particles(component, slab, a, indexᵖ_bgn, 0, dim)
-                displace_particles(component, slab, a, indexᵖ_bgn, 1, dim, velocity_factor)
-            masterprint('done')
-        # Add second-order (2LPT) contributions to positions and momenta
-        if do_2lpt:
-            masterprint('Displacing particle positions and boosting momenta (2LPT) ...')
-            # Fetch δ amplitudes
-            amplitudes = get_amplitudes(gridsize, component, a, variable=0, factor=-1)
-            # Create ψ_xx (= ∂ₓψₓ), ψ_yy, ψ_zz
-            slab_xx = asarray(
-                realize_grid(gridsize, component, a, amplitudes, 1, 0, lattice, 0)
-            ).copy()
-            slab_yy = slab_yy_arr = asarray(
-                realize_grid(gridsize, component, a, amplitudes, 1, 1, lattice, 1)
-            ).copy()
-            slab_zz = (
-                realize_grid(gridsize, component, a, amplitudes, 1, 2, lattice, 2)
-            )
-            slab_xx_ptr = cython.address(slab_xx[:, :, :])
-            slab_yy_ptr = cython.address(slab_yy[:, :, :])
-            slab_zz_ptr = cython.address(slab_zz[:, :, :])
-            # Create 2LPT source
-            #   + ψ_xx*ψ_yy + ψ_yy*ψ_zz + ψ_zz*ψ_xx
-            #   - ψ_xy**2   - ψ_yz**2   - ψ_zx**2
-            slab_2lpt_ptr = slab_xx_ptr
-            for index in range(slab_xx.shape[0]*slab_xx.shape[1]*slab_xx.shape[2]):
-                slab_2lpt_ptr[index] *= slab_yy_ptr[index] + slab_zz_ptr[index]
-                slab_2lpt_ptr[index] += slab_yy_ptr[index] * slab_zz_ptr[index]
-            slab_yy_arr.resize(0, refcheck=False)
-            for dim0 in range(3):
-                dim1 = (dim0 + 1)%3
-                slab = realize_grid(gridsize, component, a, amplitudes, 1, dim0, lattice, dim1)
-                slab_ptr = cython.address(slab[:, :, :])
-                for index in range(slab.shape[0]*slab.shape[1]*slab.shape[2]):
-                    with unswitch(1):
-                        if dim0 < 2:
-                            slab_2lpt_ptr[index] -= slab_ptr[index]**2
-                        else:
-                            slab_ptr[index] = slab_2lpt_ptr[index] - slab_ptr[index]**2
-            # Transform the completed 2LPT source to Fourier space
-            fft(slab, 'forward')
-            slab_2lpt = asarray(slab).copy()
-            slab_2lpt_ptr = cython.address(slab_2lpt[:, :, :])
-            # Displace positions and boost velocities
-            amplitude = fft_factor*growth_fac_D2/growth_fac_D**2
-            velocity_factor = a*hubble(a)*growth_fac_f2
-            for dim in range(3):
-                slab = realize_grid(
-                    gridsize, component, a, amplitude, 1, dim, lattice,
-                    slab_structure=slab_2lpt,
-                )
-                displace_particles(component, slab, a, indexᵖ_bgn, 0, dim)
-                displace_particles(component, slab, a, indexᵖ_bgn, 1, dim, velocity_factor)
             masterprint('done')
         # Prepare for next lattice
         id_bgn += n_particles
@@ -1423,6 +1384,13 @@ def realize_particles(component, a):
     # Done realising particles
     n_particles_realized['particles_tally'] = id_bgn
     n_particles_realized['components_tally'] += 1
+    # Free the memory used for the potential and temporary grids
+    for _ in range(len(lpt_grids_info)):
+        buffer_gridsize, buffer_name = lpt_grids_info.pop()
+        if buffer_name is None:
+            lpt_grids_info.appendleft((buffer_gridsize, buffer_name))
+        else:
+            free_fftw_slab(buffer_gridsize, buffer_name)
     # Ensure toroidal boundaries and exchange
     # particles among the processes.
     pos = component.pos
@@ -1430,6 +1398,10 @@ def realize_particles(component, a):
         pos[indexʳ] = mod(pos[indexʳ], boxsize)
     exchange(component)
     masterprint('done')
+ParticleRealizationOptions = collections.namedtuple(
+    'ParticleRealizationOptions',
+    ['backscale', 'lpt', 'dealias', 'nongaussianity', 'structure'],
+)
 # Record updated by the realize_particles() function
 cython.declare(n_particles_realized=dict)
 n_particles_realized = {
@@ -1437,6 +1409,698 @@ n_particles_realized = {
     'components_total': 0,
     'particles_tally': 0
 }
+
+# Helper function for realize_particles()
+def get_lpt_grid(gridsize, buffer_name=None):
+    grid = get_fftw_slab(gridsize, buffer_name)
+    if (gridsize, buffer_name) not in lpt_grids_info:
+        lpt_grids_info.append((gridsize, buffer_name))
+    if buffer_name is None:
+        buffer_name = 0
+    else:
+        buffer_name += 1
+    return grid, buffer_name
+lpt_grids_info = collections.deque()
+
+# Function for carrying out 1LPT particle realization
+@cython.header(
+    # Arguments
+    component='Component',
+    lattice='Lattice',
+    gridsize='Py_ssize_t',
+    options=object,  # ParticleRealizationOptions
+    a='double',
+    growth_factors=dict,
+    indexᵖ_bgn='Py_ssize_t',
+    Φ1='double[:, :, ::1]',
+    tmpgrid0='double[:, :, ::1]',
+    tmpgrid1='double[:, :, ::1]',
+    # Locals
+    amplitudes='double[::1]',
+    i='int',
+    noise='double[:, :, ::1]',
+    variable='int',
+    velocity_factor='double',
+    Ψ1ᵢ='double[:, :, ::1]',
+    returns='void',
+)
+def carryout_1lpt(
+    component, lattice, gridsize, options, a, growth_factors, indexᵖ_bgn,
+    Φ1,
+    tmpgrid0, tmpgrid1,
+):
+    """For 1LPT we need a grid for Φ1 and at least 1 temporary grid.
+    If an additional temporary grid is provided, this will be used to
+    store the primordial noise, as otherwise we need to generate
+    this twice. Once this function returns, the Φ1 potential will be
+    populated in k space.
+    """
+    velocity_factor = a*hubble(a)*growth_factors['f1']
+    # The 1LPT potential looks like
+    #   ∇²Φ⁽¹⁾ = -δ
+    noise = None
+    for variable in range(1 - options.backscale, -1, -1):  # first θ, then δ
+        if options.backscale:
+            masterprint('Building potential ...')
+        else:
+            masterprint(
+                'Building potential ({}) ...'
+                .format(['positions', 'velocities'][variable])
+            )
+        # Get the ampliudes from linear theory
+        amplitudes = get_amplitudes(
+            gridsize, component, a, variable=variable,
+        )
+        # Generate the primordial noise. If we only have a single
+        # temporary grid, we will need to regenerate this in the next
+        # iteration as well.
+        if noise is None or np.shares_memory(tmpgrid0, tmpgrid1):
+            noise = get_slab_structure(
+                gridsize, component, a, 0,
+                buffer_or_buffer_name=tmpgrid0,
+            )
+        # Create potential
+        laplacian_inverse(
+            realize_grid(
+                gridsize, component, a, amplitudes, 0, Φ1,
+                lattice=lattice,
+                slab_structure=noise,
+                # Note that the particle velocities are currently
+                # unaffected by the non-Gaussianity.
+                nongaussianity=(options.nongaussianity*(variable == 0)),
+                output_space='Fourier',
+            ),
+            factor=(2*variable - 1),
+        )
+        masterprint('done')
+        # Construct displacement field from potential,
+        # displace positions and/or boost velocities.
+        if options.backscale:
+            masterprint('Displacing positions and boosting momenta ...')
+        elif variable == 0:
+            masterprint('Displacing positions ...')
+        elif variable == 1:
+            masterprint('Boosting velocities ...')
+        for i in range(3):
+            Ψ1ᵢ = diff_ifft(Φ1, tmpgrid1, tmpgrid1, i)
+            displace_particles(component, Ψ1ᵢ, a, indexᵖ_bgn, variable, i)
+            if options.backscale:
+                displace_particles(component, Ψ1ᵢ, a, indexᵖ_bgn, 1, i, velocity_factor)
+        masterprint('done')
+
+# Function for carrying out 2LPT particle realization
+@cython.header(
+    # Arguments
+    component='Component',
+    a='double',
+    growth_factors=dict,
+    indexᵖ_bgn='Py_ssize_t',
+    Φ1='double[:, :, ::1]',
+    Φ2='double[:, :, ::1]',
+    tmpgrid0='double[:, :, ::1]',
+    tmpgrid0_dealias='double[:, :, ::1]',
+    tmpgrid1='double[:, :, ::1]',
+    tmpgrid1_dealias='double[:, :, ::1]',
+    # Locals
+    dealias='bint',
+    fft_factor='double',
+    grids=dict,
+    gridsize='Py_ssize_t',
+    gridsize_dealias='Py_ssize_t',
+    i='int',
+    notes=dict,
+    potential_factor='double',
+    tmpgrid='double[:, :, ::1]',
+    tmpgrid_name=str,
+    velocity_factor='double',
+    Ψ2ᵢ='double[:, :, ::1]',
+    returns='void',
+)
+def carryout_2lpt(
+    component, a, growth_factors, indexᵖ_bgn,
+    Φ1, Φ2, tmpgrid0, tmpgrid0_dealias, tmpgrid1, tmpgrid1_dealias, notes,
+):
+    """For 2LPT we need the pre-computed Φ1 and 2 temporary grids.
+    Once this function returns, the Φ2 potential
+    will be populated in k space.
+    """
+    gridsize = tmpgrid0.shape[1]
+    gridsize_dealias = tmpgrid0_dealias.shape[1]
+    dealias = (gridsize_dealias > gridsize)
+    fft_factor = float(gridsize_dealias)**(-3)
+    potential_factor = fft_factor*growth_factors['D2']/growth_factors['D1']**2
+    velocity_factor = a*hubble(a)*growth_factors['f2']
+    # The 2LPT potential looks like
+    #   ∇²Φ⁽²⁾ = D⁽²⁾/(D⁽¹⁾)² (
+    #       - Φ⁽¹⁾,₀₀ Φ⁽¹⁾,₁₁
+    #       - Φ⁽¹⁾,₁₁ Φ⁽¹⁾,₂₂
+    #       - Φ⁽¹⁾,₂₂ Φ⁽¹⁾,₀₀
+    #       + Φ⁽¹⁾,₀₁²
+    #       + Φ⁽¹⁾,₁₂²
+    #       + Φ⁽¹⁾,₂₀²
+    #   )
+    # where all growth factors are taken to be positive.
+    grids = {
+        'Φ⁽¹⁾': Φ1,
+        'Φ⁽²⁾': Φ2,
+        'tmp0': (tmpgrid0, tmpgrid0_dealias),
+        'tmp1': (tmpgrid1, tmpgrid1_dealias),
+    }
+    masterprint('Building potential ...')
+    handle_lpt_term('Φ⁽²⁾  = Φ⁽¹⁾,₀₀ Φ⁽¹⁾,₁₁', grids, notes, factor=-1)
+    handle_lpt_term('Φ⁽²⁾ -= Φ⁽¹⁾,₁₁ Φ⁽¹⁾,₂₂', grids, notes)
+    handle_lpt_term('Φ⁽²⁾ -= Φ⁽¹⁾,₂₂ Φ⁽¹⁾,₀₀', grids, notes)
+    handle_lpt_term('Φ⁽²⁾ += Φ⁽¹⁾,₀₁²',        grids, notes)
+    handle_lpt_term('Φ⁽²⁾ += Φ⁽¹⁾,₁₂²',        grids, notes)
+    handle_lpt_term('Φ⁽²⁾ += Φ⁽¹⁾,₂₀²',        grids, notes)
+    if not dealias:
+        fft(Φ2, 'forward')
+    laplacian_inverse(Φ2, potential_factor)
+    masterprint('done')
+    # Construct displacement field from potential,
+    # displace and boost particles.
+    masterprint('Displacing positions and boosting momenta ...')
+    tmpgrid_name, tmpgrid, _ = get_tmpgrid(grids)
+    notes.pop(tmpgrid_name, None)
+    for i in range(3):
+        Ψ2ᵢ = diff_ifft(Φ2, tmpgrid, tmpgrid, i)
+        displace_particles(component, Ψ2ᵢ, a, indexᵖ_bgn, 0, i)
+        displace_particles(component, Ψ2ᵢ, a, indexᵖ_bgn, 1, i, velocity_factor)
+    masterprint('done')
+
+# Function for carrying out 3LPT ('a' term only) particle realization
+@cython.header(
+    # Arguments
+    component='Component',
+    a='double',
+    growth_factors=dict,
+    indexᵖ_bgn='Py_ssize_t',
+    Φ1='double[:, :, ::1]',
+    Φ3a='double[:, :, ::1]',
+    tmpgrid0='double[:, :, ::1]',
+    tmpgrid0_dealias='double[:, :, ::1]',
+    tmpgrid1='double[:, :, ::1]',
+    tmpgrid1_dealias='double[:, :, ::1]',
+    notes=dict,
+    # Locals
+    dealias='bint',
+    fft_factor='double',
+    grids=dict,
+    gridsize='Py_ssize_t',
+    gridsize_dealias='Py_ssize_t',
+    i='int',
+    potential_factor='double',
+    tmpgrid='double[:, :, ::1]',
+    tmpgrid_name=str,
+    velocity_factor='double',
+    Ψ3aᵢ='double[:, :, ::1]',
+    returns='void',
+)
+def carryout_3lpt_a(
+    component, a, growth_factors, indexᵖ_bgn,
+    Φ1, Φ3a, tmpgrid0, tmpgrid0_dealias, tmpgrid1, tmpgrid1_dealias, notes,
+):
+    """For 3LPT ('a' term) we need the pre-computed Φ⁽¹⁾
+    and 2 temporary grids.
+    """
+    gridsize = tmpgrid0.shape[1]
+    gridsize_dealias = tmpgrid0_dealias.shape[1]
+    dealias = (gridsize_dealias > gridsize)
+    fft_factor = float(gridsize_dealias)**(-3)
+    potential_factor = fft_factor*growth_factors['D3a']/growth_factors['D1']**3
+    velocity_factor = a*hubble(a)*growth_factors['f3a']
+    # The 3LPT (a) potential looks like
+    #   ∇²Φ⁽³ᵃ⁾ = D⁽³ᵃ⁾/(D⁽¹⁾)³ (
+    #       + Φ⁽¹⁾,₂₀² Φ⁽¹⁾,₁₁
+    #       - Φ⁽¹⁾,₁₁ Φ⁽¹⁾,₂₂ Φ⁽¹⁾,₀₀
+    #       + Φ⁽¹⁾,₀₀ Φ⁽¹⁾,₁₂²
+    #       - 2 Φ⁽¹⁾,₁₂ Φ⁽¹⁾,₂₀ Φ⁽¹⁾,₀₁
+    #       + Φ⁽¹⁾,₀₁² Φ⁽¹⁾,₂₂
+    #   )
+    # where all growth factors are taken to be positive.
+    grids = {
+        'Φ⁽¹⁾': Φ1,
+        'Φ⁽³ᵃ⁾': Φ3a,
+        'tmp0': (tmpgrid0, tmpgrid0_dealias),
+        'tmp1': (tmpgrid1, tmpgrid1_dealias),
+    }
+    masterprint('Building potential (a) ...')
+    handle_lpt_term('Φ⁽³ᵃ⁾  = Φ⁽¹⁾,₂₀² Φ⁽¹⁾,₁₁',        grids, notes)
+    handle_lpt_term('Φ⁽³ᵃ⁾ -= Φ⁽¹⁾,₁₁ Φ⁽¹⁾,₂₂ Φ⁽¹⁾,₀₀', grids, notes)
+    handle_lpt_term('Φ⁽³ᵃ⁾ += Φ⁽¹⁾,₀₀ Φ⁽¹⁾,₁₂²',        grids, notes)
+    handle_lpt_term('Φ⁽³ᵃ⁾ -= Φ⁽¹⁾,₁₂ Φ⁽¹⁾,₂₀ Φ⁽¹⁾,₀₁', grids, notes, factor=2)
+    handle_lpt_term('Φ⁽³ᵃ⁾ += Φ⁽¹⁾,₀₁² Φ⁽¹⁾,₂₂',        grids, notes)
+    if not dealias:
+        fft(Φ3a, 'forward')
+    laplacian_inverse(Φ3a, potential_factor)
+    masterprint('done')
+    # Construct displacement field from potential,
+    # displace and boost particles.
+    masterprint('Displacing positions and boosting momenta ...')
+    tmpgrid_name, tmpgrid, _ = get_tmpgrid(grids)
+    notes.pop(tmpgrid_name, None)
+    for i in range(3):
+        Ψ3aᵢ = diff_ifft(Φ3a, tmpgrid, tmpgrid, i)
+        displace_particles(component, Ψ3aᵢ, a, indexᵖ_bgn, 0, i)
+        displace_particles(component, Ψ3aᵢ, a, indexᵖ_bgn, 1, i, velocity_factor)
+    masterprint('done')
+
+# Function for carrying out 3LPT ('b' term only) particle realization
+@cython.header(
+    # Arguments
+    component='Component',
+    a='double',
+    growth_factors=dict,
+    indexᵖ_bgn='Py_ssize_t',
+    Φ1='double[:, :, ::1]',
+    Φ2='double[:, :, ::1]',
+    Φ3b='double[:, :, ::1]',
+    tmpgrid0='double[:, :, ::1]',
+    tmpgrid0_dealias='double[:, :, ::1]',
+    tmpgrid1='double[:, :, ::1]',
+    tmpgrid1_dealias='double[:, :, ::1]',
+    notes=dict,
+    # Locals
+    dealias='bint',
+    fft_factor='double',
+    grids=dict,
+    gridsize='Py_ssize_t',
+    gridsize_dealias='Py_ssize_t',
+    i='int',
+    potential_factor='double',
+    tmpgrid='double[:, :, ::1]',
+    tmpgrid_name=str,
+    velocity_factor='double',
+    Ψ3bᵢ='double[:, :, ::1]',
+    returns='void',
+)
+def carryout_3lpt_b(
+    component, a, growth_factors, indexᵖ_bgn,
+    Φ1, Φ2, Φ3b, tmpgrid0, tmpgrid0_dealias, tmpgrid1, tmpgrid1_dealias, notes,
+):
+    """For 3LPT ('b' term) we need the pre-computed Φ⁽¹⁾ and Φ⁽²⁾
+    and 2 temporary grids.
+    """
+    gridsize = tmpgrid0.shape[1]
+    gridsize_dealias = tmpgrid0_dealias.shape[1]
+    dealias = (gridsize_dealias > gridsize)
+    fft_factor = float(gridsize_dealias)**(-3)
+    potential_factor = fft_factor*growth_factors['D3b']/(growth_factors['D1']*growth_factors['D2'])
+    velocity_factor = a*hubble(a)*growth_factors['f3b']
+    # The 3LPT (b) potential looks like
+    #   ∇²Φ⁽³ᵇ⁾ = D⁽³ᵇ⁾/(D⁽¹⁾D⁽²⁾) (
+    #       - ½ Φ⁽¹⁾,₂₂ Φ⁽²⁾,₀₀
+    #       - ½ Φ⁽²⁾,₀₀ Φ⁽¹⁾,₁₁
+    #       - ½ Φ⁽¹⁾,₁₁ Φ⁽²⁾,₂₂
+    #       - ½ Φ⁽²⁾,₂₂ Φ⁽¹⁾,₀₀
+    #       - ½ Φ⁽¹⁾,₀₀ Φ⁽²⁾,₁₁
+    #       - ½ Φ⁽²⁾,₁₁ Φ⁽¹⁾,₂₂
+    #       + Φ⁽²⁾,₂₀ Φ⁽¹⁾,₂₀
+    #       + Φ⁽²⁾,₀₁ Φ⁽¹⁾,₀₁
+    #       + Φ⁽²⁾,₁₂ Φ⁽¹⁾,₁₂
+    #   )
+    # where all growth factors are taken to be positive.
+    grids = {
+        'Φ⁽¹⁾': Φ1,
+        'Φ⁽²⁾': Φ2,
+        'Φ⁽³ᵇ⁾': Φ3b,
+        'tmp0': (tmpgrid0, tmpgrid0_dealias),
+        'tmp1': (tmpgrid1, tmpgrid1_dealias),
+    }
+    masterprint('Building potential (b) ...')
+    handle_lpt_term('Φ⁽³ᵇ⁾  = Φ⁽¹⁾,₂₂ Φ⁽²⁾,₀₀', grids, notes, factor=-0.5)
+    handle_lpt_term('Φ⁽³ᵇ⁾ -= Φ⁽²⁾,₀₀ Φ⁽¹⁾,₁₁', grids, notes, factor=0.5)
+    handle_lpt_term('Φ⁽³ᵇ⁾ -= Φ⁽¹⁾,₁₁ Φ⁽²⁾,₂₂', grids, notes, factor=0.5)
+    handle_lpt_term('Φ⁽³ᵇ⁾ -= Φ⁽²⁾,₂₂ Φ⁽¹⁾,₀₀', grids, notes, factor=0.5)
+    handle_lpt_term('Φ⁽³ᵇ⁾ -= Φ⁽¹⁾,₀₀ Φ⁽²⁾,₁₁', grids, notes, factor=0.5)
+    handle_lpt_term('Φ⁽³ᵇ⁾ -= Φ⁽²⁾,₁₁ Φ⁽¹⁾,₂₂', grids, notes, factor=0.5)
+    handle_lpt_term('Φ⁽³ᵇ⁾ += Φ⁽²⁾,₂₀ Φ⁽¹⁾,₂₀', grids, notes)
+    handle_lpt_term('Φ⁽³ᵇ⁾ += Φ⁽²⁾,₀₁ Φ⁽¹⁾,₀₁', grids, notes)
+    handle_lpt_term('Φ⁽³ᵇ⁾ += Φ⁽²⁾,₁₂ Φ⁽¹⁾,₁₂', grids, notes)
+    if not dealias:
+        fft(Φ3b, 'forward')
+    laplacian_inverse(Φ3b, potential_factor)
+    masterprint('done')
+    # Construct displacement field from potential,
+    # displace and boost particles.
+    masterprint('Displacing positions and boosting momenta ...')
+    tmpgrid_name, tmpgrid, _ = get_tmpgrid(grids)
+    notes.pop(tmpgrid_name, None)
+    for i in range(3):
+        Ψ3bᵢ = diff_ifft(Φ3b, tmpgrid, tmpgrid, i)
+        displace_particles(component, Ψ3bᵢ, a, indexᵖ_bgn, 0, i)
+        displace_particles(component, Ψ3bᵢ, a, indexᵖ_bgn, 1, i, velocity_factor)
+    masterprint('done')
+
+# Function for carrying out 3LPT ('c' term only; A3ᵢ)
+# particle realization.
+@cython.header(
+    # Arguments
+    component='Component',
+    a='double',
+    growth_factors=dict,
+    indexᵖ_bgn='Py_ssize_t',
+    Φ1='double[:, :, ::1]',
+    Φ2='double[:, :, ::1]',
+    A3cᵢ='double[:, :, ::1]',
+    i='int',
+    tmpgrid0='double[:, :, ::1]',
+    tmpgrid0_dealias='double[:, :, ::1]',
+    tmpgrid1='double[:, :, ::1]',
+    tmpgrid1_dealias='double[:, :, ::1]',
+    notes=dict,
+    # Locals
+    dealias='bint',
+    fft_factor='double',
+    grids=dict,
+    gridsize='Py_ssize_t',
+    gridsize_dealias='Py_ssize_t',
+    j='int',
+    k='int',
+    potential_factor='double',
+    sign='double',
+    tmpgrid='double[:, :, ::1]',
+    tmpgrid_name=str,
+    velocity_factor='double',
+    Ψ3cⱼ='double[:, :, ::1]',
+    returns='void',
+)
+def carryout_3lpt_c(
+    component, a, growth_factors, indexᵖ_bgn,
+    Φ1, Φ2, A3cᵢ, i, tmpgrid0, tmpgrid0_dealias, tmpgrid1, tmpgrid1_dealias, notes,
+):
+    """For 3LPT ('c' term; A3cᵢ) we need the pre-computed Φ⁽¹⁾ and Φ⁽²⁾
+    and 2 temporary grids.
+    """
+    gridsize = tmpgrid0.shape[1]
+    gridsize_dealias = tmpgrid0_dealias.shape[1]
+    dealias = (gridsize_dealias > gridsize)
+    fft_factor = float(gridsize_dealias)**(-3)
+    potential_factor = fft_factor*growth_factors['D3c']/(growth_factors['D1']*growth_factors['D2'])
+    velocity_factor = a*hubble(a)*growth_factors['f3c']
+    #   ∇²Aᵢ⁽³ᶜ⁾ = D⁽³ᶜ⁾/(D⁽¹⁾D⁽²⁾) (
+    #       + Φ⁽²⁾,ⱼⱼ Φ⁽¹⁾,ⱼₖ
+    #       - Φ⁽¹⁾,ⱼₖ Φ⁽²⁾,ₖₖ
+    #       - Φ⁽¹⁾,ᵢⱼ Φ⁽²⁾,ᵢₖ
+    #       - Φ⁽¹⁾,ⱼⱼ Φ⁽²⁾,ⱼₖ
+    #       + Φ⁽²⁾,ⱼₖ Φ⁽¹⁾,ₖₖ
+    #       + Φ⁽²⁾,ᵢⱼ Φ⁽¹⁾,ᵢₖ
+    #   )
+    # The displacement field is
+    #   Ψ⁽³ᶜ⁾ᵢ = Aₖ,ⱼ - Aⱼ,ₖ
+    # All growth factors are taken to be positive.
+    grids = {
+        'Φ⁽¹⁾': Φ1,
+        'Φ⁽²⁾': Φ2,
+        'Aᵢ⁽³ᶜ⁾': A3cᵢ,
+        'tmp0': (tmpgrid0, tmpgrid0_dealias),
+        'tmp1': (tmpgrid1, tmpgrid1_dealias),
+    }
+    masterprint(
+        'Building potential (c, {}) ...'
+        .format(''.join(np.roll(list('xyz'), -i)[1:]))
+    )
+    j = (i + 1)%3
+    k = (i + 2)%3
+    handle_lpt_term('Aᵢ⁽³ᶜ⁾  = Φ⁽²⁾,ⱼⱼ Φ⁽¹⁾,ⱼₖ', grids, notes, i, j, k)
+    handle_lpt_term('Aᵢ⁽³ᶜ⁾ -= Φ⁽¹⁾,ⱼₖ Φ⁽²⁾,ₖₖ', grids, notes, i, j, k)
+    handle_lpt_term('Aᵢ⁽³ᶜ⁾ -= Φ⁽¹⁾,ᵢⱼ Φ⁽²⁾,ᵢₖ', grids, notes, i, j, k)
+    handle_lpt_term('Aᵢ⁽³ᶜ⁾ -= Φ⁽¹⁾,ⱼⱼ Φ⁽²⁾,ⱼₖ', grids, notes, i, j, k)
+    handle_lpt_term('Aᵢ⁽³ᶜ⁾ += Φ⁽²⁾,ⱼₖ Φ⁽¹⁾,ₖₖ', grids, notes, i, j, k)
+    handle_lpt_term('Aᵢ⁽³ᶜ⁾ += Φ⁽²⁾,ᵢⱼ Φ⁽¹⁾,ᵢₖ', grids, notes, i, j, k)
+    if not dealias:
+        fft(A3cᵢ, 'forward')
+    laplacian_inverse(A3cᵢ, potential_factor)
+    masterprint('done')
+    # Construct displacement field from potential,
+    # displace and boost particles.
+    masterprint('Displacing positions and boosting momenta ...')
+    tmpgrid_name, tmpgrid, _ = get_tmpgrid(grids)
+    notes.pop(tmpgrid_name, None)
+    for j in range(3):
+        if j == i:
+            continue
+        k = (set(range(3)) - {i, j}).pop()
+        sign = 2*(k == (j + 1)%3) - 1
+        Ψ3cⱼ = diff_ifft(A3cᵢ, tmpgrid, tmpgrid, k, factor=sign)
+        displace_particles(component, Ψ3cⱼ, a, indexᵖ_bgn, 0, j)
+        displace_particles(component, Ψ3cⱼ, a, indexᵖ_bgn, 1, j, velocity_factor)
+    masterprint('done')
+
+# Function handling each term of the full expression for an
+# LPT potential, taking in a symbolic expression,
+# parsing it and performing the grid operations.
+@cython.pheader(
+    # Arguments
+    expr=str,
+    grids=dict,
+    notes=dict,
+    i='int',
+    j='int',
+    k='int',
+    factor='double',
+    # Locals
+    assignop=str,
+    basegrid='double[:, :, ::1]',
+    basegrid_dealias='double[:, :, ::1]',
+    basegrid_dealias_ptr='double*',
+    basegrid_name=str,
+    basegrid_ptr='double*',
+    dealias='bint',
+    fft_factor='double',
+    grid='double[:, :, ::1]',
+    grid_dealias='double[:, :, ::1]',
+    gridsize='Py_ssize_t',
+    gridsize_dealias='Py_ssize_t',
+    ijk_mapping=dict,
+    index='Py_ssize_t',
+    n='int',
+    n_pot='int',
+    name=str,
+    name_reuse=str,
+    reuse='bint',
+    size='Py_ssize_t',
+    size_dealias='Py_ssize_t',
+    term=list,
+    tmpgrid='double[:, :, ::1]',
+    tmpgrid_dealias='double[:, :, ::1]',
+    tmpgrid_dealias_ptr='double*',
+    tmpgrid_name=str,
+    tmpgrid_ptr='double*',
+    Φ_in='double[:, :, ::1]',
+    Φ_out='double[:, :, ::1]',
+    Φ_out_ptr='double*',
+    returns='void',
+)
+def handle_lpt_term(expr, grids, notes, i=0, j=0, k=0, factor=1):
+    """A real-space expression like
+      Φ⁽³ᵃ⁾ = Φ⁽¹⁾,₀₀ Φ⁽¹⁾,₁₁ Φ⁽¹⁾,₂₂
+    is evaluated from the passed grids (must be in Fourier space).
+    The resulting grid will be in real space unless dealiasing is used.
+    Indices ᵢ, ⱼ and ₖ are replaced with the passed values.
+    The differentiated grids will be constructed in turn, using the
+    output and temporary grids supplied. If dealiasing is to be used,
+    we will apply it after every multiplication of a pair of grids,
+    i.e. twice for the above example. This is however only an
+    approximation; exact dealiasing is obtained from a single dealiasing
+    step but from a grid that is enlarged by a factor 2 instead of 3/2,
+    which we do no implement.
+    """
+    # Ensure Unicode input
+    expr = unicode(expr).replace(' ', '')
+    for name in list(grids):
+        grids[unicode(name)] = grids.pop(name)
+    # Parse expr
+    assignops = ['+=', '-=', '=']
+    for assignop in assignops:
+        if assignop in expr:
+            break
+    else:
+        abort(f'Invalid expression passed to handle_lpt_term(): {expr}')
+    lhs, rhs = expr.split(assignop)
+    ijk_mapping = {
+        unicode('ᵢ'): unicode_subscripts[str(i)],
+        unicode('ⱼ'): unicode_subscripts[str(j)],
+        unicode('ₖ'): unicode_subscripts[str(k)],
+    }
+    term = []
+    for pot in rhs.split(unicode('Φ'))[1:]:
+        pot = unicode('Φ') + pot
+        for n in range(10):
+            n_superscript = unicode_superscripts[str(n)]
+            if pot.endswith(n_superscript):
+                pot = pot.removesuffix(n_superscript)
+                break
+        else:
+            n = 1
+        pot, diff = pot.split(',')  # assumes diff in all sub-expressions
+        pot = (pot, ) + tuple(sorted([
+            int(unicode_subscripts_inv[ijk_mapping.get(s, s)])
+            for s in diff
+        ]))
+        term += [pot]*n
+    n_pot = len(term)
+    if n_pot < 2:
+        abort(f'handle_lpt_term() got expr = "{expr}" containing {n_pot} < 2 potentials')
+    # General grid information
+    grid, grid_dealias = grids['tmp0']
+    size = grid.shape[0]*grid.shape[1]*grid.shape[2]
+    size_dealias = grid_dealias.shape[0]*grid_dealias.shape[1]*grid_dealias.shape[2]
+    gridsize = grid.shape[1]
+    gridsize_dealias = grid_dealias.shape[1]
+    dealias = gridsize_dealias > gridsize
+    # If dealiasing is to be performed, we so so after every grid
+    # multiplication, of which there are (n_pot - 1). The last one is
+    # handled specially, as we simultaneously shrink the grid.
+    # The remaining (n_pot - 2) comed with an fft_factor.
+    if dealias:
+        fft_factor = float(gridsize_dealias)**(-3)
+        factor *= fft_factor**(n_pot - 2)
+    # Get output grid in which to accumulate the evaluated term
+    Φ_out = grids[lhs]
+    Φ_out_ptr = cython.address(Φ_out[:, :, :])
+    # We want to reuse grids from previous calls as much as possible.
+    # The current contents of the temporary grids are written down in
+    # the notes. If the first grid needed is present amongst the
+    # temporary grids, reuse that. If not, and the second (unique) grid
+    # is present, reuse that. Swap the order of grids accordingly.
+    pots_unique = []
+    for pot in term:
+        if pot not in pots_unique:
+            pots_unique.append(pot)
+    for n, pot in enumerate(pots_unique[:2]):
+        if pot not in notes.values():
+            continue
+        for name_reuse in notes:
+            if notes[name_reuse] == pot:
+                # If this is the first potential, place the reusable
+                # grid in the front (will be used as base grid). If not,
+                # place the reusable grid in the back (will be used as
+                # emporary grid).
+                for name in list(grids):
+                    if (n == 0 and name != name_reuse) or (n != 0 and name == name_reuse):
+                        grids[name] = grids.pop(name)
+                break
+        break
+    # Obtain the first occuring potential within the expression,
+    # differentiated as needed. This will be stored in the base grid.
+    basegrid_name, basegrid, basegrid_dealias = get_tmpgrid(grids)
+    basegrid_ptr = cython.address(basegrid[:, :, :])
+    basegrid_dealias_ptr = cython.address(basegrid_dealias[:, :, :])
+    pot = term[0]
+    Φ_in, i, j = expand_pot(pot, grids)
+    if notes.get(basegrid_name) != pot:
+        diff_ifft(Φ_in, basegrid, basegrid_dealias, i, j)
+    else:
+        # Reuse base grid as is
+        pass
+    notes.pop(basegrid_name, None)
+    # Obtain grid for temporary storage
+    tmpgrid_name, tmpgrid, tmpgrid_dealias = get_tmpgrid(grids)
+    tmpgrid_ptr = cython.address(tmpgrid[:, :, :])
+    tmpgrid_dealias_ptr = cython.address(tmpgrid_dealias[:, :, :])
+    # Multiply remaining grids into base grid
+    for n, pot in enumerate(term[1:], 1):
+        # Obtain the next grid
+        if n == 1 and pot == term[0]:
+            # Squared sub-expression at the beginning.
+            # Copy base grid into temporary grid. We could avoid this
+            # copying, but doing so allows later reusage.
+            tmpgrid_dealias[...] = basegrid_dealias
+        elif notes.get(tmpgrid_name) != pot:
+            # Construct grid
+            Φ_in, i, j = expand_pot(pot, grids)
+            diff_ifft(Φ_in, tmpgrid, tmpgrid_dealias, i, j)
+        else:
+            # Reuse temporary grid as is
+            pass
+        # Note down the contents of the temporary grid
+        notes[tmpgrid_name] = pot
+        # Multiply into base grid
+        for index in range(size_dealias):
+            basegrid_dealias_ptr[index] *= tmpgrid_dealias_ptr[index]
+        # Perform explicit dealiasing if not at the last potential
+        if dealias and n < n_pot - 1:
+            fft(basegrid_dealias, 'forward')
+            nullify_modes(basegrid_dealias, f'beyond cube of |k| < {gridsize//2}')
+            fft(basegrid_dealias, 'backward')
+    # Shrink the base grid if using dealiasing
+    # (counts as the last dealiasing).
+    if dealias:
+        fft(basegrid_dealias, 'forward')
+        resize_grid(
+            basegrid_dealias, gridsize, 'fourier',
+            output_slab_or_buffer_name=basegrid,
+        )
+        # Note that we stay in Fourier space
+    # Move constructed term from base grid
+    # to output grid and apply factor.
+    for index in range(size):
+        with unswitch:
+            if assignop == '=':
+                with unswitch:
+                    if factor == 1:
+                        Φ_out_ptr[index] = basegrid_ptr[index]
+                    else:
+                        Φ_out_ptr[index] = factor*basegrid_ptr[index]
+            elif assignop == '+=':
+                with unswitch:
+                    if factor == 1:
+                        Φ_out_ptr[index] += basegrid_ptr[index]
+                    else:
+                        Φ_out_ptr[index] += factor*basegrid_ptr[index]
+            elif assignop == '-=':
+                with unswitch:
+                    if factor == 1:
+                        Φ_out_ptr[index] -= basegrid_ptr[index]
+                    else:
+                        Φ_out_ptr[index] -= factor*basegrid_ptr[index]
+# Helper functions for handle_lpt_term(()
+def expand_pot(pot, grids):
+    i, j = (pot + (-1, ))[1:3]
+    Φ_in = grids[pot[0]]
+    return Φ_in, i, j
+def get_tmpgrid(grids):
+    # Returns the first tmpgrid inside the grids dict.
+    # This grid will be moved to the end, so that the
+    # tmpgrids are being cycled through.
+    for name in grids:
+        if name.startswith('tmp'):
+            break
+    else:
+        abort('get_tmpgrid(): No temporary grids available')
+    grid, grid_dealias = grids.pop(name)
+    grids[name] = (grid, grid_dealias)
+    return name, grid, grid_dealias
+
+# Helper function for performing differentiation and inverse Fourier
+# transformation of a Fourier space slab, with enlargement for use with
+# dealiasing built-in.
+@cython.pheader(
+    # Arguments
+    Φ='double[:, :, ::1]',
+    out='double[:, :, ::1]',
+    out_dealias='double[:, :, ::1]',
+    i='int',
+    j='int',
+    factor='double',
+    # Locals
+    dealias='bint',
+    gridsize='Py_ssize_t',
+    gridsize_dealias='Py_ssize_t',
+    returns='double[:, :, ::1]',
+)
+def diff_ifft(Φ, out, out_dealias, i, j=-1, factor=1):
+    gridsize = Φ.shape[1]
+    gridsize_dealias = (gridsize if out_dealias is None else out_dealias.shape[1])
+    dealias = gridsize_dealias > gridsize
+    out = fourier_diff(Φ, i, j, slab_output=out, factor=factor)
+    if dealias:
+        # Enlarge grid
+        resize_grid(out, gridsize_dealias, 'fourier', output_slab_or_buffer_name=out_dealias)
+        out = out_dealias
+    fft(out, 'backward')
+    return out
 
 # Function for pre-initialising particles, meaning placing them at
 # lattice points, zeroing momenta and assigning IDs.
@@ -1578,25 +2242,25 @@ def preinitialize_particles(component, n_particles=-1, indexᵖ_bgn=0, id_bgn=0,
     j='Py_ssize_t',
     k='Py_ssize_t',
     mass='double',
-    ψⁱ='double[:, :, ::1]',
-    ψⁱ_ptr='double*',
+    ψᵢ='double[:, :, ::1]',
+    ψᵢ_ptr='double*',
     returns='void',
 )
 def displace_particles(component, slab, a, indexᵖ_bgn, variable, dim, factor=1):
     if component.representation != 'particles':
         abort(f'displace_particles() called with non-particle component {component.name}')
     # Domain-decompose realised real-space grid.
-    # This is either the displacement field ψⁱ or the velocity field uⁱ.
-    ψⁱ = domain_decompose(slab, buffer_names['displacements'])
-    ψⁱ_ptr = cython.address(ψⁱ[:, :, :])
+    # This is either the displacement field ψᵢ or the velocity field uᵢ.
+    ψᵢ = domain_decompose(slab)
+    ψᵢ_ptr = cython.address(ψᵢ[:, :, :])
     # Grab particle data array in accordance with the passed variable.
     # Also adapt the factor by which the grid values should
     # be multiplied before added to the particle data.
     if variable == 0:
-        # Positions, Δxⁱ = ψⁱ
+        # Positions, Δxᵢ = ψᵢ
         data = component.pos
     elif variable == 1:
-        # Momenta; momⁱ = a*m*uⁱ.
+        # Momenta; momᵢ = a*m*uᵢ.
         # The current mass is the set mass (always defined a = 1),
         # scaled according to w_eff(a).
         data = component.mom
@@ -1610,9 +2274,9 @@ def displace_particles(component, slab, a, indexᵖ_bgn, variable, dim, factor=1
     for index, i, j, k in domain_loop(gridsize, skip_ghosts=True):
         with unswitch:
             if factor == 1:
-                data[indexʳ] += ψⁱ_ptr[index]
+                data[indexʳ] += ψᵢ_ptr[index]
             else:
-                data[indexʳ] += factor*ψⁱ_ptr[index]
+                data[indexʳ] += factor*ψᵢ_ptr[index]
         indexʳ += 3
 
 

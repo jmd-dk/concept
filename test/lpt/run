@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+
+# This script performs a test of the LPT implementation
+# by comparing the power spectrum from 3LPT with that of 2LPT,
+# with and without aliasing. Note that since 1LPT is contained
+# within 2LPT and 3LPT, an error in 1LPT will show up as well.
+# For 3LPT, significant errors in the 3a or the 3b term will
+# be detected, but the influence on the power spectrum from the
+# 3c term is too small for this test to capture errors in this term.
+
+# Absolute path and name of the directory of this file
+this_dir="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
+this_test="$(basename "$(dirname "${this_dir}")")"
+
+# Set up error trapping
+ctrl_c() {
+    trap : 0
+    exit 2
+}
+abort() {
+    exit_code=$?
+    colorprint "An error occurred during ${this_test} test!" "red"
+    exit ${exit_code}
+}
+trap 'ctrl_c' SIGINT
+trap 'abort' EXIT
+set -e
+
+# Generate power spectra
+for lpt in 2 3; do
+    for dealias in False True; do
+        for shift in False True; do
+            "${concept}"                   \
+                -n 2                       \
+                -p "${this_dir}/param"     \
+                -c "_lpt = ${lpt}"         \
+                -c "_dealias = ${dealias}" \
+                -c "_shift = ${shift}"
+        done
+    done
+done
+
+# Analyse power spectra
+"${concept}"                    \
+    -n 1                        \
+    -p "${this_dir}/param"      \
+    -m "${this_dir}/analyze.py" \
+    --pure-python
+
+# Test ran successfully. Deactivate traps.
+trap : 0
+

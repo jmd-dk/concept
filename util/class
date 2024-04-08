@@ -226,8 +226,8 @@ special_params = {
     'modes'  : '${modes}',
 }
 # Always store these extra background quantities
-class_extra_background = {'tau', 'D', 'f', 'D2', 'f2'}
-"             \
+class_extra_background = {'tau'}
+"              \
 "
 # If explicit times are given, set a_begin to the minimum such time
 try:

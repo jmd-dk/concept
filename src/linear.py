@@ -135,14 +135,6 @@ class CosmoResults:
         # Below, the keys corresponding to the needed fields of CLASS
         # data is written as regular expressions.
         gauge = (params if params else {}).get('gauge', 'synchronous').lower()
-        # Background data that is only sometimes needed.
-        # For simplicity, we always include these.
-        background_other = {
-            r'^gr\.fac\. D$',
-            r'^gr\.fac\. f$',
-            r'^gr\.fac\. D2$',
-            r'^gr\.fac\. f2$',
-        }
         # The needed background and perturbation keys.
         # This dict needs to be an instance variable,
         # as it may be mutated by the methods.
@@ -160,8 +152,17 @@ class CosmoResults:
                 r'^\(\.\)p_',
                 # Equation of state
                 r'^\(\.\)w_',
-                # Other
-                *background_other,
+                # Growth factors and rates
+                r'^gr\.fac\. D$',
+                r'^gr\.fac\. f$',
+                r'^gr\.fac\. D2$',
+                r'^gr\.fac\. f2$',
+                r'^gr\.fac\. D3a$',
+                r'^gr\.fac\. f3a$',
+                r'^gr\.fac\. D3b$',
+                r'^gr\.fac\. f3b$',
+                r'^gr\.fac\. D3c$',
+                r'^gr\.fac\. f3c$',
             },
             # Perturbations at different k as function of time.
             # Species specific perturbations will be added later.
@@ -1034,17 +1035,22 @@ class CosmoResults:
                 'H [1/Mpc]',
                 'proper time [Gyr]',
                 'conf. time [Mpc]',
-                'gr.fac. D',
-                'gr.fac. f',
-                'gr.fac. D2',
-                'gr.fac. f2',
                 '(.)rho_crit',
                 '(.)rho_tot',
-                '(.)p_tot',
+                'gr.fac. D',
+                'gr.fac. D2',
+                'gr.fac. D3a',
+                'gr.fac. D3b',
+                'gr.fac. D3c',
             }:
                 logx, logy = True, True
             elif y in {
-                # currently empty
+                '(.)p_tot',  # goes slightly negative
+                'gr.fac. f',
+                'gr.fac. f2',
+                'gr.fac. f3a',
+                'gr.fac. f3b',
+                'gr.fac. f3c',
             }:
                 logx, logy = True, False
             elif match:
@@ -1068,16 +1074,6 @@ class CosmoResults:
                 logx = True
             if logy is None:
                 logy = True
-            negativey = False  # only relevant if logy
-            if logy:
-                if (asarray(self.background[y]) <= 0).any():
-                    # Do not use logy for non-positive y data
-                    logy = False
-                    if (asarray(self.background[y]) < 0).all():
-                        # Accept logy for purely negative y data,
-                        # but note that y is negative.
-                        logy = True
-                        negativey = True
             if unspecified:
                 masterwarn(
                     f'A spline over the unknown CLASS background variable "{y}"(a) '
@@ -1087,7 +1083,7 @@ class CosmoResults:
                 )
             spline = Spline(
                 self.background['a'], self.background[y], f'{y}(a)',
-                logx=logx, logy=logy, negativey=negativey,
+                logx=logx, logy=logy,
             )
             self._splines[y] = spline
         return spline
@@ -1156,8 +1152,8 @@ class CosmoResults:
         # As we have done no unit conversion, the ratio P_bar/ρ_bar
         # gives us the unitless w.
         return P_bar/ρ_bar
-    # Methods for looking up the growth factors D⁽¹⁾, D⁽²⁾, and
-    # corresponding growth rates f⁽¹⁾, f⁽²⁾, with f⁽ⁱ⁾= H⁻¹Ḋ⁽ⁱ⁾/D⁽ⁱ⁾.
+    # Methods for looking up the growth factors D and corresponding
+    # growth rates f, for several orders.
     @lru_cache()
     def growth_fac_D(self, a):
         if enable_class_background:
@@ -1172,6 +1168,10 @@ class CosmoResults:
         else:
             spline = temporal_splines.a_f
         return spline.eval(a)
+    def growth_fac_D1(self, a):
+        return self.growth_fac_D(a)
+    def growth_fac_f1(self, a):
+        return self.growth_fac_f(a)
     @lru_cache()
     def growth_fac_D2(self, a):
         if enable_class_background:
@@ -1185,6 +1185,48 @@ class CosmoResults:
             spline = self.splines('gr.fac. f2')
         else:
             spline = temporal_splines.a_f2
+        return spline.eval(a)
+    @lru_cache()
+    def growth_fac_D3a(self, a):
+        if enable_class_background:
+            spline = self.splines('gr.fac. D3a')
+        else:
+            spline = temporal_splines.a_D3a
+        return spline.eval(a)
+    @lru_cache()
+    def growth_fac_f3a(self, a):
+        if enable_class_background:
+            spline = self.splines('gr.fac. f3a')
+        else:
+            spline = temporal_splines.a_f3a
+        return spline.eval(a)
+    @lru_cache()
+    def growth_fac_D3b(self, a):
+        if enable_class_background:
+            spline = self.splines('gr.fac. D3b')
+        else:
+            spline = temporal_splines.a_D3b
+        return spline.eval(a)
+    @lru_cache()
+    def growth_fac_f3b(self, a):
+        if enable_class_background:
+            spline = self.splines('gr.fac. f3b')
+        else:
+            spline = temporal_splines.a_f3b
+        return spline.eval(a)
+    @lru_cache()
+    def growth_fac_D3c(self, a):
+        if enable_class_background:
+            spline = self.splines('gr.fac. D3c')
+        else:
+            spline = temporal_splines.a_D3c
+        return spline.eval(a)
+    @lru_cache()
+    def growth_fac_f3c(self, a):
+        if enable_class_background:
+            spline = self.splines('gr.fac. f3c')
+        else:
+            spline = temporal_splines.a_f3c
         return spline.eval(a)
     # Method for appending a piece of raw CLASS data to the dump file
     def save(self, element):
@@ -3176,7 +3218,7 @@ def get_treelevel_bispec(
         cosmoresults = compute_cosmo(class_call_reason='in order to get growth factor')
         growth_fac_D  = cosmoresults.growth_fac_D (a)
         growth_fac_D2 = cosmoresults.growth_fac_D2(a)
-        α = 0.5*(1 + growth_fac_D2/growth_fac_D**2)
+        α = 0.5*(1 - growth_fac_D2/growth_fac_D**2)
     # Only the master process will return the tree-level bispectrum
     if not master:
         return bpower

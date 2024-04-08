@@ -9427,30 +9427,53 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
     )
     patch_class "${class_dir}/source/perturbations.c" ${linenr} "insert" "below" "${new_lines[@]}"
     # Use proper initial conditions for the growth factor D(a) and rate
-    # f(a), implement second-order versions D2(a) and f2(a), and take
-    # dcdm and (conditionally) ncdm into account.
+    # f(a), implement second-order versions D2(a) and f2(a) as well as
+    # third-order versions D3a(a), D3b(a), D3c(a), and f3a(a), f3b(a),
+    # f3c(a), and take dcdm and (conditionally) ncdm into account.
     filename="${class_dir}/python/cclassy.pxd"
     pattern='int +index_bg_f'
-    new_lines=(                                 \
-        "# Second-order growth factor and rate" \
-        "int index_bg_D2"                       \
-        "int index_bg_f2"                       \
+    new_lines=(                                  \
+        "# Second-order growth factor and rate"  \
+        "int index_bg_D2"                        \
+        "int index_bg_f2"                        \
+        "# Third-order growth factors and rates" \
+        "int index_bg_D3a"                       \
+        "int index_bg_f3a"                       \
+        "int index_bg_D3b"                       \
+        "int index_bg_f3b"                       \
+        "int index_bg_D3c"                       \
+        "int index_bg_f3c"                       \
     )
     linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" "${filename}" | head -n 1)
     patch_class "${filename}" $((linenr + 1)) "insert" "below" "${new_lines[@]}"
     filename="${class_dir}/include/background.h"
     pattern='int +index_bg_f *;'
-    new_lines=(                                                                     \
-        "int index_bg_D2;  /**< second-order growth factor D2(a) */"                \
-        "int index_bg_f2;  /**< second-order growth rate f2(a) = [dlnD2]/[dlna] */" \
+    new_lines=(                                                                       \
+        "int index_bg_D2;   /**< second-order growth factor D2(a) */"                 \
+        "int index_bg_f2;   /**< second-order growth rate f2(a) = [dlnD2]/[dlna] */"  \
+        "int index_bg_D3a;  /**< third-order growth factor D3a(a) */"                 \
+        "int index_bg_f3a;  /**< third-order growth rate f3a(a) = [dlnD3a]/[dlna] */" \
+        "int index_bg_D3b;  /**< third-order growth factor D3b(a) */"                 \
+        "int index_bg_f3b;  /**< third-order growth rate f3b(a) = [dlnD3b]/[dlna] */" \
+        "int index_bg_D3c;  /**< third-order growth factor D3c(a) */"                 \
+        "int index_bg_f3c;  /**< third-order growth rate f3c(a) = [dlnD3c]/[dlna] */" \
     )
     linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" "${filename}" | head -n 1)
     patch_class "${filename}" $((linenr + 1)) "insert" "below" "${new_lines[@]}"
     pattern='int +index_bi_D_prime *;'
-    new_lines=(                                                                                \
-        "int index_bi_D2;        /**< {C} second-order growth factor D(a) */"                  \
-        "int index_bi_D2_prime;  /**< {C} D2 satisfies \\\\f$ D2''(\\\\tau) = -aHD'(\\\\tau) + \
-3/2 a^2 \\\\rho_M (D2(\\\\tau) - D^2(tau)) \\\\f$ */"                                          \
+    new_lines=(                                                                                     \
+        "int index_bi_D2;        /**< {C} second-order growth factor D2(a) */"                      \
+        "int index_bi_D2_prime;  /**< {C} D2 satisfies \\\\f$ D2''(\\\\tau) = -aHD2'(\\\\tau) +     \
+3/2 a^2 \\\\rho_M (D2(\\\\tau) + D^2(\\\\tau)) \\\\f$ */"                                           \
+        "int index_bi_D3a;        /**< {C} third-order growth factor D3a(a) */"                     \
+        "int index_bi_D3a_prime;  /**< {C} D3a satisfies \\\\f$ D3a''(\\\\tau) = -aHD3a'(\\\\tau) + \
+3/2 a^2 \\\\rho_M (D3a(\\\\tau) + 2D^3(\\\\tau)) \\\\f$ */"                                         \
+        "int index_bi_D3b;        /**< {C} third-order growth factor D3b(a) */"                     \
+        "int index_bi_D3b_prime;  /**< {C} D3b satisfies \\\\f$ D3b''(\\\\tau) = -aHD3b'(\\\\tau) + \
+3/2 a^2 \\\\rho_M (D3b(\\\\tau) + 2D(\\\\tau)D2(\\\\tau) + 2D^3(\\\\tau)) \\\\f$ */"                \
+        "int index_bi_D3c;        /**< {C} third-order growth factor D3c(a) */"                     \
+        "int index_bi_D3c_prime;  /**< {C} D3c satisfies \\\\f$ D3c''(\\\\tau) = -aHD3c'(\\\\tau) + \
+3/2 a^2 \\\\rho_M D^3(\\\\tau) \\\\f$ */"                                                           \
     )
     linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" "${filename}" | head -n 1)
     patch_class "${filename}" $((linenr + 1)) "insert" "below" "${new_lines[@]}"
@@ -9483,61 +9506,109 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
     linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" "${filename}" | head -n 1)
     patch_class "${filename}" ${linenr} "insert" "below" "${new_lines[@]}"
     pattern='class_define_index *\\( *pba *-> *index_bg_f *,'
-    new_lines=(                                                      \
-        "/* Second-order growth factor and rate */"                  \
-        "class_define_index(pba->index_bg_D2, _TRUE_, index_bg, 1);" \
-        "class_define_index(pba->index_bg_f2, _TRUE_, index_bg, 1);" \
+    new_lines=(                                                       \
+        "/* Second-order growth factor and rate */"                   \
+        "class_define_index(pba->index_bg_D2, _TRUE_, index_bg, 1);"  \
+        "class_define_index(pba->index_bg_f2, _TRUE_, index_bg, 1);"  \
+        "/* Third-order growth factors and rates */"                  \
+        "class_define_index(pba->index_bg_D3a, _TRUE_, index_bg, 1);" \
+        "class_define_index(pba->index_bg_f3a, _TRUE_, index_bg, 1);" \
+        "class_define_index(pba->index_bg_D3b, _TRUE_, index_bg, 1);" \
+        "class_define_index(pba->index_bg_f3b, _TRUE_, index_bg, 1);" \
+        "class_define_index(pba->index_bg_D3c, _TRUE_, index_bg, 1);" \
+        "class_define_index(pba->index_bg_f3c, _TRUE_, index_bg, 1);" \
     )
     linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" "${filename}" | head -n 1)
     patch_class "${filename}" $((linenr + 1)) "insert" "below" "${new_lines[@]}"
     pattern='class_define_index *\\( *pba *-> *index_bi_D_prime *,'
-    new_lines=(                                                            \
-        "/* -> Second order equation for second-order growth factor */"    \
-        "class_define_index(pba->index_bi_D2, _TRUE_, index_bi, 1);"       \
-        "class_define_index(pba->index_bi_D2_prime, _TRUE_, index_bi, 1);" \
+    new_lines=(                                                             \
+        "/* -> Second-order equation for second-order growth factor */"     \
+        "class_define_index(pba->index_bi_D2, _TRUE_, index_bi, 1);"        \
+        "class_define_index(pba->index_bi_D2_prime, _TRUE_, index_bi, 1);"  \
+        "/* -> Third-order equations for third-order growth factors */"     \
+        "class_define_index(pba->index_bi_D3a, _TRUE_, index_bi, 1);"       \
+        "class_define_index(pba->index_bi_D3a_prime, _TRUE_, index_bi, 1);" \
+        "class_define_index(pba->index_bi_D3b, _TRUE_, index_bi, 1);"       \
+        "class_define_index(pba->index_bi_D3b_prime, _TRUE_, index_bi, 1);" \
+        "class_define_index(pba->index_bi_D3c, _TRUE_, index_bi, 1);"       \
+        "class_define_index(pba->index_bi_D3c_prime, _TRUE_, index_bi, 1);" \
     )
     linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" "${filename}" | head -n 1)
     patch_class "${filename}" $((linenr + 1)) "insert" "below" "${new_lines[@]}"
     pattern='memcopy_result *= *memcpy *\\( *pba *-> *background_table'
-    new_lines=(                                                                                             \
-        "/* Normalise D2 by the squared factor used for D and construct f2 = D2_prime/(aHD) */"             \
-        "pvecback[pba->index_bg_D2] = pData[i*pba->bi_size + pba->index_bi_D2]/"                            \
-        "  pow(pData[(pba->bt_size - 1)*pba->bi_size + pba->index_bi_D], 2);"                               \
-        "pvecback[pba->index_bg_f2] = pData[i*pba->bi_size + pba->index_bi_D2_prime]/"                      \
-        "  (pData[i*pba->bi_size + pba->index_bi_D2]*pvecback[pba->index_bg_a]*pvecback[pba->index_bg_H]);" \
+    new_lines=(                                                                                              \
+        "/* Normalise D2 by the squared factor used for D and construct f2 = D2_prime/(aHD) */"              \
+        "pvecback[pba->index_bg_D2] = pData[i*pba->bi_size + pba->index_bi_D2]/"                             \
+        "  pow(pData[(pba->bt_size - 1)*pba->bi_size + pba->index_bi_D], 2);"                                \
+        "pvecback[pba->index_bg_f2] = pData[i*pba->bi_size + pba->index_bi_D2_prime]/"                       \
+        "  (pData[i*pba->bi_size + pba->index_bi_D2]*pvecback[pba->index_bg_a]*pvecback[pba->index_bg_H]);"  \
+        "/* Normalise D3a by the cubed factor used for D and construct f3a = D3a_prime/(aHD) */"             \
+        "pvecback[pba->index_bg_D3a] = pData[i*pba->bi_size + pba->index_bi_D3a]/"                           \
+        "  pow(pData[(pba->bt_size - 1)*pba->bi_size + pba->index_bi_D], 3);"                                \
+        "pvecback[pba->index_bg_f3a] = pData[i*pba->bi_size + pba->index_bi_D3a_prime]/"                     \
+        "  (pData[i*pba->bi_size + pba->index_bi_D3a]*pvecback[pba->index_bg_a]*pvecback[pba->index_bg_H]);" \
+        "/* Normalise D3b by the cubed factor used for D and construct f3b = D3b_prime/(aHD) */"             \
+        "pvecback[pba->index_bg_D3b] = pData[i*pba->bi_size + pba->index_bi_D3b]/"                           \
+        "  pow(pData[(pba->bt_size - 1)*pba->bi_size + pba->index_bi_D], 3);"                                \
+        "pvecback[pba->index_bg_f3b] = pData[i*pba->bi_size + pba->index_bi_D3b_prime]/"                     \
+        "  (pData[i*pba->bi_size + pba->index_bi_D3b]*pvecback[pba->index_bg_a]*pvecback[pba->index_bg_H]);" \
+        "/* Normalise D3c by the cubed factor used for D and construct f3c = D3c_prime/(aHD) */"             \
+        "pvecback[pba->index_bg_D3c] = pData[i*pba->bi_size + pba->index_bi_D3c]/"                           \
+        "  pow(pData[(pba->bt_size - 1)*pba->bi_size + pba->index_bi_D], 3);"                                \
+        "pvecback[pba->index_bg_f3c] = pData[i*pba->bi_size + pba->index_bi_D3c_prime]/"                     \
+        "  (pData[i*pba->bi_size + pba->index_bi_D3c]*pvecback[pba->index_bg_a]*pvecback[pba->index_bg_H]);" \
     )
     linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" "${filename}" | head -n 1)
     patch_class "${filename}" $((linenr - 1)) "insert" "above" "${new_lines[@]}"
     pattern='pvecback_integration *\\[ *pba *-> *index_bi_D_prime *\\] *='
-    new_lines=(                                                                                                  \
-        "/* Use proper initial conditions for the growth factors */"                                             \
-        "double Omega0_M = pba->Omega0_b;"                                                                       \
-        "if (pba->has_cdm == _TRUE_)"                                                                            \
-        "  Omega0_M += pba->Omega0_cdm;"                                                                         \
-        "if (pba->has_dcdm == _TRUE_)"                                                                           \
-        "  Omega0_M += pba->Omega_ini_dcdm;  /* take dcdm into account */"                                       \
+    new_lines=(                                                                                       \
+        "/* Use proper initial conditions for the growth factors */"                                  \
+        "double Omega0_M = pba->Omega0_b;"                                                            \
+        "if (pba->has_cdm == _TRUE_)"                                                                 \
+        "  Omega0_M += pba->Omega0_cdm;"                                                              \
+        "if (pba->has_dcdm == _TRUE_)"                                                                \
+        "  Omega0_M += pba->Omega_ini_dcdm;  /* take dcdm into account */"                            \
         "double Omega0_R_eff = pow(a/pba->a_today, 4)*pow(pvecback[pba->index_bg_H]/pba->H0, 2);  \
-/* take all relativistic species into account */"                                                                \
-        "double eps = 3./2.*Omega0_M/Omega0_R_eff*a;"                                                            \
-        "double C = 1.0;  /* arbitrary */"                                                                       \
-        "pvecback_integration[pba->index_bi_D] = C*(1. + eps + 1./4.*eps*eps);"                                  \
-        "pvecback_integration[pba->index_bi_D_prime] = C*a*pvecback[pba->index_bg_H]*(eps + 1./2.*eps*eps);"     \
-        "pvecback_integration[pba->index_bi_D2] = -C*C*(eps + 3./4.*eps*eps);"                                   \
-        "pvecback_integration[pba->index_bi_D2_prime] = -C*C*a*pvecback[pba->index_bg_H]*(eps + 3./2.*eps*eps);" \
+/* take all relativistic species into account */"                                                     \
+        "double eps = 3./2.*Omega0_M/Omega0_R_eff*a;"                                                 \
+        "double aH = a*pvecback[pba->index_bg_H];"                                                    \
+        "double C = 1.0;  /* arbitrary */"                                                            \
+        "pvecback_integration[pba->index_bi_D]         = pow(C, 1)   *(1. + 1.*eps + 1./4.*eps*eps);" \
+        "pvecback_integration[pba->index_bi_D_prime]   = pow(C, 1)*aH*(0. + 1.*eps + 1./2.*eps*eps);" \
+        "pvecback_integration[pba->index_bi_D2]        = pow(C, 2)   *(0. + 1.*eps + 3./4.*eps*eps);" \
+        "pvecback_integration[pba->index_bi_D2_prime]  = pow(C, 2)*aH*(0. + 1.*eps + 3./2.*eps*eps);" \
+        "pvecback_integration[pba->index_bi_D3a]       = pow(C, 3)   *(0. + 2.*eps + 2./1.*eps*eps);" \
+        "pvecback_integration[pba->index_bi_D3a_prime] = pow(C, 3)*aH*(0. + 2.*eps + 4./1.*eps*eps);" \
+        "pvecback_integration[pba->index_bi_D3b]       = pow(C, 3)   *(0. + 2.*eps + 5./2.*eps*eps);" \
+        "pvecback_integration[pba->index_bi_D3b_prime] = pow(C, 3)*aH*(0. + 2.*eps + 5./1.*eps*eps);" \
+        "pvecback_integration[pba->index_bi_D3c]       = pow(C, 3)   *(0. + 1.*eps + 3./4.*eps*eps);" \
+        "pvecback_integration[pba->index_bi_D3c_prime] = pow(C, 3)*aH*(0. + 1.*eps + 3./2.*eps*eps);" \
     )
     linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" "${filename}" | head -n 1)
     patch_class "${filename}" $((linenr + 1)) "insert" "below" "${new_lines[@]}"
     pattern='class_store_columntitle *\\( *titles *, *\"gr\\.fac\\. f\"'
-    new_lines=(                                                    \
-        "class_store_columntitle(titles, \"gr.fac. D2\", _TRUE_);" \
-        "class_store_columntitle(titles, \"gr.fac. f2\", _TRUE_);" \
+    new_lines=(                                                     \
+        "class_store_columntitle(titles, \"gr.fac. D2\", _TRUE_);"  \
+        "class_store_columntitle(titles, \"gr.fac. f2\", _TRUE_);"  \
+        "class_store_columntitle(titles, \"gr.fac. D3a\", _TRUE_);" \
+        "class_store_columntitle(titles, \"gr.fac. f3a\", _TRUE_);" \
+        "class_store_columntitle(titles, \"gr.fac. D3b\", _TRUE_);" \
+        "class_store_columntitle(titles, \"gr.fac. f3b\", _TRUE_);" \
+        "class_store_columntitle(titles, \"gr.fac. D3c\", _TRUE_);" \
+        "class_store_columntitle(titles, \"gr.fac. f3c\", _TRUE_);" \
     )
     linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" "${filename}" | head -n 1)
     patch_class "${filename}" $((linenr + 1)) "insert" "below" "${new_lines[@]}"
     pattern='class_store_double *\\( *dataptr *, *pvecback *\\[ *pba *-> *index_bg_f *\\]'
-    new_lines=(                                                                      \
-        "class_store_double(dataptr, pvecback[pba->index_bg_D2], _TRUE_, storeidx);" \
-        "class_store_double(dataptr, pvecback[pba->index_bg_f2], _TRUE_, storeidx);" \
+    new_lines=(                                                                       \
+        "class_store_double(dataptr, pvecback[pba->index_bg_D2], _TRUE_, storeidx);"  \
+        "class_store_double(dataptr, pvecback[pba->index_bg_f2], _TRUE_, storeidx);"  \
+        "class_store_double(dataptr, pvecback[pba->index_bg_D3a], _TRUE_, storeidx);" \
+        "class_store_double(dataptr, pvecback[pba->index_bg_f3a], _TRUE_, storeidx);" \
+        "class_store_double(dataptr, pvecback[pba->index_bg_D3b], _TRUE_, storeidx);" \
+        "class_store_double(dataptr, pvecback[pba->index_bg_f3b], _TRUE_, storeidx);" \
+        "class_store_double(dataptr, pvecback[pba->index_bg_D3c], _TRUE_, storeidx);" \
+        "class_store_double(dataptr, pvecback[pba->index_bg_f3c], _TRUE_, storeidx);" \
     )
     linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" "${filename}" | head -n 1)
     patch_class "${filename}" $((linenr + 1)) "insert" "below" "${new_lines[@]}"
@@ -9583,11 +9654,23 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
     linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" "${filename}" | head -n 1)
     patch_class "${filename}" $((linenr + 1)) "insert" "below" "${new_lines[@]}"
     pattern='dy *\\[ *pba *-> *index_bi_D_prime *\\] *='
-    new_lines=(                                                                 \
-        "/* Second-order growth factor */"                                      \
-        "dy[pba->index_bi_D2] = y[pba->index_bi_D2_prime];"                     \
-        "dy[pba->index_bi_D2_prime] = -a*H*y[pba->index_bi_D2_prime]"           \
-        "  + 1.5*a*a*rho_M*(y[pba->index_bi_D2] - pow(y[pba->index_bi_D], 2));" \
+    new_lines=(                                                                           \
+        "/* Second-order growth factor */"                                                \
+        "dy[pba->index_bi_D2] = y[pba->index_bi_D2_prime];"                               \
+        "dy[pba->index_bi_D2_prime] = -a*H*y[pba->index_bi_D2_prime]"                     \
+        "  + 1.5*a*a*rho_M*(y[pba->index_bi_D2] + pow(y[pba->index_bi_D], 2));"           \
+        "/* Third-order growth factors */"                                                \
+        "dy[pba->index_bi_D3a] = y[pba->index_bi_D3a_prime];"                             \
+        "dy[pba->index_bi_D3a_prime] = -a*H*y[pba->index_bi_D3a_prime]"                   \
+        "  + 1.5*a*a*rho_M*(y[pba->index_bi_D3a] + 2.*pow(y[pba->index_bi_D], 3));"       \
+        "dy[pba->index_bi_D3b] = y[pba->index_bi_D3b_prime];"                             \
+        "dy[pba->index_bi_D3b_prime] = -a*H*y[pba->index_bi_D3b_prime]"                   \
+        "  + 1.5*a*a*rho_M*(y[pba->index_bi_D3b] "                                        \
+        "    + 2.*y[pba->index_bi_D]*y[pba->index_bi_D2] + 2.*pow(y[pba->index_bi_D], 3)" \
+        "  );"                                                                            \
+        "dy[pba->index_bi_D3c] = y[pba->index_bi_D3c_prime];"                             \
+        "dy[pba->index_bi_D3c_prime] = -a*H*y[pba->index_bi_D3c_prime]"                   \
+        "  + 1.5*a*a*rho_M*pow(y[pba->index_bi_D], 3);"                                   \
     )
     linenr=$(awk "\$0 ~ \"${pattern}\" {print NR}" "${filename}" | head -n 1)
     patch_class "${filename}" $((linenr + 1)) "insert" "below" "${new_lines[@]}"

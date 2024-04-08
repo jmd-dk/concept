@@ -8,8 +8,8 @@
 
 #### ✨ Features added
 - Overhaul of initial condition generation:
-  - Both 1LPT and **2LPT** now available.
-    - Second-order growth factor and rate implemented via CLASS.
+  - 1LPT, **2LPT** and **3LPT** now available (optionally with dealiasing).
+    - Higher-order growth factors and rates implemented via CLASS.
   - **BCC** and **FCC** lattices for pre-initial conditions.
   - Local **non-Gaussianity** now available.
   - Besides the *N*-body gauge, the synchronous and the Newtonian gauge

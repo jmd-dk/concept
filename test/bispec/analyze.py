@@ -144,14 +144,14 @@ axes[1].set_xlabel(r'$k$ [grid units]')
 axes[1].set_ylabel(r'$n_{\mathrm{modes}}/n_{\mathrm{modes}\, \mathrm{expected}} - 1$')
 axes[0].legend()
 fig.suptitle('equilateral')
-figname = f'{this_dir}/modes.png'
-fig.savefig(figname, dpi=150)
+fig_file = f'{this_dir}/modes.png'
+fig.savefig(fig_file, dpi=150)
 reltol = 1e-2
 if ((modes/modes_expected - 1)[mask]**2).mean()**0.5 > reltol:
     abort(
         f'The reported number of modes for the bispectrum measurement '
         f'carried out with shell antialiasing is far from the expected '
-        f'number of modes. See {figname}.'
+        f'number of modes. See {fig_file}.'
     )
 
 # Compare realised and tree-level equilateral bispectrum
@@ -168,15 +168,15 @@ axes[0].set_ylabel(rf'$B\, [\mathrm{{{unit_length}}}^{{6}}]$')
 axes[1].set_ylabel(rf'$Q$')
 axes[0].legend()
 fig.suptitle('equilateral')
-figname = f'{this_dir}/treelevel.png'
-fig.savefig(figname, dpi=150)
+fig_file = f'{this_dir}/treelevel.png'
+fig.savefig(fig_file, dpi=150)
 reduced_treelevel_values = [val for val in set(reduced_treelevel) if not np.isnan(val)]
 if len(reduced_treelevel_values) > 1:
     abort(
         f'Got multiple values for the reduced tree-level bispectrum, '
         f'though this should be singular (and approximately equal '
         f'to {treelevel_prediction}) for equilateral bispectra. '
-        f'See {figname}.'
+        f'See {fig_file}.'
     )
 reduced_treelevel_value = reduced_treelevel_values[0]
 reltol = 0.02
@@ -184,7 +184,7 @@ if not isclose(reduced_treelevel_value, float(treelevel_prediction), rel_tol=rel
     abort(
         f'The value of the reduced tree-level bispectrum is found to be '
         f'{reduced_treelevel_value} but ought to be close to '
-        f'{treelevel_prediction} for equilateral bispectra. See {figname}.'
+        f'{treelevel_prediction} for equilateral bispectra. See {fig_file}.'
     )
 tol = 0.05
 n = 5
@@ -192,7 +192,7 @@ if np.abs((reduced[mask][n:-n] - reduced_treelevel[mask][n:-n]).mean()) > tol:
     abort(
         f'The reduced equilateral bispectrum measured from the paired realisations '
         f'does not match the tree-level prediction of {treelevel_prediction}. '
-        f'See {figname}.'
+        f'See {fig_file}.'
     )
 
 # Compare realised and analytical squeezed bispectrum
@@ -229,15 +229,15 @@ ax.set_xlabel(rf'$k\, [\mathrm{{{unit_length}}}^{{-1}}]$')
 ax.set_ylabel(rf'$B\, [\mathrm{{{unit_length}}}^{{6}}]$')
 ax.legend()
 fig.suptitle('squeezed')
-figname = f'{this_dir}/squeezed_nongaussian.png'
-fig.savefig(figname, dpi=150)
+fig_file = f'{this_dir}/squeezed_nongaussian.png'
+fig.savefig(fig_file, dpi=150)
 tol = 0.1
 n = 8
 if np.std(bpower_squeezed[n:]/bpower_squeezed_analytical[n:]) > tol:
     abort(
         f'The squeezed bispectrum measured from the paired non-Gaussian '
         f'realisations is far from the analytical prediction. '
-        f'See {figname}.'
+        f'See {fig_file}.'
     )
 
 # Done analysing

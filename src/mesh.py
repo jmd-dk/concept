@@ -67,6 +67,7 @@ cdef extern from "fft.c":
     void fftw_execute(fftw_plan plan)
     void fftw_clean(double* grid, fftw_plan plan_forward,
                                   fftw_plan plan_backward)
+    void fftw_free(double* grid)
 """)
 
 
@@ -964,6 +965,7 @@ def resize_grid(
     index_onto='Py_ssize_t',
     index_recv='Py_ssize_t',
     index_small='Py_ssize_t',
+    interlace_lattice='Lattice',
     j_from_bgn='Py_ssize_t',
     j_from_end='Py_ssize_t',
     j_global_large='Py_ssize_t',
@@ -1057,9 +1059,10 @@ def copy_modes(slab_from, slab_onto, deconv_order=0, lattice=None, operation='='
             # At least one of deconvolution or the non-trivial part of
             # interlacing is to be performed.
             # For this, we need proper iteration over ki, kj, kk.
+            interlace_lattice = lattice
             for index, ki, kj, kk, factor, θ in fourier_loop(
                 gridsize_onto,
-                deconv_order=deconv_order, interlace_lattice=lattice,
+                deconv_order=deconv_order, interlace_lattice=interlace_lattice,
             ):
                 # Extract real and imag part of this
                 # Fourier mode of slab_from.
@@ -1067,7 +1070,7 @@ def copy_modes(slab_from, slab_onto, deconv_order=0, lattice=None, operation='='
                 im = slab_from_ptr[index + 1]
                 # Rotate the complex phase due to interlacing
                 with unswitch:
-                    if lattice.shift != (0, 0, 0):
+                    if interlace_lattice.shift != (0, 0, 0):
                         cosθ = cos(θ)
                         sinθ = sin(θ)
                         re, im = (
@@ -1238,11 +1241,12 @@ def copy_modes(slab_from, slab_onto, deconv_order=0, lattice=None, operation='='
                 # evaluating deconvolution and interlacing as if they
                 # belong to a grid of size gridsize_from
                 # (which they do).
+                interlace_lattice = lattice
                 for index_small, ki, kj, kk, factor, θ in fourier_loop(
                     gridsize_small, gridsize_from,
                     i_small_bgn, i_small_end,
                     j_small_bgn, j_small_end,
-                    deconv_order=deconv_order, interlace_lattice=lattice,
+                    deconv_order=deconv_order, interlace_lattice=interlace_lattice,
                 ):
                     # Corresponding index into the large subslab
                     index_large = (
@@ -1297,7 +1301,7 @@ def copy_modes(slab_from, slab_onto, deconv_order=0, lattice=None, operation='='
                     # of grid size and interlacing.
                     θ_total = ℝ[π/gridsize_onto - π/gridsize_from]*ℤ[ℤ[ki + kj] + kk]
                     with unswitch(5):
-                        if lattice.shift != (0, 0, 0):
+                        if interlace_lattice.shift != (0, 0, 0):
                             θ_total += θ
                     # Apply factor and phase shift from deconvolution,
                     # interlacing and change of grid size.
@@ -3312,6 +3316,7 @@ def fourier_shell_loop(
     gridsize='Py_ssize_t',
     im='double',
     index='Py_ssize_t',
+    interlace_lattice='Lattice',
     k_fundamental='double',
     ki='Py_ssize_t',
     kj='Py_ssize_t',
@@ -3363,15 +3368,16 @@ def fourier_operate(slab, deconv_order=0, lattice=None, diff_dim=-1):
     # Perform the deconvolution and interlacing
     k_fundamental = ℝ[2*π/boxsize]
     gridsize = slab_size_i
+    interlace_lattice = lattice
     for index, ki, kj, kk, factor, θ in fourier_loop(
-        gridsize, deconv_order=deconv_order, interlace_lattice=lattice,
+        gridsize, deconv_order=deconv_order, interlace_lattice=interlace_lattice,
     ):
         # Extract real and imag part of slab
         re = slab_ptr[index    ]
         im = slab_ptr[index + 1]
         # Rotate the complex phase due to interlacing
         with unswitch:
-            if lattice.shift != (0, 0, 0):
+            if interlace_lattice.shift != (0, 0, 0):
                 cosθ = cos(θ)
                 sinθ = sin(θ)
                 re, im = (
@@ -3399,6 +3405,116 @@ def fourier_operate(slab, deconv_order=0, lattice=None, diff_dim=-1):
         slab_ptr[index    ] = re
         slab_ptr[index + 1] = im
     return slab
+
+# Function for in-place inverting the Laplacian in
+#   ∇²Φ = source
+@cython.pheader(
+    # Arguments
+    source='double[:, :, ::1]',
+    factor='double',
+    # Locals
+    amplitude='double',
+    gridsize='Py_ssize_t',
+    index='Py_ssize_t',
+    k2='Py_ssize_t',
+    k_fundamental='double',
+    ki='Py_ssize_t',
+    kj='Py_ssize_t',
+    kk='Py_ssize_t',
+    scaling='double',
+    source_ptr='double*',
+    θ='double',
+    returns='double[:, :, ::1]',
+)
+def laplacian_inverse(source, factor=1):
+    """This function will operate on the source field in-place.
+    It is assumed that this is already in Fourier space,
+    and the result will be returned in Fourier space as well.
+    """
+    gridsize = source.shape[1]
+    source_ptr = cython.address(source[:, :, :])
+    # Invert Laplacian by dividing by -k²
+    k_fundamental = ℝ[2*π/boxsize]
+    scaling = factor  # rename to not clash with fourier_loop()
+    for index, ki, kj, kk, factor, θ in fourier_loop(gridsize, skip_origin=True):
+        k2 = ℤ[ℤ[ℤ[kj**2] + ki**2] + kk**2]
+        amplitude = ℝ[-scaling/k_fundamental**2]/k2
+        source_ptr[index    ] *= amplitude
+        source_ptr[index + 1] *= amplitude
+    return source
+
+# Function for differentiation of a Fourier space slab, once or twice
+@cython.pheader(
+    # Argumens
+    slab='double[:, :, ::1]',
+    dim0='int',
+    dim1='int',
+    buffer_name=object,  # int or str
+    slab_output='double[:, :, ::1]',
+    factor='double',
+    # Locals
+    amplitude='double',
+    gridsize='Py_ssize_t',
+    im='double',
+    index='Py_ssize_t',
+    k_fundamental='double',
+    ki='Py_ssize_t',
+    kj='Py_ssize_t',
+    kk='Py_ssize_t',
+    kl0='Py_ssize_t',
+    kl1='Py_ssize_t',
+    re='double',
+    scaling='double',
+    slab_output_ptr='double*',
+    slab_ptr='double*',
+    θ='double',
+    returns='double[:, :, ::1]',
+)
+def fourier_diff(slab, dim0, dim1=-1, buffer_name=None, slab_output=None, factor=1):
+    """This function expects slab to be in Fourier space.
+    The return value will be a new slab (unless slab_output is passed)
+    also in Fourier space.
+    """
+    gridsize = slab.shape[1]
+    slab_ptr = cython.address(slab[:, :, :])
+    # Get new slab for storing the dim'th component of the vector field
+    if slab_output is None:
+        slab_output = get_fftw_slab(gridsize, buffer_name)
+    slab_output_ptr = cython.address(slab_output[:, :, :])
+    nullify_modes(slab_output, ['origin', 'nyquist'])
+    # Do the differentiation in Fourier space by multiplying by ikᵢ
+    # for each dim specified.
+    k_fundamental = ℝ[2*π/boxsize]
+    scaling = factor  # rename to not clash with fourier_loop()
+    for index, ki, kj, kk, factor, θ in fourier_loop(gridsize, skip_origin=True):
+        re = slab_ptr[index    ]
+        im = slab_ptr[index + 1]
+        # Differentiation (multiplication by ikᵢ)
+        kl0 = (
+            ℤ[
+                  ℤ[ℤ[-(dim0 == 0)] & ki]
+                | ℤ[ℤ[-(dim0 == 1)] & kj]
+            ]
+                | ℤ[ℤ[-(dim0 == 2)] & kk]
+        )
+        re, im = -im, re
+        with unswitch:
+            if dim1 == -1:
+                amplitude = ℝ[scaling*k_fundamental]*kl0
+            else:
+                kl1 = (
+                    ℤ[
+                          ℤ[ℤ[-(dim1 == 0)] & ki]
+                        | ℤ[ℤ[-(dim1 == 1)] & kj]
+                    ]
+                        | ℤ[ℤ[-(dim1 == 2)] & kk]
+                )
+                re, im = -im, re
+                amplitude = ℝ[scaling*k_fundamental**2]*kl0*kl1
+        # Store results
+        slab_output_ptr[index    ] = amplitude*re
+        slab_output_ptr[index + 1] = amplitude*im
+    return slab_output
 
 # Function for nullifying sets of modes of Fourier space slabs
 @cython.header(
@@ -3661,7 +3777,7 @@ def trim_slab(slab):
 @cython.pheader(
     # Arguments
     gridsize='Py_ssize_t',
-    buffer_name=object,  # int or str
+    buffer_name=object,  # int or str or None
     nullify=object,  # bint, str or list of str's
     trim='bint',
     # Locals
@@ -3803,6 +3919,36 @@ fftw_plans_mapping = {}
 # Dict keeping track of what FFTW wisdom has already been acquired
 cython.declare(wisdom_acquired=dict)
 wisdom_acquired = {}
+
+# Function that frees the memory of grid allocated by FFTW
+@cython.header(
+    # Arguments
+    gridsize='Py_ssize_t',
+    buffer_name=object,  # int or str or None
+    # Locals
+    slab='double[:, :, ::1]',
+    slab_ptr='double*',
+    returns='void',
+)
+def free_fftw_slab(gridsize, buffer_name):
+    if buffer_name is None:
+        buffer_name = 'slab_global'
+    # If this slab has already been constructed, fetch it
+    slab = slabs.pop((gridsize, buffer_name), None)
+    if slab is None:
+        abort(
+            f'free_fftw_slab(): No slab with '
+            f'gridsize = {gridsize}, buffer_name = {buffer_name}'
+        )
+    if not cython.compiled:
+        try:
+            [slab].pop().resize(0, refcheck=False)
+        except Exception:
+            pass
+    else:
+        slab_ptr = cython.address(slab[:, :, :])
+        fftw_free(slab_ptr)
+        # Note that we leave the FFTW plans as is
 
 # Helper function for the get_fftw_slab() function,
 # which construct the absolute path to the wisdom file to use.
@@ -4065,38 +4211,6 @@ def fft_normalize(slab):
     for index in range(slab.shape[0]*slab.shape[1]*slab.shape[2]):
         slab_ptr[index] *= factor
     return slab
-
-# Function for deallocating a slab and its plans, allocated by FFTW
-@cython.header(
-    # Arguments
-    gridsize='Py_ssize_t',
-    buffer_name=object,  # int or str
-    # Locals
-    fftw_plans_index='Py_ssize_t',
-    plan_forward=fftw_plan,
-    plan_backward=fftw_plan,
-    slab='double[:, :, ::1]',
-    slab_ptr='double*',
-)
-def free_fftw_slab(gridsize, buffer_name):
-    # Fetch the slab from the slab cache and remove it
-    slab = slabs.pop((gridsize, buffer_name))
-    # Grab pointer to the slab
-    slab_ptr = cython.address(slab[:, :, :])
-    # Look up the index of the FFTW plans for the passed slab
-    # and use this to look up the plans.
-    slab_address = cast(slab_ptr, 'Py_ssize_t')
-    fftw_plans_index = fftw_plans_mapping[slab_address]
-    plan_forward  = fftw_plans_forward[fftw_plans_index]
-    plan_backward = fftw_plans_backward[fftw_plans_index]
-    # Let FFTW do the cleanup
-    fftw_clean(slab_ptr, plan_forward, plan_backward)
-    # Note that the arrays fftw_plans_forward and fftw_plans_backward
-    # as well as the dict fftw_plans_mapping have not been altered.
-    # Thus, accessing the pointers in fftw_plans_forward or
-    # fftw_plans_backward for the newly freed plans will cause a
-    # segmentation fault. As this should not ever happen, we leave
-    # these as is.
 
 # Function for checking that the slabs satisfy the required symmetry
 # of a Fourier transformed real field.

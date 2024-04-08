@@ -1864,6 +1864,7 @@ order = [
     'drift',
     'kick_pp_without_ewald',
     'kick_pp_with_ewald',
+    'lpt',
     # Tests of the PP implementation
     'nprocs_pp',
     'pure_python_pp',

@@ -1529,17 +1529,19 @@ def unicode_repl(match):
 # returns it written in Unicode subscript.
 def unicode_subscript(s):
     return ''.join([unicode_subscripts.get(c, c) for c in s])
-cython.declare(unicode_subscripts=dict)
+cython.declare(unicode_subscripts=dict, unicode_subscripts_inv=dict)
 unicode_subscripts = dict(zip('0123456789-+e.', [unicode(c) for c in
     ('₀', '₁', '₂', '₃', '₄', '₅', '₆', '₇', '₈', '₉', '₋', '₊', 'ₑ', '.')]))
+unicode_subscripts_inv = {value: key for key, value in unicode_subscripts.items()}
 
 # This function takes in a number (string) and
 # returns it written in Unicode superscript.
 def unicode_superscript(s):
     return ''.join([unicode_superscripts.get(c, c) for c in s])
-cython.declare(unicode_supercripts=dict)
+cython.declare(unicode_superscripts=dict, unicode_superscripts_inv=dict)
 unicode_superscripts = dict(zip('0123456789-+e.', [unicode(c) for c in (
     '⁰', '¹', '²', '³', '⁴', '⁵', '⁶', '⁷', '⁸', '⁹', '⁻', '', '×10', '⋅')]))
+unicode_superscripts_inv = {value: key for key, value in unicode_superscripts.items()}
 
 # Function which takes in a string possibly containing units formatted
 # in fancy ways and returns a unformatted version.
@@ -3747,6 +3749,9 @@ realization_options_defaults = {
     'lpt': {
         'default': 1,
     },
+    'dealias': {
+        'default': False,
+    },
     'nongaussianity': {
         'default': 0,
     },
@@ -3794,8 +3799,11 @@ for key, val in d.copy().items():
 d = realization_options['lpt']
 for key, val in d.copy().items():
     d[key] = int(round(val))
-    if d[key] not in {1, 2}:
+    if d[key] not in {1, 2, 3}:
         abort(f'{d[key]}LPT not implemented')
+d = realization_options['dealias']
+for key, val in d.copy().items():
+    d[key] = bool(val)
 for s in ('nongauss', 'nongaussian', 'nongaussianity'):
     if s not in realization_options:
         continue
@@ -5283,10 +5291,12 @@ def significant_figures(
             # For consistent formatting for numbers with absolute values
             # below unity, we need to call this function once more,
             # with the rounded number.
-            return significant_figures(
+            number_str = significant_figures(
                 float(number_str), nfigs, fmt, incl_zeros, force_scientific,
                 base_call=False,
             )
+            return_list.append(number_str)
+            continue
         # Handle the exponent
         if 'e' in number_str:
             e_index = number_str.index('e')
@@ -6036,6 +6046,12 @@ for val, keys in {
     'gr.fac. f'       : {'f', 'f1'},
     'gr.fac. D2'      : {'D2'},
     'gr.fac. f2'      : {'f2'},
+    'gr.fac. D3a'     : {'D3a'},
+    'gr.fac. f3a'     : {'f3a'},
+    'gr.fac. D3b'     : {'D3b'},
+    'gr.fac. f3b'     : {'f3b'},
+    'gr.fac. D3c'     : {'D3c'},
+    'gr.fac. f3c'     : {'f3c'},
     'conf. time [Mpc]': {unicode('τ'), asciify('τ'), 'tau'},
 }.items():
     if keys & class_extra_background:

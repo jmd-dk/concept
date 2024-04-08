@@ -1164,6 +1164,24 @@ def class_():
                 elif key == 'gr.fac. f2':
                     # Unitless
                     key = 'f2'
+                elif key == 'gr.fac. D3a':
+                    # Unitless
+                    key = 'D3a'
+                elif key == 'gr.fac. f3a':
+                    # Unitless
+                    key = 'f3a'
+                elif key == 'gr.fac. D3b':
+                    # Unitless
+                    key = 'D3b'
+                elif key == 'gr.fac. f3b':
+                    # Unitless
+                    key = 'f3b'
+                elif key == 'gr.fac. D3c':
+                    # Unitless
+                    key = 'D3c'
+                elif key == 'gr.fac. f3c':
+                    # Unitless
+                    key = 'f3c'
                 elif key == '(.)w_fld':
                     # Unitless
                     key = 'w_fld'

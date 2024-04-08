@@ -639,6 +639,9 @@ def compute_powerspec_corrected(declaration):
         # realization by using fixed amplitudes.
         # Note that the phases are unimportant.
         linear_component.realization_options['fixedamplitude'] = True
+    # Never include non-Gaussianity in the linear component,
+    # as this is similarly left out of the linear-theory prediction.
+    linear_component.realization_options['nongaussianity'] = False
     # Check if corrections are available from the disk cache
     cosmoresults = compute_cosmo()
     if master:

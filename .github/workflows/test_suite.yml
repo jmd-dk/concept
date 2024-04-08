@@ -166,6 +166,18 @@ jobs:
             env:
                 docker_username: ${{ secrets.DOCKER_USERNAME }}
             uses: ./.github/actions/test
+    test_lpt:
+        needs: test_basic
+        runs-on:
+          group: private
+          labels: [self-hosted-ubuntu-22.04, light]
+        steps:
+          - name: 🛎️  Checkout
+            uses: actions/checkout@v4
+          - name: 🤖 Run test
+            env:
+                docker_username: ${{ secrets.DOCKER_USERNAME }}
+            uses: ./.github/actions/test
     test_nprocs_pp:
         needs: test_basic
         runs-on:
