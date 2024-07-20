@@ -38,21 +38,19 @@ __version__ = 'master'
 ############################################
 # Miscellaneous
 import ast, collections, contextlib, ctypes, cython, functools, hashlib
-import importlib, inspect, itertools, keyword, logging, operator, os, re
-import shutil, struct, sys, textwrap, traceback, types
+import importlib, inspect, itertools, keyword, logging, os, re
+import struct, sys, textwrap, traceback, types
 import unicodedata, warnings
 from copy import deepcopy
 # Numerics
 # (note that numpy.array is purposely not imported directly into the
 # global namespace, as this does not play well with Cython).
-import decimal
 import numpy as np
-from numpy import arange, asarray, empty, linspace, logspace, ones, zeros
+from numpy import arange, asarray, empty, ones
 # MPI
 import mpi4py.rc; mpi4py.rc.threads = False  # Do not use threads
 from mpi4py import MPI
 # I/O
-import io
 from glob import glob
 # For fancy terminal output
 import blessings
