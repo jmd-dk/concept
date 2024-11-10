@@ -121,9 +121,9 @@ class ConceptSnapshot:
         name=object,  # str or int
         plural=str,
         shape=tuple,
+        slab='double[:, :, ::1]',
         slab_end='Py_ssize_t',
         slab_start='Py_ssize_t',
-        slab_trimmed='double[:, :, ::1]',
         start_local='Py_ssize_t',
         returns=str,
     )
@@ -245,14 +245,14 @@ class ConceptSnapshot:
                             # slab decomposed. Here we communicate the
                             # fluid scalar to slabs before saving to
                             # disk, improving performance enormously.
-                            slab_trimmed = slab_decompose(fluidscalar.grid_mv, trim=True)
-                            slab_start = ℤ[slab_trimmed.shape[0]]*rank
-                            slab_end = slab_start + ℤ[slab_trimmed.shape[0]]
+                            slab = slab_decompose(fluidscalar.grid_mv)
+                            slab_start = slab.shape[0]*rank
+                            slab_end = slab_start + slab.shape[0]
                             fluidscalar_h5[
                                 slab_start:slab_end,
                                 :,
                                 :,
-                            ] = slab_trimmed[:, :, :]
+                            ] = slab[:, :, :(slab.shape[2] - 2)]  # exclude padding
                     # Create additional names (hard links) for the fluid
                     # groups and data sets. The names from
                     # component.fluid_names will be used, except for
@@ -328,8 +328,8 @@ class ConceptSnapshot:
         pos='double*',
         representation=str,
         size='Py_ssize_t',
+        slab='double[:, :, ::1]',
         slab_start='Py_ssize_t',
-        slab_trimmed='double[:, :, ::1]',
         snapshot_unit_length='double',
         snapshot_unit_mass='double',
         snapshot_unit_time='double',
@@ -544,14 +544,14 @@ class ConceptSnapshot:
                         fluidvar_h5 = component_h5[f'fluidvar_{index}']
                         for multi_index in fluidvar.multi_indices:
                             fluidscalar_h5 = fluidvar_h5[f'fluidscalar_{multi_index}']
-                            slab_trimmed = get_fftw_slab(gridsize, trim=True)
-                            slab_start = ℤ[slab_trimmed.shape[0]]*rank
+                            slab = get_fftw_slab(gridsize)
+                            slab_start = ℤ[slab.shape[0]]*rank
                             # Load in using chunks. Large chunks are
                             # fine as no temporary buffer is used. The
                             # maximum possible chunk size is limited
                             # by MPI, though.
                             chunk_size = np.min((
-                                ℤ[slab_trimmed.shape[0]],
+                                ℤ[slab.shape[0]],
                                 ℤ[self.chunk_size_max//8//gridsize**2],
                             ))
                             if chunk_size == 0:
@@ -560,10 +560,10 @@ class ConceptSnapshot:
                                     'and may not be read in correctly'
                                 )
                                 chunk_size = 1
-                            arr = asarray(slab_trimmed)
-                            for index_i in range(0, ℤ[slab_trimmed.shape[0]], chunk_size):
-                                if index_i + chunk_size > ℤ[slab_trimmed.shape[0]]:
-                                    chunk_size = ℤ[slab_trimmed.shape[0]] - index_i
+                            arr = asarray(slab)
+                            for index_i in range(0, ℤ[slab.shape[0]], chunk_size):
+                                if index_i + chunk_size > ℤ[slab.shape[0]]:
+                                    chunk_size = ℤ[slab.shape[0]] - index_i
                                 index_i_file = slab_start + index_i
                                 source_sel = (
                                     slice(index_i_file, index_i_file + chunk_size),
@@ -573,7 +573,7 @@ class ConceptSnapshot:
                                 dest_sel = (
                                     slice(index_i, index_i + chunk_size),
                                     slice(None),
-                                    slice(None),
+                                    slice(0, slab.shape[2] - 2),  # exclude padding
                                 )
                                 fluidscalar_h5.read_direct(
                                     arr, source_sel=source_sel, dest_sel=dest_sel,
@@ -581,7 +581,7 @@ class ConceptSnapshot:
                             # Communicate the slabs directly to the
                             # domain decomposed fluid grids.
                             domain_decompose(
-                                slab_trimmed,
+                                slab,
                                 component.fluidvars[index][multi_index].grid_mv,
                                 do_ghost_communication=True,
                             )
