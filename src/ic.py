@@ -1949,7 +1949,7 @@ def handle_lpt_term(expr, grids, notes, i=0, j=0, k=0, factor=1):
     gridsize = grid.shape[1]
     gridsize_dealias = grid_dealias.shape[1]
     dealias = gridsize_dealias > gridsize
-    # If dealiasing is to be performed, we so so after every grid
+    # If dealiasing is to be performed, we do so after every grid
     # multiplication, of which there are (n_pot - 1). The last one is
     # handled specially, as we simultaneously shrink the grid.
     # The remaining (n_pot - 2) comed with an fft_factor.
@@ -1976,7 +1976,7 @@ def handle_lpt_term(expr, grids, notes, i=0, j=0, k=0, factor=1):
                 # If this is the first potential, place the reusable
                 # grid in the front (will be used as base grid). If not,
                 # place the reusable grid in the back (will be used as
-                # emporary grid).
+                # temporary grid).
                 for name in list(grids):
                     if (n == 0 and name != name_reuse) or (n != 0 and name == name_reuse):
                         grids[name] = grids.pop(name)
@@ -2005,7 +2005,7 @@ def handle_lpt_term(expr, grids, notes, i=0, j=0, k=0, factor=1):
         if n == 1 and pot == term[0]:
             # Squared sub-expression at the beginning.
             # Copy base grid into temporary grid. We could avoid this
-            # copying, but doing so allows later reusage.
+            # copying, but doing it allows for later reusage.
             tmpgrid_dealias[...] = basegrid_dealias
         elif notes.get(tmpgrid_name) != pot:
             # Construct grid
