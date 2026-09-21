@@ -324,7 +324,7 @@ set_version "h5py"              "3.9.0"
 set_version "matplotlib"        "3.7.5"
 set_version "mpi4py"            "3.1.6"
 set_version "numpy"             "1.26.4"
-set_version "pip"               "23.3.2"
+set_version "pip"               "25.2"
 set_version "scipy"             "1.10.1"
 set_version "setuptools"        "59.8.0"
 set_version "setuptools_scm"    "7.1.0"
@@ -7099,7 +7099,7 @@ pip_download() {
         pip_download_time=${3}
     fi
     # Set (order of) possibilities for digging through trash
-    dig_through_trash_possibilities="False True"
+    dig_through_trash_possibilities="True False"
     if [ -n "${4}" ]; then
         dig_through_trash_possibilities="${4}"
     fi
@@ -8254,6 +8254,7 @@ if [ "${matplotlib_install}" == "True" ] && [ "${matplotlib_installed}" == "Fals
     dependencies=(       \
         "certifi"        \
         "pybind11"       \
+        "setuptools_scm" \
     )
     for dependency in "${dependencies[@]}"; do
         dependency_installed=$(check_pypackage_installed ${dependency})
