@@ -324,7 +324,7 @@ set_version "h5py"              "3.9.0"
 set_version "matplotlib"        "3.7.5"
 set_version "mpi4py"            "3.1.6"
 set_version "numpy"             "1.26.4"
-set_version "pip"               "23.3.2"
+set_version "pip"               "25.2"
 set_version "scipy"             "1.10.1"
 set_version "setuptools"        "59.8.0"
 set_version "setuptools_scm"    "7.1.0"
@@ -1670,7 +1670,59 @@ fi
 
 # Change default versions if they are known not to work
 # with the present versions of the system dependencies.
-:
+gcc_requires_legacy_c_compat="False"
+gcc_defaults_to_c23="False"
+if [ -n "${gcc_version_major}" ]; then
+    if [ "${gcc_version_major}" -ge 14 ]; then
+        gcc_requires_legacy_c_compat="True"
+        # Perl 5.36 does not compile with recent GCC releases, which
+        # diagnose several of its legacy pointer conversions as errors.
+        # Respect an explicitly supplied Perl version, but use a newer
+        # compatible release for the installer's default configuration.
+        if [ "${perl_version_specifiedbyuser}" != "True" ] \
+            && [ "${perl_version}" == "5.36.0" ]; then
+            perl_version="5.42.0"
+        fi
+    fi
+    # GCC 15 changed the default C language dialect to GNU C23. Some of
+    # the older C dependencies bundled by this installer require GNU C17
+    # semantics and are handled specially below.
+    if [ "${gcc_version_major}" -ge 15 ]; then
+        gcc_defaults_to_c23="True"
+    fi
+fi
+
+# GCC 14 and later promote incompatible pointer conversions to errors.
+# Several pinned, generated C sources predate that change. Add the
+# compatibility flag only for GNU-family compilers and only when the user
+# did not explicitly choose how this diagnostic should be handled.
+gcc_pointer_diagnostic_supplied="False"
+if [[ " ${CFLAGS_backup} " == *" -Werror=incompatible-pointer-types "* ]] \
+    || [[ " ${CFLAGS_backup} " == *" -Wno-error=incompatible-pointer-types "* ]]; then
+    gcc_pointer_diagnostic_supplied="True"
+fi
+set_compiler_compatibility_flags() {
+    if [ "${gcc_requires_legacy_c_compat}" != "True" ] \
+        || [ "${gcc_pointer_diagnostic_supplied}" == "True" ]; then
+        return
+    fi
+    local cc_command="${CC}"
+    if [ -z "${cc_command}" ]; then
+        cc_command="gcc"
+    fi
+    local cc_info
+    cc_info="$("${cc_command}" --version 2>/dev/null | head -n 1 || :)"
+    if ! echo "${cc_info}" | grep -E -i 'gcc|gnu|Free Software Foundation' >/dev/null; then
+        return
+    fi
+    local cc_version cc_version_major
+    cc_version="$("${cc_command}" -dumpfullversion -dumpversion 2>/dev/null | head -n 1 || :)"
+    cc_version_major="${cc_version%%.*}"
+    if ! [[ "${cc_version_major}" =~ ^[0-9]+$ ]] || [ "${cc_version_major}" -lt 14 ]; then
+        return
+    fi
+    export CFLAGS="${CFLAGS} -Wno-error=incompatible-pointer-types"
+}
 
 # Function which finds files deep inside a directory tree
 # (like the GNU find command).
@@ -5576,6 +5628,7 @@ install_loop() {
         if [ -n "${compiler}" ]; then
             "use_${compiler}_compilers" || return
         fi
+        set_compiler_compatibility_flags
         for ((i = 0; i < ${nvars}; i += 1)); do
             varname=${varnames[$i]}
             eval "varval=\${${varname}}"
@@ -5650,6 +5703,35 @@ Date:         $(date)
 " >> "${progdir}/.installation_finished"
 }
 
+# Run a single command with a bounded wall-clock time using only shell
+# facilities already required by the installer. This is deliberately
+# separate from soothe(): an LTO capability probe should finish quickly
+# and produces too little output for log-growth based hang detection.
+if [ -z "${lto_test_max_time}" ]; then
+    lto_test_max_time=120
+fi
+run_with_time_limit() {
+    # Arguments: Maximum seconds, command and its arguments
+    local max_time="$1"
+    shift
+    if command -v timeout >/dev/null 2>&1; then
+        timeout --kill-after=2 "${max_time}" "$@"
+        return
+    fi
+    "$@" & local command_pid=$!
+    (
+        sleep "${max_time}"
+        kill "${command_pid}" >/dev/null 2>&1 || :
+        sleep 2
+        kill -9 "${command_pid}" >/dev/null 2>&1 || :
+    ) & local watchdog_pid=$!
+    local command_status=0
+    wait "${command_pid}" || command_status=$?
+    kill "${watchdog_pid}" >/dev/null 2>&1 || :
+    wait "${watchdog_pid}" >/dev/null 2>&1 || :
+    return ${command_status}
+}
+
 # Function for adding optimization to compiler flags
 set_optimizations() {
     # Arguments: --no-lto to exclude link time optimizations
@@ -5696,11 +5778,20 @@ set_optimizations() {
         mkdir -p "${lto_test_dir}"
         cd "${lto_test_dir}"
         echo "int main(void){ return 0; }" > main.c
-        lto_warning="$(                                              \
-            "${CC}" -flto -c -o main.o main.c 2>&1 | grep flto || :; \
-            "${CC}" main.o -o main -flto 2>&1      | grep flto || :; \
-            ./main 2>/dev/null || echo "lto error";                  \
-        )"
+        lto_warning=""
+        if ! run_with_time_limit "${lto_test_max_time}" \
+            "${CC}" -flto -c -o main.o main.c > compile.log 2>&1; then
+            lto_warning="lto error"
+        elif grep -i lto compile.log >/dev/null 2>&1; then
+            lto_warning="$(grep -i lto compile.log)"
+        elif ! run_with_time_limit "${lto_test_max_time}" \
+            "${CC}" main.o -o main -flto > link.log 2>&1; then
+            lto_warning="lto error"
+        elif grep -i lto link.log >/dev/null 2>&1; then
+            lto_warning="$(grep -i lto link.log)"
+        elif ! ./main >/dev/null 2>&1; then
+            lto_warning="lto error"
+        fi
         cd "${current_dir}"
         rm -rf "${lto_test_dir}" || :
         if [ -z "${lto_warning}" ]; then
@@ -6033,7 +6124,8 @@ mpi_install_func() {
         "${mpi_configure_options_supplied}" \
         "${mpi_configure_options_default}" \
     )"
-    mpi_configure_options="${mpi_configure_options} ${mpi_configure_options_extra}"
+    mpi_configure_options="${mpi_configure_options} ${mpi_configure_options_extra} \
+${mpi_datatype_engine_option}"
     mpi_configure_options_trimmed=""
     mpi_device_set="False"
     for mpi_configure_option in ${mpi_configure_options}; do
@@ -6103,9 +6195,19 @@ if [ "${mpi}" == "mpich" ]; then
 elif [ "${mpi}" == "openmpi" ]; then
     mpi_configure_options_extras=""
 fi
+mpi_datatype_engine_options=("")
+if [ "${mpi}" == "mpich" ] \
+    && [ "${gcc_requires_legacy_c_compat}" == "True" ] \
+    && [[ " ${mpi_configure_options_supplied} " != *" --with-datatype-engine"* ]]; then
+    # MPICH 4.1.1's default Yaksa engine generates and compiles a very
+    # large amount of C on recent GCC releases. Prefer the smaller,
+    # proven dataloop engine there, but retain Yaksa as the next attempt.
+    mpi_datatype_engine_options=("--with-datatype-engine=dataloop" "")
+fi
 install "MPI"                                                          \
     compiler "${compiler_possibilities_specified_mpi_last[@]}"     ";" \
     mpi_configure_options_extra "" ${mpi_configure_options_extras} ";" \
+    mpi_datatype_engine_option "${mpi_datatype_engine_options[@]}" ";" \
 
 # HDF5
 hdf5_install_func() {
@@ -6385,7 +6487,8 @@ ncurses_install_func() {
     # Due to a bug in (at least) ncurses 6.0, this is needed on
     # some systems. See https://trac.sagemath.org/ticket/19762
     export CPPFLAGS="-P ${CPPFLAGS}"
-    ./configure --with-shared --prefix="${ncurses_dir}" \
+    ./configure --with-shared ${ncurses_cxx_binding_option} \
+        --prefix="${ncurses_dir}" \
         --libdir="${ncurses_dir}/lib" 2>&1 || return 1
     make ${make_jobs}         2>&1 || return 1
     make ${make_jobs} install 2>&1 || return 1
@@ -6404,7 +6507,18 @@ ncurses_install_func() {
         enable_status
     fi
 }
-install "ncurses" compiler "${compiler_possibilities[@]}"
+ncurses_cxx_binding_options=("")
+if [ "${gcc_requires_legacy_c_compat}" == "True" ]; then
+    # ncurses' optional C++ bindings define a boolean type before pulling
+    # in the modern libstdc++ headers. With recent GCC releases this can
+    # invalidate C++20 concepts throughout those headers. Python needs
+    # only the C libraries, so omit the bindings first and retain the
+    # upstream configuration as a fallback.
+    ncurses_cxx_binding_options=("--without-cxx-binding" "")
+fi
+install "ncurses"                                            \
+    compiler "${compiler_possibilities[@]}"               ";" \
+    ncurses_cxx_binding_option "${ncurses_cxx_binding_options[@]}" ";" \
 
 # OpenSSL
 openssl_install_func() {
@@ -6530,6 +6644,11 @@ if [ "${python_install}" == "True" ]; then
     # paths when importing modules in Python. In this way, other Python
     # distributions on the system cannot interfere with this one.
     export PYTHONNOUSERSITE="True"
+    # Keep even an upstream, implicit --user installation inside the
+    # dedicated Python prefix. PIP_USER=False also prevents a pip config
+    # file from silently turning ordinary installs into user installs.
+    export PYTHONUSERBASE="${python_dir}"
+    export PIP_USER="False"
 fi
 python_install_func() {
     # Determine CC implementation. Only gcc, clang and icc are
@@ -6980,7 +7099,7 @@ pip_download() {
         pip_download_time=${3}
     fi
     # Set (order of) possibilities for digging through trash
-    dig_through_trash_possibilities="False True"
+    dig_through_trash_possibilities="True False"
     if [ -n "${4}" ]; then
         dig_through_trash_possibilities="${4}"
     fi
@@ -8076,6 +8195,12 @@ extra_argv=['-q', '--color=yes', '-k not test_face'])" 2>&1 | tee "test_log"; \
             done
         fi
     }
+    scipy_pythran_possibilities=("" "0")
+    if [ "${gcc_requires_legacy_c_compat}" == "True" ]; then
+        # Pythran is optional for SciPy 1.10.1 and its generated C++ is
+        # another frequent failure point on modern compiler toolchains.
+        scipy_pythran_possibilities=("0" "")
+    fi
     install "SciPy" "no_init_install"                                            \
         use_pip_install_pypackage "False" "True"                             ";" \
         scipy_pyuser "${pyuser_possibilities[@]}"                            ";" \
@@ -8087,7 +8212,7 @@ extra_argv=['-q', '--color=yes', '-k not test_face'])" 2>&1 | tee "test_log"; \
         fcompiler "gnu95" ""                                                 ";" \
         extra_FCFLAGS "" "-fPIC"                                             ";" \
         extra_LDFLAGS "" "-shared"                                           ";" \
-        scipy_pythran "" "0"                                                 ";" \
+        scipy_pythran "${scipy_pythran_possibilities[@]}"                    ";" \
 
 fi
 
@@ -8129,6 +8254,7 @@ if [ "${matplotlib_install}" == "True" ] && [ "${matplotlib_installed}" == "Fals
     dependencies=(       \
         "certifi"        \
         "pybind11"       \
+        "setuptools_scm" \
     )
     for dependency in "${dependencies[@]}"; do
         dependency_installed=$(check_pypackage_installed ${dependency})
@@ -8467,6 +8593,7 @@ if [ "${mpi4py_install}" == "True" ] && [ "${mpi4py_installed}" == "False" ] \
     for compiler in "${compiler_possibilities[@]}"; do
         reset_environment
         "use_${compiler}_compilers" || continue
+        set_compiler_compatibility_flags
         printf "
 Attempting to install MPI4Py with compiler=${compiler}\n\n"
         export PATH="${mpi_bindir}:${mpi_compilerdir}:${PATH}"
@@ -8490,6 +8617,97 @@ if [ "${h5py_install}" == "True" ] && [ "${h5py_installed}" == "False" ] \
     current_step="installation of H5Py ${h5py_version}"
     heading "Installing H5Py ${h5py_version}"
     set_status "Installing H5Py ${h5py_version}"
+    # Keep an extracted source tree throughout all attempts. With some
+    # setuptools versions, H5Py 3.9.0 can produce a wheel containing its
+    # extension modules and metadata but none of its pure-Python runtime
+    # modules. Retaining the source makes that failure recoverable without
+    # a second download or any installation outside ${python_dir}.
+    h5py_source_dir="${tmp_dir}/h5py_source"
+    h5py_build_dir="${tmp_dir}/h5py_build"
+    tmp_pip_dir="${tmp_dir}/pip"
+    rm_gently -rf \
+        "${h5py_source_dir}" "${h5py_build_dir}" \
+        "${tmp_pip_dir}" "${tmp_pip_dir}_tmp" || :
+    mkdir_gently -p "${tmp_pip_dir}" "${tmp_pip_dir}_tmp"
+    export TMPDIR="${tmp_pip_dir}_tmp"
+    export TEMP="${TMPDIR}"
+    export TMP="${TMPDIR}"
+    pip_download "H5Py" "${h5py_version}" "" "True False"
+    rm_gently -rf "${tmp_pip_dir}_tmp" || :
+    cd "${tmp_pip_dir}"
+    h5py_extract_success="False"
+    for h5py_archive in *; do
+        if [ ! -f "${h5py_archive}" ]; then
+            continue
+        fi
+        extract "${h5py_archive}" "True" || :
+        for h5py_extracted in *; do
+            h5py_extracted_lower="$(echo "${h5py_extracted}" | tr '[:upper:]' '[:lower:]')"
+            if [ -d "${h5py_extracted}" ] && [[ "${h5py_extracted_lower}" == h5py* ]]; then
+                cp_gently -r "${h5py_extracted}" "${h5py_source_dir}"
+                h5py_extract_success="True"
+                break
+            fi
+        done
+        if [ "${h5py_extract_success}" == "True" ]; then
+            break
+        fi
+    done
+    cd "${concept_dir}"
+    rm_gently -rf "${tmp_pip_dir}" || :
+    if [ "${h5py_extract_success}" != "True" ] \
+        || [ ! -f "${h5py_source_dir}/h5py/__init__.py" ]; then
+        error "Failed to prepare the H5Py source tree"
+        exit 1
+    fi
+    h5py_repair_python_sources() {
+        local h5py_purelib h5py_package_dir h5py_extension_found
+        h5py_purelib="$("${python}" -c \
+            "import sysconfig; print(sysconfig.get_paths()['purelib'])" 2>/dev/null || :)"
+        case "${h5py_purelib}" in
+            "${python_dir}"/*) ;;
+            *) return 1 ;;
+        esac
+        h5py_package_dir="${h5py_purelib}/h5py"
+        if [ -f "${h5py_package_dir}/__init__.py" ] \
+            && [ -f "${h5py_package_dir}/_hl/files.py" ]; then
+            return
+        fi
+        if [ ! -d "${h5py_package_dir}" ]; then
+            return 1
+        fi
+        h5py_extension_found="False"
+        for h5py_extension in "${h5py_package_dir}/"*.so; do
+            if [ -f "${h5py_extension}" ]; then
+                h5py_extension_found="True"
+                break
+            fi
+        done
+        if [ "${h5py_extension_found}" != "True" ]; then
+            return 1
+        fi
+        mkdir_gently -p "${h5py_package_dir}/_hl"
+        for h5py_python_source in "${h5py_source_dir}/h5py/"*.py; do
+            cp_gently "${h5py_python_source}" "${h5py_package_dir}/" || return 1
+        done
+        for h5py_python_source in "${h5py_source_dir}/h5py/_hl/"*.py; do
+            cp_gently "${h5py_python_source}" "${h5py_package_dir}/_hl/" || return 1
+        done
+    }
+    h5py_extra_pip_args=(
+        "--no-cache-dir"
+        "--no-cache-dir --no-build-isolation"
+        "--no-build-isolation"
+        ""
+    )
+    if [ "${gcc_requires_legacy_c_compat}" == "True" ]; then
+        h5py_extra_pip_args=(
+            "--no-cache-dir --no-build-isolation"
+            "--no-build-isolation"
+            "--no-cache-dir"
+            ""
+        )
+    fi
     h5py_install_func() {
         export LD_LIBRARY_PATH="${hdf5_dir}/lib:${LD_LIBRARY_PATH}"
         if [ -d "${blas_dir}/lib" ]; then
@@ -8507,15 +8725,13 @@ if [ "${h5py_install}" == "True" ] && [ "${h5py_installed}" == "False" ] \
         if [ "${use_pip_install_pypackage}" == "True" ]; then
             pip_install_pypackage "H5Py" "${h5py_version}" || return 1
         else
-            for extra_pip_arg in \
-                "--no-cache-dir                     " \
-                "--no-cache-dir --no-build-isolation" \
-                "               --no-build-isolation" \
-                "                                   " \
-            ; do
+            for extra_pip_arg in "${h5py_extra_pip_args[@]}"; do
                 "${python}" -m pip uninstall "h5py" -y >/dev/null 2>&1 || :
+                rm_gently -rf "${h5py_build_dir}" || :
+                cp_gently -r "${h5py_source_dir}" "${h5py_build_dir}"
                 "${python}" -m pip install -v ${extra_pip_arg} \
-                    --no-binary=h5py h5py=="${h5py_version}" || :
+                    --no-deps --no-binary=h5py "${h5py_build_dir}" || :
+                h5py_repair_python_sources || :
                 if [ "$(check_pypackage_installed h5py True)" == "True" ]; then
                     break
                 fi
@@ -8524,6 +8740,10 @@ if [ "${h5py_install}" == "True" ] && [ "${h5py_installed}" == "False" ] \
         if [ "$(check_pypackage_installed h5py True)" == "False" ]; then
             return 1
         fi
+        cd "${concept_dir}"
+        rm_gently -rf \
+            "${h5py_source_dir}" "${h5py_build_dir}" \
+            "${tmp_pip_dir}" "${tmp_pip_dir}_tmp" || :
     }
     install "H5Py" "no_init_install"                 \
         use_pip_install_pypackage "False" "True" ";" \
@@ -9929,6 +10149,11 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
     # compiler library directory.
     sed -i '1s/^/# cython: language_level=3\n/' "python/classy.pyx"
     sed -i 's/-O4/-O3/' "Makefile"
+    # CLASS 2.7.2 falls back to setup.py install --user when installing
+    # classy fails. That can silently write outside the dedicated Python
+    # tree, so let the attempt fail and allow the installer's retry matrix
+    # to select another local configuration instead.
+    sed -i 's/ || $(PYTHON) autosetup.py install --user//' "Makefile"
     cp "Makefile" "Makefile_ori"
     cp "python/setup.py" "python/setup.py_ori"
     class_install_func() {
@@ -9939,9 +10164,14 @@ if [ "${class_install}" == "True" ] && [ "${class_installed}" == "False" ]; then
             export LD_LIBRARY_PATH="${blas_dir}/lib:${LD_LIBRARY_PATH}"
         fi
         export PATH="${python_dir}/bin:${PATH}"
+        export PYTHONNOUSERSITE="True"
+        export PYTHONUSERBASE="${python_dir}"
         cp "Makefile_ori" "Makefile"
         cp "python/setup.py_ori" "python/setup.py"
         make clean || :
+        if [ -n "${class_cstd}" ]; then
+            sed -i "s/^\(CCFLAG *=[[:space:]]*\)/\1${class_cstd} /" "Makefile"
+        fi
         if [ "${fast_math}" == "False" ]; then
             sed -i '0,/-ffast-math/s/-ffast-math/#-ffast-math/' "Makefile"
         fi
@@ -10009,12 +10239,32 @@ sys.exit(int(cosmo.get_background()['proper time [Gyr]'][-1]) != 13)
             rm -f "${class_dir}/Makefile_ori" "${class_dir}/python/setup.py_ori" || :
         fi
     }
-    install "CLASS" "no_init_install"               \
-        gomp_in_extra_link_args "" "-gomp"      ";" \
-        hardcoded_gcc "False" "True"            ";" \
-        compiler "${compiler_possibilities[@]}" ";" \
-        OMPFLAG "-fopenmp" "-openmp" "-qopenmp" ";" \
-        fast_math "True" "False"                ";" \
+    class_cstd_possibilities=("" "-std=gnu17")
+    class_hardcoded_gcc_possibilities=("False" "True")
+    class_fast_math_possibilities=("True" "False")
+    class_compiler_possibilities=("${compiler_possibilities[@]}")
+    if [ "${gcc_defaults_to_c23}" == "True" ]; then
+        # This exact combination is known to work with CLASS 2.7.2 on
+        # modern GCC. Keep all legacy combinations as later fallbacks.
+        class_cstd_possibilities=("-std=gnu17" "")
+        class_hardcoded_gcc_possibilities=("True" "False")
+        class_fast_math_possibilities=("False" "True")
+        class_compiler_possibilities=("unset")
+        for class_compiler in "${compiler_possibilities[@]}"; do
+            if [ "${class_compiler}" != "unset" ]; then
+                class_compiler_possibilities=(
+                    "${class_compiler_possibilities[@]}" "${class_compiler}"
+                )
+            fi
+        done
+    fi
+    install "CLASS" "no_init_install"                                  \
+        class_cstd "${class_cstd_possibilities[@]}"                 ";" \
+        gomp_in_extra_link_args "" "-gomp"                          ";" \
+        hardcoded_gcc "${class_hardcoded_gcc_possibilities[@]}"     ";" \
+        compiler "${class_compiler_possibilities[@]}"               ";" \
+        OMPFLAG "-fopenmp" "-openmp" "-qopenmp"                    ";" \
+        fast_math "${class_fast_math_possibilities[@]}"             ";" \
 
 fi
 
@@ -10256,6 +10506,7 @@ if [ "${make_jobs_set_by_user}" == "False" ]; then
     make_jobs="-j 1"
 fi
 export make_jobs="${make_jobs}"
+set_compiler_compatibility_flags
 if [ "${concept_install}" == "True" ] && [ "${concept_installed}" == "False" ]; then
     if [ "${do_tests}" == "True" ]; then
         # Run basic CO𝘕CEPT test to test the environment

@@ -122,6 +122,10 @@ python_incl = $(shell $(python_config) --includes)
 includes    = $(fftw_incl) $(gsl_incl) $(mpi_incl) $(python_incl)
 # Compiler options
 CC = $(mpicc)
+# CFLAGS is passed explicitly to the compiler below. Do not also export the
+# recursively augmented value to $(shell ...) subprocesses, as GNU Make would
+# then try to expand CFLAGS again while constructing their environments.
+unexport CFLAGS
 compiler = $(shell                                           \
     info="$$($(CC) --version 2>/dev/null | head -n 1 || :)"; \
     if echo "$${info}" | grep -i icc >/dev/null; then        \
@@ -168,6 +172,7 @@ other_cflags = \
 
 # Optimization options
 no_optimizations_flag = --no-optimizations
+lto_test_max_time ?= 120
 ifneq ($(optimizations),False)
     optimizations         = True
     no_optimizations_flag =
@@ -176,11 +181,13 @@ ifneq ($(optimizations),False)
     optimization_flags_linker += -O3
     # Python/Cython optimizations
     optimization_flags += -DCYTHON_WITHOUT_ASSERTIONS
-    # Floating-point optimizations
+    # Floating-point optimizations. CO𝘕CEPT uses infinities as sentinels,
+    # so retain their semantics while enabling the remaining fast-math
+    # optimizations.
     ifeq ($(compiler),gcc)
-        optimization_flags += -ffast-math
+        optimization_flags += -ffast-math -fno-finite-math-only
     else ifeq ($(compiler),clang)
-        optimization_flags += -ffast-math
+        optimization_flags += -ffast-math -fno-finite-math-only
     else ifeq ($(compiler),icc)
         optimization_flags += -fp-model fast=2
     endif
@@ -191,12 +198,38 @@ ifneq ($(optimizations),False)
     # Link time optimizations
     ifneq ($(linktime_optimizations),False)
         check_fname = .check_lto_$(pid)
-        lto_warning = $(shell                                                    \
-            echo "int main(void){ return 0; }" > $(check_fname).c;               \
-            $(CC) -flto -c -o $(check_fname).o $(check_fname).c 2>&1 | grep lto; \
-            $(CC) $(check_fname).o -o $(check_fname) -flto      2>&1 | grep lto; \
-            ./$(check_fname) 2>/dev/null || echo "lto error";                    \
-            $(RM) $(check_fname)*;                                               \
+        lto_warning = $(shell                                                               \
+            echo "int main(void){ return 0; }" > $(check_fname).c;                          \
+            run_with_time_limit() {                                                         \
+                max_time=$$1;                                                               \
+                shift;                                                                      \
+                if command -v timeout >/dev/null 2>&1; then                                  \
+                    timeout --kill-after=2 "$${max_time}" "$${@}";                         \
+                    return;                                                                 \
+                fi;                                                                         \
+                "$${@}" & command_pid=$$!;                                                 \
+                (                                                                           \
+                    sleep $(lto_test_max_time);                                              \
+                    kill $${command_pid} >/dev/null 2>&1 || :;                               \
+                    sleep 2;                                                                \
+                    kill -9 $${command_pid} >/dev/null 2>&1 || :;                            \
+                ) & watchdog_pid=$$!;                                                        \
+                command_status=0;                                                           \
+                wait $${command_pid} || command_status=$$?;                                  \
+                kill $${watchdog_pid} >/dev/null 2>&1 || :;                                  \
+                wait $${watchdog_pid} >/dev/null 2>&1 || :;                                  \
+                return $${command_status};                                                   \
+            };                                                                              \
+            run_with_time_limit $(lto_test_max_time)                                         \
+                $(CC) -flto -c -o $(check_fname).o $(check_fname).c                          \
+                > $(check_fname).compile.log 2>&1 || echo "lto error";                       \
+            grep -i lto $(check_fname).compile.log 2>/dev/null;                              \
+            run_with_time_limit $(lto_test_max_time)                                         \
+                $(CC) $(check_fname).o -o $(check_fname) -flto                               \
+                > $(check_fname).link.log 2>&1 || echo "lto error";                          \
+            grep -i lto $(check_fname).link.log 2>/dev/null;                                 \
+            ./$(check_fname) 2>/dev/null || echo "lto error";                               \
+            $(RM) $(check_fname)*;                                                          \
         )
         ifeq ("$(lto_warning)","")
             optimization_flags        += -flto
@@ -368,4 +401,3 @@ clean-build:
 	$(RM) -r $(foreach ext,pyc pyx pxd c html o so so_,\
 	    $(addsuffix .$(ext), $(pyfiles))) $(types) __pycache__
 .PHONY: clean-build
-
