@@ -510,7 +510,8 @@ def get_matplotlib():
     if matplotlib_cache:
         return matplotlib_cache[0]
     # Use a Matplotlib back-end that does not require a running X-server
-    import matplotlib
+    with warnings.catch_warnings(action='ignore', category=DeprecationWarning):
+        import matplotlib
     matplotlib.use('agg')
     # Now import the pyplot interface
     with warnings.catch_warnings(action='ignore', category=DeprecationWarning):
@@ -539,7 +540,8 @@ def get_matplotlib():
     # tight_layout() and savefig().
     # The bug is reported here:
     #   https://github.com/matplotlib/matplotlib/issues/10029
-    import matplotlib.mathtext
+    with warnings.catch_warnings(action='ignore', category=DeprecationWarning):
+        import matplotlib.mathtext
     def fix_minor_tick_labels(fig=None):
         if fig is None:
             fig = plt.gcf()
