@@ -2943,7 +2943,7 @@ if user_params.get('select_particle_id'):
         replace_ellipsis(select_particle_id)
     else:
         select_particle_id = {'all': user_params['select_particle_id']}
-select_particle_id.setdefault('default', False)
+select_particle_id.setdefault('default', True)
 user_params['select_particle_id'] = select_particle_id
 class_plot_perturbations = bool(user_params.get('class_plot_perturbations', False))
 user_params['class_plot_perturbations'] = class_plot_perturbations
